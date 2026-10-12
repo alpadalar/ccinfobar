@@ -63,7 +63,6 @@ export function cockpitConfig(): Config {
 
 // boxed overview like yet-another-statusline
 export function dashboardConfig(): Config {
-  const all = (name: string) => `${name} ${name} ${name} ${name} ${name}`;
   return {
     ...defaultConfig(),
     theme: 'panel',
@@ -75,32 +74,6 @@ export function dashboardConfig(): Config {
       padding: 1,
       maxWidth: 140,
       title: { left: '{sid.value}', right: '{model}{effort}' },
-      templates: {
-        where: { items: ['{cwd}', '{git-branch}', '{git-changes}'], gap: 1 },
-        io: { items: ['{tokens-input}', '{tokens-output}'], gap: 2 },
-      },
-      breakpoints: [
-        {
-          minWidth: 110,
-          areas: [
-            'where ctx h5 d7 cache',
-            all('bar'),
-            '---',
-            'io cost rate rate rate',
-            '---',
-            all('skills'),
-            all('todo'),
-            '---',
-            all('agents'),
-          ],
-          columns: ['auto', 'auto', 'auto', 'auto', '1fr'],
-        },
-        {
-          minWidth: 0,
-          areas: ['where where', 'ctx h5', 'bar bar', 'io cost', 'rate rate', 'todo todo', 'agents agents'],
-          columns: ['auto', '1fr'],
-        },
-      ],
     },
     lines: [
       [
@@ -109,8 +82,8 @@ export function dashboardConfig(): Config {
         w('effort', 'effort', { label: ' ', color: 'black', background: 'yellow', hideEmpty: true }),
       ],
       [
-        w('cwd', 'cwd', { raw: true, options: { style: 'tilde' } }),
-        w('git-branch', 'git-branch', { raw: true }),
+        w('cwd', 'cwd', { raw: true, merge: true, options: { style: 'tilde' } }),
+        w('git-branch', 'git-branch', { raw: true, merge: true }),
         w('git-changes', 'git-changes', { raw: true }),
         w('ctx', 'context-percentage', {}),
         w('h5', 'five-hour-usage', { options: { showPace: true } }),
@@ -119,7 +92,7 @@ export function dashboardConfig(): Config {
       ],
       [w('bar', 'context-bar', { options: { fill: true, width: 10 } })],
       [
-        w('tokens-input', 'tokens-input', {}),
+        w('tokens-input', 'tokens-input', { merge: true }),
         w('tokens-output', 'tokens-output', {}),
         w('cost', 'session-cost', {}),
         w('rate', 'token-rate-graph', { options: { fill: true } }),

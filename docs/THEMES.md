@@ -69,7 +69,15 @@ The `tui` style (theme `panel`, or `"style": "tui"` with any theme) draws a box 
 ╰──────────────────────────────────────────────────────────╯
 ```
 
-Without further settings each config line becomes a row. Configure it under `tui`:
+Without breakpoints each config line becomes a row and each widget a cell, so moving widgets in the editor moves them in the panel:
+
+- Widgets joined with **merge** share a cell, separated by a space.
+- Rows with the same number of cells line up as columns.
+- Bars and graphs with **Fill the cell** take the free width of their row; otherwise the last cell does.
+- Cells that do not fit move to a new row.
+- Widgets shown in a custom title or footer (`{model}`) are not repeated in the rows, so a line can hold widgets only for the title.
+
+Configure it under `tui`:
 
 | Field | Default | Description |
 | --- | --- | --- |

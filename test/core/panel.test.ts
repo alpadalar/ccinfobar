@@ -69,8 +69,8 @@ describe('panel style', () => {
       footer: { right: '{gamma}' },
     });
     expect(out[0]).toBe(`╔─ T ${'═'.repeat(34)}╗`.replace('╔─', '╔═'));
-    expect(out).toHaveLength(4);
-    expect(out[3]!.endsWith(' gamma ═╝')).toBe(true);
+    expect(out).toHaveLength(3);
+    expect(out[2]!.endsWith(' gamma ═╝')).toBe(true);
     const ascii = render(
       ctxWith({
         width: 30,
@@ -79,6 +79,24 @@ describe('panel style', () => {
     ).map(stripAnsi);
     expect(ascii[0]!.startsWith('+-')).toBe(true);
     expect(ascii[1]!.startsWith('| x')).toBe(true);
+  });
+
+  it('draws config lines as table rows', () => {
+    const lines = [
+      [{ ...text('a'), merge: true }, text('b'), text('ccc')],
+      [text('dddd'), text('e')],
+      [text('f'), text('g'), text('h')],
+    ];
+    const out = panel({ columnGap: ' | ', dividers: false, title: { right: false } }, 30, lines);
+    expect(out.slice(1, 4)).toEqual([
+      '│ a b  | ccc                   │',
+      '│ dddd | e                     │',
+      '│ f | g | h                    │',
+    ]);
+    const narrow = panel({ columnGap: ' | ', minWidth: 10, title: { right: false } }, 14, [
+      [text('alpha'), text('beta'), text('gamma')],
+    ]);
+    expect(narrow.slice(1, 3)).toEqual(['│ alpha | beta     │', '│ gamma            │']);
   });
 
   it('fits content when asked', () => {

@@ -161,6 +161,80 @@ export function sizeColumns(
   return widths;
 }
 
+function tokenNames(texts: (string | undefined)[]): Set<string> {
+  const out = new Set<string>();
+  for (const t of texts) {
+    for (const m of (t ?? '').matchAll(/\{([a-z0-9._-]+)\}/gi))
+      out.add(m[1]!.replace(/\.(label|value)$/, ''));
+  }
+  return out;
+}
+
+// move cells that do not fit to a new row
+function wrapRows(rows: Row[], widthOf: (name: string) => number, inner: number, gap: number): Row[] {
+  const out: Row[] = [];
+  for (const r of rows) {
+    if (r.divider) {
+      out.push(r);
+      continue;
+    }
+    let cur: Row & { divider: false } = { divider: false, cells: [] };
+    let used = 0;
+    for (const c of r.cells) {
+      const w = widthOf(c.name);
+      if (cur.cells.length && used + gap + w > inner) {
+        out.push(cur);
+        cur = { divider: false, cells: [] };
+        used = 0;
+      }
+      used += (cur.cells.length ? gap : 0) + w;
+      cur.cells.push(c);
+    }
+    out.push(cur);
+  }
+  return out;
+}
+
+// align columns of neighbouring rows with the same cell count, give the rest to fill cells
+function sizeLineRows(
+  rows: Row[],
+  out: Map<Row, number[]>,
+  widthOf: (name: string) => number,
+  fills: (name: string) => boolean,
+  inner: number,
+  gap: number,
+): void {
+  const content = rows.filter((r): r is Row & { divider: false } => !r.divider);
+  const natural = content.map((r) => r.cells.map((c) => widthOf(c.name)));
+  const sum = (ws: number[]) => ws.reduce((a, b) => a + b, 0) + gap * (ws.length - 1);
+  let i = 0;
+  while (i < content.length) {
+    const n = content[i]!.cells.length;
+    let j = i + 1;
+    while (j < content.length && content[j]!.cells.length === n) j++;
+    if (n > 1 && j - i > 1) {
+      const max = natural[i]!.map((_, k) => Math.max(...natural.slice(i, j).map((ws) => ws[k]!)));
+      if (sum(max) <= inner) for (let k = i; k < j; k++) natural[k] = [...max];
+    }
+    i = j;
+  }
+  content.forEach((r, k) => {
+    const ws = natural[k]!;
+    const free = inner - sum(ws);
+    const grow = r.cells.map((c, x) => (fills(c.name) ? x : -1)).filter((x) => x >= 0);
+    const take = grow.length ? grow : [ws.length - 1];
+    if (free > 0) {
+      take.forEach((x, t) => {
+        ws[x]! += Math.floor(free / take.length) + (t < free % take.length ? 1 : 0);
+      });
+    } else if (free < 0) {
+      const widest = ws.indexOf(Math.max(...ws));
+      ws[widest] = Math.max(4, ws[widest]! + free);
+    }
+    out.set(r, ws);
+  });
+}
+
 export function renderPanel(
   ctx: RenderContext,
   a: Appearance,
@@ -182,6 +256,7 @@ export function renderPanel(
 
   const cells = new Map<string, Cell>();
   const sources = new Map<string, { item: WidgetItem; index: number }>();
+  const own = new Map<WidgetItem, Cell>();
   const hidden = new Set<string>();
   let index = 0;
   for (const line of ctx.config.lines) {
@@ -192,6 +267,7 @@ export function renderPanel(
         hidden.add(item.id).add(item.type);
         continue;
       }
+      own.set(item, c);
       for (const key of [item.id, item.type]) {
         if (!cells.has(key)) {
           cells.set(key, c);
@@ -258,34 +334,54 @@ export function renderPanel(
   const maxW = Math.min(tui.maxWidth ?? Number.POSITIVE_INFINITY, maxWidth ?? Number.POSITIVE_INFINITY);
   const target = Number.isFinite(maxW) ? Math.max(minW, maxW) : null;
 
+  const titleRight = tui.title?.right === false ? undefined : (tui.title?.right ?? DEFAULT_RIGHT);
+  const titleLeft = tui.title?.left ?? DEFAULT_TITLE;
   let rows: Row[];
   let specs: string[];
   let align: TuiBreakpoint['align'] = [];
   const bp = tui.breakpoints?.length
     ? pickBreakpoint(tui.breakpoints, target ?? Number.POSITIVE_INFINITY)
     : null;
+  const byLine = !bp;
   if (bp) {
     rows = bp.areas.map(parseArea);
     const n = Math.max(1, ...rows.map((r) => (r.divider ? 0 : r.cells.reduce((s, c) => s + c.span, 0))));
     specs = Array.from({ length: n }, (_, i) => bp.columns?.[i] ?? (i === n - 1 ? '1fr' : 'auto'));
     align = bp.align ?? [];
   } else {
+    // one cell per widget, merged widgets share a cell
     const dividers = tui.dividers ?? true;
+    // widgets placed in a custom title or footer are not repeated
+    const shown = tokenNames([
+      tui.title?.left,
+      tui.title?.right || undefined,
+      tui.footer?.left,
+      tui.footer?.right,
+    ]);
     rows = [];
     ctx.config.lines.forEach((line, li) => {
-      let text = '';
-      let glue = '';
+      const names: string[] = [];
+      let run: { item: WidgetItem; text: string }[] = [];
+      const flush = () => {
+        if (run.length === 1 && sources.get(run[0]!.item.id)?.item === run[0]!.item) {
+          names.push(run[0]!.item.id);
+        } else if (run.length) {
+          const name = `__l${li}c${names.length}`;
+          const text = run.map((r) => r.text).join(' ');
+          cells.set(name, { text, label: '', value: text });
+          names.push(name);
+        }
+        run = [];
+      };
       for (const it of line) {
-        const t = cells.get(it.id)?.text;
-        if (!t) continue;
-        text += glue + t;
-        glue = it.merge ? '' : gap;
+        const t = shown.has(it.id) || shown.has(it.type) ? '' : own.get(it)?.text;
+        if (t) run.push({ item: it, text: t });
+        if (!it.merge) flush();
       }
-      if (!text) return;
-      const name = `__line${li}`;
-      cells.set(name, { text, label: '', value: '' });
+      flush();
+      if (!names.length) return;
       if (rows.length && dividers) rows.push({ divider: true });
-      rows.push({ divider: false, cells: [{ name, span: 1 }] });
+      rows.push({ divider: false, cells: names.map((name) => ({ name, span: 1 })) });
     });
     specs = ['1fr'];
   }
@@ -293,7 +389,9 @@ export function renderPanel(
   if (!rows.length) return [];
 
   const contentWidth = (widths: number[]) => widths.reduce((s, w) => s + w, 0) + gapW * (widths.length - 1);
-  const natural = sizeColumns(specs, rows, widthOf, null, gapW);
+  const natural = byLine
+    ? [Math.max(0, ...rows.map((r) => (r.divider ? 0 : contentWidth(r.cells.map((c) => widthOf(c.name))))))]
+    : sizeColumns(specs, rows, widthOf, null, gapW);
   let inner: number;
   if (fit) {
     inner = Math.max(minW - 2 - padding * 2, contentWidth(natural));
@@ -302,7 +400,19 @@ export function renderPanel(
     inner = (target ?? minW) - 2 - padding * 2;
   }
   inner = Math.max(4, inner);
-  const widths = sizeColumns(specs, rows, widthOf, inner, gapW);
+  const widths = byLine ? [inner] : sizeColumns(specs, rows, widthOf, inner, gapW);
+  const rowWidths = new Map<Row, number[]>();
+  if (byLine) {
+    rows = wrapRows(rows, widthOf, inner, gapW);
+    sizeLineRows(
+      rows,
+      rowWidths,
+      widthOf,
+      (name) => !!sources.get(name) && !!deps.fill?.(sources.get(name)!.item),
+      inner,
+      gapW,
+    );
+  }
   const total = inner + padding * 2;
   const side = ' '.repeat(padding);
 
@@ -323,8 +433,7 @@ export function renderPanel(
     );
   };
 
-  const titleRight = tui.title?.right === false ? undefined : (tui.title?.right ?? DEFAULT_RIGHT);
-  const out = [edge(b.topLeft, b.topRight, tui.title?.left ?? DEFAULT_TITLE, titleRight)];
+  const out = [edge(b.topLeft, b.topRight, titleLeft, titleRight)];
   for (const r of rows) {
     if (r.divider) {
       const ch = tui.divider ?? b.horizontal;
@@ -332,15 +441,16 @@ export function renderPanel(
       continue;
     }
     let col = 0;
+    const ws = rowWidths.get(r) ?? widths;
     const columns: { lines: string[]; w: number; align: 'left' | 'center' | 'right' }[] = [];
     for (const c of r.cells) {
-      const end = Math.min(widths.length, col + c.span);
-      const w = widths.slice(col, end).reduce((a2, b2) => a2 + b2, 0) + gapW * (end - col - 1);
+      const end = Math.min(ws.length, col + c.span);
+      const w = ws.slice(col, end).reduce((a2, b2) => a2 + b2, 0) + gapW * (end - col - 1);
       const text = c.name === '.' ? '' : cellText(c.name, w);
       columns.push({ lines: splitAnsiLines(text), w, align: align?.[col] ?? 'left' });
       col = end;
     }
-    while (col < widths.length) columns.push({ lines: [''], w: widths[col++]!, align: 'left' });
+    while (col < ws.length) columns.push({ lines: [''], w: ws[col++]!, align: 'left' });
     const height = Math.max(1, ...columns.map((c) => c.lines.length));
     for (let k = 0; k < height; k++) {
       const parts = columns.map((c) => pad(c.lines[k] ?? '', c.w, c.align));
