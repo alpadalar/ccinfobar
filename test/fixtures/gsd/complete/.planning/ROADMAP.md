@@ -1,0 +1,2 @@
+- [x] **Phase 1: Core** - a
+- [x] **Phase 2: Polish** - b

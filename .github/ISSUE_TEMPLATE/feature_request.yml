@@ -1,0 +1,20 @@
+name: Feature or widget request
+description: Suggest a new widget or improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to see
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Where does the data come from
+      description: Claude Code stdin field, transcript, git, a GSD file, an external command...
+  - type: textarea
+    id: example
+    attributes:
+      label: Example output
+      render: text

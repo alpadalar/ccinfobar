@@ -1,0 +1,243 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/alpadalar/ccinfobar/main/schema/config.schema.json",
+  "title": "ccinfobar config",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "lines": {
+      "type": "array",
+      "description": "Status lines, top to bottom",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "model",
+                "effort",
+                "thinking",
+                "fast-mode",
+                "output-style",
+                "session-name",
+                "session-id",
+                "claude-version",
+                "vim-mode",
+                "agent-name",
+                "context-percentage",
+                "context-bar",
+                "context-length",
+                "context-window-size",
+                "compactions",
+                "tokens-input",
+                "tokens-output",
+                "tokens-cached",
+                "tokens-total",
+                "cache-hit-rate",
+                "cache-timer",
+                "cache-miss-cause",
+                "output-speed",
+                "session-cost",
+                "cost-rate",
+                "session-duration",
+                "api-duration",
+                "lines-changed",
+                "message-count",
+                "five-hour-usage",
+                "five-hour-reset",
+                "weekly-usage",
+                "weekly-reset",
+                "weekly-sonnet-usage",
+                "weekly-opus-usage",
+                "spend-limit",
+                "usage-pace",
+                "gsd-milestone",
+                "gsd-milestone-progress",
+                "gsd-phase",
+                "gsd-status",
+                "gsd-plans",
+                "gsd-plan-progress",
+                "gsd-next",
+                "gsd-workstream",
+                "gsd-blockers",
+                "gsd-todos",
+                "gsd-requirements",
+                "gsd-last-command",
+                "gsd-update",
+                "gsd-task",
+                "gsd-summary",
+                "git-branch",
+                "git-sha",
+                "git-changes",
+                "git-status",
+                "git-staged",
+                "git-unstaged",
+                "git-untracked",
+                "git-ahead-behind",
+                "git-conflicts",
+                "git-stash",
+                "git-operation",
+                "git-repo",
+                "git-worktree",
+                "pr",
+                "cwd",
+                "project-dir",
+                "clock",
+                "date",
+                "hostname",
+                "username",
+                "memory",
+                "load-average",
+                "terminal-width",
+                "platform",
+                "command",
+                "link",
+                "env",
+                "text",
+                "separator",
+                "flex"
+              ]
+            },
+            "color": {
+              "type": "string",
+              "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+            },
+            "background": {
+              "type": "string",
+              "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+            },
+            "bold": {
+              "type": "boolean"
+            },
+            "dim": {
+              "type": "boolean"
+            },
+            "italic": {
+              "type": "boolean"
+            },
+            "label": {
+              "type": "string",
+              "description": "Replaces the default label"
+            },
+            "raw": {
+              "type": "boolean",
+              "description": "Show only the value"
+            },
+            "merge": {
+              "type": "boolean",
+              "description": "Join with the next widget without a separator"
+            },
+            "options": {
+              "type": "object",
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "separator": {
+      "type": "string",
+      "default": " │ "
+    },
+    "separatorColor": {
+      "type": "string",
+      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+    },
+    "padding": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4,
+      "default": 1
+    },
+    "colorLevel": {
+      "enum": [
+        "auto",
+        0,
+        1,
+        2,
+        3
+      ],
+      "default": "auto"
+    },
+    "icons": {
+      "enum": [
+        "nerd",
+        "emoji",
+        "text",
+        "none"
+      ],
+      "default": "text"
+    },
+    "maxWidth": {
+      "anyOf": [
+        {
+          "const": "auto"
+        },
+        {
+          "type": "integer",
+          "minimum": 1
+        }
+      ],
+      "default": "auto"
+    },
+    "widthOffset": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 4
+    },
+    "savePayload": {
+      "type": "boolean",
+      "default": true
+    },
+    "powerline": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "separator": {
+          "type": "string"
+        },
+        "startCap": {
+          "type": "string"
+        },
+        "endCap": {
+          "type": "string"
+        },
+        "theme": {
+          "enum": [
+            "default",
+            "nord",
+            "dracula",
+            "gruvbox",
+            "tokyo-night",
+            "catppuccin",
+            "solarized",
+            "monochrome"
+          ],
+          "default": "default"
+        }
+      }
+    }
+  }
+}

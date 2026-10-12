@@ -31,10 +31,14 @@ async function buildEditorHtml() {
 }
 
 async function build() {
+  fs.rmSync(path.join(root, 'dist'), { recursive: true, force: true });
   const editorHtml = await buildEditorHtml();
   await esbuild.build({
     entryPoints: [path.join(root, 'src/bin.ts')],
-    outfile: path.join(root, 'dist/ccinfobar.js'),
+    outdir: path.join(root, 'dist'),
+    entryNames: 'ccinfobar',
+    chunkNames: 'chunks/[name]-[hash]',
+    splitting: true,
     bundle: true,
     platform: 'node',
     format: 'esm',
@@ -50,7 +54,22 @@ async function build() {
   console.log(`built dist/ccinfobar.js v${pkg.version}${editorHtml ? ' with editor' : ''}`);
 }
 
-await build();
+async function docs() {
+  const out = path.join(root, 'node_modules/.cache/ccinfobar-gen-docs.mjs');
+  await esbuild.build({
+    entryPoints: [path.join(root, 'scripts/gen-docs.ts')],
+    outfile: out,
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node20',
+  });
+  process.argv[2] = root;
+  await import(`${out}?t=${Date.now()}`);
+}
+
+if (process.argv.includes('--docs')) await docs();
+else await build();
 
 if (watch) {
   console.log('watching src/ ...');

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>ccinfobar editor</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23131316'/%3E%3Crect x='6' y='9' width='20' height='3.5' rx='1.75' fill='%23e8895a'/%3E%3Crect x='6' y='14.5' width='13' height='3.5' rx='1.75' fill='%23e8895a' opacity='.7'/%3E%3Crect x='6' y='20' width='17' height='3.5' rx='1.75' fill='%23e8895a' opacity='.45'/%3E%3C/svg%3E">
+<!--STYLE-->
+</head>
+<body>
+<div id="boot" class="boot"><div class="spinner"></div></div>
+<div id="app" class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="brand-name">ccinfobar</span>
+      <span class="brand-version" id="version"></span>
+    </div>
+    <div class="sep"></div>
+    <label class="select-wrap">
+      <span class="visually-hidden">Preset</span>
+      <select id="preset" class="input select-compact" aria-label="Apply preset"></select>
+    </label>
+    <div class="btn-group">
+      <button id="undo" class="btn ghost" type="button" title="Undo (Ctrl+Z)"><span class="visually-hidden">Undo</span></button>
+      <button id="redo" class="btn ghost" type="button" title="Redo (Ctrl+Shift+Z)"><span class="visually-hidden">Redo</span></button>
+    </div>
+    <div class="btn-group">
+      <button id="import" class="btn ghost" type="button" title="Import JSON"><span class="btn-text">Import</span></button>
+      <button id="export" class="btn ghost" type="button" title="Export JSON"><span class="btn-text">Export</span></button>
+    </div>
+    <div class="spacer"></div>
+    <div id="dirty" class="dirty"><i></i><span>All changes saved</span></div>
+    <button id="save" class="btn primary" type="button" title="Save (Ctrl+S)"><span>Save</span></button>
+    <button id="install" class="btn install" type="button"><i class="status-dot"></i><span class="install-label">Install in Claude Code</span></button>
+    <button id="done" class="btn" type="button">Done</button>
+  </header>
+
+  <aside class="side palette" aria-label="Widget palette">
+    <div class="side-head">
+      <h2>Widgets</h2>
+      <label class="search"><span id="search-icon"></span><input id="search" class="input" type="search" placeholder="Search widgets" autocomplete="off" spellcheck="false"></label>
+    </div>
+    <div id="palette-list" class="side-scroll"></div>
+  </aside>
+
+  <main class="center">
+    <section class="panel preview" aria-label="Live preview">
+      <div class="panel-head">
+        <h2>Preview</h2>
+        <div class="preview-controls">
+          <div class="segmented" role="group" aria-label="Preview data">
+            <button id="src-sample" type="button" class="on">Sample data</button>
+            <button id="src-last" type="button">Last session</button>
+          </div>
+          <label class="slider"><span class="visually-hidden">Terminal width</span>
+            <input id="width" type="range" min="40" max="240" step="1" value="120">
+            <output id="width-value">120 cols</output>
+          </label>
+        </div>
+      </div>
+      <div class="term-scroll">
+        <div class="term" id="term-screen">
+          <div class="term-bar"><i></i><i></i><i></i><span>claude</span></div>
+          <div class="term-body">
+            <div class="term-prompt"><span class="term-caret">&gt;</span> <span class="term-muted">Ask Claude to build something</span></div>
+            <div id="term-lines" class="term-lines" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel canvas-panel" aria-label="Status line canvas">
+      <div class="panel-head">
+        <h2>Lines</h2>
+        <span class="panel-note">Drag widgets to arrange. Alt + arrow keys move the selected chip.</span>
+        <div id="trash" class="trash" title="Drop a widget here to remove it"><span>Drop to remove</span></div>
+      </div>
+      <div id="canvas" class="canvas"></div>
+      <button id="add-line" class="add-line" type="button"><span>Add line</span></button>
+      <div class="config-path">Editing <code id="config-path"></code></div>
+    </section>
+  </main>
+
+  <aside class="side inspector" aria-label="Inspector">
+    <div id="inspector-tabs" class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="widget" class="on">Widget</button>
+      <button type="button" role="tab" data-tab="global">Global</button>
+    </div>
+    <div id="inspector-body" class="side-scroll"></div>
+  </aside>
+</div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<!--SCRIPT-->
+</body>
+</html>

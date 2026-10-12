@@ -1,0 +1,641 @@
+import { addLine, moveItem, moveLine, removeItem, uniqueId, insertItem } from '../../core/edit.js';
+import { api, setToken } from './api.js';
+import { ansiToHtml, escapeHtml } from './ansi-html.js';
+import { colorToCss } from './colors.js';
+import { type DragSpec, type DropTarget, press } from './dnd.js';
+import { clear, h, icon } from './dom.js';
+import { initInspector, renderInspector } from './inspector.js';
+import {
+  commit,
+  emit,
+  init,
+  isDirty,
+  markSaved,
+  on,
+  redo,
+  replaceAll,
+  S,
+  select,
+  undo,
+  type WidgetInfo,
+} from './store.js';
+import { confirmDialog, modal, toast } from './ui.js';
+
+const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+
+let pendingFocus: string | null = null;
+
+function widgetColor(type: string, color?: string): string | null {
+  return colorToCss(color ?? S.widgetMap.get(type)?.color);
+}
+
+function addWidget(type: string, line: number, index: number): void {
+  const id = uniqueId(S.config, type);
+  commit(insertItem(S.config, { type }, { line, index }));
+  pendingFocus = null;
+  select(id, Math.min(line, S.config.lines.length - 1));
+}
+
+function handleDrop(spec: DragSpec, target: DropTarget): void {
+  if (spec.kind === 'palette') {
+    if (target.kind === 'slot') addWidget(spec.type, target.line, target.index);
+    else if (target.kind === 'newline') {
+      commit(addLine(S.config));
+      addWidget(spec.type, S.config.lines.length - 1, 0);
+    }
+    return;
+  }
+  if (spec.kind === 'chip') {
+    if (target.kind === 'trash') {
+      commit(removeItem(S.config, spec.id), { select: null });
+    } else if (target.kind === 'slot') {
+      commit(moveItem(S.config, spec.id, { line: target.line, index: target.index }));
+      select(spec.id);
+    } else if (target.kind === 'newline') {
+      commit(moveItem(addLine(S.config), spec.id, { line: S.config.lines.length, index: 0 }));
+      select(spec.id);
+    }
+    return;
+  }
+  if (target.kind === 'rowslot') {
+    const to = target.slot > spec.line ? target.slot - 1 : target.slot;
+    commit(moveLine(S.config, spec.line, to));
+    select(null, to);
+  }
+}
+
+function renderChip(id: string, line: number, index: number): HTMLElement {
+  const item = S.config.lines[line]![index]!;
+  const info = S.widgetMap.get(item.type);
+  const color = widgetColor(item.type, item.color);
+  const name = info?.name ?? item.type;
+  const chip = h(
+    'div',
+    {
+      class: `chip${item.id === S.selectedId ? ' selected' : ''}${item.merge ? ' merged' : ''}${info ? '' : ' unknown'}`,
+      tabindex: 0,
+      role: 'button',
+      'aria-pressed': String(item.id === S.selectedId),
+      'aria-label': `${name}, line ${line + 1}, position ${index + 1}`,
+      'data-id': id,
+      title: info ? `${info.description}${info.sample ? `\nSample: ${info.sample}` : ''}` : item.type,
+    },
+    h('i', { class: 'dot', style: color ? `--c:${color}` : '' }),
+    h('span', { class: 'chip-name' }, name),
+    item.merge ? h('span', { class: 'chip-link', title: 'Merged with next' }, icon('link', 12)) : null,
+  );
+  chip.addEventListener('pointerdown', (e) =>
+    press(e, { kind: 'chip', id, label: name, color }, { click: () => select(id, line), drop: handleDrop }),
+  );
+  chip.addEventListener('keydown', (e) => chipKey(e, id));
+  return chip;
+}
+
+function chipKey(e: KeyboardEvent, id: string): void {
+  const lines = S.config.lines;
+  const line = lines.findIndex((l) => l.some((i) => i.id === id));
+  if (line < 0) return;
+  const index = lines[line]!.findIndex((i) => i.id === id);
+  const len = lines[line]!.length;
+  if (e.altKey && e.key.startsWith('Arrow')) {
+    e.preventDefault();
+    pendingFocus = id;
+    if (e.key === 'ArrowLeft' && index > 0) commit(moveItem(S.config, id, { line, index: index - 1 }));
+    else if (e.key === 'ArrowRight' && index < len - 1)
+      commit(moveItem(S.config, id, { line, index: index + 2 }));
+    else if (e.key === 'ArrowUp' && line > 0)
+      commit(moveItem(S.config, id, { line: line - 1, index: Math.min(index, lines[line - 1]!.length) }));
+    else if (e.key === 'ArrowDown' && line < lines.length - 1)
+      commit(moveItem(S.config, id, { line: line + 1, index: Math.min(index, lines[line + 1]!.length) }));
+    select(id);
+    return;
+  }
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    select(id, line);
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    const chips = [...document.querySelectorAll<HTMLElement>(`#canvas .line[data-line="${line}"] .chip`)];
+    chips[index + (e.key === 'ArrowLeft' ? -1 : 1)]?.focus();
+    e.preventDefault();
+  } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    const other = line + (e.key === 'ArrowUp' ? -1 : 1);
+    const chips = document.querySelectorAll<HTMLElement>(`#canvas .line[data-line="${other}"] .chip`);
+    (chips[Math.min(index, chips.length - 1)] ?? null)?.focus();
+    e.preventDefault();
+  }
+}
+
+function removeSelected(): void {
+  const id = S.selectedId;
+  if (!id) return;
+  const lines = S.config.lines;
+  const line = lines.findIndex((l) => l.some((i) => i.id === id));
+  const row = lines[line] ?? [];
+  const idx = row.findIndex((i) => i.id === id);
+  const neighbor = row[idx + 1] ?? row[idx - 1];
+  commit(removeItem(S.config, id), { select: neighbor?.id ?? null });
+  if (neighbor) {
+    pendingFocus = neighbor.id;
+    renderCanvas();
+  }
+}
+
+function renderCanvas(): void {
+  const canvas = $('canvas');
+  clear(canvas);
+  const lines = S.config.lines;
+  lines.forEach((items, li) => {
+    const grip = h(
+      'div',
+      { class: 'grip', title: 'Drag to reorder line', 'aria-label': `Reorder line ${li + 1}` },
+      icon('grip', 14),
+    );
+    grip.addEventListener('pointerdown', (e) =>
+      press(e, { kind: 'row', line: li, label: `Line ${li + 1}` }, { drop: handleDrop }),
+    );
+    const row = h(
+      'div',
+      { class: `line${li === S.selectedLine ? ' selected' : ''}`, 'data-line': String(li) },
+      h(
+        'div',
+        { class: 'line-head' },
+        grip,
+        h('span', { class: 'line-title' }, `Line ${li + 1}`),
+        h('span', { class: 'line-count' }, items.length === 1 ? '1 widget' : `${items.length} widgets`),
+        h(
+          'button',
+          {
+            class: 'icon-btn danger sm',
+            type: 'button',
+            title: 'Delete line',
+            'aria-label': `Delete line ${li + 1}`,
+            onClick: (e: Event) => {
+              e.stopPropagation();
+              commit({ ...S.config, lines: S.config.lines.filter((_, i) => i !== li) });
+            },
+          },
+          icon('trash', 14),
+        ),
+      ),
+      h(
+        'div',
+        { class: 'line-items' },
+        ...(items.length
+          ? items.map((it, i) => renderChip(it.id, li, i))
+          : [h('div', { class: 'line-empty' }, 'Drag widgets here, or press + in the palette')]),
+      ),
+    );
+    row.addEventListener('pointerdown', (e) => {
+      if ((e.target as HTMLElement).closest('.chip, .grip, button')) return;
+      select(null, li);
+    });
+    canvas.append(row);
+  });
+  if (!lines.length) {
+    canvas.append(h('div', { class: 'canvas-empty' }, 'No lines yet. Add one to get started.'));
+  }
+  if (pendingFocus) {
+    const el = canvas.querySelector<HTMLElement>(`.chip[data-id="${CSS.escape(pendingFocus)}"]`);
+    el?.focus();
+    pendingFocus = null;
+  }
+}
+
+function renderPalette(): void {
+  const host = $('palette-list');
+  clear(host);
+  const q = S.search.trim().toLowerCase();
+  const matches = (w: WidgetInfo, catName: string) =>
+    !q ||
+    w.name.toLowerCase().includes(q) ||
+    w.type.toLowerCase().includes(q) ||
+    w.description.toLowerCase().includes(q) ||
+    catName.toLowerCase().includes(q);
+  let shown = 0;
+  for (const cat of S.api.categories) {
+    const list = S.api.widgets.filter((w) => w.category === cat.id && matches(w, cat.name));
+    if (!list.length) continue;
+    shown += list.length;
+    const open = q ? true : !S.collapsed.has(cat.id);
+    const gsd = cat.id === 'gsd';
+    const head = h(
+      'button',
+      {
+        type: 'button',
+        class: 'cat-head',
+        'aria-expanded': String(open),
+        onClick: () => {
+          if (S.collapsed.has(cat.id)) S.collapsed.delete(cat.id);
+          else S.collapsed.add(cat.id);
+          renderPalette();
+        },
+      },
+      h('span', { class: `chev${open ? ' open' : ''}` }, icon('chevron', 14)),
+      h('span', { class: 'cat-name' }, cat.name),
+      gsd ? h('span', { class: 'cat-badge' }, icon('star', 11), 'Headline') : null,
+      h('span', { class: 'cat-count' }, String(list.length)),
+    );
+    const section = h('section', { class: `cat${gsd ? ' cat-gsd' : ''}${open ? ' open' : ''}` }, head);
+    if (open) {
+      const cards = h('div', { class: 'cards' });
+      for (const w of list) cards.append(paletteCard(w));
+      section.append(cards);
+    }
+    host.append(section);
+  }
+  if (!shown) host.append(h('div', { class: 'empty-state small' }, `No widgets match "${S.search}"`));
+}
+
+function paletteCard(w: WidgetInfo): HTMLElement {
+  const color = colorToCss(w.color);
+  const card = h(
+    'div',
+    { class: 'card', title: w.description, 'data-type': w.type },
+    h('i', { class: 'dot', style: color ? `--c:${color}` : '' }),
+    h(
+      'div',
+      { class: 'card-body' },
+      h('div', { class: 'card-name' }, w.name),
+      h('div', { class: 'card-desc' }, w.description),
+      w.sample ? h('div', { class: 'card-sample' }, w.sample) : null,
+    ),
+    h(
+      'button',
+      {
+        class: 'add-btn',
+        type: 'button',
+        title: 'Add to selected line',
+        'aria-label': `Add ${w.name} to selected line`,
+        onPointerdown: (e: Event) => e.stopPropagation(),
+        onClick: () => {
+          const line = Math.max(0, Math.min(S.selectedLine, S.config.lines.length - 1));
+          addWidget(w.type, line, S.config.lines[line]?.length ?? 0);
+        },
+      },
+      icon('plus', 14),
+    ),
+  );
+  card.addEventListener('pointerdown', (e) =>
+    press(e, { kind: 'palette', type: w.type, label: w.name, color }, { drop: handleDrop }),
+  );
+  return card;
+}
+
+let previewTimer: number | undefined;
+let previewSeq = 0;
+
+function schedulePreview(): void {
+  clearTimeout(previewTimer);
+  previewTimer = window.setTimeout(runPreview, 120);
+}
+
+async function runPreview(): Promise<void> {
+  const seq = ++previewSeq;
+  try {
+    const res = await api.preview(S.config, S.source, S.width);
+    if (seq !== previewSeq) return;
+    const term = $('term-lines');
+    term.classList.remove('error');
+    term.innerHTML = res.lines.length
+      ? res.lines.map((l) => `<div class="term-line">${ansiToHtml(l) || '&nbsp;'}</div>`).join('')
+      : '<div class="term-line term-muted">(no output)</div>';
+  } catch (err) {
+    if (seq !== previewSeq) return;
+    const term = $('term-lines');
+    term.classList.add('error');
+    term.innerHTML = `<div class="term-line">${escapeHtml((err as Error).message)}</div>`;
+  }
+}
+
+function applyWidth(): void {
+  $('term-screen').style.setProperty('--cols', String(S.width));
+  $('width-value').textContent = `${S.width} cols`;
+}
+
+function renderChrome(): void {
+  const dirty = isDirty();
+  const d = $('dirty');
+  d.classList.toggle('on', dirty);
+  d.querySelector('span')!.textContent = dirty ? 'Unsaved changes' : 'All changes saved';
+  $<HTMLButtonElement>('save').disabled = !dirty;
+  $<HTMLButtonElement>('undo').disabled = !S.undo.length;
+  $<HTMLButtonElement>('redo').disabled = !S.redo.length;
+  document.title = `${dirty ? '● ' : ''}ccinfobar editor`;
+  const inst = S.api.claude.installed;
+  const btn = $('install');
+  btn.classList.toggle('installed', inst);
+  btn.querySelector('.install-label')!.textContent = inst ? 'Installed' : 'Install in Claude Code';
+  btn.title = inst
+    ? `Active statusLine: ${S.api.claude.statusLine?.command ?? ''}`
+    : `Will write: ${S.api.claude.defaultCommand}`;
+}
+
+async function save(): Promise<void> {
+  try {
+    await api.save(S.config);
+    markSaved();
+    toast('Saved to ' + S.api.configPath);
+  } catch (err) {
+    toast(`Save failed: ${(err as Error).message}`, 'error');
+  }
+}
+
+function exportJson(): void {
+  const blob = new Blob([`${JSON.stringify(S.config, null, 2)}\n`], { type: 'application/json' });
+  const a = h('a', { href: URL.createObjectURL(blob), download: 'ccinfobar-config.json' });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+async function importJson(): Promise<void> {
+  const area = h('textarea', {
+    class: 'input mono import-area',
+    placeholder: 'Paste a ccinfobar config JSON here',
+    rows: 12,
+    spellcheck: false,
+  });
+  const file = h('input', {
+    type: 'file',
+    accept: 'application/json,.json',
+    class: 'file-input',
+    onChange: async () => {
+      const f = file.files?.[0];
+      if (f) area.value = await f.text();
+    },
+  });
+  const err = h('div', { class: 'form-error', role: 'alert' });
+  await modal({
+    title: 'Import config',
+    wide: true,
+    body: [h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'From file'), file), area, err],
+    actions: (close) => [
+      h('button', { class: 'btn', type: 'button', onClick: () => close() }, 'Cancel'),
+      h(
+        'button',
+        {
+          class: 'btn primary',
+          type: 'button',
+          onClick: async () => {
+            try {
+              const parsed = JSON.parse(area.value) as unknown;
+              if (typeof parsed !== 'object' || parsed === null || !Array.isArray((parsed as { lines?: unknown }).lines)) {
+                throw new Error('Expected an object with a "lines" array');
+              }
+              const { config } = await api.normalize(parsed);
+              replaceAll(config);
+              close();
+              toast('Config imported. Undo with Ctrl+Z');
+            } catch (e) {
+              err.textContent = (e as Error).message;
+            }
+          },
+        },
+        'Import',
+      ),
+    ],
+  });
+}
+
+async function installDialog(): Promise<void> {
+  const claude = S.api.claude;
+  const cmd = h('input', {
+    class: 'input mono',
+    type: 'text',
+    value: claude.statusLine?.command && claude.installed ? claude.statusLine.command : claude.defaultCommand,
+    spellcheck: false,
+  });
+  const refresh = h('input', {
+    class: 'input num',
+    type: 'number',
+    min: '0',
+    step: '1',
+    placeholder: 'off',
+    value: claude.statusLine?.refreshInterval ? String(claude.statusLine.refreshInterval) : '',
+  });
+  const preview = h('pre', { class: 'code-preview' });
+  const update = () => {
+    const sl: Record<string, unknown> = { type: 'command', command: cmd.value, padding: 0 };
+    if (Number(refresh.value) > 0) sl.refreshInterval = Math.floor(Number(refresh.value));
+    preview.textContent = JSON.stringify({ statusLine: sl }, null, 2);
+  };
+  cmd.addEventListener('input', update);
+  refresh.addEventListener('input', update);
+  update();
+  const current = claude.statusLine?.command;
+  await modal({
+    title: 'Install in Claude Code',
+    body: [
+      h(
+        'div',
+        { class: `status-line ${claude.installed ? 'ok' : 'off'}` },
+        h('i', { class: 'status-dot' }),
+        h(
+          'span',
+          null,
+          claude.installed
+            ? 'ccinfobar is the active status line.'
+            : current
+              ? `Current status line: ${current}`
+              : 'No status line is configured yet.',
+        ),
+      ),
+      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Command'), cmd),
+      h(
+        'div',
+        { class: 'field' },
+        h('label', { class: 'field-label' }, 'Refresh interval (seconds, optional)'),
+        refresh,
+      ),
+      h('div', { class: 'field-label' }, 'Will be written to ~/.claude/settings.json'),
+      preview,
+      isDirty() ? h('div', { class: 'hint warn' }, 'You have unsaved changes. Save them so Claude Code uses them.') : null,
+    ],
+    actions: (close) => [
+      h('button', { class: 'btn', type: 'button', onClick: () => close() }, 'Cancel'),
+      h(
+        'button',
+        {
+          class: 'btn primary',
+          type: 'button',
+          onClick: async () => {
+            try {
+              const r = await api.install(cmd.value.trim(), Number(refresh.value) > 0 ? Number(refresh.value) : undefined);
+              S.api.claude = r.claude;
+              renderChrome();
+              close();
+              toast(r.backup ? 'Installed. Backup saved next to settings.json' : 'Installed in Claude Code');
+            } catch (e) {
+              toast(`Install failed: ${(e as Error).message}`, 'error');
+            }
+          },
+        },
+        claude.installed ? 'Update' : 'Install',
+      ),
+    ],
+  });
+}
+
+async function done(): Promise<void> {
+  if (isDirty() && !(await confirmDialog('Discard unsaved changes?', 'Closing the editor now will lose your unsaved changes.', 'Close without saving'))) {
+    return;
+  }
+  window.removeEventListener('beforeunload', onUnload);
+  try {
+    await api.shutdown();
+  } catch {}
+  document.body.append(
+    h(
+      'div',
+      { class: 'overlay solid' },
+      h('div', { class: 'closed' }, icon('check', 28), h('h2', null, 'Editor closed'), h('p', null, 'You can close this tab. Run ccinfobar edit to open it again.')),
+    ),
+  );
+}
+
+function onUnload(e: BeforeUnloadEvent): void {
+  if (isDirty()) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+}
+
+function inTextField(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  if (!el) return false;
+  if (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true;
+  if (el.tagName !== 'INPUT') return false;
+  return !['checkbox', 'radio', 'button', 'range', 'color', 'file'].includes((el as HTMLInputElement).type);
+}
+
+function onKeydown(e: KeyboardEvent): void {
+  const mod = e.ctrlKey || e.metaKey;
+  if (document.querySelector('.overlay')) return;
+  if (mod && e.key.toLowerCase() === 's') {
+    e.preventDefault();
+    void save();
+  } else if (mod && e.key.toLowerCase() === 'z' && !inTextField(e.target)) {
+    e.preventDefault();
+    if (e.shiftKey) redo();
+    else undo();
+  } else if (mod && e.key.toLowerCase() === 'y' && !inTextField(e.target)) {
+    e.preventDefault();
+    redo();
+  } else if ((e.key === 'Delete' || e.key === 'Backspace') && !mod && !inTextField(e.target)) {
+    if (S.selectedId) {
+      e.preventDefault();
+      removeSelected();
+    }
+  }
+}
+
+function buildPresetSelect(): void {
+  const sel = $<HTMLSelectElement>('preset');
+  sel.append(h('option', { value: '' }, 'Presets'));
+  for (const p of S.api.presets) sel.append(h('option', { value: p.id, title: p.description }, p.name));
+  sel.addEventListener('change', async () => {
+    const preset = S.api.presets.find((p) => p.id === sel.value);
+    sel.value = '';
+    if (!preset) return;
+    if (isDirty() && !(await confirmDialog(`Apply "${preset.name}"?`, 'This replaces your current layout and settings. You can undo it with Ctrl+Z.', 'Apply preset'))) return;
+    replaceAll(preset.config);
+    toast(`Applied preset "${preset.name}"`, 'info');
+  });
+}
+
+function setupStatic(): void {
+  for (const [id, name] of [
+    ['undo', 'undo'],
+    ['redo', 'redo'],
+    ['save', 'save'],
+    ['import', 'upload'],
+    ['export', 'download'],
+    ['trash', 'trash'],
+    ['add-line', 'plus'],
+    ['search-icon', 'search'],
+  ] as const) {
+    $(id).prepend(icon(name, 16));
+  }
+  $('version').textContent = `v${S.api.version}`;
+  $('config-path').textContent = S.api.configPath;
+  $('undo').addEventListener('click', undo);
+  $('redo').addEventListener('click', redo);
+  $('save').addEventListener('click', () => void save());
+  $('import').addEventListener('click', () => void importJson());
+  $('export').addEventListener('click', exportJson);
+  $('install').addEventListener('click', () => void installDialog());
+  $('done').addEventListener('click', () => void done());
+  $('add-line').addEventListener('click', () => {
+    commit(addLine(S.config));
+    select(null, S.config.lines.length - 1);
+  });
+  const search = $<HTMLInputElement>('search');
+  search.addEventListener('input', () => {
+    S.search = search.value;
+    renderPalette();
+  });
+  const slider = $<HTMLInputElement>('width');
+  slider.addEventListener('input', () => {
+    S.width = Number(slider.value);
+    applyWidth();
+    schedulePreview();
+  });
+  const sample = $<HTMLButtonElement>('src-sample');
+  const last = $<HTMLButtonElement>('src-last');
+  const setSource = (s: 'sample' | 'last') => {
+    S.source = s;
+    sample.classList.toggle('on', s === 'sample');
+    last.classList.toggle('on', s === 'last');
+    sample.setAttribute('aria-pressed', String(s === 'sample'));
+    last.setAttribute('aria-pressed', String(s === 'last'));
+    schedulePreview();
+  };
+  sample.addEventListener('click', () => setSource('sample'));
+  last.addEventListener('click', () => setSource('last'));
+  last.disabled = !S.api.hasLastPayload;
+  last.title = S.api.hasLastPayload ? 'Use the last payload Claude Code sent' : 'No session payload recorded yet';
+  setSource('sample');
+  buildPresetSelect();
+  initInspector();
+  window.addEventListener('keydown', onKeydown);
+  window.addEventListener('beforeunload', onUnload);
+}
+
+async function boot(): Promise<void> {
+  const params = new URLSearchParams(location.search);
+  const token = params.get('t') ?? sessionStorage.getItem('ccinfobar-token') ?? '';
+  if (params.has('t')) {
+    sessionStorage.setItem('ccinfobar-token', token);
+    history.replaceState(null, '', location.pathname);
+  }
+  setToken(token);
+  try {
+    init(await api.state());
+  } catch (err) {
+    $('boot').innerHTML = `<div class="closed"><h2>Cannot reach the editor</h2><p>${escapeHtml((err as Error).message)}. Reopen the URL printed by <code>ccinfobar edit</code>.</p></div>`;
+    return;
+  }
+  $('boot').remove();
+  if (S.api.configError) toast(`Config problem: ${S.api.configError}. Defaults loaded.`, 'error');
+  setupStatic();
+  on('config', (o) => {
+    renderCanvas();
+    if (o.inspector !== false) renderInspector();
+  });
+  on('selection', () => {
+    renderCanvas();
+    renderInspector();
+  });
+  on('ui', renderChrome);
+  on('preview', schedulePreview);
+  applyWidth();
+  renderPalette();
+  renderCanvas();
+  renderInspector();
+  renderChrome();
+  schedulePreview();
+  emit('ui');
+}
+
+void boot();

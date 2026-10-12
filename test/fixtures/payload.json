@@ -1,0 +1,46 @@
+{
+  "hook_event_name": "Status",
+  "session_id": "3f2a9c1e-7b4d-4e8a-9c2f-1a2b3c4d5e6f",
+  "session_name": "statusline refactor",
+  "transcript_path": "",
+  "version": "2.1.300",
+  "cwd": ".",
+  "output_style": { "name": "default" },
+  "model": { "id": "claude-opus-5-5", "display_name": "Opus 5.5" },
+  "effort": { "level": "high" },
+  "thinking": { "enabled": true },
+  "fast_mode": false,
+  "workspace": {
+    "current_dir": ".",
+    "project_dir": ".",
+    "added_dirs": [],
+    "repo": { "host": "github.com", "owner": "alpadalar", "name": "ccinfobar" }
+  },
+  "cost": {
+    "total_cost_usd": 1.87,
+    "total_duration_ms": 2730000,
+    "total_api_duration_ms": 812000,
+    "total_lines_added": 214,
+    "total_lines_removed": 63
+  },
+  "context_window": {
+    "context_window_size": 1000000,
+    "total_input_tokens": 412000,
+    "total_output_tokens": 38400,
+    "used_percentage": 34,
+    "remaining_percentage": 66,
+    "current_usage": {
+      "input_tokens": 2100,
+      "output_tokens": 1350,
+      "cache_creation_input_tokens": 4800,
+      "cache_read_input_tokens": 333100
+    }
+  },
+  "exceeds_200k_tokens": true,
+  "prompt_cache": { "warm": true, "ttl": "1h", "hit_ratio": 0.94, "requests": 48, "misses": 3 },
+  "rate_limits": {
+    "five_hour": { "used_percentage": 42, "resets_at": 4102444800 },
+    "seven_day": { "used_percentage": 61, "resets_at": 4102444800 }
+  },
+  "vim": { "mode": "INSERT" }
+}
