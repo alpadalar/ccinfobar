@@ -1,0 +1,56 @@
+{
+  "name": "ccinfobar",
+  "version": "0.1.0",
+  "description": "A customizable, GSD-aware status line for Claude Code with a drag-and-drop editor",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "statusline",
+    "status-line",
+    "gsd",
+    "get-shit-done",
+    "powerline",
+    "cli"
+  ],
+  "homepage": "https://github.com/alpadalar/ccinfobar#readme",
+  "bugs": {
+    "url": "https://github.com/alpadalar/ccinfobar/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alpadalar/ccinfobar.git"
+  },
+  "license": "MIT",
+  "author": "Alperen Adalar",
+  "type": "module",
+  "bin": {
+    "ccinfobar": "dist/ccinfobar.js"
+  },
+  "files": [
+    "dist/",
+    "schema/"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "start": "node dist/ccinfobar.js",
+    "example": "node dist/ccinfobar.js --payload test/fixtures/payload.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "check": "npm run typecheck && npm run lint && npm test",
+    "prepublishOnly": "npm run check && npm run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@types/node": "^22.20.5",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}
