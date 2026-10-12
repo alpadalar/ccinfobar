@@ -20,6 +20,7 @@ import {
   undo,
   type WidgetInfo,
 } from './store.js';
+import { initTerminalPicker } from './terminal-picker.js';
 import { openGallery } from './themes.js';
 import { confirmDialog, modal, toast } from './ui.js';
 
@@ -633,6 +634,7 @@ function setupStatic(): void {
     ? 'Use the last payload Claude Code sent'
     : 'No session payload recorded yet';
   setSource('sample');
+  initTerminalPicker($('term-picker'), S.api.terminal);
   buildPresetSelect();
   initInspector();
   window.addEventListener('keydown', onKeydown);

@@ -56,6 +56,7 @@ export interface ApiState {
   themesDir: string;
   claude: ClaudeInfo;
   hasLastPayload: boolean;
+  terminal: import('./terminals.js').DetectedColors | null;
 }
 
 export interface Store {

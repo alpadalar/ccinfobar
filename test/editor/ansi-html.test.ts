@@ -9,19 +9,20 @@ describe('ansiToHtml', () => {
 
   it('applies basic foreground and resets', () => {
     const html = ansiToHtml('\x1b[31mred\x1b[0m plain');
-    expect(html).toContain('color:#cd3131');
+    expect(html).toContain('color:var(--ansi-1, #cd3131)');
     expect(html).toContain('>red</span> plain');
   });
 
   it('supports bright colors and backgrounds', () => {
-    expect(ansiToHtml('\x1b[91mx')).toContain('color:#f14c4c');
-    expect(ansiToHtml('\x1b[44mx')).toContain('background:#2472c8');
-    expect(ansiToHtml('\x1b[101mx')).toContain('background:#f14c4c');
+    expect(ansiToHtml('\x1b[91mx')).toContain('color:var(--ansi-9, #f14c4c)');
+    expect(ansiToHtml('\x1b[44mx')).toContain('background:var(--ansi-4, #2472c8)');
+    expect(ansiToHtml('\x1b[101mx')).toContain('background:var(--ansi-9, #f14c4c)');
   });
 
   it('supports 256 and truecolor', () => {
     expect(ansiToHtml('\x1b[38;5;196mx')).toContain('color:#ff0000');
     expect(ansiToHtml('\x1b[48;5;232mx')).toContain('background:#080808');
+    expect(ansiToHtml('\x1b[38;5;3mx')).toContain('color:var(--ansi-3, #e5e510)');
     expect(ansiToHtml('\x1b[38;2;18;52;86mx')).toContain('color:#123456');
     expect(ansiToHtml('\x1b[48;2;1;2;3mx')).toContain('background:#010203');
   });
@@ -37,7 +38,7 @@ describe('ansiToHtml', () => {
 
   it('resets fg and bg individually', () => {
     const html = ansiToHtml('\x1b[31;42mA\x1b[39mB\x1b[49mC');
-    expect(html).toContain('background:#0dbc79">B');
+    expect(html).toContain('background:var(--ansi-2, #0dbc79)">B');
     expect(html).toMatch(/>C$/);
   });
 
@@ -72,7 +73,7 @@ describe('powerline glyphs', () => {
 
   it('keeps surrounding text styled', () => {
     expect(ansiToHtml('\x1b[31mab')).toBe(
-      '<span style="color:#cd3131">a</span><span class="pl pl-e0b1" style="--pl:#cd3131"> </span><span style="color:#cd3131">b</span>',
+      '<span style="color:var(--ansi-1, #cd3131)">a</span><span class="pl pl-e0b1" style="--pl:var(--ansi-1, #cd3131)"> </span><span style="color:var(--ansi-1, #cd3131)">b</span>',
     );
   });
 });

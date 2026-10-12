@@ -28,6 +28,10 @@ interface Style {
   inverse: boolean;
 }
 
+export function basicVar(n: number): string {
+  return `var(--ansi-${n}, ${BASIC[n]})`;
+}
+
 export function ansi256ToHex(n: number): string {
   if (n < 16) return BASIC[n]!;
   if (n >= 232) {
@@ -79,18 +83,18 @@ function applySgr(style: Style, params: number[]): void {
     else if (p === 24) style.underline = false;
     else if (p === 27) style.inverse = false;
     else if (p === 29) style.strike = false;
-    else if (p >= 30 && p <= 37) style.fg = BASIC[p - 30]!;
+    else if (p >= 30 && p <= 37) style.fg = basicVar(p - 30);
     else if (p === 39) style.fg = null;
-    else if (p >= 40 && p <= 47) style.bg = BASIC[p - 40]!;
+    else if (p >= 40 && p <= 47) style.bg = basicVar(p - 40);
     else if (p === 49) style.bg = null;
-    else if (p >= 90 && p <= 97) style.fg = BASIC[p - 90 + 8]!;
-    else if (p >= 100 && p <= 107) style.bg = BASIC[p - 100 + 8]!;
+    else if (p >= 90 && p <= 97) style.fg = basicVar(p - 90 + 8);
+    else if (p >= 100 && p <= 107) style.bg = basicVar(p - 100 + 8);
     else if (p === 38 || p === 48) {
       const mode = params[i + 1];
       let color: string | null = null;
       if (mode === 5) {
         const n = params[i + 2];
-        if (n !== undefined && n >= 0 && n <= 255) color = ansi256ToHex(n);
+        if (n !== undefined && n >= 0 && n <= 255) color = n < 16 ? basicVar(n) : ansi256ToHex(n);
         i += 2;
       } else if (mode === 2) {
         const [r, g, b] = [params[i + 2], params[i + 3], params[i + 4]];

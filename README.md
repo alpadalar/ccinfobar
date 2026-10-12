@@ -4,9 +4,9 @@
 
 **A customizable, GSD-aware status line for Claude Code, with a drag-and-drop editor.**
 
-[![npm](https://img.shields.io/npm/v/ccinfobar?color=cb3837&logo=npm)](https://www.npmjs.com/package/ccinfobar)
+[![version](https://img.shields.io/github/package-json/v/alpadalar/ccinfobar?color=cb3837&label=version)](CHANGELOG.md)
 [![CI](https://github.com/alpadalar/ccinfobar/actions/workflows/ci.yml/badge.svg)](https://github.com/alpadalar/ccinfobar/actions/workflows/ci.yml)
-[![node](https://img.shields.io/node/v/ccinfobar)](package.json)
+[![node](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=nodedotjs&logoColor=white)](package.json)
 [![dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
 [![license](https://img.shields.io/github/license/alpadalar/ccinfobar)](LICENSE)
 
@@ -51,9 +51,11 @@ next: /gsd-execute-phase 4 │ $1.87 │ 5h 42% │ Resets 2h 14m │ 7d 61%
 Requirements: [Claude Code](https://code.claude.com) and Node.js 20 or newer.
 
 ```sh
-npm install -g ccinfobar
+npm install -g github:alpadalar/ccinfobar
 ccinfobar install
 ```
+
+> ccinfobar is not on the npm registry yet, so it installs straight from GitHub and builds itself during install. Once it is published, `npm install -g ccinfobar` will work too.
 
 `install` points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar (backing up the file first) and writes a default config. The next Claude Code prompt shows the new status line.
 
@@ -63,17 +65,6 @@ Then make it yours:
 ccinfobar edit     # browser editor
 ccinfobar tui      # terminal editor
 ```
-
-<details>
-<summary>Without a global install</summary>
-
-```sh
-npx -y ccinfobar@latest install
-```
-
-This writes `npx -y ccinfobar@latest` as the status line command. It works the same way but starts slower, because npx resolves the package on every refresh. A global install is recommended.
-
-</details>
 
 <details>
 <summary>Manual setup</summary>
@@ -105,7 +96,7 @@ ccinfobar edit
 | Area | What you can do |
 | --- | --- |
 | Palette (left) | Search and browse widgets by category, each with a description and sample output. Drag one into any line or click `+`. |
-| Preview (top) | A terminal-style live preview. Switch between sample data and your last real session, and adjust the width to see truncation and flex spacing. |
+| Preview (top) | A terminal-style live preview. Switch between sample data and your last real session, adjust the width, and pick your terminal's colors (16 profiles such as Windows Terminal, macOS Terminal, Solarized, Dracula, or custom) so the preview matches what you will really see. When started from a terminal, `ccinfobar edit` detects its colors automatically. |
 | Lines (center) | Drag chips to reorder them or move them between lines, drop them on the trash to remove, drag line handles to reorder lines. `Alt` + arrow keys move the selected chip. |
 | Inspector (right) | Colors (16 named, 256 palette or hex), background, bold/dim/italic, label override, merge, and every widget option. The **Global** tab covers style, separators, glyphs, icons, color depth and width. |
 | Theme gallery | Every theme rendered live with your own widgets. Apply with one click, filter by style, save your current look as a new theme. |
@@ -190,7 +181,7 @@ Start with `ccinfobar init gsd --force`, or drag widgets from the GSD category i
 | Command | Description |
 | --- | --- |
 | `ccinfobar` | Render the status line from the JSON on stdin (what Claude Code runs) |
-| `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`) |
+| `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
 | `ccinfobar tui` | Open the terminal editor |
 | `ccinfobar install` | Set Claude Code's `statusLine` (`--command <cmd>`, `--refresh <seconds>`) |
 | `ccinfobar uninstall` | Remove ccinfobar from Claude Code settings |

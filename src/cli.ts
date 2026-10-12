@@ -48,6 +48,7 @@ Options
   --command <cmd>                install: command to write (default: auto)
   --port <n>                     edit: port to listen on
   --no-open                      edit: do not open a browser
+  --no-detect                    edit: do not ask the terminal for its colors
   -v, --version                  Print the version
   -h, --help                     Show this help
 `;
@@ -185,8 +186,10 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     case 'edit':
     case 'editor': {
       const { startEditor } = await import('./editor/server.js');
+      const { queryTerminalColors } = await import('./editor/terminal-colors.js');
       const port = typeof args.flags.port === 'string' ? Number(args.flags.port) : undefined;
-      await startEditor({ configPath: cfgFile, port, open: args.flags.open !== false });
+      const terminal = args.flags.detect === false ? null : await queryTerminalColors();
+      await startEditor({ configPath: cfgFile, port, open: args.flags.open !== false, terminal });
       return;
     }
     case 'tui': {

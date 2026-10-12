@@ -20,6 +20,7 @@ import {
 } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
+import type { TerminalColors } from './terminal-colors.js';
 
 declare const __VERSION__: string;
 declare const __EDITOR_HTML__: string;
@@ -34,6 +35,7 @@ export interface EditorOptions {
   port?: number | undefined;
   open?: boolean;
   host?: string;
+  terminal?: TerminalColors | null;
 }
 
 export interface EditorHandle {
@@ -217,6 +219,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           themesDir: tildify(themesDir()),
           claude: claudeInfo(command),
           hasLastPayload: fs.existsSync(lastPayloadPath()),
+          terminal: opts.terminal ?? null,
         });
         return;
       }

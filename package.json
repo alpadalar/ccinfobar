@@ -45,7 +45,8 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "check": "npm run typecheck && npm run lint && npm test",
-    "prepublishOnly": "npm run check && npm run build"
+    "prepublishOnly": "npm run check && npm run build",
+    "prepare": "node scripts/build.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

@@ -37,7 +37,10 @@ export function isGloballyInstalled(): boolean {
 }
 
 export function defaultCommand(): string {
-  return isGloballyInstalled() ? 'ccinfobar' : 'npx -y ccinfobar@latest';
+  if (isGloballyInstalled()) return 'ccinfobar';
+  const entry = process.argv[1] ? path.resolve(process.argv[1]) : null;
+  if (entry && fs.existsSync(entry)) return `"${process.execPath}" "${entry}"`;
+  return 'npx -y github:alpadalar/ccinfobar';
 }
 
 export function currentStatusLine(file = claudeSettingsPath()): StatusLineSetting | null {
