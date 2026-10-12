@@ -80,7 +80,7 @@ async function saveCurrent(): Promise<boolean> {
 }
 
 export async function openPresets(): Promise<void> {
-  const grid = h('div', { class: 'gallery-grid' });
+  const grid = h('div', { class: 'gallery-grid preset-grid' });
   const previews = new Map<string, string[]>();
   let version = 0;
 
@@ -179,12 +179,27 @@ export async function openPresets(): Promise<void> {
     }
   }
 
+  // columns that fit a card preview
+  function fitCols(): number {
+    const box = grid.querySelector<HTMLElement>('.theme-preview');
+    if (!box) return 96;
+    const probe = h('span', { class: 'theme-preview cols-probe' }, '0'.repeat(50));
+    document.body.append(probe);
+    const ch = probe.getBoundingClientRect().width / 50;
+    probe.remove();
+    const cs = getComputedStyle(box);
+    const inner = box.clientWidth - Number.parseFloat(cs.paddingLeft) - Number.parseFloat(cs.paddingRight);
+    return ch > 0 ? Math.max(40, Math.floor(inner / ch)) : 96;
+  }
+
   async function loadPreviews(close: (v?: unknown) => void) {
     const v = ++version;
+    await new Promise((r) => requestAnimationFrame(r));
+    const cols = fitCols();
     await Promise.all(
       S.api.presets.map(async (p) => {
         try {
-          const r = await api.preview(p.config, S.source, 96);
+          const r = await api.preview({ ...p.config, widthOffset: 0 }, S.source, cols);
           if (v === version) previews.set(p.id, r.lines);
         } catch {}
       }),
