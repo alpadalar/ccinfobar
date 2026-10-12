@@ -339,7 +339,6 @@ export function renderPanel(
   const has = (name: string) => cellText(name) !== '';
   const widthOf = (name: string) => lineWidth(cellText(name));
 
-  const fit = tui.fitContent === true || maxWidth === null;
   const minW = tui.minWidth ?? 32;
   const maxW = Math.min(tui.maxWidth ?? Number.POSITIVE_INFINITY, maxWidth ?? Number.POSITIVE_INFINITY);
   const target = Number.isFinite(maxW) ? Math.max(minW, maxW) : null;
@@ -396,6 +395,9 @@ export function renderPanel(
   }
   rows = cullRows(rows, has);
   if (!rows.length) return [];
+  const fills = (name: string) => !!sources.get(name) && !!deps.fill?.(sources.get(name)!.item);
+  // line panels size to their content by default; fill widgets then fill that width
+  const fit = tui.fitContent === true || maxWidth === null || (byLine && tui.fitContent !== false);
 
   const contentWidth = (widths: number[]) => widths.reduce((s, w) => s + w, 0) + gapW * (widths.length - 1);
   const natural = byLine
@@ -413,14 +415,7 @@ export function renderPanel(
   const rowWidths = new Map<Row, number[]>();
   if (byLine) {
     rows = wrapRows(rows, widthOf, inner, gapW);
-    sizeLineRows(
-      rows,
-      rowWidths,
-      widthOf,
-      (name) => !!sources.get(name) && !!deps.fill?.(sources.get(name)!.item),
-      inner,
-      gapW,
-    );
+    sizeLineRows(rows, rowWidths, widthOf, fills, inner, gapW);
   }
   const total = inner + padding * 2;
   const side = ' '.repeat(padding);

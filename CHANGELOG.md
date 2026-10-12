@@ -23,6 +23,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Panel style: line layouts are as wide as their content by default, measured as if nothing filled its cell, and bars and graphs with Fill the cell stretch inside that width; the editor's Width setting picks Auto, Content or Full
+- Editor: merged widgets look joined, with square corners on both sides of the join
 - The preset gallery stacks cards in two columns at their own height instead of stretching them to match their neighbour
 - The Dashboard preset stops at 140 columns like yet-another-statusline and hides the skills and effort when they are empty
 - Automatic updates check each time Claude Code starts a new session instead of once a day; within a session the daily check stays

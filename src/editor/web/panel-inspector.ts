@@ -1,7 +1,7 @@
 import type { Config, TuiBreakpoint, TuiConfig } from '../../core/types.js';
 import { api } from './api.js';
 import { h } from './dom.js';
-import { field, fieldWithReset, numberInput, resetLink, textInput, toggle } from './inspector.js';
+import { field, fieldWithReset, numberInput, resetLink, segmented, textInput, toggle } from './inspector.js';
 import { commit, S } from './store.js';
 
 const BOXES: Record<string, string> = {
@@ -243,10 +243,17 @@ export function panelSection(): HTMLElement {
     ),
     h('div', { id: 'tui-note', class: 'tui-note', role: 'status' }),
     field(
-      'Fit content',
-      toggle(tui.fitContent === true, (v) => setTui({ fitContent: v ? true : undefined })),
-      'Shrink the panel to its content instead of using the full width.',
-      true,
+      'Width',
+      segmented(
+        [
+          { value: 'auto', label: 'Auto', title: 'Content width for line layouts, full width for grids' },
+          { value: 'content', label: 'Content', title: 'As wide as the widest line' },
+          { value: 'full', label: 'Full', title: 'As wide as the terminal allows' },
+        ] as const,
+        tui.fitContent === true ? 'content' : tui.fitContent === false ? 'full' : 'auto',
+        (v) => setTui({ fitContent: v === 'content' ? true : v === 'full' ? false : undefined }),
+      ),
+      'Auto measures the widgets as if nothing filled its cell; bars and graphs with Fill the cell then stretch inside that width.',
     ),
     field(
       'Dividers',

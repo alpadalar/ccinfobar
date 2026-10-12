@@ -205,16 +205,27 @@ describe('dashboard', () => {
     expect(out[0]).toMatch(/^╭─ 3f2a9c1e ─+ +Opus 5\.5 high ─╮$/);
     expect(new Set(out.map(visibleWidth)).size).toBe(1);
     const bar = out.find((l) => l.startsWith('│ Ctx █'))!;
-    expect(bar.match(/[█░]/g)!.length).toBeGreaterThan(100);
+    expect(bar.match(/[█░]/g)!.length).toBeGreaterThan(60);
+    expect(bar.trimEnd().endsWith('34% │')).toBe(true);
     expect(out.some((l) => l.includes('└ Edit[src/widgets/charts.ts]'))).toBe(true);
   });
 
-  it('stays 140 wide and drops rows of hidden widgets', () => {
+  it('sizes to its content up to 140 columns and drops rows of hidden widgets', () => {
     const out = render(
       ctxWith({ width: 220, agents: () => [], config: { ...dashboardConfig(), colorLevel: 0 } }),
     ).map(stripAnsi);
-    expect(new Set(out.map(visibleWidth))).toEqual(new Set([140]));
+    const widths = new Set(out.map(visibleWidth));
+    expect(widths.size).toBe(1);
+    expect([...widths][0]).toBeLessThanOrEqual(140);
     expect(out.join('\n')).not.toContain('subagents');
+    const full = render(
+      ctxWith({
+        width: 220,
+        agents: () => [],
+        config: { ...dashboardConfig(), colorLevel: 0, tui: { ...dashboardConfig().tui, fitContent: false } },
+      }),
+    ).map(stripAnsi);
+    expect(visibleWidth(full[0]!)).toBe(140);
   });
 
   it('puts block widget lines under the line in other styles', () => {

@@ -91,7 +91,7 @@ function renderChip(id: string, line: number, index: number): HTMLElement {
   const chip = h(
     'div',
     {
-      class: `chip${item.id === S.selectedId ? ' selected' : ''}${item.merge ? ' merged' : ''}${info ? '' : ' unknown'}`,
+      class: `chip${item.id === S.selectedId ? ' selected' : ''}${item.merge ? ' merged' : ''}${S.config.lines[line]![index - 1]?.merge ? ' merged-in' : ''}${info ? '' : ' unknown'}`,
       tabindex: 0,
       role: 'button',
       'aria-pressed': String(item.id === S.selectedId),

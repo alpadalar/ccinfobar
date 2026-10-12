@@ -82,7 +82,7 @@ Configure it under `tui`:
 | Field | Default | Description |
 | --- | --- | --- |
 | `box` | `"rounded"` | `rounded`, `square`, `heavy`, `double`, `dashed`, `heavy-dashed`, `mixed`, `ascii`, `invisible`, or an object with `topLeft`, `topRight`, `bottomLeft`, `bottomRight`, `horizontal`, `vertical`, `teeLeft`, `teeRight` |
-| `fitContent` | `false` | Shrink to the content instead of filling the terminal width |
+| `fitContent` | auto | `true` sizes the box to the widest line, `false` fills the terminal width. Unset, line layouts size to their content and grids fill the width; bars and graphs with **Fill the cell** stretch inside that width |
 | `minWidth` / `maxWidth` | `32` / none | Width limits |
 | `padding` | `1` | Spaces inside the border |
 | `columnGap` | theme separator | Text between widgets or grid columns |

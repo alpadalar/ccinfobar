@@ -52,7 +52,7 @@ describe('grid helpers', () => {
 
 describe('panel style', () => {
   it('draws a rounded box with title, lines and dividers', () => {
-    const out = panel();
+    const out = panel({ fitContent: false });
     expect(out).toHaveLength(5);
     expect(out[0]).toMatch(/^╭─ .*ccinfobar ─╮$/);
     expect(out[1]).toBe(`│ alpha  beta${' '.repeat(25)} │`);
@@ -64,6 +64,7 @@ describe('panel style', () => {
   it('supports box presets, ascii charset and custom title/footer', () => {
     const out = panel({
       box: 'double',
+      fitContent: false,
       dividers: false,
       title: { left: 'T', right: false },
       footer: { right: '{gamma}' },
@@ -129,6 +130,11 @@ describe('panel style', () => {
       }),
     ).map(stripAnsi);
     expect(bar[1]).toMatch(/^│ {5,}Ctx [█░]{4} 34% {5,}│$/);
+  });
+
+  it('sizes line layouts to their content by default', () => {
+    const out = panel({ title: { right: false } }, 80, [[text('alpha'), text('beta')]]);
+    expect(out[1]).toBe('│ alpha  beta                  │');
   });
 
   it('fits content when asked', () => {

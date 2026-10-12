@@ -1120,9 +1120,14 @@ body.dragging-chip .trash {
 }
 
 .chip.merged {
-  margin-right: -0.3125rem;
-  border-top-right-radius: 0.1875rem;
-  border-bottom-right-radius: 0.1875rem;
+  margin-right: -0.375rem;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.chip.merged-in {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .chip-link {
