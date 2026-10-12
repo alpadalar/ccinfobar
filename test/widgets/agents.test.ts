@@ -163,6 +163,14 @@ describe('dashboard', () => {
     expect(out.some((l) => l.includes('└ Edit[src/widgets/charts.ts]'))).toBe(true);
   });
 
+  it('stays 140 wide and drops rows of hidden widgets', () => {
+    const out = render(
+      ctxWith({ width: 220, agents: () => [], config: { ...dashboardConfig(), colorLevel: 0 } }),
+    ).map(stripAnsi);
+    expect(new Set(out.map(visibleWidth))).toEqual(new Set([140]));
+    expect(out.join('\n')).not.toContain('subagents');
+  });
+
   it('puts block widget lines under the line in other styles', () => {
     const lines = [
       [

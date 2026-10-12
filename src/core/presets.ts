@@ -73,6 +73,7 @@ export function dashboardConfig(): Config {
       borderColor: 'context',
       columnGap: ' │ ',
       padding: 1,
+      maxWidth: 140,
       title: { left: '{sid.value}', right: '{model}{effort}' },
       templates: {
         where: { items: ['{cwd}', '{git-branch}', '{git-changes}'], gap: 1 },
@@ -105,7 +106,7 @@ export function dashboardConfig(): Config {
       [
         w('sid', 'session-id', { dim: true, options: { short: true } }),
         w('model', 'model', { label: ' ', color: 'black', background: 'yellow', bold: true }),
-        w('effort', 'effort', { label: ' ', color: 'black', background: 'yellow' }),
+        w('effort', 'effort', { label: ' ', color: 'black', background: 'yellow', hideEmpty: true }),
       ],
       [
         w('cwd', 'cwd', { raw: true, options: { style: 'tilde' } }),
@@ -123,7 +124,7 @@ export function dashboardConfig(): Config {
         w('cost', 'session-cost', {}),
         w('rate', 'token-rate-graph', { options: { fill: true } }),
       ],
-      [w('skills', 'skills', { options: { mode: 'list' } })],
+      [w('skills', 'skills', { hideEmpty: true, options: { mode: 'list' } })],
       [w('todo', 'todo-list', { hideEmpty: true })],
       [w('agents', 'agents', { hideEmpty: true })],
     ],

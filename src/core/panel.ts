@@ -182,12 +182,16 @@ export function renderPanel(
 
   const cells = new Map<string, Cell>();
   const sources = new Map<string, { item: WidgetItem; index: number }>();
+  const hidden = new Set<string>();
   let index = 0;
   for (const line of ctx.config.lines) {
     for (const item of line) {
       const at = index++;
       const c = deps.cell(item, at);
-      if (!c) continue;
+      if (!c) {
+        hidden.add(item.id).add(item.type);
+        continue;
+      }
       for (const key of [item.id, item.type]) {
         if (!cells.has(key)) {
           cells.set(key, c);
@@ -202,6 +206,7 @@ export function renderPanel(
     const hit = cells.get(name);
     if (hit) return hit.text || null;
     const base = name.replace(/\.(label|value)$/, '');
+    if (hidden.has(base)) return null;
     const adhoc = deps.cell({ id: `adhoc-${base}`, type: base }, index++);
     if (!adhoc) return null;
     const part = name.endsWith('.label') ? adhoc.label : name.endsWith('.value') ? adhoc.value : adhoc.text;

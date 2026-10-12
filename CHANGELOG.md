@@ -4,9 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- Panel style: a widget hidden with **Hide when no data** no longer shows up as `name —` when its cell name is also a widget type
+
 ### Changed
 
 - The preset gallery stacks cards in two columns at their own height instead of stretching them to match their neighbour
+- The Dashboard preset stops at 140 columns like yet-another-statusline and hides the skills and effort when they are empty
 - Automatic updates check each time Claude Code starts a new session instead of once a day; within a session the daily check stays
 
 ## [0.6.1] - 2026-10-12
