@@ -131,8 +131,19 @@ function safeHref(url: string): string | null {
 const TOKEN =
   /\x1b\[([0-9;:]*)m|\x1b\]8;[^;\x07\x1b]*;([^\x07\x1b]*)(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[A-Za-ln-z]/g;
 
-const GLYPHS = new Set(['\ue0b0', '\ue0b1', '\ue0b2', '\ue0b3', '\ue0b4', '\ue0b6']);
-const GLYPH_SPLIT = /([\ue0b0-\ue0b4\ue0b6])/u;
+export const GLYPHS = new Set([
+  '\ue0b0',
+  '\ue0b1',
+  '\ue0b2',
+  '\ue0b3',
+  '\ue0b4',
+  '\ue0b6',
+  '\ue0b8',
+  '\ue0ba',
+  '\ue0bc',
+  '\ue0be',
+]);
+const GLYPH_SPLIT = /([\ue0b0-\ue0b4\ue0b6\ue0b8\ue0ba\ue0bc\ue0be])/u;
 
 // symbols from fallback fonts keep one terminal cell
 const SYMBOL = /[\u2190-\u21ff\u2300-\u23ff\u25a0-\u25ff\u2600-\u27bf\u2b00-\u2bff]/g;

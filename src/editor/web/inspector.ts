@@ -1,5 +1,6 @@
 import { clearColors, removeItem, setOption, updateItem } from '../../core/edit.js';
 import type { Config, OptionSpec, OptionValue, WidgetItem } from '../../core/types.js';
+import { GLYPHS } from './ansi-html.js';
 import { colorPicker, colorToCss } from './colors.js';
 import { type Child, clear, h, icon } from './dom.js';
 import { panelSection } from './panel-inspector.js';
@@ -97,12 +98,16 @@ function glyphChoices(values: string[], current: string, onPick: (v: string) => 
           title: v ? `U+${v.codePointAt(0)!.toString(16).toUpperCase()}` : 'none',
           onClick: () => onPick(v),
         },
-        v || 'none',
+        GLYPHS.has(v) ? h('span', { class: `pl pl-${v.codePointAt(0)!.toString(16)}` }) : v || 'none',
       ),
     );
   }
   return wrap;
 }
+
+// private-use glyphs have no browser font
+const showGlyph = (v: string) =>
+  /[\ue000-\uf8ff]/u.test(v) ? `U+${v.codePointAt(0)!.toString(16).toUpperCase()}` : v;
 
 export function textInput(
   value: string,
@@ -345,7 +350,7 @@ function glyphField(label: string, key: GlyphKey, choices: string[], themeValue:
   const override = S.config.glyphs?.[key];
   const input = textInput(override ?? '', (v) => setGlyph(key, v, `glyph:${key}`), {
     class: 'input mono',
-    placeholder: themeValue ? `Theme: ${themeValue}` : 'Theme: none',
+    placeholder: themeValue ? `Theme: ${showGlyph(themeValue)}` : 'Theme: none',
     'aria-label': `${label} glyph`,
   });
   return fieldWithReset(

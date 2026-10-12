@@ -2103,6 +2103,30 @@ body.dragging-chip .trash {
   clip-path: ellipse(100% 50% at 100% 50%);
 }
 
+.pl-e0b8::before {
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+
+.pl-e0ba::before {
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+.pl-e0bc::before {
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+.pl-e0be::before {
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+
+.glyph .pl {
+  --pl: var(--text);
+  display: inline-block;
+  width: 0.75em;
+  height: 1.25em;
+  vertical-align: middle;
+}
+
 .term-picker {
   position: relative;
 }
