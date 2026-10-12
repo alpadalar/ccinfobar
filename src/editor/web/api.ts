@@ -1,3 +1,4 @@
+import type { StyleHistory } from '../../core/edit.js';
 import type { Config } from '../../core/types.js';
 import type { ApiState, ClaudeInfo, PresetInfo, ThemeInfo } from './store.js';
 
@@ -55,5 +56,6 @@ export const api = {
       '/api/update',
       { install },
     ),
+  saveStyles: (history: StyleHistory) => call<{ ok: boolean }>('PUT', '/api/styles', { history }),
   shutdown: () => call<{ ok: boolean }>('POST', '/api/shutdown', {}),
 };

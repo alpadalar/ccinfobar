@@ -74,12 +74,13 @@ export async function confirmDialog(
   title: string,
   message: string,
   confirmLabel = 'Continue',
+  cancelLabel = 'Cancel',
 ): Promise<boolean> {
   const r = await modal<boolean>({
     title,
     body: [h('p', { class: 'modal-text' }, message)],
     actions: (close) => [
-      h('button', { class: 'btn', type: 'button', onClick: () => close(false) }, 'Cancel'),
+      h('button', { class: 'btn', type: 'button', onClick: () => close(false) }, cancelLabel),
       h('button', { class: 'btn primary', type: 'button', onClick: () => close(true) }, confirmLabel),
     ],
   });

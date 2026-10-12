@@ -1,4 +1,4 @@
-import type { Config, WidgetItem } from './types.js';
+import type { Config, OptionValue, WidgetItem } from './types.js';
 
 export interface Position {
   line: number;
@@ -102,5 +102,127 @@ export function moveLine(config: Config, from: number, to: number): Config {
   const next = clone(config);
   const [l] = next.lines.splice(from, 1);
   next.lines.splice(Math.max(0, Math.min(to, next.lines.length)), 0, l!);
+  return next;
+}
+
+export type StyleGroup = 'colors' | 'text' | 'bars' | 'label';
+
+export const STYLE_GROUPS: { id: StyleGroup; name: string }[] = [
+  { id: 'colors', name: 'Colors' },
+  { id: 'text', name: 'Bold, dim, italic' },
+  { id: 'bars', name: 'Bar and graph options' },
+  { id: 'label', name: 'Label switches' },
+];
+
+const GROUP_KEYS: Record<Exclude<StyleGroup, 'bars'>, (keyof WidgetItem)[]> = {
+  colors: ['color', 'background'],
+  text: ['bold', 'dim', 'italic'],
+  label: ['raw', 'merge', 'hideEmpty'],
+};
+
+// options that change looks, not data
+export const LOOK_OPTIONS = [
+  'display',
+  'style',
+  'width',
+  'showPercent',
+  'thresholdColors',
+  'showPace',
+  'points',
+  'showValue',
+];
+
+export interface StyleSnapshot {
+  color?: string;
+  background?: string;
+  bold?: boolean;
+  dim?: boolean;
+  italic?: boolean;
+  raw?: boolean;
+  merge?: boolean;
+  hideEmpty?: boolean;
+  options?: Record<string, OptionValue>;
+}
+
+export function takeStyle(item: WidgetItem): StyleSnapshot {
+  const out: Record<string, unknown> = {};
+  for (const keys of Object.values(GROUP_KEYS)) {
+    for (const k of keys) if (item[k] !== undefined) out[k] = item[k];
+  }
+  const opts: Record<string, OptionValue> = {};
+  for (const k of LOOK_OPTIONS) if (item.options?.[k] !== undefined) opts[k] = item.options[k]!;
+  if (Object.keys(opts).length) out.options = opts;
+  return out as StyleSnapshot;
+}
+
+function stable(v: unknown): string {
+  if (!v || typeof v !== 'object') return JSON.stringify(v);
+  const o = v as Record<string, unknown>;
+  return `{${Object.keys(o)
+    .filter((k) => o[k] !== undefined)
+    .sort()
+    .map((k) => `${k}:${stable(o[k])}`)
+    .join(',')}}`;
+}
+
+export function sameStyle(a: StyleSnapshot, b: StyleSnapshot): boolean {
+  return stable(a) === stable(b);
+}
+
+// copies exactly: a missing key clears the target's override
+export function applyStyle(
+  config: Config,
+  ids: string[],
+  snap: StyleSnapshot,
+  groups: StyleGroup[],
+  supported: (type: string) => string[] = () => LOOK_OPTIONS,
+): Config {
+  let next = config;
+  for (const id of ids) {
+    const found = findItem(next, id);
+    if (!found) continue;
+    const patch: Record<string, unknown> = {};
+    for (const g of groups) {
+      if (g === 'bars') continue;
+      for (const k of GROUP_KEYS[g]) patch[k] = (snap as Record<string, unknown>)[k];
+    }
+    if (groups.includes('bars')) {
+      const options = { ...found.item.options };
+      const allowed = new Set(supported(found.item.type));
+      for (const k of LOOK_OPTIONS) {
+        if (!allowed.has(k)) continue;
+        if (snap.options?.[k] === undefined) delete options[k];
+        else options[k] = snap.options[k]!;
+      }
+      patch.options = Object.keys(options).length ? options : undefined;
+    }
+    next = updateItem(next, id, patch as Partial<WidgetItem>);
+  }
+  return next;
+}
+
+export function hasOwnColors(config: Config): boolean {
+  return config.lines.some((l) => l.some((i) => i.color !== undefined || i.background !== undefined));
+}
+
+export function clearColors(config: Config): Config {
+  const ids = config.lines.flat().map((i) => i.id);
+  return applyStyle(config, ids, {}, ['colors']);
+}
+
+export type StyleHistory = Record<string, StyleSnapshot[]>;
+
+// previous looks per widget, newest first
+export function recordStyles(history: StyleHistory, before: Config, after: Config, keep = 3): StyleHistory {
+  const next: StyleHistory = { ...history };
+  const old = new Map(before.lines.flat().map((i) => [i.id, i]));
+  for (const item of after.lines.flat()) {
+    const prev = old.get(item.id);
+    if (!prev || prev.type !== item.type) continue;
+    const was = takeStyle(prev);
+    if (sameStyle(was, takeStyle(item))) continue;
+    const list = (next[item.id] ?? []).filter((s) => !sameStyle(s, was));
+    next[item.id] = [was, ...list].slice(0, keep);
+  }
   return next;
 }

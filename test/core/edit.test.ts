@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import {
   addLine,
+  applyStyle,
+  clearColors,
+  hasOwnColors,
   insertItem,
   moveItem,
   moveLine,
+  recordStyles,
   removeItem,
   removeLine,
   setOption,
+  takeStyle,
   updateItem,
 } from '../../src/core/edit.js';
 import type { Config } from '../../src/core/types.js';
@@ -67,5 +72,59 @@ describe('edit ops', () => {
     expect(ids(removeLine(b, 0))).toEqual([['d']]);
     expect(ids(moveLine(b, 1, 0))).toEqual([['d'], ['a', 'b', 'c']]);
     expect(ids(b)).toEqual([['a', 'b', 'c'], ['d']]);
+  });
+});
+
+describe('styles', () => {
+  const cfg = (): Config => ({
+    ...defaultConfig(),
+    lines: [
+      [
+        {
+          id: 'a',
+          type: 'context-bar',
+          color: 'red',
+          bold: true,
+          raw: true,
+          options: { style: 'dots', width: 6 },
+        },
+        { id: 'b', type: 'model', color: 'blue', italic: true },
+        { id: 'c', type: 'five-hour-usage', options: { display: 'bar' } },
+      ],
+    ],
+  });
+
+  it('copies the chosen groups exactly', () => {
+    const c = cfg();
+    const snap = takeStyle(c.lines[0]![0]!);
+    const colors = applyStyle(c, ['b'], snap, ['colors']).lines[0]![1]!;
+    expect(colors).toMatchObject({ color: 'red', italic: true });
+    const text = applyStyle(c, ['b'], snap, ['text']).lines[0]![1]!;
+    expect(text.bold).toBe(true);
+    expect(text.italic).toBeUndefined();
+    const bars = applyStyle(c, ['c'], snap, ['bars'], () => ['display', 'style', 'width']).lines[0]![2]!;
+    expect(bars.options).toEqual({ style: 'dots', width: 6 });
+    expect(applyStyle(c, ['b'], snap, ['label']).lines[0]![1]!.raw).toBe(true);
+  });
+
+  it('clears own colors for a theme', () => {
+    const c = cfg();
+    expect(hasOwnColors(c)).toBe(true);
+    const plain = clearColors(c);
+    expect(hasOwnColors(plain)).toBe(false);
+    expect(plain.lines[0]![0]!.bold).toBe(true);
+  });
+
+  it('keeps the last three previous styles per widget', () => {
+    let c = cfg();
+    let history = {};
+    for (const color of ['green', 'yellow', 'cyan', 'magenta']) {
+      const next = updateItem(c, 'b', { color });
+      history = recordStyles(history, c, next);
+      c = next;
+    }
+    const list = (history as Record<string, { color?: string }[]>).b!;
+    expect(list.map((s) => s.color)).toEqual(['cyan', 'yellow', 'green']);
+    expect(recordStyles(history, c, c)).toEqual(history);
   });
 });

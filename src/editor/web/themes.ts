@@ -1,3 +1,4 @@
+import { clearColors, hasOwnColors } from '../../core/edit.js';
 import type { Config } from '../../core/types.js';
 import { ansiToHtml } from './ansi-html.js';
 import { api } from './api.js';
@@ -11,8 +12,20 @@ export function withoutOverrides(config: Config): Config {
   return rest;
 }
 
-export function applyTheme(id: string): void {
-  commit({ ...withoutOverrides(S.config), theme: id });
+export function applyTheme(id: string, useThemeColors = false): void {
+  const base = withoutOverrides(S.config);
+  commit({ ...(useThemeColors ? clearColors(base) : base), theme: id });
+}
+
+// widget colors win over any theme; offer to drop them
+export async function askThemeColors(): Promise<boolean> {
+  if (!hasOwnColors(S.config)) return false;
+  return confirmDialog(
+    "Use the theme's colors?",
+    "Some widgets have their own colors, so every theme shows them the same way. Switch those widgets to the theme's colors? Ctrl+Z undoes it, and after you save, the old colors stay under each widget's earlier styles.",
+    'Use theme colors',
+    'Keep my colors',
+  );
 }
 
 function setThemes(themes: ThemeInfo[]): void {
@@ -63,6 +76,7 @@ async function editJson(theme: ThemeInfo): Promise<boolean> {
 
 export async function openGallery(): Promise<void> {
   let filter: 'all' | StyleId = 'all';
+  let useThemeColors: boolean | null = null;
   let previews: Record<string, string[]> = {};
   let liveLines: string[] = [];
   const grid = h('div', { class: 'gallery-grid' });
@@ -138,8 +152,9 @@ export async function openGallery(): Promise<void> {
           'aria-pressed': String(current),
           'data-theme': t.id,
           title: `Apply ${t.name}`,
-          onClick: () => {
-            applyTheme(t.id);
+          onClick: async () => {
+            if (useThemeColors === null && hasOwnColors(S.config)) useThemeColors = await askThemeColors();
+            applyTheme(t.id, useThemeColors ?? false);
             renderGrid();
             void refreshLive();
           },
@@ -270,7 +285,7 @@ export async function openGallery(): Promise<void> {
         h(
           'span',
           { class: 'panel-note' },
-          'Click a theme to apply it. Overrides are cleared and you can undo.',
+          'Click a theme to apply it; you can undo. Previews show each theme without your widget colors.',
         ),
       ),
       grid,
@@ -286,7 +301,7 @@ export async function openGallery(): Promise<void> {
           onClick: async () => {
             const id = await openThemeBuilder({ from: currentTheme(), style: S.config.style });
             if (id) {
-              applyTheme(id);
+              applyTheme(id, await askThemeColors());
               renderFilters();
               await loadPreviews();
               void refreshLive();

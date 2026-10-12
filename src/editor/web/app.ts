@@ -1,4 +1,5 @@
 import { addLine, insertItem, moveItem, moveLine, removeItem, uniqueId } from '../../core/edit.js';
+import type { Config } from '../../core/types.js';
 import { ansiToHtml, escapeHtml } from './ansi-html.js';
 import { api, setToken } from './api.js';
 import { colorToCss } from './colors.js';
@@ -23,6 +24,7 @@ import {
   undo,
   type WidgetInfo,
 } from './store.js';
+import { chipMenu, copyStyle, paintOnto, pasteStyle, rememberStyles, setPainting } from './styles.js';
 import { initTerminalPicker } from './terminal-picker.js';
 import { openGallery } from './themes.js';
 import { confirmDialog, modal, toast } from './ui.js';
@@ -91,8 +93,13 @@ function renderChip(id: string, line: number, index: number): HTMLElement {
     item.merge ? h('span', { class: 'chip-link', title: 'Merged with next' }, icon('link', 12)) : null,
   );
   chip.addEventListener('pointerdown', (e) =>
-    press(e, { kind: 'chip', id, label: name, color }, { click: () => select(id, line), drop: handleDrop }),
+    press(
+      e,
+      { kind: 'chip', id, label: name, color },
+      { click: () => (S.painting ? paintOnto(id) : select(id, line)), drop: handleDrop },
+    ),
   );
+  chip.addEventListener('contextmenu', (e) => chipMenu(e, id, line));
   chip.addEventListener('keydown', (e) => chipKey(e, id));
   return chip;
 }
@@ -353,7 +360,9 @@ function renderChrome(): void {
 
 async function save(): Promise<void> {
   try {
+    const before = JSON.parse(S.saved) as Config;
     await api.save(S.config);
+    void rememberStyles(before, S.config);
     markSaved();
     toast(
       S.api.claude.installed
@@ -475,6 +484,16 @@ function inTextField(t: EventTarget | null): boolean {
 function onKeydown(e: KeyboardEvent): void {
   const mod = e.ctrlKey || e.metaKey;
   if (document.querySelector('.overlay')) return;
+  if (e.key === 'Escape' && S.painting) {
+    setPainting(false);
+    return;
+  }
+  if (mod && e.altKey && !inTextField(e.target) && (e.code === 'KeyC' || e.code === 'KeyV')) {
+    e.preventDefault();
+    if (e.code === 'KeyC') copyStyle();
+    else if (S.selectedId) pasteStyle([S.selectedId]);
+    return;
+  }
   if (mod && e.key.toLowerCase() === 's') {
     e.preventDefault();
     void save();

@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
+import path from 'node:path';
 import { currentStatusLine, defaultCommand, install, setupCommand } from '../commands/install.js';
 import {
   compareVersions,
@@ -14,6 +15,7 @@ import {
   writeUpdateState,
 } from '../commands/update.js';
 import { normalizeConfig, saveConfig } from '../core/config.js';
+import { applyStyle, type StyleHistory } from '../core/edit.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { lastPayloadPath, tildify } from '../core/paths.js';
 import { deleteUserPreset, listPresets, presetsDir, saveUserPreset } from '../core/presets.js';
@@ -167,6 +169,15 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const host = opts.host ?? '127.0.0.1';
   const token = crypto.randomBytes(16).toString('hex');
   let command = defaultCommand();
+  const stylesFile = path.join(path.dirname(opts.configPath), 'styles.json');
+  const readStyles = (): StyleHistory => {
+    try {
+      const v = JSON.parse(fs.readFileSync(stylesFile, 'utf8')) as unknown;
+      return v && typeof v === 'object' && !Array.isArray(v) ? (v as StyleHistory) : {};
+    } catch {
+      return {};
+    }
+  };
   const gsd = gsdInstalled();
   const presetList = () =>
     availablePresets(gsd).map((p) => ({
@@ -245,6 +256,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           categories: CATEGORIES,
           presets: presetList(),
           presetsDir: tildify(presetsDir()),
+          styleHistory: readStyles(),
           gsdInstalled: gsd,
           themes: listThemes(),
           styles: STYLES,
@@ -282,7 +294,15 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const source = body.source === 'last' ? 'last' : 'sample';
         const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 100));
         const own = config.lines.find((l) => l.length > 0);
-        const demo: WidgetItem[] = own ?? DEMO_TYPES.map((type, i) => ({ id: `${type}-${i + 1}`, type }));
+        const plain = own
+          ? applyStyle(
+              { ...config, lines: [own] },
+              own.map((i) => i.id),
+              {},
+              ['colors', 'text'],
+            ).lines[0]
+          : null;
+        const demo: WidgetItem[] = plain ?? DEMO_TYPES.map((type, i) => ({ id: `${type}-${i + 1}`, type }));
         const previews: Record<string, string[]> = {};
         for (const t of listThemes()) {
           const cfg: Config = {
@@ -344,6 +364,19 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           config: body.config,
         });
         send(res, 200, { ok: true, presets: presetList() });
+        return;
+      }
+      case 'PUT /api/styles': {
+        const body = asObject(await readBody(req));
+        const history = asObject(body.history);
+        const clean: StyleHistory = {};
+        for (const [id, list] of Object.entries(history).slice(0, 500)) {
+          if (Array.isArray(list))
+            clean[id.slice(0, 80)] = list.filter((s) => s && typeof s === 'object').slice(0, 3);
+        }
+        fs.mkdirSync(path.dirname(stylesFile), { recursive: true });
+        fs.writeFileSync(stylesFile, `${JSON.stringify(clean, null, 2)}\n`);
+        send(res, 200, { ok: true });
         return;
       }
       case 'PUT /api/config': {

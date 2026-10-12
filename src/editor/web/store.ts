@@ -1,3 +1,4 @@
+import type { StyleGroup, StyleHistory, StyleSnapshot } from '../../core/edit.js';
 import type { Config, OptionSpec, WidgetCategory } from '../../core/types.js';
 
 export interface WidgetInfo {
@@ -54,6 +55,7 @@ export interface ApiState {
   categories: { id: string; name: string }[];
   presets: PresetInfo[];
   presetsDir: string;
+  styleHistory: StyleHistory;
   gsdInstalled: boolean;
   themes: ThemeInfo[];
   styles: { id: StyleId; name: string; description: string }[];
@@ -77,6 +79,9 @@ export interface Store {
   width: number;
   api: ApiState;
   widgetMap: Map<string, WidgetInfo>;
+  clip: { snap: StyleSnapshot; from: string; type: string } | null;
+  groups: StyleGroup[];
+  painting: boolean;
 }
 
 export interface CommitOpts {
@@ -113,6 +118,9 @@ export function init(api: ApiState): void {
     width: 130,
     api,
     widgetMap: new Map(api.widgets.map((w) => [w.type, w])),
+    clip: null,
+    groups: ['colors', 'text'],
+    painting: false,
   };
 }
 
