@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-12
+
 ### Added
 
 - Alignment: `align` places every line (or the panel box) left, center or right, and `lineAlign` overrides it per line; the editor has an Alignment setting and three buttons on each line
@@ -228,7 +230,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/alpadalar/ccinfobar/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/alpadalar/ccinfobar/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/alpadalar/ccinfobar/compare/v0.5.6...v0.6.0
 [0.5.6]: https://github.com/alpadalar/ccinfobar/compare/v0.5.5...v0.5.6
