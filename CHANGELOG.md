@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-12
+
+### Changed
+
+- Updates install `ccinfobar@<version>` from npm and fall back to the GitHub release; installs made from a GitHub tarball move to the npm package on their next update
+- With npx, the update notice is skipped and command hints read `npx ccinfobar@latest …`
+
 ## [0.5.1] - 2026-10-12
 
 ### Added
@@ -130,7 +137,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/alpadalar/ccinfobar/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/alpadalar/ccinfobar/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/alpadalar/ccinfobar/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/alpadalar/ccinfobar/compare/v0.3.4...v0.4.0

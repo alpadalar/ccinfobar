@@ -31,6 +31,17 @@ describe('update', () => {
     }
   });
 
+  it('installs from npm first and falls back to the GitHub release', async () => {
+    const { installSources, selfCommand } = await import('../../src/commands/update.js');
+    expect(installSources('0.5.1')).toEqual([
+      'ccinfobar@0.5.1',
+      'https://github.com/alpadalar/ccinfobar/releases/download/v0.5.1/ccinfobar.tgz',
+    ]);
+    expect(() => installSources('0.5.1 && x')).toThrow();
+    expect(selfCommand('npx')).toBe('npx ccinfobar@latest');
+    expect(selfCommand('npm-global')).toBe('ccinfobar');
+  });
+
   it('compares versions', () => {
     expect(compareVersions('0.3.0', '0.2.9')).toBeGreaterThan(0);
     expect(compareVersions('v1.0.0', '1.0.0')).toBe(0);

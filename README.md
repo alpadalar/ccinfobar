@@ -4,7 +4,7 @@
 
 **A customizable status line for Claude Code, with a drag-and-drop editor.**
 
-[![version](https://img.shields.io/github/package-json/v/alpadalar/ccinfobar?color=cb3837&label=version)](CHANGELOG.md)
+[![npm](https://img.shields.io/npm/v/ccinfobar?color=cb3837)](https://www.npmjs.com/package/ccinfobar)
 [![CI](https://github.com/alpadalar/ccinfobar/actions/workflows/ci.yml/badge.svg)](https://github.com/alpadalar/ccinfobar/actions/workflows/ci.yml)
 [![node](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=nodedotjs&logoColor=white)](package.json)
 [![dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
@@ -244,11 +244,11 @@ The config lives in `~/.config/ccinfobar/config.json` (`%APPDATA%\ccinfobar\conf
 
 ## Updates
 
-ccinfobar keeps itself up to date. Once a day, after the status line has been printed, a background process asks GitHub for the latest release; the status line never waits for it.
+With `npx -y ccinfobar@latest` as the status line command, every run already uses the newest release. A global install keeps itself up to date: once a day, after the status line has been printed, a background process asks GitHub for the latest release and installs it from npm (or from the GitHub release if npm does not have it yet); the status line never waits for it. Installs made from a GitHub release tarball move to the npm package on their next update.
 
 | `update` | Behaviour |
 | --- | --- |
-| `"auto"` (default) | Installs new releases in the background (npm global installs only; source checkouts and npx are left alone) |
+| `"auto"` (default) | Installs new releases in the background (global installs only; npx always runs the latest, source checkouts are left alone) |
 | `"notify"` | Adds `⬆ ccinfobar 0.4.0 · ccinfobar update` to the end of the status line |
 | `"off"` | Never checks |
 

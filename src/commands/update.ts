@@ -70,7 +70,7 @@ export function updateNotice(
   current: string,
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
-  if (config.update !== 'notify' || updatesDisabled(config, env)) return null;
+  if (config.update !== 'notify' || updatesDisabled(config, env) || installKind() === 'npx') return null;
   const latest = availableUpdate(current, env);
   return latest ? `⬆ ccinfobar ${latest} · ccinfobar update` : null;
 }
@@ -123,15 +123,32 @@ export function npmCommand(): { file: string; args: string[]; shell: boolean } {
   return { file: 'npm', args: [], shell: false };
 }
 
+// npm registry first, GitHub release if npm lags
+export function installSources(version: string): string[] {
+  return [`ccinfobar@${assertVersion(version)}`, tarballUrl(version)];
+}
+
 export function installVersion(version: string): void {
-  const url = tarballUrl(version);
   const npm = npmCommand();
-  execFileSync(npm.file, [...npm.args, 'install', '-g', url, '--no-audit', '--no-fund', '--silent'], {
-    stdio: 'ignore',
-    timeout: 120_000,
-    windowsHide: true,
-    shell: npm.shell,
-  });
+  let last: unknown;
+  for (const spec of installSources(version)) {
+    try {
+      execFileSync(npm.file, [...npm.args, 'install', '-g', spec, '--no-audit', '--no-fund', '--silent'], {
+        stdio: 'ignore',
+        timeout: 120_000,
+        windowsHide: true,
+        shell: npm.shell,
+      });
+      return;
+    } catch (err) {
+      last = err;
+    }
+  }
+  throw last;
+}
+
+export function selfCommand(kind: InstallKind = installKind()): string {
+  return kind === 'npx' ? 'npx ccinfobar@latest' : 'ccinfobar';
 }
 
 export function scheduleCheck(config: Config, env: NodeJS.ProcessEnv = process.env): void {
@@ -213,14 +230,14 @@ export async function manualUpdate(current: string, checkOnly: boolean): Promise
     return 0;
   }
   try {
-    console.log(`  Installing ${tarballUrl(latest)} ...`);
+    console.log(`  Installing ccinfobar@${latest} ...`);
     installVersion(latest);
     writeUpdateState({ checkedAt: Date.now(), latest, installed: latest });
     console.log(`✓ Updated to ${latest}`);
     return 0;
   } catch (err) {
     console.error(`✗ npm install failed: ${(err as Error).message}`);
-    console.error(`  Run it yourself: npm install -g ${tarballUrl(latest)}`);
+    console.error(`  Run it yourself: npm install -g ccinfobar@${latest}`);
     return 1;
   }
 }

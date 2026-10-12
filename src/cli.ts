@@ -20,6 +20,7 @@ import {
   manualUpdate,
   readUpdateState,
   scheduleCheck,
+  selfCommand,
   updateNotice,
   updatesDisabled,
 } from './commands/update.js';
@@ -281,7 +282,7 @@ function doctor(cfgFile: string): void {
     const o = projectOverride(dir);
     if (!o) continue;
     console.log(`✗ ${tildify(o.file)} overrides it with: ${o.command}`);
-    console.log(`  Run \`ccinfobar install --project\` in ${tildify(dir)} to use ccinfobar there.`);
+    console.log(`  Run \`${selfCommand()} install --project\` in ${tildify(dir)} to use ccinfobar there.`);
   }
   console.log(`${ok(fs.existsSync(lastPayloadPath()))} Last payload ${tildify(lastPayloadPath())}`);
   console.log(`  Cache dir ${tildify(cacheDir())}`);
@@ -296,7 +297,7 @@ function doctor(cfgFile: string): void {
   }
   if (upd?.error) console.log(`  Last update check failed: ${upd.error}`);
   printWidgetReport(loaded.config);
-  if (!usesUs) console.log('\nRun `ccinfobar install` to enable it in Claude Code.');
+  if (!usesUs) console.log(`\nRun \`${selfCommand()} install\` to enable it in Claude Code.`);
 }
 
 export async function main(argv = process.argv.slice(2)): Promise<void> {
@@ -382,9 +383,11 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       const shadowed = projectOverride(process.cwd());
       if (shadowed) {
         console.log(`⚠ ${tildify(shadowed.file)} sets its own statusLine, which wins in this project.`);
-        console.log('  Run `ccinfobar install --project` here to use ccinfobar in it too.');
+        console.log(`  Run \`${selfCommand()} install --project\` here to use ccinfobar in it too.`);
       }
-      console.log('  Customize with `ccinfobar edit` (browser) or `ccinfobar tui` (terminal).');
+      console.log(
+        `  Customize with \`${selfCommand()} edit\` (browser) or \`${selfCommand()} tui\` (terminal).`,
+      );
       return;
     }
     case 'import': {
