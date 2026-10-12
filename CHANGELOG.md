@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-12
+
+### Added
+
+- Published to npm: `npx ccinfobar@latest install` sets the status line to `npx -y ccinfobar@latest`; `npm install -g ccinfobar` still gives the faster global command
+
+### Changed
+
+- Releases publish to npm through trusted publishing instead of a stored token
+
 ## [0.5.0] - 2026-10-12
 
 ### Added
@@ -120,7 +130,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/alpadalar/ccinfobar/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/alpadalar/ccinfobar/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/alpadalar/ccinfobar/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/alpadalar/ccinfobar/compare/v0.3.3...v0.3.4

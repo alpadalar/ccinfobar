@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { claudeDir, claudeSettingsPath } from '../core/paths.js';
+import { type InstallKind, installKind } from './update.js';
 
 export interface StatusLineSetting {
   type: 'command';
@@ -42,12 +43,15 @@ function quote(p: string): string {
   return /[\s"]/.test(p) ? `"${p}"` : p;
 }
 
-export function defaultCommand(): string {
+export const NPX_COMMAND = 'npx -y ccinfobar@latest';
+
+// global binary, then this checkout, then npx
+export function defaultCommand(kind: InstallKind = installKind()): string {
   const bin = globalBinary();
   if (bin) return quote(bin);
   const entry = process.argv[1] ? path.resolve(process.argv[1]) : null;
-  if (entry && fs.existsSync(entry)) return `${quote(process.execPath)} ${quote(entry)}`;
-  return 'npx -y https://github.com/alpadalar/ccinfobar/releases/latest/download/ccinfobar.tgz';
+  if (kind !== 'npx' && entry && fs.existsSync(entry)) return `${quote(process.execPath)} ${quote(entry)}`;
+  return NPX_COMMAND;
 }
 
 export function currentStatusLine(file = claudeSettingsPath()): StatusLineSetting | null {

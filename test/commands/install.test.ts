@@ -4,8 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  defaultCommand,
   ignoreLocally,
   install,
+  NPX_COMMAND,
   projectLocalFile,
   projectOverride,
   projectSettingsPath,
@@ -116,5 +118,16 @@ describe('install and uninstall', () => {
     expect(releaseProjects(env)).toEqual([gsd]);
     expect(fs.existsSync(projectSettingsPath(gsd))).toBe(false);
     expect(read(projectSettingsPath(gsd, false)).statusLine.command).toMatch(/gsd-statusline/);
+  });
+
+  it('writes the npx command when run through npx without a global install', () => {
+    const path0 = process.env.PATH;
+    process.env.PATH = '';
+    try {
+      expect(defaultCommand('npx')).toBe(NPX_COMMAND);
+      expect(defaultCommand('source')).not.toBe(NPX_COMMAND);
+    } finally {
+      process.env.PATH = path0;
+    }
   });
 });

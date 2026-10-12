@@ -50,20 +50,26 @@
 Requirements: [Claude Code](https://code.claude.com) and Node.js 20 or newer.
 
 ```sh
-npm install -g https://github.com/alpadalar/ccinfobar/releases/latest/download/ccinfobar.tgz
-ccinfobar install
+npx ccinfobar@latest install
 ```
 
-> ccinfobar is not on the npm registry yet, so this installs the latest GitHub release. Once it is published, `npm install -g ccinfobar` will work too. Run the same command again to update.
+This sets Claude Code's status line to `npx -y ccinfobar@latest`, so you always run the newest release without installing anything. For faster startup, install it globally instead; `ccinfobar install` then uses the global command and ccinfobar keeps itself updated:
+
+```sh
+npm install -g ccinfobar
+ccinfobar install
+```
 
 `install` points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar (backing up the file first) and writes a default config. If you were using ccstatusline or claude-powerline, it offers to import that layout first. Projects where a local GSD install set its own status line are switched to ccinfobar too, through their git-ignored `.claude/settings.local.json`. `ccinfobar uninstall` puts your previous status line back. The next Claude Code prompt shows the new status line.
 
 Then make it yours:
 
 ```sh
-ccinfobar edit     # browser editor
-ccinfobar tui      # terminal editor
+npx ccinfobar@latest edit     # browser editor
+npx ccinfobar@latest tui      # terminal editor
 ```
+
+With a global install, drop the `npx` and `@latest`: `ccinfobar edit`. The rest of this README uses the short form.
 
 <details>
 <summary>Manual setup</summary>
@@ -74,7 +80,7 @@ Add this to `~/.claude/settings.json`:
 {
   "statusLine": {
     "type": "command",
-    "command": "ccinfobar",
+    "command": "npx -y ccinfobar@latest",
     "padding": 0
   }
 }

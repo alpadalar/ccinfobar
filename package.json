@@ -1,6 +1,6 @@
 {
   "name": "ccinfobar",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "A customizable status line for Claude Code with a drag-and-drop editor",
   "keywords": [
     "claude",
