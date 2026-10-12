@@ -69,6 +69,14 @@ describe('renderer', () => {
     expect(line).toContain('\x1b[44m');
   });
 
+  it('keeps widget colors on blocks only when they stay readable', () => {
+    const line = (item: Partial<WidgetItem>) =>
+      render(ctxWith({ config: { colorLevel: 3, theme: 'nord', lines: [[text('a', item)]] } }))[0]!;
+    expect(line({ color: 'blue' })).toContain('\x1b[38;2;236;239;244m');
+    expect(line({ color: '#ffffff' })).toContain('\x1b[38;2;255;255;255m');
+    expect(line({ color: 'blue', background: 'blue' })).toContain('\x1b[34m\x1b[44m');
+  });
+
   it('shows a placeholder for widgets without data unless hideEmpty is set', () => {
     const ctx = ctxWith({
       payload: {},

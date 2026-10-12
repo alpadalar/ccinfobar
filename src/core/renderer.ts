@@ -1,5 +1,6 @@
 import { getWidget } from '../widgets/index.js';
 import {
+  contrastRatio,
   detectLevel,
   type Level,
   RESET,
@@ -180,7 +181,18 @@ export function colorsFor(a: Appearance, part: Part, index: number): Colors {
   const block =
     typeof sw === 'string' ? sw : (sw?.bg ?? (t.colors.mode === 'widget' ? part.def.color : t.colors.bg));
   const text = typeof sw === 'object' && sw.fg ? sw.fg : t.colors.on;
-  return { fg: clean(part.item.color ?? text), bg: clean(part.item.background ?? part.bg ?? block) };
+  const bg = clean(part.item.background ?? part.bg ?? block);
+  const own = part.item.background ? part.item.color : readable(part.item.color, bg);
+  return { fg: clean(own ?? text), bg };
+}
+
+// own color on a block only when legible
+const MIN_CONTRAST = 3;
+
+function readable(fg: string | undefined, bg: string | undefined): string | undefined {
+  if (!fg) return undefined;
+  const ratio = contrastRatio(fg, bg);
+  return ratio === null || ratio >= MIN_CONTRAST ? fg : undefined;
 }
 
 function styleFor(a: Appearance, part: Part, c: Colors) {

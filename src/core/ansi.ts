@@ -118,6 +118,22 @@ export function colorToRgb(value: string | undefined): [number, number, number] 
   return index256ToRgb(p.index);
 }
 
+function luminance([r, g, b]: [number, number, number]): number {
+  const lin = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+export function contrastRatio(a: string | undefined, b: string | undefined): number | null {
+  const ra = colorToRgb(a);
+  const rb = colorToRgb(b);
+  if (!ra || !rb) return null;
+  const [hi, lo] = [luminance(ra), luminance(rb)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 function colorCode(value: string | undefined, level: Level, bg: boolean): string {
   const p = parseColor(value);
   if (!p || level === 0) return '';

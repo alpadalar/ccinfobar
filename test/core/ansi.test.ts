@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { detectLevel, parseColor, stripAnsi, style, truncate, visibleWidth } from '../../src/core/ansi.js';
+import {
+  contrastRatio,
+  detectLevel,
+  parseColor,
+  stripAnsi,
+  style,
+  truncate,
+  visibleWidth,
+} from '../../src/core/ansi.js';
 
 describe('ansi', () => {
   it('parses named, 256 and hex colors', () => {
@@ -35,5 +43,11 @@ describe('ansi', () => {
     expect(stripAnsi(out)).toBe('hello…');
     expect(out.endsWith('\x1b[0m')).toBe(true);
     expect(truncate('short', 10)).toBe('short');
+  });
+
+  it('measures contrast between colors', () => {
+    expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21);
+    expect(contrastRatio('blue', 'blue')).toBe(1);
+    expect(contrastRatio('nope', 'blue')).toBeNull();
   });
 });
