@@ -1,6 +1,20 @@
 export const BASIC = [
-  '#000000', '#cd3131', '#0dbc79', '#e5e510', '#2472c8', '#bc3fbc', '#11a8cd', '#e5e5e5',
-  '#666666', '#f14c4c', '#23d18b', '#f5f543', '#3b8eea', '#d670d6', '#29b8db', '#ffffff',
+  '#000000',
+  '#cd3131',
+  '#0dbc79',
+  '#e5e510',
+  '#2472c8',
+  '#bc3fbc',
+  '#11a8cd',
+  '#e5e5e5',
+  '#666666',
+  '#f14c4c',
+  '#23d18b',
+  '#f5f543',
+  '#3b8eea',
+  '#d670d6',
+  '#29b8db',
+  '#ffffff',
 ];
 
 interface Style {
@@ -35,7 +49,16 @@ export function escapeHtml(s: string): string {
 }
 
 function blank(): Style {
-  return { fg: null, bg: null, bold: false, dim: false, italic: false, underline: false, strike: false, inverse: false };
+  return {
+    fg: null,
+    bg: null,
+    bold: false,
+    dim: false,
+    italic: false,
+    underline: false,
+    strike: false,
+    inverse: false,
+  };
 }
 
 function applySgr(style: Style, params: number[]): void {
@@ -101,7 +124,8 @@ function safeHref(url: string): string | null {
   return /^(https?:|file:|mailto:)/i.test(url) ? url : null;
 }
 
-const TOKEN = /\x1b\[([0-9;:]*)m|\x1b\]8;[^;\x07\x1b]*;([^\x07\x1b]*)(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[A-Za-ln-z]/g;
+const TOKEN =
+  /\x1b\[([0-9;:]*)m|\x1b\]8;[^;\x07\x1b]*;([^\x07\x1b]*)(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[A-Za-ln-z]/g;
 
 export function ansiToHtml(input: string): string {
   const style = blank();
@@ -122,10 +146,7 @@ export function ansiToHtml(input: string): string {
     emit(input.slice(last, m.index));
     last = m.index + m[0].length;
     if (m[1] !== undefined) {
-      applySgr(
-        style,
-        m[1] === '' ? [] : m[1].split(/[;:]/).map((x) => (x === '' ? 0 : Number(x))),
-      );
+      applySgr(style, m[1] === '' ? [] : m[1].split(/[;:]/).map((x) => (x === '' ? 0 : Number(x))));
     } else if (m[2] !== undefined) {
       href = m[2] ? safeHref(m[2]) : null;
     }

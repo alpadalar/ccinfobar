@@ -41,7 +41,12 @@ export function modal<T = unknown>(opts: ModalOpts): Promise<T | undefined> {
     };
     const dialog = h(
       'div',
-      { class: `modal${opts.wide ? ' wide' : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-label': opts.title },
+      {
+        class: `modal${opts.wide ? ' wide' : ''}`,
+        role: 'dialog',
+        'aria-modal': 'true',
+        'aria-label': opts.title,
+      },
       h(
         'header',
         { class: 'modal-head' },
@@ -57,7 +62,9 @@ export function modal<T = unknown>(opts: ModalOpts): Promise<T | undefined> {
     });
     document.addEventListener('keydown', onKey, true);
     document.body.append(overlay);
-    const first = dialog.querySelector<HTMLElement>('textarea, input, select') ?? dialog.querySelector<HTMLElement>('.btn.primary');
+    const first =
+      dialog.querySelector<HTMLElement>('textarea, input, select') ??
+      dialog.querySelector<HTMLElement>('.btn.primary');
     first?.focus();
   });
 }

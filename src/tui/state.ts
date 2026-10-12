@@ -4,9 +4,9 @@ import {
   insertItem,
   moveItem,
   moveLine,
+  type Position,
   removeItem,
   removeLine,
-  type Position,
 } from '../core/edit.js';
 import { getPreset, PRESETS } from '../core/presets.js';
 import type { PreviewSource } from '../core/preview.js';
@@ -296,7 +296,8 @@ function reduceNormal(state: State, action: Action): State {
       const to = action.to ?? drag.to;
       const moving = lines[drag.from.line]?.[drag.from.index];
       if (!to || !moving) return cleared;
-      const same = to.line === drag.from.line && (to.index === drag.from.index || to.index === drag.from.index + 1);
+      const same =
+        to.line === drag.from.line && (to.index === drag.from.index || to.index === drag.from.index + 1);
       if (same) return cleared;
       const next = moveItem(config, moving.id, to);
       const at = findItem(next, moving.id);
@@ -321,7 +322,10 @@ function insertFromPicker(state: State, filter: string, cursor: number): State {
 }
 
 function reducePicker(state: State, action: Action, mode: Extract<Mode, { kind: 'picker' }>): State {
-  const set = (filter: string, cursor: number): State => ({ ...state, mode: { kind: 'picker', filter, cursor } });
+  const set = (filter: string, cursor: number): State => ({
+    ...state,
+    mode: { kind: 'picker', filter, cursor },
+  });
   const count = () => pickerItems(mode.filter).length;
   switch (action.type) {
     case 'nav':
@@ -433,7 +437,10 @@ function reduceSettings(state: State, action: Action, mode: Extract<Mode, { kind
     const count = listEntries(field).length;
     switch (action.type) {
       case 'nav':
-        return { ...state, mode: { ...mode, sub: { kind: 'list', cursor: step(sub.cursor, action.dir, count) } } };
+        return {
+          ...state,
+          mode: { ...mode, sub: { kind: 'list', cursor: step(sub.cursor, action.dir, count) } },
+        };
       case 'enter':
         return chooseEntry(state, field, sub.cursor);
       case 'clickItem':
@@ -452,10 +459,15 @@ function reduceSettings(state: State, action: Action, mode: Extract<Mode, { kind
     case 'clickItem':
       if (action.area !== 'main') return state;
       return fields[action.index]
-        ? activateField({ ...state, mode: { ...mode, cursor: action.index } }, { ...mode, cursor: action.index }, fields[action.index]!)
+        ? activateField(
+            { ...state, mode: { ...mode, cursor: action.index } },
+            { ...mode, cursor: action.index },
+            fields[action.index]!,
+          )
         : state;
     case 'cycle': {
-      if (!field || (field.kind !== 'select' && field.kind !== 'bool' && field.kind !== 'number')) return state;
+      if (!field || (field.kind !== 'select' && field.kind !== 'bool' && field.kind !== 'number'))
+        return state;
       return applyField(state, field, cycled(field, state.config, action.delta));
     }
     case 'delete':
@@ -501,7 +513,10 @@ function reduceConfirm(state: State, action: Action, mode: Extract<Mode, { kind:
     case 'preset': {
       const preset = mode.preset ? getPreset(mode.preset) : undefined;
       if (action.answer !== 'yes' || !preset) return state;
-      return commit(back, preset.build(), { sel: { line: 0, index: 0 }, message: `Applied preset ${preset.name}` });
+      return commit(back, preset.build(), {
+        sel: { line: 0, index: 0 },
+        message: `Applied preset ${preset.name}`,
+      });
     }
     case 'install':
       return action.answer === 'yes' ? { ...back, effect: { kind: 'install' } } : state;
@@ -509,7 +524,8 @@ function reduceConfirm(state: State, action: Action, mode: Extract<Mode, { kind:
 }
 
 export function reduce(prev: State, action: Action): State {
-  const state = prev.message && action.type !== 'message' && action.type !== 'dragOver' ? { ...prev, message: '' } : prev;
+  const state =
+    prev.message && action.type !== 'message' && action.type !== 'dragOver' ? { ...prev, message: '' } : prev;
   switch (action.type) {
     case 'message':
       return { ...state, message: action.text };
@@ -536,6 +552,8 @@ export function reduce(prev: State, action: Action): State {
     case 'confirm':
       return reduceConfirm(state, action, mode);
     case 'help':
-      return action.type === 'cancel' || action.type === 'enter' ? { ...state, mode: { kind: 'normal' } } : state;
+      return action.type === 'cancel' || action.type === 'enter'
+        ? { ...state, mode: { kind: 'normal' } }
+        : state;
   }
 }

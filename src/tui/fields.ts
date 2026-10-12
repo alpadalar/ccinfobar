@@ -60,7 +60,9 @@ export function listEntries(field: Field): ListEntry[] {
 export function listCursorFor(field: Field, config: Config): number {
   const entries = listEntries(field);
   const cur = field.get(config) ?? field.fallback;
-  const at = entries.findIndex((e) => e.value !== CUSTOM && e.value === (cur === undefined ? undefined : String(cur)));
+  const at = entries.findIndex(
+    (e) => e.value !== CUSTOM && e.value === (cur === undefined ? undefined : String(cur)),
+  );
   if (at >= 0) return at;
   if (field.kind === 'color' && cur !== undefined && cur !== '') return entries.length - 1;
   return 0;
@@ -120,9 +122,13 @@ function baseField(
     default:
       return {
         id: key,
-        label: { bold: 'Bold', dim: 'Dim', italic: 'Italic', raw: 'Raw (no label)', merge: 'Merge with previous' }[
-          key
-        ],
+        label: {
+          bold: 'Bold',
+          dim: 'Dim',
+          italic: 'Italic',
+          raw: 'Raw (no label)',
+          merge: 'Merge with previous',
+        }[key],
         kind: 'bool',
         resettable: true,
         get,
@@ -136,7 +142,7 @@ function optionField(spec: NonNullable<WidgetDef['options']>[number], itemId: st
   const field: Field = {
     id: `option:${spec.key}`,
     label: spec.label,
-    kind: spec.kind,
+    kind: spec.kind === 'boolean' ? 'bool' : spec.kind,
     fallback: spec.default,
     resettable: true,
     get: (config) => {
@@ -189,7 +195,13 @@ export function globalFields(): Field[] {
     powerline: { ...config.powerline, ...patch },
   });
   return [
-    globalField('separator', 'Separator', 'text', (c) => c.separator, (c, v) => ({ ...c, separator: String(v) })),
+    globalField(
+      'separator',
+      'Separator',
+      'text',
+      (c) => c.separator,
+      (c, v) => ({ ...c, separator: String(v) }),
+    ),
     globalField(
       'separatorColor',
       'Separator color',
@@ -247,7 +259,9 @@ export function globalFields(): Field[] {
           const s = t.trim().toLowerCase();
           if (s === 'auto' || s === '') return { ok: true, value: 'auto' };
           const n = Number(s);
-          return Number.isFinite(n) && n > 0 ? { ok: true, value: Math.floor(n) } : { ok: false, error: "Enter 'auto' or a positive number" };
+          return Number.isFinite(n) && n > 0
+            ? { ok: true, value: Math.floor(n) }
+            : { ok: false, error: "Enter 'auto' or a positive number" };
         },
       },
     ),
@@ -258,7 +272,13 @@ export function globalFields(): Field[] {
       (c) => c.widthOffset,
       (c, v) => ({ ...c, widthOffset: Math.max(0, Math.floor(Number(v))) }),
     ),
-    globalField('powerline.enabled', 'Powerline', 'bool', (c) => c.powerline.enabled, (c, v) => pl({ enabled: Boolean(v) })(c)),
+    globalField(
+      'powerline.enabled',
+      'Powerline',
+      'bool',
+      (c) => c.powerline.enabled,
+      (c, v) => pl({ enabled: Boolean(v) })(c),
+    ),
     globalField(
       'powerline.theme',
       'Powerline theme',
@@ -267,19 +287,38 @@ export function globalFields(): Field[] {
       (c, v) => pl({ theme: String(v) })(c),
       { choices: Object.entries(THEMES).map(([value, t]) => ({ value, label: t.name })) },
     ),
-    globalField('powerline.separator', 'Powerline separator', 'text', (c) => c.powerline.separator, (c, v) =>
-      pl({ separator: String(v) })(c),
+    globalField(
+      'powerline.separator',
+      'Powerline separator',
+      'text',
+      (c) => c.powerline.separator,
+      (c, v) => pl({ separator: String(v) })(c),
     ),
-    globalField('powerline.startCap', 'Powerline start cap', 'text', (c) => c.powerline.startCap, (c, v) =>
-      pl({ startCap: String(v) })(c),
+    globalField(
+      'powerline.startCap',
+      'Powerline start cap',
+      'text',
+      (c) => c.powerline.startCap,
+      (c, v) => pl({ startCap: String(v) })(c),
     ),
-    globalField('powerline.endCap', 'Powerline end cap', 'text', (c) => c.powerline.endCap, (c, v) =>
-      pl({ endCap: String(v) })(c),
+    globalField(
+      'powerline.endCap',
+      'Powerline end cap',
+      'text',
+      (c) => c.powerline.endCap,
+      (c, v) => pl({ endCap: String(v) })(c),
     ),
-    globalField('savePayload', 'Save last payload', 'bool', (c) => c.savePayload, (c, v) => ({
-      ...c,
-      savePayload: Boolean(v),
-    }), { help: 'Lets the preview use your last real session data' }),
+    globalField(
+      'savePayload',
+      'Save last payload',
+      'bool',
+      (c) => c.savePayload,
+      (c, v) => ({
+        ...c,
+        savePayload: Boolean(v),
+      }),
+      { help: 'Lets the preview use your last real session data' },
+    ),
   ];
 }
 

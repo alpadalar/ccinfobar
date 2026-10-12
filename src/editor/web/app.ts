@@ -1,6 +1,6 @@
-import { addLine, moveItem, moveLine, removeItem, uniqueId, insertItem } from '../../core/edit.js';
-import { api, setToken } from './api.js';
+import { addLine, insertItem, moveItem, moveLine, removeItem, uniqueId } from '../../core/edit.js';
 import { ansiToHtml, escapeHtml } from './ansi-html.js';
+import { api, setToken } from './api.js';
 import { colorToCss } from './colors.js';
 import { type DragSpec, type DropTarget, press } from './dnd.js';
 import { clear, h, icon } from './dom.js';
@@ -334,7 +334,7 @@ async function save(): Promise<void> {
   try {
     await api.save(S.config);
     markSaved();
-    toast('Saved to ' + S.api.configPath);
+    toast(`Saved to ${S.api.configPath}`);
   } catch (err) {
     toast(`Save failed: ${(err as Error).message}`, 'error');
   }
@@ -380,7 +380,11 @@ async function importJson(): Promise<void> {
           onClick: async () => {
             try {
               const parsed = JSON.parse(area.value) as unknown;
-              if (typeof parsed !== 'object' || parsed === null || !Array.isArray((parsed as { lines?: unknown }).lines)) {
+              if (
+                typeof parsed !== 'object' ||
+                parsed === null ||
+                !Array.isArray((parsed as { lines?: unknown }).lines)
+              ) {
                 throw new Error('Expected an object with a "lines" array');
               }
               const { config } = await api.normalize(parsed);
@@ -450,7 +454,9 @@ async function installDialog(): Promise<void> {
       ),
       h('div', { class: 'field-label' }, 'Will be written to ~/.claude/settings.json'),
       preview,
-      isDirty() ? h('div', { class: 'hint warn' }, 'You have unsaved changes. Save them so Claude Code uses them.') : null,
+      isDirty()
+        ? h('div', { class: 'hint warn' }, 'You have unsaved changes. Save them so Claude Code uses them.')
+        : null,
     ],
     actions: (close) => [
       h('button', { class: 'btn', type: 'button', onClick: () => close() }, 'Cancel'),
@@ -461,7 +467,10 @@ async function installDialog(): Promise<void> {
           type: 'button',
           onClick: async () => {
             try {
-              const r = await api.install(cmd.value.trim(), Number(refresh.value) > 0 ? Number(refresh.value) : undefined);
+              const r = await api.install(
+                cmd.value.trim(),
+                Number(refresh.value) > 0 ? Number(refresh.value) : undefined,
+              );
               S.api.claude = r.claude;
               renderChrome();
               close();
@@ -478,7 +487,14 @@ async function installDialog(): Promise<void> {
 }
 
 async function done(): Promise<void> {
-  if (isDirty() && !(await confirmDialog('Discard unsaved changes?', 'Closing the editor now will lose your unsaved changes.', 'Close without saving'))) {
+  if (
+    isDirty() &&
+    !(await confirmDialog(
+      'Discard unsaved changes?',
+      'Closing the editor now will lose your unsaved changes.',
+      'Close without saving',
+    ))
+  ) {
     return;
   }
   window.removeEventListener('beforeunload', onUnload);
@@ -489,7 +505,13 @@ async function done(): Promise<void> {
     h(
       'div',
       { class: 'overlay solid' },
-      h('div', { class: 'closed' }, icon('check', 28), h('h2', null, 'Editor closed'), h('p', null, 'You can close this tab. Run ccinfobar edit to open it again.')),
+      h(
+        'div',
+        { class: 'closed' },
+        icon('check', 28),
+        h('h2', null, 'Editor closed'),
+        h('p', null, 'You can close this tab. Run ccinfobar edit to open it again.'),
+      ),
     ),
   );
 }
@@ -538,7 +560,15 @@ function buildPresetSelect(): void {
     const preset = S.api.presets.find((p) => p.id === sel.value);
     sel.value = '';
     if (!preset) return;
-    if (isDirty() && !(await confirmDialog(`Apply "${preset.name}"?`, 'This replaces your current layout and settings. You can undo it with Ctrl+Z.', 'Apply preset'))) return;
+    if (
+      isDirty() &&
+      !(await confirmDialog(
+        `Apply "${preset.name}"?`,
+        'This replaces your current layout and settings. You can undo it with Ctrl+Z.',
+        'Apply preset',
+      ))
+    )
+      return;
     replaceAll(preset.config);
     toast(`Applied preset "${preset.name}"`, 'info');
   });
@@ -594,7 +624,9 @@ function setupStatic(): void {
   sample.addEventListener('click', () => setSource('sample'));
   last.addEventListener('click', () => setSource('last'));
   last.disabled = !S.api.hasLastPayload;
-  last.title = S.api.hasLastPayload ? 'Use the last payload Claude Code sent' : 'No session payload recorded yet';
+  last.title = S.api.hasLastPayload
+    ? 'Use the last payload Claude Code sent'
+    : 'No session payload recorded yet';
   setSource('sample');
   buildPresetSelect();
   initInspector();
@@ -613,7 +645,8 @@ async function boot(): Promise<void> {
   try {
     init(await api.state());
   } catch (err) {
-    $('boot').innerHTML = `<div class="closed"><h2>Cannot reach the editor</h2><p>${escapeHtml((err as Error).message)}. Reopen the URL printed by <code>ccinfobar edit</code>.</p></div>`;
+    $('boot').innerHTML =
+      `<div class="closed"><h2>Cannot reach the editor</h2><p>${escapeHtml((err as Error).message)}. Reopen the URL printed by <code>ccinfobar edit</code>.</p></div>`;
     return;
   }
   $('boot').remove();

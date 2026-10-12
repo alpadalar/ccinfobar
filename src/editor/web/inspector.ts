@@ -26,11 +26,7 @@ export function field(label: string, control: Child, help?: string, inline = fal
   );
 }
 
-export function toggle(
-  checked: boolean,
-  onChange: (v: boolean) => void,
-  label?: string,
-): HTMLElement {
+export function toggle(checked: boolean, onChange: (v: boolean) => void, label?: string): HTMLElement {
   const input = h('input', {
     type: 'checkbox',
     class: 'switch-input',
@@ -70,12 +66,7 @@ export function segmented<T extends string | number>(
   return wrap;
 }
 
-function styleToggle(
-  label: string,
-  title: string,
-  on: boolean,
-  onChange: (v: boolean) => void,
-): HTMLElement {
+function styleToggle(label: string, title: string, on: boolean, onChange: (v: boolean) => void): HTMLElement {
   return h(
     'button',
     {
@@ -89,11 +80,7 @@ function styleToggle(
   );
 }
 
-function glyphChoices(
-  values: string[],
-  current: string,
-  onPick: (v: string) => void,
-): HTMLElement {
+function glyphChoices(values: string[], current: string, onPick: (v: string) => void): HTMLElement {
   const wrap = h('div', { class: 'glyphs' });
   for (const v of values) {
     wrap.append(
@@ -171,11 +158,9 @@ function optionControl(item: WidgetItem, spec: OptionSpec): HTMLElement {
     case 'number':
       return field(
         spec.label,
-        numberInput(
-          Number(value),
-          (v) => set(v === null ? undefined : same(v), `${item.id}:${spec.key}`),
-          { step: 'any' },
-        ),
+        numberInput(Number(value), (v) => set(v === null ? undefined : same(v), `${item.id}:${spec.key}`), {
+          step: 'any',
+        }),
         spec.help,
       );
     default:
@@ -217,12 +202,7 @@ function widgetTab(): HTMLElement {
         class: 'dot big',
         style: `--c:${colorToCss(item.color ?? defColor) ?? 'var(--muted)'}`,
       }),
-      h(
-        'div',
-        { class: 'insp-title' },
-        h('h3', null, info?.name ?? item.type),
-        h('code', null, item.type),
-      ),
+      h('div', { class: 'insp-title' }, h('h3', null, info?.name ?? item.type), h('code', null, item.type)),
       h(
         'button',
         {
@@ -273,11 +253,10 @@ function widgetTab(): HTMLElement {
       'Label',
       field(
         'Label override',
-        textInput(
-          item.label ?? '',
-          (v) => patch({ label: v === '' ? undefined : v }, `${item.id}:label`),
-          { placeholder: info?.label ? `Default: ${info.label}` : 'Default label', disabled: !!item.raw },
-        ),
+        textInput(item.label ?? '', (v) => patch({ label: v === '' ? undefined : v }, `${item.id}:label`), {
+          placeholder: info?.label ? `Default: ${info.label}` : 'Default label',
+          disabled: !!item.raw,
+        }),
         'Leave empty to use the default label.',
       ),
       field(
@@ -365,8 +344,7 @@ function globalTab(): HTMLElement {
         colorPicker({
           value: c.separatorColor,
           allowDefault: false,
-          onChange: (v, live) =>
-            set({ separatorColor: v ?? 'brightBlack' }, live ? 'sepcolor' : undefined),
+          onChange: (v, live) => set({ separatorColor: v ?? 'brightBlack' }, live ? 'sepcolor' : undefined),
         }),
       ),
       field(
@@ -456,19 +434,28 @@ function globalTab(): HTMLElement {
       ...(c.powerline.enabled
         ? [
             field('Theme', themes),
-            field('Separator', glyphChoices(PL_SEPARATORS, c.powerline.separator, (v) => setPl({ separator: v }))),
+            field(
+              'Separator',
+              glyphChoices(PL_SEPARATORS, c.powerline.separator, (v) => setPl({ separator: v })),
+            ),
             textInput(c.powerline.separator, (v) => setPl({ separator: v }, 'plsep'), {
               class: 'input mono',
               placeholder: 'Custom separator',
               'aria-label': 'Custom powerline separator',
             }),
-            field('Start cap', glyphChoices(PL_START, c.powerline.startCap, (v) => setPl({ startCap: v }))),
+            field(
+              'Start cap',
+              glyphChoices(PL_START, c.powerline.startCap, (v) => setPl({ startCap: v })),
+            ),
             textInput(c.powerline.startCap, (v) => setPl({ startCap: v }, 'plstart'), {
               class: 'input mono',
               placeholder: 'Custom start cap',
               'aria-label': 'Custom start cap',
             }),
-            field('End cap', glyphChoices(PL_END, c.powerline.endCap, (v) => setPl({ endCap: v }))),
+            field(
+              'End cap',
+              glyphChoices(PL_END, c.powerline.endCap, (v) => setPl({ endCap: v })),
+            ),
             textInput(c.powerline.endCap, (v) => setPl({ endCap: v }, 'plend'), {
               class: 'input mono',
               placeholder: 'Custom end cap',
@@ -502,4 +489,3 @@ export function initInspector(): void {
     });
   }
 }
-

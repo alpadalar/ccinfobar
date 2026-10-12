@@ -139,7 +139,7 @@ export function press(ev: PointerEvent, spec: DragSpec, handlers: PressHandlers)
     const r = rectOf(el);
     offX = Math.min(startX - r.left, 80);
     offY = Math.min(startY - r.top, 20);
-    ghost = h('div', { class: `ghost ghost-${spec.kind}` });
+    ghost = h('div', { class: 'drag-ghost' });
     if (spec.kind !== 'row') {
       const c = 'color' in spec ? spec.color : null;
       ghost.append(h('i', { class: 'dot', style: c ? `--c:${c}` : '' }), h('span', null, spec.label));

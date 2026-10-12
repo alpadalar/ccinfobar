@@ -1,5 +1,5 @@
-import type { Action, State } from './state.js';
 import { chipAt, dropTarget, type Hit, itemAt } from './hits.js';
+import type { Action, State } from './state.js';
 
 export interface Key {
   name: string;
@@ -64,6 +64,13 @@ function parseMouse(m: RegExpExecArray): InputEvent {
   }
   if (m[4] === 'm') return { type: 'mouse', mouse: { ...base, kind: 'up' } };
   return { type: 'mouse', mouse: { ...base, kind: code & 32 ? 'move' : 'down' } };
+}
+
+export function splitPending(data: string): [string, string] {
+  const i = data.lastIndexOf('\x1b');
+  if (i < 0) return [data, ''];
+  const tail = data.slice(i);
+  return /^\x1b(\[[0-9;<?]*|O)?$/.test(tail) ? [data.slice(0, i), tail] : [data, ''];
 }
 
 export function parseInput(data: string): InputEvent[] {
@@ -131,7 +138,13 @@ export function parseInput(data: string): InputEvent[] {
   return out;
 }
 
-const isPrintable = (k: Key) => !k.ctrl && !k.meta && k.sequence.length > 0 && k.sequence >= ' ' && k.sequence[0] !== '\x1b' && k.sequence !== '\x7f';
+const isPrintable = (k: Key) =>
+  !k.ctrl &&
+  !k.meta &&
+  k.sequence.length > 0 &&
+  k.sequence >= ' ' &&
+  k.sequence[0] !== '\x1b' &&
+  k.sequence !== '\x7f';
 
 const NAV_KEYS = ['up', 'down', 'left', 'right', 'home', 'end', 'pageup', 'pagedown'] as const;
 
@@ -220,7 +233,8 @@ function normalKey(k: Key): Action | null {
 }
 
 function listKey(k: Key): Action | null {
-  if ((NAV_KEYS as readonly string[]).includes(k.name)) return { type: 'nav', dir: k.name as (typeof NAV_KEYS)[number] };
+  if ((NAV_KEYS as readonly string[]).includes(k.name))
+    return { type: 'nav', dir: k.name as (typeof NAV_KEYS)[number] };
   if (k.name === 'return') return { type: 'enter' };
   if (k.name === 'escape') return { type: 'cancel' };
   return null;
@@ -256,7 +270,8 @@ function confirmKey(k: Key, what: string): Action | null {
 }
 
 export function keyToAction(k: Key, state: State): Action | null {
-  if (k.ctrl && k.name === 'c') return state.mode.kind === 'normal' ? { type: 'quit' } : { type: 'forceQuit' };
+  if (k.ctrl && k.name === 'c')
+    return state.mode.kind === 'normal' ? { type: 'quit' } : { type: 'forceQuit' };
   const mode = state.mode;
   switch (mode.kind) {
     case 'normal':
@@ -266,7 +281,8 @@ export function keyToAction(k: Key, state: State): Action | null {
     case 'settings': {
       if (mode.sub?.kind === 'input') return textKey(k);
       if (mode.sub?.kind === 'list') return listKey(k);
-      if (k.name === 'left' || k.name === 'right') return { type: 'cycle', delta: k.name === 'left' ? -1 : 1 };
+      if (k.name === 'left' || k.name === 'right')
+        return { type: 'cycle', delta: k.name === 'left' ? -1 : 1 };
       if (k.name === 'backspace' || k.name === 'delete') return { type: 'delete' };
       if (k.sequence === 'q' || k.sequence === 'g' || k.sequence === 'e') return { type: 'cancel' };
       return listKey(k);

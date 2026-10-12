@@ -27,16 +27,30 @@ function widgetsMarkdown(): string {
   ];
   for (const c of CATEGORIES) {
     const n = ALL_WIDGETS.filter((w) => w.category === c.id).length;
-    if (n) out.push(`- [${c.name}](#${c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-$/, '')}) (${n})`);
+    if (n)
+      out.push(
+        `- [${c.name}](#${c.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/-$/, '')}) (${n})`,
+      );
   }
   for (const c of CATEGORIES) {
     const list = ALL_WIDGETS.filter((w) => w.category === c.id);
     if (!list.length) continue;
-    out.push('', `## ${c.name}`, '', '| Type | Description | Example | Options |', '| --- | --- | --- | --- |');
+    out.push(
+      '',
+      `## ${c.name}`,
+      '',
+      '| Type | Description | Example | Options |',
+      '| --- | --- | --- | --- |',
+    );
     for (const w of list) {
       const opts = (w.options ?? []).map(optionText).join('<br>') || '';
       const sample = w.sample ? `\`${(w.label ?? '') + w.sample}\`` : '';
-      out.push(`| \`${w.type}\` | ${w.description.replace(/\|/g, '\\|')} | ${sample.replace(/\|/g, '\\|')} | ${opts.replace(/\|/g, '\\|')} |`);
+      out.push(
+        `| \`${w.type}\` | ${w.description.replace(/\|/g, '\\|')} | ${sample.replace(/\|/g, '\\|')} | ${opts.replace(/\|/g, '\\|')} |`,
+      );
     }
   }
   return `${out.join('\n')}\n`;

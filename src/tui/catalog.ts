@@ -1,5 +1,5 @@
-import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import type { WidgetCategory, WidgetDef } from '../core/types.js';
+import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 
 export function categoryOrder(): WidgetCategory[] {
   const ids = CATEGORIES.map((c) => c.id);
@@ -60,8 +60,7 @@ export function pickerItems(filter: string): WidgetDef[] {
     (x): x is { def: WidgetDef; i: number; score: number } => x.score !== null,
   );
   scored.sort(
-    (a, b) =>
-      order.indexOf(a.def.category) - order.indexOf(b.def.category) || b.score - a.score || a.i - b.i,
+    (a, b) => order.indexOf(a.def.category) - order.indexOf(b.def.category) || b.score - a.score || a.i - b.i,
   );
   return scored.map((x) => x.def);
 }
