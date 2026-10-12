@@ -374,7 +374,17 @@ function globalTab(): HTMLElement {
   const section = (title: string, ...body: Child[]) =>
     h('section', { class: 'section' }, h('h4', null, title), ...body);
 
-  const sepInput = textInput(c.separator ?? '', (v) => setOverride('separator', v, 'sep'), {
+  // the panel separates cells with tui.columnGap
+  const panel = style === 'tui';
+  const sepValue = panel ? c.tui?.columnGap : c.separator;
+  const setSep = (v: string | undefined, coalesce?: string) => {
+    if (!panel) return setOverride('separator', v, coalesce);
+    const tui = { ...(S.config.tui ?? {}) };
+    if (v === undefined) delete tui.columnGap;
+    else tui.columnGap = v;
+    commit({ ...S.config, tui }, coalesce ? { coalesce, inspector: false } : {});
+  };
+  const sepInput = textInput(sepValue ?? '', (v) => setSep(v, 'sep'), {
     class: 'input mono',
     placeholder: `Theme: ${JSON.stringify(theme?.separator ?? ' │ ')}`,
   });
@@ -385,8 +395,8 @@ function globalTab(): HTMLElement {
         'button',
         {
           type: 'button',
-          class: `glyph${sp === c.separator ? ' on' : ''}`,
-          onClick: () => setOverride('separator', sp),
+          class: `glyph${sp === sepValue ? ' on' : ''}`,
+          onClick: () => setSep(sp),
           title: JSON.stringify(sp),
         },
         h('span', { class: 'glyph-sp' }, sp.replace(/ /g, ' ') || 'none'),
@@ -540,7 +550,7 @@ function globalTab(): HTMLElement {
       fieldWithReset(
         'Separator',
         h('div', { class: 'stack' }, sepChoices, sepInput),
-        resetLink(c.separator !== undefined, () => setOverride('separator', undefined)),
+        resetLink(sepValue !== undefined, () => setSep(undefined)),
       ),
       fieldWithReset(
         'Separator color',
@@ -563,13 +573,22 @@ function globalTab(): HTMLElement {
       ),
     ),
     ...(style === 'tui' ? [panelSection()] : []),
-    section(
-      'Glyphs',
-      glyphField('Separator', 'separator', PL_SEPARATORS, theme?.glyphs.separator ?? ''),
-      glyphField('Thin separator', 'thin', PL_THIN, theme?.glyphs.thin ?? ''),
-      glyphField('Start cap', 'startCap', PL_START, theme?.glyphs.startCap ?? ''),
-      glyphField('End cap', 'endCap', PL_END, theme?.glyphs.endCap ?? ''),
-    ),
+    // only powerline and capsule draw glyphs
+    ...(style === 'powerline' || style === 'capsule'
+      ? [
+          section(
+            'Glyphs',
+            ...(style === 'powerline'
+              ? [
+                  glyphField('Separator', 'separator', PL_SEPARATORS, theme?.glyphs.separator ?? ''),
+                  glyphField('Thin separator', 'thin', PL_THIN, theme?.glyphs.thin ?? ''),
+                ]
+              : []),
+            glyphField('Start cap', 'startCap', PL_START, theme?.glyphs.startCap ?? ''),
+            glyphField('End cap', 'endCap', PL_END, theme?.glyphs.endCap ?? ''),
+          ),
+        ]
+      : []),
   );
   return root;
 }

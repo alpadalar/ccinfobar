@@ -51,6 +51,7 @@ describe('chart widgets', () => {
       /^[▁-█]{8} 42%$/,
     );
     expect(renderWidget('cost-graph', c, { options: { showValue: false } })).toMatch(/^[▁-█ ]{16}$/);
+    expect(renderWidget('output-speed-graph', c)).toMatch(/^[▁-█]{16} \d+ t\/s$/);
   });
 
   it('records a sample on a real render and needs two to draw', () => {

@@ -9,6 +9,7 @@ export interface HistorySample {
   cost?: number;
   h5?: number;
   d7?: number;
+  spd?: number;
 }
 
 const MAX = 360;

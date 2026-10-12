@@ -252,6 +252,7 @@ export function renderPanel(
   const border = (s: string) => style(s, { fg: borderFg }, level);
   const gap = tui.columnGap ?? a.separator ?? '  ';
   const gapW = visibleWidth(gap);
+  const gapText = gap.trim() ? style(gap, { fg: a.separatorColor }, level) : gap;
   const padding = tui.padding ?? 1;
 
   const cells = new Map<string, Cell>();
@@ -454,7 +455,7 @@ export function renderPanel(
     const height = Math.max(1, ...columns.map((c) => c.lines.length));
     for (let k = 0; k < height; k++) {
       const parts = columns.map((c) => pad(c.lines[k] ?? '', c.w, c.align));
-      const body = pad(parts.join(gap), inner);
+      const body = pad(parts.join(gapText), inner);
       out.push(border(b.vertical) + side + body + side + border(b.vertical));
     }
   }

@@ -19,6 +19,8 @@ function snapshot(ctx: RenderContext): HistorySample {
   const d7 = p.rate_limits?.seven_day?.used_percentage;
   if (typeof h5 === 'number') s.h5 = h5;
   if (typeof d7 === 'number') s.d7 = d7;
+  const spd = ctx.data.transcript()?.outputSpeed;
+  if (typeof spd === 'number' && spd > 0) s.spd = Math.round(spd);
   return s;
 }
 
@@ -94,6 +96,23 @@ export const widgets: WidgetDef[] = [
     render(ctx, item) {
       const r = rates(series(ctx), 'tok', 60_000);
       return chart(ctx, item, r, r.length ? formatTokens(r[r.length - 1]!) : null);
+    },
+  },
+  {
+    type: 'output-speed-graph',
+    name: 'Output speed graph',
+    category: 'charts',
+    description: 'Output tokens per second while Claude writes, as a moving sparkline',
+    label: 'Speed ',
+    icon: { nerd: '󰓅', emoji: '🚀' },
+    color: 'cyan',
+    sample: '▃▅▇▆▄▅▆▇ 72 t/s',
+    options: [points, showValue, fillOption],
+    render(ctx, item) {
+      const v = series(ctx)
+        .map((s) => s.spd)
+        .filter((x): x is number => typeof x === 'number');
+      return chart(ctx, item, v, v.length ? `${v[v.length - 1]} t/s` : null);
     },
   },
   {

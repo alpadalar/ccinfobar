@@ -211,6 +211,7 @@ export function sampleHistory(now = Date.now()): HistorySample[] {
       cost: Math.round(cost * 1000) / 1000,
       h5: Math.max(0, 42 - (n - 1 - i) * 0.35),
       d7: 61,
+      spd: 48 + wave[(i + 7) % wave.length]! * 2,
     });
     const step = wave[i % wave.length]! * 180;
     tok -= step;

@@ -66,6 +66,7 @@
                 "spend-limit",
                 "usage-pace",
                 "token-rate-graph",
+                "output-speed-graph",
                 "context-graph",
                 "usage-graph",
                 "cost-graph",
