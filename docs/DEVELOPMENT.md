@@ -109,4 +109,4 @@ CI runs the suite on Linux, macOS and Windows with Node 20, 22 and 24.
 2. `npm version <patch|minor|major>`
 3. `git push --follow-tags`
 
-The `Release` workflow runs the checks, publishes to npm with provenance and creates a GitHub release from the changelog section. It needs an `NPM_TOKEN` repository secret.
+The `Release` workflow runs the checks, creates a GitHub release from the changelog section with the packed `ccinfobar.tgz` attached (the README install command points at it), and publishes to npm with provenance when an `NPM_TOKEN` repository secret exists.

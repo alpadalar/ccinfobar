@@ -2,7 +2,7 @@
 
 # ccinfobar
 
-**A customizable, GSD-aware status line for Claude Code, with a drag-and-drop editor.**
+**A customizable status line for Claude Code, with a drag-and-drop editor.**
 
 [![version](https://img.shields.io/github/package-json/v/alpadalar/ccinfobar?color=cb3837&label=version)](CHANGELOG.md)
 [![CI](https://github.com/alpadalar/ccinfobar/actions/workflows/ci.yml/badge.svg)](https://github.com/alpadalar/ccinfobar/actions/workflows/ci.yml)
@@ -51,11 +51,11 @@ next: /gsd-execute-phase 4 │ $1.87 │ 5h 42% │ Resets 2h 14m │ 7d 61%
 Requirements: [Claude Code](https://code.claude.com) and Node.js 20 or newer.
 
 ```sh
-npm install -g github:alpadalar/ccinfobar
+npm install -g https://github.com/alpadalar/ccinfobar/releases/latest/download/ccinfobar.tgz
 ccinfobar install
 ```
 
-> ccinfobar is not on the npm registry yet, so it installs straight from GitHub and builds itself during install. Once it is published, `npm install -g ccinfobar` will work too.
+> ccinfobar is not on the npm registry yet, so this installs the latest GitHub release. Once it is published, `npm install -g ccinfobar` will work too. Run the same command again to update.
 
 `install` points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar (backing up the file first) and writes a default config. The next Claude Code prompt shows the new status line.
 
