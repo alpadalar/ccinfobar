@@ -8,7 +8,6 @@ import {
   ignoreLocally,
   install,
   isTransientBin,
-  NPX_COMMAND,
   projectLocalFile,
   projectOverride,
   projectSettingsPath,
@@ -121,12 +120,12 @@ describe('install and uninstall', () => {
     expect(read(projectSettingsPath(gsd, false)).statusLine.command).toMatch(/gsd-statusline/);
   });
 
-  it('writes the npx command when run through npx without a global install', () => {
+  it('never writes npx@latest as the status line command', () => {
     const path0 = process.env.PATH;
     process.env.PATH = '';
     try {
-      expect(defaultCommand('npx')).toBe(NPX_COMMAND);
-      expect(defaultCommand('source')).not.toBe(NPX_COMMAND);
+      expect(defaultCommand('npx') ?? '').not.toMatch(/npx/);
+      expect(defaultCommand('source') ?? '').not.toMatch(/npx/);
     } finally {
       process.env.PATH = path0;
     }

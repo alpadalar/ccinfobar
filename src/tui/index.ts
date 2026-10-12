@@ -1,4 +1,4 @@
-import { defaultCommand, install } from '../commands/install.js';
+import { install, setupCommand } from '../commands/install.js';
 import { saveConfig } from '../core/config.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { saveUserTheme } from '../core/themes.js';
@@ -8,6 +8,9 @@ import { keyToAction, mouseToAction, parseInput, splitPending } from './keys.js'
 import { type Action, type Effect, initialState, reduce, type State } from './state.js';
 import { themeInputFromConfig } from './themeio.js';
 import { renderScreen } from './view.js';
+
+declare const __VERSION__: string;
+const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
 
 export interface TuiOptions {
   configPath: string;
@@ -38,7 +41,8 @@ export function runEffect(state: State, effect: Effect): Action {
       };
     }
     saveConfig(state.config, state.path);
-    const command = defaultCommand();
+    const command = setupCommand(VERSION).command;
+    if (!command) throw new Error('could not install ccinfobar; run npm install -g ccinfobar');
     install(command);
     return { type: 'effectDone', ok: true, saved: true, message: `Installed: statusLine runs "${command}"` };
   } catch (err) {

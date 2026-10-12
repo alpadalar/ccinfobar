@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-10-12
+
+### Security
+
+- The status line command is never `npx -y ccinfobar@latest` any more, which would download and run whatever npm serves on every refresh. When a global install is not possible (or with `--no-global`), `install` puts a pinned copy in `~/.config/ccinfobar/app` and points Claude Code at it; that copy updates itself like a global install
+
 ## [0.5.5] - 2026-10-12
 
 ### Changed
@@ -166,7 +172,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.5.5...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.5.6...HEAD
+[0.5.6]: https://github.com/alpadalar/ccinfobar/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/alpadalar/ccinfobar/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/alpadalar/ccinfobar/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/alpadalar/ccinfobar/compare/v0.5.2...v0.5.3

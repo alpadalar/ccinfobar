@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { currentStatusLine, defaultCommand, install } from '../commands/install.js';
+import { currentStatusLine, defaultCommand, install, setupCommand } from '../commands/install.js';
 import { normalizeConfig, saveConfig } from '../core/config.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { lastPayloadPath, tildify } from '../core/paths.js';
@@ -137,7 +137,7 @@ function widgetCatalog() {
   }));
 }
 
-function claudeInfo(command: string) {
+function claudeInfo(command: string | null) {
   let statusLine: unknown = null;
   try {
     statusLine = currentStatusLine();
@@ -146,7 +146,7 @@ function claudeInfo(command: string) {
   return {
     statusLine,
     installed: typeof cmd === 'string' && cmd.includes('ccinfobar'),
-    defaultCommand: command,
+    defaultCommand: command ?? 'ccinfobar (installed on first Install)',
   };
 }
 
@@ -157,7 +157,7 @@ function asObject(v: unknown): Record<string, unknown> {
 export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const host = opts.host ?? '127.0.0.1';
   const token = crypto.randomBytes(16).toString('hex');
-  const command = defaultCommand();
+  let command = defaultCommand();
   const gsd = gsdInstalled();
   const presetList = () =>
     availablePresets(gsd).map((p) => ({
@@ -346,7 +346,12 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       }
       case 'POST /api/install': {
         const body = asObject(await readBody(req));
-        const cmd = typeof body.command === 'string' && body.command.trim() ? body.command.trim() : command;
+        let cmd = typeof body.command === 'string' && body.command.trim() ? body.command.trim() : command;
+        if (!cmd || cmd.startsWith('ccinfobar (')) {
+          command = setupCommand(VERSION).command;
+          cmd = command;
+        }
+        if (!cmd) throw new HttpError(500, 'Could not install ccinfobar; run npm install -g ccinfobar');
         const refresh = Number(body.refreshInterval);
         const backup = install(cmd, Number.isFinite(refresh) && refresh > 0 ? refresh : undefined);
         if (!fs.existsSync(opts.configPath))

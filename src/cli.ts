@@ -7,12 +7,12 @@ import {
   globalBinary,
   ignoreLocally,
   install,
-  installGlobal,
   projectLocalFile,
   projectOverride,
   projectSettingsPath,
   quote,
   releaseProjects,
+  setupCommand,
   takeOverProjects,
   uninstall,
 } from './commands/install.js';
@@ -342,30 +342,23 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       return;
     }
     case 'install': {
-      let command = typeof args.flags.command === 'string' ? args.flags.command : defaultCommand();
+      let command: string | null = typeof args.flags.command === 'string' ? args.flags.command : null;
       const refresh = typeof args.flags.refresh === 'string' ? Number(args.flags.refresh) : undefined;
       let hint = selfCommand();
-      if (
-        typeof args.flags.command !== 'string' &&
-        args.flags.global !== false &&
-        installKind() === 'npx' &&
-        !globalBinary()
-      ) {
-        console.log(`Installing ccinfobar ${VERSION} globally (skip with --no-global) ...`);
-        const g = installGlobal(VERSION);
-        if (g.ok) {
-          command = quote(g.bin);
-          console.log(`✓ Installed ${tildify(g.bin)}`);
-          if (g.onPath) hint = 'ccinfobar';
-          else
-            console.log(
-              `  ${tildify(path.dirname(g.bin))} is not on your PATH; add it to type \`ccinfobar\` directly.`,
-            );
-        } else {
-          console.log(`⚠ Global install failed: ${g.error}`);
-          console.log('  Claude Code will run ccinfobar through npx, which starts slower.');
-          console.log('  To fix it later: npm install -g ccinfobar && ccinfobar install');
-        }
+      if (!command) {
+        const setup = setupCommand(VERSION, {
+          global: args.flags.global !== false,
+          log: (l) => console.log(l.replace(/\/[^\s`]+/g, (p) => tildify(p))),
+        });
+        command = setup.command;
+        if (setup.onPath) hint = 'ccinfobar';
+      }
+      if (!command) {
+        console.error(
+          '✗ No ccinfobar install to point Claude Code at. Install it with: npm install -g ccinfobar',
+        );
+        process.exitCode = 1;
+        return;
       }
       if (args.flags.project) {
         const shadowed = projectOverride(process.cwd());

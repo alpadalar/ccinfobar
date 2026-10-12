@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { cacheDir } from '../core/paths.js';
+import { cacheDir, configDir } from '../core/paths.js';
 import type { Config } from '../core/types.js';
 
 export const REPO = 'alpadalar/ccinfobar';
@@ -92,7 +92,12 @@ export function tarballUrl(version: string): string {
   return `https://github.com/${REPO}/releases/download/v${assertVersion(version)}/ccinfobar.tgz`;
 }
 
-export type InstallKind = 'npm-global' | 'npx' | 'source' | 'unknown';
+export type InstallKind = 'npm-global' | 'local' | 'npx' | 'source' | 'unknown';
+
+// pinned copy when global install is not possible
+export function localPrefix(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(configDir(env), 'app');
+}
 
 export function installKind(entry = process.argv[1] ?? ''): InstallKind {
   let real = entry;
@@ -101,6 +106,7 @@ export function installKind(entry = process.argv[1] ?? ''): InstallKind {
   } catch {}
   const p = real.replace(/\\/g, '/');
   if (/\/_npx\//.test(p)) return 'npx';
+  if (p.startsWith(`${localPrefix().replace(/\\/g, '/')}/`)) return 'local';
   if (/\/node_modules\/ccinfobar\/dist\//.test(p)) return 'npm-global';
   if (fs.existsSync(path.join(path.dirname(path.dirname(real)), '.git'))) return 'source';
   return 'unknown';
@@ -128,14 +134,16 @@ export function installSources(version: string): string[] {
   return [`ccinfobar@${assertVersion(version)}`, tarballUrl(version)];
 }
 
-export function installVersion(version: string): void {
+export function installVersion(version: string, prefix?: string): void {
   const npm = npmCommand();
+  const where = prefix ? ['--prefix', prefix, '--save-exact'] : ['-g'];
+  if (prefix) fs.mkdirSync(prefix, { recursive: true });
   let last: unknown;
   for (const spec of installSources(version)) {
     try {
       execFileSync(
         npm.file,
-        [...npm.args, 'install', '-g', spec, '--no-audit', '--no-fund', '--loglevel=error'],
+        [...npm.args, 'install', ...where, spec, '--no-audit', '--no-fund', '--loglevel=error'],
         {
           stdio: ['ignore', 'ignore', 'pipe'],
           timeout: 120_000,
@@ -154,7 +162,7 @@ export function installVersion(version: string): void {
 }
 
 export function selfCommand(kind: InstallKind = installKind()): string {
-  return kind === 'npx' ? 'npx ccinfobar@latest' : 'ccinfobar';
+  return kind === 'npx' || kind === 'local' ? 'npx ccinfobar@latest' : 'ccinfobar';
 }
 
 export function scheduleCheck(config: Config, env: NodeJS.ProcessEnv = process.env): void {
@@ -193,12 +201,13 @@ export async function backgroundUpdate(
   const state: UpdateState = { checkedAt: Date.now(), latest: null };
   try {
     state.latest = await fetchLatest();
+    const kind = installKind();
     if (
       config.update === 'auto' &&
       compareVersions(state.latest, current) > 0 &&
-      installKind() === 'npm-global'
+      (kind === 'npm-global' || kind === 'local')
     ) {
-      installVersion(state.latest);
+      installVersion(state.latest, kind === 'local' ? localPrefix(env) : undefined);
       state.installed = state.latest;
     }
   } catch (err) {
@@ -232,12 +241,12 @@ export async function manualUpdate(current: string, checkOnly: boolean): Promise
     return 0;
   }
   if (kind === 'npx') {
-    console.log('  Running through npx: the next run already uses the latest release.');
+    console.log('  Running through npx: run `npx ccinfobar@latest install` to set up the newest release.');
     return 0;
   }
   try {
     console.log(`  Installing ccinfobar@${latest} ...`);
-    installVersion(latest);
+    installVersion(latest, kind === 'local' ? localPrefix() : undefined);
     writeUpdateState({ checkedAt: Date.now(), latest, installed: latest });
     console.log(`✓ Updated to ${latest}`);
     return 0;

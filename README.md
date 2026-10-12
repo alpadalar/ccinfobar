@@ -53,7 +53,7 @@ Requirements: [Claude Code](https://code.claude.com) and Node.js 20 or newer.
 npx ccinfobar@latest install
 ```
 
-This installs the `ccinfobar` command globally, points Claude Code's status line at it and keeps it updated. If npm cannot install globally (for example without write access to its global folder), the status line runs through `npx -y ccinfobar@latest` instead, which starts slower; `--no-global` asks for that on purpose.
+This installs the `ccinfobar` command globally, points Claude Code's status line at it and keeps it updated. If npm cannot install globally (for example without write access to its global folder), or you pass `--no-global`, it installs a pinned copy in `~/.config/ccinfobar/app` and uses that. The status line never runs `npx …@latest`, so nothing is downloaded and run behind your back on every refresh.
 
 `install` points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar (backing up the file first) and writes a default config. If you were using ccstatusline or claude-powerline, it offers to import that layout first. Projects where a local GSD install set its own status line are switched to ccinfobar too, through their git-ignored `.claude/settings.local.json`. `ccinfobar uninstall` puts your previous status line back. The next Claude Code prompt shows the new status line.
 
@@ -69,19 +69,21 @@ Without the global command, use `npx ccinfobar@latest edit`.
 <details>
 <summary>Manual setup</summary>
 
-Add this to `~/.claude/settings.json`:
+Install it with `npm install -g ccinfobar`, then add this to `~/.claude/settings.json`:
 
 ```json
 {
   "statusLine": {
     "type": "command",
-    "command": "npx -y ccinfobar@latest",
+    "command": "ccinfobar",
     "padding": 0
   }
 }
 ```
 
 Add `"refreshInterval": 10` to refresh the status line every 10 seconds even while Claude is idle, so clocks and countdowns stay current.
+
+Avoid `npx -y ccinfobar@latest` as the command: it would download and run whatever npm serves on every refresh.
 
 </details>
 
@@ -204,7 +206,7 @@ Widgets without an equivalent are listed as warnings instead of being dropped si
 | `ccinfobar` | Render the status line from the JSON on stdin (what Claude Code runs) |
 | `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
 | `ccinfobar tui` | Open the terminal editor |
-| `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--import`, `--no-import`, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally unless `--no-global`) |
+| `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--import`, `--no-import`, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally, or a pinned copy with `--no-global`) |
 | `ccinfobar usage` | Fetch your 5-hour and weekly usage from Claude now |
 | `ccinfobar install --project` | Use ccinfobar in this project even if its `.claude/settings.json` sets another status line |
 | `ccinfobar uninstall` | Remove ccinfobar from Claude Code settings and restore the status line you had before (`--project` for the project file) |
@@ -239,7 +241,7 @@ The config lives in `~/.config/ccinfobar/config.json` (`%APPDATA%\ccinfobar\conf
 
 ## Updates
 
-With `npx -y ccinfobar@latest` as the status line command, every run already uses the newest release. A global install keeps itself up to date: once a day, after the status line has been printed, a background process asks GitHub for the latest release and installs it from npm (or from the GitHub release if npm does not have it yet); the status line never waits for it. Installs made from a GitHub release tarball move to the npm package on their next update.
+ccinfobar keeps itself up to date: once a day, after the status line has been printed, a background process asks GitHub for the latest release and installs it from npm (or from the GitHub release if npm does not have it yet); the status line never waits for it. Installs made from a GitHub release tarball move to the npm package on their next update.
 
 | `update` | Behaviour |
 | --- | --- |

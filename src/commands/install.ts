@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { claudeDir, claudeSettingsPath } from '../core/paths.js';
-import { type InstallKind, installKind, installVersion, npmCommand } from './update.js';
+import { type InstallKind, installKind, installVersion, localPrefix, npmCommand } from './update.js';
 
 export interface StatusLineSetting {
   type: 'command';
@@ -55,15 +55,19 @@ export function quote(p: string): string {
   return /[\s"]/.test(p) ? `"${p}"` : p;
 }
 
-export const NPX_COMMAND = 'npx -y ccinfobar@latest';
+export function localBin(env: NodeJS.ProcessEnv = process.env): string {
+  const bin = path.join(localPrefix(env), 'node_modules', '.bin');
+  return path.join(bin, process.platform === 'win32' ? 'ccinfobar.cmd' : 'ccinfobar');
+}
 
-// global binary, then this checkout, then npx
-export function defaultCommand(kind: InstallKind = installKind()): string {
+// never npx@latest: it runs whatever npm serves
+export function defaultCommand(kind: InstallKind = installKind()): string | null {
   const bin = globalBinary();
   if (bin) return quote(bin);
+  if (fs.existsSync(localBin())) return quote(localBin());
   const entry = process.argv[1] ? path.resolve(process.argv[1]) : null;
   if (kind !== 'npx' && entry && fs.existsSync(entry)) return `${quote(process.execPath)} ${quote(entry)}`;
-  return NPX_COMMAND;
+  return null;
 }
 
 export function currentStatusLine(file = claudeSettingsPath()): StatusLineSetting | null {
@@ -296,4 +300,44 @@ export function installGlobal(version: string): GlobalInstall {
   return bin
     ? { ok: true, bin, onPath: false }
     : { ok: false, error: 'npm finished but ccinfobar was not found' };
+}
+
+export interface Setup {
+  command: string | null;
+  onPath: boolean;
+}
+
+// npx: global command, else a pinned copy under the config dir
+export function setupCommand(
+  version: string,
+  opts: { global?: boolean; log?: (line: string) => void } = {},
+): Setup {
+  const log = opts.log ?? (() => {});
+  if (installKind() !== 'npx') return { command: defaultCommand(), onPath: !!globalBinary() };
+  const existing = globalBinary();
+  if (existing) return { command: quote(existing), onPath: true };
+  if (opts.global !== false) {
+    log(`Installing ccinfobar ${version} globally (skip with --no-global) ...`);
+    const g = installGlobal(version);
+    if (g.ok) {
+      log(`✓ Installed ${g.bin}`);
+      if (!g.onPath)
+        log(`  ${path.dirname(g.bin)} is not on your PATH; add it to type \`ccinfobar\` directly.`);
+      return { command: quote(g.bin), onPath: g.onPath };
+    }
+    log(`⚠ Global install failed: ${g.error}`);
+  }
+  log(`Installing a pinned copy of ccinfobar ${version} in ${localPrefix()} ...`);
+  try {
+    installVersion(version, localPrefix());
+  } catch (err) {
+    log(`✗ Could not install ccinfobar: ${(err as Error).message}`);
+    return { command: null, onPath: false };
+  }
+  if (!fs.existsSync(localBin())) {
+    log('✗ npm finished but ccinfobar was not found');
+    return { command: null, onPath: false };
+  }
+  log(`✓ Installed ${localBin()}`);
+  return { command: quote(localBin()), onPath: false };
 }
