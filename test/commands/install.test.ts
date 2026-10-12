@@ -9,6 +9,8 @@ import {
   projectLocalFile,
   projectOverride,
   projectSettingsPath,
+  releaseProjects,
+  takeOverProjects,
   uninstall,
 } from '../../src/commands/install.js';
 
@@ -38,11 +40,11 @@ describe('install and uninstall', () => {
     expect(uninstall(file)).toEqual({ removed: false });
   });
 
-  it('removes the status line when there was none before', () => {
+  it('removes the file it created when nothing else is left', () => {
     const file = settingsFile(null);
     expect(install('ccinfobar', undefined, file)).toBeNull();
     expect(uninstall(file)).toEqual({ removed: true, restored: null });
-    expect(read(file)).toEqual({});
+    expect(fs.existsSync(file)).toBe(false);
   });
 
   it('finds a project status line that beats the user one and wins over it locally', () => {
@@ -79,5 +81,40 @@ describe('install and uninstall', () => {
     } finally {
       process.env = saved;
     }
+  });
+
+  it('takes over GSD project status lines and gives them back', () => {
+    const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-take-')));
+    const claude = path.join(base, 'claude');
+    const project = (name: string, command: string | null) => {
+      const root = path.join(base, name);
+      fs.mkdirSync(path.join(root, '.claude'), { recursive: true });
+      if (command) {
+        fs.writeFileSync(
+          projectSettingsPath(root, false),
+          JSON.stringify({ hooks: {}, statusLine: { type: 'command', command } }),
+        );
+      }
+      return root;
+    };
+    const gsd = project('gsd', 'node .claude/hooks/gsd-statusline.js');
+    const other = project('other', 'my-line');
+    const plain = project('plain', null);
+    fs.mkdirSync(claude);
+    const projects = Object.fromEntries([gsd, other, plain, path.join(base, 'gone')].map((p) => [p, {}]));
+    fs.writeFileSync(path.join(claude, '.claude.json'), JSON.stringify({ projects }));
+    const env = { ...process.env, CLAUDE_CONFIG_DIR: claude };
+    expect(takeOverProjects('ccinfobar', 10, env)).toEqual([gsd]);
+    expect(read(projectSettingsPath(gsd)).statusLine).toEqual({
+      type: 'command',
+      command: 'ccinfobar',
+      padding: 0,
+      refreshInterval: 10,
+    });
+    expect(takeOverProjects('ccinfobar', 10, env)).toEqual([]);
+    expect(fs.existsSync(projectSettingsPath(other))).toBe(false);
+    expect(releaseProjects(env)).toEqual([gsd]);
+    expect(fs.existsSync(projectSettingsPath(gsd))).toBe(false);
+    expect(read(projectSettingsPath(gsd, false)).statusLine.command).toMatch(/gsd-statusline/);
   });
 });

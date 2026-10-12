@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { claudeSettingsPath } from '../core/paths.js';
+import { claudeDir, claudeSettingsPath } from '../core/paths.js';
 
 export interface StatusLineSetting {
   type: 'command';
@@ -89,7 +90,9 @@ export function uninstall(file = claudeSettingsPath()): UninstallResult {
   } catch {}
   if (previous) settings.statusLine = previous;
   else delete settings.statusLine;
-  writeJson(file, settings);
+  if (!previous && !fs.existsSync(`${file}.ccinfobar-backup`) && Object.keys(settings).length === 0) {
+    fs.rmSync(file, { force: true });
+  } else writeJson(file, settings);
   return { removed: true, restored: previous };
 }
 
@@ -173,4 +176,67 @@ export function ignoreLocally(file: string): boolean {
   } catch {
     return false;
   }
+}
+
+export function claudeJsonPath(env: NodeJS.ProcessEnv = process.env): string {
+  return env.CLAUDE_CONFIG_DIR
+    ? path.join(env.CLAUDE_CONFIG_DIR, '.claude.json')
+    : path.join(os.homedir(), '.claude.json');
+}
+
+export function knownProjects(env: NodeJS.ProcessEnv = process.env): string[] {
+  try {
+    const projects = (readJson(claudeJsonPath(env)).projects ?? {}) as Record<string, unknown>;
+    const own = path.resolve(claudeDir(env));
+    return Object.keys(projects).filter((p) => path.resolve(p, '.claude') !== own);
+  } catch {
+    return [];
+  }
+}
+
+function ownStatusLine(file: string): string | null {
+  try {
+    const cmd = currentStatusLine(file)?.command;
+    return typeof cmd === 'string' ? cmd : null;
+  } catch {
+    return null;
+  }
+}
+
+// GSD's per-project status line
+export function gsdProjects(env: NodeJS.ProcessEnv = process.env): string[] {
+  return knownProjects(env).filter((root) => {
+    const local = ownStatusLine(projectSettingsPath(root));
+    if (local !== null) return /gsd-statusline/.test(local);
+    return /gsd-statusline/.test(ownStatusLine(projectSettingsPath(root, false)) ?? '');
+  });
+}
+
+export function takeOverProjects(
+  command: string,
+  refreshInterval?: number,
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const done: string[] = [];
+  for (const root of gsdProjects(env)) {
+    try {
+      const file = projectSettingsPath(root);
+      install(command, refreshInterval, file);
+      ignoreLocally(file);
+      done.push(root);
+    } catch {}
+  }
+  return done;
+}
+
+export function releaseProjects(env: NodeJS.ProcessEnv = process.env): string[] {
+  const done: string[] = [];
+  for (const root of knownProjects(env)) {
+    const file = projectSettingsPath(root);
+    if (!ownStatusLine(file)?.includes('ccinfobar')) continue;
+    try {
+      if (uninstall(file).removed) done.push(root);
+    } catch {}
+  }
+  return done;
 }

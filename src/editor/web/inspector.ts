@@ -501,6 +501,12 @@ function globalTab(): HTMLElement {
         ),
       ),
       field(
+        'Usage from Claude',
+        toggle(c.usageApi, (v) => set({ usageApi: v })),
+        'Fill usage limit widgets from your Claude login when Claude Code sends none.',
+        true,
+      ),
+      field(
         'Auto wrap',
         toggle(c.autoWrap, (v) => set({ autoWrap: v })),
         'Wrap widgets onto extra lines instead of truncating.',

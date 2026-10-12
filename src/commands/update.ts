@@ -146,16 +146,20 @@ export function scheduleCheck(config: Config, env: NodeJS.ProcessEnv = process.e
   try {
     fs.mkdirSync(path.dirname(lock), { recursive: true });
     fs.writeFileSync(lock, String(now));
-    const entry = process.argv[1];
-    if (!entry || !/ccinfobar(\.js)?$/.test(entry)) return;
-    const child = spawn(process.execPath, [entry, 'update', '--background'], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-      env,
-    });
-    child.unref();
+    spawnSelf(['update', '--background'], env);
   } catch {}
+}
+
+export function spawnSelf(args: string[], env: NodeJS.ProcessEnv = process.env): void {
+  const entry = process.argv[1];
+  if (!entry || !/ccinfobar(\.js)?$/.test(entry)) return;
+  const child = spawn(process.execPath, [entry, ...args], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+    env,
+  });
+  child.unref();
 }
 
 export async function backgroundUpdate(

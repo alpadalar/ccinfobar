@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-12
+
+### Added
+
+- Usage limits from Claude: when Claude Code sends no `rate_limits`, a background request with your Claude login fills the 5-hour, weekly and extra usage widgets (`usageApi`, on by default); `ccinfobar usage` fetches it now and `doctor` shows where the numbers come from
+- `install` switches projects that use GSD's own status line to ccinfobar through `.claude/settings.local.json`; the daily background check catches new ones and `uninstall` gives them back
+
+### Fixed
+
+- The config schema lists every `charset` value and the `update` setting
+
 ## [0.3.4] - 2026-10-12
 
 ### Fixed
@@ -89,7 +100,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/alpadalar/ccinfobar/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/alpadalar/ccinfobar/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/alpadalar/ccinfobar/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/alpadalar/ccinfobar/compare/v0.3.1...v0.3.2

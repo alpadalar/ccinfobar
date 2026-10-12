@@ -246,21 +246,31 @@ function schema(): object {
       padding: { type: 'integer', minimum: 0, maximum: 4, description: 'Overrides the theme padding' },
       glyphs: glyphs,
       charset: {
-        enum: ['unicode', 'text'],
-        default: 'unicode',
+        enum: ['auto', 'nerd', 'unicode', 'text'],
+        default: 'auto',
         description:
-          'text: ASCII-only bars, glyphs, boxes and labels for terminals without Unicode or Nerd Fonts',
+          'auto: unicode in Apple Terminal, nerd elsewhere. text: ASCII-only for terminals without Unicode or Nerd Fonts',
       },
       autoWrap: {
         type: 'boolean',
         default: false,
         description: 'Move widgets that do not fit to a new line instead of truncating',
       },
+      update: {
+        enum: ['auto', 'notify', 'off'],
+        default: 'auto',
+        description: 'auto installs new releases in the background, notify shows a note, off never checks',
+      },
+      usageApi: {
+        type: 'boolean',
+        default: true,
+        description: 'Fill usage limit widgets from Claude when Claude Code does not send rate_limits',
+      },
       tui: tuiSchema,
       colorLevel: { enum: ['auto', 0, 1, 2, 3], default: 'auto' },
       icons: { enum: ['nerd', 'emoji', 'text', 'none'], default: 'text' },
       maxWidth: { anyOf: [{ const: 'auto' }, { type: 'integer', minimum: 1 }], default: 'auto' },
-      widthOffset: { type: 'integer', minimum: 0, default: 4 },
+      widthOffset: { type: 'integer', minimum: 0, default: 10 },
       savePayload: { type: 'boolean', default: true },
     },
   };

@@ -9,6 +9,8 @@ import {
   projectLocalFile,
   projectOverride,
   projectSettingsPath,
+  releaseProjects,
+  takeOverProjects,
   uninstall,
 } from './commands/install.js';
 import {
@@ -31,6 +33,15 @@ import { finalizeLine, render } from './core/renderer.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from './core/themes.js';
 import type { Config, StatusPayload } from './core/types.js';
 import { terminalWidth } from './data/terminal.js';
+import {
+  fetchUsage,
+  mergeUsage,
+  needsUsage,
+  readUsageCache,
+  scheduleUsage,
+  usageApiDisabled,
+  usageDue,
+} from './data/usage.js';
 import { type DetectedTool, detectTool, type ImportSource, importFrom, toConfig } from './importers/index.js';
 import { ALL_WIDGETS, CATEGORIES } from './widgets/index.js';
 
@@ -61,6 +72,7 @@ Usage
   ccinfobar init [preset]        Write a preset config (${PRESETS.map((p) => p.id).join(', ')})
   ccinfobar preview              Print the status line with sample data
   ccinfobar update               Update to the latest release (--check to only look)
+  ccinfobar usage                Fetch your plan usage from Claude now
   ccinfobar widgets              List all widgets
   ccinfobar doctor               Check the setup
 
@@ -225,7 +237,9 @@ async function runRender(args: Args, config: Config): Promise<void> {
   }
   if (config.savePayload && typeof args.flags.payload !== 'string') savePayload(payload);
   const width = typeof args.flags.width === 'string' ? Number(args.flags.width) : undefined;
-  const lines = renderStatus(config, payload, width);
+  const usageOn = !usageApiDisabled(config) && needsUsage(config, payload);
+  const usage = usageOn ? readUsageCache() : null;
+  const lines = renderStatus(config, usage ? mergeUsage(payload, usage) : payload, width);
   const notice = updateNotice(config, VERSION);
   if (notice && lines.length) {
     const level = detectLevel(config.colorLevel);
@@ -233,6 +247,7 @@ async function runRender(args: Args, config: Config): Promise<void> {
   }
   process.stdout.write(lines.map(finalizeLine).join('\n') + (lines.length ? '\n' : ''));
   scheduleCheck(config);
+  if (usageOn && usageDue(usage)) scheduleUsage();
 }
 
 function doctor(cfgFile: string): void {
@@ -357,6 +372,11 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       if (backup) console.log(`  Backup: ${tildify(backup)}`);
       console.log(`  Config: ${tildify(cfgFile)}`);
       if (tool) console.log(`  \`ccinfobar uninstall\` brings back ${tool.name}.`);
+      const taken = takeOverProjects(command, currentStatusLine()?.refreshInterval);
+      if (taken.length) {
+        console.log(`✓ Also replaced GSD's status line in ${taken.length} project(s):`);
+        for (const p of taken) console.log(`  ${tildify(p)}`);
+      }
       const shadowed = projectOverride(process.cwd());
       if (shadowed) {
         console.log(`⚠ ${tildify(shadowed.file)} sets its own statusLine, which wins in this project.`);
@@ -382,7 +402,16 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       return;
     }
     case 'uninstall': {
-      const res = uninstall(args.flags.project ? projectLocalFile(process.cwd()) : undefined);
+      if (args.flags.project) {
+        const res = uninstall(projectLocalFile(process.cwd()));
+        console.log(
+          res.removed ? '✓ Removed ccinfobar from this project' : 'ccinfobar is not set in this project',
+        );
+        return;
+      }
+      const released = releaseProjects();
+      if (released.length) console.log(`✓ Gave ${released.length} project(s) their own status line back`);
+      const res = uninstall();
       if (!res.removed) console.log('ccinfobar is not the active statusLine');
       else if (res.restored) console.log(`✓ Restored the previous statusLine: ${res.restored.command}`);
       else console.log('✓ Removed ccinfobar from Claude Code settings');
@@ -487,9 +516,32 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     case 'update': {
       if (args.flags.background) {
         await backgroundUpdate(loadConfig(cfgFile).config, VERSION);
+        try {
+          const sl = currentStatusLine();
+          if (sl?.command?.includes('ccinfobar')) takeOverProjects(sl.command, sl.refreshInterval);
+        } catch {}
         return;
       }
       process.exitCode = await manualUpdate(VERSION, args.flags.check === true);
+      return;
+    }
+    case 'usage': {
+      const cache = await fetchUsage();
+      if (args.flags.background) return;
+      if (cache.error) console.log(`✗ ${cache.error}`);
+      const r = cache.rate_limits;
+      if (!r) {
+        process.exitCode = 1;
+        return;
+      }
+      const at = (w?: { resets_at?: number | string | null }) =>
+        w?.resets_at ? `, resets ${new Date(w.resets_at).toLocaleString()}` : '';
+      for (const [k, w] of Object.entries(r)) {
+        if (k === 'spend_limit') continue;
+        console.log(`  ${k}: ${w?.used_percentage ?? '?'}%${at(w as { resets_at?: string })}`);
+      }
+      if (r.spend_limit)
+        console.log(`  extra usage: $${r.spend_limit.used_usd} of $${r.spend_limit.limit_usd ?? '?'}`);
       return;
     }
     case 'doctor':

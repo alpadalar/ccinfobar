@@ -458,6 +458,14 @@ function baseGlobalFields(): Field[] {
       },
     ),
     globalField(
+      'usageApi',
+      'Usage from Claude',
+      'bool',
+      (c) => c.usageApi,
+      (c, v) => ({ ...c, usageApi: Boolean(v) }),
+      { help: 'Fill usage limit widgets from your Claude login when Claude Code sends none' },
+    ),
+    globalField(
       'autoWrap',
       'Auto wrap',
       'bool',

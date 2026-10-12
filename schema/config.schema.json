@@ -222,14 +222,24 @@
       }
     },
     "charset": {
-      "enum": ["unicode", "text"],
-      "default": "unicode",
-      "description": "text: ASCII-only bars, glyphs, boxes and labels for terminals without Unicode or Nerd Fonts"
+      "enum": ["auto", "nerd", "unicode", "text"],
+      "default": "auto",
+      "description": "auto: unicode in Apple Terminal, nerd elsewhere. text: ASCII-only for terminals without Unicode or Nerd Fonts"
     },
     "autoWrap": {
       "type": "boolean",
       "default": false,
       "description": "Move widgets that do not fit to a new line instead of truncating"
+    },
+    "update": {
+      "enum": ["auto", "notify", "off"],
+      "default": "auto",
+      "description": "auto installs new releases in the background, notify shows a note, off never checks"
+    },
+    "usageApi": {
+      "type": "boolean",
+      "default": true,
+      "description": "Fill usage limit widgets from Claude when Claude Code does not send rate_limits"
     },
     "tui": {
       "type": "object",

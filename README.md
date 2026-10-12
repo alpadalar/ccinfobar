@@ -32,6 +32,7 @@ next: /gsd-execute-phase 4 │ $1.87 │ 5h 42% │ Resets 2h 14m │ 7d 61%
 - [Commands](#commands)
 - [Configuration](#configuration)
 - [Updates](#updates)
+- [Usage limits](#usage-limits)
 - [Platform notes](#platform-notes)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
@@ -59,7 +60,7 @@ ccinfobar install
 
 > ccinfobar is not on the npm registry yet, so this installs the latest GitHub release. Once it is published, `npm install -g ccinfobar` will work too. Run the same command again to update.
 
-`install` points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar (backing up the file first) and writes a default config. If you were using ccstatusline or claude-powerline, it offers to import that layout first. `ccinfobar uninstall` puts your previous status line back. The next Claude Code prompt shows the new status line.
+`install` points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar (backing up the file first) and writes a default config. If you were using ccstatusline or claude-powerline, it offers to import that layout first. Projects where a local GSD install set its own status line are switched to ccinfobar too, through their git-ignored `.claude/settings.local.json`. `ccinfobar uninstall` puts your previous status line back. The next Claude Code prompt shows the new status line.
 
 Then make it yours:
 
@@ -206,6 +207,7 @@ Widgets without an equivalent are listed as warnings instead of being dropped si
 | `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
 | `ccinfobar tui` | Open the terminal editor |
 | `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--import`, `--no-import`, `--command <cmd>`, `--refresh <seconds>`) |
+| `ccinfobar usage` | Fetch your 5-hour and weekly usage from Claude now |
 | `ccinfobar install --project` | Use ccinfobar in this project even if its `.claude/settings.json` sets another status line |
 | `ccinfobar uninstall` | Remove ccinfobar from Claude Code settings and restore the status line you had before (`--project` for the project file) |
 | `ccinfobar themes` | Preview every theme (`--width <n>`) |
@@ -249,6 +251,10 @@ ccinfobar keeps itself up to date. Once a day, after the status line has been pr
 
 `ccinfobar update` updates right away (`--check` only looks). Checks are skipped when `CI` or `CCINFOBAR_NO_UPDATE` is set.
 
+## Usage limits
+
+Claude Code sends your 5-hour and weekly usage only in some sessions. When it doesn't, ccinfobar asks Claude for them with your existing login, the same way ccstatusline does, in the background and at most every 3 minutes. Data from Claude Code always wins. `ccinfobar usage` fetches it now; `usageApi: false` turns this off. See [SECURITY.md](SECURITY.md) for what is sent where.
+
 ## Platform notes
 
 - **Fonts.** Powerline arrows, capsule caps and the `nerd` icon set need a [Nerd Font](https://www.nerdfonts.com/). With the default `charset: "auto"`, ccinfobar avoids them in Apple Terminal (whose default fonts lack them) and draws plain colored blocks and half-block caps instead. Set `charset` to `nerd` once your terminal uses a Nerd Font, or to `text` for pure ASCII.
@@ -261,13 +267,13 @@ ccinfobar keeps itself up to date. Once a day, after the status line has been pr
 | Problem | Fix |
 | --- | --- |
 | Nothing shows up | Run `ccinfobar doctor`. Claude Code also hides the status line in untrusted folders and while dialogs are open. |
-| Another status line shows in one project | That project's `.claude/settings.json` sets its own `statusLine` (a local GSD install does this), and project settings beat `~/.claude/settings.json`. Run `ccinfobar install --project` in the project: it writes `.claude/settings.local.json`, which wins and stays out of git. |
+| Another status line shows in one project | That project's `.claude/settings.json` sets its own `statusLine`, and project settings beat `~/.claude/settings.json`. GSD's is replaced automatically by `install` and the daily check; for any other, run `ccinfobar install --project` there. |
 | A widget I added is missing | Run `ccinfobar doctor`: it lists every widget with its value or the reason it is hidden (for example "Claude Code sent no rate_limits") and warns when a line is cut to fit the terminal. Save in the editor before checking. |
 | `?` instead of arrows on macOS | Apple Terminal's default fonts have no powerline glyphs. Keep `charset: "auto"` or `"unicode"`, or install a Nerd Font and set `charset: "nerd"`. |
 | Odd boxes instead of arrows or icons | Install a Nerd Font, or set `charset` to `unicode` or `text`. |
 | GSD widgets show `—` | You are outside a GSD project, or `.planning/STATE.md` / `ROADMAP.md` doesn't exist yet. Set `hideEmpty` on them to hide the line elsewhere. |
 | Context, cache or token widgets show `—` | Claude Code sends these only after Claude's first reply in the session. If your usage limit is at 100%, Claude cannot reply, so they stay empty; `ccinfobar doctor` tells you which case you are in. |
-| Usage limit widgets show `—` | Claude Code only sends rate limits to Pro and Max subscribers, and they may be missing until the first response. |
+| Usage limit widgets show `—` | Usage needs a Claude Pro or Max login. ccinfobar fills it from Claude when Claude Code sends none; run `ccinfobar usage` to see the reply or the error. |
 | Preview in the editor doesn't match | Use **Last session** in the preview, after Claude Code has rendered the status line at least once. |
 
 ## Contributing

@@ -73,6 +73,7 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
 | `maxWidth` | `auto` \| number | `"auto"` | Lines longer than this are truncated with `…`. `auto` uses the detected terminal width. |
 | `widthOffset` | number | `10` | Columns subtracted from the terminal width in `auto` mode. Outside fullscreen mode Claude Code shows notifications on the right of the status line row; raise this (for example to `40`) to keep them visible. |
 | `update` | `auto` \| `notify` \| `off` | `"auto"` | Background update behaviour, see [Updates](../README.md#updates) |
+| `usageApi` | boolean | `true` | Fill usage limit widgets from Claude when Claude Code sends no `rate_limits`, see [Usage limits](../README.md#usage-limits) |
 | `savePayload` | boolean | `true` | Store the latest Claude Code payload so the editors can preview with your real session data |
 
 Fields marked "theme" are optional. Leave them out to use the theme's value.

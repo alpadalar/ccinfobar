@@ -4,6 +4,7 @@ import { readLastPayload } from '../core/preview.js';
 import { maxLineWidth, renderLine, renderPart, renderValue, resolveAppearance } from '../core/renderer.js';
 import type { Config, RenderContext, StatusPayload, WidgetItem } from '../core/types.js';
 import { terminalWidth } from '../data/terminal.js';
+import { mergeUsage, readUsageCache, usageApiDisabled } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
 
 export interface WidgetReport {
@@ -32,7 +33,7 @@ export function hiddenReason(ctx: RenderContext, item: WidgetItem): string {
   }
   if (def.category === 'limits') {
     if (!p.rate_limits) {
-      return 'Claude Code sent no rate_limits: they come only with a Pro/Max login on recent Claude Code versions, after the first reply';
+      return 'no rate_limits from Claude Code and none from the usage API yet (needs a Claude Pro/Max login; see `ccinfobar usage`)';
     }
     return 'this usage window is not in rate_limits';
   }
@@ -113,6 +114,21 @@ export function lineReport(
   });
 }
 
+export function usageLine(
+  config: Config,
+  payload: StatusPayload,
+  usage: ReturnType<typeof readUsageCache>,
+  now = Date.now(),
+): string {
+  if (payload.rate_limits?.five_hour && payload.rate_limits.seven_day)
+    return 'Usage limits: from Claude Code';
+  if (usageApiDisabled(config)) return 'Usage limits: usage API off (usageApi: false)';
+  if (!usage) return 'Usage limits: usage API not called yet';
+  const age = Math.round((now - usage.fetchedAt) / 60_000);
+  const data = usage.rate_limits ? `from the usage API, ${age} min old` : 'no data from the usage API';
+  return `Usage limits: ${data}${usage.error ? ` (last error: ${usage.error})` : ''}`;
+}
+
 export function printWidgetReport(config: Config, payload: StatusPayload | null = readLastPayload()): void {
   console.log('\nWidgets');
   if (!payload) {
@@ -124,8 +140,11 @@ export function printWidgetReport(config: Config, payload: StatusPayload | null 
     `  Last payload: Claude Code ${payload.version ?? 'unknown version'}, fields: ${keys.sort().join(', ')}`,
   );
   for (const n of sessionNotes(payload)) console.log(`  ℹ ${n}`);
+  const usage = usageApiDisabled(config) ? null : readUsageCache();
+  console.log(`  ${usageLine(config, payload, usage)}`);
+  const shown = usage ? mergeUsage(payload, usage) : payload;
   const width = terminalWidth(payload.session_id, payload.terminal_width ?? payload.columns);
-  const ctx = createContext({ payload, config: { ...config, colorLevel: 0 }, terminalWidth: width });
+  const ctx = createContext({ payload: shown, config: { ...config, colorLevel: 0 }, terminalWidth: width });
   for (const r of widgetReport(ctx)) {
     const name = `${r.item.type}${r.item.id !== r.item.type ? ` (${r.item.id})` : ''}`;
     if (r.value !== null) console.log(`  ✓ L${r.line + 1} ${name}: ${r.value}`);

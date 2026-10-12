@@ -15,7 +15,7 @@ Or open `ccinfobar edit` and drag widgets from the **GSD** category.
 
 If you previously used GSD's own status line (`~/.claude/hooks/gsd-statusline.js`), `ccinfobar install` replaces it in `~/.claude/settings.json`. Your previous settings are backed up first. GSD's other hooks keep working.
 
-A local GSD install (`npx get-shit-done-cc --local`) writes `node .claude/hooks/gsd-statusline.js` into the project's `.claude/settings.json`, which beats the user setting in that project. Run `ccinfobar install --project` there: it sets ccinfobar in `.claude/settings.local.json`, which wins over both and stays out of git. `ccinfobar doctor` and `ccinfobar install` warn when a project overrides the status line.
+A local GSD install (`npx get-shit-done-cc --local`) writes `node .claude/hooks/gsd-statusline.js` into the project's `.claude/settings.json`, which beats the user setting in that project. `ccinfobar install` finds these projects in Claude Code's project list and sets ccinfobar in their `.claude/settings.local.json`, which wins over both and stays out of git; the daily background check picks up projects added later. `ccinfobar uninstall` gives them GSD's status line back.
 
 ## Widgets
 

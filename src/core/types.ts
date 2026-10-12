@@ -169,6 +169,7 @@ export interface Config {
   charset: Charset;
   autoWrap: boolean;
   update: 'notify' | 'auto' | 'off';
+  usageApi: boolean;
   tui?: TuiConfig;
   colorLevel: ColorLevel;
   icons: IconMode;
