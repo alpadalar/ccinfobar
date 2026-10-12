@@ -35,6 +35,15 @@ function prune(value: unknown): unknown {
   return value === '' ? undefined : value;
 }
 
+// key order does not matter
+function stable(value: unknown): string {
+  return JSON.stringify(value ?? null, (_k, v) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)))
+      : v,
+  );
+}
+
 let validateTimer: number | undefined;
 
 function validate(): void {
@@ -44,8 +53,8 @@ function validate(): void {
     if (!note) return;
     try {
       const { config } = await api.normalize(S.config);
-      const sent = JSON.stringify(S.config.tui ?? null);
-      const got = JSON.stringify(config.tui ?? null);
+      const sent = stable(S.config.tui);
+      const got = stable(config.tui);
       note.textContent =
         sent === got ? '' : 'Some panel values were adjusted by the validator (invalid or out of range).';
       note.classList.toggle('on', sent !== got);
