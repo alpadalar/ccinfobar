@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { configPath } from './paths.js';
 import type {
+  Align,
   BoxChars,
   Config,
   GlyphOverrides,
@@ -177,6 +178,8 @@ export function normalizeTui(raw: unknown): TuiConfig | undefined {
   return t;
 }
 
+const isAlign = (v: unknown): v is Align => v === 'left' || v === 'center' || v === 'right';
+
 export function normalizeConfig(raw: unknown): Config {
   const base = defaultConfig();
   if (!isObject(raw)) return base;
@@ -213,6 +216,12 @@ export function normalizeConfig(raw: unknown): Config {
   if (['auto', 'nerd', 'unicode', 'text'].includes(raw.charset as string))
     cfg.charset = raw.charset as Config['charset'];
   if (typeof raw.autoWrap === 'boolean') cfg.autoWrap = raw.autoWrap;
+  if (isAlign(raw.align) && raw.align !== 'left') cfg.align = raw.align;
+  if (Array.isArray(raw.lineAlign)) {
+    const list = raw.lineAlign.slice(0, cfg.lines.length).map((a) => (isAlign(a) ? a : null));
+    while (list.length && list[list.length - 1] === null) list.pop();
+    if (list.length) cfg.lineAlign = list;
+  }
   if (raw.update === 'notify' || raw.update === 'auto' || raw.update === 'off') cfg.update = raw.update;
   if (typeof raw.usageApi === 'boolean') cfg.usageApi = raw.usageApi;
   if (raw.gsdAutoLine === true) cfg.gsdAutoLine = true;

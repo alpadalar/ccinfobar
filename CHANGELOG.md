@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Alignment: `align` places every line (or the panel box) left, center or right, and `lineAlign` overrides it per line; the editor has an Alignment setting and three buttons on each line
+- Editor: the preview width is remembered in the browser; it only affects the preview
 - Charts: `output-speed-graph` draws output tokens per second as a moving sparkline
 
 ### Fixed

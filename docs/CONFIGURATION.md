@@ -69,6 +69,8 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
 | `glyphs` | object | theme | Overrides `separator`, `thin`, `startCap` and `endCap` glyphs of powerline and capsule styles |
 | `icons` | `nerd` \| `emoji` \| `text` \| `none` | `"text"` | What a widget shows before its value: Nerd Font glyph, emoji, short text label or nothing |
 | `charset` | `auto` \| `nerd` \| `unicode` \| `text` | `"auto"` | Which characters may be printed. `nerd`: everything, including powerline arrows, capsule caps and Nerd Font icons. `unicode`: no Nerd Font needed; arrows become plain blocks, caps become half blocks (`▐ ▌`), Nerd icons fall back to text. `text`: ASCII only (bars `=-`, boxes `+-\|`). `auto`: `unicode` in Apple Terminal, `nerd` elsewhere. |
+| `align` | `left` \| `center` \| `right` | `left` | Where lines sit in the terminal. In the panel style it places the box when the box is narrower than the terminal |
+| `lineAlign` | array | | Alignment per line by index (`["right", null, "center"]`); `null` follows `align`. In the panel style it aligns the row inside the box |
 | `autoWrap` | boolean | `true` | Move widgets that do not fit onto a new line instead of truncating with `…` |
 | `tui` | object | | Settings for the panel (`tui`) style, see [Panel style](THEMES.md#panel-style) |
 | `colorLevel` | `auto` \| 0 \| 1 \| 2 \| 3 | `"auto"` | 0 no color, 1 basic 16, 2 256 colors, 3 truecolor. `auto` honors `NO_COLOR`, `FORCE_COLOR` and `COLORTERM`. |

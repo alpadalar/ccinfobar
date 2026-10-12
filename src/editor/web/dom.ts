@@ -66,6 +66,9 @@ const PATHS: Record<string, string> = {
   brush:
     '<path d="M18.4 2.6a2 2 0 0 1 2.9 2.9L12 14.8l-2.9-2.9z"/><path d="M9.1 11.9c-2.1 0-4.1 1.6-4.1 4.1 0 1.5-1 2.5-2.5 3 1 1.4 2.7 2 4.5 2 3 0 5-2.2 5-5z"/>',
   layers: '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/>',
+  'align-left': '<path d="M4 6h16M4 12h10M4 18h13"/>',
+  'align-center': '<path d="M4 6h16M7 12h10M5.5 18h13"/>',
+  'align-right': '<path d="M4 6h16M10 12h10M7 18h13"/>',
 };
 
 export function icon(name: keyof typeof PATHS | string, size = 16): HTMLSpanElement {

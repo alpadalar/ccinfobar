@@ -20,7 +20,15 @@ import {
   type Theme,
   type ThemeGlyphs,
 } from './themes.js';
-import type { Config, RenderContext, ThemeStyle, WidgetDef, WidgetItem, WidgetOutput } from './types.js';
+import type {
+  Align,
+  Config,
+  RenderContext,
+  ThemeStyle,
+  WidgetDef,
+  WidgetItem,
+  WidgetOutput,
+} from './types.js';
 
 export interface Part {
   item: WidgetItem;
@@ -403,9 +411,21 @@ export function render(ctx: RenderContext): string[] {
       maxLineWidth(ctx),
     );
   }
-  return ctx.config.lines
-    .flatMap((items) => renderLine(ctx, items, level, a).split('\n'))
-    .filter((l) => stripAnsi(l).trim() !== '');
+  const width = maxLineWidth(ctx);
+  return ctx.config.lines.flatMap((items, li) => {
+    const align = ctx.config.lineAlign?.[li] ?? ctx.config.align ?? 'left';
+    return renderLine(ctx, items, level, a)
+      .split('\n')
+      .filter((l) => stripAnsi(l).trim() !== '')
+      .map((l) => alignLine(l, width, align));
+  });
+}
+
+export function alignLine(line: string, width: number | null, align: Align): string {
+  if (align === 'left' || width === null) return line;
+  const free = width - visibleWidth(line);
+  if (free <= 0) return line;
+  return ' '.repeat(align === 'center' ? Math.floor(free / 2) : free) + line;
 }
 
 // green to yellow to red to violet

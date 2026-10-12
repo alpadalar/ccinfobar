@@ -11,11 +11,12 @@ import {
   recordStyles,
   removeItem,
   removeLine,
+  setLineAlign,
   setOption,
   takeStyle,
   updateItem,
 } from '../../src/core/edit.js';
-import type { Config } from '../../src/core/types.js';
+import type { Config, WidgetItem } from '../../src/core/types.js';
 
 const base = (): Config => ({
   ...defaultConfig(),
@@ -126,5 +127,19 @@ describe('styles', () => {
     const list = (history as Record<string, { color?: string }[]>).b!;
     expect(list.map((s) => s.color)).toEqual(['cyan', 'yellow', 'green']);
     expect(recordStyles(history, c, c)).toEqual(history);
+  });
+});
+
+describe('line alignment', () => {
+  it('follows its line when lines are added, moved and removed', () => {
+    const base = { ...defaultConfig(), lines: [[], [], []] as WidgetItem[][] };
+    let c = setLineAlign(base, 1, 'right');
+    expect(c.lineAlign).toEqual([null, 'right']);
+    c = addLine(c, 0);
+    expect(c.lineAlign).toEqual([null, null, 'right']);
+    c = moveLine(c, 2, 0);
+    expect(c.lineAlign).toEqual(['right']);
+    c = removeLine(c, 0);
+    expect(c.lineAlign).toBeUndefined();
   });
 });

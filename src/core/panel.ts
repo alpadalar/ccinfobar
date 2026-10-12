@@ -42,7 +42,9 @@ export interface PanelDeps {
 
 const lineWidth = (text: string) => Math.max(0, ...splitAnsiLines(text).map(visibleWidth));
 
-type Row = { divider: true } | { divider: false; cells: { name: string; span: number }[] };
+type Row =
+  | { divider: true }
+  | { divider: false; cells: { name: string; span: number }[]; align?: 'left' | 'center' | 'right' };
 
 const DEFAULT_TITLE = '{model}';
 const DEFAULT_RIGHT = 'ccinfobar';
@@ -85,7 +87,7 @@ function cullRows(rows: Row[], has: (name: string) => boolean): Row[] {
       r.divider
         ? r
         : {
-            divider: false as const,
+            ...r,
             cells: r.cells.map((c) => (c.name === '.' || has(c.name) ? c : { ...c, name: '.' })),
           },
     )
@@ -178,13 +180,13 @@ function wrapRows(rows: Row[], widthOf: (name: string) => number, inner: number,
       out.push(r);
       continue;
     }
-    let cur: Row & { divider: false } = { divider: false, cells: [] };
+    let cur: Row & { divider: false } = { ...r, cells: [] };
     let used = 0;
     for (const c of r.cells) {
       const w = widthOf(c.name);
       if (cur.cells.length && used + gap + w > inner) {
         out.push(cur);
-        cur = { divider: false, cells: [] };
+        cur = { ...r, cells: [] };
         used = 0;
       }
       used += (cur.cells.length ? gap : 0) + w;
@@ -223,7 +225,8 @@ function sizeLineRows(
     const free = inner - sum(ws);
     const grow = r.cells.map((c, x) => (fills(c.name) ? x : -1)).filter((x) => x >= 0);
     const take = grow.length ? grow : [ws.length - 1];
-    if (free > 0) {
+    const aligned = !grow.length && r.align && r.align !== 'left';
+    if (free > 0 && !aligned) {
       take.forEach((x, t) => {
         ws[x]! += Math.floor(free / take.length) + (t < free % take.length ? 1 : 0);
       });
@@ -382,7 +385,12 @@ export function renderPanel(
       flush();
       if (!names.length) return;
       if (rows.length && dividers) rows.push({ divider: true });
-      rows.push({ divider: false, cells: names.map((name) => ({ name, span: 1 })) });
+      const align = ctx.config.lineAlign?.[li] ?? undefined;
+      rows.push({
+        divider: false,
+        cells: names.map((name) => ({ name, span: 1 })),
+        ...(align ? { align } : {}),
+      });
     });
     specs = ['1fr'];
   }
@@ -455,10 +463,14 @@ export function renderPanel(
     const height = Math.max(1, ...columns.map((c) => c.lines.length));
     for (let k = 0; k < height; k++) {
       const parts = columns.map((c) => pad(c.lines[k] ?? '', c.w, c.align));
-      const body = pad(parts.join(gapText), inner);
+      const body = pad(parts.join(gapText), inner, r.align ?? 'left');
       out.push(border(b.vertical) + side + body + side + border(b.vertical));
     }
   }
   out.push(edge(b.bottomLeft, b.bottomRight, tui.footer?.left, tui.footer?.right));
-  return out;
+  const free = maxWidth === null ? 0 : maxWidth - (total + 2);
+  const place = ctx.config.align ?? 'left';
+  if (free <= 0 || place === 'left') return out;
+  const shift = ' '.repeat(place === 'center' ? Math.floor(free / 2) : free);
+  return out.map((l) => shift + l);
 }

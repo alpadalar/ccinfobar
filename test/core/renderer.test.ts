@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { stripAnsi, visibleWidth } from '../../src/core/ansi.js';
+import { defaultConfig } from '../../src/core/config.js';
 import { finalizeLine, render } from '../../src/core/renderer.js';
 import type { WidgetItem } from '../../src/core/types.js';
 import { ctxWith } from '../helpers.js';
@@ -99,5 +100,23 @@ describe('renderer', () => {
 
   it('finalizes with reset and non-breaking spaces', () => {
     expect(finalizeLine('a b')).toBe('\x1b[0ma b');
+  });
+});
+
+describe('alignment', () => {
+  it('moves lines right or to the center, per line or for all', () => {
+    const lines = [
+      [{ id: 'a', type: 'text', options: { text: 'ab' } }],
+      [{ id: 'b', type: 'text', options: { text: 'cd' } }],
+    ];
+    const base = { ...defaultConfig(), colorLevel: 0 as const, maxWidth: 10, lines };
+    expect(render(ctxWith({ config: { ...base, align: 'right' } })).map(stripAnsi)).toEqual([
+      '        ab',
+      '        cd',
+    ]);
+    expect(render(ctxWith({ config: { ...base, lineAlign: ['center', null] } })).map(stripAnsi)).toEqual([
+      '    ab',
+      'cd',
+    ]);
   });
 });

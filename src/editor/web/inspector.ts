@@ -301,7 +301,7 @@ function widgetTab(): HTMLElement {
   return root;
 }
 
-type Overrides = 'style' | 'separator' | 'separatorColor' | 'padding' | 'glyphs';
+type Overrides = 'style' | 'separator' | 'separatorColor' | 'padding' | 'glyphs' | 'align';
 
 function setOverride(key: Overrides, value: unknown, coalesce?: string): void {
   const next = { ...S.config } as Record<string, unknown>;
@@ -410,6 +410,21 @@ function globalTab(): HTMLElement {
   root.append(
     section(
       'Rendering',
+      field(
+        'Alignment',
+        segmented(
+          [
+            { value: 'left', label: 'Left' },
+            { value: 'center', label: 'Center' },
+            { value: 'right', label: 'Right' },
+          ] as const,
+          c.align ?? 'left',
+          (v) => setOverride('align', v === 'left' ? undefined : v),
+        ),
+        style === 'tui'
+          ? 'Where the panel sits when it is narrower than the terminal. Lines can override it with the buttons next to them.'
+          : 'Where the lines sit in the terminal. Each line can override it with the buttons next to it.',
+      ),
       field(
         'Icons',
         segmented(

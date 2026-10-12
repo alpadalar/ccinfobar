@@ -310,6 +310,10 @@ export function applyGsdAutoLine(config: Config, installed: boolean): Config | n
     return item;
   });
   const lines = [...rest.lines];
-  lines.splice(Math.min(1, lines.length), 0, items);
-  return { ...rest, lines };
+  const at = Math.min(1, lines.length);
+  lines.splice(at, 0, items);
+  if (!rest.lineAlign) return { ...rest, lines };
+  const lineAlign = [...rest.lineAlign];
+  if (lineAlign.length > at) lineAlign.splice(at, 0, null);
+  return { ...rest, lines, lineAlign };
 }

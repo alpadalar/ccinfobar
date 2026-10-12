@@ -115,7 +115,7 @@ export function init(api: ApiState): void {
     search: '',
     collapsed: new Set(api.categories.map((c) => c.id)),
     source: 'sample',
-    width: 130,
+    width: savedWidth(),
     api,
     widgetMap: new Map(api.widgets.map((w) => [w.type, w])),
     clip: null,
@@ -130,6 +130,17 @@ export function on(topic: Topic, fn: Listener): void {
 
 export function emit(topic: Topic, opts: CommitOpts = {}): void {
   for (const fn of listeners[topic]) fn(opts);
+}
+
+export const WIDTH_KEY = 'ccinfobar.previewWidth';
+
+// preview width only, remembered in the browser
+function savedWidth(): number {
+  try {
+    const n = Number(localStorage.getItem(WIDTH_KEY));
+    if (Number.isFinite(n) && n >= 40 && n <= 400) return n;
+  } catch {}
+  return 130;
 }
 
 export function isDirty(): boolean {

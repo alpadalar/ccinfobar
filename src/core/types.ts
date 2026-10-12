@@ -162,10 +162,14 @@ export interface GlyphOverrides {
   endCap?: string;
 }
 
+export type Align = 'left' | 'center' | 'right';
+
 export interface Config {
   $schema?: string;
   version: 1;
   lines: WidgetItem[][];
+  align?: Align;
+  lineAlign?: (Align | null)[];
   theme: string;
   style?: ThemeStyle;
   separator?: string;

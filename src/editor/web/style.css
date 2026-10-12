@@ -1038,6 +1038,20 @@ body.dragging-chip .trash {
   font-variant-numeric: tabular-nums;
 }
 
+.line-align {
+  display: flex;
+  gap: 0.125rem;
+}
+
+.line-align .icon-btn.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.line-align .icon-btn.inherit {
+  color: var(--text-2);
+}
+
 .line-items {
   display: flex;
   flex-wrap: wrap;

@@ -1,4 +1,13 @@
-import { addLine, insertItem, moveItem, moveLine, removeItem, uniqueId } from '../../core/edit.js';
+import {
+  addLine,
+  insertItem,
+  moveItem,
+  moveLine,
+  removeItem,
+  removeLine,
+  setLineAlign,
+  uniqueId,
+} from '../../core/edit.js';
 import type { Config } from '../../core/types.js';
 import { ansiToHtml, escapeHtml } from './ansi-html.js';
 import { api, setToken } from './api.js';
@@ -22,6 +31,7 @@ import {
   S,
   select,
   undo,
+  WIDTH_KEY,
   type WidgetInfo,
 } from './store.js';
 import { chipMenu, copyStyle, paintOnto, pasteStyle, rememberStyles, setPainting } from './styles.js';
@@ -153,6 +163,32 @@ function removeSelected(): void {
   }
 }
 
+// pressing the active one goes back to the global alignment
+function lineAlignButtons(li: number): HTMLElement {
+  const own = S.config.lineAlign?.[li] ?? null;
+  const global = S.config.align ?? 'left';
+  return h(
+    'div',
+    { class: 'line-align', role: 'group', 'aria-label': `Align line ${li + 1}` },
+    ...(['left', 'center', 'right'] as const).map((a) =>
+      h(
+        'button',
+        {
+          type: 'button',
+          class: `icon-btn sm${own === a ? ' on' : !own && global === a ? ' inherit' : ''}`,
+          title: own === a ? `Aligned ${a}. Click to follow the global alignment` : `Align this line ${a}`,
+          'aria-pressed': String(own === a),
+          onClick: (e: Event) => {
+            e.stopPropagation();
+            commit(setLineAlign(S.config, li, own === a ? null : a));
+          },
+        },
+        icon(`align-${a}`, 14),
+      ),
+    ),
+  );
+}
+
 function renderCanvas(): void {
   const canvas = $('canvas');
   clear(canvas);
@@ -190,6 +226,7 @@ function renderCanvas(): void {
         grip,
         h('span', { class: 'line-title' }, `Line ${li + 1}`),
         h('span', { class: 'line-count' }, items.length === 1 ? '1 widget' : `${items.length} widgets`),
+        lineAlignButtons(li),
         h(
           'button',
           {
@@ -199,7 +236,7 @@ function renderCanvas(): void {
             'aria-label': `Delete line ${li + 1}`,
             onClick: (e: Event) => {
               e.stopPropagation();
-              commit({ ...S.config, lines: S.config.lines.filter((_, i) => i !== li) });
+              commit(removeLine(S.config, li));
             },
           },
           icon('trash', 14),
@@ -553,6 +590,9 @@ function setupStatic(): void {
   slider.value = String(S.width);
   slider.addEventListener('input', () => {
     S.width = Number(slider.value);
+    try {
+      localStorage.setItem(WIDTH_KEY, String(S.width));
+    } catch {}
     applyWidth();
     schedulePreview();
   });

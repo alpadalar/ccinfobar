@@ -236,6 +236,18 @@
       "default": "auto",
       "description": "auto: unicode in Apple Terminal, nerd elsewhere. text: ASCII-only for terminals without Unicode or Nerd Fonts"
     },
+    "align": {
+      "enum": ["left", "center", "right"],
+      "default": "left",
+      "description": "Where lines sit in the terminal; in the panel style, where the box sits when it is narrower"
+    },
+    "lineAlign": {
+      "type": "array",
+      "items": {
+        "enum": ["left", "center", "right", null]
+      },
+      "description": "Alignment per line, by index; null follows align"
+    },
     "autoWrap": {
       "type": "boolean",
       "default": true,

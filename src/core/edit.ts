@@ -1,4 +1,4 @@
-import type { Config, OptionValue, WidgetItem } from './types.js';
+import type { Align, Config, OptionValue, WidgetItem } from './types.js';
 
 export interface Position {
   line: number;
@@ -85,24 +85,51 @@ export function setOption(
   return updateItem(config, id, { options });
 }
 
+// keep per-line alignment next to its line
+function withAligns(next: Config, edit: (aligns: (Align | null)[]) => void): Config {
+  if (!next.lineAlign) return next;
+  const aligns = Array.from(
+    { length: Math.max(next.lineAlign.length, next.lines.length + 1) },
+    (_, i) => next.lineAlign![i] ?? null,
+  );
+  edit(aligns);
+  aligns.length = next.lines.length;
+  while (aligns.length && aligns[aligns.length - 1] == null) aligns.pop();
+  if (aligns.length) next.lineAlign = aligns.map((a) => a ?? null);
+  else delete next.lineAlign;
+  return next;
+}
+
 export function addLine(config: Config, at = config.lines.length): Config {
   const next = clone(config);
   next.lines.splice(at, 0, []);
-  return next;
+  return withAligns(next, (a) => a.splice(at, 0, null));
 }
 
 export function removeLine(config: Config, line: number): Config {
   const next = clone(config);
   next.lines.splice(line, 1);
-  return next;
+  return withAligns(next, (a) => a.splice(line, 1));
 }
 
 export function moveLine(config: Config, from: number, to: number): Config {
   if (from === to || from < 0 || from >= config.lines.length) return config;
   const next = clone(config);
   const [l] = next.lines.splice(from, 1);
-  next.lines.splice(Math.max(0, Math.min(to, next.lines.length)), 0, l!);
-  return next;
+  const at = Math.max(0, Math.min(to, next.lines.length));
+  next.lines.splice(at, 0, l!);
+  return withAligns(next, (a) => {
+    const [x] = a.splice(from, 1);
+    a.splice(at, 0, x ?? null);
+  });
+}
+
+export function setLineAlign(config: Config, line: number, align: Align | null): Config {
+  const next = clone(config);
+  next.lineAlign ??= [];
+  return withAligns(next, (a) => {
+    a[line] = align;
+  });
 }
 
 export type StyleGroup = 'colors' | 'text' | 'bars' | 'label';
