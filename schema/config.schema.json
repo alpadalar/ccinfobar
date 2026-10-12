@@ -17,9 +17,7 @@
         "type": "array",
         "items": {
           "type": "object",
-          "required": [
-            "type"
-          ],
+          "required": ["type"],
           "properties": {
             "id": {
               "type": "string"
@@ -143,11 +141,7 @@
             "options": {
               "type": "object",
               "additionalProperties": {
-                "type": [
-                  "string",
-                  "number",
-                  "boolean"
-                ]
+                "type": ["string", "number", "boolean"]
               }
             }
           }
@@ -169,22 +163,11 @@
       "default": 1
     },
     "colorLevel": {
-      "enum": [
-        "auto",
-        0,
-        1,
-        2,
-        3
-      ],
+      "enum": ["auto", 0, 1, 2, 3],
       "default": "auto"
     },
     "icons": {
-      "enum": [
-        "nerd",
-        "emoji",
-        "text",
-        "none"
-      ],
+      "enum": ["nerd", "emoji", "text", "none"],
       "default": "text"
     },
     "maxWidth": {
