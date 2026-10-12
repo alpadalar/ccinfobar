@@ -116,8 +116,12 @@ function hitTest(spec: DragSpec, x: number, y: number): Hit {
   };
 }
 
+let endCurrent: (() => void) | null = null;
+
 export function press(ev: PointerEvent, spec: DragSpec, handlers: PressHandlers): void {
   if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+  endCurrent?.();
+  for (const stale of document.querySelectorAll('.drag-ghost, body > .caret')) stale.remove();
   const el = ev.currentTarget as HTMLElement;
   const startX = ev.clientX;
   const startY = ev.clientY;
@@ -181,10 +185,15 @@ export function press(ev: PointerEvent, spec: DragSpec, handlers: PressHandlers)
   }
 
   function cleanup() {
-    el.removeEventListener('pointermove', move);
-    el.removeEventListener('pointerup', up);
-    el.removeEventListener('pointercancel', cancel);
+    window.removeEventListener('pointermove', move, true);
+    window.removeEventListener('pointerup', up, true);
+    window.removeEventListener('pointercancel', cancel, true);
+    el.removeEventListener('lostpointercapture', lost);
+    window.removeEventListener('blur', cancel);
+    document.removeEventListener('visibilitychange', cancel);
+    document.removeEventListener('dragstart', noNative, true);
     window.removeEventListener('keydown', key, true);
+    if (endCurrent === cleanup) endCurrent = null;
     try {
       el.releasePointerCapture(pointerId);
     } catch {}
@@ -208,6 +217,15 @@ export function press(ev: PointerEvent, spec: DragSpec, handlers: PressHandlers)
     cleanup();
   }
 
+  // capture can drop without a pointerup
+  function lost(e: PointerEvent) {
+    if (e.pointerId === pointerId && !(e.buttons & 1)) cleanup();
+  }
+
+  function noNative(e: DragEvent) {
+    e.preventDefault();
+  }
+
   function key(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.stopPropagation();
@@ -215,8 +233,13 @@ export function press(ev: PointerEvent, spec: DragSpec, handlers: PressHandlers)
     }
   }
 
-  el.addEventListener('pointermove', move);
-  el.addEventListener('pointerup', up);
-  el.addEventListener('pointercancel', cancel);
+  window.addEventListener('pointermove', move, true);
+  window.addEventListener('pointerup', up, true);
+  window.addEventListener('pointercancel', cancel, true);
+  el.addEventListener('lostpointercapture', lost);
+  window.addEventListener('blur', cancel);
+  document.addEventListener('visibilitychange', cancel);
+  document.addEventListener('dragstart', noNative, true);
   window.addEventListener('keydown', key, true);
+  endCurrent = cleanup;
 }

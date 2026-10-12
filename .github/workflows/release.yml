@@ -30,6 +30,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           notes=$(awk -v tag="${GITHUB_REF_NAME#v}" '$0 ~ "^## \\[" tag "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md)
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && exit 0
           gh release create "$GITHUB_REF_NAME" ccinfobar.tgz ccinfobar-*.tgz \
             --title "$GITHUB_REF_NAME" --notes "${notes:-See CHANGELOG.md}"
       # trusted publishing: npmjs.com > ccinfobar > Settings

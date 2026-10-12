@@ -588,6 +588,8 @@ textarea.input {
   background: var(--surface-2);
   box-shadow: 0 0 0 0.0625rem var(--line);
   cursor: grab;
+  -webkit-user-drag: none;
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   transition-property: background-color, box-shadow, opacity;
@@ -1045,6 +1047,7 @@ body.dragging-chip .trash {
     0 0.0625rem 0.125rem rgba(0, 0, 0, 0.25);
   font-weight: 550;
   cursor: grab;
+  -webkit-user-drag: none;
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
