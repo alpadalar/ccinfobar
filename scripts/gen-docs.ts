@@ -255,7 +255,7 @@ function schema(): object {
       },
       autoWrap: {
         type: 'boolean',
-        default: false,
+        default: true,
         description: 'Move widgets that do not fit to a new line instead of truncating',
       },
       update: {

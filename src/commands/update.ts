@@ -33,7 +33,7 @@ export function readUpdateState(env: NodeJS.ProcessEnv = process.env): UpdateSta
   }
 }
 
-function writeUpdateState(state: UpdateState, env: NodeJS.ProcessEnv = process.env): void {
+export function writeUpdateState(state: UpdateState, env: NodeJS.ProcessEnv = process.env): void {
   try {
     fs.mkdirSync(path.dirname(updateFile(env)), { recursive: true });
     fs.writeFileSync(updateFile(env), JSON.stringify(state));

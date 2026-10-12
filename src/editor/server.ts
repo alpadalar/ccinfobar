@@ -4,6 +4,15 @@ import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { currentStatusLine, defaultCommand, install, setupCommand } from '../commands/install.js';
+import {
+  compareVersions,
+  fetchLatest,
+  installKind,
+  installVersion,
+  localPrefix,
+  readUpdateState,
+  writeUpdateState,
+} from '../commands/update.js';
 import { normalizeConfig, saveConfig } from '../core/config.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { lastPayloadPath, tildify } from '../core/paths.js';
@@ -357,6 +366,42 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         if (!fs.existsSync(opts.configPath))
           saveConfig(loadForUse(opts.configPath, () => gsd).config, opts.configPath);
         send(res, 200, { ok: true, backup, claude: claudeInfo(command) });
+        return;
+      }
+      case 'GET /api/system': {
+        send(res, 200, {
+          version: VERSION,
+          kind: installKind(),
+          update: readUpdateState(),
+          claude: claudeInfo(command),
+        });
+        return;
+      }
+      case 'POST /api/update': {
+        const body = asObject(await readBody(req));
+        let latest: string;
+        try {
+          latest = await fetchLatest(8000);
+        } catch (err) {
+          throw new HttpError(502, `Could not reach GitHub: ${(err as Error).message}`);
+        }
+        const newer = compareVersions(latest, VERSION) > 0;
+        const kind = installKind();
+        if (body.install === true && newer) {
+          if (kind !== 'npm-global' && kind !== 'local') {
+            throw new HttpError(409, `This ${kind} copy cannot update itself; run npm install -g ccinfobar`);
+          }
+          try {
+            installVersion(latest, kind === 'local' ? localPrefix() : undefined);
+          } catch (err) {
+            throw new HttpError(500, `npm install failed: ${(err as Error).message}`);
+          }
+          writeUpdateState({ checkedAt: Date.now(), latest, installed: latest });
+          send(res, 200, { current: VERSION, latest, newer, installed: latest, kind });
+          return;
+        }
+        writeUpdateState({ checkedAt: Date.now(), latest });
+        send(res, 200, { current: VERSION, latest, newer, kind });
         return;
       }
       case 'POST /api/shutdown': {

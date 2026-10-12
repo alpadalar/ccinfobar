@@ -55,7 +55,7 @@ describe('renderer', () => {
   it('truncates to the available width', () => {
     const ctx = ctxWith({
       width: 20,
-      config: { widthOffset: 0, lines: [[text('abcdefghijklmn'), text('opqrstuv')]] },
+      config: { widthOffset: 0, autoWrap: false, lines: [[text('abcdefghijklmn'), text('opqrstuv')]] },
     });
     expect(stripAnsi(render(ctx)[0]!)).toBe('abcdefghijklmn │ op…');
   });

@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Editor **Settings** (gear in the top bar): Claude Code install state and command, update mode with check and update buttons, usage API and last-payload toggles; they left the Global tab, which now only covers looks
+
+### Fixed
+
+- The editor page no longer breaks when the bundled script contains `$'` or similar sequences (the build used them as replacement patterns)
+
+### Changed
+
+- `autoWrap` is on by default, so long lines move widgets to a new line instead of cutting them with `…`; saved configs keep their setting
+
 ## [0.5.6] - 2026-10-12
 
 ### Security

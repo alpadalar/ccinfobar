@@ -7,6 +7,7 @@ import { clear, h, icon } from './dom.js';
 import { initInspector, renderInspector } from './inspector.js';
 import { installDialog } from './install-dialog.js';
 import { openPresets } from './presets.js';
+import { openSettings } from './settings.js';
 import {
   commit,
   currentTheme,
@@ -499,6 +500,7 @@ function setupStatic(): void {
     ['save', 'save'],
     ['theme-btn', 'palette'],
     ['preset-btn', 'layers'],
+    ['settings-btn', 'gear'],
     ['import', 'upload'],
     ['export', 'download'],
     ['trash', 'trash'],
@@ -511,6 +513,7 @@ function setupStatic(): void {
   $('config-path').textContent = S.api.configPath;
   $('theme-btn').addEventListener('click', () => void openGallery());
   $('preset-btn').addEventListener('click', () => void openPresets());
+  $('settings-btn').addEventListener('click', () => void openSettings());
   $('undo').addEventListener('click', undo);
   $('redo').addEventListener('click', redo);
   $('save').addEventListener('click', () => void save());

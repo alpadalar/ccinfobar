@@ -26,8 +26,8 @@ async function buildEditorHtml() {
   const html = fs.readFileSync(path.join(webDir, 'index.html'), 'utf8');
   const script = js.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
   return html
-    .replace('<!--STYLE-->', `<style>${css}</style>`)
-    .replace('<!--SCRIPT-->', `<script>${script}</script>`);
+    .replace('<!--STYLE-->', () => `<style>${css}</style>`)
+    .replace('<!--SCRIPT-->', () => `<script>${script}</script>`);
 }
 
 async function build() {

@@ -2,7 +2,6 @@ import { removeItem, setOption, updateItem } from '../../core/edit.js';
 import type { Config, OptionSpec, OptionValue, WidgetItem } from '../../core/types.js';
 import { colorPicker, colorToCss } from './colors.js';
 import { type Child, clear, h, icon } from './dom.js';
-import { installDialog } from './install-dialog.js';
 import { panelSection } from './panel-inspector.js';
 import { commit, currentTheme, emit, S, type StyleId, type WidgetInfo } from './store.js';
 import { openThemeBuilder, themeChips } from './theme-builder.js';
@@ -423,28 +422,6 @@ function globalTab(): HTMLElement {
         ),
       ),
       field(
-        'Updates',
-        segmented(
-          [
-            {
-              value: 'auto',
-              label: 'Automatic',
-              title: 'Install new releases in the background (npm global installs)',
-            },
-            { value: 'notify', label: 'Notify', title: 'Show a note at the end of the status line' },
-            { value: 'off', label: 'Off', title: 'Never check for updates' },
-          ] as const,
-          c.update,
-          (v) => set({ update: v }),
-        ),
-      ),
-      field(
-        'Usage from Claude',
-        toggle(c.usageApi, (v) => set({ usageApi: v })),
-        'Fill usage limit widgets from your Claude login when Claude Code sends none.',
-        true,
-      ),
-      field(
         'Auto wrap',
         toggle(c.autoWrap, (v) => set({ autoWrap: v })),
         'Wrap widgets onto extra lines instead of truncating.',
@@ -494,14 +471,7 @@ function globalTab(): HTMLElement {
         }),
         'Columns reserved at the right edge.',
       ),
-      field(
-        'Save last payload',
-        toggle(c.savePayload, (v) => set({ savePayload: v })),
-        'Lets the preview use your real last session.',
-        true,
-      ),
     ),
-    section('Claude Code', claudeCard()),
     section(
       'Theme',
       h(
@@ -592,40 +562,6 @@ function globalTab(): HTMLElement {
     ),
   );
   return root;
-}
-
-function claudeCard(): HTMLElement {
-  const cl = S.api.claude;
-  return h(
-    'div',
-    { class: 'theme-current' },
-    h(
-      'div',
-      { class: `status-line ${cl.installed ? 'ok' : 'off'}` },
-      h('i', { class: 'status-dot' }),
-      h(
-        'span',
-        null,
-        cl.installed ? 'Claude Code uses ccinfobar.' : 'Claude Code does not use ccinfobar yet.',
-      ),
-    ),
-    h(
-      'div',
-      { class: 'hint' },
-      cl.installed
-        ? `Command: ${cl.statusLine?.command ?? ''}${cl.statusLine?.refreshInterval ? `, refresh every ${cl.statusLine.refreshInterval}s` : ''}. Saving is enough; Claude Code picks up changes on its next refresh.`
-        : 'Install once; after that, saving is enough.',
-    ),
-    h(
-      'div',
-      { class: 'row-inline' },
-      h(
-        'button',
-        { class: 'btn', type: 'button', onClick: () => void installDialog() },
-        cl.installed ? 'Change command' : 'Install in Claude Code',
-      ),
-    ),
-  );
 }
 
 export function renderInspector(): void {

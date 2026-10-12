@@ -70,7 +70,7 @@ describe('claude-powerline import', () => {
     const r = importClaudePowerline(fixture('claude-powerline.json'));
     expect(r.config.theme).toBe('nord');
     expect(r.config.style).toBe('powerline');
-    expect(r.config.autoWrap).toBeUndefined();
+    expect(r.config.autoWrap).toBe(false);
     expect(r.config.widthOffset).toBe(30);
     expect(r.config.lines!.map((l) => l.map((i) => i.type))).toEqual([
       ['cwd', 'git-branch', 'git-status', 'git-ahead-behind', 'model', 'context-bar'],

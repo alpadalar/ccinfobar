@@ -52,7 +52,7 @@ export function defaultConfig(): Config {
     ],
     theme: 'classic',
     charset: 'auto',
-    autoWrap: false,
+    autoWrap: true,
     update: 'auto',
     usageApi: true,
     colorLevel: 'auto',

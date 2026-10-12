@@ -42,5 +42,18 @@ export const api = {
     call<{ ok: boolean; presets: PresetInfo[] }>('POST', '/api/presets', { preset, config }),
   deletePreset: (id: string) =>
     call<{ ok: boolean; presets: PresetInfo[] }>('DELETE', `/api/presets/${encodeURIComponent(id)}`),
+  system: () =>
+    call<{
+      version: string;
+      kind: string;
+      update: { checkedAt: number; latest: string | null; error?: string } | null;
+      claude: ClaudeInfo;
+    }>('GET', '/api/system'),
+  update: (install: boolean) =>
+    call<{ current: string; latest: string; newer: boolean; kind: string; installed?: string }>(
+      'POST',
+      '/api/update',
+      { install },
+    ),
   shutdown: () => call<{ ok: boolean }>('POST', '/api/shutdown', {}),
 };

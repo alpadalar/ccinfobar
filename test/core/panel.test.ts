@@ -155,7 +155,7 @@ describe('auto wrap and charset', () => {
     const lines = [[text('aaaaaa'), text('bbbbbb'), text('cccccc')]];
     const wrapped = render(ctxWith({ width: 20, config: { widthOffset: 0, autoWrap: true, lines } }));
     expect(wrapped).toEqual(['aaaaaa │ bbbbbb', 'cccccc']);
-    const cut = render(ctxWith({ width: 20, config: { widthOffset: 0, lines } }));
+    const cut = render(ctxWith({ width: 20, config: { widthOffset: 0, autoWrap: false, lines } }));
     expect(cut).toHaveLength(1);
   });
 

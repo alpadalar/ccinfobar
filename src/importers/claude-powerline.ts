@@ -152,7 +152,7 @@ export function importClaudePowerline(raw: unknown, args: Record<string, string>
   if (style === 'blocks') config.separator = '';
   const charset = args.charset ?? display.charset;
   if (charset === 'text') config.charset = 'text';
-  if (display.autoWrap !== false) config.autoWrap = true;
+  config.autoWrap = display.autoWrap !== false;
   if (typeof display.widthReserve === 'number') config.widthOffset = display.widthReserve;
   if (typeof display.padding === 'number') config.padding = display.padding;
   if (theme === 'custom') warnings.push('custom claude-powerline colors were copied onto each widget');

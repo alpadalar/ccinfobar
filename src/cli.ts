@@ -3,14 +3,11 @@ import path from 'node:path';
 import { printWidgetReport } from './commands/doctor.js';
 import {
   currentStatusLine,
-  defaultCommand,
-  globalBinary,
   ignoreLocally,
   install,
   projectLocalFile,
   projectOverride,
   projectSettingsPath,
-  quote,
   releaseProjects,
   setupCommand,
   takeOverProjects,
