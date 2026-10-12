@@ -1,4 +1,5 @@
 import type {
+  ModelWindow,
   OptionSpec,
   RateWindow,
   RenderContext,
@@ -57,18 +58,45 @@ const WINDOW_OF: Record<Key, number> = {
 };
 
 export function evenPace(ctx: RenderContext, key: Key): number | null {
-  const at = toEpochMs(win(ctx, key)?.resets_at);
+  return paceOf(ctx, win(ctx, key), WINDOW_OF[key]);
+}
+
+export function modelWindows(ctx: RenderContext): ModelWindow[] {
+  const r = ctx.payload.rate_limits;
+  const out = [...(r?.seven_day_models ?? [])];
+  const legacy = [
+    ['Sonnet', r?.seven_day_sonnet],
+    ['Opus', r?.seven_day_opus],
+  ] as const;
+  for (const [model, w] of legacy) {
+    if (w && !out.some((m) => m.model.toLowerCase() === model.toLowerCase())) out.push({ model, ...w });
+  }
+  return out;
+}
+
+// empty name: first model with a limit
+export function modelWindow(ctx: RenderContext, name: string): ModelWindow | null {
+  const list = modelWindows(ctx);
+  const want = name.trim().toLowerCase();
+  return (want ? list.find((m) => m.model.toLowerCase().includes(want)) : list[0]) ?? null;
+}
+
+function paceOf(ctx: RenderContext, w: RateWindow | null, len: number): number | null {
+  const at = toEpochMs(w?.resets_at);
   if (at === null) return null;
-  const len = WINDOW_OF[key];
   const left = Math.max(0, Math.min(len, at - ctx.now.getTime()));
   return Math.round((1 - left / len) * 100);
 }
 
 function usage(ctx: RenderContext, item: WidgetItem, key: Key): WidgetResult {
-  const pct = win(ctx, key)?.used_percentage;
+  return usageOf(ctx, item, win(ctx, key), WINDOW_OF[key]);
+}
+
+function usageOf(ctx: RenderContext, item: WidgetItem, w: RateWindow | null, len: number): WidgetResult {
+  const pct = w?.used_percentage;
   if (typeof pct !== 'number') return null;
   const clamped = Math.max(0, Math.min(100, pct));
-  const pace = opt(item, 'showPace', false) ? evenPace(ctx, key) : null;
+  const pace = opt(item, 'showPace', false) ? paceOf(ctx, w, len) : null;
   let text = pace === null ? `${Math.round(pct)}%` : `${Math.round(pct)}%/${pace}%`;
   if (opt<string>(item, 'display', 'percent') === 'bar') {
     const b = barFor(ctx, item, clamped, pace);
@@ -78,7 +106,11 @@ function usage(ctx: RenderContext, item: WidgetItem, key: Key): WidgetResult {
 }
 
 function reset(ctx: RenderContext, item: WidgetItem, key: Key): string | null {
-  const at = toEpochMs(win(ctx, key)?.resets_at);
+  return resetOf(ctx, item, win(ctx, key));
+}
+
+function resetOf(ctx: RenderContext, item: WidgetItem, w: RateWindow | null): string | null {
+  const at = toEpochMs(w?.resets_at);
   if (at === null) return null;
   const left = at - ctx.now.getTime();
   if (left <= 0) return null;
@@ -128,6 +160,31 @@ function resetWidget(type: string, name: string, label: string, key: Key, sample
 }
 
 const WINDOW_MS = { '5h': 5 * 3_600_000, '7d': 7 * 86_400_000 };
+const WEEK = 7 * 86_400_000;
+
+const modelOption: OptionSpec = {
+  key: 'model',
+  label: 'Model',
+  kind: 'text',
+  default: '',
+  help: 'Model name such as Fable; empty shows whichever model has a weekly limit',
+};
+
+// kept for old configs
+function legacyModel(type: string, model: string): WidgetDef {
+  return {
+    ...usageWidget(
+      type,
+      `Weekly ${model} usage`,
+      `${model} `,
+      'seven_day',
+      '23%',
+      `Usage of the weekly ${model} limit`,
+    ),
+    hidden: true,
+    render: (ctx, item) => usageOf(ctx, item, modelWindow(ctx, model), WEEK),
+  };
+}
 
 export const widgets: WidgetDef[] = [
   usageWidget(
@@ -141,22 +198,38 @@ export const widgets: WidgetDef[] = [
   resetWidget('five-hour-reset', 'Five-hour reset', 'Resets ', 'five_hour', '2h 14m'),
   usageWidget('weekly-usage', 'Weekly usage', '7d ', 'seven_day', '61%', 'Usage of the weekly rate limit'),
   resetWidget('weekly-reset', 'Weekly reset', 'Resets ', 'seven_day', '3d 5h'),
-  usageWidget(
-    'weekly-sonnet-usage',
-    'Weekly Sonnet usage',
-    'Sonnet ',
-    'seven_day_sonnet',
-    '23%',
-    'Usage of the weekly Sonnet limit',
-  ),
-  usageWidget(
-    'weekly-opus-usage',
-    'Weekly Opus usage',
-    'Opus ',
-    'seven_day_opus',
-    '48%',
-    'Usage of the weekly Opus limit',
-  ),
+  {
+    type: 'weekly-model-usage',
+    name: 'Weekly model limit',
+    category: 'limits',
+    description: 'Weekly limit of a single model, such as Fable, when your plan has one',
+    label: '',
+    icon: { nerd: '󰾆', emoji: '📊' },
+    color: 'magenta',
+    sample: 'Fable 23%',
+    options: [modelOption, displayOption, thresholdOption, paceOption, ...barOptions],
+    render(ctx, item) {
+      const m = modelWindow(ctx, opt(item, 'model', ''));
+      if (!m) return null;
+      const r = usageOf(ctx, item, m, WEEK);
+      if (!r) return null;
+      return typeof r === 'string' ? `${m.model} ${r}` : { ...r, text: `${m.model} ${r.text}` };
+    },
+  },
+  {
+    type: 'weekly-model-reset',
+    name: 'Weekly model reset',
+    category: 'limits',
+    description: 'Time until a single model’s weekly limit resets',
+    label: 'Resets ',
+    icon: { nerd: '󰑓', emoji: '🔄' },
+    color: 'blue',
+    sample: '3d 5h',
+    options: [modelOption, clockOption],
+    render: (ctx, item) => resetOf(ctx, item, modelWindow(ctx, opt(item, 'model', ''))),
+  },
+  legacyModel('weekly-sonnet-usage', 'Sonnet'),
+  legacyModel('weekly-opus-usage', 'Opus'),
   {
     type: 'spend-limit',
     name: 'Spend limit',

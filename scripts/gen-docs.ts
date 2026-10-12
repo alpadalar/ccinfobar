@@ -3,7 +3,9 @@ import path from 'node:path';
 import { BOX_PRESETS } from '../src/core/panel.js';
 import { BUILTIN_THEMES, STYLES } from '../src/core/themes.js';
 import type { OptionSpec } from '../src/core/types.js';
-import { ALL_WIDGETS, CATEGORIES } from '../src/widgets/index.js';
+import { CATEGORIES, ALL_WIDGETS as EVERY_WIDGET } from '../src/widgets/index.js';
+
+const ALL_WIDGETS = EVERY_WIDGET.filter((w) => !w.hidden);
 
 const root = process.argv[2] ?? process.cwd();
 
@@ -216,7 +218,7 @@ function schema(): object {
             required: ['type'],
             properties: {
               id: { type: 'string' },
-              type: { type: 'string', enum: ALL_WIDGETS.map((w) => w.type) },
+              type: { type: 'string', enum: EVERY_WIDGET.map((w) => w.type) },
               color,
               background: color,
               bold: { type: 'boolean' },

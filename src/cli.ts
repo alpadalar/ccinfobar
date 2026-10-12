@@ -26,12 +26,14 @@ import {
 import { detectLevel, style, visibleWidth } from './core/ansi.js';
 import { loadConfig, saveConfig } from './core/config.js';
 import { createContext } from './core/context.js';
+import { loadForUse } from './core/load.js';
 import { cacheDir, claudeSettingsPath, configPath, lastPayloadPath, tildify } from './core/paths.js';
-import { getPreset, PRESETS } from './core/presets.js';
+import { forGsd, listPresets, PRESETS } from './core/presets.js';
 import { readLastPayload, renderPreview } from './core/preview.js';
 import { finalizeLine, render } from './core/renderer.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from './core/themes.js';
 import type { Config, StatusPayload } from './core/types.js';
+import { gsdInstalled } from './data/gsd.js';
 import { terminalWidth } from './data/terminal.js';
 import {
   fetchUsage,
@@ -252,7 +254,7 @@ async function runRender(args: Args, config: Config): Promise<void> {
 
 function doctor(cfgFile: string): void {
   const ok = (b: boolean) => (b ? '✓' : '✗');
-  const loaded = loadConfig(cfgFile);
+  const loaded = loadForUse(cfgFile);
   const sl = (() => {
     try {
       return currentStatusLine();
@@ -316,7 +318,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
         process.stdout.write(HELP);
         return;
       }
-      const loaded = loadConfig(cfgFile);
+      const loaded = loadForUse(cfgFile);
       await runRender(args, loaded.config);
       return;
     }
@@ -350,7 +352,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
         })();
         const backup = install(command, refresh ?? userRefresh, file);
         ignoreLocally(file);
-        if (!loadConfig(cfgFile).exists) saveConfig(loadConfig(cfgFile).config, cfgFile);
+        if (!loadConfig(cfgFile).exists) saveConfig(loadForUse(cfgFile).config, cfgFile);
         console.log(`✓ statusLine set to "${command}" in ${tildify(file)}`);
         if (shadowed) console.log(`  It now wins over "${shadowed.command}" from ${tildify(shadowed.file)}.`);
         if (backup) console.log(`  Backup: ${tildify(backup)}`);
@@ -367,7 +369,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       const tool = detectTool(previous?.command);
       if (tool) await offerImport(tool, args, cfgFile);
       const backup = install(command, refresh);
-      if (!loadConfig(cfgFile).exists) saveConfig(loadConfig(cfgFile).config, cfgFile);
+      if (!loadConfig(cfgFile).exists) saveConfig(loadForUse(cfgFile).config, cfgFile);
       console.log(`✓ statusLine set to "${command}" in ${tildify(claudeSettingsPath())}`);
       if (backup) console.log(`  Backup: ${tildify(backup)}`);
       console.log(`  Config: ${tildify(cfgFile)}`);
@@ -419,9 +421,13 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     }
     case 'init': {
       const id = args.positional[0] ?? 'default';
-      const preset = getPreset(id);
+      const preset = listPresets().find((p) => p.id === id);
       if (!preset) {
-        console.error(`Unknown preset "${id}". Available: ${PRESETS.map((p) => p.id).join(', ')}`);
+        console.error(
+          `Unknown preset "${id}". Available: ${listPresets()
+            .map((p) => p.id)
+            .join(', ')}`,
+        );
         process.exitCode = 1;
         return;
       }
@@ -430,7 +436,8 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
         process.exitCode = 1;
         return;
       }
-      saveConfig(preset.build(), cfgFile);
+      const keepGsd = id === 'gsd' || preset.source === 'user';
+      saveConfig(keepGsd ? preset.build() : forGsd(preset.build(), gsdInstalled()), cfgFile);
       console.log(`✓ Wrote "${preset.name}" preset to ${tildify(cfgFile)}`);
       return;
     }
@@ -438,13 +445,13 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       const width =
         typeof args.flags.width === 'string' ? Number(args.flags.width) : (process.stdout.columns ?? 120);
       const source = args.flags.last ? 'last' : 'sample';
-      for (const line of renderPreview(loadConfig(cfgFile).config, source, width)) console.log(line);
+      for (const line of renderPreview(loadForUse(cfgFile).config, source, width)) console.log(line);
       return;
     }
     case 'themes': {
       const width =
         typeof args.flags.width === 'string' ? Number(args.flags.width) : (process.stdout.columns ?? 120);
-      const current = loadConfig(cfgFile).config;
+      const current = loadForUse(cfgFile).config;
       for (const t of listThemes()) {
         const mark = t.id === current.theme ? ' (current)' : '';
         const origin = t.source === 'user' ? ' · yours' : '';
@@ -467,7 +474,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       return;
     }
     case 'theme': {
-      const loaded = loadConfig(cfgFile);
+      const loaded = loadForUse(cfgFile);
       if (args.positional[0] === 'new' || args.positional[0] === 'create') {
         const id = args.positional[1];
         if (!id) {
@@ -505,7 +512,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     }
     case 'widgets': {
       for (const cat of CATEGORIES) {
-        const list = ALL_WIDGETS.filter((w) => w.category === cat.id);
+        const list = ALL_WIDGETS.filter((w) => !w.hidden && w.category === cat.id);
         if (!list.length) continue;
         console.log(`\n${cat.name}`);
         const pad = Math.max(...list.map((w) => visibleWidth(w.type)));
@@ -515,7 +522,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     }
     case 'update': {
       if (args.flags.background) {
-        await backgroundUpdate(loadConfig(cfgFile).config, VERSION);
+        await backgroundUpdate(loadForUse(cfgFile).config, VERSION);
         try {
           const sl = currentStatusLine();
           if (sl?.command?.includes('ccinfobar')) takeOverProjects(sl.command, sl.refreshInterval);
@@ -536,9 +543,10 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       }
       const at = (w?: { resets_at?: number | string | null }) =>
         w?.resets_at ? `, resets ${new Date(w.resets_at).toLocaleString()}` : '';
-      for (const [k, w] of Object.entries(r)) {
-        if (k === 'spend_limit') continue;
-        console.log(`  ${k}: ${w?.used_percentage ?? '?'}%${at(w as { resets_at?: string })}`);
+      if (r.five_hour) console.log(`  5-hour: ${r.five_hour.used_percentage ?? '?'}%${at(r.five_hour)}`);
+      if (r.seven_day) console.log(`  weekly: ${r.seven_day.used_percentage ?? '?'}%${at(r.seven_day)}`);
+      for (const m of r.seven_day_models ?? []) {
+        console.log(`  weekly ${m.model}: ${m.used_percentage ?? '?'}%${at(m)}`);
       }
       if (r.spend_limit)
         console.log(`  extra usage: $${r.spend_limit.used_usd} of $${r.spend_limit.limit_usd ?? '?'}`);

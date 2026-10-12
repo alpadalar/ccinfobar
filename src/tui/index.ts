@@ -1,6 +1,8 @@
 import { defaultCommand, install } from '../commands/install.js';
-import { loadConfig, saveConfig } from '../core/config.js';
+import { saveConfig } from '../core/config.js';
+import { availablePresets, loadForUse } from '../core/load.js';
 import { saveUserTheme } from '../core/themes.js';
+import { gsdInstalled } from '../data/gsd.js';
 import type { Hit } from './hits.js';
 import { keyToAction, mouseToAction, parseInput, splitPending } from './keys.js';
 import { type Action, type Effect, initialState, reduce, type State } from './state.js';
@@ -55,13 +57,17 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     return;
   }
 
-  const loaded = loadConfig(opts.configPath);
+  const gsd = gsdInstalled();
+  const loaded = loadForUse(opts.configPath, () => gsd);
   const note = loaded.error
     ? `Could not read config (${loaded.error}); starting from defaults`
     : loaded.exists
       ? ''
       : 'No config yet. Press s to create it.';
-  let state: State = initialState(loaded.config, loaded.path, note);
+  let state: State = initialState(loaded.config, loaded.path, note, {
+    presets: availablePresets(gsd),
+    gsd,
+  });
   let hits: Hit[] = [];
   let prev: string[] = [];
   let size = '';

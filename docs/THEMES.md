@@ -158,7 +158,7 @@ ccinfobar theme new sunset --from dracula
 ccinfobar theme sunset
 ```
 
-You can also save your current look from the editors with **Save as my theme**.
+You can also build a theme in `ccinfobar edit` with **New theme** (in the theme gallery and the Global tab): pick a theme to start from, a style, a color mode and the text and background color of each slot while the preview updates. Your themes get an edit button in the gallery. To keep your style but use another theme's colors, use **Colors from** in the Global tab.
 
 A theme only needs the fields that differ from the theme it `extends` (default `classic`):
 

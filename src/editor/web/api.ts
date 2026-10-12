@@ -1,5 +1,5 @@
 import type { Config } from '../../core/types.js';
-import type { ApiState, ClaudeInfo, ThemeInfo } from './store.js';
+import type { ApiState, ClaudeInfo, PresetInfo, ThemeInfo } from './store.js';
 
 let token = '';
 
@@ -23,8 +23,8 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 
 export const api = {
   state: () => call<ApiState>('GET', '/api/state'),
-  preview: (config: Config, source: string, width: number) =>
-    call<{ lines: string[] }>('POST', '/api/preview', { config, source, width }),
+  preview: (config: Config, source: string, width: number, theme?: Record<string, unknown>) =>
+    call<{ lines: string[] }>('POST', '/api/preview', { config, source, width, theme }),
   save: (config: Config) => call<{ ok: boolean; config: Config }>('PUT', '/api/config', { config }),
   normalize: (config: unknown) => call<{ config: Config }>('POST', '/api/normalize', { config }),
   install: (command: string, refreshInterval?: number) =>
@@ -38,5 +38,9 @@ export const api = {
     call<{ ok: boolean; id: string; themes: ThemeInfo[] }>('POST', '/api/themes', { theme, fromConfig }),
   deleteTheme: (id: string) =>
     call<{ ok: boolean; themes: ThemeInfo[] }>('DELETE', `/api/themes/${encodeURIComponent(id)}`),
+  savePreset: (preset: { id: string; name: string; description: string }, config: Config) =>
+    call<{ ok: boolean; presets: PresetInfo[] }>('POST', '/api/presets', { preset, config }),
+  deletePreset: (id: string) =>
+    call<{ ok: boolean; presets: PresetInfo[] }>('DELETE', `/api/presets/${encodeURIComponent(id)}`),
   shutdown: () => call<{ ok: boolean }>('POST', '/api/shutdown', {}),
 };

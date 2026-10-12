@@ -4,7 +4,8 @@ import { colorPicker, colorToCss } from './colors.js';
 import { type Child, clear, h, icon } from './dom.js';
 import { panelSection } from './panel-inspector.js';
 import { commit, currentTheme, emit, S, type StyleId, type WidgetInfo } from './store.js';
-import { openGallery, saveAs } from './themes.js';
+import { openThemeBuilder, themeChips } from './theme-builder.js';
+import { applyTheme, openGallery } from './themes.js';
 
 const SEPARATORS = [' │ ', ' | ', ' • ', ' · ', ' / ', '  ', ' › '];
 const PL_SEPARATORS = ['', '', '', '', '', '', ''];
@@ -403,7 +404,18 @@ function globalTab(): HTMLElement {
           'div',
           { class: 'row-inline' },
           h('button', { class: 'btn', type: 'button', onClick: () => void openGallery() }, 'Change theme'),
-          h('button', { class: 'btn ghost', type: 'button', onClick: () => void saveAs() }, 'Save as mine'),
+          h(
+            'button',
+            {
+              class: 'btn ghost',
+              type: 'button',
+              onClick: async () => {
+                const id = await openThemeBuilder({ from: theme, style: c.style });
+                if (id) applyTheme(id);
+              },
+            },
+            'New theme',
+          ),
         ),
       ),
     ),
@@ -419,6 +431,17 @@ function globalTab(): HTMLElement {
         resetLink(c.style !== undefined, () => setOverride('style', undefined)),
         'Powerline and Capsule need a Nerd Font.',
       ),
+      ...(style === 'tui'
+        ? []
+        : [
+            field(
+              'Colors from',
+              themeChips(c.theme || 'classic', (t) =>
+                commit({ ...S.config, theme: t.id, style: style === t.style ? undefined : style }),
+              ),
+              'Keeps your style and takes the colors of another theme.',
+            ),
+          ]),
       fieldWithReset(
         'Separator',
         h('div', { class: 'stack' }, sepChoices, sepInput),

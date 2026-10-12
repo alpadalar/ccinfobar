@@ -190,9 +190,10 @@ describe('quit', () => {
 });
 
 describe('picker filtering', () => {
-  it('lists GSD first when unfiltered', () => {
-    const items = pickerItems('');
-    expect(items[0]?.category).toBe('gsd');
+  it('lists categories in order and hides GSD when it is not installed', () => {
+    expect(pickerItems('')[0]?.category).toBe('session');
+    expect(pickerItems('', false).some((w) => w.category === 'gsd')).toBe(false);
+    expect(pickerItems('gsd', false).some((w) => w.category === 'gsd')).toBe(false);
   });
 
   it('filters by name, type and category', () => {

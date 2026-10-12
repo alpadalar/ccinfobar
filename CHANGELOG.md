@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-12
+
+### Added
+
+- Theme builder in the editor (**New theme**): start from any theme, pick a style, color mode and text and background colors per category or in a cycle, with a live preview; your themes get an edit button in the gallery
+- **Colors from** in the Global tab keeps your style and takes another theme's colors; text-style palettes become readable blocks in block styles
+- Presets gallery with live previews replaces the preset dropdown; **Save current as preset** stores your own presets in `presets/`, and `ccinfobar init <id>` applies them
+- `weekly-model-usage` and `weekly-model-reset` widgets show per-model weekly limits such as Fable, from Claude's usage API
+
+### Changed
+
+- GSD is detected: without it, the default layout, presets and the editor leave GSD out; once GSD is installed the default GSD line is added as the second line of your layout, once
+- GSD widgets are a plain category in the editor and the TUI, no longer pinned on top
+- Editor palette categories start collapsed; the preview starts at 130 columns
+- `weekly-sonnet-usage` and `weekly-opus-usage` are hidden from the palettes, since current plans have no such limits; existing configs keep working
+
+### Fixed
+
+- The usage API no longer reports a 0% Sonnet or Opus limit when the plan has none
+
 ## [0.4.0] - 2026-10-12
 
 ### Added
@@ -100,7 +120,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/alpadalar/ccinfobar/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/alpadalar/ccinfobar/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/alpadalar/ccinfobar/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/alpadalar/ccinfobar/compare/v0.3.2...v0.3.3

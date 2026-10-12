@@ -3,6 +3,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { claudeDir } from '../core/paths.js';
 
+// global or project install
+export function gsdInstalled(env: NodeJS.ProcessEnv = process.env, cwd = process.cwd()): boolean {
+  const dir = claudeDir(env);
+  return [
+    path.join(dir, 'get-shit-done'),
+    path.join(dir, 'commands', 'gsd'),
+    path.join(cwd, '.claude', 'get-shit-done'),
+  ].some((p) => fs.existsSync(p));
+}
+
 export interface GsdPhase {
   number: string;
   name: string | null;

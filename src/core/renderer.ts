@@ -178,12 +178,25 @@ export function colorsFor(a: Appearance, part: Part, index: number): Colors {
     const status = t.statusColors ? part.status : undefined;
     return { fg: clean(part.item.color ?? status ?? themed), bg: clean(part.item.background ?? part.bg) };
   }
+  const borrowed = (t.style === 'text' || t.style === 'tui') && typeof sw === 'object' && !sw.bg && sw.fg;
+  if (borrowed) {
+    const bg = clean(part.item.background ?? part.bg ?? sw.fg);
+    const own = part.item.background ? part.item.color : readable(part.item.color, bg);
+    return { fg: clean(own ?? onColor(bg)), bg };
+  }
   const block =
     typeof sw === 'string' ? sw : (sw?.bg ?? (t.colors.mode === 'widget' ? part.def.color : t.colors.bg));
   const text = typeof sw === 'object' && sw.fg ? sw.fg : t.colors.on;
   const bg = clean(part.item.background ?? part.bg ?? block);
   const own = part.item.background ? part.item.color : readable(part.item.color, bg);
   return { fg: clean(own ?? text), bg };
+}
+
+// text palette used as blocks
+function onColor(bg: string | undefined): string {
+  return (contrastRatio('black', bg) ?? 21) >= (contrastRatio('brightWhite', bg) ?? 0)
+    ? 'black'
+    : 'brightWhite';
 }
 
 // own color on a block only when legible

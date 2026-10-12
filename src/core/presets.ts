@@ -1,4 +1,8 @@
-import { defaultConfig } from './config.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { defaultConfig, normalizeConfig } from './config.js';
+import { uniqueId } from './edit.js';
+import { configDir } from './paths.js';
 import type { Config, WidgetItem } from './types.js';
 
 function line(...types: (string | WidgetItem)[]): WidgetItem[] {
@@ -10,6 +14,7 @@ export interface Preset {
   name: string;
   description: string;
   build(): Config;
+  source?: 'builtin' | 'user';
 }
 
 const w = (id: string, type: string, extra: Partial<WidgetItem> = {}): WidgetItem => ({ id, type, ...extra });
@@ -60,14 +65,13 @@ export const PRESETS: Preset[] = [
   {
     id: 'default',
     name: 'Default',
-    description: 'Model, git and context, a GSD line and usage limits',
+    description: 'Model, git and context, usage limits, and a GSD line when GSD is installed',
     build: defaultConfig,
   },
   {
     id: 'cockpit',
     name: 'Cockpit',
-    description:
-      'Five-line developer dashboard: path and git, GSD, model and time, context and tokens, usage limits',
+    description: 'Developer dashboard: path and git, GSD, model and time, context and tokens, usage limits',
     build: cockpitConfig,
   },
   {
@@ -115,7 +119,7 @@ export const PRESETS: Preset[] = [
   {
     id: 'full',
     name: 'Everything',
-    description: 'Four dense lines for wide terminals',
+    description: 'Dense lines for wide terminals',
     build: () => ({
       ...defaultConfig(),
       lines: [
@@ -153,6 +157,109 @@ export const PRESETS: Preset[] = [
   },
 ];
 
-export function getPreset(id: string): Preset | undefined {
-  return PRESETS.find((p) => p.id === id);
+const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+
+export function presetsDir(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(configDir(env), 'presets');
+}
+
+function readUserPreset(file: string, id: string): Preset | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+    const config = normalizeConfig(raw.config);
+    return {
+      id,
+      name: typeof raw.name === 'string' && raw.name ? raw.name : id,
+      description: typeof raw.description === 'string' ? raw.description : '',
+      build: () => structuredClone(config),
+      source: 'user',
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function listPresets(dir = presetsDir()): Preset[] {
+  const out = new Map<string, Preset>(PRESETS.map((p) => [p.id, { ...p, source: 'builtin' }]));
+  let files: string[] = [];
+  try {
+    files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
+  } catch {}
+  for (const f of files.sort()) {
+    const id = f.slice(0, -5);
+    const p = ID_RE.test(id) ? readUserPreset(path.join(dir, f), id) : null;
+    if (p) out.set(id, p);
+  }
+  return [...out.values()];
+}
+
+export function getPreset(id: string, dir = presetsDir()): Preset | undefined {
+  return listPresets(dir).find((p) => p.id === id);
+}
+
+export function saveUserPreset(
+  input: { id: string; name?: string; description?: string; config: unknown },
+  dir = presetsDir(),
+): string {
+  if (!ID_RE.test(input.id)) throw new Error('Preset id must be letters, numbers, dot, dash or underscore');
+  const { $schema: _s, ...config } = normalizeConfig(input.config);
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${input.id}.json`);
+  const data = { name: input.name || input.id, description: input.description ?? '', config };
+  fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
+  return file;
+}
+
+export function deleteUserPreset(id: string, dir = presetsDir()): boolean {
+  if (!ID_RE.test(id)) return false;
+  try {
+    fs.unlinkSync(path.join(dir, `${id}.json`));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const isGsd = (i: WidgetItem) => i.type.startsWith('gsd-');
+
+export function hasGsd(config: Config): boolean {
+  return config.lines.some((l) => l.some(isGsd));
+}
+
+export function withoutGsd(config: Config): Config {
+  const lines = config.lines
+    .filter((l) => !(l.length && l.every(isGsd)))
+    .map((l) => l.filter((i) => !isGsd(i)));
+  return { ...config, lines };
+}
+
+// layout for people without GSD
+export function forGsd(config: Config, installed: boolean): Config {
+  if (installed || !hasGsd(config)) return config;
+  return { ...withoutGsd(config), gsdAutoLine: true };
+}
+
+export function starterConfig(gsd: boolean): Config {
+  return forGsd(defaultConfig(), gsd);
+}
+
+export function gsdLine(): WidgetItem[] {
+  return defaultConfig().lines.find((l) => l.length && l.every(isGsd)) ?? [];
+}
+
+// once GSD shows up, add its line second
+export function applyGsdAutoLine(config: Config, installed: boolean): Config | null {
+  if (!config.gsdAutoLine || !installed) return null;
+  const { gsdAutoLine: _done, ...rest } = config;
+  if (hasGsd(rest)) return rest;
+  let next: Config = rest;
+  const items = gsdLine().map((i) => {
+    const id = uniqueId(next, i.type);
+    const item = { ...i, id };
+    next = { ...next, lines: [...next.lines, [item]] };
+    return item;
+  });
+  const lines = [...rest.lines];
+  lines.splice(Math.min(1, lines.length), 0, items);
+  return { ...rest, lines };
 }

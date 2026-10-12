@@ -3,9 +3,8 @@ import { ansiToHtml } from './ansi-html.js';
 import { api } from './api.js';
 import { clear, h, icon } from './dom.js';
 import { commit, currentTheme, S, type StyleId, type ThemeInfo } from './store.js';
+import { openThemeBuilder } from './theme-builder.js';
 import { confirmDialog, modal, toast } from './ui.js';
-
-const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 
 export function withoutOverrides(config: Config): Config {
   const { style, separator, separatorColor, padding, glyphs, ...rest } = config;
@@ -16,88 +15,8 @@ export function applyTheme(id: string): void {
   commit({ ...withoutOverrides(S.config), theme: id });
 }
 
-function slug(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
-}
-
 function setThemes(themes: ThemeInfo[]): void {
   S.api.themes = themes;
-}
-
-async function saveAs(): Promise<string | null> {
-  const base = currentTheme();
-  const name = h('input', {
-    class: 'input',
-    type: 'text',
-    placeholder: 'My theme',
-    spellcheck: false,
-    maxLength: 64,
-  });
-  const desc = h('input', {
-    class: 'input',
-    type: 'text',
-    placeholder: `Based on ${base?.name ?? 'Classic'}`,
-  });
-  const idHint = h('div', { class: 'hint' });
-  const err = h('div', { class: 'form-error', role: 'alert' });
-  const upd = () => {
-    const id = slug(name.value);
-    idHint.textContent = id
-      ? `Saved as ${id}.json${S.api.themes.some((t) => t.id === id && t.source === 'builtin') ? ' (overrides the built-in theme)' : ''}`
-      : 'Letters, numbers, dot, dash';
-  };
-  name.addEventListener('input', upd);
-  upd();
-  return (
-    (await modal<string>({
-      title: 'Save as my theme',
-      body: [
-        h(
-          'p',
-          { class: 'modal-text' },
-          'Creates a theme from the current one including your style, separator and glyph overrides.',
-        ),
-        h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Name'), name, idHint),
-        h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Description'), desc),
-        err,
-      ],
-      actions: (close) => [
-        h('button', { class: 'btn', type: 'button', onClick: () => close() }, 'Cancel'),
-        h(
-          'button',
-          {
-            class: 'btn primary',
-            type: 'button',
-            onClick: async () => {
-              const id = slug(name.value);
-              if (!ID_RE.test(id)) {
-                err.textContent = 'Give the theme a name first';
-                return;
-              }
-              try {
-                const r = await api.saveTheme(
-                  { id, name: name.value.trim() || id, description: desc.value.trim() },
-                  S.config,
-                );
-                setThemes(r.themes);
-                applyTheme(id);
-                toast(`Saved theme "${name.value.trim() || id}"`);
-                close(id);
-              } catch (e) {
-                err.textContent = (e as Error).message;
-              }
-            },
-          },
-          'Save theme',
-        ),
-      ],
-    })) ?? null
-  );
 }
 
 async function editJson(theme: ThemeInfo): Promise<boolean> {
@@ -248,6 +167,23 @@ export async function openGallery(): Promise<void> {
                   {
                     class: 'icon-btn sm',
                     type: 'button',
+                    title: 'Edit theme',
+                    'aria-label': `Edit ${t.name}`,
+                    onClick: async (e: Event) => {
+                      e.stopPropagation();
+                      if (await openThemeBuilder({ edit: t })) {
+                        await loadPreviews();
+                        void refreshLive();
+                      }
+                    },
+                  },
+                  icon('palette', 14),
+                ),
+                h(
+                  'button',
+                  {
+                    class: 'icon-btn sm',
+                    type: 'button',
                     title: 'Edit JSON',
                     'aria-label': `Edit ${t.name} JSON`,
                     onClick: async (e: Event) => {
@@ -348,19 +284,19 @@ export async function openGallery(): Promise<void> {
           class: 'btn',
           type: 'button',
           onClick: async () => {
-            if (await saveAs()) {
+            const id = await openThemeBuilder({ from: currentTheme(), style: S.config.style });
+            if (id) {
+              applyTheme(id);
               renderFilters();
               await loadPreviews();
               void refreshLive();
             }
           },
         },
-        'Save current as my theme',
+        'New theme',
       ),
       h('button', { class: 'btn primary', type: 'button', onClick: () => close() }, 'Done'),
     ],
   });
   version++;
 }
-
-export { saveAs };

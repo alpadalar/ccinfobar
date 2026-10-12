@@ -51,6 +51,7 @@ const RENAMED: Record<string, { type: string; options?: Record<string, OptionVal
   'session-usage': { type: 'five-hour-usage' },
   'reset-timer': { type: 'five-hour-reset' },
   'weekly-reset-timer': { type: 'weekly-reset' },
+  'fable-weekly-usage': { type: 'weekly-model-usage', options: { model: 'Fable' } },
   'extra-usage-used': { type: 'spend-limit' },
   'git-clean-status': { type: 'git-status' },
   'git-insertions': { type: 'git-changes' },

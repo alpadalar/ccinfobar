@@ -10,6 +10,7 @@ export interface WidgetInfo {
   color: string;
   options: OptionSpec[];
   sample?: string;
+  hidden?: boolean;
 }
 
 export type StyleId = 'text' | 'blocks' | 'powerline' | 'capsule' | 'tui';
@@ -33,6 +34,7 @@ export interface PresetInfo {
   id: string;
   name: string;
   description: string;
+  source: 'builtin' | 'user';
   config: Config;
 }
 
@@ -51,6 +53,8 @@ export interface ApiState {
   widgets: WidgetInfo[];
   categories: { id: string; name: string }[];
   presets: PresetInfo[];
+  presetsDir: string;
+  gsdInstalled: boolean;
   themes: ThemeInfo[];
   styles: { id: StyleId; name: string; description: string }[];
   themesDir: string;
@@ -104,9 +108,9 @@ export function init(api: ApiState): void {
     selectedLine: 0,
     tab: 'widget',
     search: '',
-    collapsed: new Set(api.categories.filter((c) => c.id !== 'gsd' && c.id !== 'session').map((c) => c.id)),
+    collapsed: new Set(api.categories.map((c) => c.id)),
     source: 'sample',
-    width: 120,
+    width: 130,
     api,
     widgetMap: new Map(api.widgets.map((w) => [w.type, w])),
   };

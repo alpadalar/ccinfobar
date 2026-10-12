@@ -98,12 +98,13 @@ ccinfobar edit
 
 | Area | What you can do |
 | --- | --- |
-| Palette (left) | Search and browse widgets by category, each with a description and sample output. Drag one into any line or click `+`. |
+| Palette (left) | Search and browse widgets by category, each with a description and sample output. Drag one into any line or click `+`. The GSD category appears once GSD is installed. |
 | Preview (top) | A terminal-style live preview. Switch between sample data and your last real session, adjust the width, and pick your terminal's colors (16 profiles such as Windows Terminal, macOS Terminal, Solarized, Dracula, or custom) so the preview matches what you will really see. When started from a terminal, `ccinfobar edit` detects its colors automatically. |
 | Lines (center) | Drag chips to reorder them or move them between lines, drop them on the trash to remove, drag line handles to reorder lines. `Alt` + arrow keys move the selected chip. |
-| Inspector (right) | Colors (16 named, 256 palette or hex), background, bold/dim/italic, label override, merge, and every widget option. The **Global** tab covers style, separators, glyphs, icons, color depth and width. |
-| Theme gallery | Every theme rendered live with your own widgets. Apply with one click, filter by style, save your current look as a new theme. |
-| Top bar | Presets, undo/redo, import/export JSON, save (`Ctrl+S`), and one-click install into Claude Code. |
+| Inspector (right) | Colors (16 named, 256 palette or hex), background, bold/dim/italic, label override, merge, and every widget option. The **Global** tab covers style, separators, glyphs, icons, color depth and width, and **Colors from** keeps your style while taking the colors of any theme. |
+| Theme gallery | Every theme rendered live with your own widgets. Apply with one click, filter by style, or open **New theme** to build your own: pick a starting theme, a style, and text and background colors per category or in a cycle, with a live preview. |
+| Presets | Built-in and your own layouts with live previews. **Save current as preset** keeps your layout for later. |
+| Top bar | Presets, themes, undo/redo, import/export JSON, save (`Ctrl+S`), and one-click install into Claude Code. |
 
 The editor runs only on `127.0.0.1` with a per-session token. Press **Done** or `Ctrl+C` to stop it.
 
@@ -163,7 +164,7 @@ ccinfobar theme dracula   # switch
 
 ![Theme gallery](docs/images/themes.png)
 
-Any theme can be drawn in any style (`"style": "capsule"`), and per-widget colors always win. To make your own, run `ccinfobar theme new mine --from nord`, edit `~/.config/ccinfobar/themes/mine.json`, or use **Save as my theme** in the editor. Details: [docs/THEMES.md](docs/THEMES.md).
+Any theme can be drawn in any style (`"style": "capsule"`), and per-widget colors always win. To make your own, use **New theme** in the editor, or run `ccinfobar theme new mine --from nord` and edit `~/.config/ccinfobar/themes/mine.json`. Details: [docs/THEMES.md](docs/THEMES.md).
 
 ## GSD integration
 
@@ -178,7 +179,7 @@ next: /gsd-execute-phase 4 │ ⚠ 1 concern │ req 14/22
 - Workstreams, decimal phases (`4.5`), nested plan folders and shipped milestones in `ROADMAP.md` are all handled.
 - No processes are spawned; everything is read from files in a few milliseconds.
 
-Start with `ccinfobar init gsd --force`, or drag widgets from the GSD category in the editor. Details: [docs/GSD.md](docs/GSD.md).
+Without GSD installed, ccinfobar leaves GSD out of its default layout and the editor. Once GSD is installed (globally or in a project), the default GSD line is added as the second line of your layout, once, without touching the rest, and the GSD widgets show up in the editor. Start with `ccinfobar init gsd --force`, or drag widgets from the GSD category. Details: [docs/GSD.md](docs/GSD.md).
 
 ## Coming from another status line
 
@@ -253,7 +254,7 @@ ccinfobar keeps itself up to date. Once a day, after the status line has been pr
 
 ## Usage limits
 
-Claude Code sends your 5-hour and weekly usage only in some sessions. When it doesn't, ccinfobar asks Claude for them with your existing login, the same way ccstatusline does, in the background and at most every 3 minutes. Data from Claude Code always wins. `ccinfobar usage` fetches it now; `usageApi: false` turns this off. See [SECURITY.md](SECURITY.md) for what is sent where.
+Claude Code sends your 5-hour and weekly usage only in some sessions, and never the per-model weekly limits (such as Fable) that some plans have. When they are missing, ccinfobar asks Claude for them with your existing login, the same way ccstatusline does, in the background and at most every 3 minutes. Data from Claude Code always wins. `ccinfobar usage` fetches it now; `usageApi: false` turns this off. See [SECURITY.md](SECURITY.md) for what is sent where.
 
 ## Platform notes
 

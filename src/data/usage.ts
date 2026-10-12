@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSelf } from '../commands/update.js';
 import { cacheDir, claudeDir } from '../core/paths.js';
-import type { Config, RateWindow, StatusPayload } from '../core/types.js';
+import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
 
 type RateLimits = NonNullable<StatusPayload['rate_limits']>;
@@ -53,8 +53,10 @@ export function usageApiDisabled(config: Config, env: NodeJS.ProcessEnv = proces
 
 export function needsUsage(config: Config, payload: StatusPayload): boolean {
   const r = payload.rate_limits;
+  const types = config.lines.flat().map((i) => i.type);
+  if (types.some((t) => /^weekly-(model|sonnet|opus)-/.test(t)) && !r?.seven_day_models) return true;
   if (r?.five_hour && r.seven_day) return false;
-  return config.lines.some((l) => l.some((i) => getWidget(i.type)?.category === 'limits'));
+  return types.some((t) => getWidget(t)?.category === 'limits');
 }
 
 // payload wins, the API fills gaps
@@ -92,19 +94,27 @@ export function parseUsageResponse(body: unknown): RateLimits | null {
   const b = body as Record<string, unknown>;
   const limits = Array.isArray(b.limits) ? (b.limits as Limit[]) : [];
   const kind = (k: string) => limits.find((l) => l?.kind === k);
-  const scoped = (model: string) =>
-    limits.find(
-      (l) =>
-        l?.kind === 'weekly_scoped' && (l.scope?.model?.display_name ?? '').toLowerCase().includes(model),
-    );
   const out: RateLimits = {};
-  const set = (key: keyof Omit<RateLimits, 'spend_limit'>, w: RateWindow | undefined) => {
-    if (w) out[key] = w;
-  };
-  set('five_hour', fromBucket(b.five_hour as Bucket) ?? fromLimit(kind('session')));
-  set('seven_day', fromBucket(b.seven_day as Bucket) ?? fromLimit(kind('weekly_all')));
-  set('seven_day_sonnet', fromLimit(scoped('sonnet')) ?? fromBucket(b.seven_day_sonnet as Bucket));
-  set('seven_day_opus', fromLimit(scoped('opus')) ?? fromBucket(b.seven_day_opus as Bucket));
+  const five = fromBucket(b.five_hour as Bucket) ?? fromLimit(kind('session'));
+  const week = fromBucket(b.seven_day as Bucket) ?? fromLimit(kind('weekly_all'));
+  if (five) out.five_hour = five;
+  if (week) out.seven_day = week;
+  const models: ModelWindow[] = [];
+  for (const l of limits) {
+    const model = l?.kind === 'weekly_scoped' ? l.scope?.model?.display_name : null;
+    const w = model ? fromLimit(l) : undefined;
+    if (model && w) models.push({ model, ...w });
+  }
+  for (const [model, key] of [
+    ['Sonnet', 'seven_day_sonnet'],
+    ['Opus', 'seven_day_opus'],
+  ] as const) {
+    const bucket = b[key] as Bucket;
+    if (bucket && typeof bucket.utilization === 'number' && !models.some((m) => m.model === model)) {
+      models.push({ model, used_percentage: bucket.utilization, resets_at: bucket.resets_at ?? null });
+    }
+  }
+  if (models.length) out.seven_day_models = models;
   const x = b.extra_usage as Record<string, unknown> | null | undefined;
   if (x?.is_enabled === true && typeof x.used_credits === 'number') {
     out.spend_limit = {

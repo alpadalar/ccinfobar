@@ -5,6 +5,7 @@ import { colorToCss } from './colors.js';
 import { type DragSpec, type DropTarget, press } from './dnd.js';
 import { clear, h, icon } from './dom.js';
 import { initInspector, renderInspector } from './inspector.js';
+import { openPresets } from './presets.js';
 import {
   commit,
   currentTheme,
@@ -231,11 +232,11 @@ function renderPalette(): void {
     catName.toLowerCase().includes(q);
   let shown = 0;
   for (const cat of S.api.categories) {
-    const list = S.api.widgets.filter((w) => w.category === cat.id && matches(w, cat.name));
+    if (cat.id === 'gsd' && !S.api.gsdInstalled) continue;
+    const list = S.api.widgets.filter((w) => !w.hidden && w.category === cat.id && matches(w, cat.name));
     if (!list.length) continue;
     shown += list.length;
     const open = q ? true : !S.collapsed.has(cat.id);
-    const gsd = cat.id === 'gsd';
     const head = h(
       'button',
       {
@@ -250,10 +251,9 @@ function renderPalette(): void {
       },
       h('span', { class: `chev${open ? ' open' : ''}` }, icon('chevron', 14)),
       h('span', { class: 'cat-name' }, cat.name),
-      gsd ? h('span', { class: 'cat-badge' }, icon('star', 11), 'Headline') : null,
       h('span', { class: 'cat-count' }, String(list.length)),
     );
-    const section = h('section', { class: `cat${gsd ? ' cat-gsd' : ''}${open ? ' open' : ''}` }, head);
+    const section = h('section', { class: `cat${open ? ' open' : ''}` }, head);
     if (open) {
       const cards = h('div', { class: 'cards' });
       for (const w of list) cards.append(paletteCard(w));
@@ -571,34 +571,13 @@ function onKeydown(e: KeyboardEvent): void {
   }
 }
 
-function buildPresetSelect(): void {
-  const sel = $<HTMLSelectElement>('preset');
-  sel.append(h('option', { value: '' }, 'Presets'));
-  for (const p of S.api.presets) sel.append(h('option', { value: p.id, title: p.description }, p.name));
-  sel.addEventListener('change', async () => {
-    const preset = S.api.presets.find((p) => p.id === sel.value);
-    sel.value = '';
-    if (!preset) return;
-    if (
-      isDirty() &&
-      !(await confirmDialog(
-        `Apply "${preset.name}"?`,
-        'This replaces your current layout and settings. You can undo it with Ctrl+Z.',
-        'Apply preset',
-      ))
-    )
-      return;
-    replaceAll(preset.config);
-    toast(`Applied preset "${preset.name}"`, 'info');
-  });
-}
-
 function setupStatic(): void {
   for (const [id, name] of [
     ['undo', 'undo'],
     ['redo', 'redo'],
     ['save', 'save'],
     ['theme-btn', 'palette'],
+    ['preset-btn', 'layers'],
     ['import', 'upload'],
     ['export', 'download'],
     ['trash', 'trash'],
@@ -610,6 +589,7 @@ function setupStatic(): void {
   $('version').textContent = `v${S.api.version}`;
   $('config-path').textContent = S.api.configPath;
   $('theme-btn').addEventListener('click', () => void openGallery());
+  $('preset-btn').addEventListener('click', () => void openPresets());
   $('undo').addEventListener('click', undo);
   $('redo').addEventListener('click', redo);
   $('save').addEventListener('click', () => void save());
@@ -627,6 +607,7 @@ function setupStatic(): void {
     renderPalette();
   });
   const slider = $<HTMLInputElement>('width');
+  slider.value = String(S.width);
   slider.addEventListener('input', () => {
     S.width = Number(slider.value);
     applyWidth();
@@ -650,7 +631,6 @@ function setupStatic(): void {
     : 'No session payload recorded yet';
   setSource('sample');
   initTerminalPicker($('term-picker'), S.api.terminal);
-  buildPresetSelect();
   initInspector();
   window.addEventListener('keydown', onKeydown);
   window.addEventListener('beforeunload', onUnload);

@@ -18,10 +18,7 @@
       <span class="brand-version" id="version"></span>
     </div>
     <div class="sep"></div>
-    <label class="select-wrap">
-      <span class="visually-hidden">Preset</span>
-      <select id="preset" class="input select-compact" aria-label="Apply preset"></select>
-    </label>
+    <button id="preset-btn" class="btn" type="button" title="Browse presets"><span class="btn-text">Presets</span></button>
     <button id="theme-btn" class="btn" type="button" title="Browse themes"><span class="theme-btn-label">Theme</span></button>
     <div class="btn-group">
       <button id="undo" class="btn ghost" type="button" title="Undo (Ctrl+Z)"><span class="visually-hidden">Undo</span></button>
@@ -57,7 +54,7 @@
             <button id="src-last" type="button">Last session</button>
           </fieldset>
           <label class="slider"><span class="visually-hidden">Terminal width</span>
-            <input id="width" type="range" min="40" max="240" step="1" value="120">
+            <input id="width" type="range" min="40" max="240" step="1" value="130">
             <output id="width-value">120 cols</output>
           </label>
         </div>

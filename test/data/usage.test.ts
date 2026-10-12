@@ -36,19 +36,24 @@ const reply = (status: number, body: unknown, headers: Record<string, string> = 
   (async () => new Response(JSON.stringify(body), { status, headers })) as unknown as typeof fetch;
 
 describe('usage api', () => {
-  it('maps buckets, scoped limits and extra usage', () => {
+  it('maps buckets, per-model weekly limits and extra usage', () => {
     const r = parseUsageResponse({
       five_hour: { utilization: 13, resets_at: '2026-10-12T17:59:59Z' },
       seven_day: null,
+      seven_day_sonnet: null,
+      seven_day_opus: { utilization: 7, resets_at: null },
       limits: [
-        { kind: 'weekly_scoped', percent: 40, resets_at: 'x', scope: { model: { display_name: 'Opus' } } },
+        { kind: 'weekly_scoped', percent: 1, resets_at: 'x', scope: { model: { display_name: 'Fable' } } },
       ],
       extra_usage: { is_enabled: true, monthly_limit: 15000, used_credits: 250, utilization: 2 },
     });
     expect(r).toEqual({
       five_hour: { used_percentage: 13, resets_at: '2026-10-12T17:59:59Z' },
       seven_day: { used_percentage: 0, resets_at: null },
-      seven_day_opus: { used_percentage: 40, resets_at: 'x' },
+      seven_day_models: [
+        { model: 'Fable', used_percentage: 1, resets_at: 'x' },
+        { model: 'Opus', used_percentage: 7, resets_at: null },
+      ],
       spend_limit: { used_usd: 2.5, limit_usd: 150, used_percentage: 2 },
     });
     expect(parseUsageResponse({ limits: [{ kind: 'session', percent: 0, resets_at: null }] })).toBeNull();
@@ -73,6 +78,9 @@ describe('usage api', () => {
       }),
     ).toBe(false);
     expect(needsUsage({ ...config, lines: [[{ id: 'm', type: 'model' }]] }, {})).toBe(false);
+    const full = { five_hour: { used_percentage: 1 }, seven_day: { used_percentage: 1 } };
+    const model = { ...config, lines: [[{ id: 'f', type: 'weekly-model-usage' }]] };
+    expect(needsUsage(model, { rate_limits: full })).toBe(true);
     expect(usageDue(null, NOW)).toBe(true);
     expect(usageDue({ fetchedAt: NOW - 60_000 }, NOW)).toBe(false);
     expect(usageDue({ fetchedAt: NOW - 200_000 }, NOW)).toBe(true);

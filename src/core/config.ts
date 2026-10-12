@@ -214,6 +214,7 @@ export function normalizeConfig(raw: unknown): Config {
   if (typeof raw.autoWrap === 'boolean') cfg.autoWrap = raw.autoWrap;
   if (raw.update === 'notify' || raw.update === 'auto' || raw.update === 'off') cfg.update = raw.update;
   if (typeof raw.usageApi === 'boolean') cfg.usageApi = raw.usageApi;
+  if (raw.gsdAutoLine === true) cfg.gsdAutoLine = true;
   const tui = normalizeTui(raw.tui);
   if (tui) cfg.tui = tui;
   if (typeof raw.style === 'string' && STYLE_IDS.includes(raw.style)) cfg.style = raw.style as ThemeStyle;
@@ -241,13 +242,13 @@ export interface LoadResult {
   error?: string;
 }
 
-export function loadConfig(file = configPath()): LoadResult {
+export function loadConfig(file = configPath(), fallback: () => Config = defaultConfig): LoadResult {
   try {
     const text = fs.readFileSync(file, 'utf8');
     return { config: normalizeConfig(JSON.parse(text)), path: file, exists: true };
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
-    if (e.code === 'ENOENT') return { config: defaultConfig(), path: file, exists: false };
+    if (e.code === 'ENOENT') return { config: fallback(), path: file, exists: false };
     return { config: defaultConfig(), path: file, exists: true, error: e.message };
   }
 }

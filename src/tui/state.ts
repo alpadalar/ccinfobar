@@ -8,7 +8,7 @@ import {
   removeItem,
   removeLine,
 } from '../core/edit.js';
-import { getPreset, PRESETS } from '../core/presets.js';
+import { PRESETS, type Preset } from '../core/presets.js';
 import type { PreviewSource } from '../core/preview.js';
 import { listThemes, type Theme } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
@@ -71,6 +71,8 @@ export interface State {
   drag: DragState | null;
   effect: Effect | null;
   quit: boolean;
+  presets: Preset[];
+  gsd: boolean;
 }
 
 export type NavDir = 'up' | 'down' | 'left' | 'right' | 'pageup' | 'pagedown' | 'home' | 'end';
@@ -124,8 +126,15 @@ export type Action =
 const PAGE = 8;
 const HISTORY = 100;
 
-export function initialState(config: Config, path: string, message = ''): State {
+export function initialState(
+  config: Config,
+  path: string,
+  message = '',
+  opts: { presets?: Preset[]; gsd?: boolean } = {},
+): State {
   return {
+    presets: opts.presets ?? PRESETS,
+    gsd: opts.gsd ?? true,
     config,
     path,
     savedJson: JSON.stringify(config),
@@ -422,7 +431,7 @@ function reduceThemes(state: State, action: Action, mode: Extract<Mode, { kind: 
 }
 
 function insertFromPicker(state: State, filter: string, cursor: number): State {
-  const def = pickerItems(filter)[cursor];
+  const def = pickerItems(filter, state.gsd)[cursor];
   if (!def) return state;
   const lines = state.config.lines;
   const line = Math.min(state.sel.line, Math.max(0, lines.length - 1));
@@ -439,7 +448,7 @@ function reducePicker(state: State, action: Action, mode: Extract<Mode, { kind: 
     ...state,
     mode: { kind: 'picker', filter, cursor },
   });
-  const count = () => pickerItems(mode.filter).length;
+  const count = () => pickerItems(mode.filter, state.gsd).length;
   switch (action.type) {
     case 'nav':
       return set(mode.filter, step(mode.cursor, action.dir, count()));
@@ -598,10 +607,13 @@ function reduceSettings(state: State, action: Action, mode: Extract<Mode, { kind
 function reducePresets(state: State, action: Action, mode: Extract<Mode, { kind: 'presets' }>): State {
   switch (action.type) {
     case 'nav':
-      return { ...state, mode: { kind: 'presets', cursor: step(mode.cursor, action.dir, PRESETS.length) } };
+      return {
+        ...state,
+        mode: { kind: 'presets', cursor: step(mode.cursor, action.dir, state.presets.length) },
+      };
     case 'enter':
     case 'clickItem': {
-      const preset = PRESETS[action.type === 'clickItem' ? action.index : mode.cursor];
+      const preset = state.presets[action.type === 'clickItem' ? action.index : mode.cursor];
       return preset ? { ...state, mode: { kind: 'confirm', what: 'preset', preset: preset.id } } : state;
     }
     case 'cancel':
@@ -626,7 +638,7 @@ function reduceConfirm(state: State, action: Action, mode: Extract<Mode, { kind:
         ? commit(back, removeLine(state.config, state.sel.line), { message: 'Line deleted' })
         : state;
     case 'preset': {
-      const preset = mode.preset ? getPreset(mode.preset) : undefined;
+      const preset = state.presets.find((p) => p.id === mode.preset);
       if (action.answer !== 'yes' || !preset) return state;
       return commit(back, preset.build(), {
         sel: { line: 0, index: 0 },

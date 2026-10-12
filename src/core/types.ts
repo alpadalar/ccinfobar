@@ -3,6 +3,10 @@ export interface RateWindow {
   resets_at?: number | string | null;
 }
 
+export interface ModelWindow extends RateWindow {
+  model: string;
+}
+
 export interface SpendLimit extends RateWindow {
   used_usd?: number | null;
   limit_usd?: number | null;
@@ -71,6 +75,7 @@ export interface StatusPayload {
     seven_day?: RateWindow;
     seven_day_sonnet?: RateWindow;
     seven_day_opus?: RateWindow;
+    seven_day_models?: ModelWindow[];
     spend_limit?: SpendLimit;
   };
   pr?: { number?: number; url?: string; review_state?: string; kind?: string };
@@ -170,6 +175,7 @@ export interface Config {
   autoWrap: boolean;
   update: 'notify' | 'auto' | 'off';
   usageApi: boolean;
+  gsdAutoLine?: boolean;
   tui?: TuiConfig;
   colorLevel: ColorLevel;
   icons: IconMode;
@@ -223,6 +229,7 @@ export interface WidgetDef {
   color: string;
   options?: OptionSpec[];
   sample?: string;
+  hidden?: boolean;
   render(ctx: RenderContext, item: WidgetItem): WidgetResult;
 }
 

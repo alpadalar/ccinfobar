@@ -624,6 +624,10 @@ export function resolveTheme(id: string | undefined, dir = themesDir(), depth = 
   return builtins.get(want) ?? BASE;
 }
 
+export function resolveThemeInput(input: ThemeInput, dir = themesDir()): Theme {
+  return merge(resolveTheme(input.extends ?? DEFAULT_THEME, dir), input, 'user');
+}
+
 export function listThemes(dir = themesDir()): Theme[] {
   const out = new Map(builtins);
   let files: string[] = [];

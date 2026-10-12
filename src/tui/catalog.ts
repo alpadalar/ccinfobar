@@ -2,8 +2,7 @@ import type { WidgetCategory, WidgetDef } from '../core/types.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 
 export function categoryOrder(): WidgetCategory[] {
-  const ids = CATEGORIES.map((c) => c.id);
-  const ordered: WidgetCategory[] = ['gsd', ...ids.filter((c) => c !== 'gsd')];
+  const ordered: WidgetCategory[] = CATEGORIES.map((c) => c.id);
   for (const w of ALL_WIDGETS) if (!ordered.includes(w.category)) ordered.push(w.category);
   return ordered;
 }
@@ -54,11 +53,12 @@ export function widgetScore(def: WidgetDef, filter: string): number | null {
   return total;
 }
 
-export function pickerItems(filter: string): WidgetDef[] {
+export function pickerItems(filter: string, gsd = true): WidgetDef[] {
   const order = categoryOrder();
-  const scored = ALL_WIDGETS.map((def, i) => ({ def, i, score: widgetScore(def, filter) })).filter(
-    (x): x is { def: WidgetDef; i: number; score: number } => x.score !== null,
-  );
+  const defs = ALL_WIDGETS.filter((d) => !d.hidden && (gsd || d.category !== 'gsd'));
+  const scored = defs
+    .map((def, i) => ({ def, i, score: widgetScore(def, filter) }))
+    .filter((x): x is { def: WidgetDef; i: number; score: number } => x.score !== null);
   scored.sort(
     (a, b) => order.indexOf(a.def.category) - order.indexOf(b.def.category) || b.score - a.score || a.i - b.i,
   );

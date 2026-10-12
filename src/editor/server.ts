@@ -4,21 +4,24 @@ import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { currentStatusLine, defaultCommand, install } from '../commands/install.js';
-import { loadConfig, normalizeConfig, saveConfig } from '../core/config.js';
+import { normalizeConfig, saveConfig } from '../core/config.js';
+import { availablePresets, loadForUse } from '../core/load.js';
 import { lastPayloadPath, tildify } from '../core/paths.js';
-import { PRESETS } from '../core/presets.js';
+import { deleteUserPreset, listPresets, presetsDir, saveUserPreset } from '../core/presets.js';
 import { renderPreview } from '../core/preview.js';
 import { resolveAppearance } from '../core/renderer.js';
 import {
   deleteUserTheme,
   listThemes,
   parseThemeInput,
+  resolveThemeInput,
   STYLES,
   saveUserTheme,
   themesDir,
   themeToInput,
 } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
+import { gsdInstalled } from '../data/gsd.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import type { TerminalColors } from './terminal-colors.js';
 
@@ -130,6 +133,7 @@ function widgetCatalog() {
     color: w.color,
     options: w.options ?? [],
     sample: w.sample,
+    hidden: w.hidden ?? false,
   }));
 }
 
@@ -154,6 +158,15 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const host = opts.host ?? '127.0.0.1';
   const token = crypto.randomBytes(16).toString('hex');
   const command = defaultCommand();
+  const gsd = gsdInstalled();
+  const presetList = () =>
+    availablePresets(gsd).map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      source: p.source ?? 'builtin',
+      config: p.build(),
+    }));
   let port = 0;
 
   const hostOk = (h: string | undefined) => h === `127.0.0.1:${port}` || h === `localhost:${port}`;
@@ -183,6 +196,19 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       if (origin !== undefined && !originOk(origin)) throw new HttpError(403, 'Forbidden origin');
     }
 
+    if (method === 'DELETE' && url.pathname.startsWith('/api/presets/')) {
+      let id = '';
+      try {
+        id = decodeURIComponent(url.pathname.slice('/api/presets/'.length));
+      } catch {}
+      if (!ID_RE.test(id)) throw new HttpError(400, 'Invalid preset id');
+      if (listPresets().find((p) => p.id === id)?.source !== 'user')
+        throw new HttpError(404, 'Not a user preset');
+      deleteUserPreset(id);
+      send(res, 200, { ok: true, presets: presetList() });
+      return;
+    }
+
     if (method === 'DELETE' && url.pathname.startsWith('/api/themes/')) {
       let id = '';
       try {
@@ -199,7 +225,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     const route = `${method} ${url.pathname}`;
     switch (route) {
       case 'GET /api/state': {
-        const loaded = loadConfig(opts.configPath);
+        const loaded = loadForUse(opts.configPath, () => gsd);
         send(res, 200, {
           version: VERSION,
           configPath: tildify(opts.configPath),
@@ -208,12 +234,9 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           savedConfig: loaded.config,
           widgets: widgetCatalog(),
           categories: CATEGORIES,
-          presets: PRESETS.map((p) => ({
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            config: p.build(),
-          })),
+          presets: presetList(),
+          presetsDir: tildify(presetsDir()),
+          gsdInstalled: gsd,
           themes: listThemes(),
           styles: STYLES,
           themesDir: tildify(themesDir()),
@@ -228,8 +251,14 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const config = normalizeConfig(body.config);
         if (config.colorLevel === 'auto') config.colorLevel = 3;
         const source = body.source === 'last' ? 'last' : 'sample';
-        const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 120));
-        send(res, 200, { lines: renderPreview(config, source, width) });
+        const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 130));
+        const draft = body.theme === undefined ? undefined : parseThemeInput(body.theme);
+        if (draft?.extends !== undefined && !ID_RE.test(draft.extends)) {
+          throw new HttpError(400, 'Invalid extends id');
+        }
+        send(res, 200, {
+          lines: renderPreview(config, source, width, draft ? resolveThemeInput(draft) : undefined),
+        });
         return;
       }
       case 'POST /api/normalize': {
@@ -293,6 +322,21 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         send(res, 200, { ok: true, id: input.id, themes: listThemes() });
         return;
       }
+      case 'POST /api/presets': {
+        const body = asObject(await readBody(req));
+        const meta = asObject(body.preset);
+        const id = typeof meta.id === 'string' ? meta.id : '';
+        if (!ID_RE.test(id))
+          throw new HttpError(400, 'Preset id must be letters, numbers, dot, dash or underscore');
+        saveUserPreset({
+          id,
+          name: typeof meta.name === 'string' ? meta.name.slice(0, 64) : id,
+          description: typeof meta.description === 'string' ? meta.description.slice(0, 200) : '',
+          config: body.config,
+        });
+        send(res, 200, { ok: true, presets: presetList() });
+        return;
+      }
       case 'PUT /api/config': {
         const body = asObject(await readBody(req));
         const config = normalizeConfig(body.config);
@@ -305,7 +349,8 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const cmd = typeof body.command === 'string' && body.command.trim() ? body.command.trim() : command;
         const refresh = Number(body.refreshInterval);
         const backup = install(cmd, Number.isFinite(refresh) && refresh > 0 ? refresh : undefined);
-        if (!fs.existsSync(opts.configPath)) saveConfig(loadConfig(opts.configPath).config, opts.configPath);
+        if (!fs.existsSync(opts.configPath))
+          saveConfig(loadForUse(opts.configPath, () => gsd).config, opts.configPath);
         send(res, 200, { ok: true, backup, claude: claudeInfo(command) });
         return;
       }

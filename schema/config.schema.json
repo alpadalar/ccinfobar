@@ -59,6 +59,8 @@
                 "five-hour-reset",
                 "weekly-usage",
                 "weekly-reset",
+                "weekly-model-usage",
+                "weekly-model-reset",
                 "weekly-sonnet-usage",
                 "weekly-opus-usage",
                 "spend-limit",

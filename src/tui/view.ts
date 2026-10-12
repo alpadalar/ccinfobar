@@ -1,5 +1,4 @@
 import { parseColor, stripAnsi, style, truncate, visibleWidth } from '../core/ansi.js';
-import { PRESETS } from '../core/presets.js';
 import { renderPreview } from '../core/preview.js';
 import { resolveTheme } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
@@ -177,8 +176,8 @@ interface Modal {
   hits: Hit[];
 }
 
-function pickerModal(mode: Extract<Mode, { kind: 'picker' }>, w: number, h: number): Modal {
-  const items = pickerItems(mode.filter);
+function pickerModal(state: State, mode: Extract<Mode, { kind: 'picker' }>, w: number, h: number): Modal {
+  const items = pickerItems(mode.filter, state.gsd);
   const lines = [rule('Add widget', w), ` ${dim('Filter:')} ${mode.filter}${inv(' ')}`];
   const listH = Math.max(1, h - 3);
   type R = { header: string } | { index: number };
@@ -390,7 +389,8 @@ function themesModal(state: State, mode: Extract<Mode, { kind: 'themes' }>, w: n
   return { lines: lines.slice(0, h), hits };
 }
 
-function presetsModal(mode: Extract<Mode, { kind: 'presets' }>, w: number, h: number): Modal {
+function presetsModal(state: State, mode: Extract<Mode, { kind: 'presets' }>, w: number, h: number): Modal {
+  const PRESETS = state.presets;
   const lines = [rule('Presets · replaces the current layout', w)];
   const hits: Hit[] = [];
   const listH = Math.max(1, h - 1);
@@ -449,7 +449,7 @@ function confirmModal(state: State, mode: Extract<Mode, { kind: 'confirm' }>, w:
         'Delete line',
       );
     case 'preset': {
-      const name = PRESETS.find((p) => p.id === mode.preset)?.name ?? '';
+      const name = state.presets.find((p) => p.id === mode.preset)?.name ?? '';
       return centered(
         [
           bold(`Replace the current layout with "${name}"?`),
@@ -659,13 +659,13 @@ export function renderScreen(state: State, cols: number, rows: number): Screen {
     let modal: Modal;
     switch (mode.kind) {
       case 'picker':
-        modal = pickerModal(mode, cols, h);
+        modal = pickerModal(state, mode, cols, h);
         break;
       case 'settings':
         modal = settingsModal(state, mode, cols, h);
         break;
       case 'presets':
-        modal = presetsModal(mode, cols, h);
+        modal = presetsModal(state, mode, cols, h);
         break;
       case 'themes':
         modal = themesModal(state, mode, cols, h);

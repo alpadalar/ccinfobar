@@ -42,6 +42,8 @@ describe('sample rendering', () => {
     'five-hour-reset': '2h 14m',
     'weekly-usage': '61%',
     'weekly-reset': '3d 5h',
+    'weekly-model-usage': 'Fable 23%',
+    'weekly-model-reset': '3d 5h',
     'usage-pace': '⇣13%',
     'git-branch': 'feat/statusline',
     'git-sha': 'a1b2c3d',
@@ -66,6 +68,28 @@ describe('sample rendering', () => {
     for (const t of ['output-style', 'fast-mode', 'git-operation', 'git-worktree', 'agent-name']) {
       expect(r(t)).toBeNull();
     }
+  });
+});
+
+describe('weekly model limits', () => {
+  it('picks a model by name and ignores models without a limit', () => {
+    const c = ctxWith();
+    expect(renderWidget('weekly-model-usage', c, { options: { model: 'fable' } })).toBe('Fable 23%');
+    expect(renderWidget('weekly-model-usage', c, { options: { model: 'sonnet' } })).toBeNull();
+    expect(renderWidget('weekly-sonnet-usage', c)).toBeNull();
+  });
+
+  it('still reads the older sonnet and opus fields', () => {
+    const p = samplePayload(NOW.getTime());
+    p.rate_limits = { seven_day_opus: { used_percentage: 48, resets_at: null } };
+    const c = ctxWith({ payload: p });
+    expect(renderWidget('weekly-opus-usage', c)).toBe('48%');
+    expect(renderWidget('weekly-model-usage', c)).toBe('Opus 48%');
+  });
+
+  it('keeps legacy widgets out of the palette', () => {
+    const hidden = ALL_WIDGETS.filter((w) => w.hidden).map((w) => w.type);
+    expect(hidden).toEqual(['weekly-sonnet-usage', 'weekly-opus-usage']);
   });
 });
 

@@ -13,6 +13,8 @@ ccinfobar preview            # see it with sample data
 
 Or open `ccinfobar edit` and drag widgets from the **GSD** category.
 
+ccinfobar checks whether GSD is installed (`~/.claude/get-shit-done/`, `~/.claude/commands/gsd/` or the project's `.claude/get-shit-done/`). Without it, `install`, `init` and the editor's presets leave GSD out and the editor hides the GSD category. When GSD shows up later, the default GSD line is inserted as the second line of your layout once, the rest of your layout stays as it is, and the category appears in the editor.
+
 If you previously used GSD's own status line (`~/.claude/hooks/gsd-statusline.js`), `ccinfobar install` replaces it in `~/.claude/settings.json`. Your previous settings are backed up first. GSD's other hooks keep working.
 
 A local GSD install (`npx get-shit-done-cc --local`) writes `node .claude/hooks/gsd-statusline.js` into the project's `.claude/settings.json`, which beats the user setting in that project. `ccinfobar install` finds these projects in Claude Code's project list and sets ccinfobar in their `.claude/settings.local.json`, which wins over both and stays out of git; the daily background check picks up projects added later. `ccinfobar uninstall` gives them GSD's status line back.
