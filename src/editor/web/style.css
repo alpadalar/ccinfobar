@@ -1038,6 +1038,11 @@ body.dragging-chip .trash {
   font-variant-numeric: tabular-nums;
 }
 
+.line-note {
+  color: var(--muted);
+  font-size: 0.71875rem;
+}
+
 .line-align {
   display: flex;
   gap: 0.125rem;

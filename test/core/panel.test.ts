@@ -99,6 +99,38 @@ describe('panel style', () => {
     expect(narrow.slice(1, 3)).toEqual(['│ alpha | beta     │', '│ gamma            │']);
   });
 
+  it('aligns a row inside the box, even with a fill widget', () => {
+    const lines = [[text('a')], [text('b')]];
+    const out = panel({ dividers: false, title: { right: false } }, 20, lines);
+    const right = render(
+      ctxWith({
+        width: 20,
+        config: {
+          theme: 'panel',
+          widthOffset: 0,
+          lines,
+          lineAlign: [null, 'right'],
+          tui: { dividers: false },
+        },
+      }),
+    ).map(stripAnsi);
+    expect(out[2]).toMatch(/^│ b +│$/);
+    expect(right[2]).toMatch(/^│ +b │$/);
+    const bar = render(
+      ctxWith({
+        width: 40,
+        config: {
+          theme: 'panel',
+          widthOffset: 0,
+          colorLevel: 0,
+          lines: [[{ id: 'g', type: 'context-bar', options: { fill: true, width: 4 } }]],
+          lineAlign: ['center'],
+        },
+      }),
+    ).map(stripAnsi);
+    expect(bar[1]).toMatch(/^│ {5,}Ctx [█░]{4} 34% {5,}│$/);
+  });
+
   it('fits content when asked', () => {
     const out = panel({ fitContent: true, minWidth: 10, title: { right: false } }, null);
     expect(visibleWidth(out[1]!)).toBe(visibleWidth('│ alpha  beta │'));

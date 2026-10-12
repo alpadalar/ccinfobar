@@ -163,6 +163,11 @@ export function sizeColumns(
   return widths;
 }
 
+// widgets placed in a custom title or footer are not repeated in the rows
+export function titleWidgets(tui: TuiConfig): Set<string> {
+  return tokenNames([tui.title?.left, tui.title?.right || undefined, tui.footer?.left, tui.footer?.right]);
+}
+
 function tokenNames(texts: (string | undefined)[]): Set<string> {
   const out = new Set<string>();
   for (const t of texts) {
@@ -225,7 +230,8 @@ function sizeLineRows(
     const free = inner - sum(ws);
     const grow = r.cells.map((c, x) => (fills(c.name) ? x : -1)).filter((x) => x >= 0);
     const take = grow.length ? grow : [ws.length - 1];
-    const aligned = !grow.length && r.align && r.align !== 'left';
+    // an aligned row keeps its natural size
+    const aligned = r.align === 'center' || r.align === 'right';
     if (free > 0 && !aligned) {
       take.forEach((x, t) => {
         ws[x]! += Math.floor(free / take.length) + (t < free % take.length ? 1 : 0);
@@ -355,13 +361,7 @@ export function renderPanel(
   } else {
     // one cell per widget, merged widgets share a cell
     const dividers = tui.dividers ?? true;
-    // widgets placed in a custom title or footer are not repeated
-    const shown = tokenNames([
-      tui.title?.left,
-      tui.title?.right || undefined,
-      tui.footer?.left,
-      tui.footer?.right,
-    ]);
+    const shown = titleWidgets(tui);
     rows = [];
     ctx.config.lines.forEach((line, li) => {
       const names: string[] = [];

@@ -8,6 +8,7 @@ import {
   setLineAlign,
   uniqueId,
 } from '../../core/edit.js';
+import { titleWidgets } from '../../core/panel.js';
 import type { Config } from '../../core/types.js';
 import { ansiToHtml, escapeHtml } from './ansi-html.js';
 import { api, setToken } from './api.js';
@@ -164,7 +165,20 @@ function removeSelected(): void {
 }
 
 // pressing the active one goes back to the global alignment
-function lineAlignButtons(li: number): HTMLElement {
+function lineAlignButtons(li: number): HTMLElement | null {
+  const items = S.config.lines[li] ?? [];
+  if ((S.config.style ?? currentTheme()?.style) === 'tui') {
+    const tui = S.config.tui ?? {};
+    if (tui.breakpoints?.length) return null;
+    const shown = titleWidgets(tui);
+    if (items.length && items.every((i) => shown.has(i.id) || shown.has(i.type))) {
+      return h(
+        'span',
+        { class: 'line-note', title: 'These widgets are drawn in the panel border' },
+        'In panel title',
+      );
+    }
+  }
   const own = S.config.lineAlign?.[li] ?? null;
   const global = S.config.align ?? 'left';
   return h(
