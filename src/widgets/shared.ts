@@ -139,3 +139,24 @@ export const thresholdOption: OptionSpec = {
   default: true,
   help: 'Green below 50%, yellow below 80%, red above',
 };
+
+const SPARK = '▁▂▃▄▅▆▇█';
+const SPARK_ASCII = '_.-=+*#';
+
+export function sparkline(
+  values: number[],
+  width: number,
+  opts: { min?: number; max?: number; ascii?: boolean } = {},
+): string {
+  const ramp = opts.ascii ? SPARK_ASCII : SPARK;
+  const vals = values.filter((v) => Number.isFinite(v)).slice(-Math.max(1, width));
+  if (!vals.length) return '';
+  const lo = opts.min ?? Math.min(...vals);
+  const hi = opts.max ?? Math.max(...vals);
+  const span = hi - lo || 1;
+  const chars = vals.map((v) => {
+    const f = Math.max(0, Math.min(1, (v - lo) / span));
+    return ramp[Math.round(f * (ramp.length - 1))]!;
+  });
+  return ' '.repeat(Math.max(0, width - chars.length)) + chars.join('');
+}

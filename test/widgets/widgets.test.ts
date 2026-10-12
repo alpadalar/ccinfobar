@@ -10,7 +10,8 @@ const r = (type: string, opts: Record<string, string | number | boolean> = {}, p
   renderWidget(type, ctxWith(payload ? { payload } : {}), { options: opts });
 
 const empty = (): StatusPayload => ({});
-const noData = () => ctxWith({ payload: empty(), git: () => null, transcript: () => null });
+const noData = () =>
+  ctxWith({ payload: empty(), git: () => null, transcript: () => null, history: () => [] });
 
 describe('sample rendering', () => {
   const expected: Record<string, string> = {

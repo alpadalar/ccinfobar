@@ -49,6 +49,7 @@ export function createContext(opts: ContextOptions): RenderContext {
       git: opts.data?.git ?? lazy(() => readGit(cwd)),
       transcript: opts.data?.transcript ?? lazy(() => readTranscript(opts.payload.transcript_path)),
       gsd: opts.data?.gsd ?? lazy(() => readGsd(cwd)),
+      ...(opts.data?.history ? { history: opts.data.history } : {}),
     },
   };
 }

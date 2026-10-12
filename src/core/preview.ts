@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { createContext } from './context.js';
 import { lastPayloadPath } from './paths.js';
 import { render } from './renderer.js';
-import { sampleGit, sampleGsd, samplePayload, sampleTranscript } from './sample.js';
+import { sampleGit, sampleGsd, sampleHistory, samplePayload, sampleTranscript } from './sample.js';
 import type { Theme } from './themes.js';
 import type { Config, StatusPayload } from './types.js';
 
@@ -40,7 +40,12 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
       preview: true,
       terminalWidth: width,
       ...(theme ? { theme } : {}),
-      data: { git: sampleGit, gsd: sampleGsd, transcript: () => sampleTranscript(now) },
+      data: {
+        git: sampleGit,
+        gsd: sampleGsd,
+        transcript: () => sampleTranscript(now),
+        history: () => sampleHistory(now),
+      },
     }),
   );
 }

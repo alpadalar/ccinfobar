@@ -1,5 +1,6 @@
 import type { GitInfo } from '../data/git.js';
 import type { GsdInfo } from '../data/gsd.js';
+import type { HistorySample } from '../data/history.js';
 import type { TranscriptInfo } from '../data/transcript.js';
 import type { StatusPayload } from './types.js';
 
@@ -113,6 +114,31 @@ export function sampleTranscript(now = Date.now()): TranscriptInfo {
     outputSpeed: 72.4,
     currentTask: 'Wiring GSD widgets into renderer',
   };
+}
+
+// ends at the sample payload's numbers
+export function sampleHistory(now = Date.now()): HistorySample[] {
+  const n = 40;
+  const wave = [3, 5, 9, 14, 11, 6, 4, 8, 13, 16, 12, 7, 5, 4, 6, 10, 15, 12, 8, 6];
+  // steady growth with a compaction 12 samples ago
+  const ctxAt = (back: number) => (back < 12 ? 340_000 - back * 9_000 : 520_000 - (back - 12) * 8_000);
+  const out: HistorySample[] = [];
+  let tok = 450_000;
+  let cost = 1.87;
+  for (let i = n - 1; i >= 0; i--) {
+    out.unshift({
+      t: now - (n - 1 - i) * 10_000,
+      tok,
+      ctx: Math.round(ctxAt(n - 1 - i)),
+      cost: Math.round(cost * 1000) / 1000,
+      h5: Math.max(0, 42 - (n - 1 - i) * 0.35),
+      d7: 61,
+    });
+    const step = wave[i % wave.length]! * 180;
+    tok -= step;
+    cost -= step * 0.0000035;
+  }
+  return out;
 }
 
 export function sampleGsd(): GsdInfo {

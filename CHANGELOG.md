@@ -4,8 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-12
+
 ### Added
 
+- Charts: `token-rate-graph`, `context-graph`, `usage-graph` and `cost-graph` draw moving sparklines from a small per-session history that is only kept when a chart is on the status line
 - Editor **Settings** (gear in the top bar): Claude Code install state and command, update mode with check and update buttons, usage API and last-payload toggles; they left the Global tab, which now only covers looks
 
 ### Fixed
@@ -184,7 +187,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.5.6...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/alpadalar/ccinfobar/compare/v0.5.6...v0.6.0
 [0.5.6]: https://github.com/alpadalar/ccinfobar/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/alpadalar/ccinfobar/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/alpadalar/ccinfobar/compare/v0.5.3...v0.5.4

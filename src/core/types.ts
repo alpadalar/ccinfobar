@@ -190,6 +190,7 @@ export type WidgetCategory =
   | 'tokens'
   | 'cost'
   | 'limits'
+  | 'charts'
   | 'git'
   | 'workspace'
   | 'gsd'
@@ -249,4 +250,5 @@ export interface DataSources {
   git(): import('../data/git.js').GitInfo | null;
   transcript(): import('../data/transcript.js').TranscriptInfo | null;
   gsd(): import('../data/gsd.js').GsdInfo | null;
+  history?(): import('../data/history.js').HistorySample[];
 }

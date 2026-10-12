@@ -136,7 +136,8 @@ Mouse works too: click to select, drag a chip to move it.
 | Context window | used or remaining percent (optionally relative to the auto-compact limit), bar, length, window size, compaction count |
 | Tokens & cache | input, output, cached, total, cache hit rate, cache expiry countdown, last cache miss cause, output speed |
 | Cost & time | session cost, cost per hour, session and API duration, lines changed, message count |
-| Usage limits | 5-hour and weekly usage (percent or 13 bar styles, with an even-pace marker), reset countdowns, weekly Sonnet/Opus usage, spend limit, usage pace |
+| Usage limits | 5-hour and weekly usage (percent or 13 bar styles, with an even-pace marker), reset countdowns, per-model weekly limits such as Fable, spend limit, usage pace |
+| Charts | moving sparklines of tokens per minute, context fill, 5-hour or weekly usage and dollars per hour over the session |
 | GSD | milestone, milestone progress, phase, status, plans, plan progress, next step, workstream, blockers, todos, requirements, last command, update notice, current task, summary |
 | Git | branch, sha, changes, status, staged, unstaged, untracked, ahead/behind, conflicts, stash, in-progress operation, repo, worktree, pull request |
 | Workspace | current directory (5 styles), project directory |
