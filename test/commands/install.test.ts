@@ -7,6 +7,7 @@ import {
   defaultCommand,
   ignoreLocally,
   install,
+  isTransientBin,
   NPX_COMMAND,
   projectLocalFile,
   projectOverride,
@@ -129,5 +130,14 @@ describe('install and uninstall', () => {
     } finally {
       process.env.PATH = path0;
     }
+  });
+
+  it('does not mistake the npx cache for a global install', () => {
+    expect(isTransientBin('/home/u/.npm/_npx/0d89f6/node_modules/.bin/ccinfobar')).toBe(true);
+    expect(
+      isTransientBin('C:\\Users\\u\\AppData\\Local\\npm-cache\\_npx\\ab\\node_modules\\.bin\\ccinfobar.cmd'),
+    ).toBe(true);
+    expect(isTransientBin('/home/u/.npm-global/bin/ccinfobar')).toBe(false);
+    expect(isTransientBin('/opt/homebrew/bin/ccinfobar')).toBe(false);
   });
 });

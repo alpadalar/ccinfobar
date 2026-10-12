@@ -133,15 +133,21 @@ export function installVersion(version: string): void {
   let last: unknown;
   for (const spec of installSources(version)) {
     try {
-      execFileSync(npm.file, [...npm.args, 'install', '-g', spec, '--no-audit', '--no-fund', '--silent'], {
-        stdio: 'ignore',
-        timeout: 120_000,
-        windowsHide: true,
-        shell: npm.shell,
-      });
+      execFileSync(
+        npm.file,
+        [...npm.args, 'install', '-g', spec, '--no-audit', '--no-fund', '--loglevel=error'],
+        {
+          stdio: ['ignore', 'ignore', 'pipe'],
+          timeout: 120_000,
+          windowsHide: true,
+          shell: npm.shell,
+        },
+      );
       return;
     } catch (err) {
-      last = err;
+      const stderr = String((err as { stderr?: Buffer }).stderr ?? '');
+      const line = stderr.split(/\r?\n/).find((l) => /npm error (code|[A-Z])/.test(l)) ?? '';
+      last = new Error(line.replace(/^npm error\s*/, '') || (err as Error).message.split('\n')[0]);
     }
   }
   throw last;

@@ -471,8 +471,32 @@ textarea.input {
 }
 
 .palette {
+  position: relative;
   grid-area: pal;
   box-shadow: 0.0625rem 0 0 var(--line);
+}
+
+body.dragging-chip .palette::after {
+  content: "Drop to remove";
+  position: absolute;
+  inset: 0.5rem;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  border: 0.125rem dashed var(--danger);
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--danger) 10%, color-mix(in srgb, var(--surface) 82%, transparent));
+  color: var(--danger);
+  font-size: 0.875rem;
+  font-weight: 650;
+  pointer-events: none;
+  transition: background-color 0.14s;
+}
+
+body.dragging-chip .palette.hot::after {
+  background: color-mix(in srgb, var(--danger) 94%, transparent);
+  border-style: solid;
+  color: #fff;
 }
 
 .inspector {

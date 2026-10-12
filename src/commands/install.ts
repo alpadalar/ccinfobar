@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { claudeDir, claudeSettingsPath } from '../core/paths.js';
-import { type InstallKind, installKind } from './update.js';
+import { type InstallKind, installKind, installVersion, npmCommand } from './update.js';
 
 export interface StatusLineSetting {
   type: 'command';
@@ -28,18 +28,30 @@ function writeJson(file: string, data: unknown): void {
   fs.renameSync(tmp, file);
 }
 
+// npx puts its cache on PATH; that is not an install
+export function isTransientBin(p: string): boolean {
+  return /[\\/](_npx|node_modules[\\/]\.bin)[\\/]/.test(p);
+}
+
 export function globalBinary(): string | null {
   try {
-    const cmd = process.platform === 'win32' ? 'where' : 'which';
-    const out = execFileSync(cmd, ['ccinfobar'], { encoding: 'utf8', windowsHide: true, timeout: 2000 });
-    const first = out.split(/\r?\n/).find((l) => l.trim());
-    return first ? first.trim() : null;
+    const win = process.platform === 'win32';
+    const out = execFileSync(win ? 'where' : 'which', win ? ['ccinfobar'] : ['-a', 'ccinfobar'], {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 2000,
+    });
+    const hit = out
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .find((l) => l && !isTransientBin(l));
+    return hit ?? null;
   } catch {
     return null;
   }
 }
 
-function quote(p: string): string {
+export function quote(p: string): string {
   return /[\s"]/.test(p) ? `"${p}"` : p;
 }
 
@@ -243,4 +255,45 @@ export function releaseProjects(env: NodeJS.ProcessEnv = process.env): string[] 
     } catch {}
   }
   return done;
+}
+
+export function npmGlobalBin(): string | null {
+  try {
+    const npm = npmCommand();
+    const prefix = execFileSync(npm.file, [...npm.args, 'prefix', '-g'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true,
+      timeout: 15_000,
+      shell: npm.shell,
+    }).trim();
+    const bin =
+      process.platform === 'win32'
+        ? path.join(prefix, 'ccinfobar.cmd')
+        : path.join(prefix, 'bin', 'ccinfobar');
+    return fs.existsSync(bin) ? bin : null;
+  } catch {
+    return null;
+  }
+}
+
+export type GlobalInstall = { ok: true; bin: string; onPath: boolean } | { ok: false; error: string };
+
+// npx runs from a cache; keep a real copy
+export function installGlobal(version: string): GlobalInstall {
+  try {
+    installVersion(version);
+  } catch (err) {
+    const msg = (err as Error).message;
+    return {
+      ok: false,
+      error: /EACCES|EPERM/.test(msg) ? "no permission to write to npm's global folder (EACCES)" : msg,
+    };
+  }
+  const onPath = globalBinary();
+  if (onPath) return { ok: true, bin: onPath, onPath: true };
+  const bin = npmGlobalBin();
+  return bin
+    ? { ok: true, bin, onPath: false }
+    : { ok: false, error: 'npm finished but ccinfobar was not found' };
 }

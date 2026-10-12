@@ -53,23 +53,18 @@ Requirements: [Claude Code](https://code.claude.com) and Node.js 20 or newer.
 npx ccinfobar@latest install
 ```
 
-This sets Claude Code's status line to `npx -y ccinfobar@latest`, so you always run the newest release without installing anything. For faster startup, install it globally instead; `ccinfobar install` then uses the global command and ccinfobar keeps itself updated:
-
-```sh
-npm install -g ccinfobar
-ccinfobar install
-```
+This installs the `ccinfobar` command globally, points Claude Code's status line at it and keeps it updated. If npm cannot install globally (for example without write access to its global folder), the status line runs through `npx -y ccinfobar@latest` instead, which starts slower; `--no-global` asks for that on purpose.
 
 `install` points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar (backing up the file first) and writes a default config. If you were using ccstatusline or claude-powerline, it offers to import that layout first. Projects where a local GSD install set its own status line are switched to ccinfobar too, through their git-ignored `.claude/settings.local.json`. `ccinfobar uninstall` puts your previous status line back. The next Claude Code prompt shows the new status line.
 
 Then make it yours:
 
 ```sh
-npx ccinfobar@latest edit     # browser editor
-npx ccinfobar@latest tui      # terminal editor
+ccinfobar edit     # browser editor
+ccinfobar tui      # terminal editor
 ```
 
-With a global install, drop the `npx` and `@latest`: `ccinfobar edit`. The rest of this README uses the short form.
+Without the global command, use `npx ccinfobar@latest edit`.
 
 <details>
 <summary>Manual setup</summary>
@@ -209,7 +204,7 @@ Widgets without an equivalent are listed as warnings instead of being dropped si
 | `ccinfobar` | Render the status line from the JSON on stdin (what Claude Code runs) |
 | `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
 | `ccinfobar tui` | Open the terminal editor |
-| `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--import`, `--no-import`, `--command <cmd>`, `--refresh <seconds>`) |
+| `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--import`, `--no-import`, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally unless `--no-global`) |
 | `ccinfobar usage` | Fetch your 5-hour and weekly usage from Claude now |
 | `ccinfobar install --project` | Use ccinfobar in this project even if its `.claude/settings.json` sets another status line |
 | `ccinfobar uninstall` | Remove ccinfobar from Claude Code settings and restore the status line you had before (`--project` for the project file) |

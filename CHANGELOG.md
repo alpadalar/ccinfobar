@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-10-12
+
+### Changed
+
+- `npx ccinfobar@latest install` installs the `ccinfobar` command globally and uses it for the status line, so `ccinfobar edit` works and the status line starts fast; it falls back to `npx -y ccinfobar@latest` when the global install fails, and `--no-global` skips it
+- Editor: while a widget from a line is dragged, the whole widget palette on the left becomes a drop-to-remove area
+
+### Fixed
+
+- `install` run through npx no longer writes npx's temporary cache path as the status line command
+
 ## [0.5.2] - 2026-10-12
 
 ### Fixed
@@ -142,7 +153,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/alpadalar/ccinfobar/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/alpadalar/ccinfobar/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/alpadalar/ccinfobar/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/alpadalar/ccinfobar/compare/v0.4.0...v0.5.0

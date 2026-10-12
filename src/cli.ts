@@ -4,11 +4,14 @@ import { printWidgetReport } from './commands/doctor.js';
 import {
   currentStatusLine,
   defaultCommand,
+  globalBinary,
   ignoreLocally,
   install,
+  installGlobal,
   projectLocalFile,
   projectOverride,
   projectSettingsPath,
+  quote,
   releaseProjects,
   takeOverProjects,
   uninstall,
@@ -67,6 +70,7 @@ Usage
   ccinfobar tui                  Open the terminal editor
   ccinfobar install              Point Claude Code's statusLine at ccinfobar
   ccinfobar install --project    Also win over this project's own statusLine (e.g. GSD's)
+  ccinfobar install --no-global  With npx: do not install the ccinfobar command globally
   ccinfobar uninstall            Remove ccinfobar and restore your previous status line
   ccinfobar import <tool>        Import a ccstatusline or claude-powerline layout
   ccinfobar themes               Preview every theme
@@ -338,8 +342,31 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       return;
     }
     case 'install': {
-      const command = typeof args.flags.command === 'string' ? args.flags.command : defaultCommand();
+      let command = typeof args.flags.command === 'string' ? args.flags.command : defaultCommand();
       const refresh = typeof args.flags.refresh === 'string' ? Number(args.flags.refresh) : undefined;
+      let hint = selfCommand();
+      if (
+        typeof args.flags.command !== 'string' &&
+        args.flags.global !== false &&
+        installKind() === 'npx' &&
+        !globalBinary()
+      ) {
+        console.log(`Installing ccinfobar ${VERSION} globally (skip with --no-global) ...`);
+        const g = installGlobal(VERSION);
+        if (g.ok) {
+          command = quote(g.bin);
+          console.log(`✓ Installed ${tildify(g.bin)}`);
+          if (g.onPath) hint = 'ccinfobar';
+          else
+            console.log(
+              `  ${tildify(path.dirname(g.bin))} is not on your PATH; add it to type \`ccinfobar\` directly.`,
+            );
+        } else {
+          console.log(`⚠ Global install failed: ${g.error}`);
+          console.log('  Claude Code will run ccinfobar through npx, which starts slower.');
+          console.log('  To fix it later: npm install -g ccinfobar && ccinfobar install');
+        }
+      }
       if (args.flags.project) {
         const shadowed = projectOverride(process.cwd());
         const root = shadowed ? path.dirname(path.dirname(shadowed.file)) : process.cwd();
@@ -385,9 +412,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
         console.log(`⚠ ${tildify(shadowed.file)} sets its own statusLine, which wins in this project.`);
         console.log(`  Run \`${selfCommand()} install --project\` here to use ccinfobar in it too.`);
       }
-      console.log(
-        `  Customize with \`${selfCommand()} edit\` (browser) or \`${selfCommand()} tui\` (terminal).`,
-      );
+      console.log(`  Customize with \`${hint} edit\` (browser) or \`${hint} tui\` (terminal).`);
       return;
     }
     case 'import': {

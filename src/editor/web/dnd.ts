@@ -87,6 +87,10 @@ function hitTest(spec: DragSpec, x: number, y: number): Hit {
   if (spec.kind === 'chip' && trash && inside(rectOf(trash), x, y, 6)) {
     return { target: { kind: 'trash' }, hot: trash };
   }
+  const palette = document.querySelector<HTMLElement>('.palette');
+  if (spec.kind === 'chip' && palette && inside(rectOf(palette), x, y)) {
+    return { target: { kind: 'trash' }, hot: palette };
+  }
   const add = document.getElementById('add-line');
   if (add && inside(rectOf(add), x, y, 8)) return { target: { kind: 'newline' }, hot: add };
   let row: HTMLElement | null = null;
