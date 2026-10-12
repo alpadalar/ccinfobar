@@ -99,7 +99,7 @@ export function effectiveIcons(config: Config, env: NodeJS.ProcessEnv = process.
 
 export function labelFor(def: WidgetDef, item: WidgetItem, icons: Config['icons']): string {
   if (item.raw) return '';
-  if (item.label !== undefined) return item.label;
+  if (item.label !== undefined) return item.label && !/\s$/.test(item.label) ? `${item.label} ` : item.label;
   if (icons === 'none') return '';
   if (icons === 'nerd' && def.icon?.nerd) return `${def.icon.nerd} `;
   if (icons === 'emoji' && def.icon?.emoji) return `${def.icon.emoji} `;

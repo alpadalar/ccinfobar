@@ -36,6 +36,11 @@ describe('renderer', () => {
     expect(render(ctx)).toEqual(['M: Opus 5.5 │ Opus 5.5']);
   });
 
+  it('adds a space after custom labels that lack one', () => {
+    const ctx = ctxWith({ config: { lines: [[{ id: 'm', type: 'model', label: 'M:' }]] } });
+    expect(render(ctx)).toEqual(['M: Opus 5.5']);
+  });
+
   it('pushes widgets right with flex', () => {
     const ctx = ctxWith({
       width: 30,

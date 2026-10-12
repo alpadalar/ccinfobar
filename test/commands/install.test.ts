@@ -31,6 +31,8 @@ describe('install and uninstall', () => {
       model: 'opus',
       statusLine: { type: 'command', command: '/bin/ccinfobar', padding: 0, refreshInterval: 10 },
     });
+    install('/bin/ccinfobar', undefined, file);
+    expect(read(file).statusLine.refreshInterval).toBe(10);
     expect(uninstall(file)).toEqual({ removed: true, restored: previous });
     expect(read(file)).toEqual({ model: 'opus', statusLine: previous });
     expect(uninstall(file)).toEqual({ removed: false });

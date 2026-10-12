@@ -326,7 +326,14 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
         const shadowed = projectOverride(process.cwd());
         const root = shadowed ? path.dirname(path.dirname(shadowed.file)) : process.cwd();
         const file = projectSettingsPath(root);
-        const backup = install(command, refresh, file);
+        const userRefresh = (() => {
+          try {
+            return currentStatusLine()?.refreshInterval;
+          } catch {
+            return undefined;
+          }
+        })();
+        const backup = install(command, refresh ?? userRefresh, file);
         ignoreLocally(file);
         if (!loadConfig(cfgFile).exists) saveConfig(loadConfig(cfgFile).config, cfgFile);
         console.log(`✓ statusLine set to "${command}" in ${tildify(file)}`);

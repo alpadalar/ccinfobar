@@ -66,7 +66,10 @@ export function install(
     if (!fs.existsSync(backup)) fs.copyFileSync(file, backup);
   }
   const statusLine: StatusLineSetting = { type: 'command', command, padding: 0 };
-  if (refreshInterval && refreshInterval > 0) statusLine.refreshInterval = Math.floor(refreshInterval);
+  const prev = settings.statusLine as StatusLineSetting | undefined;
+  const refresh =
+    refreshInterval ?? (prev?.command?.includes('ccinfobar') ? prev.refreshInterval : undefined);
+  if (refresh && refresh > 0) statusLine.refreshInterval = Math.floor(refresh);
   settings.statusLine = statusLine;
   writeJson(file, settings);
   return backup;

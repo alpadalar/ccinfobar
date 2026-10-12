@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-10-12
+
+### Fixed
+
+- Running `install` again keeps the existing `refreshInterval`; `install --project` copies it from the user setting
+- Custom labels get a space before the value when they don't end with one
+
 ## [0.3.3] - 2026-10-12
 
 ### Added
@@ -82,7 +89,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/alpadalar/ccinfobar/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/alpadalar/ccinfobar/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/alpadalar/ccinfobar/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/alpadalar/ccinfobar/compare/v0.3.0...v0.3.1

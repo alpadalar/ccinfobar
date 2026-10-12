@@ -88,7 +88,7 @@ Every entry in `lines` is a widget instance:
 | `color` | color | Text color. Overrides the theme and any threshold color. |
 | `background` | color | Background color. In block styles this is the block color. |
 | `bold`, `dim`, `italic` | boolean | Text attributes (`bold` overrides the theme) |
-| `label` | string | Replaces the default label, e.g. `"ctx "`. `""` removes it. |
+| `label` | string | Replaces the default label, e.g. `"ctx"`. A space is added before the value unless the label already ends with one. `""` removes it. |
 | `raw` | boolean | Value only, no label or icon |
 | `merge` | boolean | Glue the next widget directly to this one, with no separator |
 | `hideEmpty` | boolean | Hide the widget when it has no data. By default it shows its label and `—` (unlabelled widgets add a short name, e.g. `branch —`). |
