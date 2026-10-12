@@ -22,7 +22,8 @@ export interface GitInfo {
   isWorktree: boolean;
 }
 
-const TIMEOUT = 400;
+// spawning git is slow on Windows
+const TIMEOUT = Number(process.env.CCINFOBAR_GIT_TIMEOUT) || (process.platform === 'win32' ? 1500 : 400);
 
 function git(cwd: string, args: string[]): string | null {
   try {

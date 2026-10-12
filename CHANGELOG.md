@@ -14,6 +14,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Fixed
 
 - `install` run through npx no longer writes npx's temporary cache path as the status line command
+- Git widgets no longer come up empty on slow Windows machines: git calls get 1.5 s there (`CCINFOBAR_GIT_TIMEOUT` to change)
 
 ## [0.5.2] - 2026-10-12
 
