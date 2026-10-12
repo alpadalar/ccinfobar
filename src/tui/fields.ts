@@ -1,8 +1,10 @@
 import { parseColor } from '../core/ansi.js';
+import { normalizeTui } from '../core/config.js';
 import { setOption, updateItem } from '../core/edit.js';
+import { BOX_PRESETS } from '../core/panel.js';
 import { resolveAppearance } from '../core/renderer.js';
 import { resolveTheme, STYLES } from '../core/themes.js';
-import type { Config, OptionChoice, OptionValue, WidgetDef, WidgetItem } from '../core/types.js';
+import type { Config, OptionChoice, OptionValue, TuiConfig, WidgetDef, WidgetItem } from '../core/types.js';
 
 export type FieldKind = 'bool' | 'text' | 'number' | 'select' | 'color' | 'theme';
 
@@ -17,6 +19,8 @@ export interface Field {
   fallback?: OptionValue;
   defaultEntry?: string;
   effective?(config: Config): OptionValue | undefined;
+  editValue?(config: Config): string;
+  range?: [number, number];
   resettable: boolean;
   get(config: Config): OptionValue | undefined;
   set(config: Config, value: OptionValue | undefined): Config;
@@ -236,7 +240,146 @@ function overrideField(
   };
 }
 
-export function globalFields(): Field[] {
+type TuiKey = 'box' | 'fitContent' | 'minWidth' | 'maxWidth' | 'padding' | 'dividers';
+
+function setTui(config: Config, patch: (t: TuiConfig) => void): Config {
+  const tui: TuiConfig = { ...config.tui };
+  patch(tui);
+  for (const k of ['title', 'footer'] as const) {
+    if (tui[k] && !Object.keys(tui[k]!).length) delete tui[k];
+  }
+  const next = { ...config };
+  if (Object.keys(tui).length) next.tui = tui;
+  else delete next.tui;
+  return next;
+}
+
+function tuiField(key: TuiKey, label: string, kind: FieldKind, extra: Partial<Field> = {}): Field {
+  return overrideField({
+    id: `tui.${key}`,
+    label,
+    kind,
+    get: (c) => {
+      const v = c.tui?.[key];
+      return typeof v === 'object' ? 'custom' : v;
+    },
+    set: (c, v) =>
+      setTui(c, (t) => {
+        if (v === undefined) delete t[key];
+        else (t as Record<string, unknown>)[key] = v;
+      }),
+    ...extra,
+  });
+}
+
+const rangeParser =
+  (min: number, max: number): Field['parse'] =>
+  (text) => {
+    const n = Number(text.trim());
+    if (!text.trim() || !Number.isInteger(n) || n < min || n > max) {
+      return { ok: false, error: `Enter a whole number from ${min} to ${max}` };
+    }
+    return { ok: true, value: n };
+  };
+
+function sideField(
+  group: 'title' | 'footer',
+  side: 'left' | 'right',
+  label: string,
+  fallback?: string,
+): Field {
+  const hideable = group === 'title' && side === 'right';
+  const f = overrideField({
+    id: `tui.${group}.${side}`,
+    label,
+    kind: 'text',
+    get: (c) => {
+      const v = c.tui?.[group]?.[side];
+      return v === false ? 'off' : v;
+    },
+    set: (c, v) =>
+      setTui(c, (t) => {
+        const cur: Record<string, unknown> = { ...t[group] };
+        if (v === undefined) delete cur[side];
+        else cur[side] = hideable && v === 'off' ? false : String(v);
+        (t as Record<string, unknown>)[group] = cur;
+      }),
+    help: hideable
+      ? "Text with {widgets}; type 'off' to hide. Del resets"
+      : 'Text with {widget} placeholders. Del resets',
+  });
+  if (fallback !== undefined) f.fallback = fallback;
+  return f;
+}
+
+function gridField(): Field {
+  const sample = '[{"minWidth":0,"areas":["model cwd","git-branch"]}]';
+  return overrideField({
+    id: 'tui.breakpoints',
+    label: 'Grid layout',
+    kind: 'text',
+    help: `JSON array of breakpoints, e.g. ${sample}. Del removes`,
+    get: (c) => {
+      const n = c.tui?.breakpoints?.length ?? 0;
+      return n ? `${n} breakpoint${n === 1 ? '' : 's'}` : undefined;
+    },
+    editValue: (c) => (c.tui?.breakpoints?.length ? JSON.stringify(c.tui.breakpoints) : ''),
+    set: (c, v) =>
+      setTui(c, (t) => {
+        if (v === undefined || v === '') delete t.breakpoints;
+        else t.breakpoints = normalizeTui({ breakpoints: JSON.parse(String(v)) })?.breakpoints ?? [];
+      }),
+    parse: (text) => {
+      const t = text.trim();
+      if (!t) return { ok: true, value: undefined };
+      let raw: unknown;
+      try {
+        raw = JSON.parse(t);
+      } catch (err) {
+        return { ok: false, error: `Invalid JSON: ${(err as Error).message}` };
+      }
+      if (!Array.isArray(raw)) return { ok: false, error: 'Expected a JSON array of breakpoints' };
+      const bps = normalizeTui({ breakpoints: raw })?.breakpoints ?? [];
+      if (!bps.length || bps.length !== raw.length) {
+        return { ok: false, error: 'Each breakpoint needs "areas": ["row of widget ids", ...]' };
+      }
+      return { ok: true, value: JSON.stringify(raw) };
+    },
+  });
+}
+
+export function panelFields(): Field[] {
+  return [
+    tuiField('box', 'Panel: box', 'select', {
+      defaultEntry: 'theme default',
+      choices: Object.keys(BOX_PRESETS).map((value) => ({ value, label: value })),
+      effective: () => 'rounded',
+    }),
+    tuiField('fitContent', 'Panel: fit content', 'bool', { fallback: false }),
+    tuiField('minWidth', 'Panel: min width', 'number', {
+      fallback: 32,
+      parse: rangeParser(10, 500),
+      range: [10, 500],
+    }),
+    tuiField('maxWidth', 'Panel: max width', 'number', { parse: rangeParser(10, 500), range: [10, 500] }),
+    tuiField('padding', 'Panel: padding', 'number', { fallback: 1, parse: rangeParser(0, 8), range: [0, 8] }),
+    tuiField('dividers', 'Panel: dividers', 'bool', { fallback: true }),
+    sideField('title', 'left', 'Panel: title left', '{model}'),
+    sideField('title', 'right', 'Panel: title right', 'ccinfobar'),
+    sideField('footer', 'left', 'Panel: footer left'),
+    sideField('footer', 'right', 'Panel: footer right'),
+    gridField(),
+  ];
+}
+
+export function globalFields(config?: Config): Field[] {
+  const panel = config && resolveAppearance(config).style === 'tui' ? panelFields() : [];
+  const all = baseGlobalFields();
+  all.splice(2, 0, ...panel);
+  return all;
+}
+
+function baseGlobalFields(): Field[] {
   return [
     {
       id: 'theme',
@@ -254,7 +397,7 @@ export function globalFields(): Field[] {
       label: 'Style',
       kind: 'select',
       defaultEntry: 'theme default',
-      choices: STYLES.map((x) => ({ value: x.id, label: x.id })),
+      choices: STYLES.map((x) => ({ value: x.id, label: x.name })),
       get: (c) => c.style,
       effective: (c) => resolveAppearance(c).style,
       set: (c, v) => withKey(c, 'style', v as Config['style']),
@@ -288,6 +431,22 @@ export function globalFields(): Field[] {
     glyphField('thin', 'Glyph: thin separator'),
     glyphField('startCap', 'Glyph: start cap'),
     glyphField('endCap', 'Glyph: end cap'),
+    globalField(
+      'charset',
+      'Charset',
+      'select',
+      (c) => c.charset,
+      (c, v) => ({ ...c, charset: v === 'text' ? 'text' : 'unicode' }),
+      { choices: choices(['unicode', 'text']), help: 'text uses plain ASCII for box and bar characters' },
+    ),
+    globalField(
+      'autoWrap',
+      'Auto wrap',
+      'bool',
+      (c) => c.autoWrap,
+      (c, v) => ({ ...c, autoWrap: Boolean(v) }),
+      { help: 'Wrap widgets onto extra rows when the line is too wide' },
+    ),
     globalField(
       'icons',
       'Icons',
@@ -363,7 +522,8 @@ export function cycled(field: Field, config: Config, delta: 1 | -1): OptionValue
   if (field.kind === 'bool') return toggled(field, config);
   if (field.kind === 'number') {
     const cur = Number(field.get(config) ?? field.effective?.(config) ?? field.fallback ?? 0);
-    return (Number.isFinite(cur) ? cur : 0) + delta;
+    const next = (Number.isFinite(cur) ? cur : 0) + delta;
+    return field.range ? Math.max(field.range[0], Math.min(field.range[1], next)) : next;
   }
   if (field.kind === 'select') {
     const list = field.choices ?? [];
@@ -395,6 +555,7 @@ export function displayValue(field: Field, config: Config): { text: string; isDe
 }
 
 export function editText(field: Field, config: Config): string {
+  if (field.editValue) return field.editValue(config);
   const v = field.get(config);
   return v === undefined ? '' : String(v);
 }

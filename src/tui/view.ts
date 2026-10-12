@@ -1,6 +1,7 @@
 import { parseColor, stripAnsi, style, truncate, visibleWidth } from '../core/ansi.js';
 import { PRESETS } from '../core/presets.js';
 import { renderPreview } from '../core/preview.js';
+import { resolveTheme } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
 import { categoryName, pickerItems } from './catalog.js';
@@ -245,9 +246,20 @@ function subPanel(field: Field, mode: Extract<Mode, { kind: 'settings' }>, w: nu
     return { lines, hits };
   }
   const chars = [...sub.text];
-  const before = chars.slice(0, sub.pos).join('');
-  const at = chars[sub.pos] ?? ' ';
-  const after = chars.slice(sub.pos + 1).join('');
+  const avail = Math.max(8, w - 3);
+  let from = 0;
+  if (visibleWidth(sub.text) + 1 > avail) {
+    from = Math.max(0, sub.pos - Math.floor(avail * 0.7));
+    while (from < sub.pos && visibleWidth(chars.slice(from, sub.pos + 1).join('')) > avail - 1) from++;
+  }
+  const shown = chars.slice(from);
+  const pos = sub.pos - from;
+  const lead = from > 0 ? '…' : '';
+  const before = lead + shown.slice(0, pos).join('');
+  const at = shown[pos] ?? ' ';
+  let after = shown.slice(pos + 1).join('');
+  const room = avail - visibleWidth(before) - visibleWidth(at);
+  if (visibleWidth(after) > room) after = `${truncate(after, Math.max(1, room))}`;
   const hint =
     field.kind === 'color'
       ? '#rrggbb, ansi256:N or a color name'
@@ -323,7 +335,8 @@ function themePreviewLine(state: State, id: string, width: number): string {
   let line = '';
   try {
     const demo: Config = { ...withTheme(state.config, id), lines: [lines] };
-    line = renderPreview(demo, 'sample', width + state.config.widthOffset)[0] ?? '';
+    const out = renderPreview(demo, 'sample', width + state.config.widthOffset);
+    line = (resolveTheme(id).style === 'tui' && out.length >= 3 ? out[1] : out[0]) ?? '';
   } catch {
     line = dim('(preview unavailable)');
   }

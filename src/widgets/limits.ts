@@ -7,7 +7,7 @@ import type {
   WidgetResult,
 } from '../core/types.js';
 import {
-  bar,
+  barFor,
   barOptions,
   formatCurrency,
   formatDuration,
@@ -30,6 +30,14 @@ const displayOption: OptionSpec = {
   ],
 };
 
+const paceOption: OptionSpec = {
+  key: 'showPace',
+  label: 'Show even pace',
+  kind: 'boolean',
+  default: false,
+  help: 'Adds where an even burn would be by now: 60%/40%, and a ◆/◇ marker in bars',
+};
+
 const clockOption: OptionSpec = {
   key: 'showClockTime',
   label: 'Show clock time',
@@ -41,13 +49,29 @@ function win(ctx: RenderContext, key: Key): RateWindow | null {
   return ctx.payload.rate_limits?.[key] ?? null;
 }
 
+const WINDOW_OF: Record<Key, number> = {
+  five_hour: 5 * 3_600_000,
+  seven_day: 7 * 86_400_000,
+  seven_day_sonnet: 7 * 86_400_000,
+  seven_day_opus: 7 * 86_400_000,
+};
+
+export function evenPace(ctx: RenderContext, key: Key): number | null {
+  const at = toEpochMs(win(ctx, key)?.resets_at);
+  if (at === null) return null;
+  const len = WINDOW_OF[key];
+  const left = Math.max(0, Math.min(len, at - ctx.now.getTime()));
+  return Math.round((1 - left / len) * 100);
+}
+
 function usage(ctx: RenderContext, item: WidgetItem, key: Key): WidgetResult {
   const pct = win(ctx, key)?.used_percentage;
   if (typeof pct !== 'number') return null;
   const clamped = Math.max(0, Math.min(100, pct));
-  let text = `${Math.round(pct)}%`;
+  const pace = opt(item, 'showPace', false) ? evenPace(ctx, key) : null;
+  let text = pace === null ? `${Math.round(pct)}%` : `${Math.round(pct)}%/${pace}%`;
   if (opt<string>(item, 'display', 'percent') === 'bar') {
-    const b = bar(clamped, opt(item, 'width', 10), opt<string>(item, 'style', 'blocks'));
+    const b = barFor(ctx, item, clamped, pace);
     text = opt(item, 'showPercent', true) ? `${b} ${text}` : b;
   }
   return opt(item, 'thresholdColors', true) ? { text, color: thresholdColor(clamped) } : text;
@@ -83,7 +107,7 @@ function usageWidget(
     icon: { nerd: '󰾆', emoji: '📊' },
     color: 'green',
     sample,
-    options: [displayOption, thresholdOption, ...barOptions],
+    options: [displayOption, thresholdOption, paceOption, ...barOptions],
     render: (ctx, item) => usage(ctx, item, key),
   };
 }

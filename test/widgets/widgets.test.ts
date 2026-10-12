@@ -1,7 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { samplePayload } from '../../src/core/sample.js';
+import { sampleGit, samplePayload } from '../../src/core/sample.js';
 import type { StatusPayload } from '../../src/core/types.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
 import { ctxWith, NOW, renderWidget } from '../helpers.js';
@@ -299,5 +299,20 @@ describe('custom', () => {
     ctx.env = { FOO: 'bar' };
     expect(renderWidget('env', ctx, { options: { name: 'FOO' } })).toBe('bar');
     expect(renderWidget('env', ctx, { options: { name: 'NOPE' } })).toBeNull();
+  });
+});
+
+describe('git real world fixes', () => {
+  it('ignores local path remotes and falls back to git for worktrees', async () => {
+    const { parseRemote } = await import('../../src/widgets/git.js');
+    expect(parseRemote('/srv/git/origin.git')).toBeNull();
+    expect(parseRemote('C:\\repos\\app.git')).toBeNull();
+    expect(parseRemote('git@github.com:acme/app.git')).toBe('acme/app');
+    const ctx = ctxWith({
+      payload: {},
+      git: () => ({ ...sampleGit(), isWorktree: true, root: '/x/feature-wt' }),
+    });
+    expect(renderWidget('git-worktree', ctx)).toBe('feature-wt');
+    expect(renderWidget('git-worktree', ctxWith({ payload: {} }))).toBeNull();
   });
 });

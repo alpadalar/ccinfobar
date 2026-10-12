@@ -222,13 +222,16 @@ function bodySection(body: string, heading: RegExp): string[] {
   return out;
 }
 
+const CLOSED_RE = /✅|✔|\b(resolved|closed|fixed|done)\b|kapand[ıi]|çözüldü/i;
+
 function bullets(lines: string[]): string[] {
   const out: string[] = [];
   for (const line of lines) {
-    const m = /^\s*(?:[-*]|\d+\.)\s+(?:\[[ xX]\]\s+)?(.+)$/.exec(line);
+    const m = /^(?:[-*]|\d+\.)\s+(\[[ xX]\]\s+)?(.+)$/.exec(line);
     if (!m) continue;
-    const t = m[1]!.trim();
+    const t = m[2]!.trim();
     if (/^(none|n\/a|no\b)/i.test(t)) continue;
+    if (/^\[[xX]\]/.test(m[1] ?? '') || t.startsWith('~~') || CLOSED_RE.test(t.slice(0, 120))) continue;
     out.push(t);
   }
   return out;
@@ -241,6 +244,7 @@ export function normalizeStatus(raw: string | null): string | null {
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
   if (t === '') return null;
+  if (/next milestone|milestone open|phases complete/.test(t)) return 'complete';
   if (/milestone complete|shipped|^complete(d)?\b/.test(t)) return 'complete';
   if (/phase complete/.test(t)) return 'phase-complete';
   if (/ready to plan/.test(t)) return 'ready-to-plan';
@@ -265,7 +269,16 @@ function parseRoadmap(text: string): {
   let detailsShipped = false;
   let milestone: string | null = null;
   let name: string | null = null;
+  const shippedRanges: [number, number][] = [];
+  let currentRange: [number, number] | null = null;
   for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
+    const range = /Phases?\s+(\d+)(?:\s*[-–]\s*(\d+))?/i.exec(line);
+    if (range && /\bv\d/.test(line)) {
+      const r: [number, number] = [Number(range[1]), Number(range[2] ?? range[1])];
+      if (/✅|\bshipped\b/i.test(line) && !/🚧|🔵|in progress/i.test(line)) shippedRanges.push(r);
+      else if (!currentRange && /🚧|🔵|in progress|^\s*[-*]\s+\[ \]\s+\*{0,2}v\d/i.test(line))
+        currentRange = r;
+    }
     if (/<details/i.test(line)) {
       inDetails = true;
       detailsShipped = false;
@@ -294,6 +307,24 @@ function parseRoadmap(text: string): {
     };
     const target = inDetails && detailsShipped ? shipped : current;
     if (!target.some((p) => p.number === phase.number)) target.push(phase);
+  }
+  const inRange = (p: RoadmapPhase, [a, b]: [number, number]) => {
+    const n = Number.parseFloat(p.number);
+    return n >= a && n < b + 1;
+  };
+  if (currentRange) {
+    const keep = current.filter((p) => inRange(p, currentRange!));
+    if (keep.length) {
+      shipped.push(...current.filter((p) => !inRange(p, currentRange!)));
+      return { current: keep, shipped, milestone, name };
+    }
+  }
+  if (shippedRanges.length) {
+    const keep = current.filter((p) => !shippedRanges.some((r) => inRange(p, r)));
+    if (keep.length) {
+      shipped.push(...current.filter((p) => shippedRanges.some((r) => inRange(p, r))));
+      return { current: keep, shipped, milestone, name };
+    }
   }
   return { current, shipped, milestone, name };
 }
@@ -462,7 +493,9 @@ function buildInfo(cwd: string, env: NodeJS.ProcessEnv): GsdInfo | null {
     });
   }
 
-  const bodyPhase = /^\s*(\d+(?:\.\d+)*)\s+of\s+(\d+)(?:\s*\((.*)\))?/.exec(bodyField(body, 'Phase') ?? '');
+  const bodyPhase = /^\s*(\d+(?:\.\d+)*)(?:\s+of\s+(\d+))?(?:\s*\((.*)\))?/.exec(
+    bodyField(body, 'Phase') ?? '',
+  );
   const activePhase = fmString(fm, 'active_phase')
     ? normalizePhaseNumber(fmString(fm, 'active_phase')!)
     : bodyPhase
@@ -493,11 +526,14 @@ function buildInfo(cwd: string, env: NodeJS.ProcessEnv): GsdInfo | null {
   const phasesTotal =
     phaseList.length > 0
       ? phaseList.length
-      : (fmNumber(fm, 'progress.total_phases') ?? (bodyPhase ? Number(bodyPhase[2]) : 0));
+      : (fmNumber(fm, 'progress.total_phases') ?? (bodyPhase?.[2] ? Number(bodyPhase[2]) : 0));
+  const fmCompleted = fmNumber(fm, 'progress.completed_phases');
+  const fmTotal = fmNumber(fm, 'progress.total_phases');
   let phasesCompleted =
-    phaseList.length > 0
-      ? phaseList.filter((p) => p.complete).length
-      : (fmNumber(fm, 'progress.completed_phases') ?? 0);
+    phaseList.length > 0 ? phaseList.filter((p) => p.complete).length : (fmCompleted ?? 0);
+  if (phaseList.length > 0 && fmCompleted !== null && fmTotal === phasesTotal) {
+    phasesCompleted = Math.max(phasesCompleted, fmCompleted);
+  }
   let plansTotal = phaseList.reduce((n, p) => n + p.plans, 0);
   let plansCompleted = phaseList.reduce((n, p) => n + Math.min(p.summaries, p.plans), 0);
   if (plansTotal === 0) {

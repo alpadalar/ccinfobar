@@ -33,7 +33,7 @@ describe('gsd widgets', () => {
     expect(renderWidget('gsd-plan-progress', sample)).toBe('██████░░░░ 60%');
     expect(renderWidget('gsd-next', sample)).toBe('/gsd-execute-phase 4');
     expect(renderWidget('gsd-workstream', sample)).toBeNull();
-    expect(renderWidget('gsd-blockers', sample)).toBe('⚠ 1 blocker');
+    expect(renderWidget('gsd-blockers', sample)).toBe('⚠ 1 concern');
     expect(renderWidget('gsd-todos', sample)).toBe('2 todos');
     expect(renderWidget('gsd-requirements', sample)).toBe('14/22');
     expect(renderWidget('gsd-last-command', sample)).toBe('/gsd-execute-phase');
@@ -113,22 +113,24 @@ describe('gsd widgets', () => {
   it('workstream, blockers, todos, requirements', () => {
     expect(renderWidget('gsd-workstream', withInfo({ workstream: 'billing' }))).toBe('billing');
     expect(renderWidget('gsd-blockers', withInfo({ blockers: [] }))).toBeNull();
-    expect(renderWidget('gsd-blockers', withInfo({ blockers: ['a', 'b'] }))).toBe('⚠ 2 blockers');
+    expect(renderWidget('gsd-blockers', withInfo({ blockers: ['a', 'b'] }))).toBe('⚠ 2 concerns');
     expect(renderWidget('gsd-blockers', sample, { options: { showFirst: true, maxLength: 10 } })).toBe(
-      '⚠ 1 blocker: Stripe sa…',
+      '⚠ 1 concern: Stripe sa…',
     );
     expect(renderWidget('gsd-todos', withInfo({ pendingTodos: 0 }))).toBeNull();
     expect(renderWidget('gsd-todos', withInfo({ pendingTodos: 1 }))).toBe('1 todo');
     expect(renderWidget('gsd-requirements', withInfo({ requirementsTotal: 0 }))).toBeNull();
   });
 
-  it('last command filters non-GSD commands', () => {
-    const t = (lastCommand: string | null) =>
-      ctxWith({ transcript: () => ({ ...sampleTranscript(NOW.getTime()), lastCommand }) });
-    expect(renderWidget('gsd-last-command', t('/review'))).toBeNull();
-    expect(renderWidget('gsd-last-command', t('/review'), { options: { onlyGsd: false } })).toBe('/review');
-    expect(renderWidget('gsd-last-command', t('/gsd:plan-phase 3'))).toBe('/gsd:plan-phase');
-    expect(renderWidget('gsd-last-command', t(null))).toBeNull();
+  it('last command keeps the latest GSD command across other commands', () => {
+    const t = (lastCommand: string | null, lastGsdCommand: string | null) =>
+      ctxWith({ transcript: () => ({ ...sampleTranscript(NOW.getTime()), lastCommand, lastGsdCommand }) });
+    expect(renderWidget('gsd-last-command', t('/review', null))).toBeNull();
+    expect(renderWidget('gsd-last-command', t('review', 'gsd-plan-phase'))).toBe('/gsd-plan-phase');
+    expect(
+      renderWidget('gsd-last-command', t('review', 'gsd-plan-phase'), { options: { onlyGsd: false } }),
+    ).toBe('/review');
+    expect(renderWidget('gsd-last-command', t(null, 'gsd:plan-phase 3'))).toBe('/gsd:plan-phase');
     expect(renderWidget('gsd-last-command', ctxWith({ transcript: () => null }))).toBeNull();
   });
 

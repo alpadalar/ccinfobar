@@ -151,3 +151,39 @@ describe('modals', () => {
     }
   });
 });
+
+describe('panel style', () => {
+  const panel = (): Config => ({ ...defaultConfig(), theme: 'panel' });
+
+  it('renders multi-line panel previews within the screen', () => {
+    for (const [cols, rows] of [
+      [60, 16],
+      [100, 30],
+      [120, 40],
+    ] as const) {
+      const screen = renderScreen(build(panel()), cols, rows);
+      expect(screen.lines).toHaveLength(rows);
+      for (const l of screen.lines) expect(visibleWidth(l)).toBeLessThanOrEqual(cols);
+    }
+    const out = text(build(panel())).join('\n');
+    expect(out).toContain('╭');
+    expect(out).toContain('[Model]');
+  });
+
+  it('shows panel fields in global settings and the grid editor input', () => {
+    let s = build(panel(), { type: 'openGlobal' });
+    expect(text(s).join('\n')).toContain('Panel: box');
+    for (let i = 0; i < 20; i++) s = reduce(s, { type: 'nav', dir: 'down' });
+    s = reduce(s, { type: 'nav', dir: 'up' });
+    expect(renderScreen(s, MIN_COLS, MIN_ROWS).lines).toHaveLength(MIN_ROWS);
+  });
+
+  it('keeps theme picker rows to one line for the panel theme', () => {
+    const s = build(panel(), { type: 'openThemes' }, { type: 'text', text: 'panel' });
+    const out = text(s);
+    const row = out.findIndex((l) => l.includes('Panel') && l.includes('tui'));
+    expect(row).toBeGreaterThan(0);
+    expect(out[row + 1]).toContain('Opus');
+    expect(out[row + 1]).not.toMatch(/^\s*[╭╰]/);
+  });
+});

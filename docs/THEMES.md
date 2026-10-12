@@ -32,10 +32,14 @@ Named colors such as `red` or `brightBlue` look different in every terminal colo
 | `tokyo-night` | powerline | Neon city night |
 | `solarized` | powerline | Solarized accents |
 | `monochrome` | powerline | Shades of gray |
+| `dark` | powerline | Dark grays with a rust directory (from claude-powerline) |
+| `light` | powerline | Bright segments for light terminals (from claude-powerline) |
+| `rose-pine` | powerline | Muted pine and rose tones (from claude-powerline) |
 | `catppuccin` | capsule | Mocha pastels in rounded pills |
 | `bubblegum` | capsule | Bright pills in the 16 terminal colors |
+| `panel` | tui | Rounded box panel with category colors |
 
-Powerline and capsule themes need a [Nerd Font](https://www.nerdfonts.com/). Themes using hex colors look best in a truecolor terminal; ccinfobar converts them to the nearest 256 or 16 colors otherwise.
+Powerline and capsule themes need a [Nerd Font](https://www.nerdfonts.com/), unless you set `"charset": "text"` to fall back to plain ASCII. Themes using hex colors look best in a truecolor terminal; ccinfobar converts them to the nearest 256 or 16 colors otherwise.
 
 ## Styles
 
@@ -45,12 +49,81 @@ Powerline and capsule themes need a [Nerd Font](https://www.nerdfonts.com/). The
 | `blocks` | Each widget on a colored background with padding |
 | `powerline` | Blocks joined by arrow glyphs; neighbors with the same color get a thin arrow |
 | `capsule` | Each widget in a rounded pill |
+| `tui` | A bordered panel; each config line is a row, or lay it out with a responsive grid |
 
 Any theme works in any style. Set `"style"` in your config to keep a theme's colors but change the shape, e.g. `nord` colors as capsules:
 
 ```json
 { "theme": "nord", "style": "capsule" }
 ```
+
+## Panel style
+
+The `tui` style (theme `panel`, or `"style": "tui"` with any theme) draws a box around the status line:
+
+```
+╭─ Opus 5.5 ─────────────────────────────────── ccinfobar ─╮
+│ Opus 5.5  acme-app  feat/statusline  Ctx ███░░░░░░░ 34%  │
+├──────────────────────────────────────────────────────────┤
+│ v1.2 Billing  █████░░░░░ 50%  Phase 4/6  plans 3/5       │
+╰──────────────────────────────────────────────────────────╯
+```
+
+Without further settings each config line becomes a row. Configure it under `tui`:
+
+| Field | Default | Description |
+| --- | --- | --- |
+| `box` | `"rounded"` | `rounded`, `square`, `heavy`, `double`, `dashed`, `heavy-dashed`, `mixed`, `ascii`, `invisible`, or an object with `topLeft`, `topRight`, `bottomLeft`, `bottomRight`, `horizontal`, `vertical`, `teeLeft`, `teeRight` |
+| `fitContent` | `false` | Shrink to the content instead of filling the terminal width |
+| `minWidth` / `maxWidth` | `32` / none | Width limits |
+| `padding` | `1` | Spaces inside the border |
+| `columnGap` | theme separator | Text between widgets or grid columns |
+| `dividers` | `true` | Divider rows between config lines (without breakpoints) |
+| `divider` | box line | Character for divider rows |
+| `title.left` / `title.right` | `"{model}"` / `"ccinfobar"` | Text in the top border; `right: false` hides it |
+| `footer.left` / `footer.right` | none | Text in the bottom border |
+| `templates` | | Named cells built from several widgets |
+| `breakpoints` | | Responsive grid layouts |
+
+Title, footer and template text can contain `{widget}` tokens: a widget type (`{model}`, `{gsd-phase}`), a widget id from your config, or either one with `.label` / `.value` (`{context-bar.value}`). Widgets do not have to be on a line to be used as tokens.
+
+### Grid layouts
+
+```json
+{
+  "theme": "panel",
+  "tui": {
+    "box": "heavy",
+    "title": { "left": "{model} · {effort}", "right": "{cwd}" },
+    "footer": { "left": "{session-cost}" },
+    "breakpoints": [
+      {
+        "minWidth": 80,
+        "areas": [
+          "git-branch  git-branch  git-changes",
+          "---",
+          "context-bar.label  context-bar.value  .",
+          "gsd-phase  gsd-plans  gsd-next"
+        ],
+        "columns": ["auto", "auto", "1fr"],
+        "align": ["left", "left", "right"]
+      },
+      { "minWidth": 0, "areas": ["git-branch", "context-bar", "gsd-phase"] }
+    ]
+  }
+}
+```
+
+- The widest breakpoint whose `minWidth` fits the panel wins.
+- `areas` rows hold space separated cell names. Repeat a name to span columns, use `.` for an empty cell and `---` for a divider row.
+- `columns`: `auto` (widest content), `1fr`/`2fr` (share of the remaining space) or a fixed number. The last column defaults to `1fr`.
+- `align`: `left`, `center` or `right` per column.
+- Cells whose widget has nothing to show become empty; empty rows and leftover dividers are removed, so a GSD row disappears outside GSD projects.
+- `templates` combine widgets in one cell: `"cost": { "items": ["{session-cost}", "{cost-rate}"], "gap": 1, "justify": "between" }`, then use `cost` in `areas`.
+
+## ASCII mode
+
+`"charset": "text"` makes the whole status line plain ASCII: bars use `=` and `-`, powerline arrows and capsule caps are dropped (blocks stay colored), panel boxes use `+-|`, and Nerd Font or emoji icons fall back to text labels.
 
 ## Adjusting a theme without making a new one
 
@@ -111,7 +184,7 @@ A file with the same name as a built-in theme (e.g. `nord.json`) replaces it and
 | --- | --- |
 | `name`, `description`, `author` | Shown in the galleries |
 | `extends` | Theme to start from |
-| `style` | `text`, `blocks`, `powerline` or `capsule` |
+| `style` | `text`, `blocks`, `powerline`, `capsule` or `tui` |
 | `separator` | Text between widgets (text and blocks styles) |
 | `padding` | Spaces inside blocks, 0 to 4 |
 | `bold` | Make all widgets bold |

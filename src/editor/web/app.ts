@@ -147,6 +147,21 @@ function renderCanvas(): void {
   const canvas = $('canvas');
   clear(canvas);
   const lines = S.config.lines;
+  const effStyle = S.config.style ?? currentTheme()?.style;
+  if (effStyle === 'tui' && S.config.tui?.breakpoints?.length) {
+    canvas.append(
+      h(
+        'div',
+        { class: 'canvas-note' },
+        icon('info', 14),
+        h(
+          'span',
+          null,
+          'Panel grid areas control where widgets sit. Lines still decide which widgets render.',
+        ),
+      ),
+    );
+  }
   lines.forEach((items, li) => {
     const grip = h(
       'div',

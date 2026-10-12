@@ -2,6 +2,7 @@ import { removeItem, setOption, updateItem } from '../../core/edit.js';
 import type { Config, OptionSpec, OptionValue, WidgetItem } from '../../core/types.js';
 import { colorPicker, colorToCss } from './colors.js';
 import { type Child, clear, h, icon } from './dom.js';
+import { panelSection } from './panel-inspector.js';
 import { commit, currentTheme, emit, S, type StyleId, type WidgetInfo } from './store.js';
 import { openGallery, saveAs } from './themes.js';
 
@@ -101,7 +102,7 @@ function glyphChoices(values: string[], current: string, onPick: (v: string) => 
   return wrap;
 }
 
-function textInput(
+export function textInput(
   value: string,
   onInput: (v: string) => void,
   attrs: Record<string, unknown> = {},
@@ -118,7 +119,7 @@ function textInput(
   return input;
 }
 
-function numberInput(
+export function numberInput(
   value: number | '',
   onInput: (v: number | null) => void,
   attrs: Record<string, unknown> = {},
@@ -300,7 +301,7 @@ function setGlyph(key: GlyphKey, value: string | undefined, coalesce?: string): 
   setOverride('glyphs', Object.keys(glyphs).length ? glyphs : undefined, coalesce);
 }
 
-function resetLink(show: boolean, onClick: () => void): HTMLElement | null {
+export function resetLink(show: boolean, onClick: () => void): HTMLElement | null {
   return show
     ? h(
         'button',
@@ -315,7 +316,7 @@ function resetLink(show: boolean, onClick: () => void): HTMLElement | null {
     : null;
 }
 
-function fieldWithReset(
+export function fieldWithReset(
   label: string,
   control: Child,
   reset: HTMLElement | null,
@@ -437,6 +438,7 @@ function globalTab(): HTMLElement {
         'Spaces around each widget (0 to 4).',
       ),
     ),
+    ...(style === 'tui' ? [panelSection()] : []),
     section(
       'Glyphs',
       glyphField('Separator', 'separator', PL_SEPARATORS, theme?.glyphs.separator ?? ''),
@@ -458,6 +460,23 @@ function globalTab(): HTMLElement {
           c.icons,
           (v) => set({ icons: v }),
         ),
+      ),
+      field(
+        'Charset',
+        segmented(
+          [
+            { value: 'unicode', label: 'Unicode' },
+            { value: 'text', label: 'Text (ASCII)', title: 'Plain ASCII characters only' },
+          ] as const,
+          c.charset,
+          (v) => set({ charset: v }),
+        ),
+      ),
+      field(
+        'Auto wrap',
+        toggle(c.autoWrap, (v) => set({ autoWrap: v })),
+        'Wrap widgets onto extra lines instead of truncating.',
+        true,
       ),
       field(
         'Color level',

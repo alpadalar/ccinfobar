@@ -1,9 +1,11 @@
+import path from 'node:path';
 import { hyperlink } from '../core/ansi.js';
 import type { OptionSpec, WidgetDef } from '../core/types.js';
 import { opt } from './shared.js';
 
 export function parseRemote(url: string | null | undefined): string | null {
   if (!url) return null;
+  if (!/^[\w.+-]+:\/\/|^[^/\\:]+@[^:]+:|^[\w.-]+:[^\\/]/.test(url.trim())) return null;
   const m = /[:/]([^/:]+)\/([^/]+?)(?:\.git)?\/?$/.exec(url.trim());
   return m ? `${m[1]}/${m[2]}` : null;
 }
@@ -203,7 +205,12 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰙅', emoji: '🌳' },
     color: 'green',
     sample: 'feature-x',
-    render: (ctx) => ctx.payload.worktree?.name || ctx.payload.workspace?.git_worktree || null,
+    render: (ctx) => {
+      const fromPayload = ctx.payload.worktree?.name || ctx.payload.workspace?.git_worktree;
+      if (fromPayload) return fromPayload;
+      const g = ctx.data.git();
+      return g?.isWorktree ? path.basename(g.root) : null;
+    },
   },
   {
     type: 'pr',

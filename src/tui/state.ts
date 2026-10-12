@@ -187,7 +187,7 @@ export function clampSel(config: Config, sel: Position): Position {
 export function settingsFields(state: State): Field[] {
   const mode = state.mode;
   if (mode.kind !== 'settings') return [];
-  if (mode.scope === 'global') return globalFields();
+  if (mode.scope === 'global') return globalFields(state.config);
   const found = findItem(state.config, mode.itemId);
   return found ? widgetFields(getWidget(found.item.type), mode.itemId) : [];
 }

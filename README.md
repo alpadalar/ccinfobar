@@ -38,10 +38,10 @@ next: /gsd-execute-phase 4 │ $1.87 │ 5h 42% │ Resets 2h 14m │ 7d 61%
 ## Why ccinfobar
 
 - **Drag-and-drop editor.** `ccinfobar edit` opens a local web editor with a live terminal preview. Drag widgets in from the palette, reorder them within or across lines, and style them in an inspector. It scales cleanly from 1080p to 4K.
-- **19 themes, or your own.** Colored text, colored blocks, powerline arrows or rounded capsules, from classic to Nord, Dracula, Tokyo Night and Catppuccin. Preview them all with `ccinfobar themes` and write your own in a few lines of JSON.
+- **24 themes, or your own.** Colored text, colored blocks, powerline arrows, rounded capsules or a bordered panel with a responsive grid, from classic to Nord, Dracula, Rosé Pine, Tokyo Night and Catppuccin. ASCII mode for terminals without a Nerd Font. Preview them all with `ccinfobar themes` and write your own in a few lines of JSON.
 - **Terminal editor too.** `ccinfobar tui` does the same from the keyboard (or mouse) when you are on SSH or prefer to stay in the terminal.
 - **First-class GSD support.** Milestone progress, the current phase, plan completion inside the phase, the next command to run, blockers, requirements and more, as separate widgets you can arrange freely. See [docs/GSD.md](docs/GSD.md).
-- **82 widgets** covering model and session, context window, tokens and prompt cache, cost, 5-hour and weekly limits with pace tracking, git, workspace, system and custom commands.
+- **83 widgets** covering model and session, context window, tokens and prompt cache, cost, 5-hour and weekly limits with pace tracking, git, workspace, system and custom commands.
 - **Uses the current Claude Code payload.** Rate limits, prompt cache statistics, PR status and repository info come straight from the status line JSON, without extra API calls.
 - **Fast and dependency-free.** Zero runtime dependencies, lazy data loading and an incremental transcript cache.
 - **Cross-platform.** Linux, macOS and Windows, tested in CI on all three with Node 20, 22 and 24.
@@ -57,7 +57,7 @@ ccinfobar install
 
 > ccinfobar is not on the npm registry yet, so this installs the latest GitHub release. Once it is published, `npm install -g ccinfobar` will work too. Run the same command again to update.
 
-`install` points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar (backing up the file first) and writes a default config. The next Claude Code prompt shows the new status line.
+`install` points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar (backing up the file first) and writes a default config. `ccinfobar uninstall` puts your previous status line (for example ccstatusline) back. The next Claude Code prompt shows the new status line.
 
 Then make it yours:
 
@@ -129,11 +129,11 @@ Mouse works too: click to select, drag a chip to move it.
 
 | Category | Widgets |
 | --- | --- |
-| Session & model | model, effort, thinking, fast mode, output style, session name and id, Claude Code version, vim mode, agent name |
+| Session & model | model, effort, thinking, fast mode, output style, session name and id, Claude Code version, vim mode, agent name, skills |
 | Context window | used or remaining percent (optionally relative to the auto-compact limit), bar, length, window size, compaction count |
 | Tokens & cache | input, output, cached, total, cache hit rate, cache expiry countdown, last cache miss cause, output speed |
 | Cost & time | session cost, cost per hour, session and API duration, lines changed, message count |
-| Usage limits | 5-hour and weekly usage (percent or bar), reset countdowns, weekly Sonnet/Opus usage, spend limit, usage pace |
+| Usage limits | 5-hour and weekly usage (percent or 13 bar styles, with an even-pace marker), reset countdowns, weekly Sonnet/Opus usage, spend limit, usage pace |
 | GSD | milestone, milestone progress, phase, status, plans, plan progress, next step, workstream, blockers, todos, requirements, last command, update notice, current task, summary |
 | Git | branch, sha, changes, status, staged, unstaged, untracked, ahead/behind, conflicts, stash, in-progress operation, repo, worktree, pull request |
 | Workspace | current directory (5 styles), project directory |
@@ -154,8 +154,9 @@ ccinfobar theme dracula   # switch
 | --- | --- |
 | Colored text | `classic` (default), `minimal`, `mono`, `neon`, `pastel`, `amber`, `matrix` |
 | Colored blocks | `blocks`, `slate`, `paper` |
-| Powerline | `powerline`, `nord`, `dracula`, `gruvbox`, `tokyo-night`, `solarized`, `monochrome` |
+| Powerline | `powerline`, `nord`, `dracula`, `gruvbox`, `tokyo-night`, `solarized`, `monochrome`, `dark`, `light`, `rose-pine` |
 | Capsules | `catppuccin`, `bubblegum` |
+| Panel (box with optional grid) | `panel` |
 
 ![Theme gallery](docs/images/themes.png)
 
@@ -167,7 +168,7 @@ If you use [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done), cc
 
 ```
 v1.2 Billing │ █████░░░░░ 50% │ Phase 4/6 Invoice export │ executing │ plans 3/5
-next: /gsd-execute-phase 4 │ ⚠ 1 blocker │ req 14/22
+next: /gsd-execute-phase 4 │ ⚠ 1 concern │ req 14/22
 ```
 
 - Progress is computed from the plan and summary files on disk, using the same formula as GSD, so it stays correct even when `STATE.md` lags behind.
@@ -184,7 +185,7 @@ Start with `ccinfobar init gsd --force`, or drag widgets from the GSD category i
 | `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
 | `ccinfobar tui` | Open the terminal editor |
 | `ccinfobar install` | Set Claude Code's `statusLine` (`--command <cmd>`, `--refresh <seconds>`) |
-| `ccinfobar uninstall` | Remove ccinfobar from Claude Code settings |
+| `ccinfobar uninstall` | Remove ccinfobar from Claude Code settings and restore the status line you had before |
 | `ccinfobar themes` | Preview every theme (`--width <n>`) |
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar init [preset]` | Write a preset: `default`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |

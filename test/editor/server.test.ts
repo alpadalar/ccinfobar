@@ -108,7 +108,13 @@ describe('editor server', () => {
     expect(Array.isArray(s.themes)).toBe(true);
     expect(s.themes.length).toBeGreaterThan(10);
     expect(s.themes[0]).toMatchObject({ id: 'classic', source: 'builtin' });
-    expect(s.styles.map((x: { id: string }) => x.id)).toEqual(['text', 'blocks', 'powerline', 'capsule']);
+    expect(s.styles.map((x: { id: string }) => x.id)).toEqual([
+      'text',
+      'blocks',
+      'powerline',
+      'capsule',
+      'tui',
+    ]);
     expect(s.themesDir).toBe(path.join(dir, 'themes'));
     expect(s.claude).toHaveProperty('installed');
     expect(typeof s.claude.defaultCommand).toBe('string');
@@ -158,6 +164,17 @@ describe('editor server', () => {
     expect(previews.classic.length).toBe(1);
     expect(previews.classic[0]).not.toContain('ZZZ');
     expect(previews.nord[0]).not.toBe(previews.classic[0]);
+    expect(previews.panel.length).toBeGreaterThan(2);
+    expect(previews.panel.join('\n')).toContain('╭');
+  });
+
+  it('ignores tui overrides in theme previews and keeps them in previews', async () => {
+    const config = { ...defaultConfig(), theme: 'panel', tui: { box: 'double' } };
+    const body = (c: unknown) => JSON.stringify({ config: c, source: 'sample', width: 100 });
+    const themes = (await request('POST', '/api/theme-previews', { body: body(config) })).json();
+    expect(themes.previews.panel.join('\n')).toContain('╭');
+    const own = (await request('POST', '/api/preview', { body: body(config) })).json();
+    expect(own.lines.join('\n')).toContain('╔');
   });
 
   it('saves, lists and deletes user themes', async () => {

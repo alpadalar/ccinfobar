@@ -12,6 +12,7 @@ export interface TranscriptInfo {
   userMessageCount: number;
   compactions: number;
   lastCommand: string | null;
+  lastGsdCommand: string | null;
   skills: string[];
   sessionName: string | null;
   firstTimestamp: number | null;
@@ -44,6 +45,7 @@ interface State {
   compactions: number;
   boundaryPending: boolean;
   lastCommand: string | null;
+  lastGsdCommand: string | null;
   skills: string[];
   title: string | null;
   titleKind: number;
@@ -53,7 +55,7 @@ interface State {
   tasks: string[];
 }
 
-const VERSION = 1;
+const VERSION = 3;
 const RECENT = 64;
 const SPEED_WINDOW = 10;
 const CHUNK = 8 * 1024 * 1024;
@@ -73,6 +75,7 @@ export function emptyState(): State {
     compactions: 0,
     boundaryPending: false,
     lastCommand: null,
+    lastGsdCommand: null,
     skills: [],
     title: null,
     titleKind: 0,
@@ -131,7 +134,9 @@ function handleToolUse(s: State, block: Json) {
     }
     case 'Skill': {
       const name = input.skill ?? input.command;
-      if (typeof name === 'string' && name && !s.skills.includes(name)) {
+      if (typeof name === 'string' && name) {
+        const at = s.skills.indexOf(name);
+        if (at >= 0) s.skills.splice(at, 1);
         s.skills.push(name);
         if (s.skills.length > 50) s.skills.shift();
       }
@@ -173,6 +178,11 @@ function applyAssistant(s: State, e: Json, ts: number | null, prevTs: number | n
   if (input + read + write > 0) s.contextLength = input + read + write;
 }
 
+function setCommand(s: State, cmd: string) {
+  s.lastCommand = cmd;
+  if (/^gsd[-:]/i.test(cmd)) s.lastGsdCommand = cmd;
+}
+
 function applyLine(s: State, line: string, st: { prevTs: number | null }) {
   if (line.includes('"type":"attachment"') || line.includes('"type":"file-history-snapshot"')) return;
   let e: Json;
@@ -194,6 +204,10 @@ function applyLine(s: State, line: string, st: { prevTs: number | null }) {
     s.lastTimestamp = tsv;
   }
   if (type === 'system') {
+    if (e.subtype === 'local_command' && typeof e.content === 'string') {
+      const m = /<command-name>\s*\/?([^<\s]+)\s*<\/command-name>/.exec(e.content);
+      if (m) setCommand(s, m[1]!);
+    }
     if (e.subtype === 'compact_boundary') {
       s.compactions++;
       s.boundaryPending = true;
@@ -207,7 +221,7 @@ function applyLine(s: State, line: string, st: { prevTs: number | null }) {
       if (text !== null) {
         s.userMessageCount++;
         const m = /<command-name>\s*\/?([^<\s]+)\s*<\/command-name>/.exec(text);
-        if (m) s.lastCommand = m[1]!;
+        if (m) setCommand(s, m[1]!);
       }
     }
   } else if (type === 'assistant') {
@@ -241,6 +255,7 @@ function toInfo(s: State): TranscriptInfo {
     userMessageCount: s.userMessageCount,
     compactions: s.compactions,
     lastCommand: s.lastCommand,
+    lastGsdCommand: s.lastGsdCommand,
     skills: s.skills,
     sessionName: s.title,
     firstTimestamp: s.firstTimestamp,

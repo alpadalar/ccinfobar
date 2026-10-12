@@ -122,7 +122,7 @@ async function runRender(args: Args, config: Config): Promise<void> {
   else raw = await readStdin();
   let payload: StatusPayload;
   try {
-    payload = JSON.parse(raw || '{}') as StatusPayload;
+    payload = JSON.parse(raw.trim() || '{}') as StatusPayload;
   } catch {
     process.stdout.write('ccinfobar: invalid JSON on stdin\n');
     return;
@@ -209,11 +209,10 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       return;
     }
     case 'uninstall': {
-      console.log(
-        uninstall()
-          ? '✓ Removed ccinfobar from Claude Code settings'
-          : 'ccinfobar is not the active statusLine',
-      );
+      const res = uninstall();
+      if (!res.removed) console.log('ccinfobar is not the active statusLine');
+      else if (res.restored) console.log(`✓ Restored the previous statusLine: ${res.restored.command}`);
+      else console.log('✓ Removed ccinfobar from Claude Code settings');
       return;
     }
     case 'init': {

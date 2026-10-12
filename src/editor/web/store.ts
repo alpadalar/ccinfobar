@@ -12,7 +12,7 @@ export interface WidgetInfo {
   sample?: string;
 }
 
-export type StyleId = 'text' | 'blocks' | 'powerline' | 'capsule';
+export type StyleId = 'text' | 'blocks' | 'powerline' | 'capsule' | 'tui';
 
 export interface ThemeInfo {
   id: string;

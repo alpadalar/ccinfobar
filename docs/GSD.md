@@ -27,7 +27,7 @@ If you previously used GSD's own status line (`~/.claude/hooks/gsd-statusline.js
 | `gsd-plan-progress` | `██████░░░░ 60%` | Same as a bar |
 | `gsd-next` | `next: /gsd-execute-phase 4` | The command to run next |
 | `gsd-workstream` | `ws billing` | Active workstream |
-| `gsd-blockers` | `⚠ 1 blocker` | Items under Blockers/Concerns in `STATE.md` |
+| `gsd-blockers` | `⚠ 1 concern` | Open items under Blockers/Concerns in `STATE.md` |
 | `gsd-todos` | `2 todos` | Pending todos in `STATE.md` |
 | `gsd-requirements` | `req 14/22` | Checked requirements in `REQUIREMENTS.md` |
 | `gsd-last-command` | `/gsd-execute-phase` | Last GSD slash command in this session |

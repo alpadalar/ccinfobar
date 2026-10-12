@@ -104,6 +104,7 @@ export function sampleTranscript(now = Date.now()): TranscriptInfo {
     userMessageCount: 14,
     compactions: 1,
     lastCommand: 'gsd-execute-phase',
+    lastGsdCommand: 'gsd-execute-phase',
     skills: ['gsd-execute-phase', 'frontend-design'],
     sessionName: 'statusline refactor',
     firstTimestamp: now - 2_730_000,

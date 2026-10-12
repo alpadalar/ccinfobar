@@ -37,12 +37,16 @@
         "tokyo-night",
         "solarized",
         "monochrome",
+        "dark",
+        "light",
+        "rose-pine",
+        "panel",
         "catppuccin",
         "bubblegum"
       ]
     },
     "style": {
-      "enum": ["text", "blocks", "powerline", "capsule"]
+      "enum": ["text", "blocks", "powerline", "capsule", "tui"]
     },
     "separator": {
       "type": "string"

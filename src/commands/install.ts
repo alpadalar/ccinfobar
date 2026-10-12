@@ -26,20 +26,26 @@ function writeJson(file: string, data: unknown): void {
   fs.renameSync(tmp, file);
 }
 
-export function isGloballyInstalled(): boolean {
+export function globalBinary(): string | null {
   try {
     const cmd = process.platform === 'win32' ? 'where' : 'which';
-    execFileSync(cmd, ['ccinfobar'], { stdio: 'ignore', windowsHide: true, timeout: 2000 });
-    return true;
+    const out = execFileSync(cmd, ['ccinfobar'], { encoding: 'utf8', windowsHide: true, timeout: 2000 });
+    const first = out.split(/\r?\n/).find((l) => l.trim());
+    return first ? first.trim() : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
+function quote(p: string): string {
+  return /[\s"]/.test(p) ? `"${p}"` : p;
+}
+
 export function defaultCommand(): string {
-  if (isGloballyInstalled()) return 'ccinfobar';
+  const bin = globalBinary();
+  if (bin) return quote(bin);
   const entry = process.argv[1] ? path.resolve(process.argv[1]) : null;
-  if (entry && fs.existsSync(entry)) return `"${process.execPath}" "${entry}"`;
+  if (entry && fs.existsSync(entry)) return `${quote(process.execPath)} ${quote(entry)}`;
   return 'npx -y https://github.com/alpadalar/ccinfobar/releases/latest/download/ccinfobar.tgz';
 }
 
@@ -66,11 +72,20 @@ export function install(
   return backup;
 }
 
-export function uninstall(file = claudeSettingsPath()): boolean {
+export type UninstallResult = { removed: false } | { removed: true; restored: StatusLineSetting | null };
+
+export function uninstall(file = claudeSettingsPath()): UninstallResult {
   const settings = readJson(file);
   const sl = settings.statusLine as StatusLineSetting | undefined;
-  if (!sl || typeof sl.command !== 'string' || !sl.command.includes('ccinfobar')) return false;
-  delete settings.statusLine;
+  if (!sl || typeof sl.command !== 'string' || !sl.command.includes('ccinfobar')) return { removed: false };
+  let previous: StatusLineSetting | null = null;
+  try {
+    const backup = readJson(`${file}.ccinfobar-backup`).statusLine as StatusLineSetting | undefined;
+    if (backup && typeof backup.command === 'string' && !backup.command.includes('ccinfobar'))
+      previous = backup;
+  } catch {}
+  if (previous) settings.statusLine = previous;
+  else delete settings.statusLine;
   writeJson(file, settings);
-  return true;
+  return { removed: true, restored: previous };
 }

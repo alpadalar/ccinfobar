@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { BOX_PRESETS } from '../src/core/panel.js';
 import { BUILTIN_THEMES, STYLES } from '../src/core/themes.js';
 import type { OptionSpec } from '../src/core/types.js';
 import { ALL_WIDGETS, CATEGORIES } from '../src/widgets/index.js';
@@ -69,6 +70,77 @@ const glyphs = {
     thin: { type: 'string', description: 'Between powerline segments that share a color' },
     startCap: { type: 'string' },
     endCap: { type: 'string' },
+  },
+};
+
+const boxChars = Object.fromEntries(
+  ['topLeft', 'topRight', 'bottomLeft', 'bottomRight', 'horizontal', 'vertical', 'teeLeft', 'teeRight'].map(
+    (k) => [k, { type: 'string' }],
+  ),
+);
+
+const tuiSchema = {
+  type: 'object',
+  description: 'Settings for the tui (panel) style',
+  properties: {
+    box: {
+      anyOf: [
+        { enum: Object.keys(BOX_PRESETS) },
+        { type: 'object', properties: boxChars, additionalProperties: false },
+      ],
+      default: 'rounded',
+    },
+    fitContent: { type: 'boolean', default: false, description: 'Shrink the panel to its content' },
+    minWidth: { type: 'integer', minimum: 10, default: 32 },
+    maxWidth: { type: 'integer', minimum: 10 },
+    padding: { type: 'integer', minimum: 0, maximum: 8, default: 1 },
+    columnGap: {
+      type: 'string',
+      description: 'Text between grid columns or widgets (default: theme separator)',
+    },
+    divider: { type: 'string', description: 'Character for divider rows' },
+    dividers: {
+      type: 'boolean',
+      default: true,
+      description: 'Divider between config lines when no breakpoints are set',
+    },
+    title: {
+      type: 'object',
+      properties: {
+        left: { type: 'string', default: '{model}', description: 'Text with {widget} tokens' },
+        right: { anyOf: [{ type: 'string' }, { const: false }], default: 'ccinfobar' },
+      },
+    },
+    footer: { type: 'object', properties: { left: { type: 'string' }, right: { type: 'string' } } },
+    templates: {
+      type: 'object',
+      additionalProperties: {
+        type: 'object',
+        required: ['items'],
+        properties: {
+          items: { type: 'array', items: { type: 'string' } },
+          gap: { type: 'integer', minimum: 0 },
+          justify: { enum: ['start', 'between'] },
+        },
+      },
+    },
+    breakpoints: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['minWidth', 'areas'],
+        properties: {
+          minWidth: { type: 'integer', minimum: 0 },
+          areas: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Rows of space separated cell names, "." or "---"',
+          },
+          columns: { type: 'array', items: { type: 'string', pattern: '^(auto|\\d*\\.?\\d*fr|\\d+)$' } },
+          align: { type: 'array', items: { enum: ['left', 'center', 'right'] } },
+        },
+      },
+    },
   },
 };
 
@@ -169,6 +241,18 @@ function schema(): object {
       separatorColor: { ...color, description: 'Overrides the theme separator color' },
       padding: { type: 'integer', minimum: 0, maximum: 4, description: 'Overrides the theme padding' },
       glyphs: glyphs,
+      charset: {
+        enum: ['unicode', 'text'],
+        default: 'unicode',
+        description:
+          'text: ASCII-only bars, glyphs, boxes and labels for terminals without Unicode or Nerd Fonts',
+      },
+      autoWrap: {
+        type: 'boolean',
+        default: false,
+        description: 'Move widgets that do not fit to a new line instead of truncating',
+      },
+      tui: tuiSchema,
       colorLevel: { enum: ['auto', 0, 1, 2, 3], default: 'auto' },
       icons: { enum: ['nerd', 'emoji', 'text', 'none'], default: 'text' },
       maxWidth: { anyOf: [{ const: 'auto' }, { type: 'integer', minimum: 1 }], default: 'auto' },

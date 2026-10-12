@@ -35,6 +35,7 @@
                 "claude-version",
                 "vim-mode",
                 "agent-name",
+                "skills",
                 "context-percentage",
                 "context-bar",
                 "context-length",
@@ -169,13 +170,17 @@
         "tokyo-night",
         "solarized",
         "monochrome",
+        "dark",
+        "light",
+        "rose-pine",
+        "panel",
         "catppuccin",
         "bubblegum"
       ],
       "default": "classic"
     },
     "style": {
-      "enum": ["text", "blocks", "powerline", "capsule"],
+      "enum": ["text", "blocks", "powerline", "capsule", "tui"],
       "description": "Overrides the theme style"
     },
     "separator": {
@@ -209,6 +214,190 @@
         },
         "endCap": {
           "type": "string"
+        }
+      }
+    },
+    "charset": {
+      "enum": ["unicode", "text"],
+      "default": "unicode",
+      "description": "text: ASCII-only bars, glyphs, boxes and labels for terminals without Unicode or Nerd Fonts"
+    },
+    "autoWrap": {
+      "type": "boolean",
+      "default": false,
+      "description": "Move widgets that do not fit to a new line instead of truncating"
+    },
+    "tui": {
+      "type": "object",
+      "description": "Settings for the tui (panel) style",
+      "properties": {
+        "box": {
+          "anyOf": [
+            {
+              "enum": [
+                "rounded",
+                "square",
+                "heavy",
+                "double",
+                "dashed",
+                "heavy-dashed",
+                "mixed",
+                "ascii",
+                "invisible"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "topLeft": {
+                  "type": "string"
+                },
+                "topRight": {
+                  "type": "string"
+                },
+                "bottomLeft": {
+                  "type": "string"
+                },
+                "bottomRight": {
+                  "type": "string"
+                },
+                "horizontal": {
+                  "type": "string"
+                },
+                "vertical": {
+                  "type": "string"
+                },
+                "teeLeft": {
+                  "type": "string"
+                },
+                "teeRight": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "default": "rounded"
+        },
+        "fitContent": {
+          "type": "boolean",
+          "default": false,
+          "description": "Shrink the panel to its content"
+        },
+        "minWidth": {
+          "type": "integer",
+          "minimum": 10,
+          "default": 32
+        },
+        "maxWidth": {
+          "type": "integer",
+          "minimum": 10
+        },
+        "padding": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8,
+          "default": 1
+        },
+        "columnGap": {
+          "type": "string",
+          "description": "Text between grid columns or widgets (default: theme separator)"
+        },
+        "divider": {
+          "type": "string",
+          "description": "Character for divider rows"
+        },
+        "dividers": {
+          "type": "boolean",
+          "default": true,
+          "description": "Divider between config lines when no breakpoints are set"
+        },
+        "title": {
+          "type": "object",
+          "properties": {
+            "left": {
+              "type": "string",
+              "default": "{model}",
+              "description": "Text with {widget} tokens"
+            },
+            "right": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "const": false
+                }
+              ],
+              "default": "ccinfobar"
+            }
+          }
+        },
+        "footer": {
+          "type": "object",
+          "properties": {
+            "left": {
+              "type": "string"
+            },
+            "right": {
+              "type": "string"
+            }
+          }
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "gap": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "justify": {
+                "enum": ["start", "between"]
+              }
+            }
+          }
+        },
+        "breakpoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["minWidth", "areas"],
+            "properties": {
+              "minWidth": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "areas": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Rows of space separated cell names, \".\" or \"---\""
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(auto|\\d*\\.?\\d*fr|\\d+)$"
+                }
+              },
+              "align": {
+                "type": "array",
+                "items": {
+                  "enum": ["left", "center", "right"]
+                }
+              }
+            }
+          }
         }
       }
     },

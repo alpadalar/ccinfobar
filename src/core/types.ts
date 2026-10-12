@@ -106,7 +106,47 @@ export interface WidgetItem {
 export type ColorLevel = 'auto' | 0 | 1 | 2 | 3;
 export type IconMode = 'nerd' | 'emoji' | 'text' | 'none';
 
-export type ThemeStyle = 'text' | 'blocks' | 'powerline' | 'capsule';
+export type ThemeStyle = 'text' | 'blocks' | 'powerline' | 'capsule' | 'tui';
+export type Charset = 'unicode' | 'text';
+
+export interface BoxChars {
+  topLeft: string;
+  topRight: string;
+  bottomLeft: string;
+  bottomRight: string;
+  horizontal: string;
+  vertical: string;
+  teeLeft: string;
+  teeRight: string;
+}
+
+export interface TuiBreakpoint {
+  minWidth: number;
+  areas: string[];
+  columns?: string[];
+  align?: ('left' | 'center' | 'right')[];
+}
+
+export interface TuiTemplate {
+  items: string[];
+  gap?: number;
+  justify?: 'start' | 'between';
+}
+
+export interface TuiConfig {
+  box?: string | Partial<BoxChars>;
+  fitContent?: boolean;
+  minWidth?: number;
+  maxWidth?: number;
+  padding?: number;
+  columnGap?: string;
+  divider?: string;
+  dividers?: boolean;
+  title?: { left?: string; right?: string | false };
+  footer?: { left?: string; right?: string };
+  templates?: Record<string, TuiTemplate>;
+  breakpoints?: TuiBreakpoint[];
+}
 
 export interface GlyphOverrides {
   separator?: string;
@@ -125,6 +165,9 @@ export interface Config {
   separatorColor?: string;
   padding?: number;
   glyphs?: GlyphOverrides;
+  charset: Charset;
+  autoWrap: boolean;
+  tui?: TuiConfig;
   colorLevel: ColorLevel;
   icons: IconMode;
   maxWidth: 'auto' | number;

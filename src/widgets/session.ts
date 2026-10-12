@@ -147,4 +147,41 @@ export const widgets: WidgetDef[] = [
     sample: 'reviewer',
     render: (ctx) => ctx.payload.agent?.name || null,
   },
+  {
+    type: 'skills',
+    name: 'Skills',
+    category: 'session',
+    description: 'Skills used in this session: the latest, how many, or a list',
+    label: 'Skill ',
+    icon: { nerd: '󰘦', emoji: '🧩' },
+    color: 'brightBlack',
+    sample: 'gsd-execute-phase',
+    options: [
+      {
+        key: 'mode',
+        label: 'Show',
+        kind: 'select',
+        default: 'current',
+        choices: [
+          { value: 'current', label: 'Latest skill' },
+          { value: 'count', label: 'Count' },
+          { value: 'list', label: 'List' },
+        ],
+      },
+      { key: 'limit', label: 'List limit', kind: 'number', default: 3 },
+    ],
+    render(ctx, item) {
+      const skills = ctx.data.transcript()?.skills ?? [];
+      if (!skills.length) return null;
+      const mode = opt<string>(item, 'mode', 'current');
+      if (mode === 'count') return `${skills.length}`;
+      if (mode === 'list') {
+        const limit = Math.max(1, opt(item, 'limit', 3));
+        const recent = skills.slice(-limit).reverse();
+        const more = skills.length - recent.length;
+        return more > 0 ? `${recent.join(', ')} +${more}` : recent.join(', ');
+      }
+      return skills[skills.length - 1]!;
+    },
+  },
 ];

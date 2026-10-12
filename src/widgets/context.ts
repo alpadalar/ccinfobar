@@ -1,5 +1,5 @@
 import type { OptionSpec, RenderContext, WidgetDef, WidgetItem, WidgetResult } from '../core/types.js';
-import { bar, barOptions, formatTokens, opt, thresholdColor, thresholdOption } from './shared.js';
+import { barFor, barOptions, formatTokens, opt, thresholdColor, thresholdOption } from './shared.js';
 
 export const AUTOCOMPACT_BUFFER = 0.165;
 
@@ -99,7 +99,7 @@ export const widgets: WidgetDef[] = [
     render(ctx, item) {
       const pct = contextPercent(ctx, opt(item, 'usable', false));
       if (pct === null) return null;
-      const b = bar(pct, opt(item, 'width', 10), opt<string>(item, 'style', 'blocks'));
+      const b = barFor(ctx, item, pct);
       const text = opt(item, 'showPercent', true) ? `${b} ${Math.round(pct)}%` : b;
       return colored(text, pct, item);
     },

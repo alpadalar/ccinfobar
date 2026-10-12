@@ -59,6 +59,7 @@ export const STYLES: { id: ThemeStyle; name: string; description: string }[] = [
   { id: 'blocks', name: 'Blocks', description: 'Colored background blocks' },
   { id: 'powerline', name: 'Powerline', description: 'Blocks joined by arrows (Nerd Font)' },
   { id: 'capsule', name: 'Capsule', description: 'Rounded pills (Nerd Font)' },
+  { id: 'tui', name: 'Panel', description: 'Bordered panel with an optional responsive grid' },
 ];
 
 export const STYLE_GLYPHS: Record<ThemeStyle, ThemeGlyphs> = {
@@ -66,6 +67,7 @@ export const STYLE_GLYPHS: Record<ThemeStyle, ThemeGlyphs> = {
   blocks: { separator: '', thin: '', startCap: '', endCap: '' },
   powerline: { separator: '', thin: '', startCap: '', endCap: '' },
   capsule: { separator: '', thin: '', startCap: '', endCap: '' },
+  tui: { separator: '', thin: '', startCap: '', endCap: '' },
 };
 
 export const STYLE_SEPARATOR: Record<ThemeStyle, string> = {
@@ -73,6 +75,7 @@ export const STYLE_SEPARATOR: Record<ThemeStyle, string> = {
   blocks: ' ',
   powerline: '',
   capsule: ' ',
+  tui: '  ',
 };
 
 const BASE: Theme = {
@@ -369,6 +372,91 @@ const BUILTIN: ThemeInput[] = [
         { fg: '#ffffff', bg: '#4e4e4e' },
         { fg: '#ffffff', bg: '#626262' },
       ],
+    },
+  },
+  {
+    id: 'dark',
+    name: 'Dark',
+    description: 'Dark grays with a rust directory, from claude-powerline',
+    style: 'powerline',
+    colors: {
+      mode: 'category',
+      categories: cats(
+        { fg: '#ffffff', bg: '#2d2d2d' },
+        { fg: '#cbd5e0', bg: '#4a5568' },
+        { fg: '#d1d5db', bg: '#374151' },
+        { fg: '#00ffff', bg: '#202020' },
+        { fg: '#87ceeb', bg: '#2a2a2a' },
+        { fg: '#b0a8e0', bg: '#2a2a4a' },
+        { fg: '#ffffff', bg: '#404040' },
+        { fg: '#ffffff', bg: '#8b4513' },
+        { fg: '#90ee90', bg: '#2f4f2f' },
+        { fg: '#d0a0d0', bg: '#2d2d3d' },
+      ),
+    },
+  },
+  {
+    id: 'light',
+    name: 'Light',
+    description: 'Bright segments for light terminals, from claude-powerline',
+    style: 'powerline',
+    colors: {
+      mode: 'category',
+      categories: cats(
+        { fg: '#000000', bg: '#87ceeb' },
+        { fg: '#ffffff', bg: '#718096' },
+        { fg: '#ffffff', bg: '#6b7280' },
+        { fg: '#ffffff', bg: '#da70d6' },
+        { fg: '#ffffff', bg: '#6366f1' },
+        { fg: '#ffffff', bg: '#7c3aed' },
+        { fg: '#ffffff', bg: '#4fb3d9' },
+        { fg: '#ffffff', bg: '#ff6b47' },
+        { fg: '#ffffff', bg: '#32cd32' },
+        { fg: '#ffffff', bg: '#d45dbf' },
+      ),
+    },
+  },
+  {
+    id: 'rose-pine',
+    name: 'Rosé Pine',
+    description: 'Muted pine and rose tones, from claude-powerline',
+    style: 'powerline',
+    colors: {
+      mode: 'category',
+      categories: cats(
+        { fg: '#ebbcba', bg: '#191724' },
+        { fg: '#e0def4', bg: '#393552' },
+        { fg: '#e0def4', bg: '#524f67' },
+        { fg: '#f6c177', bg: '#26233a' },
+        { fg: '#eb6f92', bg: '#2a273f' },
+        { fg: '#c4a7e7', bg: '#2a273f' },
+        { fg: '#9ccfd8', bg: '#1f1d2e' },
+        { fg: '#c4a7e7', bg: '#26233a' },
+        { fg: '#908caa', bg: '#26233a' },
+        { fg: '#eb6f92', bg: '#21202e' },
+      ),
+    },
+  },
+  {
+    id: 'panel',
+    name: 'Panel',
+    description: 'Rounded box panel with category colors',
+    style: 'tui',
+    separator: '  ',
+    colors: {
+      mode: 'category',
+      muted: '#5c6370',
+      categories: cats(
+        '#61afef',
+        '#98c379',
+        '#c678dd',
+        '#e5c07b',
+        '#d19a66',
+        '#f2b36b',
+        '#e06c75',
+        '#56b6c2',
+        '#abb2bf',
+      ),
     },
   },
   {

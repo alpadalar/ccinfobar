@@ -9,6 +9,7 @@ import {
   truncate,
   visibleWidth,
 } from './ansi.js';
+import { renderPanel } from './panel.js';
 import {
   resolveTheme,
   STYLE_GLYPHS,
@@ -23,6 +24,8 @@ export interface Part {
   item: WidgetItem;
   def: WidgetDef;
   text: string;
+  label: string;
+  value: string;
   status: string | undefined;
   bg: string | undefined;
   flex: boolean;
@@ -37,17 +40,36 @@ export interface Appearance {
   glyphs: ThemeGlyphs;
 }
 
+const ASCII_GLYPHS: ThemeGlyphs = { separator: '', thin: '|', startCap: '', endCap: '' };
+
 export function resolveAppearance(config: Config, theme: Theme = resolveTheme(config.theme)): Appearance {
   const style = config.style ?? theme.style;
   const styleChanged = style !== theme.style;
+  const base = config.charset === 'text' ? ASCII_GLYPHS : styleChanged ? STYLE_GLYPHS[style] : theme.glyphs;
+  let separator = config.separator ?? (styleChanged ? STYLE_SEPARATOR[style] : theme.separator);
+  if (config.charset === 'text' && config.separator === undefined) {
+    separator = asciiSeparator(separator, style);
+  }
   return {
     theme,
     style,
-    separator: config.separator ?? (styleChanged ? STYLE_SEPARATOR[style] : theme.separator),
+    separator,
     separatorColor: config.separatorColor ?? theme.colors.muted,
     padding: config.padding ?? theme.padding,
-    glyphs: { ...(styleChanged ? STYLE_GLYPHS[style] : theme.glyphs), ...config.glyphs },
+    glyphs: { ...base, ...config.glyphs },
   };
+}
+
+function asciiSeparator(sep: string, s: ThemeStyle): string {
+  if (/^[\x20-\x7e]*$/.test(sep)) return sep;
+  if (s === 'capsule' || s === 'blocks') return ' ';
+  return sep.trim() ? ' | ' : sep;
+}
+
+export function effectiveIcons(config: Config): Config['icons'] {
+  return config.charset === 'text' && (config.icons === 'nerd' || config.icons === 'emoji')
+    ? 'text'
+    : config.icons;
 }
 
 export function labelFor(def: WidgetDef, item: WidgetItem, icons: Config['icons']): string {
@@ -73,10 +95,13 @@ export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
   const value = sanitize(out.text);
   const flex = def.type === 'flex';
   if (!flex && value.trim() === '') return null;
+  const label = flex ? '' : labelFor(def, item, effectiveIcons(ctx.config));
   return {
     item,
     def,
-    text: flex ? '' : labelFor(def, item, ctx.config.icons) + value,
+    text: flex ? '' : label + value,
+    label,
+    value: flex ? '' : value,
     status: out.color,
     bg: out.background,
     flex,
@@ -184,7 +209,10 @@ function renderCapsule(parts: Part[], a: Appearance, level: Level, offset: numbe
   return out;
 }
 
-const RENDERERS = {
+const RENDERERS: Record<
+  Exclude<ThemeStyle, 'tui'>,
+  (parts: Part[], a: Appearance, level: Level, offset: number) => string
+> = {
   text: renderText,
   blocks: renderBlocks,
   powerline: renderPowerline,
@@ -213,7 +241,7 @@ export function renderLine(
   }
   let offset = 0;
   const rendered = groups.map((g) => {
-    const s = RENDERERS[a.style](g, a, level, offset);
+    const s = RENDERERS[a.style === 'tui' ? 'text' : a.style](g, a, level, offset);
     offset += g.length;
     return s;
   });
@@ -235,15 +263,61 @@ export function renderLine(
       })
       .join('');
   }
-  if (max !== null && visibleWidth(line) > max) line = truncate(line, max);
+  if (max !== null && visibleWidth(line) > max) {
+    if (ctx.config.autoWrap && parts.filter((p) => !p.flex).length > 1) return wrapLine(parts, a, level, max);
+    line = truncate(line, max);
+  }
   return line;
+}
+
+function wrapLine(parts: Part[], a: Appearance, level: Level, max: number): string {
+  const items = parts.filter((p) => !p.flex);
+  const rows: Part[][] = [[]];
+  let offset = 0;
+  for (const p of items) {
+    const row = rows[rows.length - 1]!;
+    const trial = RENDERERS[a.style === 'tui' ? 'text' : a.style]([...row, p], a, level, offset);
+    if (row.length && visibleWidth(trial) > max) {
+      offset += row.length;
+      rows.push([p]);
+    } else row.push(p);
+  }
+  offset = 0;
+  return rows
+    .map((r) => {
+      const s = RENDERERS[a.style === 'tui' ? 'text' : a.style](r, a, level, offset);
+      offset += r.length;
+      return visibleWidth(s) > max ? truncate(s, max) : s;
+    })
+    .join('\n');
 }
 
 export function render(ctx: RenderContext): string[] {
   const level = detectLevel(ctx.config.colorLevel, ctx.env);
   const a = resolveAppearance(ctx.config, ctx.theme);
+  if (a.style === 'tui') {
+    const textual = { ...a, style: 'text' as const };
+    return renderPanel(
+      ctx,
+      a,
+      level,
+      {
+        cell(item, index) {
+          const p = renderPart(ctx, item);
+          if (!p || p.flex) return null;
+          const s = styleFor(textual, p, colorsFor(textual, p, index));
+          return {
+            text: style(p.text, s, level),
+            label: style(p.label, s, level),
+            value: style(p.value, s, level),
+          };
+        },
+      },
+      maxLineWidth(ctx),
+    );
+  }
   return ctx.config.lines
-    .map((items) => renderLine(ctx, items, level, a))
+    .flatMap((items) => renderLine(ctx, items, level, a).split('\n'))
     .filter((l) => stripAnsi(l).trim() !== '');
 }
 

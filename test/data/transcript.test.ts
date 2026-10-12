@@ -71,3 +71,21 @@ describe('transcript parser', () => {
     expect(readTranscript(file, env)!.messageCount).toBe(1);
   });
 });
+
+describe('built-in commands', () => {
+  it('tracks local commands and remembers the last GSD command', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-tr-'));
+    const file = path.join(dir, 't.jsonl');
+    const lines = [
+      { type: 'user', message: { role: 'user', content: '<command-name>/gsd-plan-phase</command-name>' } },
+      { type: 'system', subtype: 'local_command', content: '<command-name>/compact</command-name>' },
+    ];
+    fs.writeFileSync(file, `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`);
+    const info = readTranscript(file, { ...process.env, CCINFOBAR_CACHE_DIR: dir });
+    expect(info?.lastCommand).toBe('compact');
+    expect(info?.lastGsdCommand).toBe('gsd-plan-phase');
+  });
+});

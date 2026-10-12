@@ -60,15 +60,18 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
 | `version` | `1` | `1` | Config format version |
 | `lines` | `Widget[][]` | see presets | One array per status line, top to bottom. Lines with nothing to show are skipped. |
 | `theme` | string | `"classic"` | Built-in theme id or the name of your own theme file. See [THEMES.md](THEMES.md). |
-| `style` | `text` \| `blocks` \| `powerline` \| `capsule` | theme | Overrides the theme style |
+| `style` | `text` \| `blocks` \| `powerline` \| `capsule` \| `tui` | theme | Overrides the theme style |
 | `separator` | string | theme | Overrides the text between widgets. Use `""` and `separator` widgets for full manual control. |
 | `separatorColor` | color | theme | Overrides the separator color |
 | `padding` | 0 to 4 | theme | Overrides the spaces inside blocks |
 | `glyphs` | object | theme | Overrides `separator`, `thin`, `startCap` and `endCap` glyphs of powerline and capsule styles |
 | `icons` | `nerd` \| `emoji` \| `text` \| `none` | `"text"` | What a widget shows before its value: Nerd Font glyph, emoji, short text label or nothing |
+| `charset` | `unicode` \| `text` | `"unicode"` | `text` switches bars, powerline glyphs, panel boxes and icons to plain ASCII for terminals without Unicode or a Nerd Font |
+| `autoWrap` | boolean | `false` | Move widgets that do not fit onto a new line instead of truncating with `…` |
+| `tui` | object | | Settings for the panel (`tui`) style, see [Panel style](THEMES.md#panel-style) |
 | `colorLevel` | `auto` \| 0 \| 1 \| 2 \| 3 | `"auto"` | 0 no color, 1 basic 16, 2 256 colors, 3 truecolor. `auto` honors `NO_COLOR`, `FORCE_COLOR` and `COLORTERM`. |
 | `maxWidth` | `auto` \| number | `"auto"` | Lines longer than this are truncated with `…`. `auto` uses the detected terminal width. |
-| `widthOffset` | number | `4` | Columns subtracted from the terminal width in `auto` mode, leaving room for Claude Code's own padding |
+| `widthOffset` | number | `4` | Columns subtracted from the terminal width in `auto` mode. Outside fullscreen mode Claude Code shows notifications on the right of the status line row; raise this (for example to `40`) to keep them visible. |
 | `savePayload` | boolean | `true` | Store the latest Claude Code payload so the editors can preview with your real session data |
 
 Fields marked "theme" are optional. Leave them out to use the theme's value.
@@ -99,6 +102,30 @@ Any of these work wherever a color is accepted:
 - `default` to fall back to the terminal color
 
 Colors are converted down automatically when the terminal supports fewer colors.
+
+## Bars
+
+Widgets that draw a bar (`context-bar`, `five-hour-usage` and `weekly-usage` with `display: "bar"`, `gsd-milestone-progress`, `gsd-plan-progress`, `gsd-summary`) accept `width`, `style` and `showPercent`.
+
+| `style` | Example |
+| --- | --- |
+| `blocks` | `█████░░░░░` |
+| `blocks-line` | `█████─────` |
+| `shade` | `▓▓▓▓▓░░░░░` |
+| `bar` | `▪▪▪▪▪▫▫▫▫▫` |
+| `thin` | `━━━━━─────` |
+| `line` | `━━━━━┄┄┄┄┄` |
+| `capped` | `━━━━╸┄┄┄┄┄` |
+| `ball` | `─────●────` |
+| `dots` | `●●●●●○○○○○` |
+| `filled` | `■■■■■□□□□□` |
+| `squares` | `◼◼◼◼◼◻◻◻◻◻` |
+| `geometric` | `▰▰▰▰▰▱▱▱▱▱` |
+| `ascii` | `#####-----` |
+
+With `charset: "text"` every bar becomes `=====-----`.
+
+`five-hour-usage` and `weekly-usage` also take `showPace`: the text becomes `60%/40%` (actual and even-burn usage), and bars get a `◆` (ahead of pace) or `◇` (under pace) marker where even burn would be.
 
 ## Layout tips
 

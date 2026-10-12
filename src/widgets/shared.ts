@@ -1,4 +1,4 @@
-import type { OptionSpec, OptionValue, WidgetItem } from '../core/types.js';
+import type { OptionSpec, OptionValue, RenderContext, WidgetItem } from '../core/types.js';
 
 export function opt<T extends OptionValue>(item: WidgetItem, key: string, fallback: T): T {
   const v = item.options?.[key];
@@ -11,20 +11,68 @@ export function opt<T extends OptionValue>(item: WidgetItem, key: string, fallba
   return String(v) as T;
 }
 
-export const BAR_STYLES: Record<string, [string, string]> = {
-  blocks: ['█', '░'],
-  shade: ['▓', '░'],
-  thin: ['━', '─'],
-  dots: ['●', '○'],
-  squares: ['■', '□'],
-  ascii: ['#', '-'],
+export interface BarStyle {
+  filled: string;
+  empty: string;
+  cap?: string;
+  marker?: string;
+}
+
+export const BAR_STYLES: Record<string, BarStyle> = {
+  blocks: { filled: '█', empty: '░' },
+  'blocks-line': { filled: '█', empty: '─' },
+  shade: { filled: '▓', empty: '░' },
+  bar: { filled: '▪', empty: '▫' },
+  thin: { filled: '━', empty: '─' },
+  line: { filled: '━', empty: '┄' },
+  capped: { filled: '━', empty: '┄', cap: '╸' },
+  ball: { filled: '─', empty: '─', marker: '●' },
+  dots: { filled: '●', empty: '○' },
+  filled: { filled: '■', empty: '□' },
+  squares: { filled: '◼', empty: '◻' },
+  geometric: { filled: '▰', empty: '▱' },
+  ascii: { filled: '#', empty: '-' },
 };
 
-export function bar(percent: number, width = 10, styleName = 'blocks'): string {
-  const [full, empty] = BAR_STYLES[styleName] ?? BAR_STYLES.blocks!;
+const TEXT_BAR: BarStyle = { filled: '=', empty: '-' };
+
+export interface BarOpts {
+  pace?: number | null;
+  ascii?: boolean;
+}
+
+export function bar(percent: number, width = 10, styleName = 'blocks', opts: BarOpts = {}): string {
+  const s = opts.ascii ? TEXT_BAR : (BAR_STYLES[styleName] ?? BAR_STYLES.blocks!);
+  const w = Math.max(1, Math.floor(width));
   const pct = Math.max(0, Math.min(100, percent));
-  const filled = Math.round((pct / 100) * width);
-  return full.repeat(filled) + empty.repeat(width - filled);
+  const filled = Math.round((pct / 100) * w);
+  let cells: string[];
+  if (s.marker) {
+    const pos = Math.min(filled, w - 1);
+    cells = [...s.filled.repeat(pos), s.marker, ...s.empty.repeat(w - pos - 1)];
+  } else if (s.cap && filled < w) {
+    cells =
+      filled === 0
+        ? [s.cap, ...s.empty.repeat(w - 1)]
+        : [...s.filled.repeat(filled - 1), s.cap, ...s.empty.repeat(w - filled)];
+  } else {
+    cells = [...s.filled.repeat(filled), ...s.empty.repeat(w - filled)];
+  }
+  if (typeof opts.pace === 'number' && Number.isFinite(opts.pace)) {
+    const p = Math.max(0, Math.min(100, opts.pace));
+    const at = Math.min(Math.round((p / 100) * w), w - 1);
+    const over = pct > p;
+    if (s.marker && cells[at] === s.marker) cells[at] = opts.ascii ? '*' : '◈';
+    else cells[at] = opts.ascii ? (over ? '!' : ':') : over ? '◆' : '◇';
+  }
+  return cells.join('');
+}
+
+export function barFor(ctx: RenderContext, item: WidgetItem, percent: number, pace?: number | null): string {
+  return bar(percent, opt(item, 'width', 10), opt<string>(item, 'style', 'blocks'), {
+    pace: pace ?? null,
+    ascii: ctx.config.charset === 'text',
+  });
 }
 
 export function formatTokens(n: number): string {

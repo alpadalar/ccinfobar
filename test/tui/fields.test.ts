@@ -78,3 +78,93 @@ describe('themeInputFromConfig', () => {
     expect(input.extends).toBe(resolveAppearance(c).theme.id);
   });
 });
+
+describe('panel fields', () => {
+  const panelConfig = () => ({ ...defaultConfig(), style: 'tui' as const });
+  const pf = (id: string) => globalFields(panelConfig()).find((f) => f.id === id)!;
+
+  it('adds charset and auto wrap, and panel fields only for the panel style', () => {
+    const base = globalFields(defaultConfig()).map((f) => f.id);
+    expect(base).toContain('charset');
+    expect(base).toContain('autoWrap');
+    expect(base.some((i) => i.startsWith('tui.'))).toBe(false);
+    const panel = globalFields(panelConfig()).map((f) => f.id);
+    for (const id of [
+      'tui.box',
+      'tui.fitContent',
+      'tui.minWidth',
+      'tui.maxWidth',
+      'tui.padding',
+      'tui.dividers',
+      'tui.title.left',
+      'tui.title.right',
+      'tui.footer.left',
+      'tui.footer.right',
+      'tui.breakpoints',
+    ]) {
+      expect(panel).toContain(id);
+    }
+    expect(globalFields({ ...defaultConfig(), theme: 'panel' }).some((f) => f.id === 'tui.box')).toBe(true);
+  });
+
+  it('style offers Panel and sets tui', () => {
+    const entries = listEntries(globalFields(defaultConfig()).find((f) => f.id === 'style')!);
+    expect(entries.some((e) => e.value === 'tui' && e.label === 'Panel')).toBe(true);
+  });
+
+  it('sets and resets box presets, dropping tui when empty', () => {
+    let c = pf('tui.box').set(panelConfig(), 'double');
+    expect(c.tui).toEqual({ box: 'double' });
+    expect(cycled(pf('tui.box'), c, 1)).toBe('dashed');
+    c = pf('tui.fitContent').set(c, true);
+    c = pf('tui.box').set(c, undefined);
+    expect(c.tui).toEqual({ fitContent: true });
+    c = pf('tui.fitContent').set(c, undefined);
+    expect('tui' in c).toBe(false);
+  });
+
+  it('clamps numeric cycling and validates input', () => {
+    const f = pf('tui.minWidth');
+    expect(f.parse('5').ok).toBe(false);
+    expect(f.parse('40')).toEqual({ ok: true, value: 40 });
+    expect(cycled(pf('tui.maxWidth'), panelConfig(), -1)).toBe(10);
+    expect(pf('tui.padding').parse('9').ok).toBe(false);
+  });
+
+  it('handles titles, hidden right title and footers', () => {
+    let c = pf('tui.title.left').set(panelConfig(), 'Hi {cwd}');
+    c = pf('tui.title.right').set(c, 'off');
+    expect(c.tui?.title).toEqual({ left: 'Hi {cwd}', right: false });
+    expect(displayValue(pf('tui.title.right'), c).text).toBe('off');
+    c = pf('tui.footer.left').set(c, 'x');
+    expect(c.tui?.footer).toEqual({ left: 'x' });
+    c = pf('tui.title.right').set(pf('tui.title.left').set(c, undefined), undefined);
+    expect(c.tui?.title).toBeUndefined();
+    c = pf('tui.footer.left').set(c, undefined);
+    expect('tui' in c).toBe(false);
+  });
+
+  it('validates and stores grid breakpoints', () => {
+    const f = pf('tui.breakpoints');
+    expect(f.parse('{').ok).toBe(false);
+    expect(f.parse('{}').ok).toBe(false);
+    expect(f.parse('[{"minWidth":0}]').ok).toBe(false);
+    const text =
+      '[{"minWidth":0,"areas":["model cwd"]},{"minWidth":100,"areas":["model","cwd"],"columns":["1fr"]}]';
+    const parsed = f.parse(text);
+    expect(parsed.ok).toBe(true);
+    const c = f.set(panelConfig(), parsed.ok ? parsed.value : undefined);
+    expect(c.tui?.breakpoints).toHaveLength(2);
+    expect(displayValue(pf('tui.breakpoints'), c).text).toContain('2 breakpoints');
+    expect(JSON.parse(pf('tui.breakpoints').editValue!(c))).toHaveLength(2);
+    expect('tui' in f.set(c, undefined)).toBe(false);
+  });
+
+  it('edits charset and autoWrap', () => {
+    const c = defaultConfig();
+    const charset = globalFields(c).find((f) => f.id === 'charset')!;
+    expect(charset.set(c, 'text').charset).toBe('text');
+    const wrap = globalFields(c).find((f) => f.id === 'autoWrap')!;
+    expect(wrap.set(c, !c.autoWrap).autoWrap).toBe(!c.autoWrap);
+  });
+});

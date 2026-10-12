@@ -1,6 +1,6 @@
-import type { OptionSpec, WidgetDef, WidgetItem, WidgetOutput } from '../core/types.js';
+import type { OptionSpec, RenderContext, WidgetDef, WidgetItem, WidgetOutput } from '../core/types.js';
 import type { GsdInfo } from '../data/gsd.js';
-import { bar, barOptions, opt } from './shared.js';
+import { barFor, barOptions, opt } from './shared.js';
 
 const STATUS_COLORS: Record<string, string> = {
   discussing: 'cyan',
@@ -55,11 +55,11 @@ function nextCommand(info: GsdInfo): { action: string; phases: string } | null {
 }
 
 function withGsd(
-  render: (info: GsdInfo, item: WidgetItem) => WidgetOutput | string | null,
+  render: (info: GsdInfo, item: WidgetItem, ctx: RenderContext) => WidgetOutput | string | null,
 ): WidgetDef['render'] {
   return (ctx, item) => {
     const info = ctx.data.gsd();
-    return info ? render(info, item) : null;
+    return info ? render(info, item, ctx) : null;
   };
 }
 
@@ -94,9 +94,9 @@ export const widgets: WidgetDef[] = [
       ...barOptions,
       { key: 'showCounts', label: 'Show phase counts', kind: 'boolean', default: false },
     ],
-    render: withGsd((info, item) => {
+    render: withGsd((info, item, ctx) => {
       if (info.percent === null) return null;
-      const parts = [bar(info.percent, opt(item, 'width', 10), opt<string>(item, 'style', 'blocks'))];
+      const parts = [barFor(ctx, item, info.percent)];
       if (opt(item, 'showPercent', true)) parts.push(`${info.percent}%`);
       if (opt(item, 'showCounts', false) && info.phasesTotal > 0) {
         parts.push(`${info.phasesCompleted}/${info.phasesTotal} phases`);
@@ -122,7 +122,13 @@ export const widgets: WidgetDef[] = [
       const phase = info.phase;
       if (!phase) return null;
       let text = phase.number;
-      if (opt(item, 'showTotal', true) && info.phasesTotal > 0) text += `/${info.phasesTotal}`;
+      if (opt(item, 'showTotal', true) && info.phasesTotal > 0) {
+        const idx = info.phaseIndex;
+        const n = Number(phase.number);
+        if (idx && (n > info.phasesTotal || !Number.isInteger(n) || n !== idx))
+          text += ` (${idx}/${info.phasesTotal})`;
+        else text += `/${info.phasesTotal}`;
+      }
       if (opt(item, 'showName', true) && phase.name) {
         text += ` ${clip(phase.name, opt(item, 'maxNameLength', 24))}`;
       }
@@ -168,11 +174,11 @@ export const widgets: WidgetDef[] = [
     color: 'blue',
     sample: '██████░░░░ 60%',
     options: barOptions,
-    render: withGsd((info, item) => {
+    render: withGsd((info, item, ctx) => {
       const phase = info.phase;
       if (!phase || phase.plans === 0) return null;
       const pct = Math.round((Math.min(phase.summaries, phase.plans) / phase.plans) * 100);
-      const b = bar(pct, opt(item, 'width', 10), opt<string>(item, 'style', 'blocks'));
+      const b = barFor(ctx, item, pct);
       return opt(item, 'showPercent', true) ? `${b} ${pct}%` : b;
     }),
   },
@@ -213,19 +219,20 @@ export const widgets: WidgetDef[] = [
   },
   {
     type: 'gsd-blockers',
-    name: 'GSD blockers',
+    name: 'GSD blockers & concerns',
     category: 'gsd',
-    description: 'Number of open blockers and concerns',
+    description:
+      'Open items under Blockers/Concerns in STATE.md (resolved and struck-through items are skipped)',
     color: 'red',
-    sample: '⚠ 1 blocker',
+    sample: '⚠ 1 concern',
     options: [
-      { key: 'showFirst', label: 'Show first blocker text', kind: 'boolean', default: false },
+      { key: 'showFirst', label: 'Show first item text', kind: 'boolean', default: false },
       maxLengthOption(40),
     ],
     render: withGsd((info, item) => {
       const n = info.blockers.length;
       if (n === 0) return null;
-      const base = `⚠ ${n} blocker${n === 1 ? '' : 's'}`;
+      const base = `⚠ ${n} concern${n === 1 ? '' : 's'}`;
       if (!opt(item, 'showFirst', false)) return base;
       return `${base}: ${clip(info.blockers[0]!, opt(item, 'maxLength', 40))}`;
     }),
@@ -267,9 +274,10 @@ export const widgets: WidgetDef[] = [
     options: [{ key: 'onlyGsd', label: 'Only GSD commands', kind: 'boolean', default: true }],
     render(ctx, item) {
       if (!ctx.data.gsd()) return null;
-      const cmd = ctx.data.transcript()?.lastCommand?.trim().split(/\s+/)[0]?.replace(/^\//, '');
+      const t = ctx.data.transcript();
+      const raw = opt(item, 'onlyGsd', true) ? t?.lastGsdCommand : t?.lastCommand;
+      const cmd = raw?.trim().split(/\s+/)[0]?.replace(/^\//, '');
       if (!cmd) return null;
-      if (opt(item, 'onlyGsd', true) && !/^gsd/i.test(cmd)) return null;
       return `/${cmd}`;
     },
   },
@@ -313,12 +321,12 @@ export const widgets: WidgetDef[] = [
     color: 'cyan',
     sample: 'v1.2 Billing [█████░░░░░] 50% · Phase 4 executing',
     options: barOptions,
-    render: withGsd((info, item) => {
+    render: withGsd((info, item, ctx) => {
       const head: string[] = [];
       const ms = milestoneLabel(info);
       if (ms) head.push(ms);
       if (info.percent !== null) {
-        const b = bar(info.percent, opt(item, 'width', 10), opt<string>(item, 'style', 'blocks'));
+        const b = barFor(ctx, item, info.percent);
         head.push(`[${b}]${opt(item, 'showPercent', true) ? ` ${info.percent}%` : ''}`);
       }
       let tail: string | null = null;

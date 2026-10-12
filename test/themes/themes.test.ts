@@ -30,7 +30,7 @@ describe('built-in themes', () => {
     const ids = BUILTIN_THEMES.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const s of STYLES) expect(BUILTIN_THEMES.some((t) => t.style === s.id)).toBe(true);
-    expect(BUILTIN_THEMES.length).toBeGreaterThanOrEqual(15);
+    expect(BUILTIN_THEMES.length).toBeGreaterThanOrEqual(23);
   });
 
   it('renders every theme without throwing', () => {
@@ -39,8 +39,8 @@ describe('built-in themes', () => {
         config: { colorLevel: 3, theme: t.id, lines: [[{ id: 'm', type: 'model' }, text('x')]] },
       });
       const out = render(ctx);
-      expect(out).toHaveLength(1);
-      expect(stripAnsi(out[0]!)).toContain('Opus 5.5');
+      expect(out.length).toBe(t.style === 'tui' ? 3 : 1);
+      expect(out.map(stripAnsi).join('\n')).toContain('Opus 5.5');
     }
   });
 

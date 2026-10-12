@@ -1,7 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { configPath } from './paths.js';
-import type { Config, GlyphOverrides, ThemeStyle, WidgetItem } from './types.js';
+import type {
+  BoxChars,
+  Config,
+  GlyphOverrides,
+  ThemeStyle,
+  TuiBreakpoint,
+  TuiConfig,
+  TuiTemplate,
+  WidgetItem,
+} from './types.js';
 
 export const SCHEMA_URL =
   'https://raw.githubusercontent.com/alpadalar/ccinfobar/main/schema/config.schema.json';
@@ -16,7 +25,7 @@ function item(type: string, extra: Partial<WidgetItem> = {}): WidgetItem {
   return { id: `${type}-1`, type, ...extra };
 }
 
-const STYLE_IDS = ['text', 'blocks', 'powerline', 'capsule'];
+const STYLE_IDS = ['text', 'blocks', 'powerline', 'capsule', 'tui'];
 const LEGACY_THEMES: Record<string, string> = { default: 'powerline' };
 
 export function defaultConfig(): Config {
@@ -42,6 +51,8 @@ export function defaultConfig(): Config {
       [item('session-cost'), item('five-hour-usage'), item('five-hour-reset'), item('weekly-usage')],
     ],
     theme: 'classic',
+    charset: 'unicode',
+    autoWrap: false,
     colorLevel: 'auto',
     icons: 'text',
     maxWidth: 'auto',
@@ -74,6 +85,93 @@ function normalizeItem(raw: unknown, index: number): WidgetItem | null {
     out.options = opts;
   }
   return out;
+}
+
+function str(v: unknown): string | undefined {
+  return typeof v === 'string' ? v : undefined;
+}
+
+function num(v: unknown, min = 0): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) && v >= min ? Math.floor(v) : undefined;
+}
+
+function compact<T extends object>(o: T): T | undefined {
+  const out = Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
+  return Object.keys(out).length ? out : undefined;
+}
+
+const BOX_KEYS = [
+  'topLeft',
+  'topRight',
+  'bottomLeft',
+  'bottomRight',
+  'horizontal',
+  'vertical',
+  'teeLeft',
+  'teeRight',
+] as const;
+const ALIGNS = ['left', 'center', 'right'];
+
+export function normalizeTui(raw: unknown): TuiConfig | undefined {
+  if (!isObject(raw)) return undefined;
+  const t: TuiConfig = {};
+  if (typeof raw.box === 'string') t.box = raw.box;
+  else if (isObject(raw.box)) {
+    const box: Partial<BoxChars> = {};
+    for (const k of BOX_KEYS) if (typeof raw.box[k] === 'string') box[k] = raw.box[k] as string;
+    t.box = box;
+  }
+  if (typeof raw.fitContent === 'boolean') t.fitContent = raw.fitContent;
+  if (typeof raw.dividers === 'boolean') t.dividers = raw.dividers;
+  const minWidth = num(raw.minWidth, 10);
+  if (minWidth !== undefined) t.minWidth = minWidth;
+  const maxWidth = num(raw.maxWidth, 10);
+  if (maxWidth !== undefined) t.maxWidth = maxWidth;
+  const padding = num(raw.padding);
+  if (padding !== undefined) t.padding = Math.min(8, padding);
+  if (typeof raw.columnGap === 'string') t.columnGap = raw.columnGap;
+  if (typeof raw.divider === 'string') t.divider = raw.divider;
+  if (isObject(raw.title)) {
+    const title = compact({
+      left: str(raw.title.left),
+      right: raw.title.right === false ? (false as const) : str(raw.title.right),
+    });
+    if (title) t.title = title;
+  }
+  if (isObject(raw.footer)) {
+    const footer = compact({ left: str(raw.footer.left), right: str(raw.footer.right) });
+    if (footer) t.footer = footer;
+  }
+  if (isObject(raw.templates)) {
+    const templates: Record<string, TuiTemplate> = {};
+    for (const [k, v] of Object.entries(raw.templates)) {
+      if (!isObject(v) || !Array.isArray(v.items)) continue;
+      templates[k] = {
+        items: v.items.filter((x): x is string => typeof x === 'string'),
+        ...(num(v.gap) !== undefined ? { gap: num(v.gap) } : {}),
+        ...(v.justify === 'between' || v.justify === 'start' ? { justify: v.justify } : {}),
+      };
+    }
+    t.templates = templates;
+  }
+  if (Array.isArray(raw.breakpoints)) {
+    t.breakpoints = raw.breakpoints
+      .filter((b): b is Record<string, unknown> => isObject(b) && Array.isArray(b.areas))
+      .map((b) => {
+        const bp: TuiBreakpoint = {
+          minWidth: num(b.minWidth) ?? 0,
+          areas: (b.areas as unknown[]).filter((x): x is string => typeof x === 'string'),
+        };
+        if (Array.isArray(b.columns)) bp.columns = b.columns.map((c) => String(c));
+        if (Array.isArray(b.align)) {
+          bp.align = b.align.map((a) =>
+            ALIGNS.includes(a as string) ? a : 'left',
+          ) as TuiBreakpoint['align'];
+        }
+        return bp;
+      });
+  }
+  return t;
 }
 
 export function normalizeConfig(raw: unknown): Config {
@@ -109,6 +207,10 @@ export function normalizeConfig(raw: unknown): Config {
   if (typeof raw.widthOffset === 'number') cfg.widthOffset = Math.max(0, Math.floor(raw.widthOffset));
   if (typeof raw.savePayload === 'boolean') cfg.savePayload = raw.savePayload;
   if (typeof raw.theme === 'string' && raw.theme) cfg.theme = raw.theme;
+  if (raw.charset === 'unicode' || raw.charset === 'text') cfg.charset = raw.charset;
+  if (typeof raw.autoWrap === 'boolean') cfg.autoWrap = raw.autoWrap;
+  const tui = normalizeTui(raw.tui);
+  if (tui) cfg.tui = tui;
   if (typeof raw.style === 'string' && STYLE_IDS.includes(raw.style)) cfg.style = raw.style as ThemeStyle;
   if (isObject(raw.glyphs)) {
     const g: GlyphOverrides = {};

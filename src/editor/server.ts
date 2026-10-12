@@ -256,6 +256,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
             separatorColor: undefined,
             padding: undefined,
             glyphs: undefined,
+            tui: undefined,
           };
           previews[t.id] = renderPreview(cfg, source, width);
         }
