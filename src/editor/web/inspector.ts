@@ -227,34 +227,6 @@ function widgetTab(): HTMLElement {
 
   root.append(
     section(
-      'Appearance',
-      field(
-        'Text color',
-        colorPicker({
-          value: item.color,
-          fallback: defColor,
-          onChange: (v, live) => patch({ color: v }, live ? `${item.id}:color` : undefined),
-        }),
-      ),
-      field(
-        'Background',
-        colorPicker({
-          value: item.background,
-          onChange: (v, live) => patch({ background: v }, live ? `${item.id}:bg` : undefined),
-        }),
-      ),
-      field(
-        'Style',
-        h(
-          'div',
-          { class: 'style-row' },
-          styleToggle('Bold', 'Bold', !!item.bold, (v) => patch({ bold: v || undefined })),
-          styleToggle('Dim', 'Dim', !!item.dim, (v) => patch({ dim: v || undefined })),
-          styleToggle('Italic', 'Italic', !!item.italic, (v) => patch({ italic: v || undefined })),
-        ),
-      ),
-    ),
-    section(
       'Label',
       field(
         'Label override',
@@ -288,6 +260,36 @@ function widgetTab(): HTMLElement {
   if (info?.options.length) {
     root.append(section('Options', ...info.options.map((o) => optionControl(item, o))));
   }
+  root.append(
+    section(
+      'Appearance',
+      field(
+        'Text color',
+        colorPicker({
+          value: item.color,
+          fallback: defColor,
+          onChange: (v, live) => patch({ color: v }, live ? `${item.id}:color` : undefined),
+        }),
+      ),
+      field(
+        'Background',
+        colorPicker({
+          value: item.background,
+          onChange: (v, live) => patch({ background: v }, live ? `${item.id}:bg` : undefined),
+        }),
+      ),
+      field(
+        'Style',
+        h(
+          'div',
+          { class: 'style-row' },
+          styleToggle('Bold', 'Bold', !!item.bold, (v) => patch({ bold: v || undefined })),
+          styleToggle('Dim', 'Dim', !!item.dim, (v) => patch({ dim: v || undefined })),
+          styleToggle('Italic', 'Italic', !!item.italic, (v) => patch({ italic: v || undefined })),
+        ),
+      ),
+    ),
+  );
   return root;
 }
 
@@ -388,94 +390,6 @@ function globalTab(): HTMLElement {
   const mutedFallback = theme?.colors.muted;
   const root = h('div', { class: 'pane' });
   root.append(
-    section(
-      'Theme',
-      h(
-        'div',
-        { class: 'theme-current' },
-        h(
-          'div',
-          { class: 'theme-current-info' },
-          h('strong', null, theme?.name ?? c.theme),
-          h('span', { class: `theme-tag style-${style}` }, style),
-          theme?.source === 'user' ? h('span', { class: 'theme-tag yours' }, 'yours') : null,
-        ),
-        h('div', { class: 'hint' }, theme?.description ?? 'Unknown theme, using Classic'),
-        h(
-          'div',
-          { class: 'row-inline' },
-          h('button', { class: 'btn', type: 'button', onClick: () => void openGallery() }, 'Change theme'),
-          h(
-            'button',
-            {
-              class: 'btn ghost',
-              type: 'button',
-              onClick: async () => {
-                const id = await openThemeBuilder({ from: theme, style: c.style });
-                if (id) applyTheme(id);
-              },
-            },
-            'New theme',
-          ),
-        ),
-      ),
-    ),
-    section(
-      'Style',
-      fieldWithReset(
-        'Style',
-        segmented(
-          S.api.styles.map((st) => ({ value: st.id, label: st.name, title: st.description })),
-          style,
-          (v) => setOverride('style', v === theme?.style ? undefined : v),
-        ),
-        resetLink(c.style !== undefined, () => setOverride('style', undefined)),
-        'Powerline and Capsule need a Nerd Font.',
-      ),
-      ...(style === 'tui'
-        ? []
-        : [
-            field(
-              'Colors from',
-              themeChips(c.theme || 'classic', (t) =>
-                commit({ ...S.config, theme: t.id, style: style === t.style ? undefined : style }),
-              ),
-              'Keeps your style and takes the colors of another theme.',
-            ),
-          ]),
-      fieldWithReset(
-        'Separator',
-        h('div', { class: 'stack' }, sepChoices, sepInput),
-        resetLink(c.separator !== undefined, () => setOverride('separator', undefined)),
-      ),
-      fieldWithReset(
-        'Separator color',
-        colorPicker({
-          value: c.separatorColor,
-          fallback: typeof mutedFallback === 'string' ? mutedFallback : undefined,
-          onChange: (v, live) => setOverride('separatorColor', v, live ? 'sepcolor' : undefined),
-        }),
-        resetLink(c.separatorColor !== undefined, () => setOverride('separatorColor', undefined)),
-      ),
-      fieldWithReset(
-        'Padding',
-        numberInput(
-          c.padding ?? '',
-          (v) => setOverride('padding', v === null ? undefined : Math.max(0, Math.min(4, v)), 'pad'),
-          { min: 0, max: 4, step: 1, placeholder: String(theme?.padding ?? 1) },
-        ),
-        resetLink(c.padding !== undefined, () => setOverride('padding', undefined)),
-        'Spaces around each widget (0 to 4).',
-      ),
-    ),
-    ...(style === 'tui' ? [panelSection()] : []),
-    section(
-      'Glyphs',
-      glyphField('Separator', 'separator', PL_SEPARATORS, theme?.glyphs.separator ?? ''),
-      glyphField('Thin separator', 'thin', PL_THIN, theme?.glyphs.thin ?? ''),
-      glyphField('Start cap', 'startCap', PL_START, theme?.glyphs.startCap ?? ''),
-      glyphField('End cap', 'endCap', PL_END, theme?.glyphs.endCap ?? ''),
-    ),
     section(
       'Rendering',
       field(
@@ -588,6 +502,94 @@ function globalTab(): HTMLElement {
       ),
     ),
     section('Claude Code', claudeCard()),
+    section(
+      'Theme',
+      h(
+        'div',
+        { class: 'theme-current' },
+        h(
+          'div',
+          { class: 'theme-current-info' },
+          h('strong', null, theme?.name ?? c.theme),
+          h('span', { class: `theme-tag style-${style}` }, style),
+          theme?.source === 'user' ? h('span', { class: 'theme-tag yours' }, 'yours') : null,
+        ),
+        h('div', { class: 'hint' }, theme?.description ?? 'Unknown theme, using Classic'),
+        h(
+          'div',
+          { class: 'row-inline' },
+          h('button', { class: 'btn', type: 'button', onClick: () => void openGallery() }, 'Change theme'),
+          h(
+            'button',
+            {
+              class: 'btn ghost',
+              type: 'button',
+              onClick: async () => {
+                const id = await openThemeBuilder({ from: theme, style: c.style });
+                if (id) applyTheme(id);
+              },
+            },
+            'New theme',
+          ),
+        ),
+      ),
+    ),
+    section(
+      'Style',
+      fieldWithReset(
+        'Style',
+        segmented(
+          S.api.styles.map((st) => ({ value: st.id, label: st.name, title: st.description })),
+          style,
+          (v) => setOverride('style', v === theme?.style ? undefined : v),
+        ),
+        resetLink(c.style !== undefined, () => setOverride('style', undefined)),
+        'Powerline and Capsule need a Nerd Font.',
+      ),
+      ...(style === 'tui'
+        ? []
+        : [
+            field(
+              'Colors from',
+              themeChips(c.theme || 'classic', (t) =>
+                commit({ ...S.config, theme: t.id, style: style === t.style ? undefined : style }),
+              ),
+              'Keeps your style and takes the colors of another theme.',
+            ),
+          ]),
+      fieldWithReset(
+        'Separator',
+        h('div', { class: 'stack' }, sepChoices, sepInput),
+        resetLink(c.separator !== undefined, () => setOverride('separator', undefined)),
+      ),
+      fieldWithReset(
+        'Separator color',
+        colorPicker({
+          value: c.separatorColor,
+          fallback: typeof mutedFallback === 'string' ? mutedFallback : undefined,
+          onChange: (v, live) => setOverride('separatorColor', v, live ? 'sepcolor' : undefined),
+        }),
+        resetLink(c.separatorColor !== undefined, () => setOverride('separatorColor', undefined)),
+      ),
+      fieldWithReset(
+        'Padding',
+        numberInput(
+          c.padding ?? '',
+          (v) => setOverride('padding', v === null ? undefined : Math.max(0, Math.min(4, v)), 'pad'),
+          { min: 0, max: 4, step: 1, placeholder: String(theme?.padding ?? 1) },
+        ),
+        resetLink(c.padding !== undefined, () => setOverride('padding', undefined)),
+        'Spaces around each widget (0 to 4).',
+      ),
+    ),
+    ...(style === 'tui' ? [panelSection()] : []),
+    section(
+      'Glyphs',
+      glyphField('Separator', 'separator', PL_SEPARATORS, theme?.glyphs.separator ?? ''),
+      glyphField('Thin separator', 'thin', PL_THIN, theme?.glyphs.thin ?? ''),
+      glyphField('Start cap', 'startCap', PL_START, theme?.glyphs.startCap ?? ''),
+      glyphField('End cap', 'endCap', PL_END, theme?.glyphs.endCap ?? ''),
+    ),
   );
   return root;
 }

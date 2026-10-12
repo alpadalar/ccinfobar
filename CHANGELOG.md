@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-10-12
+
+### Changed
+
+- Editor inspector: label, toggles and options come first and colors last in the Widget tab; rendering settings and Claude Code come first and theme, style and glyphs last in the Global tab
+
 ## [0.5.3] - 2026-10-12
 
 ### Changed
@@ -154,7 +160,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/alpadalar/ccinfobar/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/alpadalar/ccinfobar/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/alpadalar/ccinfobar/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/alpadalar/ccinfobar/compare/v0.5.0...v0.5.1
