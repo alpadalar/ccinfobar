@@ -63,14 +63,7 @@ describe('sample rendering', () => {
   }
 
   it('hides default-valued widgets', () => {
-    for (const t of [
-      'output-style',
-      'fast-mode',
-      'git-conflicts',
-      'git-operation',
-      'git-worktree',
-      'agent-name',
-    ]) {
+    for (const t of ['output-style', 'fast-mode', 'git-operation', 'git-worktree', 'agent-name']) {
       expect(r(t)).toBeNull();
     }
   });
@@ -201,11 +194,13 @@ describe('git widgets', () => {
     expect(renderWidget('git-status', g({ conflicts: 1 }))).toBe('● !1');
     expect(renderWidget('git-status', g({ staged: 1 }), { options: { counts: false } })).toBe('●');
   });
-  it('hides zeros', () => {
-    for (const t of ['git-staged', 'git-ahead-behind', 'git-changes', 'git-stash', 'git-conflicts']) {
-      expect(renderWidget(t, g({}))).toBeNull();
-    }
-    expect(renderWidget('git-staged', g({}), { options: { hideZero: false } })).toBe('0');
+  it('shows zeros inside a repository', () => {
+    expect(renderWidget('git-staged', g({}))).toBe('0');
+    expect(renderWidget('git-stash', g({}))).toBe('0');
+    expect(renderWidget('git-conflicts', g({}))).toBe('0');
+    expect(renderWidget('git-changes', g({}))).toBe('+0 -0');
+    expect(renderWidget('git-ahead-behind', g({}))).toBe('↑0 ↓0');
+    expect(renderWidget('git-staged', g({}), { options: { hideZero: true } })).toBeNull();
   });
   it('operation', () => expect(renderWidget('git-operation', g({ operation: 'MERGING' }))).toBe('MERGING'));
   it('repo falls back to remote url', () => {

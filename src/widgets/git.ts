@@ -14,7 +14,7 @@ const hideZero: OptionSpec = {
   key: 'hideZero',
   label: 'Hide when zero',
   kind: 'boolean',
-  default: true,
+  default: false,
 };
 
 export const widgets: WidgetDef[] = [
@@ -55,7 +55,7 @@ export const widgets: WidgetDef[] = [
     sample: '+148 -37',
     render(ctx) {
       const g = ctx.data.git();
-      if (!g || (g.insertions === 0 && g.deletions === 0)) return null;
+      if (!g) return null;
       return `+${g.insertions} -${g.deletions}`;
     },
   },
@@ -93,7 +93,7 @@ export const widgets: WidgetDef[] = [
     options: [hideZero],
     render(ctx, item) {
       const n = ctx.data.git()?.staged;
-      if (n === undefined || (n === 0 && opt(item, 'hideZero', true))) return null;
+      if (n === undefined || (n === 0 && opt(item, 'hideZero', false))) return null;
       return String(n);
     },
   },
@@ -109,7 +109,7 @@ export const widgets: WidgetDef[] = [
     options: [hideZero],
     render(ctx, item) {
       const n = ctx.data.git()?.unstaged;
-      if (n === undefined || (n === 0 && opt(item, 'hideZero', true))) return null;
+      if (n === undefined || (n === 0 && opt(item, 'hideZero', false))) return null;
       return String(n);
     },
   },
@@ -125,7 +125,7 @@ export const widgets: WidgetDef[] = [
     options: [hideZero],
     render(ctx, item) {
       const n = ctx.data.git()?.untracked;
-      if (n === undefined || (n === 0 && opt(item, 'hideZero', true))) return null;
+      if (n === undefined || (n === 0 && opt(item, 'hideZero', false))) return null;
       return String(n);
     },
   },
@@ -138,7 +138,7 @@ export const widgets: WidgetDef[] = [
     sample: '↑2 ↓0',
     render(ctx) {
       const g = ctx.data.git();
-      if (!g || (g.ahead === 0 && g.behind === 0)) return null;
+      if (!g) return null;
       return `↑${g.ahead} ↓${g.behind}`;
     },
   },
@@ -153,7 +153,7 @@ export const widgets: WidgetDef[] = [
     sample: '2',
     render(ctx) {
       const n = ctx.data.git()?.conflicts;
-      return n ? String(n) : null;
+      return n === undefined ? null : String(n);
     },
   },
   {
@@ -167,7 +167,7 @@ export const widgets: WidgetDef[] = [
     sample: '1',
     render(ctx) {
       const n = ctx.data.git()?.stash;
-      return n ? String(n) : null;
+      return n === undefined ? null : String(n);
     },
   },
   {

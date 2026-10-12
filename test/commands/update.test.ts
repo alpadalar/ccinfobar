@@ -21,6 +21,16 @@ const writeState = (env: NodeJS.ProcessEnv, state: object) => {
 };
 
 describe('update', () => {
+  it('rejects anything that is not a plain version', async () => {
+    const { assertVersion, tarballUrl } = await import('../../src/commands/update.js');
+    expect(assertVersion('0.3.0')).toBe('0.3.0');
+    expect(assertVersion('1.2.3-beta.1')).toBe('1.2.3-beta.1');
+    for (const bad of ['0.3.0 & calc', '0.3.0"', '../x', '0.3', 'v0.3.0', '0.3.0;rm']) {
+      expect(() => assertVersion(bad)).toThrow();
+      expect(() => tarballUrl(bad)).toThrow();
+    }
+  });
+
   it('compares versions', () => {
     expect(compareVersions('0.3.0', '0.2.9')).toBeGreaterThan(0);
     expect(compareVersions('v1.0.0', '1.0.0')).toBe(0);

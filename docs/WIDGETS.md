@@ -111,9 +111,9 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `git-sha` | Short commit hash | `a1b2c3d` |  |
 | `git-changes` | Inserted and deleted lines versus HEAD | `+148 -37` |  |
 | `git-status` | Clean or dirty working tree | `● +3 ~2 ?1` | `counts` boolean, default `true` |
-| `git-staged` | Staged files | `Staged 3` | `hideZero` boolean, default `true` |
-| `git-unstaged` | Modified files not yet staged | `Modified 2` | `hideZero` boolean, default `true` |
-| `git-untracked` | Untracked files | `Untracked 1` | `hideZero` boolean, default `true` |
+| `git-staged` | Staged files | `Staged 3` | `hideZero` boolean, default `false` |
+| `git-unstaged` | Modified files not yet staged | `Modified 2` | `hideZero` boolean, default `false` |
+| `git-untracked` | Untracked files | `Untracked 1` | `hideZero` boolean, default `false` |
 | `git-ahead-behind` | Commits ahead of and behind upstream | `↑2 ↓0` |  |
 | `git-conflicts` | Files with merge conflicts | `Conflicts 2` |  |
 | `git-stash` | Number of stash entries | `Stash 1` |  |

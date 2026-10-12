@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-12
+
+### Fixed
+
+- Updates validate the release version before using it and no longer run npm through a shell on Windows
+- Git counters show `0`, `+0 -0` and `↑0 ↓0` inside a repository instead of `—`; `hideZero` hides them again
+
+
 ## [0.3.0] - 2026-10-12
 
 ### Added
@@ -57,7 +65,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/alpadalar/ccinfobar/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/alpadalar/ccinfobar/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/alpadalar/ccinfobar/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/alpadalar/ccinfobar/releases/tag/v0.1.0

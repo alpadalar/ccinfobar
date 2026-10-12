@@ -6,6 +6,12 @@ import type { Config } from '../core/types.js';
 
 export const REPO = 'alpadalar/ccinfobar';
 const DAY = 86_400_000;
+const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/;
+
+export function assertVersion(v: string): string {
+  if (!VERSION_RE.test(v)) throw new Error(`invalid version "${v.slice(0, 40)}"`);
+  return v;
+}
 const LOCK_MS = 10 * 60_000;
 
 export interface UpdateState {
@@ -79,11 +85,11 @@ export async function fetchLatest(timeoutMs = 4000): Promise<string> {
   const location = res.headers.get('location') ?? '';
   const tag = /\/tag\/v?([0-9][^/?#]*)$/.exec(location)?.[1];
   if (!tag) throw new Error(`unexpected response ${res.status} from GitHub`);
-  return tag;
+  return assertVersion(tag);
 }
 
 export function tarballUrl(version: string): string {
-  return `https://github.com/${REPO}/releases/download/v${version}/ccinfobar.tgz`;
+  return `https://github.com/${REPO}/releases/download/v${assertVersion(version)}/ccinfobar.tgz`;
 }
 
 export type InstallKind = 'npm-global' | 'npx' | 'source' | 'unknown';
@@ -100,13 +106,31 @@ export function installKind(entry = process.argv[1] ?? ''): InstallKind {
   return 'unknown';
 }
 
+export function npmCommand(): { file: string; args: string[]; shell: boolean } {
+  const cli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  if (fs.existsSync(cli)) return { file: process.execPath, args: [cli], shell: false };
+  const unixCli = path.join(
+    path.dirname(process.execPath),
+    '..',
+    'lib',
+    'node_modules',
+    'npm',
+    'bin',
+    'npm-cli.js',
+  );
+  if (fs.existsSync(unixCli)) return { file: process.execPath, args: [unixCli], shell: false };
+  if (process.platform === 'win32') return { file: 'npm.cmd', args: [], shell: true };
+  return { file: 'npm', args: [], shell: false };
+}
+
 export function installVersion(version: string): void {
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  execFileSync(npm, ['install', '-g', tarballUrl(version), '--no-audit', '--no-fund', '--silent'], {
+  const url = tarballUrl(version);
+  const npm = npmCommand();
+  execFileSync(npm.file, [...npm.args, 'install', '-g', url, '--no-audit', '--no-fund', '--silent'], {
     stdio: 'ignore',
     timeout: 120_000,
     windowsHide: true,
-    shell: process.platform === 'win32',
+    shell: npm.shell,
   });
 }
 
