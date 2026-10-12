@@ -15,7 +15,7 @@ const ROWS = 5;
 const W = 1040;
 const H = 268;
 const SCALE = 2;
-const DELAY = 240;
+const DELAY_MS = 1000;
 
 const FRAMES: [preset: string, theme: string][] = [
   ['default', 'classic'],
@@ -107,6 +107,6 @@ FRAMES.forEach(([presetId, themeId], i) => {
   shots.push(png);
   console.log(`frame ${i + 1}/${FRAMES.length}: ${preset.name} × ${theme.name}`);
 });
-execFileSync('magick', ['-delay', String(DELAY / 10), '-loop', '0', ...shots, '-layers', 'Optimize', OUT]);
+execFileSync('magick', ['-delay', String(DELAY_MS / 10), '-loop', '0', ...shots, '-layers', 'Optimize', OUT]);
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`wrote ${path.relative(root, OUT)} (${Math.round(fs.statSync(OUT).size / 1024)} KB)`);
