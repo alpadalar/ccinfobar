@@ -9,19 +9,24 @@ const fx = (name: string) => path.join(fixtures, name);
 
 let tmp: string;
 let home: string;
-let savedHome: string | undefined;
+const HOME_VARS = ['HOME', 'USERPROFILE'] as const;
+const savedHome: Record<string, string | undefined> = {};
 
 beforeAll(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccinfobar-gsd-'));
   home = path.join(tmp, 'home');
   fs.mkdirSync(home);
-  savedHome = process.env.HOME;
-  process.env.HOME = home;
+  for (const k of HOME_VARS) {
+    savedHome[k] = process.env[k];
+    process.env[k] = home;
+  }
 });
 
 afterAll(() => {
-  if (savedHome === undefined) delete process.env.HOME;
-  else process.env.HOME = savedHome;
+  for (const k of HOME_VARS) {
+    if (savedHome[k] === undefined) delete process.env[k];
+    else process.env[k] = savedHome[k];
+  }
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 

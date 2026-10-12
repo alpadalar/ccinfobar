@@ -87,7 +87,7 @@ describe.skipIf(!available)('readGit', () => {
 
   it('reads a clean repo', () => {
     const g = readGit(dir)!;
-    expect(g.root).toBe(dir);
+    expect(fs.realpathSync.native(g.root)).toBe(fs.realpathSync.native(dir));
     expect(g.branch).toBe('main');
     expect(g.detached).toBe(false);
     expect(g.sha).toMatch(/^[0-9a-f]{7}$/);
