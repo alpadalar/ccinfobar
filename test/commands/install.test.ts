@@ -1,8 +1,16 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { install, uninstall } from '../../src/commands/install.js';
+import {
+  ignoreLocally,
+  install,
+  projectLocalFile,
+  projectOverride,
+  projectSettingsPath,
+  uninstall,
+} from '../../src/commands/install.js';
 
 const settingsFile = (data: object | null) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-install-'));
@@ -33,5 +41,41 @@ describe('install and uninstall', () => {
     expect(install('ccinfobar', undefined, file)).toBeNull();
     expect(uninstall(file)).toEqual({ removed: true, restored: null });
     expect(read(file)).toEqual({});
+  });
+
+  it('finds a project status line that beats the user one and wins over it locally', () => {
+    const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-project-')));
+    const shared = projectSettingsPath(root, false);
+    fs.mkdirSync(path.dirname(shared), { recursive: true });
+    fs.writeFileSync(shared, JSON.stringify({ statusLine: { type: 'command', command: 'node gsd.js' } }));
+    expect(projectOverride(root)).toEqual({ file: shared, command: 'node gsd.js' });
+    const local = projectSettingsPath(root);
+    install('ccinfobar', undefined, local);
+    expect(projectOverride(root)).toBeNull();
+    expect(projectLocalFile(root)).toBe(local);
+    expect(uninstall(local)).toEqual({ removed: true, restored: null });
+    expect(projectOverride(root)?.command).toBe('node gsd.js');
+  });
+
+  it('adds settings.local.json to the repo exclude file once', () => {
+    const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-git-')));
+    const env = { ...process.env, GIT_CONFIG_GLOBAL: os.devNull, XDG_CONFIG_HOME: root };
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: root, env });
+    } catch {
+      return;
+    }
+    const saved = { ...process.env };
+    Object.assign(process.env, env);
+    try {
+      const local = projectSettingsPath(root);
+      install('ccinfobar', undefined, local);
+      expect(ignoreLocally(local)).toBe(true);
+      expect(ignoreLocally(local)).toBe(false);
+      const exclude = fs.readFileSync(path.join(root, '.git', 'info', 'exclude'), 'utf8');
+      expect(exclude.match(/\/\.claude\/settings\.local\.json/g)).toHaveLength(1);
+    } finally {
+      process.env = saved;
+    }
   });
 });

@@ -71,7 +71,7 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
 | `tui` | object | | Settings for the panel (`tui`) style, see [Panel style](THEMES.md#panel-style) |
 | `colorLevel` | `auto` \| 0 \| 1 \| 2 \| 3 | `"auto"` | 0 no color, 1 basic 16, 2 256 colors, 3 truecolor. `auto` honors `NO_COLOR`, `FORCE_COLOR` and `COLORTERM`. |
 | `maxWidth` | `auto` \| number | `"auto"` | Lines longer than this are truncated with `…`. `auto` uses the detected terminal width. |
-| `widthOffset` | number | `4` | Columns subtracted from the terminal width in `auto` mode. Outside fullscreen mode Claude Code shows notifications on the right of the status line row; raise this (for example to `40`) to keep them visible. |
+| `widthOffset` | number | `10` | Columns subtracted from the terminal width in `auto` mode. Outside fullscreen mode Claude Code shows notifications on the right of the status line row; raise this (for example to `40`) to keep them visible. |
 | `update` | `auto` \| `notify` \| `off` | `"auto"` | Background update behaviour, see [Updates](../README.md#updates) |
 | `savePayload` | boolean | `true` | Store the latest Claude Code payload so the editors can preview with your real session data |
 

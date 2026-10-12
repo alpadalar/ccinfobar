@@ -1,7 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { printWidgetReport } from './commands/doctor.js';
-import { currentStatusLine, defaultCommand, install, uninstall } from './commands/install.js';
+import {
+  currentStatusLine,
+  defaultCommand,
+  ignoreLocally,
+  install,
+  projectLocalFile,
+  projectOverride,
+  projectSettingsPath,
+  uninstall,
+} from './commands/install.js';
 import {
   availableUpdate,
   backgroundUpdate,
@@ -17,7 +26,7 @@ import { loadConfig, saveConfig } from './core/config.js';
 import { createContext } from './core/context.js';
 import { cacheDir, claudeSettingsPath, configPath, lastPayloadPath, tildify } from './core/paths.js';
 import { getPreset, PRESETS } from './core/presets.js';
-import { renderPreview } from './core/preview.js';
+import { readLastPayload, renderPreview } from './core/preview.js';
 import { finalizeLine, render } from './core/renderer.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from './core/themes.js';
 import type { Config, StatusPayload } from './core/types.js';
@@ -43,6 +52,7 @@ Usage
   ccinfobar edit                 Open the drag-and-drop editor in your browser
   ccinfobar tui                  Open the terminal editor
   ccinfobar install              Point Claude Code's statusLine at ccinfobar
+  ccinfobar install --project    Also win over this project's own statusLine (e.g. GSD's)
   ccinfobar uninstall            Remove ccinfobar and restore your previous status line
   ccinfobar import <tool>        Import a ccstatusline or claude-powerline layout
   ccinfobar themes               Preview every theme
@@ -59,6 +69,7 @@ Options
   --payload <file>               Render using a JSON payload file
   --width <n>                    Override the detected terminal width
   --refresh <seconds>            install: also set statusLine.refreshInterval
+  --project                      install/uninstall: use .claude/settings.local.json here
   --import / --no-import         install: import the previous status line's layout without asking
   --file <path>                  import: read this settings file
   --command <cmd>                install: command to write (default: auto)
@@ -245,6 +256,16 @@ function doctor(cfgFile: string): void {
   console.log(
     `${ok(usesUs)} Claude Code statusLine in ${tildify(claudeSettingsPath())}: ${sl?.command ?? 'not set'}`,
   );
+  const dirs = new Set([process.cwd()]);
+  const last = readLastPayload();
+  const lastDir = last?.workspace?.project_dir ?? last?.workspace?.current_dir ?? last?.cwd;
+  if (lastDir && fs.existsSync(lastDir)) dirs.add(lastDir);
+  for (const dir of dirs) {
+    const o = projectOverride(dir);
+    if (!o) continue;
+    console.log(`✗ ${tildify(o.file)} overrides it with: ${o.command}`);
+    console.log(`  Run \`ccinfobar install --project\` in ${tildify(dir)} to use ccinfobar there.`);
+  }
   console.log(`${ok(fs.existsSync(lastPayloadPath()))} Last payload ${tildify(lastPayloadPath())}`);
   console.log(`  Cache dir ${tildify(cacheDir())}`);
   console.log(`  Detected width ${terminalWidth(undefined) ?? 'unknown'}`);
@@ -301,6 +322,19 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     case 'install': {
       const command = typeof args.flags.command === 'string' ? args.flags.command : defaultCommand();
       const refresh = typeof args.flags.refresh === 'string' ? Number(args.flags.refresh) : undefined;
+      if (args.flags.project) {
+        const shadowed = projectOverride(process.cwd());
+        const root = shadowed ? path.dirname(path.dirname(shadowed.file)) : process.cwd();
+        const file = projectSettingsPath(root);
+        const backup = install(command, refresh, file);
+        ignoreLocally(file);
+        if (!loadConfig(cfgFile).exists) saveConfig(loadConfig(cfgFile).config, cfgFile);
+        console.log(`✓ statusLine set to "${command}" in ${tildify(file)}`);
+        if (shadowed) console.log(`  It now wins over "${shadowed.command}" from ${tildify(shadowed.file)}.`);
+        if (backup) console.log(`  Backup: ${tildify(backup)}`);
+        console.log('  settings.local.json stays out of git; `ccinfobar uninstall --project` undoes it.');
+        return;
+      }
       const previous = (() => {
         try {
           return currentStatusLine();
@@ -316,6 +350,11 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       if (backup) console.log(`  Backup: ${tildify(backup)}`);
       console.log(`  Config: ${tildify(cfgFile)}`);
       if (tool) console.log(`  \`ccinfobar uninstall\` brings back ${tool.name}.`);
+      const shadowed = projectOverride(process.cwd());
+      if (shadowed) {
+        console.log(`⚠ ${tildify(shadowed.file)} sets its own statusLine, which wins in this project.`);
+        console.log('  Run `ccinfobar install --project` here to use ccinfobar in it too.');
+      }
       console.log('  Customize with `ccinfobar edit` (browser) or `ccinfobar tui` (terminal).');
       return;
     }
@@ -336,7 +375,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       return;
     }
     case 'uninstall': {
-      const res = uninstall();
+      const res = uninstall(args.flags.project ? projectLocalFile(process.cwd()) : undefined);
       if (!res.removed) console.log('ccinfobar is not the active statusLine');
       else if (res.restored) console.log(`✓ Restored the previous statusLine: ${res.restored.command}`);
       else console.log('✓ Removed ccinfobar from Claude Code settings');

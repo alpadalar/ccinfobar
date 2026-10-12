@@ -206,7 +206,8 @@ Widgets without an equivalent are listed as warnings instead of being dropped si
 | `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
 | `ccinfobar tui` | Open the terminal editor |
 | `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--import`, `--no-import`, `--command <cmd>`, `--refresh <seconds>`) |
-| `ccinfobar uninstall` | Remove ccinfobar from Claude Code settings and restore the status line you had before |
+| `ccinfobar install --project` | Use ccinfobar in this project even if its `.claude/settings.json` sets another status line |
+| `ccinfobar uninstall` | Remove ccinfobar from Claude Code settings and restore the status line you had before (`--project` for the project file) |
 | `ccinfobar themes` | Preview every theme (`--width <n>`) |
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`) |
@@ -260,6 +261,7 @@ ccinfobar keeps itself up to date. Once a day, after the status line has been pr
 | Problem | Fix |
 | --- | --- |
 | Nothing shows up | Run `ccinfobar doctor`. Claude Code also hides the status line in untrusted folders and while dialogs are open. |
+| Another status line shows in one project | That project's `.claude/settings.json` sets its own `statusLine` (a local GSD install does this), and project settings beat `~/.claude/settings.json`. Run `ccinfobar install --project` in the project: it writes `.claude/settings.local.json`, which wins and stays out of git. |
 | A widget I added is missing | Run `ccinfobar doctor`: it lists every widget with its value or the reason it is hidden (for example "Claude Code sent no rate_limits") and warns when a line is cut to fit the terminal. Save in the editor before checking. |
 | `?` instead of arrows on macOS | Apple Terminal's default fonts have no powerline glyphs. Keep `charset: "auto"` or `"unicode"`, or install a Nerd Font and set `charset: "nerd"`. |
 | Odd boxes instead of arrows or icons | Install a Nerd Font, or set `charset` to `unicode` or `text`. |

@@ -57,7 +57,7 @@ export function defaultConfig(): Config {
     colorLevel: 'auto',
     icons: 'text',
     maxWidth: 'auto',
-    widthOffset: 4,
+    widthOffset: 10,
     savePayload: true,
   };
 }

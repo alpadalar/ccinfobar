@@ -89,3 +89,85 @@ export function uninstall(file = claudeSettingsPath()): UninstallResult {
   writeJson(file, settings);
   return { removed: true, restored: previous };
 }
+
+export function projectSettingsPath(dir: string, local = true): string {
+  return path.join(dir, '.claude', local ? 'settings.local.json' : 'settings.json');
+}
+
+function projectRoots(dir: string): string[] {
+  const roots = [path.resolve(dir)];
+  try {
+    const top = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: dir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true,
+      timeout: 2000,
+    }).trim();
+    if (top && !roots.includes(path.resolve(top))) roots.push(path.resolve(top));
+  } catch {}
+  return roots;
+}
+
+export function projectLocalFile(dir: string): string {
+  for (const root of projectRoots(dir)) {
+    const file = projectSettingsPath(root);
+    try {
+      if (currentStatusLine(file)?.command?.includes('ccinfobar')) return file;
+    } catch {}
+  }
+  return projectSettingsPath(dir);
+}
+
+export interface ProjectOverride {
+  file: string;
+  command: string;
+}
+
+// project settings beat ~/.claude/settings.json
+export function projectOverride(dir: string): ProjectOverride | null {
+  for (const root of projectRoots(dir)) {
+    for (const file of [projectSettingsPath(root, true), projectSettingsPath(root, false)]) {
+      let sl: StatusLineSetting | null = null;
+      try {
+        sl = currentStatusLine(file);
+      } catch {}
+      if (!sl || typeof sl.command !== 'string') continue;
+      return sl.command.includes('ccinfobar') ? null : { file, command: sl.command };
+    }
+  }
+  return null;
+}
+
+// keep settings.local.json out of git
+export function ignoreLocally(file: string): boolean {
+  const dir = path.dirname(file);
+  const git = (args: string[]) =>
+    execFileSync('git', args, {
+      cwd: dir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true,
+      timeout: 2000,
+    }).trim();
+  try {
+    git(['rev-parse', '--git-dir']);
+  } catch {
+    return false;
+  }
+  try {
+    git(['check-ignore', '-q', file]);
+    return false;
+  } catch {}
+  try {
+    const top = git(['rev-parse', '--show-toplevel']);
+    const exclude = path.resolve(dir, git(['rev-parse', '--git-path', 'info/exclude']));
+    const rel = `/${path.relative(top, file).split(path.sep).join('/')}`;
+    fs.mkdirSync(path.dirname(exclude), { recursive: true });
+    const prev = fs.existsSync(exclude) ? fs.readFileSync(exclude, 'utf8') : '';
+    fs.appendFileSync(exclude, `${prev && !prev.endsWith('\n') ? '\n' : ''}${rel}\n`);
+    return true;
+  } catch {
+    return false;
+  }
+}

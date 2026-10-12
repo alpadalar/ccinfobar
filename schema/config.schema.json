@@ -428,7 +428,7 @@
     "widthOffset": {
       "type": "integer",
       "minimum": 0,
-      "default": 4
+      "default": 10
     },
     "savePayload": {
       "type": "boolean",
