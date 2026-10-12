@@ -33,7 +33,7 @@ function agentRows(ctx: RenderContext, agents: AgentInfo[], showTool: boolean, e
   const sep = text(ctx) ? ' | ' : ' · ';
   const rows = agents.map((a) => {
     const ms = a.start !== null && a.last !== null ? Math.max(0, a.last - a.start) : 0;
-    const rate = ms > 0 ? `${Math.round(a.total / (ms / 60_000)).toLocaleString('en-US')} t/m` : '';
+    const rate = ms > 0 ? `${Math.round(a.fresh / (ms / 60_000)).toLocaleString('en-US')} t/m` : '';
     const share = sum > 0 ? `${((a.total / sum) * 100).toFixed(1)}%` : '';
     const right = [
       rate,

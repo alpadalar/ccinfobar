@@ -63,6 +63,52 @@ describe('transcript tasks and agents', () => {
     ]);
     expect(t.turnStart).toBe(NOW.getTime());
 
+    const bg = parseTranscriptText(
+      [
+        line({
+          type: 'assistant',
+          timestamp: at(1),
+          message: { content: [{ type: 'tool_use', id: 'toolu_2', name: 'Agent', input: {} }] },
+        }),
+        line({
+          type: 'user',
+          timestamp: at(2),
+          message: {
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'toolu_2',
+                content: [{ type: 'text', text: 'Async agent launched successfully.' }],
+              },
+            ],
+          },
+        }),
+      ].join('\n'),
+    );
+    expect(bg.agentCalls[0]).toMatchObject({ done: null, async: true });
+    const finished = parseTranscriptText(
+      [
+        line({
+          type: 'assistant',
+          timestamp: at(1),
+          message: { content: [{ type: 'tool_use', id: 'toolu_2', name: 'Agent', input: {} }] },
+        }),
+        line({
+          type: 'user',
+          timestamp: at(2),
+          message: {
+            content: [{ type: 'tool_result', tool_use_id: 'toolu_2', content: 'Async agent launched' }],
+          },
+        }),
+        line({
+          type: 'queue-operation',
+          timestamp: at(9),
+          content: '<task-notification>\n<tool-use-id>toolu_2</tool-use-id>\n<status>completed</status>',
+        }),
+      ].join('\n'),
+    );
+    expect(finished.agentCalls[0]!.done).toBe(NOW.getTime() + 9000);
+
     const tasks = parseTranscriptText(
       [
         line({

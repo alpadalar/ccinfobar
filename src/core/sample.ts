@@ -153,6 +153,7 @@ export function sampleAgents(now = Date.now()): AgentInfo[] {
     input: total - output,
     output,
     total,
+    fresh: total,
     start: now - secs * 1000,
     last: now,
     tool,

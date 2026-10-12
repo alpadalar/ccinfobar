@@ -11,6 +11,7 @@ export interface AgentCall {
   id: string;
   start: number | null;
   done: number | null;
+  async?: boolean;
 }
 
 export interface TranscriptInfo {
@@ -73,7 +74,7 @@ interface State {
   turnStart: number | null;
 }
 
-const VERSION = 4;
+const VERSION = 5;
 const RECENT = 64;
 const SPEED_WINDOW = 10;
 const CHUNK = 8 * 1024 * 1024;
@@ -269,7 +270,10 @@ function applyLine(s: State, line: string, st: { prevTs: number | null }) {
         for (const b of content as Json[]) {
           if (b?.type !== 'tool_result') continue;
           const call = s.agentCalls.find((c) => c.id === b.tool_use_id);
-          if (call && call.done === null) call.done = tsv ?? 0;
+          if (!call || call.done !== null) continue;
+          // background agents report back with a task notification
+          if (/^Async agent launched/.test(userText(b.content) ?? '')) call.async = true;
+          else call.done = tsv ?? 0;
         }
       }
       const text = userText(content);
@@ -282,6 +286,11 @@ function applyLine(s: State, line: string, st: { prevTs: number | null }) {
     }
   } else if (type === 'assistant') {
     applyAssistant(s, e, tsv, st.prevTs);
+  } else if (type === 'queue-operation' && typeof e.content === 'string') {
+    const id = /<tool-use-id>([^<]+)<\/tool-use-id>/.exec(e.content)?.[1];
+    const status = /<status>([^<]+)<\/status>/.exec(e.content)?.[1];
+    const call = id ? s.agentCalls.find((c) => c.id === id) : undefined;
+    if (call && call.done === null && status && status !== 'running') call.done = tsv ?? 0;
   }
   if (tsv !== null) st.prevTs = tsv;
 }

@@ -11,6 +11,7 @@ export interface AgentInfo {
   input: number;
   output: number;
   total: number;
+  fresh: number;
   start: number | null;
   last: number | null;
   tool: string | null;
@@ -23,12 +24,14 @@ interface Summary {
   input: number;
   output: number;
   total: number;
+  fresh: number;
   first: number | null;
   last: number | null;
   tool: string | null;
 }
 
 const LIVE_MS = 30_000;
+const LOST_MS = 15 * 60_000;
 const MAX = 8;
 
 // biome-ignore lint/suspicious/noExplicitAny: untyped JSONL
@@ -55,6 +58,7 @@ function summarize(file: string, size: number): Summary {
     input: 0,
     output: 0,
     total: 0,
+    fresh: 0,
     first: null,
     last: null,
     tool: null,
@@ -93,17 +97,15 @@ function summarize(file: string, size: number): Summary {
     const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
     s.input += n(u.input_tokens);
     s.output += n(u.output_tokens);
-    s.total +=
-      n(u.input_tokens) +
-      n(u.output_tokens) +
-      n(u.cache_read_input_tokens) +
-      n(u.cache_creation_input_tokens);
+    const fresh = n(u.input_tokens) + n(u.output_tokens) + n(u.cache_creation_input_tokens);
+    s.fresh += fresh;
+    s.total += fresh + n(u.cache_read_input_tokens);
   }
   return s;
 }
 
 function cached(file: string, size: number, env: NodeJS.ProcessEnv): Summary {
-  const name = `agent-${cacheKey(file)}.json`;
+  const name = `agent2-${cacheKey(file)}.json`;
   const hit = readCache<Summary>(name, env);
   if (hit && hit.size === size) return hit;
   const s = summarize(file, size);
@@ -140,7 +142,8 @@ export function readAgents(
       continue;
     }
     const call = typeof meta.toolUseId === 'string' ? calls.get(meta.toolUseId) : undefined;
-    const running = call ? call.done === null : now - stat.mtimeMs < LIVE_MS;
+    const quiet = now - stat.mtimeMs;
+    const running = call ? call.done === null && (!call.async || quiet < LOST_MS) : quiet < LIVE_MS;
     const turn = info?.turnStart ?? null;
     const recent = turn !== null ? stat.mtimeMs >= turn : now - stat.mtimeMs < 10 * 60_000;
     if (!running && !recent) continue;
@@ -153,6 +156,7 @@ export function readAgents(
       input: s.input,
       output: s.output,
       total: s.total,
+      fresh: s.fresh,
       start: s.first,
       last: running ? now : s.last,
       tool: s.tool,

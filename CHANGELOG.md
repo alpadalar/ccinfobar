@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Background subagents (`run_in_background`) show as running until their task notification arrives instead of finishing at once; their tokens per minute leave out cache reads
 - Panel style: a widget hidden with **Hide when no data** no longer shows up as `name —` when its cell name is also a widget type
 
 ### Changed
