@@ -2,7 +2,7 @@
 
 [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done) plans work as milestones, phases and plans under a `.planning/` folder. GSD ships its own single-line status line. ccinfobar reads the same files and exposes each piece as a separate widget, so you can place, color and combine them freely next to everything else.
 
-GSD widgets hide themselves outside GSD projects. Keep them on their own line and that line disappears when you work elsewhere.
+Outside GSD projects GSD widgets show `—`. If you would rather not see them there, put them on their own line and turn on **Hide when no data** (`hideEmpty: true`); the line then disappears when you work elsewhere.
 
 ## Quick start
 

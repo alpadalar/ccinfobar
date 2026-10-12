@@ -532,6 +532,7 @@ textarea.input {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: 0.25rem 0.625rem 1.25rem;
   scrollbar-width: thin;
   scrollbar-color: var(--surface-3) transparent;
@@ -607,11 +608,13 @@ textarea.input {
 
 .cards {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.25rem;
   padding: 0.125rem 0 0.25rem 0.25rem;
 }
 
 .card {
+  min-width: 0;
   display: flex;
   align-items: flex-start;
   gap: 0.625rem;
@@ -2376,4 +2379,11 @@ textarea.areas {
 
 .theme-preview {
   overflow-x: hidden;
+}
+
+.card-body,
+.card-name,
+.card-desc {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }

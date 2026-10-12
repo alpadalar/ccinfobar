@@ -72,6 +72,7 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
 | `colorLevel` | `auto` \| 0 \| 1 \| 2 \| 3 | `"auto"` | 0 no color, 1 basic 16, 2 256 colors, 3 truecolor. `auto` honors `NO_COLOR`, `FORCE_COLOR` and `COLORTERM`. |
 | `maxWidth` | `auto` \| number | `"auto"` | Lines longer than this are truncated with `…`. `auto` uses the detected terminal width. |
 | `widthOffset` | number | `4` | Columns subtracted from the terminal width in `auto` mode. Outside fullscreen mode Claude Code shows notifications on the right of the status line row; raise this (for example to `40`) to keep them visible. |
+| `update` | `auto` \| `notify` \| `off` | `"auto"` | Background update behaviour, see [Updates](../README.md#updates) |
 | `savePayload` | boolean | `true` | Store the latest Claude Code payload so the editors can preview with your real session data |
 
 Fields marked "theme" are optional. Leave them out to use the theme's value.
@@ -90,6 +91,7 @@ Every entry in `lines` is a widget instance:
 | `label` | string | Replaces the default label, e.g. `"ctx "`. `""` removes it. |
 | `raw` | boolean | Value only, no label or icon |
 | `merge` | boolean | Glue the next widget directly to this one, with no separator |
+| `hideEmpty` | boolean | Hide the widget when it has no data. By default it shows its label and `—` (unlabelled widgets add a short name, e.g. `branch —`). |
 | `options` | object | Widget specific options, listed in [WIDGETS.md](WIDGETS.md) |
 
 ## Colors
@@ -131,5 +133,5 @@ With `charset: "text"` every bar becomes `=====-----`.
 
 - Put a `flex` widget between two groups to push the second group to the right edge.
 - Set `merge: true` on a `text` widget to attach a custom prefix to the next widget.
-- Keep GSD widgets on their own line: the whole line disappears outside GSD projects.
+- Keep GSD widgets on their own line and set `hideEmpty` on them: the whole line disappears outside GSD projects.
 - `raw: true` plus a `text` widget lets you build any label style you like.

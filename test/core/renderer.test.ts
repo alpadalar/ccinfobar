@@ -69,9 +69,19 @@ describe('renderer', () => {
     expect(line).toContain('\x1b[44m');
   });
 
-  it('isolates widget errors', () => {
-    const ctx = ctxWith({ payload: {}, config: { lines: [[{ id: 'm', type: 'model' }, text('ok')]] } });
-    expect(render(ctx)).toEqual(['ok']);
+  it('shows a placeholder for widgets without data unless hideEmpty is set', () => {
+    const ctx = ctxWith({
+      payload: {},
+      config: {
+        lines: [
+          [{ id: 'm', type: 'model' }, { id: 'c', type: 'context-percentage' }, text('ok')],
+          [{ id: 'm2', type: 'model', hideEmpty: true }, text('ok')],
+          [{ id: 'g', type: 'git-branch', hideEmpty: true }],
+        ],
+      },
+      git: () => null,
+    });
+    expect(render(ctx)).toEqual(['model — │ Ctx — │ ok', 'ok']);
   });
 
   it('finalizes with reset and non-breaking spaces', () => {

@@ -274,6 +274,12 @@ function widgetTab(): HTMLElement {
         'Joins this widget to the next one without a separator.',
         true,
       ),
+      field(
+        'Hide when no data',
+        toggle(!!item.hideEmpty, (v) => patch({ hideEmpty: v || undefined })),
+        'Off: shows the label and — when there is nothing to show. On: hides the widget.',
+        true,
+      ),
     ),
   );
 
@@ -476,6 +482,22 @@ function globalTab(): HTMLElement {
           ] as const,
           c.charset,
           (v) => set({ charset: v }),
+        ),
+      ),
+      field(
+        'Updates',
+        segmented(
+          [
+            {
+              value: 'auto',
+              label: 'Automatic',
+              title: 'Install new releases in the background (npm global installs)',
+            },
+            { value: 'notify', label: 'Notify', title: 'Show a note at the end of the status line' },
+            { value: 'off', label: 'Off', title: 'Never check for updates' },
+          ] as const,
+          c.update,
+          (v) => set({ update: v }),
         ),
       ),
       field(

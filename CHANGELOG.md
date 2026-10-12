@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-12
+
+### Added
+
+- Automatic updates: a daily background check against GitHub releases; `update: "auto"` (default) installs new releases, `"notify"` shows a note, `"off"` disables; `ccinfobar update` updates now
+- Widgets without data now show their label and `—` instead of disappearing; new per-widget `hideEmpty` option (Hide when no data) in both editors
+- `doctor` explains empty sessions and full usage limits
+- Context widgets show `0%` before Claude's first reply
+
+### Fixed
+
+- Palette cards were cut off on Windows, where scrollbars take up space
+- The TUI labelled `merge` as "Merge with previous"; it joins with the next widget
+
+
 ## [0.2.0] - 2026-10-12
 
 ### Added
@@ -42,6 +57,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/alpadalar/ccinfobar/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/alpadalar/ccinfobar/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/alpadalar/ccinfobar/releases/tag/v0.1.0

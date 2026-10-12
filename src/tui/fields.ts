@@ -92,7 +92,7 @@ const parseNumberText = (text: string): Parsed => {
 };
 
 function baseField(
-  key: 'color' | 'background' | 'bold' | 'dim' | 'italic' | 'label' | 'raw' | 'merge',
+  key: 'color' | 'background' | 'bold' | 'dim' | 'italic' | 'label' | 'raw' | 'merge' | 'hideEmpty',
   itemId: string,
 ): Field {
   const get = (config: Config) => {
@@ -135,7 +135,8 @@ function baseField(
           dim: 'Dim',
           italic: 'Italic',
           raw: 'Raw (no label)',
-          merge: 'Merge with previous',
+          merge: 'Merge with next',
+          hideEmpty: 'Hide when no data',
         }[key],
         kind: 'bool',
         resettable: true,
@@ -169,9 +170,9 @@ function optionField(spec: NonNullable<WidgetDef['options']>[number], itemId: st
 }
 
 export function widgetFields(def: WidgetDef | undefined, itemId: string): Field[] {
-  const base = (['color', 'background', 'bold', 'dim', 'italic', 'label', 'raw', 'merge'] as const).map((k) =>
-    baseField(k, itemId),
-  );
+  const base = (
+    ['color', 'background', 'bold', 'dim', 'italic', 'label', 'raw', 'merge', 'hideEmpty'] as const
+  ).map((k) => baseField(k, itemId));
   return [...base, ...(def?.options ?? []).map((o) => optionField(o, itemId))];
 }
 
@@ -432,6 +433,17 @@ function baseGlobalFields(): Field[] {
     glyphField('startCap', 'Glyph: start cap'),
     glyphField('endCap', 'Glyph: end cap'),
     globalField(
+      'update',
+      'Updates',
+      'select',
+      (c) => c.update,
+      (c, v) => ({ ...c, update: v === 'notify' || v === 'off' ? v : 'auto' }),
+      {
+        choices: choices(['auto', 'notify', 'off']),
+        help: 'auto installs new releases in the background, notify shows a note, off never checks',
+      },
+    ),
+    globalField(
       'charset',
       'Charset',
       'select',
@@ -516,7 +528,7 @@ function baseGlobalFields(): Field[] {
   ];
 }
 
-const STYLE_FLAGS = ['bold', 'dim', 'italic', 'raw', 'merge'];
+const STYLE_FLAGS = ['bold', 'dim', 'italic', 'raw', 'merge', 'hideEmpty'];
 
 export function toggled(field: Field, config: Config): OptionValue | undefined {
   const cur = field.get(config);

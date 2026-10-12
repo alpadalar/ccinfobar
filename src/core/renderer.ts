@@ -18,7 +18,7 @@ import {
   type Theme,
   type ThemeGlyphs,
 } from './themes.js';
-import type { Config, RenderContext, ThemeStyle, WidgetDef, WidgetItem } from './types.js';
+import type { Config, RenderContext, ThemeStyle, WidgetDef, WidgetItem, WidgetOutput } from './types.js';
 
 export interface Part {
   item: WidgetItem;
@@ -26,6 +26,7 @@ export interface Part {
   text: string;
   label: string;
   value: string;
+  empty?: boolean;
   status: string | undefined;
   bg: string | undefined;
   flex: boolean;
@@ -104,9 +105,13 @@ export function labelFor(def: WidgetDef, item: WidgetItem, icons: Config['icons'
   return def.label ?? '';
 }
 
-export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
-  const def = getWidget(item.type);
-  if (!def) return null;
+export const EMPTY_VALUE = '—';
+
+export function emptyHint(def: WidgetDef): string {
+  return def.name.replace(/^(GSD|Git)\s+/i, '').toLowerCase();
+}
+
+export function renderValue(ctx: RenderContext, def: WidgetDef, item: WidgetItem): WidgetOutput | null {
   let result: ReturnType<WidgetDef['render']>;
   try {
     result = def.render(ctx, item);
@@ -115,19 +120,33 @@ export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
   }
   if (result === null || result === undefined) return null;
   const out = typeof result === 'string' ? { text: result } : result;
-  const value = sanitize(out.text);
+  const text = sanitize(out.text);
+  return text.trim() === '' && def.type !== 'flex' ? null : { ...out, text };
+}
+
+export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
+  const def = getWidget(item.type);
+  if (!def) return null;
   const flex = def.type === 'flex';
-  if (!flex && value.trim() === '') return null;
+  let out = renderValue(ctx, def, item);
+  let empty = false;
+  if (!out) {
+    if (item.hideEmpty || def.category === 'layout') return null;
+    out = { text: EMPTY_VALUE };
+    empty = true;
+  }
   const label = flex ? '' : labelFor(def, item, effectiveIcons(ctx.config, ctx.env));
+  const hint = empty && !label.trim() ? `${emptyHint(def)} ` : '';
   return {
     item,
     def,
-    text: flex ? '' : label + value,
+    text: flex ? '' : label + hint + out.text,
     label,
-    value: flex ? '' : value,
-    status: out.color,
+    value: flex ? '' : out.text,
+    status: empty ? undefined : out.color,
     bg: out.background,
     flex,
+    empty,
   };
 }
 
@@ -169,7 +188,7 @@ function styleFor(a: Appearance, part: Part, c: Colors) {
     fg: c.fg,
     bg: c.bg,
     bold: part.item.bold ?? a.theme.bold,
-    dim: part.item.dim,
+    dim: part.item.dim || part.empty,
     italic: part.item.italic,
   };
 }

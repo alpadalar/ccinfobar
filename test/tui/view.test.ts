@@ -117,7 +117,7 @@ describe('modals', () => {
     expect(out).toContain('properties');
     expect(out).toContain('Color');
     expect(out).toContain('Background');
-    expect(out).toContain('Merge with previous');
+    expect(out).toContain('Merge with next');
   });
 
   it('renders the color list and the custom input', () => {

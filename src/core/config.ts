@@ -53,6 +53,7 @@ export function defaultConfig(): Config {
     theme: 'classic',
     charset: 'auto',
     autoWrap: false,
+    update: 'auto',
     colorLevel: 'auto',
     icons: 'text',
     maxWidth: 'auto',
@@ -74,7 +75,7 @@ function normalizeItem(raw: unknown, index: number): WidgetItem | null {
   for (const key of ['color', 'background', 'label'] as const) {
     if (typeof raw[key] === 'string') out[key] = raw[key] as string;
   }
-  for (const key of ['bold', 'dim', 'italic', 'raw', 'merge'] as const) {
+  for (const key of ['bold', 'dim', 'italic', 'raw', 'merge', 'hideEmpty'] as const) {
     if (typeof raw[key] === 'boolean') out[key] = raw[key] as boolean;
   }
   if (isObject(raw.options)) {
@@ -210,6 +211,7 @@ export function normalizeConfig(raw: unknown): Config {
   if (['auto', 'nerd', 'unicode', 'text'].includes(raw.charset as string))
     cfg.charset = raw.charset as Config['charset'];
   if (typeof raw.autoWrap === 'boolean') cfg.autoWrap = raw.autoWrap;
+  if (raw.update === 'notify' || raw.update === 'auto' || raw.update === 'off') cfg.update = raw.update;
   const tui = normalizeTui(raw.tui);
   if (tui) cfg.tui = tui;
   if (typeof raw.style === 'string' && STYLE_IDS.includes(raw.style)) cfg.style = raw.style as ThemeStyle;

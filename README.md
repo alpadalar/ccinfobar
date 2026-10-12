@@ -31,6 +31,7 @@ next: /gsd-execute-phase 4 │ $1.87 │ 5h 42% │ Resets 2h 14m │ 7d 61%
 - [Coming from another status line](#coming-from-another-status-line)
 - [Commands](#commands)
 - [Configuration](#configuration)
+- [Updates](#updates)
 - [Platform notes](#platform-notes)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
@@ -44,7 +45,7 @@ next: /gsd-execute-phase 4 │ $1.87 │ 5h 42% │ Resets 2h 14m │ 7d 61%
 - **First-class GSD support.** Milestone progress, the current phase, plan completion inside the phase, the next command to run, blockers, requirements and more, as separate widgets you can arrange freely. See [docs/GSD.md](docs/GSD.md).
 - **83 widgets** covering model and session, context window, tokens and prompt cache, cost, 5-hour and weekly limits with pace tracking, git, workspace, system and custom commands.
 - **Uses the current Claude Code payload.** Rate limits, prompt cache statistics, PR status and repository info come straight from the status line JSON, without extra API calls.
-- **Fast and dependency-free.** Zero runtime dependencies, lazy data loading and an incremental transcript cache.
+- **Fast, dependency-free, self-updating.** Zero runtime dependencies, lazy data loading, an incremental transcript cache and background updates.
 - **Cross-platform.** Linux, macOS and Windows, tested in CI on all three with Node 20, 22 and 24.
 
 ## Quick start
@@ -142,7 +143,7 @@ Mouse works too: click to select, drag a chip to move it.
 | Custom | shell command output, clickable link, environment variable |
 | Layout | text, separator, flex space |
 
-Every widget hides itself when it has nothing to show. The full list with options and examples is in [docs/WIDGETS.md](docs/WIDGETS.md), or run `ccinfobar widgets`.
+A widget without data (a new chat, a folder that is not a git repo or GSD project) shows its label and `—`, so every line you add is always visible. Turn on **Hide when no data** (`hideEmpty`) for any widget you would rather hide. The full list with options and examples is in [docs/WIDGETS.md](docs/WIDGETS.md), or run `ccinfobar widgets`.
 
 ## Themes
 
@@ -211,6 +212,7 @@ Widgets without an equivalent are listed as warnings instead of being dropped si
 | `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`) |
 | `ccinfobar init [preset]` | Write a preset: `default`, `cockpit`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
 | `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`) |
+| `ccinfobar update` | Update to the latest release now (`--check` to only look) |
 | `ccinfobar widgets` | List all widgets |
 | `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off |
 
@@ -234,6 +236,18 @@ The config lives in `~/.config/ccinfobar/config.json` (`%APPDATA%\ccinfobar\conf
 }
 ```
 
+## Updates
+
+ccinfobar keeps itself up to date. Once a day, after the status line has been printed, a background process asks GitHub for the latest release; the status line never waits for it.
+
+| `update` | Behaviour |
+| --- | --- |
+| `"auto"` (default) | Installs new releases in the background (npm global installs only; source checkouts and npx are left alone) |
+| `"notify"` | Adds `⬆ ccinfobar 0.4.0 · ccinfobar update` to the end of the status line |
+| `"off"` | Never checks |
+
+`ccinfobar update` updates right away (`--check` only looks). Checks are skipped when `CI` or `CCINFOBAR_NO_UPDATE` is set.
+
 ## Platform notes
 
 - **Fonts.** Powerline arrows, capsule caps and the `nerd` icon set need a [Nerd Font](https://www.nerdfonts.com/). With the default `charset: "auto"`, ccinfobar avoids them in Apple Terminal (whose default fonts lack them) and draws plain colored blocks and half-block caps instead. Set `charset` to `nerd` once your terminal uses a Nerd Font, or to `text` for pure ASCII.
@@ -249,8 +263,9 @@ The config lives in `~/.config/ccinfobar/config.json` (`%APPDATA%\ccinfobar\conf
 | A widget I added is missing | Run `ccinfobar doctor`: it lists every widget with its value or the reason it is hidden (for example "Claude Code sent no rate_limits") and warns when a line is cut to fit the terminal. Save in the editor before checking. |
 | `?` instead of arrows on macOS | Apple Terminal's default fonts have no powerline glyphs. Keep `charset: "auto"` or `"unicode"`, or install a Nerd Font and set `charset: "nerd"`. |
 | Odd boxes instead of arrows or icons | Install a Nerd Font, or set `charset` to `unicode` or `text`. |
-| GSD line is missing | You are outside a GSD project, or `.planning/STATE.md` / `ROADMAP.md` doesn't exist yet. |
-| Usage limit widgets are empty | Claude Code only sends rate limits to Pro and Max subscribers, and they may be missing until the first response. |
+| GSD widgets show `—` | You are outside a GSD project, or `.planning/STATE.md` / `ROADMAP.md` doesn't exist yet. Set `hideEmpty` on them to hide the line elsewhere. |
+| Context, cache or token widgets show `—` | Claude Code sends these only after Claude's first reply in the session. If your usage limit is at 100%, Claude cannot reply, so they stay empty; `ccinfobar doctor` tells you which case you are in. |
+| Usage limit widgets show `—` | Claude Code only sends rate limits to Pro and Max subscribers, and they may be missing until the first response. |
 | Preview in the editor doesn't match | Use **Last session** in the preview, after Claude Code has rendered the status line at least once. |
 
 ## Contributing

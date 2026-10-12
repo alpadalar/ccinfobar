@@ -2,7 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { printWidgetReport } from './commands/doctor.js';
 import { currentStatusLine, defaultCommand, install, uninstall } from './commands/install.js';
-import { visibleWidth } from './core/ansi.js';
+import {
+  availableUpdate,
+  backgroundUpdate,
+  installKind,
+  manualUpdate,
+  readUpdateState,
+  scheduleCheck,
+  updateNotice,
+  updatesDisabled,
+} from './commands/update.js';
+import { detectLevel, style, visibleWidth } from './core/ansi.js';
 import { loadConfig, saveConfig } from './core/config.js';
 import { createContext } from './core/context.js';
 import { cacheDir, claudeSettingsPath, configPath, lastPayloadPath, tildify } from './core/paths.js';
@@ -40,6 +50,7 @@ Usage
   ccinfobar theme new <id>       Create your own theme (--from <theme>)
   ccinfobar init [preset]        Write a preset config (${PRESETS.map((p) => p.id).join(', ')})
   ccinfobar preview              Print the status line with sample data
+  ccinfobar update               Update to the latest release (--check to only look)
   ccinfobar widgets              List all widgets
   ccinfobar doctor               Check the setup
 
@@ -204,7 +215,13 @@ async function runRender(args: Args, config: Config): Promise<void> {
   if (config.savePayload && typeof args.flags.payload !== 'string') savePayload(payload);
   const width = typeof args.flags.width === 'string' ? Number(args.flags.width) : undefined;
   const lines = renderStatus(config, payload, width);
+  const notice = updateNotice(config, VERSION);
+  if (notice && lines.length) {
+    const level = detectLevel(config.colorLevel);
+    lines[lines.length - 1] += ` ${style(notice, { fg: 'yellow' }, level)}`;
+  }
   process.stdout.write(lines.map(finalizeLine).join('\n') + (lines.length ? '\n' : ''));
+  scheduleCheck(config);
 }
 
 function doctor(cfgFile: string): void {
@@ -231,6 +248,15 @@ function doctor(cfgFile: string): void {
   console.log(`${ok(fs.existsSync(lastPayloadPath()))} Last payload ${tildify(lastPayloadPath())}`);
   console.log(`  Cache dir ${tildify(cacheDir())}`);
   console.log(`  Detected width ${terminalWidth(undefined) ?? 'unknown'}`);
+  const upd = readUpdateState();
+  const newer = availableUpdate(VERSION);
+  if (updatesDisabled(loaded.config)) console.log('  Update checks off');
+  else if (newer) console.log(`✗ Update available: ${VERSION} → ${newer} (run \`ccinfobar update\`)`);
+  else {
+    const when = upd ? `last checked ${new Date(upd.checkedAt).toLocaleString()}` : 'not checked yet';
+    console.log(`✓ Up to date (${loaded.config.update} mode, ${installKind()} install, ${when})`);
+  }
+  if (upd?.error) console.log(`  Last update check failed: ${upd.error}`);
   printWidgetReport(loaded.config);
   if (!usesUs) console.log('\nRun `ccinfobar install` to enable it in Claude Code.');
 }
@@ -410,6 +436,14 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
         const pad = Math.max(...list.map((w) => visibleWidth(w.type)));
         for (const w of list) console.log(`  ${w.type.padEnd(pad)}  ${w.description}`);
       }
+      return;
+    }
+    case 'update': {
+      if (args.flags.background) {
+        await backgroundUpdate(loadConfig(cfgFile).config, VERSION);
+        return;
+      }
+      process.exitCode = await manualUpdate(VERSION, args.flags.check === true);
       return;
     }
     case 'doctor':

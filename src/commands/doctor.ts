@@ -1,7 +1,7 @@
 import { stripAnsi, visibleWidth } from '../core/ansi.js';
 import { createContext } from '../core/context.js';
 import { readLastPayload } from '../core/preview.js';
-import { maxLineWidth, renderLine, renderPart, resolveAppearance } from '../core/renderer.js';
+import { maxLineWidth, renderLine, renderPart, renderValue, resolveAppearance } from '../core/renderer.js';
 import type { Config, RenderContext, StatusPayload, WidgetItem } from '../core/types.js';
 import { terminalWidth } from '../data/terminal.js';
 import { getWidget } from '../widgets/index.js';
@@ -40,10 +40,40 @@ export function hiddenReason(ctx: RenderContext, item: WidgetItem): string {
     return 'Claude Code sent no context_window and the transcript has no usage yet (update Claude Code or send a message)';
   }
   if (def.category === 'git' && !ctx.data.git()) return 'not a git repository, or git is not on PATH';
-  if (TRANSCRIPT_TYPES.has(item.type) && !ctx.data.transcript()) return 'transcript not readable';
+  if (TRANSCRIPT_TYPES.has(item.type) && !ctx.data.transcript()) {
+    return 'no transcript yet: Claude Code creates it with the first message of the session';
+  }
   if (item.type === 'command' && !item.options?.command) return 'no command set';
   if (item.type === 'env' && !item.options?.name) return 'no variable name set';
+  if (!hasReplies(p) && /^(context|tokens|cost)$/.test(def.category)) {
+    return 'Claude has not answered in this session yet; it appears after the first reply';
+  }
   return 'no data for this widget in the current session';
+}
+
+export function hasReplies(p: StatusPayload): boolean {
+  return (
+    (p.cost?.total_cost_usd ?? 0) > 0 || !!p.prompt_cache || (p.context_window?.total_output_tokens ?? 0) > 0
+  );
+}
+
+export function sessionNotes(p: StatusPayload): string[] {
+  const notes: string[] = [];
+  const full = (['five_hour', 'seven_day'] as const).filter(
+    (k) => (p.rate_limits?.[k]?.used_percentage ?? 0) >= 100,
+  );
+  if (full.length) {
+    const names = full.map((k) => (k === 'five_hour' ? '5-hour' : 'weekly')).join(' and ');
+    notes.push(
+      `Your ${names} usage limit is at 100%, so Claude cannot reply right now. Context, cache and token widgets fill in after the next successful reply.`,
+    );
+  }
+  if (!hasReplies(p)) {
+    notes.push(
+      'This session has no replies yet (cost $0, no prompt cache). Send a message and run doctor again; context, cache and speed widgets need at least one answer.',
+    );
+  }
+  return notes;
 }
 
 export function widgetReport(ctx: RenderContext): WidgetReport[] {
@@ -51,7 +81,9 @@ export function widgetReport(ctx: RenderContext): WidgetReport[] {
   ctx.config.lines.forEach((items, line) => {
     for (const item of items) {
       if (item.type === 'flex') continue;
-      const part = renderPart(ctx, item);
+      const def = getWidget(item.type);
+      const value = def ? renderValue(ctx, def, item) : null;
+      const part = value ? renderPart(ctx, item) : null;
       out.push({
         line,
         item,
@@ -91,12 +123,14 @@ export function printWidgetReport(config: Config, payload: StatusPayload | null 
   console.log(
     `  Last payload: Claude Code ${payload.version ?? 'unknown version'}, fields: ${keys.sort().join(', ')}`,
   );
+  for (const n of sessionNotes(payload)) console.log(`  ℹ ${n}`);
   const width = terminalWidth(payload.session_id, payload.terminal_width ?? payload.columns);
   const ctx = createContext({ payload, config: { ...config, colorLevel: 0 }, terminalWidth: width });
   for (const r of widgetReport(ctx)) {
     const name = `${r.item.type}${r.item.id !== r.item.type ? ` (${r.item.id})` : ''}`;
     if (r.value !== null) console.log(`  ✓ L${r.line + 1} ${name}: ${r.value}`);
-    else console.log(`  ✗ L${r.line + 1} ${name}: hidden, ${r.reason}`);
+    else if (r.item.hideEmpty) console.log(`  ✗ L${r.line + 1} ${name}: hidden (hideEmpty), ${r.reason}`);
+    else console.log(`  – L${r.line + 1} ${name}: shows —, ${r.reason}`);
   }
   const lines = lineReport(ctx);
   const cut = lines.filter((l) => l.cut);

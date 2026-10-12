@@ -100,6 +100,7 @@ export interface WidgetItem {
   label?: string;
   raw?: boolean;
   merge?: boolean;
+  hideEmpty?: boolean;
   options?: Record<string, OptionValue>;
 }
 
@@ -167,6 +168,7 @@ export interface Config {
   glyphs?: GlyphOverrides;
   charset: Charset;
   autoWrap: boolean;
+  update: 'notify' | 'auto' | 'off';
   tui?: TuiConfig;
   colorLevel: ColorLevel;
   icons: IconMode;

@@ -45,6 +45,7 @@ export function contextPercent(ctx: RenderContext, usable: boolean): number | nu
   else if (typeof cw?.used_percentage === 'number') pct = cw.used_percentage;
   else if (typeof cw?.remaining_percentage === 'number') pct = 100 - cw.remaining_percentage;
   else if (size && used !== null) pct = (used / size) * 100;
+  else if (cw && size) pct = 0;
   return pct === null ? null : Math.max(0, Math.min(100, pct));
 }
 
