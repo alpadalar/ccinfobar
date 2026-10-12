@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-12
+
 ### Added
 
 - Editor: copy a widget's style and paste it onto others with the Copy/Paste buttons (`Ctrl+Alt+C` / `Ctrl+Alt+V`), the Paint brush (click widgets to apply, `Esc` to stop) or the right-click menu, which also pastes to a whole line and resets to the theme look. Pick what to carry over (colors, bold/dim/italic, bar and graph options, label switches) with the checkboxes or the Colors, Colors + text and All buttons
@@ -201,7 +203,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/alpadalar/ccinfobar/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/alpadalar/ccinfobar/compare/v0.5.6...v0.6.0
 [0.5.6]: https://github.com/alpadalar/ccinfobar/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/alpadalar/ccinfobar/compare/v0.5.4...v0.5.5
