@@ -465,8 +465,14 @@ function globalTab(): HTMLElement {
         'Charset',
         segmented(
           [
-            { value: 'unicode', label: 'Unicode' },
-            { value: 'text', label: 'Text (ASCII)', title: 'Plain ASCII characters only' },
+            { value: 'auto', label: 'Auto', title: 'Nerd Font glyphs, except in Apple Terminal' },
+            {
+              value: 'nerd',
+              label: 'Nerd Font',
+              title: 'Powerline arrows, capsule caps and Nerd Font icons',
+            },
+            { value: 'unicode', label: 'Unicode', title: 'Standard characters only, no Nerd Font needed' },
+            { value: 'text', label: 'ASCII', title: 'Plain ASCII characters only' },
           ] as const,
           c.charset,
           (v) => set({ charset: v }),

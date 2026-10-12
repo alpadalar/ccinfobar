@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { printWidgetReport } from './commands/doctor.js';
 import { currentStatusLine, defaultCommand, install, uninstall } from './commands/install.js';
 import { visibleWidth } from './core/ansi.js';
 import { loadConfig, saveConfig } from './core/config.js';
@@ -11,6 +12,7 @@ import { finalizeLine, render } from './core/renderer.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from './core/themes.js';
 import type { Config, StatusPayload } from './core/types.js';
 import { terminalWidth } from './data/terminal.js';
+import { type DetectedTool, detectTool, type ImportSource, importFrom, toConfig } from './importers/index.js';
 import { ALL_WIDGETS, CATEGORIES } from './widgets/index.js';
 
 declare const __VERSION__: string;
@@ -31,7 +33,8 @@ Usage
   ccinfobar edit                 Open the drag-and-drop editor in your browser
   ccinfobar tui                  Open the terminal editor
   ccinfobar install              Point Claude Code's statusLine at ccinfobar
-  ccinfobar uninstall            Remove ccinfobar from Claude Code settings
+  ccinfobar uninstall            Remove ccinfobar and restore your previous status line
+  ccinfobar import <tool>        Import a ccstatusline or claude-powerline layout
   ccinfobar themes               Preview every theme
   ccinfobar theme <id>           Switch theme
   ccinfobar theme new <id>       Create your own theme (--from <theme>)
@@ -45,6 +48,8 @@ Options
   --payload <file>               Render using a JSON payload file
   --width <n>                    Override the detected terminal width
   --refresh <seconds>            install: also set statusLine.refreshInterval
+  --import / --no-import         install: import the previous status line's layout without asking
+  --file <path>                  import: read this settings file
   --command <cmd>                install: command to write (default: auto)
   --port <n>                     edit: port to listen on
   --no-open                      edit: do not open a browser
@@ -73,7 +78,7 @@ function parseArgs(argv: string[]): Args {
       else if (
         next !== undefined &&
         !next.startsWith('-') &&
-        ['config', 'payload', 'width', 'refresh', 'command', 'port', 'from'].includes(k)
+        ['config', 'payload', 'width', 'refresh', 'command', 'port', 'from', 'file'].includes(k)
       ) {
         args.flags[k] = next;
         i++;
@@ -114,6 +119,75 @@ function savePayload(payload: StatusPayload): void {
 function renderStatus(config: Config, payload: StatusPayload, widthFlag?: number): string[] {
   const width = widthFlag ?? terminalWidth(payload.session_id, payload.terminal_width ?? payload.columns);
   return render(createContext({ payload, config, terminalWidth: width }));
+}
+
+function currentCommandSafe(): string {
+  try {
+    return currentStatusLine()?.command ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function backupConfig(cfgFile: string): string | null {
+  if (!fs.existsSync(cfgFile)) return null;
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const backup = `${cfgFile}.${stamp}.bak`;
+  fs.copyFileSync(cfgFile, backup);
+  return backup;
+}
+
+function runImport(
+  source: ImportSource,
+  opts: { file?: string | undefined; command: string },
+  cfgFile: string,
+): boolean {
+  try {
+    const result = importFrom(
+      source,
+      opts.file ? { file: opts.file, command: opts.command } : { command: opts.command },
+    );
+    const backup = backupConfig(cfgFile);
+    saveConfig(toConfig(result), cfgFile);
+    const count = (result.config.lines ?? []).reduce((n, l) => n + l.length, 0);
+    console.log(
+      `✓ Imported ${count} widgets from ${source}${result.file ? ` (${tildify(result.file)})` : ''}`,
+    );
+    if (backup) console.log(`  Previous ccinfobar config: ${tildify(backup)}`);
+    for (const w of result.warnings) console.log(`  ⚠ ${w}`);
+    return true;
+  } catch (err) {
+    console.error(`✗ Import failed: ${(err as Error).message}`);
+    return false;
+  }
+}
+
+async function ask(question: string, fallback: boolean): Promise<boolean> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return fallback;
+  const rl = (await import('node:readline/promises')).createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  try {
+    const answer = (await rl.question(`${question} ${fallback ? '[Y/n]' : '[y/N]'} `)).trim().toLowerCase();
+    return answer === '' ? fallback : answer.startsWith('y') || answer.startsWith('e');
+  } finally {
+    rl.close();
+  }
+}
+
+async function offerImport(tool: DetectedTool, args: Args, cfgFile: string): Promise<void> {
+  if (!tool.importable) {
+    console.log(
+      `Found ${tool.name} as your current status line. Its settings cannot be imported automatically.`,
+    );
+    return;
+  }
+  if (args.flags.import === false) return;
+  const yes =
+    args.flags.import === true ||
+    (await ask(`Found ${tool.name} as your current status line. Import its layout into ccinfobar?`, true));
+  if (yes) runImport(tool.tool as ImportSource, { command: tool.command }, cfgFile);
 }
 
 async function runRender(args: Args, config: Config): Promise<void> {
@@ -157,6 +231,7 @@ function doctor(cfgFile: string): void {
   console.log(`${ok(fs.existsSync(lastPayloadPath()))} Last payload ${tildify(lastPayloadPath())}`);
   console.log(`  Cache dir ${tildify(cacheDir())}`);
   console.log(`  Detected width ${terminalWidth(undefined) ?? 'unknown'}`);
+  printWidgetReport(loaded.config);
   if (!usesUs) console.log('\nRun `ccinfobar install` to enable it in Claude Code.');
 }
 
@@ -200,12 +275,38 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     case 'install': {
       const command = typeof args.flags.command === 'string' ? args.flags.command : defaultCommand();
       const refresh = typeof args.flags.refresh === 'string' ? Number(args.flags.refresh) : undefined;
+      const previous = (() => {
+        try {
+          return currentStatusLine();
+        } catch {
+          return null;
+        }
+      })();
+      const tool = detectTool(previous?.command);
+      if (tool) await offerImport(tool, args, cfgFile);
       const backup = install(command, refresh);
       if (!loadConfig(cfgFile).exists) saveConfig(loadConfig(cfgFile).config, cfgFile);
       console.log(`✓ statusLine set to "${command}" in ${tildify(claudeSettingsPath())}`);
       if (backup) console.log(`  Backup: ${tildify(backup)}`);
       console.log(`  Config: ${tildify(cfgFile)}`);
+      if (tool) console.log(`  \`ccinfobar uninstall\` brings back ${tool.name}.`);
       console.log('  Customize with `ccinfobar edit` (browser) or `ccinfobar tui` (terminal).');
+      return;
+    }
+    case 'import': {
+      const source = args.positional[0];
+      if (source !== 'ccstatusline' && source !== 'claude-powerline') {
+        console.error('Usage: ccinfobar import <ccstatusline|claude-powerline> [--file <path>] [--force]');
+        process.exitCode = 1;
+        return;
+      }
+      if (fs.existsSync(cfgFile) && !args.flags.force) {
+        console.error(`${tildify(cfgFile)} already exists. Use --force to replace it (a backup is kept).`);
+        process.exitCode = 1;
+        return;
+      }
+      const file = typeof args.flags.file === 'string' ? path.resolve(args.flags.file) : undefined;
+      runImport(source, { file, command: currentCommandSafe() }, cfgFile);
       return;
     }
     case 'uninstall': {

@@ -9,7 +9,12 @@ export function tok(n: number): string {
 
 export function windowSize(ctx: RenderContext): number | null {
   const n = ctx.payload.context_window?.context_window_size;
-  return typeof n === 'number' && n > 0 ? n : null;
+  if (typeof n === 'number' && n > 0) return n;
+  const m = ctx.payload.model;
+  if (!m) return null;
+  if (/\[1m\]|\b1m\b/i.test(`${m.id ?? ''} ${m.display_name ?? ''}`)) return 1_000_000;
+  const len = ctx.data.transcript()?.contextLength ?? 0;
+  return ctx.payload.exceeds_200k_tokens || len > 200_000 ? 1_000_000 : 200_000;
 }
 
 export function contextTokens(ctx: RenderContext): number | null {

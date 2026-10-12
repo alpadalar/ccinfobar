@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
+import { PRESETS } from '../../src/core/presets.js';
 import type { Config } from '../../src/core/types.js';
 import { pickerItems } from '../../src/tui/catalog.js';
 import {
@@ -264,7 +265,10 @@ describe('settings editor', () => {
   });
 
   it('applies a preset after confirmation and can undo it', () => {
-    let s = run(start(), { type: 'openPresets' }, { type: 'nav', dir: 'down' }, { type: 'enter' });
+    let s = run(start(), { type: 'openPresets' });
+    const steps = PRESETS.findIndex((p) => p.id === 'minimal');
+    for (let i = 0; i < steps; i++) s = run(s, { type: 'nav', dir: 'down' });
+    s = run(s, { type: 'enter' });
     expect(s.mode).toMatchObject({ kind: 'confirm', what: 'preset', preset: 'minimal' });
     s = run(s, { type: 'confirm', answer: 'yes' });
     expect(s.config.lines).toHaveLength(1);

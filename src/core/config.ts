@@ -51,7 +51,7 @@ export function defaultConfig(): Config {
       [item('session-cost'), item('five-hour-usage'), item('five-hour-reset'), item('weekly-usage')],
     ],
     theme: 'classic',
-    charset: 'unicode',
+    charset: 'auto',
     autoWrap: false,
     colorLevel: 'auto',
     icons: 'text',
@@ -207,7 +207,8 @@ export function normalizeConfig(raw: unknown): Config {
   if (typeof raw.widthOffset === 'number') cfg.widthOffset = Math.max(0, Math.floor(raw.widthOffset));
   if (typeof raw.savePayload === 'boolean') cfg.savePayload = raw.savePayload;
   if (typeof raw.theme === 'string' && raw.theme) cfg.theme = raw.theme;
-  if (raw.charset === 'unicode' || raw.charset === 'text') cfg.charset = raw.charset;
+  if (['auto', 'nerd', 'unicode', 'text'].includes(raw.charset as string))
+    cfg.charset = raw.charset as Config['charset'];
   if (typeof raw.autoWrap === 'boolean') cfg.autoWrap = raw.autoWrap;
   const tui = normalizeTui(raw.tui);
   if (tui) cfg.tui = tui;

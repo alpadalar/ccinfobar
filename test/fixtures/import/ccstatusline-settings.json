@@ -1,0 +1,169 @@
+{
+  "version": 4,
+  "lines": [
+    [
+      {
+        "id": "cwd",
+        "type": "current-working-dir",
+        "color": "blue"
+      },
+      {
+        "id": "sep-1a",
+        "type": "separator"
+      },
+      {
+        "id": "git-branch",
+        "type": "git-branch",
+        "color": "cyan"
+      },
+      {
+        "id": "sep-1b",
+        "type": "separator"
+      },
+      {
+        "id": "git-changes",
+        "type": "git-changes",
+        "color": "brightBlack"
+      }
+    ],
+    [
+      {
+        "id": "model",
+        "type": "model",
+        "color": "yellow"
+      },
+      {
+        "id": "sep-2a",
+        "type": "separator"
+      },
+      {
+        "id": "thinking",
+        "type": "thinking-effort",
+        "color": "magenta"
+      },
+      {
+        "id": "sep-2b",
+        "type": "separator"
+      },
+      {
+        "id": "elapsed-label",
+        "type": "custom-text",
+        "customText": "Elapsed: ",
+        "color": "white",
+        "merge": "no-padding"
+      },
+      {
+        "id": "session-clock",
+        "type": "session-clock",
+        "rawValue": true,
+        "color": "white"
+      },
+      {
+        "id": "sep-2c",
+        "type": "separator"
+      },
+      {
+        "id": "skills",
+        "type": "skills",
+        "color": "brightBlack"
+      }
+    ],
+    [
+      {
+        "id": "context-bar",
+        "type": "context-bar",
+        "color": "cyan"
+      },
+      {
+        "id": "sep-3a",
+        "type": "separator"
+      },
+      {
+        "id": "cache-hit",
+        "type": "cache-hit-rate",
+        "color": "green"
+      },
+      {
+        "id": "sep-3b",
+        "type": "separator"
+      },
+      {
+        "id": "tokens-total",
+        "type": "tokens-total",
+        "color": "brightBlack"
+      },
+      {
+        "id": "sep-3c",
+        "type": "separator"
+      },
+      {
+        "id": "output-speed",
+        "type": "output-speed",
+        "color": "brightBlack"
+      }
+    ],
+    [
+      {
+        "id": "5h-label",
+        "type": "custom-text",
+        "customText": "5h Limit: ",
+        "color": "green",
+        "merge": "no-padding"
+      },
+      {
+        "id": "session-usage",
+        "type": "session-usage",
+        "rawValue": true,
+        "color": "green"
+      },
+      {
+        "id": "sep-4r",
+        "type": "separator"
+      },
+      {
+        "id": "block-reset",
+        "type": "reset-timer",
+        "color": "brightBlack"
+      },
+      {
+        "id": "sep-4a",
+        "type": "separator"
+      },
+      {
+        "id": "weekly-label",
+        "type": "custom-text",
+        "customText": "Weekly Limit: ",
+        "color": "yellow",
+        "merge": "no-padding"
+      },
+      {
+        "id": "weekly-usage",
+        "type": "weekly-usage",
+        "rawValue": true,
+        "color": "yellow"
+      },
+      {
+        "id": "sep-4b",
+        "type": "separator"
+      },
+      {
+        "id": "weekly-reset",
+        "type": "weekly-reset-timer",
+        "color": "brightBlack"
+      }
+    ]
+  ],
+  "flexMode": "full-minus-40",
+  "compactThreshold": 60,
+  "colorLevel": 2,
+  "inheritSeparatorColors": false,
+  "globalBold": false,
+  "powerline": {
+    "enabled": false,
+    "separators": [""],
+    "separatorInvertBackground": [false],
+    "startCaps": [],
+    "endCaps": [],
+    "autoAlign": false
+  }
+}

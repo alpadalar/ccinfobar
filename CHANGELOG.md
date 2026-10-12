@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-12
+
+### Added
+
+- `ccinfobar install` detects ccstatusline and claude-powerline and offers to import their layout; `ccinfobar import <tool>` does it on demand
+- `cockpit` preset: a five-line developer dashboard
+- `charset` is now `auto`, `nerd`, `unicode` or `text`; `auto` avoids Nerd Font glyphs in Apple Terminal
+- `ccinfobar doctor` reports every widget with its value or why it is hidden, and lines cut by the terminal width
+- Panel (`tui`) style with box presets, title and footer templates and a responsive grid (`areas`, `columns`, `align`, spans, breakpoints, culling)
+- `dark`, `light` and `rose-pine` themes ported from claude-powerline, plus a `panel` theme
+- 13 bar styles and an even-pace marker for usage bars (`showPace`)
+- `autoWrap` and the `skills` widget
+
+### Fixed
+
+- Powerline arrows showed as `?` in Apple Terminal
+- Context widgets disappeared when Claude Code sent no `context_window`; they now fall back to the transcript
+- GSD: phase numbers across milestones, shipped milestone ranges, bare `Phase: N` lines, stale phase counts, resolved blockers, "awaiting next milestone"
+- Git worktree name outside Claude Code worktrees; no fake owner/repo for local remotes
+- `uninstall` restores the previous status line
+
+
 ## [0.1.0] - 2026-10-12
 
 ### Added
@@ -11,12 +33,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Status line renderer with unlimited lines, separators, merge, flex spacing and truncation
 - Theme system with 19 built-in themes in four styles (text, blocks, powerline, capsule), per-config overrides and user themes in the `themes` folder with `extends`
 - `themes` and `theme` commands, plus theme galleries in both editors
-- Panel (`tui`) style with box presets, title and footer templates and a responsive grid (`areas`, `columns`, `align`, spans, breakpoints, culling)
-- `dark`, `light` and `rose-pine` themes ported from claude-powerline, plus a `panel` theme
-- 13 bar styles (adds `ball`, `capped`, `geometric`, `line`, `blocks-line`, `filled`, `bar`) and an even-pace marker for usage bars (`showPace`)
-- `charset: "text"` ASCII mode and `autoWrap`
-- `skills` widget
-- `uninstall` restores the previous status line
 - Terminal color profiles for the editor preview (16 presets plus custom colors), with automatic detection of the launching terminal's colors via OSC 10/11/4
 - Drag-and-drop web editor (`ccinfobar edit`) with live preview from sample or real session data
 - Keyboard and mouse terminal editor (`ccinfobar tui`)
@@ -26,5 +42,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/alpadalar/ccinfobar/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/alpadalar/ccinfobar/releases/tag/v0.1.0

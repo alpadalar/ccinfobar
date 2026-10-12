@@ -436,8 +436,14 @@ function baseGlobalFields(): Field[] {
       'Charset',
       'select',
       (c) => c.charset,
-      (c, v) => ({ ...c, charset: v === 'text' ? 'text' : 'unicode' }),
-      { choices: choices(['unicode', 'text']), help: 'text uses plain ASCII for box and bar characters' },
+      (c, v) => ({
+        ...c,
+        charset: v === 'nerd' || v === 'unicode' || v === 'text' ? v : 'auto',
+      }),
+      {
+        choices: choices(['auto', 'nerd', 'unicode', 'text']),
+        help: 'auto: Nerd Font glyphs except in Apple Terminal · unicode: no Nerd Font needed · text: ASCII only',
+      },
     ),
     globalField(
       'autoWrap',

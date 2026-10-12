@@ -19,8 +19,8 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run check
       - run: npm run build
+      - run: npm run check
       - name: Pack
         run: |
           npm pack

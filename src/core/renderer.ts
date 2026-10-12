@@ -41,13 +41,35 @@ export interface Appearance {
 }
 
 const ASCII_GLYPHS: ThemeGlyphs = { separator: '', thin: '|', startCap: '', endCap: '' };
+const UNICODE_GLYPHS: Record<ThemeStyle, ThemeGlyphs> = {
+  text: { separator: '', thin: '', startCap: '', endCap: '' },
+  blocks: { separator: '', thin: '', startCap: '', endCap: '' },
+  powerline: { separator: '', thin: '│', startCap: '', endCap: '' },
+  capsule: { separator: '', thin: '', startCap: '▐', endCap: '▌' },
+  tui: { separator: '', thin: '', startCap: '', endCap: '' },
+};
 
-export function resolveAppearance(config: Config, theme: Theme = resolveTheme(config.theme)): Appearance {
+export type ResolvedCharset = 'nerd' | 'unicode' | 'text';
+
+export function resolveCharset(config: Config, env: NodeJS.ProcessEnv = process.env): ResolvedCharset {
+  if (config.charset === 'auto' || config.charset === undefined) {
+    return env.TERM_PROGRAM === 'Apple_Terminal' ? 'unicode' : 'nerd';
+  }
+  return config.charset;
+}
+
+export function resolveAppearance(
+  config: Config,
+  theme: Theme = resolveTheme(config.theme),
+  env: NodeJS.ProcessEnv = process.env,
+): Appearance {
   const style = config.style ?? theme.style;
   const styleChanged = style !== theme.style;
-  const base = config.charset === 'text' ? ASCII_GLYPHS : styleChanged ? STYLE_GLYPHS[style] : theme.glyphs;
+  const charset = resolveCharset(config, env);
+  const themed = styleChanged ? STYLE_GLYPHS[style] : theme.glyphs;
+  const base = charset === 'text' ? ASCII_GLYPHS : charset === 'unicode' ? UNICODE_GLYPHS[style] : themed;
   let separator = config.separator ?? (styleChanged ? STYLE_SEPARATOR[style] : theme.separator);
-  if (config.charset === 'text' && config.separator === undefined) {
+  if (charset === 'text' && config.separator === undefined) {
     separator = asciiSeparator(separator, style);
   }
   return {
@@ -56,7 +78,7 @@ export function resolveAppearance(config: Config, theme: Theme = resolveTheme(co
     separator,
     separatorColor: config.separatorColor ?? theme.colors.muted,
     padding: config.padding ?? theme.padding,
-    glyphs: { ...base, ...config.glyphs },
+    glyphs: { ...base, ...(charset === 'nerd' ? config.glyphs : {}) },
   };
 }
 
@@ -66,10 +88,11 @@ function asciiSeparator(sep: string, s: ThemeStyle): string {
   return sep.trim() ? ' | ' : sep;
 }
 
-export function effectiveIcons(config: Config): Config['icons'] {
-  return config.charset === 'text' && (config.icons === 'nerd' || config.icons === 'emoji')
-    ? 'text'
-    : config.icons;
+export function effectiveIcons(config: Config, env: NodeJS.ProcessEnv = process.env): Config['icons'] {
+  const charset = resolveCharset(config, env);
+  if (charset === 'text' && (config.icons === 'nerd' || config.icons === 'emoji')) return 'text';
+  if (charset === 'unicode' && config.icons === 'nerd') return 'text';
+  return config.icons;
 }
 
 export function labelFor(def: WidgetDef, item: WidgetItem, icons: Config['icons']): string {
@@ -95,7 +118,7 @@ export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
   const value = sanitize(out.text);
   const flex = def.type === 'flex';
   if (!flex && value.trim() === '') return null;
-  const label = flex ? '' : labelFor(def, item, effectiveIcons(ctx.config));
+  const label = flex ? '' : labelFor(def, item, effectiveIcons(ctx.config, ctx.env));
   return {
     item,
     def,
@@ -230,7 +253,7 @@ export function renderLine(
   ctx: RenderContext,
   items: WidgetItem[],
   level: Level,
-  a = resolveAppearance(ctx.config),
+  a = resolveAppearance(ctx.config, undefined, ctx.env),
 ): string {
   const parts = items.map((it) => renderPart(ctx, it)).filter((p): p is Part => p !== null);
   if (parts.every((p) => p.flex)) return '';
@@ -294,7 +317,7 @@ function wrapLine(parts: Part[], a: Appearance, level: Level, max: number): stri
 
 export function render(ctx: RenderContext): string[] {
   const level = detectLevel(ctx.config.colorLevel, ctx.env);
-  const a = resolveAppearance(ctx.config, ctx.theme);
+  const a = resolveAppearance(ctx.config, ctx.theme, ctx.env);
   if (a.style === 'tui') {
     const textual = { ...a, style: 'text' as const };
     return renderPanel(

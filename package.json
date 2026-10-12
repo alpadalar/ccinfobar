@@ -1,6 +1,6 @@
 {
   "name": "ccinfobar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A customizable status line for Claude Code with a drag-and-drop editor",
   "keywords": [
     "claude",
@@ -45,7 +45,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "check": "npm run typecheck && npm run lint && npm test",
-    "prepublishOnly": "npm run check && npm run build"
+    "prepublishOnly": "npm run build && npm run check"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

@@ -39,7 +39,7 @@ Named colors such as `red` or `brightBlue` look different in every terminal colo
 | `bubblegum` | capsule | Bright pills in the 16 terminal colors |
 | `panel` | tui | Rounded box panel with category colors |
 
-Powerline and capsule themes need a [Nerd Font](https://www.nerdfonts.com/), unless you set `"charset": "text"` to fall back to plain ASCII. Themes using hex colors look best in a truecolor terminal; ccinfobar converts them to the nearest 256 or 16 colors otherwise.
+Powerline arrows and capsule caps come from [Nerd Fonts](https://www.nerdfonts.com/). Without one, use `"charset": "unicode"` (plain colored blocks and half-block caps) or `"text"` (ASCII). The default `"auto"` already does this in Apple Terminal. Themes using hex colors look best in a truecolor terminal; ccinfobar converts them to the nearest 256 or 16 colors otherwise.
 
 ## Styles
 
@@ -121,7 +121,9 @@ Title, footer and template text can contain `{widget}` tokens: a widget type (`{
 - Cells whose widget has nothing to show become empty; empty rows and leftover dividers are removed, so a GSD row disappears outside GSD projects.
 - `templates` combine widgets in one cell: `"cost": { "items": ["{session-cost}", "{cost-rate}"], "gap": 1, "justify": "between" }`, then use `cost` in `areas`.
 
-## ASCII mode
+## Character sets
+
+`"charset": "unicode"` keeps colors, bars and boxes but drops Nerd Font glyphs: powerline segments touch without arrows, capsules use `▐` and `▌` as caps, and Nerd icons fall back to text labels. `"auto"` (default) picks `unicode` in Apple Terminal and `nerd` elsewhere.
 
 `"charset": "text"` makes the whole status line plain ASCII: bars use `=` and `-`, powerline arrows and capsule caps are dropped (blocks stay colored), panel boxes use `+-|`, and Nerd Font or emoji icons fall back to text labels.
 

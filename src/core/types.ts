@@ -107,7 +107,7 @@ export type ColorLevel = 'auto' | 0 | 1 | 2 | 3;
 export type IconMode = 'nerd' | 'emoji' | 'text' | 'none';
 
 export type ThemeStyle = 'text' | 'blocks' | 'powerline' | 'capsule' | 'tui';
-export type Charset = 'unicode' | 'text';
+export type Charset = 'auto' | 'nerd' | 'unicode' | 'text';
 
 export interface BoxChars {
   topLeft: string;

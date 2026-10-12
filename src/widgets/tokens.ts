@@ -77,8 +77,10 @@ export const widgets: WidgetDef[] = [
     sample: '94%',
     render(ctx) {
       const r = ctx.payload.prompt_cache?.hit_ratio;
-      if (typeof r !== 'number') return null;
-      return `${Math.round(r <= 1 ? r * 100 : r)}%`;
+      if (typeof r === 'number') return `${Math.round(r <= 1 ? r * 100 : r)}%`;
+      const t = ctx.data.transcript();
+      const all = t ? t.cacheReadTokens + t.cacheWriteTokens + t.inputTokens : 0;
+      return t && all > 0 ? `${Math.round((t.cacheReadTokens / all) * 100)}%` : null;
     },
   },
   {

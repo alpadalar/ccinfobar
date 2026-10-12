@@ -1,0 +1,27 @@
+{
+  "theme": "nord",
+  "display": {
+    "style": "powerline",
+    "autoWrap": false,
+    "widthReserve": 30,
+    "lines": [
+      {
+        "segments": {
+          "directory": { "enabled": true, "style": "fish" },
+          "git": { "enabled": true, "showWorkingTree": true, "showUpstream": true },
+          "model": { "enabled": true },
+          "context": { "enabled": true, "displayStyle": "geometric" }
+        }
+      },
+      {
+        "segments": {
+          "block": { "enabled": true, "displayStyle": "capped", "showPace": true },
+          "weekly": { "enabled": true },
+          "tmux": { "enabled": true },
+          "session": { "enabled": false }
+        }
+      }
+    ]
+  },
+  "colors": { "custom": { "git": { "bg": "#0066cc", "fg": "#ffffff", "bold": true } } }
+}

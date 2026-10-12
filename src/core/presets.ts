@@ -12,12 +12,63 @@ export interface Preset {
   build(): Config;
 }
 
+const w = (id: string, type: string, extra: Partial<WidgetItem> = {}): WidgetItem => ({ id, type, ...extra });
+
+export function cockpitConfig(): Config {
+  return {
+    ...defaultConfig(),
+    theme: 'classic',
+    separator: ' | ',
+    widthOffset: 40,
+    lines: [
+      [
+        w('cwd', 'cwd', { color: 'blue', raw: true, options: { style: 'tilde' } }),
+        w('git-branch', 'git-branch', { color: 'cyan', raw: true }),
+        w('git-changes', 'git-changes', { color: 'brightBlack', raw: true }),
+      ],
+      [
+        w('gsd-milestone', 'gsd-milestone', { color: 'magenta' }),
+        w('gsd-milestone-progress', 'gsd-milestone-progress', { color: 'green' }),
+        w('gsd-phase', 'gsd-phase', { color: 'cyan' }),
+        w('gsd-status', 'gsd-status'),
+        w('gsd-plans', 'gsd-plans', { color: 'blue' }),
+        w('gsd-next', 'gsd-next', { color: 'brightBlack' }),
+      ],
+      [
+        w('model', 'model', { color: 'yellow', raw: true }),
+        w('effort', 'effort', { color: 'magenta', raw: true }),
+        w('elapsed', 'session-duration', { color: 'white', label: 'Elapsed: ' }),
+        w('skills', 'skills', { color: 'brightBlack' }),
+      ],
+      [
+        w('context-bar', 'context-bar', { color: 'cyan' }),
+        w('cache-hit', 'cache-hit-rate', { color: 'green' }),
+        w('tokens-total', 'tokens-total', { color: 'brightBlack' }),
+        w('output-speed', 'output-speed', { color: 'brightBlack' }),
+      ],
+      [
+        w('session-usage', 'five-hour-usage', { color: 'green', label: '5h Limit: ' }),
+        w('block-reset', 'five-hour-reset', { color: 'brightBlack' }),
+        w('weekly-usage', 'weekly-usage', { color: 'yellow', label: 'Weekly Limit: ' }),
+        w('weekly-reset', 'weekly-reset', { color: 'brightBlack' }),
+      ],
+    ],
+  };
+}
+
 export const PRESETS: Preset[] = [
   {
     id: 'default',
     name: 'Default',
     description: 'Model, git and context, a GSD line and usage limits',
     build: defaultConfig,
+  },
+  {
+    id: 'cockpit',
+    name: 'Cockpit',
+    description:
+      'Five-line developer dashboard: path and git, GSD, model and time, context and tokens, usage limits',
+    build: cockpitConfig,
   },
   {
     id: 'minimal',

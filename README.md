@@ -28,6 +28,7 @@ next: /gsd-execute-phase 4 │ $1.87 │ 5h 42% │ Resets 2h 14m │ 7d 61%
 - [Widgets](#widgets)
 - [Themes](#themes)
 - [GSD integration](#gsd-integration)
+- [Coming from another status line](#coming-from-another-status-line)
 - [Commands](#commands)
 - [Configuration](#configuration)
 - [Platform notes](#platform-notes)
@@ -57,7 +58,7 @@ ccinfobar install
 
 > ccinfobar is not on the npm registry yet, so this installs the latest GitHub release. Once it is published, `npm install -g ccinfobar` will work too. Run the same command again to update.
 
-`install` points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar (backing up the file first) and writes a default config. `ccinfobar uninstall` puts your previous status line (for example ccstatusline) back. The next Claude Code prompt shows the new status line.
+`install` points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar (backing up the file first) and writes a default config. If you were using ccstatusline or claude-powerline, it offers to import that layout first. `ccinfobar uninstall` puts your previous status line back. The next Claude Code prompt shows the new status line.
 
 Then make it yours:
 
@@ -177,6 +178,25 @@ next: /gsd-execute-phase 4 │ ⚠ 1 concern │ req 14/22
 
 Start with `ccinfobar init gsd --force`, or drag widgets from the GSD category in the editor. Details: [docs/GSD.md](docs/GSD.md).
 
+## Coming from another status line
+
+`ccinfobar install` recognises the status line you use today and asks whether to bring its layout along:
+
+```
+$ ccinfobar install
+Found ccstatusline as your current status line. Import its layout into ccinfobar? [Y/n]
+✓ Imported 29 widgets from ccstatusline (~/.config/ccstatusline/settings.json)
+✓ statusLine set to "/usr/local/bin/ccinfobar" in ~/.claude/settings.json
+  `ccinfobar uninstall` brings back ccstatusline.
+```
+
+| From | What is imported |
+| --- | --- |
+| [ccstatusline](https://github.com/sirmalloc/ccstatusline) | Lines, widgets, colors, labels (custom text), separators, merge, raw values, powerline mode and caps, `full-minus-40` width |
+| [claude-powerline](https://github.com/Owloops/claude-powerline) | Lines, segments, theme, style (`minimal`, `powerline`, `capsule`, `tui`), charset, auto wrap, width reserve, custom colors, and `--theme`/`--style` flags in the command |
+
+Widgets without an equivalent are listed as warnings instead of being dropped silently. Run it later with `ccinfobar import ccstatusline` or `ccinfobar import claude-powerline --file <path>`; your current ccinfobar config is backed up first. CCometixLine, claude-hud and custom scripts are detected but not imported.
+
 ## Commands
 
 | Command | Description |
@@ -184,14 +204,15 @@ Start with `ccinfobar init gsd --force`, or drag widgets from the GSD category i
 | `ccinfobar` | Render the status line from the JSON on stdin (what Claude Code runs) |
 | `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
 | `ccinfobar tui` | Open the terminal editor |
-| `ccinfobar install` | Set Claude Code's `statusLine` (`--command <cmd>`, `--refresh <seconds>`) |
+| `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--import`, `--no-import`, `--command <cmd>`, `--refresh <seconds>`) |
 | `ccinfobar uninstall` | Remove ccinfobar from Claude Code settings and restore the status line you had before |
 | `ccinfobar themes` | Preview every theme (`--width <n>`) |
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
-| `ccinfobar init [preset]` | Write a preset: `default`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
+| `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`) |
+| `ccinfobar init [preset]` | Write a preset: `default`, `cockpit`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
 | `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`) |
 | `ccinfobar widgets` | List all widgets |
-| `ccinfobar doctor` | Check Node, config, Claude Code settings and terminal width detection |
+| `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off |
 
 All commands accept `--config <file>`.
 
@@ -215,7 +236,7 @@ The config lives in `~/.config/ccinfobar/config.json` (`%APPDATA%\ccinfobar\conf
 
 ## Platform notes
 
-- **Fonts.** Powerline and capsule themes and the `nerd` icon set need a [Nerd Font](https://www.nerdfonts.com/). The default `text` icons work everywhere.
+- **Fonts.** Powerline arrows, capsule caps and the `nerd` icon set need a [Nerd Font](https://www.nerdfonts.com/). With the default `charset: "auto"`, ccinfobar avoids them in Apple Terminal (whose default fonts lack them) and draws plain colored blocks and half-block caps instead. Set `charset` to `nerd` once your terminal uses a Nerd Font, or to `text` for pure ASCII.
 - **Colors.** The color depth is detected automatically and honors `NO_COLOR`, `FORCE_COLOR` and `COLORTERM`. Set `colorLevel` if your terminal disagrees.
 - **Terminal width.** Used for `flex` spacing and truncation. ccinfobar probes the terminal Claude Code runs in on Linux and macOS. On Windows, set `maxWidth` to a fixed number if you use `flex`.
 - **Windows.** Works in Windows Terminal, PowerShell and cmd. Prefer a global install; `npx` startup on Windows is slow.
@@ -225,7 +246,9 @@ The config lives in `~/.config/ccinfobar/config.json` (`%APPDATA%\ccinfobar\conf
 | Problem | Fix |
 | --- | --- |
 | Nothing shows up | Run `ccinfobar doctor`. Claude Code also hides the status line in untrusted folders and while dialogs are open. |
-| Odd boxes instead of arrows or icons | Install a Nerd Font, or use a text or blocks theme and `text` icons. |
+| A widget I added is missing | Run `ccinfobar doctor`: it lists every widget with its value or the reason it is hidden (for example "Claude Code sent no rate_limits") and warns when a line is cut to fit the terminal. Save in the editor before checking. |
+| `?` instead of arrows on macOS | Apple Terminal's default fonts have no powerline glyphs. Keep `charset: "auto"` or `"unicode"`, or install a Nerd Font and set `charset: "nerd"`. |
+| Odd boxes instead of arrows or icons | Install a Nerd Font, or set `charset` to `unicode` or `text`. |
 | GSD line is missing | You are outside a GSD project, or `.planning/STATE.md` / `ROADMAP.md` doesn't exist yet. |
 | Usage limit widgets are empty | Claude Code only sends rate limits to Pro and Max subscribers, and they may be missing until the first response. |
 | Preview in the editor doesn't match | Use **Last session** in the preview, after Claude Code has rendered the status line at least once. |
