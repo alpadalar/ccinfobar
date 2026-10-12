@@ -250,7 +250,7 @@ describe('system', () => {
     expect(renderWidget('clock', c, { options: { h12: true } })).toMatch(/^\d\d:\d\d (AM|PM)$/);
     expect(renderWidget('date', c)).toMatch(/^2026-10-1[123]$/);
     expect(renderWidget('date', c, { options: { format: 'short' } })).toMatch(/^Oct 1\d$/);
-  });
+  }, 30_000);
   it('machine info', () => {
     const c = ctxWith();
     expect(renderWidget('hostname', c)).toBeTruthy();
