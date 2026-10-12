@@ -42,6 +42,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "docs": "node scripts/build.mjs --docs && biome format --write schema",
+    "demo": "node scripts/build.mjs --demo",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "check": "npm run typecheck && npm run lint && npm test",

@@ -22,6 +22,7 @@ Requirements: Node.js 20 or newer. There are no runtime dependencies; everything
 | `npm run lint` / `lint:fix` | Biome lint and format |
 | `npm run check` | Typecheck, lint and test |
 | `npm run docs` | Regenerate `docs/WIDGETS.md`, `schema/config.schema.json` and `schema/theme.schema.json` |
+| `npm run demo` | Regenerate `docs/images/demo.gif` from the sample data (needs Chrome or Chromium and ImageMagick; set `CHROME` to pick a browser) |
 | `npm run example` | Render `test/fixtures/payload.json` |
 
 Try your build against a real session without installing it:

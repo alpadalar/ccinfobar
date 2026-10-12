@@ -54,10 +54,10 @@ async function build() {
   console.log(`built dist/ccinfobar.js v${pkg.version}${editorHtml ? ' with editor' : ''}`);
 }
 
-async function docs() {
-  const out = path.join(root, 'node_modules/.cache/ccinfobar-gen-docs.mjs');
+async function docs(script = 'gen-docs') {
+  const out = path.join(root, `node_modules/.cache/ccinfobar-${script}.mjs`);
   await esbuild.build({
-    entryPoints: [path.join(root, 'scripts/gen-docs.ts')],
+    entryPoints: [path.join(root, `scripts/${script}.ts`)],
     outfile: out,
     bundle: true,
     platform: 'node',
@@ -69,6 +69,7 @@ async function docs() {
 }
 
 if (process.argv.includes('--docs')) await docs();
+else if (process.argv.includes('--demo')) await docs('demo-gif');
 else await build();
 
 if (watch) {

@@ -14,11 +14,7 @@
 
 </div>
 
-```
-Opus 5.5 │ acme-app │ feat/statusline │ Ctx ███░░░░░░░ 34%
-v1.2 Billing │ █████░░░░░ 50% │ Phase 4/6 Invoice export │ executing │ plans 3/5
-next: /gsd-execute-phase 4 │ $1.87 │ 5h 42% │ Resets 2h 14m │ 7d 61%
-```
+<p align="center"><img src="docs/images/demo.gif" alt="ccinfobar status lines cycling through themes and presets" width="100%"></p>
 
 ## Contents
 
