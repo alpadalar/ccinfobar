@@ -134,6 +134,13 @@ const TOKEN =
 const GLYPHS = new Set(['\ue0b0', '\ue0b1', '\ue0b2', '\ue0b3', '\ue0b4', '\ue0b6']);
 const GLYPH_SPLIT = /([\ue0b0-\ue0b4\ue0b6])/u;
 
+// symbols from fallback fonts keep one terminal cell
+const SYMBOL = /[\u2190-\u21ff\u2300-\u23ff\u25a0-\u25ff\u2600-\u27bf\u2b00-\u2bff]/g;
+
+function cells(text: string): string {
+  return escapeHtml(text).replace(SYMBOL, (c) => `<span class="cell">${c}</span>`);
+}
+
 export function ansiToHtml(input: string): string {
   const style = blank();
   let href: string | null = null;
@@ -153,7 +160,8 @@ export function ansiToHtml(input: string): string {
         const vars = [fg ? `--pl:${fg}` : '', bg ? `background:${bg}` : ''].filter(Boolean).join(';');
         html += `<span class="pl pl-${code}"${vars ? ` style="${vars}"` : ''}>\u00a0</span>`;
       } else {
-        html += s ? `<span style="${s}">${escapeHtml(part)}</span>` : escapeHtml(part);
+        const body = cells(part);
+        html += s ? `<span style="${s}">${body}</span>` : body;
       }
     }
     if (href) html = `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${html}</a>`;

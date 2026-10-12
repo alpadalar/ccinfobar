@@ -262,3 +262,19 @@ export function hyperlink(text: string, url: string): string {
 export function sanitize(text: string): string {
   return text.replace(/[\x00-\x08\x0b-\x1a\x1c-\x1f\x7f]/g, '');
 }
+
+// colors carry over to each new line
+export function splitAnsiLines(text: string): string[] {
+  if (!text.includes('\n')) return [text];
+  const out: string[] = [];
+  let active = '';
+  for (const seg of text.split('\n')) {
+    let state = active;
+    for (const m of seg.matchAll(/\x1b\[([0-9;]*)m/g)) {
+      state = m[1] === '' || m[1] === '0' ? '' : state + m[0];
+    }
+    out.push(active + seg + (state ? RESET : ''));
+    active = state;
+  }
+  return out;
+}

@@ -1,4 +1,4 @@
-import { type Level, style, truncate, visibleWidth } from './ansi.js';
+import { type Level, splitAnsiLines, style, truncate, visibleWidth } from './ansi.js';
 import type { Appearance } from './renderer.js';
 import type { BoxChars, RenderContext, TuiBreakpoint, TuiConfig, WidgetItem } from './types.js';
 
@@ -35,8 +35,12 @@ export interface Cell {
 }
 
 export interface PanelDeps {
-  cell(item: WidgetItem, index: number): Cell | null;
+  cell(item: WidgetItem, index: number, extra?: number): Cell | null;
+  fill?(item: WidgetItem): boolean;
+  contextColor?(): string | undefined;
 }
+
+const lineWidth = (text: string) => Math.max(0, ...splitAnsiLines(text).map(visibleWidth));
 
 type Row = { divider: true } | { divider: false; cells: { name: string; span: number }[] };
 
@@ -167,20 +171,27 @@ export function renderPanel(
   const tui = ctx.config.tui ?? {};
   const ascii = ctx.config.charset === 'text';
   const b = resolveBox(tui, ascii);
-  const border = (s: string) => style(s, { fg: a.separatorColor }, level);
+  const borderFg =
+    tui.borderColor === 'context'
+      ? (deps.contextColor?.() ?? a.separatorColor)
+      : (tui.borderColor ?? a.separatorColor);
+  const border = (s: string) => style(s, { fg: borderFg }, level);
   const gap = tui.columnGap ?? a.separator ?? '  ';
   const gapW = visibleWidth(gap);
   const padding = tui.padding ?? 1;
 
   const cells = new Map<string, Cell>();
+  const sources = new Map<string, { item: WidgetItem; index: number }>();
   let index = 0;
   for (const line of ctx.config.lines) {
     for (const item of line) {
-      const c = deps.cell(item, index++);
+      const at = index++;
+      const c = deps.cell(item, at);
       if (!c) continue;
       for (const key of [item.id, item.type]) {
         if (!cells.has(key)) {
           cells.set(key, c);
+          sources.set(key, { item, index: at });
           cells.set(`${key}.label`, { text: c.label, label: c.label, value: c.label });
           cells.set(`${key}.value`, { text: c.value, label: '', value: c.value });
         }
@@ -200,6 +211,18 @@ export function renderPanel(
     src.replace(/\{([a-z0-9._-]+)\}/gi, (_, n: string) => lookup(n) ?? '').trim();
 
   const templates = tui.templates ?? {};
+  const grown = new Map<string, string>();
+  // let bars, graphs and tables use the whole cell
+  const fitted = (name: string, width: number): string | null => {
+    const src = sources.get(name);
+    const base = cells.get(name)?.text;
+    if (!src || !base || !deps.fill?.(src.item)) return null;
+    const extra = width - lineWidth(base);
+    if (extra <= 0) return null;
+    const key = `${name}@${width}`;
+    if (!grown.has(key)) grown.set(key, deps.cell(src.item, src.index, extra)?.text ?? base);
+    return grown.get(key)!;
+  };
   const cellText = (name: string, width?: number): string => {
     const t = templates[name];
     if (t) {
@@ -216,10 +239,14 @@ export function renderPanel(
       }
       return parts.join(' '.repeat(t.gap ?? 1));
     }
+    if (width !== undefined) {
+      const f = fitted(name, width);
+      if (f !== null) return f;
+    }
     return lookup(name) ?? '';
   };
   const has = (name: string) => cellText(name) !== '';
-  const widthOf = (name: string) => visibleWidth(cellText(name));
+  const widthOf = (name: string) => lineWidth(cellText(name));
 
   const fit = tui.fitContent === true || maxWidth === null;
   const minW = tui.minWidth ?? 32;
@@ -300,16 +327,21 @@ export function renderPanel(
       continue;
     }
     let col = 0;
-    const parts: string[] = [];
+    const columns: { lines: string[]; w: number; align: 'left' | 'center' | 'right' }[] = [];
     for (const c of r.cells) {
       const end = Math.min(widths.length, col + c.span);
       const w = widths.slice(col, end).reduce((a2, b2) => a2 + b2, 0) + gapW * (end - col - 1);
-      parts.push(pad(c.name === '.' ? '' : cellText(c.name, w), w, align?.[col] ?? 'left'));
+      const text = c.name === '.' ? '' : cellText(c.name, w);
+      columns.push({ lines: splitAnsiLines(text), w, align: align?.[col] ?? 'left' });
       col = end;
     }
-    while (col < widths.length) parts.push(' '.repeat(widths[col++]!));
-    const body = pad(parts.join(gap), inner);
-    out.push(border(b.vertical) + side + body + side + border(b.vertical));
+    while (col < widths.length) columns.push({ lines: [''], w: widths[col++]!, align: 'left' });
+    const height = Math.max(1, ...columns.map((c) => c.lines.length));
+    for (let k = 0; k < height; k++) {
+      const parts = columns.map((c) => pad(c.lines[k] ?? '', c.w, c.align));
+      const body = pad(parts.join(gap), inner);
+      out.push(border(b.vertical) + side + body + side + border(b.vertical));
+    }
   }
   out.push(edge(b.bottomLeft, b.bottomRight, tui.footer?.left, tui.footer?.right));
   return out;

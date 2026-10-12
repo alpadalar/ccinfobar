@@ -101,6 +101,10 @@ const tuiSchema = {
       description: 'Text between grid columns or widgets (default: theme separator)',
     },
     divider: { type: 'string', description: 'Character for divider rows' },
+    borderColor: {
+      type: 'string',
+      description: 'Border color; "context" shifts from green to red as the context window fills',
+    },
     dividers: {
       type: 'boolean',
       default: true,

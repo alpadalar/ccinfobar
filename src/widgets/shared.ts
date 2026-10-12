@@ -69,7 +69,8 @@ export function bar(percent: number, width = 10, styleName = 'blocks', opts: Bar
 }
 
 export function barFor(ctx: RenderContext, item: WidgetItem, percent: number, pace?: number | null): string {
-  return bar(percent, opt(item, 'width', 10), opt<string>(item, 'style', 'blocks'), {
+  const grow = opt(item, 'fill', false) ? (ctx.extra ?? 0) : 0;
+  return bar(percent, opt(item, 'width', 10) + grow, opt<string>(item, 'style', 'blocks'), {
     pace: pace ?? null,
     ascii: ctx.config.charset === 'text',
   });
@@ -120,6 +121,14 @@ export function thresholdColor(pct: number, warn = 50, danger = 80): string {
   return 'green';
 }
 
+export const fillOption: OptionSpec = {
+  key: 'fill',
+  label: 'Fill the cell',
+  kind: 'boolean',
+  default: false,
+  help: 'In the Panel style, grow to the width of the grid cell',
+};
+
 export const barOptions: OptionSpec[] = [
   { key: 'width', label: 'Bar width', kind: 'number', default: 10 },
   {
@@ -130,6 +139,7 @@ export const barOptions: OptionSpec[] = [
     choices: Object.keys(BAR_STYLES).map((k) => ({ value: k, label: k })),
   },
   { key: 'showPercent', label: 'Show percent', kind: 'boolean', default: true },
+  fillOption,
 ];
 
 export const thresholdOption: OptionSpec = {
@@ -158,5 +168,5 @@ export function sparkline(
     const f = Math.max(0, Math.min(1, (v - lo) / span));
     return ramp[Math.round(f * (ramp.length - 1))]!;
   });
-  return ' '.repeat(Math.max(0, width - chars.length)) + chars.join('');
+  return ramp[0]!.repeat(Math.max(0, width - chars.length)) + chars.join('');
 }

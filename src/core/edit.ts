@@ -130,6 +130,7 @@ export const LOOK_OPTIONS = [
   'showPace',
   'points',
   'showValue',
+  'fill',
 ];
 
 export interface StyleSnapshot {

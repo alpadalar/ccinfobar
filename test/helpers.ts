@@ -1,6 +1,13 @@
 import { defaultConfig } from '../src/core/config.js';
 import { createContext } from '../src/core/context.js';
-import { sampleGit, sampleGsd, sampleHistory, samplePayload, sampleTranscript } from '../src/core/sample.js';
+import {
+  sampleAgents,
+  sampleGit,
+  sampleGsd,
+  sampleHistory,
+  samplePayload,
+  sampleTranscript,
+} from '../src/core/sample.js';
 import type { Config, RenderContext, StatusPayload, WidgetItem } from '../src/core/types.js';
 import { getWidget } from '../src/widgets/index.js';
 
@@ -14,6 +21,7 @@ export function ctxWith(
     gsd?: RenderContext['data']['gsd'];
     transcript?: RenderContext['data']['transcript'];
     history?: RenderContext['data']['history'];
+    agents?: RenderContext['data']['agents'];
     width?: number | null;
   } = {},
 ): RenderContext {
@@ -28,6 +36,7 @@ export function ctxWith(
       gsd: overrides.gsd ?? sampleGsd,
       transcript: overrides.transcript ?? (() => sampleTranscript(NOW.getTime())),
       history: overrides.history ?? (() => sampleHistory(NOW.getTime())),
+      agents: overrides.agents ?? (() => sampleAgents(NOW.getTime())),
     },
   });
 }

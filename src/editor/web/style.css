@@ -2724,3 +2724,10 @@ body.painting .chip {
 body.painting .chip:hover {
   box-shadow: 0 0 0 0.125rem var(--accent);
 }
+
+.cell {
+  display: inline-block;
+  width: 1ch;
+  overflow: visible;
+  text-align: center;
+}

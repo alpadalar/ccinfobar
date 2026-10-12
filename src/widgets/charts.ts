@@ -1,7 +1,7 @@
 import type { OptionSpec, RenderContext, WidgetDef, WidgetItem, WidgetResult } from '../core/types.js';
 import { type HistorySample, loadHistory, recordHistory } from '../data/history.js';
 import { contextTokens, windowSize } from './context.js';
-import { formatCurrency, formatTokens, opt, sparkline, thresholdColor } from './shared.js';
+import { fillOption, formatCurrency, formatTokens, opt, sparkline, thresholdColor } from './shared.js';
 
 const memo = new WeakMap<RenderContext, HistorySample[]>();
 
@@ -63,7 +63,8 @@ function pctScale(values: number[], width: number): { min: number; max: number }
   return { min, max: Math.min(100, Math.max(hi, min + 10)) };
 }
 
-const width = (item: WidgetItem) => Math.max(4, Math.min(60, opt(item, 'points', 16)));
+const width = (item: WidgetItem, extra = 0) =>
+  Math.max(4, Math.min(60, opt(item, 'points', 16))) + (opt(item, 'fill', false) ? extra : 0);
 
 function chart(
   ctx: RenderContext,
@@ -74,7 +75,7 @@ function chart(
   color?: string,
 ): WidgetResult {
   if (values.length < 2 || value === null) return null;
-  const graph = sparkline(values, width(item), { ...scale, ascii: ctx.config.charset === 'text' });
+  const graph = sparkline(values, width(item, ctx.extra), { ...scale, ascii: ctx.config.charset === 'text' });
   const text = opt(item, 'showValue', true) ? `${graph} ${value}` : graph;
   return color ? { text, color } : text;
 }
@@ -89,7 +90,7 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰄧', emoji: '📈' },
     color: 'cyan',
     sample: '▁▂▅▇▆▃▂▄ 12k',
-    options: [points, showValue],
+    options: [points, showValue, fillOption],
     render(ctx, item) {
       const r = rates(series(ctx), 'tok', 60_000);
       return chart(ctx, item, r, r.length ? formatTokens(r[r.length - 1]!) : null);
@@ -104,7 +105,7 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰄧', emoji: '📈' },
     color: 'green',
     sample: '▁▁▂▃▃▄▅▅ 34%',
-    options: [points, showValue],
+    options: [points, showValue, fillOption],
     render(ctx, item) {
       const size = windowSize(ctx);
       if (!size) return null;
@@ -144,6 +145,7 @@ export const widgets: WidgetDef[] = [
       },
       points,
       showValue,
+      fillOption,
     ],
     render(ctx, item) {
       const key = opt<string>(item, 'window', '5h') === '7d' ? 'd7' : 'h5';
@@ -170,7 +172,7 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰄧', emoji: '📈' },
     color: 'yellow',
     sample: '▂▂▃▆▇▅▃▂ $2.47',
-    options: [points, showValue],
+    options: [points, showValue, fillOption],
     render(ctx, item) {
       const r = rates(series(ctx), 'cost', 3_600_000);
       return chart(ctx, item, r, r.length ? formatCurrency(r[r.length - 1]!, 2) : null);

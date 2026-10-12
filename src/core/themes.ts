@@ -125,6 +125,7 @@ const cats = (
   custom,
   layout: system,
   charts: tokens,
+  agents: session,
 });
 
 const BUILTIN: ThemeInput[] = [

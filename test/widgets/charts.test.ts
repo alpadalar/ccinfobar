@@ -14,7 +14,7 @@ const tmpEnv = () => ({ CCINFOBAR_CACHE_DIR: fs.mkdtempSync(path.join(os.tmpdir(
 describe('sparkline', () => {
   it('maps values onto the ramp and pads to a fixed width', () => {
     expect(sparkline([0, 50, 100], 3, { min: 0, max: 100 })).toBe('▁▅█');
-    expect(sparkline([1, 2], 4)).toBe('  ▁█');
+    expect(sparkline([1, 2], 4)).toBe('▁▁▁█');
     expect(sparkline([0, 100], 2, { min: 0, max: 100, ascii: true })).toBe('_#');
     expect(sparkline([], 4)).toBe('');
   });

@@ -11,7 +11,7 @@ const r = (type: string, opts: Record<string, string | number | boolean> = {}, p
 
 const empty = (): StatusPayload => ({});
 const noData = () =>
-  ctxWith({ payload: empty(), git: () => null, transcript: () => null, history: () => [] });
+  ctxWith({ payload: empty(), git: () => null, transcript: () => null, history: () => [], agents: () => [] });
 
 describe('sample rendering', () => {
   const expected: Record<string, string> = {

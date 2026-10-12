@@ -1,3 +1,4 @@
+import type { AgentInfo } from '../data/agents.js';
 import type { GitInfo } from '../data/git.js';
 import type { GsdInfo } from '../data/gsd.js';
 import type { HistorySample } from '../data/history.js';
@@ -113,7 +114,83 @@ export function sampleTranscript(now = Date.now()): TranscriptInfo {
     lastTimestamp: now - 4_000,
     outputSpeed: 72.4,
     currentTask: 'Wiring GSD widgets into renderer',
+    todos: [
+      { content: 'Parse GSD state', status: 'completed' },
+      { content: 'Add sparkline buckets', status: 'completed' },
+      {
+        content: 'Wire GSD widgets into renderer',
+        status: 'in_progress',
+        activeForm: 'Wiring GSD widgets into renderer',
+      },
+      { content: 'Backfill renderer tests', status: 'pending' },
+      { content: 'Update the README', status: 'pending' },
+    ],
+    agentCalls: [
+      { id: 'toolu_explore', start: now - 90_000, done: null },
+      { id: 'toolu_review', start: now - 75_000, done: null },
+      { id: 'toolu_fix', start: now - 200_000, done: now - 30_000 },
+    ],
+    turnStart: now - 240_000,
   };
+}
+
+export function sampleAgents(now = Date.now()): AgentInfo[] {
+  const agent = (
+    id: string,
+    type: string,
+    description: string,
+    tool: string,
+    total: number,
+    output: number,
+    secs: number,
+    model: string,
+    running = true,
+  ): AgentInfo => ({
+    id,
+    type,
+    description,
+    model,
+    input: total - output,
+    output,
+    total,
+    start: now - secs * 1000,
+    last: now,
+    tool,
+    running,
+  });
+  return [
+    agent(
+      'a1',
+      'Explore',
+      'Find where token totals are computed',
+      'Bash[grep -rn "billed_in" src/]',
+      3_200,
+      420,
+      80,
+      'claude-sonnet-5-5',
+    ),
+    agent(
+      'a2',
+      'general-purpose',
+      'Review the border math',
+      'Read[src/core/panel.ts]',
+      5_400,
+      980,
+      76,
+      'claude-sonnet-5-5',
+    ),
+    agent(
+      'a3',
+      'general-purpose',
+      'Fix sparkline buckets',
+      'Edit[src/widgets/charts.ts]',
+      8_700,
+      1_900,
+      74,
+      'claude-haiku-5-5',
+      false,
+    ),
+  ];
 }
 
 // ends at the sample payload's numbers

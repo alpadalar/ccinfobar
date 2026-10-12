@@ -149,6 +149,7 @@ export interface TuiConfig {
   divider?: string;
   dividers?: boolean;
   title?: { left?: string; right?: string | false };
+  borderColor?: string;
   footer?: { left?: string; right?: string };
   templates?: Record<string, TuiTemplate>;
   breakpoints?: TuiBreakpoint[];
@@ -191,6 +192,7 @@ export type WidgetCategory =
   | 'cost'
   | 'limits'
   | 'charts'
+  | 'agents'
   | 'git'
   | 'workspace'
   | 'gsd'
@@ -231,6 +233,7 @@ export interface WidgetDef {
   options?: OptionSpec[];
   sample?: string;
   hidden?: boolean;
+  fill?: boolean;
   render(ctx: RenderContext, item: WidgetItem): WidgetResult;
 }
 
@@ -244,6 +247,7 @@ export interface RenderContext {
   terminalWidth: number | null;
   theme?: import('./themes.js').Theme;
   data: DataSources;
+  extra?: number;
 }
 
 export interface DataSources {
@@ -251,4 +255,5 @@ export interface DataSources {
   transcript(): import('../data/transcript.js').TranscriptInfo | null;
   gsd(): import('../data/gsd.js').GsdInfo | null;
   history?(): import('../data/history.js').HistorySample[];
+  agents(): import('../data/agents.js').AgentInfo[];
 }

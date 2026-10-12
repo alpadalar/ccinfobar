@@ -1,3 +1,4 @@
+import { contextPercent } from '../widgets/context.js';
 import { getWidget } from '../widgets/index.js';
 import {
   contrastRatio,
@@ -301,6 +302,19 @@ export function renderLine(
 ): string {
   const parts = items.map((it) => renderPart(ctx, it)).filter((p): p is Part => p !== null);
   if (parts.every((p) => p.flex)) return '';
+  const max = maxLineWidth(ctx);
+  const below: string[] = [];
+  const textual = { ...a, style: 'text' as const };
+  parts.forEach((p, i) => {
+    if (!p.text.includes('\n')) return;
+    const [first, ...rest] = p.text.split('\n');
+    const s = styleFor(textual, p, colorsFor(textual, p, i));
+    for (const r of rest) below.push(style(r, s, level));
+    p.text = first ?? '';
+    p.value = p.value.split('\n')[0] ?? '';
+  });
+  const withBelow = (line: string) =>
+    below.length ? [line, ...below.map((l) => (max === null ? l : truncate(l, max)))].join('\n') : line;
   const groups: Part[][] = [[]];
   for (const p of parts) {
     if (p.flex) groups.push([]);
@@ -312,7 +326,6 @@ export function renderLine(
     offset += g.length;
     return s;
   });
-  const max = maxLineWidth(ctx);
   const nonEmpty = rendered.filter((s) => s !== '');
   let line: string;
   if (nonEmpty.length <= 1 || max === null) {
@@ -331,10 +344,11 @@ export function renderLine(
       .join('');
   }
   if (max !== null && visibleWidth(line) > max) {
-    if (ctx.config.autoWrap && parts.filter((p) => !p.flex).length > 1) return wrapLine(parts, a, level, max);
+    if (ctx.config.autoWrap && parts.filter((p) => !p.flex).length > 1)
+      return withBelow(wrapLine(parts, a, level, max));
     line = truncate(line, max);
   }
-  return line;
+  return withBelow(line);
 }
 
 function wrapLine(parts: Part[], a: Appearance, level: Level, max: number): string {
@@ -369,15 +383,21 @@ export function render(ctx: RenderContext): string[] {
       a,
       level,
       {
-        cell(item, index) {
-          const p = renderPart(ctx, item);
+        cell(item, index, extra) {
+          const p = renderPart(extra ? { ...ctx, extra } : ctx, item);
           if (!p || p.flex) return null;
           const s = styleFor(textual, p, colorsFor(textual, p, index));
-          return {
-            text: style(p.text, s, level),
-            label: style(p.label, s, level),
-            value: style(p.value, s, level),
-          };
+          const paint = (t: string) =>
+            t
+              .split('\n')
+              .map((l) => style(l, s, level))
+              .join('\n');
+          return { text: paint(p.text), label: paint(p.label), value: paint(p.value) };
+        },
+        fill: (item) => item.options?.fill === true || getWidget(item.type)?.fill === true,
+        contextColor: () => {
+          const pct = contextPercent(ctx, false);
+          return pct === null ? undefined : gradientColor(pct);
         },
       },
       maxLineWidth(ctx),
@@ -386,6 +406,31 @@ export function render(ctx: RenderContext): string[] {
   return ctx.config.lines
     .flatMap((items) => renderLine(ctx, items, level, a).split('\n'))
     .filter((l) => stripAnsi(l).trim() !== '');
+}
+
+// green to yellow to red to violet
+const STOPS: [number, [number, number, number]][] = [
+  [0, [76, 207, 146]],
+  [50, [242, 192, 92]],
+  [80, [240, 106, 106]],
+  [100, [198, 120, 221]],
+];
+
+export function gradientColor(pct: number): string {
+  const p = Math.max(0, Math.min(100, pct));
+  let i = 0;
+  while (i < STOPS.length - 2 && p > STOPS[i + 1]![0]) i++;
+  const [p0, c0] = STOPS[i]!;
+  const [p1, c1] = STOPS[i + 1]!;
+  const t = (p - p0) / (p1 - p0 || 1);
+  const hex = c0
+    .map((v, k) =>
+      Math.round(v + (c1[k]! - v) * t)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('');
+  return `#${hex}`;
 }
 
 export function finalizeLine(line: string): string {

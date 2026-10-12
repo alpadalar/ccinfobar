@@ -133,6 +133,7 @@ export function normalizeTui(raw: unknown): TuiConfig | undefined {
   if (padding !== undefined) t.padding = Math.min(8, padding);
   if (typeof raw.columnGap === 'string') t.columnGap = raw.columnGap;
   if (typeof raw.divider === 'string') t.divider = raw.divider;
+  if (typeof raw.borderColor === 'string' && raw.borderColor) t.borderColor = raw.borderColor.slice(0, 32);
   if (isObject(raw.title)) {
     const title = compact({
       left: str(raw.title.left),

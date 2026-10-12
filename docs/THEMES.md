@@ -78,6 +78,7 @@ Without further settings each config line becomes a row. Configure it under `tui
 | `minWidth` / `maxWidth` | `32` / none | Width limits |
 | `padding` | `1` | Spaces inside the border |
 | `columnGap` | theme separator | Text between widgets or grid columns |
+| `borderColor` | theme separator color | Border color; `"context"` shifts from green to red to violet as the context window fills |
 | `dividers` | `true` | Divider rows between config lines (without breakpoints) |
 | `divider` | box line | Character for divider rows |
 | `title.left` / `title.right` | `"{model}"` / `"ccinfobar"` | Text in the top border; `right: false` hides it |
@@ -119,6 +120,8 @@ Title, footer and template text can contain `{widget}` tokens: a widget type (`{
 - `columns`: `auto` (widest content), `1fr`/`2fr` (share of the remaining space) or a fixed number. The last column defaults to `1fr`.
 - `align`: `left`, `center` or `right` per column.
 - Cells whose widget has nothing to show become empty; empty rows and leftover dividers are removed, so a GSD row disappears outside GSD projects.
+- Widgets with several lines (task list, subagents) make their row as tall as needed.
+- Bars and graphs with **Fill the cell** (`"options": { "fill": true }`) stretch to the width of their cell; the subagent table does this by default.
 - `templates` combine widgets in one cell: `"cost": { "items": ["{session-cost}", "{cost-rate}"], "gap": 1, "justify": "between" }`, then use `cost` in `areas`.
 
 ## Character sets

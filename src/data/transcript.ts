@@ -1,6 +1,18 @@
 import fs from 'node:fs';
 import { cacheKey, readCache, writeCache } from './cache.js';
 
+export interface Todo {
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  activeForm?: string;
+}
+
+export interface AgentCall {
+  id: string;
+  start: number | null;
+  done: number | null;
+}
+
 export interface TranscriptInfo {
   inputTokens: number;
   outputTokens: number;
@@ -19,6 +31,9 @@ export interface TranscriptInfo {
   lastTimestamp: number | null;
   outputSpeed: number | null;
   currentTask: string | null;
+  todos: Todo[];
+  agentCalls: AgentCall[];
+  turnStart: number | null;
 }
 
 interface Recent {
@@ -53,9 +68,12 @@ interface State {
   lastTimestamp: number | null;
   currentTask: string | null;
   tasks: string[];
+  todos: Todo[];
+  agentCalls: AgentCall[];
+  turnStart: number | null;
 }
 
-const VERSION = 3;
+const VERSION = 4;
 const RECENT = 64;
 const SPEED_WINDOW = 10;
 const CHUNK = 8 * 1024 * 1024;
@@ -83,6 +101,9 @@ export function emptyState(): State {
     lastTimestamp: null,
     currentTask: null,
     tasks: [],
+    todos: [],
+    agentCalls: [],
+    turnStart: null,
   };
 }
 
@@ -109,11 +130,21 @@ function userText(content: unknown): string | null {
   return parts.length ? parts.join('\n') : null;
 }
 
-function handleToolUse(s: State, block: Json) {
+const STATUSES = new Set(['pending', 'in_progress', 'completed']);
+
+function handleToolUse(s: State, block: Json, ts: number | null) {
   const input = (block.input ?? {}) as Json;
   switch (block.name) {
     case 'TodoWrite': {
       const todos = Array.isArray(input.todos) ? (input.todos as Json[]) : [];
+      s.todos = todos
+        .filter((t) => t && typeof t.content === 'string')
+        .slice(0, 100)
+        .map((t) => ({
+          content: String(t.content),
+          status: STATUSES.has(t.status) ? t.status : 'pending',
+          ...(typeof t.activeForm === 'string' ? { activeForm: t.activeForm } : {}),
+        }));
       const active = todos.find((t) => t?.status === 'in_progress');
       s.currentTask = active ? String(active.activeForm ?? active.content ?? '') || null : null;
       break;
@@ -121,9 +152,18 @@ function handleToolUse(s: State, block: Json) {
     case 'TaskCreate':
       s.tasks.push(String(input.activeForm ?? input.subject ?? ''));
       if (s.tasks.length > 200) s.tasks.shift();
+      s.todos.push({
+        content: String(input.subject ?? input.description ?? ''),
+        status: 'pending',
+        ...(typeof input.activeForm === 'string' ? { activeForm: input.activeForm } : {}),
+      });
+      if (s.todos.length > 100) s.todos.shift();
       break;
     case 'TaskUpdate': {
       const idx = Number(input.taskId) - 1;
+      const todo = s.todos[idx];
+      if (todo && STATUSES.has(input.status)) todo.status = input.status;
+      if (todo && input.status === 'deleted') s.todos.splice(idx, 1, { ...todo, status: 'completed' });
       if (input.status === 'in_progress') {
         const name = input.activeForm ?? s.tasks[idx] ?? input.subject;
         if (name) s.currentTask = String(name);
@@ -132,6 +172,13 @@ function handleToolUse(s: State, block: Json) {
       }
       break;
     }
+    case 'Agent':
+    case 'Task':
+      if (typeof block.id === 'string') {
+        s.agentCalls.push({ id: block.id, start: ts, done: null });
+        if (s.agentCalls.length > 40) s.agentCalls.shift();
+      }
+      break;
     case 'Skill': {
       const name = input.skill ?? input.command;
       if (typeof name === 'string' && name) {
@@ -149,7 +196,7 @@ function applyAssistant(s: State, e: Json, ts: number | null, prevTs: number | n
   const msg = e.message as Json | undefined;
   if (!msg) return;
   const content = Array.isArray(msg.content) ? (msg.content as Json[]) : [];
-  for (const b of content) if (b?.type === 'tool_use') handleToolUse(s, b);
+  for (const b of content) if (b?.type === 'tool_use') handleToolUse(s, b, ts);
   const u = msg.usage as Json | undefined;
   if (!u || msg.model === '<synthetic>') return;
   const input = num(u.input_tokens);
@@ -217,7 +264,16 @@ function applyLine(s: State, line: string, st: { prevTs: number | null }) {
       if (s.boundaryPending) s.boundaryPending = false;
       else s.compactions++;
     } else if (!e.isMeta) {
-      const text = userText(e.message?.content);
+      const content = e.message?.content;
+      if (Array.isArray(content)) {
+        for (const b of content as Json[]) {
+          if (b?.type !== 'tool_result') continue;
+          const call = s.agentCalls.find((c) => c.id === b.tool_use_id);
+          if (call && call.done === null) call.done = tsv ?? 0;
+        }
+      }
+      const text = userText(content);
+      if (text !== null) s.turnStart = tsv;
       if (text !== null) {
         s.userMessageCount++;
         const m = /<command-name>\s*\/?([^<\s]+)\s*<\/command-name>/.exec(text);
@@ -262,6 +318,9 @@ function toInfo(s: State): TranscriptInfo {
     lastTimestamp: s.lastTimestamp,
     currentTask: s.currentTask,
     outputSpeed: outputSpeed(s),
+    todos: s.todos,
+    agentCalls: s.agentCalls,
+    turnStart: s.turnStart,
   };
 }
 

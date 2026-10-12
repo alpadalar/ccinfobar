@@ -61,6 +61,75 @@ export function cockpitConfig(): Config {
   };
 }
 
+// boxed overview like yet-another-statusline
+export function dashboardConfig(): Config {
+  const all = (name: string) => `${name} ${name} ${name} ${name} ${name}`;
+  return {
+    ...defaultConfig(),
+    theme: 'panel',
+    style: 'tui',
+    tui: {
+      box: 'rounded',
+      borderColor: 'context',
+      columnGap: ' │ ',
+      padding: 1,
+      title: { left: '{sid.value}', right: '{model}{effort}' },
+      templates: {
+        where: { items: ['{cwd}', '{git-branch}', '{git-changes}'], gap: 1 },
+        io: { items: ['{tokens-input}', '{tokens-output}'], gap: 2 },
+      },
+      breakpoints: [
+        {
+          minWidth: 110,
+          areas: [
+            'where ctx h5 d7 cache',
+            all('bar'),
+            '---',
+            'io cost rate rate rate',
+            '---',
+            all('skills'),
+            all('todo'),
+            '---',
+            all('agents'),
+          ],
+          columns: ['auto', 'auto', 'auto', 'auto', '1fr'],
+        },
+        {
+          minWidth: 0,
+          areas: ['where where', 'ctx h5', 'bar bar', 'io cost', 'rate rate', 'todo todo', 'agents agents'],
+          columns: ['auto', '1fr'],
+        },
+      ],
+    },
+    lines: [
+      [
+        w('sid', 'session-id', { dim: true, options: { short: true } }),
+        w('model', 'model', { label: ' ', color: 'black', background: 'yellow', bold: true }),
+        w('effort', 'effort', { label: ' ', color: 'black', background: 'yellow' }),
+      ],
+      [
+        w('cwd', 'cwd', { raw: true, options: { style: 'tilde' } }),
+        w('git-branch', 'git-branch', { raw: true }),
+        w('git-changes', 'git-changes', { raw: true }),
+        w('ctx', 'context-percentage', {}),
+        w('h5', 'five-hour-usage', { options: { showPace: true } }),
+        w('d7', 'weekly-usage', {}),
+        w('cache', 'cache-timer', {}),
+      ],
+      [w('bar', 'context-bar', { options: { fill: true, width: 10 } })],
+      [
+        w('tokens-input', 'tokens-input', {}),
+        w('tokens-output', 'tokens-output', {}),
+        w('cost', 'session-cost', {}),
+        w('rate', 'token-rate-graph', { options: { fill: true } }),
+      ],
+      [w('skills', 'skills', { options: { mode: 'list' } })],
+      [w('todo', 'todo-list', { hideEmpty: true })],
+      [w('agents', 'agents', { hideEmpty: true })],
+    ],
+  };
+}
+
 export const PRESETS: Preset[] = [
   {
     id: 'default',
@@ -73,6 +142,13 @@ export const PRESETS: Preset[] = [
     name: 'Cockpit',
     description: 'Developer dashboard: path and git, GSD, model and time, context and tokens, usage limits',
     build: cockpitConfig,
+  },
+  {
+    id: 'dashboard',
+    name: 'Dashboard',
+    description:
+      'A boxed overview: model in the corner, usage cells, a full-width context bar, token graph, tasks and subagents',
+    build: dashboardConfig,
   },
   {
     id: 'minimal',

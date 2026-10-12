@@ -1,3 +1,4 @@
+import { readAgents } from '../data/agents.js';
 import { readGit } from '../data/git.js';
 import { readGsd } from '../data/gsd.js';
 import { readTranscript } from '../data/transcript.js';
@@ -36,20 +37,26 @@ export function resolveCwd(payload: StatusPayload): string {
 
 export function createContext(opts: ContextOptions): RenderContext {
   const cwd = resolveCwd(opts.payload);
+  const env = opts.env ?? process.env;
+  const now = opts.now ?? new Date();
+  const transcript = opts.data?.transcript ?? lazy(() => readTranscript(opts.payload.transcript_path));
   return {
     payload: opts.payload,
     config: opts.config,
     cwd,
-    env: opts.env ?? process.env,
-    now: opts.now ?? new Date(),
+    env,
+    now,
     preview: opts.preview ?? false,
     terminalWidth: opts.terminalWidth ?? null,
     ...(opts.theme ? { theme: opts.theme } : {}),
     data: {
       git: opts.data?.git ?? lazy(() => readGit(cwd)),
-      transcript: opts.data?.transcript ?? lazy(() => readTranscript(opts.payload.transcript_path)),
+      transcript,
       gsd: opts.data?.gsd ?? lazy(() => readGsd(cwd)),
       ...(opts.data?.history ? { history: opts.data.history } : {}),
+      agents:
+        opts.data?.agents ??
+        lazy(() => readAgents(opts.payload.transcript_path, transcript(), now.getTime(), env)),
     },
   };
 }

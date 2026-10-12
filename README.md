@@ -138,6 +138,7 @@ Mouse works too: click to select, drag a chip to move it.
 | Cost & time | session cost, cost per hour, session and API duration, lines changed, message count |
 | Usage limits | 5-hour and weekly usage (percent or 13 bar styles, with an even-pace marker), reset countdowns, per-model weekly limits such as Fable, spend limit, usage pace |
 | Charts | moving sparklines of tokens per minute, context fill, 5-hour or weekly usage and dollars per hour over the session |
+| Agents & tasks | Claude's task list, a table of the turn's subagents (type, job, last tool, tokens per minute, share, tokens, time, model), subagent count |
 | GSD | milestone, milestone progress, phase, status, plans, plan progress, next step, workstream, blockers, todos, requirements, last command, update notice, current task, summary |
 | Git | branch, sha, changes, status, staged, unstaged, untracked, ahead/behind, conflicts, stash, in-progress operation, repo, worktree, pull request |
 | Workspace | current directory (5 styles), project directory |
@@ -163,6 +164,16 @@ ccinfobar theme dracula   # switch
 | Panel (box with optional grid) | `panel` |
 
 ![Theme gallery](docs/images/themes.png)
+
+### Dashboard
+
+The **Dashboard** preset turns the panel style into a table: session id at the top left, the model as a badge at the top right, a border that changes color as the context fills, a full-width context bar, a moving tokens-per-minute graph, the task list and a table of running subagents.
+
+```sh
+ccinfobar init dashboard --force   # or Presets → Dashboard in the editor
+```
+
+![Dashboard preset](docs/images/dashboard.png)
 
 Any theme can be drawn in any style (`"style": "capsule"`), and per-widget colors always win. To make your own, use **New theme** in the editor, or run `ccinfobar theme new mine --from nord` and edit `~/.config/ccinfobar/themes/mine.json`. Details: [docs/THEMES.md](docs/THEMES.md).
 
