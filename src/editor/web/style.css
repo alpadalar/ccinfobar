@@ -336,11 +336,6 @@ button:disabled {
   flex: none;
 }
 
-.btn.install.installed .status-dot {
-  background: var(--ok);
-  box-shadow: 0 0 0 0.1875rem color-mix(in srgb, var(--ok) 25%, transparent);
-}
-
 .dirty {
   display: flex;
   align-items: center;
@@ -2493,4 +2488,30 @@ textarea.areas {
   height: 1.875rem;
   padding: 0 0.625rem;
   font-size: 0.75rem;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.claude-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  color: var(--ok);
+  font-size: 0.75rem;
+  cursor: default;
+}
+
+.claude-status i {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 0.1875rem color-mix(in srgb, var(--ok) 25%, transparent);
+}
+
+.claude-status:not([hidden]) + .dirty {
+  padding-left: 0.75rem;
+  border-left: 0.0625rem solid var(--line);
 }

@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Updates install `ccinfobar@<version>` from npm and fall back to the GitHub release; installs made from a GitHub tarball move to the npm package on their next update
 - With npx, the update notice is skipped and command hints read `npx ccinfobar@latest …`
+- Editor: once installed, the top bar shows a plain "Active in Claude Code" status instead of a button; the command and refresh settings moved to a Claude Code section in the Global tab, and saving says when Claude Code will show the change
 
 ## [0.5.1] - 2026-10-12
 
