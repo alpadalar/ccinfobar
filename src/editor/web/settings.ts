@@ -97,7 +97,7 @@ export async function openSettings(): Promise<void> {
               {
                 value: 'auto',
                 label: 'Install automatically',
-                title: 'Default. Installs in the background once a day',
+                title: 'Default. Checks each time Claude Code starts and installs in the background',
               },
               { value: 'notify', label: 'Tell me', title: 'Shows a note at the end of the status line' },
               { value: 'off', label: 'Off', title: 'Never checks' },

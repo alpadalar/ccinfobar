@@ -250,7 +250,7 @@ async function runRender(args: Args, config: Config): Promise<void> {
     lines[lines.length - 1] += ` ${style(notice, { fg: 'yellow' }, level)}`;
   }
   process.stdout.write(lines.map(finalizeLine).join('\n') + (lines.length ? '\n' : ''));
-  scheduleCheck(config);
+  scheduleCheck(config, payload.session_id);
   if (usageOn && usageDue(usage)) scheduleUsage();
 }
 

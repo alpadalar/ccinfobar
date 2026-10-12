@@ -13,12 +13,14 @@ export function assertVersion(v: string): string {
   return v;
 }
 const LOCK_MS = 10 * 60_000;
+const SESSION_GAP = 60_000;
 
 export interface UpdateState {
   checkedAt: number;
   latest: string | null;
   installed?: string;
   error?: string;
+  session?: string;
 }
 
 export function updateFile(env: NodeJS.ProcessEnv = process.env): string {
@@ -165,11 +167,14 @@ export function selfCommand(kind: InstallKind = installKind()): string {
   return kind === 'npx' || kind === 'local' ? 'npx ccinfobar@latest' : 'ccinfobar';
 }
 
-export function scheduleCheck(config: Config, env: NodeJS.ProcessEnv = process.env): void {
+// on every new Claude Code session, else daily
+export function scheduleCheck(config: Config, session?: string, env: NodeJS.ProcessEnv = process.env): void {
   if (updatesDisabled(config, env)) return;
   const state = readUpdateState(env);
   const now = Date.now();
-  if (state && now - state.checkedAt < DAY) return;
+  const age = state ? now - state.checkedAt : Number.POSITIVE_INFINITY;
+  const newSession = !!session && session !== state?.session && age >= SESSION_GAP;
+  if (age < DAY && !newSession) return;
   const lock = `${updateFile(env)}.lock`;
   try {
     if (now - fs.statSync(lock).mtimeMs < LOCK_MS) return;
@@ -177,6 +182,7 @@ export function scheduleCheck(config: Config, env: NodeJS.ProcessEnv = process.e
   try {
     fs.mkdirSync(path.dirname(lock), { recursive: true });
     fs.writeFileSync(lock, String(now));
+    if (state && session) writeUpdateState({ ...state, session }, env);
     spawnSelf(['update', '--background'], env);
   } catch {}
 }
@@ -199,6 +205,8 @@ export async function backgroundUpdate(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<void> {
   const state: UpdateState = { checkedAt: Date.now(), latest: null };
+  const session = readUpdateState(env)?.session;
+  if (session) state.session = session;
   try {
     state.latest = await fetchLatest();
     const kind = installKind();

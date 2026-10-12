@@ -253,7 +253,7 @@ The config lives in `~/.config/ccinfobar/config.json` (`%APPDATA%\ccinfobar\conf
 
 ## Updates
 
-ccinfobar keeps itself up to date: once a day, after the status line has been printed, a background process asks GitHub for the latest release and installs it from npm (or from the GitHub release if npm does not have it yet); the status line never waits for it. Installs made from a GitHub release tarball move to the npm package on their next update.
+ccinfobar keeps itself up to date: each time Claude Code starts a session (and at least once a day), after the status line has been printed, a background process asks GitHub for the latest release and installs it from npm (or from the GitHub release if npm does not have it yet); the status line never waits for it. Installs made from a GitHub release tarball move to the npm package on their next update.
 
 | `update` | Behaviour |
 | --- | --- |

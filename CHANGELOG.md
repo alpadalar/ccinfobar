@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- Automatic updates check each time Claude Code starts a new session instead of once a day; within a session the daily check stays
+
 ## [0.6.1] - 2026-10-12
 
 ### Added

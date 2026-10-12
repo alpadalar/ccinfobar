@@ -70,12 +70,27 @@ describe('update', () => {
   it('does not spawn when a fresh check exists or outside the ccinfobar binary', () => {
     const env = envWith();
     writeState(env, { checkedAt: Date.now(), latest: '0.2.0' });
-    scheduleCheck(defaultConfig(), env);
+    scheduleCheck(defaultConfig(), undefined, env);
     expect(fs.existsSync(`${updateFile(env)}.lock`)).toBe(false);
     const stale = envWith();
     writeState(stale, { checkedAt: 0, latest: '0.2.0' });
-    scheduleCheck(defaultConfig(), stale);
+    scheduleCheck(defaultConfig(), undefined, stale);
     expect(fs.readFileSync(updateFile(stale), 'utf8')).toContain('"checkedAt":0');
+  });
+
+  it('checks again when a new Claude Code session starts', () => {
+    const lock = (env: NodeJS.ProcessEnv) => fs.existsSync(`${updateFile(env)}.lock`);
+    const env = envWith();
+    writeState(env, { checkedAt: Date.now() - 120_000, latest: '0.2.0', session: 'a' });
+    scheduleCheck(defaultConfig(), 'a', env);
+    expect(lock(env)).toBe(false);
+    scheduleCheck(defaultConfig(), 'b', env);
+    expect(lock(env)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(updateFile(env), 'utf8')).session).toBe('b');
+    const recent = envWith();
+    writeState(recent, { checkedAt: Date.now(), latest: '0.2.0', session: 'a' });
+    scheduleCheck(defaultConfig(), 'b', recent);
+    expect(lock(recent)).toBe(false);
   });
 
   it('detects how it was installed', () => {
