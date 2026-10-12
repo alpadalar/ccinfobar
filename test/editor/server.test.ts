@@ -10,6 +10,7 @@ let dir: string;
 let file: string;
 let handle: EditorHandle;
 let port: number;
+let prevDir: string | undefined;
 
 function request(
   method: string,
@@ -39,12 +40,16 @@ function request(
 beforeEach(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-editor-'));
   file = path.join(dir, 'c.json');
+  prevDir = process.env.CCINFOBAR_CONFIG_DIR;
+  process.env.CCINFOBAR_CONFIG_DIR = dir;
   handle = await startEditor({ configPath: file, open: false, port: 0 });
   port = Number(new URL(handle.url).port);
 });
 
 afterEach(async () => {
   await handle.close();
+  if (prevDir === undefined) delete process.env.CCINFOBAR_CONFIG_DIR;
+  else process.env.CCINFOBAR_CONFIG_DIR = prevDir;
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -100,7 +105,11 @@ describe('editor server', () => {
     expect(Array.isArray(s.widgets[0].options)).toBe(true);
     expect(s.categories.length).toBeGreaterThan(0);
     expect(s.presets[0]).toHaveProperty('config');
-    expect(Object.keys(s.themes).length).toBeGreaterThan(0);
+    expect(Array.isArray(s.themes)).toBe(true);
+    expect(s.themes.length).toBeGreaterThan(10);
+    expect(s.themes[0]).toMatchObject({ id: 'classic', source: 'builtin' });
+    expect(s.styles.map((x: { id: string }) => x.id)).toEqual(['text', 'blocks', 'powerline', 'capsule']);
+    expect(s.themesDir).toBe(path.join(dir, 'themes'));
     expect(s.claude).toHaveProperty('installed');
     expect(typeof s.claude.defaultCommand).toBe('string');
     expect(typeof s.hasLastPayload).toBe('boolean');
@@ -135,6 +144,59 @@ describe('editor server', () => {
     expect((await request('PUT', '/api/config', { body: '{nope' })).status).toBe(400);
     const big = JSON.stringify({ config: defaultConfig(), pad: 'x'.repeat(1024 * 1024 + 10) });
     expect((await request('PUT', '/api/config', { body: big })).status).toBe(413);
+  });
+
+  it('renders a preview for every theme without overrides', async () => {
+    const config = { ...defaultConfig(), style: 'capsule', separator: ' ZZZ ' };
+    const res = await request('POST', '/api/theme-previews', {
+      body: JSON.stringify({ config, source: 'sample', width: 100 }),
+    });
+    expect(res.status).toBe(200);
+    const { previews } = res.json();
+    const ids = (await request('GET', '/api/state')).json().themes.map((t: { id: string }) => t.id);
+    expect(Object.keys(previews).sort()).toEqual([...ids].sort());
+    expect(previews.classic.length).toBe(1);
+    expect(previews.classic[0]).not.toContain('ZZZ');
+    expect(previews.nord[0]).not.toBe(previews.classic[0]);
+  });
+
+  it('saves, lists and deletes user themes', async () => {
+    const theme = { id: 'mine', name: 'Mine', extends: 'nord', separator: ' ~ ' };
+    const res = await request('POST', '/api/themes', { body: JSON.stringify({ theme }) });
+    expect(res.status).toBe(200);
+    const saved = res.json().themes.find((t: { id: string }) => t.id === 'mine');
+    expect(saved).toMatchObject({ source: 'user', style: 'powerline' });
+    expect(fs.existsSync(path.join(dir, 'themes', 'mine.json'))).toBe(true);
+    const del = await request('DELETE', '/api/themes/mine');
+    expect(del.status).toBe(200);
+    expect(del.json().themes.some((t: { id: string }) => t.id === 'mine')).toBe(false);
+    expect(fs.existsSync(path.join(dir, 'themes', 'mine.json'))).toBe(false);
+  });
+
+  it('creates a theme from the current config overrides', async () => {
+    const config = { ...defaultConfig(), theme: 'nord', separator: ' @@ ', padding: 2 };
+    const res = await request('POST', '/api/themes', {
+      body: JSON.stringify({ theme: { id: 'from-cfg', name: 'From cfg' }, fromConfig: config }),
+    });
+    expect(res.status).toBe(200);
+    const t = res.json().themes.find((x: { id: string }) => x.id === 'from-cfg');
+    expect(t).toMatchObject({ separator: ' @@ ', padding: 2, style: 'powerline', source: 'user' });
+  });
+
+  it('rejects invalid theme ids and path traversal', async () => {
+    for (const id of ['../evil', 'a/b', '', '.hidden', 'x'.repeat(80)]) {
+      const r = await request('POST', '/api/themes', { body: JSON.stringify({ theme: { id } }) });
+      expect(r.status).toBe(400);
+    }
+    expect((await request('DELETE', '/api/themes/..%2Fc')).status).toBe(400);
+    expect((await request('DELETE', '/api/themes/%E0%A4%A')).status).toBe(400);
+    expect((await request('DELETE', '/api/themes/classic')).status).toBe(404);
+    expect(fs.existsSync(path.join(dir, 'evil.json'))).toBe(false);
+  });
+
+  it('requires the token for theme endpoints', async () => {
+    expect((await request('DELETE', '/api/themes/x', { token: false })).status).toBe(401);
+    expect((await request('POST', '/api/themes', { token: false, body: '{}' })).status).toBe(401);
   });
 
   it('404s unknown routes', async () => {

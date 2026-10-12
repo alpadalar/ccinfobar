@@ -47,10 +47,9 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
       { "id": "gsd-plans-1", "type": "gsd-plans", "color": "#7aa2f7" }
     ]
   ],
-  "separator": " │ ",
-  "separatorColor": "brightBlack",
-  "icons": "text",
-  "powerline": { "enabled": false, "theme": "default" }
+  "theme": "nord",
+  "style": "capsule",
+  "icons": "text"
 }
 ```
 
@@ -60,27 +59,19 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
 | --- | --- | --- | --- |
 | `version` | `1` | `1` | Config format version |
 | `lines` | `Widget[][]` | see presets | One array per status line, top to bottom. Lines with nothing to show are skipped. |
-| `separator` | string | `" │ "` | Text placed between widgets. Use `""` and `separator` widgets for full manual control. |
-| `separatorColor` | color | `"brightBlack"` | Color of the separator |
-| `padding` | 0 to 4 | `1` | Spaces on each side of a segment in powerline mode |
+| `theme` | string | `"classic"` | Built-in theme id or the name of your own theme file. See [THEMES.md](THEMES.md). |
+| `style` | `text` \| `blocks` \| `powerline` \| `capsule` | theme | Overrides the theme style |
+| `separator` | string | theme | Overrides the text between widgets. Use `""` and `separator` widgets for full manual control. |
+| `separatorColor` | color | theme | Overrides the separator color |
+| `padding` | 0 to 4 | theme | Overrides the spaces inside blocks |
+| `glyphs` | object | theme | Overrides `separator`, `thin`, `startCap` and `endCap` glyphs of powerline and capsule styles |
 | `icons` | `nerd` \| `emoji` \| `text` \| `none` | `"text"` | What a widget shows before its value: Nerd Font glyph, emoji, short text label or nothing |
 | `colorLevel` | `auto` \| 0 \| 1 \| 2 \| 3 | `"auto"` | 0 no color, 1 basic 16, 2 256 colors, 3 truecolor. `auto` honors `NO_COLOR`, `FORCE_COLOR` and `COLORTERM`. |
 | `maxWidth` | `auto` \| number | `"auto"` | Lines longer than this are truncated with `…`. `auto` uses the detected terminal width. |
 | `widthOffset` | number | `4` | Columns subtracted from the terminal width in `auto` mode, leaving room for Claude Code's own padding |
 | `savePayload` | boolean | `true` | Store the latest Claude Code payload so the editors can preview with your real session data |
-| `powerline` | object | see below | Powerline mode |
 
-### `powerline`
-
-| Field | Default | Description |
-| --- | --- | --- |
-| `enabled` | `false` | Render widgets as colored segments joined by arrows |
-| `theme` | `"default"` | `default`, `nord`, `dracula`, `gruvbox`, `tokyo-night`, `catppuccin`, `solarized`, `monochrome` |
-| `separator` | `""` (U+E0B0) | Glyph between segments |
-| `startCap` | `""` | Glyph before the first segment, e.g. `""` (U+E0B6) for rounded caps |
-| `endCap` | `""` (U+E0B0) | Glyph after the last segment |
-
-Powerline glyphs need a [Nerd Font](https://www.nerdfonts.com/) in your terminal. Widgets without a `background` take the next theme color in order.
+Fields marked "theme" are optional. Leave them out to use the theme's value.
 
 ## Widget fields
 
@@ -90,9 +81,9 @@ Every entry in `lines` is a widget instance:
 | --- | --- | --- |
 | `id` | string | Unique id. The editors generate it. |
 | `type` | string | Widget type, see [WIDGETS.md](WIDGETS.md) |
-| `color` | color | Text color. Overrides the widget default and any threshold color. |
-| `background` | color | Background color |
-| `bold`, `dim`, `italic` | boolean | Text attributes |
+| `color` | color | Text color. Overrides the theme and any threshold color. |
+| `background` | color | Background color. In block styles this is the block color. |
+| `bold`, `dim`, `italic` | boolean | Text attributes (`bold` overrides the theme) |
 | `label` | string | Replaces the default label, e.g. `"ctx "`. `""` removes it. |
 | `raw` | boolean | Value only, no label or icon |
 | `merge` | boolean | Glue the next widget directly to this one, with no separator |

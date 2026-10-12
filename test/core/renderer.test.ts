@@ -59,7 +59,8 @@ describe('renderer', () => {
     const ctx = ctxWith({
       config: {
         colorLevel: 2,
-        powerline: { enabled: true, separator: '>', startCap: '', endCap: '>', theme: 'default' },
+        theme: 'powerline',
+        glyphs: { separator: '>', endCap: '>' },
         lines: [[text('a'), text('b')]],
       },
     });

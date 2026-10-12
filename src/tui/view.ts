@@ -1,4 +1,4 @@
-import { stripAnsi, style, truncate, visibleWidth } from '../core/ansi.js';
+import { parseColor, stripAnsi, style, truncate, visibleWidth } from '../core/ansi.js';
 import { PRESETS } from '../core/presets.js';
 import { renderPreview } from '../core/preview.js';
 import type { Config, WidgetItem } from '../core/types.js';
@@ -7,7 +7,15 @@ import { categoryName, pickerItems } from './catalog.js';
 import { displayValue, type Field, listEntries } from './fields.js';
 import type { Hit } from './hits.js';
 import { shiftHits } from './hits.js';
-import { type Mode, type State, selectedItem, settingsFields } from './state.js';
+import {
+  type Mode,
+  previewConfig,
+  type State,
+  selectedItem,
+  settingsFields,
+  themeItems,
+  withTheme,
+} from './state.js';
 
 export const MIN_COLS = 60;
 export const MIN_ROWS = 16;
@@ -157,8 +165,7 @@ function swatch(color: string | undefined): string {
 
 function settingValue(field: Field, config: Config, width: number): string {
   const { text, isDefault } = displayValue(field, config);
-  const raw = field.get(config);
-  const sw = field.kind === 'color' && typeof raw === 'string' && raw ? swatch(raw) : '';
+  const sw = field.kind === 'color' && parseColor(text.split(' ')[0]) ? swatch(text.split(' ')[0]) : '';
   const shown = truncate(text, Math.max(1, width - visibleWidth(sw)));
   if (field.kind === 'bool') return isDefault ? dim(shown) : fg(shown, text === 'on' ? 'green' : undefined);
   return sw + (isDefault ? dim(shown) : shown);
@@ -303,6 +310,73 @@ function settingsModal(state: State, mode: Extract<Mode, { kind: 'settings' }>, 
   return { lines, hits };
 }
 
+const DEMO_TYPES = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gsd-plans', 'session-cost'];
+let themeLineCache = new Map<string, { at: number; line: string }>();
+
+function themePreviewLine(state: State, id: string, width: number): string {
+  const first = state.config.lines.find((l) => l.length > 0);
+  const lines = first ?? DEMO_TYPES.map((type) => ({ id: type, type }));
+  const key = `${id}|${width}|${state.config.colorLevel}|${state.config.icons}|${JSON.stringify(lines)}`;
+  const hit = themeLineCache.get(key);
+  if (hit && Date.now() - hit.at < 3000) return hit.line;
+  if (themeLineCache.size > 200) themeLineCache = new Map();
+  let line = '';
+  try {
+    const demo: Config = { ...withTheme(state.config, id), lines: [lines] };
+    line = renderPreview(demo, 'sample', width + state.config.widthOffset)[0] ?? '';
+  } catch {
+    line = dim('(preview unavailable)');
+  }
+  themeLineCache.set(key, { at: Date.now(), line });
+  return line;
+}
+
+function themesModal(state: State, mode: Extract<Mode, { kind: 'themes' }>, w: number, h: number): Modal {
+  const items = themeItems(mode.filter);
+  const current = state.config.theme;
+  const lines = [rule('Themes', w)];
+  if (mode.naming) {
+    const chars = [...mode.naming.text];
+    const before = chars.slice(0, mode.naming.pos).join('');
+    const at = chars[mode.naming.pos] ?? ' ';
+    const after = chars.slice(mode.naming.pos + 1).join('');
+    lines.push(` ${bold('Save as my theme')} ${dim('(letters, numbers, . - _)')}`);
+    lines.push(` ${dim('Id:')} ${before}${inv(at)}${after}`);
+    lines.push(
+      dim(' Saves the current theme with your overrides, then switches to it. Enter save · Esc cancel'),
+    );
+    while (lines.length < h) lines.push('');
+    return { lines, hits: [] };
+  }
+  lines.push(` ${dim('Filter:')} ${mode.filter}${inv(' ')}`);
+  const listH = Math.max(2, h - 2);
+  const per = 2;
+  const visible = Math.max(1, Math.floor(listH / per));
+  const start = windowStart(items.length, mode.cursor, visible);
+  const hits: Hit[] = [];
+  for (let n = 0; n < visible; n++) {
+    const t = items[start + n];
+    if (!t) break;
+    const selected = start + n === mode.cursor;
+    const tags = `${t.style} · ${t.source === 'user' ? 'yours · ' : ''}${t.description}`;
+    const head = ` ${t.id === current ? '●' : ' '} ${pad(t.name, 16)} ${truncate(tags, Math.max(0, w - 22))}`;
+    lines.push(
+      selected
+        ? inv(pad(head, w))
+        : `${pad(` ${t.id === current ? '●' : ' '} ${bold(t.name)}`, 20)} ${dim(truncate(tags, Math.max(0, w - 22)))}`,
+    );
+    lines.push(`   ${truncate(themePreviewLine(state, t.id, w - 6), w - 3)}\x1b[0m`);
+    for (const dy of [0, 1])
+      hits.push({ kind: 'item', area: 'main', index: start + n, x: 0, y: lines.length - 2 + dy, w });
+  }
+  if (!items.length) lines.push(` ${dim('No themes match. Esc to cancel.')}`);
+  while (lines.length < h - 1) lines.push('');
+  lines.push(
+    dim(` ${items.length} themes · ${truncate('Ctrl+S saves the current look as your own theme', w - 16)}`),
+  );
+  return { lines: lines.slice(0, h), hits };
+}
+
 function presetsModal(mode: Extract<Mode, { kind: 'presets' }>, w: number, h: number): Modal {
   const lines = [rule('Presets · replaces the current layout', w)];
   const hits: Hit[] = [];
@@ -435,6 +509,7 @@ const HINTS: Record<Mode['kind'], [string, string][]> = {
     ['q', 'quit'],
     ['?', 'help'],
     ['n', 'new line'],
+    ['T', 'themes'],
     ['g', 'global'],
     ['t', 'presets'],
     ['u', 'undo'],
@@ -451,6 +526,13 @@ const HINTS: Record<Mode['kind'], [string, string][]> = {
     ['←→', 'cycle'],
     ['Del', 'reset'],
     ['Esc', 'back'],
+  ],
+  themes: [
+    ['type', 'filter'],
+    ['↑↓', 'preview'],
+    ['Enter', 'apply'],
+    ['^S', 'save as mine'],
+    ['Esc', 'revert'],
   ],
   presets: [
     ['↑↓', 'choose'],
@@ -506,10 +588,11 @@ function header(state: State, cols: number): string {
 let previewMemo: { key: unknown[]; lines: string[]; at: number } | null = null;
 
 function cachedPreview(state: State, width: number): string[] {
-  const key = [state.config, state.preview, width];
+  const config = previewConfig(state);
+  const key = [config, state.preview, width];
   const fresh = state.preview === 'sample' || Date.now() - (previewMemo?.at ?? 0) < 2000;
   if (previewMemo && fresh && key.every((k, i) => previewMemo!.key[i] === k)) return previewMemo.lines;
-  const lines = renderPreview(state.config, state.preview, width);
+  const lines = renderPreview(config, state.preview, width);
   previewMemo = { key, lines, at: Date.now() };
   return lines;
 }
@@ -570,6 +653,9 @@ export function renderScreen(state: State, cols: number, rows: number): Screen {
         break;
       case 'presets':
         modal = presetsModal(mode, cols, h);
+        break;
+      case 'themes':
+        modal = themesModal(state, mode, cols, h);
         break;
       case 'confirm':
         modal = confirmModal(state, mode, cols, h);

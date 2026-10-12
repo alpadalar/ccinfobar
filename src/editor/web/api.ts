@@ -1,5 +1,5 @@
 import type { Config } from '../../core/types.js';
-import type { ApiState, ClaudeInfo } from './store.js';
+import type { ApiState, ClaudeInfo, ThemeInfo } from './store.js';
 
 let token = '';
 
@@ -32,5 +32,11 @@ export const api = {
       command,
       refreshInterval,
     }),
+  themePreviews: (config: Config, source: string, width: number) =>
+    call<{ previews: Record<string, string[]> }>('POST', '/api/theme-previews', { config, source, width }),
+  saveTheme: (theme: Record<string, unknown>, fromConfig?: Config) =>
+    call<{ ok: boolean; id: string; themes: ThemeInfo[] }>('POST', '/api/themes', { theme, fromConfig }),
+  deleteTheme: (id: string) =>
+    call<{ ok: boolean; themes: ThemeInfo[] }>('DELETE', `/api/themes/${encodeURIComponent(id)}`),
   shutdown: () => call<{ ok: boolean }>('POST', '/api/shutdown', {}),
 };

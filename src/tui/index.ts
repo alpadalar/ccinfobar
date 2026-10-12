@@ -1,8 +1,10 @@
 import { defaultCommand, install } from '../commands/install.js';
 import { loadConfig, saveConfig } from '../core/config.js';
+import { saveUserTheme } from '../core/themes.js';
 import type { Hit } from './hits.js';
 import { keyToAction, mouseToAction, parseInput, splitPending } from './keys.js';
 import { type Action, type Effect, initialState, reduce, type State } from './state.js';
+import { themeInputFromConfig } from './themeio.js';
 import { renderScreen } from './view.js';
 
 export interface TuiOptions {
@@ -22,6 +24,15 @@ export function runEffect(state: State, effect: Effect): Action {
         saved: true,
         message: 'Saved',
         thenQuit: effect.thenQuit === true,
+      };
+    }
+    if (effect.kind === 'saveTheme') {
+      const file = saveUserTheme(themeInputFromConfig(state.config, effect.id));
+      return {
+        type: 'effectDone',
+        ok: true,
+        applyTheme: effect.id,
+        message: `Saved theme ${effect.id} (${file})`,
       };
     }
     saveConfig(state.config, state.path);

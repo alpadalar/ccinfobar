@@ -8,11 +8,19 @@ import { cacheDir, claudeSettingsPath, configPath, lastPayloadPath, tildify } fr
 import { getPreset, PRESETS } from './core/presets.js';
 import { renderPreview } from './core/preview.js';
 import { finalizeLine, render } from './core/renderer.js';
+import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from './core/themes.js';
 import type { Config, StatusPayload } from './core/types.js';
 import { terminalWidth } from './data/terminal.js';
 import { ALL_WIDGETS, CATEGORIES } from './widgets/index.js';
 
 declare const __VERSION__: string;
+const DEMO_LINE = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gsd-plans', 'session-cost'].map(
+  (type) => ({
+    id: type,
+    type,
+  }),
+);
+
 export const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
 
 const HELP = `ccinfobar ${VERSION}
@@ -24,6 +32,9 @@ Usage
   ccinfobar tui                  Open the terminal editor
   ccinfobar install              Point Claude Code's statusLine at ccinfobar
   ccinfobar uninstall            Remove ccinfobar from Claude Code settings
+  ccinfobar themes               Preview every theme
+  ccinfobar theme <id>           Switch theme
+  ccinfobar theme new <id>       Create your own theme (--from <theme>)
   ccinfobar init [preset]        Write a preset config (${PRESETS.map((p) => p.id).join(', ')})
   ccinfobar preview              Print the status line with sample data
   ccinfobar widgets              List all widgets
@@ -61,7 +72,7 @@ function parseArgs(argv: string[]): Args {
       else if (
         next !== undefined &&
         !next.startsWith('-') &&
-        ['config', 'payload', 'width', 'refresh', 'command', 'port'].includes(k)
+        ['config', 'payload', 'width', 'refresh', 'command', 'port', 'from'].includes(k)
       ) {
         args.flags[k] = next;
         i++;
@@ -224,6 +235,68 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
         typeof args.flags.width === 'string' ? Number(args.flags.width) : (process.stdout.columns ?? 120);
       const source = args.flags.last ? 'last' : 'sample';
       for (const line of renderPreview(loadConfig(cfgFile).config, source, width)) console.log(line);
+      return;
+    }
+    case 'themes': {
+      const width =
+        typeof args.flags.width === 'string' ? Number(args.flags.width) : (process.stdout.columns ?? 120);
+      const current = loadConfig(cfgFile).config;
+      for (const t of listThemes()) {
+        const mark = t.id === current.theme ? ' (current)' : '';
+        const origin = t.source === 'user' ? ' · yours' : '';
+        console.log(
+          `\n\x1b[1m${t.name}\x1b[0m  ${t.id}${mark}  \x1b[2m${t.style}${origin} · ${t.description}\x1b[0m`,
+        );
+        const demo = {
+          ...current,
+          theme: t.id,
+          style: undefined,
+          separator: undefined,
+          separatorColor: undefined,
+          padding: undefined,
+          glyphs: undefined,
+          lines: [DEMO_LINE],
+        };
+        for (const line of renderPreview(demo, 'sample', width)) console.log(`  ${line}`);
+      }
+      console.log(`\nSwitch with \`ccinfobar theme <id>\`. Your themes live in ${tildify(themesDir())}`);
+      return;
+    }
+    case 'theme': {
+      const loaded = loadConfig(cfgFile);
+      if (args.positional[0] === 'new' || args.positional[0] === 'create') {
+        const id = args.positional[1];
+        if (!id) {
+          console.error('Usage: ccinfobar theme new <id> [--from <theme>]');
+          process.exitCode = 1;
+          return;
+        }
+        const from = typeof args.flags.from === 'string' ? args.flags.from : loaded.config.theme;
+        const base = resolveTheme(from);
+        const file = saveUserTheme(themeToInput(base, id, base.id === id ? undefined : base.id));
+        console.log(`✓ Created ${tildify(file)} from "${base.name}"`);
+        console.log(`  Edit it, then run \`ccinfobar theme ${id}\`.`);
+        return;
+      }
+      const id = args.positional[0];
+      if (!id) {
+        const t = resolveTheme(loaded.config.theme);
+        console.log(`${t.name} (${t.id}), style ${loaded.config.style ?? t.style}`);
+        console.log('Run `ccinfobar themes` to see all themes.');
+        return;
+      }
+      const known = listThemes().find((t) => t.id === id);
+      if (!known) {
+        console.error(`Unknown theme "${id}". Run \`ccinfobar themes\` to list them.`);
+        process.exitCode = 1;
+        return;
+      }
+      const next = { ...loaded.config, theme: id };
+      for (const k of ['style', 'separator', 'separatorColor', 'padding', 'glyphs'] as const) delete next[k];
+      saveConfig(next, cfgFile);
+      console.log(`✓ Theme set to ${known.name}`);
+      const width = process.stdout.columns ?? 120;
+      for (const line of renderPreview(next, 'sample', width)) console.log(line);
       return;
     }
     case 'widgets': {

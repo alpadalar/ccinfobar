@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import type { Config } from '../../src/core/types.js';
 import { pickerItems } from '../../src/tui/catalog.js';
-import { type Action, initialState, reduce, type State, selectedItem } from '../../src/tui/state.js';
+import {
+  type Action,
+  initialState,
+  previewConfig,
+  reduce,
+  type State,
+  selectedItem,
+  themeItems,
+} from '../../src/tui/state.js';
 
 const cfg = (): Config => ({
   ...defaultConfig(),
@@ -248,7 +256,8 @@ describe('settings editor', () => {
 
   it('edits global settings and resets widget fields', () => {
     let s = run(start(), { type: 'openGlobal' });
-    s = run(s, { type: 'nav', dir: 'down' }, { type: 'nav', dir: 'down' }, { type: 'cycle', delta: 1 });
+    for (let i = 0; i < 4; i++) s = run(s, { type: 'nav', dir: 'down' });
+    s = run(s, { type: 'cycle', delta: 1 });
     expect(s.config.padding).toBe(2);
     s = run(s, { type: 'undo' });
     expect(s.mode.kind).toBe('settings');
@@ -289,5 +298,81 @@ describe('drag', () => {
     const s = run(start(), { type: 'dragStart', from: { line: 0, index: 0 } }, { type: 'quit' });
     expect(s.drag).toBeNull();
     expect(s.quit).toBe(false);
+  });
+});
+
+describe('theme picker', () => {
+  const themed = (): State => ({
+    ...start(),
+    config: { ...cfg(), style: 'blocks', padding: 3, separator: '|', glyphs: { thin: 'x' } },
+  });
+
+  it('opens on the current theme and previews without changing the config', () => {
+    let s = run(themed(), { type: 'openThemes' });
+    expect(s.mode).toMatchObject({
+      kind: 'themes',
+      cursor: themeItems('').findIndex((t) => t.id === s.config.theme),
+    });
+    const before = s.config;
+    s = run(s, { type: 'nav', dir: 'down' });
+    expect(s.config).toBe(before);
+    const id = themeItems('')[(s.mode as { cursor: number }).cursor]!.id;
+    const preview = previewConfig(s);
+    expect(preview.theme).toBe(id);
+    expect(preview.style).toBeUndefined();
+    expect(preview.glyphs).toBeUndefined();
+  });
+
+  it('applies the theme and clears overrides, undoably', () => {
+    let s = run(themed(), { type: 'openThemes' }, { type: 'text', text: 'neon' }, { type: 'enter' });
+    expect(s.mode.kind).toBe('normal');
+    expect(s.config.theme).toBe('neon');
+    expect(s.config.style).toBeUndefined();
+    expect(s.config.padding).toBeUndefined();
+    expect(s.config.glyphs).toBeUndefined();
+    expect(s.dirty).toBe(true);
+    s = run(s, { type: 'undo' });
+    expect(s.config.padding).toBe(3);
+  });
+
+  it('reverts on escape and returns to the previous mode', () => {
+    let s = run(themed(), { type: 'openGlobal' }, { type: 'enter' });
+    expect(s.mode.kind).toBe('themes');
+    s = run(s, { type: 'nav', dir: 'down' }, { type: 'cancel' });
+    expect(s.mode.kind).toBe('settings');
+    expect(s.config.padding).toBe(3);
+    expect(s.dirty).toBe(false);
+  });
+
+  it('filters by typing', () => {
+    expect(themeItems('zzzqqq')).toHaveLength(0);
+    expect(themeItems('neon').some((t) => t.id === 'neon')).toBe(true);
+    const s = run(themed(), { type: 'openThemes' }, { type: 'text', text: 'zzzqqq' });
+    expect(s.mode).toMatchObject({ filter: 'zzzqqq', cursor: 0 });
+    expect(run(s, { type: 'enter' }).mode.kind).toBe('themes');
+  });
+
+  it('names and saves a user theme through an effect', () => {
+    let s = run(themed(), { type: 'openThemes' }, { type: 'saveTheme' });
+    s = run(s, { type: 'text', text: 'bad id' }, { type: 'enter' });
+    expect(s.effect).toBeNull();
+    s = run(s, { type: 'clear' }, { type: 'text', text: 'mine' }, { type: 'enter' });
+    expect(s.effect).toEqual({ kind: 'saveTheme', id: 'mine' });
+    s = run(s, { type: 'effectDone', ok: true, applyTheme: 'mine', message: 'ok' });
+    expect(s.config.theme).toBe('mine');
+    expect(s.config.padding).toBeUndefined();
+    expect(s.mode.kind).toBe('normal');
+  });
+
+  it('stays in the naming prompt when saving fails', () => {
+    let s = run(
+      themed(),
+      { type: 'openThemes' },
+      { type: 'saveTheme' },
+      { type: 'text', text: 'mine' },
+      { type: 'enter' },
+    );
+    s = run(s, { type: 'effectDone', ok: false, message: 'Failed' });
+    expect(s.mode).toMatchObject({ kind: 'themes', naming: { text: 'mine' } });
   });
 });

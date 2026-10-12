@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { configPath } from './paths.js';
-import type { Config, PowerlineConfig, WidgetItem } from './types.js';
+import type { Config, GlyphOverrides, ThemeStyle, WidgetItem } from './types.js';
 
 export const SCHEMA_URL =
   'https://raw.githubusercontent.com/alpadalar/ccinfobar/main/schema/config.schema.json';
@@ -16,13 +16,8 @@ function item(type: string, extra: Partial<WidgetItem> = {}): WidgetItem {
   return { id: `${type}-1`, type, ...extra };
 }
 
-export const DEFAULT_POWERLINE: PowerlineConfig = {
-  enabled: false,
-  separator: '',
-  startCap: '',
-  endCap: '',
-  theme: 'default',
-};
+const STYLE_IDS = ['text', 'blocks', 'powerline', 'capsule'];
+const LEGACY_THEMES: Record<string, string> = { default: 'powerline' };
 
 export function defaultConfig(): Config {
   return {
@@ -46,14 +41,11 @@ export function defaultConfig(): Config {
       ],
       [item('session-cost'), item('five-hour-usage'), item('five-hour-reset'), item('weekly-usage')],
     ],
-    separator: ' │ ',
-    separatorColor: 'brightBlack',
-    padding: 1,
+    theme: 'classic',
     colorLevel: 'auto',
     icons: 'text',
     maxWidth: 'auto',
     widthOffset: 4,
-    powerline: { ...DEFAULT_POWERLINE },
     savePayload: true,
   };
 }
@@ -116,15 +108,21 @@ export function normalizeConfig(raw: unknown): Config {
   }
   if (typeof raw.widthOffset === 'number') cfg.widthOffset = Math.max(0, Math.floor(raw.widthOffset));
   if (typeof raw.savePayload === 'boolean') cfg.savePayload = raw.savePayload;
-  if (isObject(raw.powerline)) {
+  if (typeof raw.theme === 'string' && raw.theme) cfg.theme = raw.theme;
+  if (typeof raw.style === 'string' && STYLE_IDS.includes(raw.style)) cfg.style = raw.style as ThemeStyle;
+  if (isObject(raw.glyphs)) {
+    const g: GlyphOverrides = {};
+    for (const k of ['separator', 'thin', 'startCap', 'endCap'] as const) {
+      if (typeof raw.glyphs[k] === 'string') g[k] = raw.glyphs[k] as string;
+    }
+    if (Object.keys(g).length) cfg.glyphs = g;
+  }
+  if (isObject(raw.powerline) && raw.theme === undefined) {
     const p = raw.powerline;
-    cfg.powerline = {
-      enabled: typeof p.enabled === 'boolean' ? p.enabled : base.powerline.enabled,
-      separator: typeof p.separator === 'string' ? p.separator : base.powerline.separator,
-      startCap: typeof p.startCap === 'string' ? p.startCap : base.powerline.startCap,
-      endCap: typeof p.endCap === 'string' ? p.endCap : base.powerline.endCap,
-      theme: typeof p.theme === 'string' ? p.theme : base.powerline.theme,
-    };
+    if (p.enabled === true) {
+      cfg.style = 'powerline';
+      if (typeof p.theme === 'string') cfg.theme = LEGACY_THEMES[p.theme] ?? p.theme;
+    }
   }
   return cfg;
 }

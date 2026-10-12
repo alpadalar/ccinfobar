@@ -148,19 +148,69 @@
         }
       }
     },
+    "theme": {
+      "type": "string",
+      "description": "Built-in theme id or the name of a file in the themes folder",
+      "examples": [
+        "classic",
+        "minimal",
+        "mono",
+        "neon",
+        "pastel",
+        "amber",
+        "matrix",
+        "blocks",
+        "slate",
+        "paper",
+        "powerline",
+        "nord",
+        "dracula",
+        "gruvbox",
+        "tokyo-night",
+        "solarized",
+        "monochrome",
+        "catppuccin",
+        "bubblegum"
+      ],
+      "default": "classic"
+    },
+    "style": {
+      "enum": ["text", "blocks", "powerline", "capsule"],
+      "description": "Overrides the theme style"
+    },
     "separator": {
       "type": "string",
-      "default": " │ "
+      "description": "Overrides the theme separator"
     },
     "separatorColor": {
       "type": "string",
-      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+      "description": "Overrides the theme separator color"
     },
     "padding": {
       "type": "integer",
       "minimum": 0,
       "maximum": 4,
-      "default": 1
+      "description": "Overrides the theme padding"
+    },
+    "glyphs": {
+      "type": "object",
+      "description": "Glyphs for powerline and capsule styles",
+      "properties": {
+        "separator": {
+          "type": "string",
+          "description": "Between powerline segments"
+        },
+        "thin": {
+          "type": "string",
+          "description": "Between powerline segments that share a color"
+        },
+        "startCap": {
+          "type": "string"
+        },
+        "endCap": {
+          "type": "string"
+        }
+      }
     },
     "colorLevel": {
       "enum": ["auto", 0, 1, 2, 3],
@@ -190,37 +240,6 @@
     "savePayload": {
       "type": "boolean",
       "default": true
-    },
-    "powerline": {
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "default": false
-        },
-        "separator": {
-          "type": "string"
-        },
-        "startCap": {
-          "type": "string"
-        },
-        "endCap": {
-          "type": "string"
-        },
-        "theme": {
-          "enum": [
-            "default",
-            "nord",
-            "dracula",
-            "gruvbox",
-            "tokyo-night",
-            "catppuccin",
-            "solarized",
-            "monochrome"
-          ],
-          "default": "default"
-        }
-      }
     }
   }
 }

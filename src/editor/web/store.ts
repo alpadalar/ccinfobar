@@ -12,9 +12,21 @@ export interface WidgetInfo {
   sample?: string;
 }
 
+export type StyleId = 'text' | 'blocks' | 'powerline' | 'capsule';
+
 export interface ThemeInfo {
+  id: string;
   name: string;
-  colors: { fg: string; bg: string }[];
+  description: string;
+  author: string;
+  style: StyleId;
+  separator: string;
+  padding: number;
+  bold: boolean;
+  statusColors: boolean;
+  glyphs: { separator: string; thin: string; startCap: string; endCap: string };
+  colors: Record<string, unknown>;
+  source: 'builtin' | 'user';
 }
 
 export interface PresetInfo {
@@ -39,7 +51,9 @@ export interface ApiState {
   widgets: WidgetInfo[];
   categories: { id: string; name: string }[];
   presets: PresetInfo[];
-  themes: Record<string, ThemeInfo>;
+  themes: ThemeInfo[];
+  styles: { id: StyleId; name: string; description: string }[];
+  themesDir: string;
   claude: ClaudeInfo;
   hasLastPayload: boolean;
 }
@@ -172,4 +186,9 @@ export function select(id: string | null, line?: number): void {
 
 export function replaceAll(config: Config): void {
   commit(config, { select: null });
+}
+
+export function currentTheme(): ThemeInfo | undefined {
+  const id = S.config.theme || 'classic';
+  return S.api.themes.find((t) => t.id === id) ?? S.api.themes.find((t) => t.id === 'classic');
 }

@@ -5,10 +5,20 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { currentStatusLine, defaultCommand, install } from '../commands/install.js';
 import { loadConfig, normalizeConfig, saveConfig } from '../core/config.js';
-import { lastPayloadPath } from '../core/paths.js';
+import { lastPayloadPath, tildify } from '../core/paths.js';
 import { PRESETS } from '../core/presets.js';
 import { renderPreview } from '../core/preview.js';
-import { THEMES } from '../core/themes.js';
+import { resolveAppearance } from '../core/renderer.js';
+import {
+  deleteUserTheme,
+  listThemes,
+  parseThemeInput,
+  STYLES,
+  saveUserTheme,
+  themesDir,
+  themeToInput,
+} from '../core/themes.js';
+import type { Config, WidgetItem } from '../core/types.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 
 declare const __VERSION__: string;
@@ -16,6 +26,8 @@ declare const __EDITOR_HTML__: string;
 
 const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
 const MAX_BODY = 1024 * 1024;
+const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+const DEMO_TYPES = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gsd-plans', 'session-cost'];
 
 export interface EditorOptions {
   configPath: string;
@@ -169,13 +181,26 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       if (origin !== undefined && !originOk(origin)) throw new HttpError(403, 'Forbidden origin');
     }
 
+    if (method === 'DELETE' && url.pathname.startsWith('/api/themes/')) {
+      let id = '';
+      try {
+        id = decodeURIComponent(url.pathname.slice('/api/themes/'.length));
+      } catch {}
+      if (!ID_RE.test(id)) throw new HttpError(400, 'Invalid theme id');
+      const theme = listThemes().find((t) => t.id === id);
+      if (theme?.source !== 'user') throw new HttpError(404, 'Not a user theme');
+      deleteUserTheme(id);
+      send(res, 200, { ok: true, themes: listThemes() });
+      return;
+    }
+
     const route = `${method} ${url.pathname}`;
     switch (route) {
       case 'GET /api/state': {
         const loaded = loadConfig(opts.configPath);
         send(res, 200, {
           version: VERSION,
-          configPath: opts.configPath,
+          configPath: tildify(opts.configPath),
           configError: loaded.error ?? null,
           config: loaded.config,
           savedConfig: loaded.config,
@@ -187,7 +212,9 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
             description: p.description,
             config: p.build(),
           })),
-          themes: THEMES,
+          themes: listThemes(),
+          styles: STYLES,
+          themesDir: tildify(themesDir()),
           claude: claudeInfo(command),
           hasLastPayload: fs.existsSync(lastPayloadPath()),
         });
@@ -205,6 +232,61 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       case 'POST /api/normalize': {
         const body = asObject(await readBody(req));
         send(res, 200, { config: normalizeConfig(body.config) });
+        return;
+      }
+      case 'POST /api/theme-previews': {
+        const body = asObject(await readBody(req));
+        const config = normalizeConfig(body.config);
+        if (config.colorLevel === 'auto') config.colorLevel = 3;
+        const source = body.source === 'last' ? 'last' : 'sample';
+        const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 100));
+        const own = config.lines.find((l) => l.length > 0);
+        const demo: WidgetItem[] = own ?? DEMO_TYPES.map((type, i) => ({ id: `${type}-${i + 1}`, type }));
+        const previews: Record<string, string[]> = {};
+        for (const t of listThemes()) {
+          const cfg: Config = {
+            ...config,
+            theme: t.id,
+            lines: [demo],
+            style: undefined,
+            separator: undefined,
+            separatorColor: undefined,
+            padding: undefined,
+            glyphs: undefined,
+          };
+          previews[t.id] = renderPreview(cfg, source, width);
+        }
+        send(res, 200, { previews });
+        return;
+      }
+      case 'POST /api/themes': {
+        const body = asObject(await readBody(req));
+        let input = parseThemeInput(body.theme);
+        if (body.fromConfig !== undefined && input.id && ID_RE.test(input.id)) {
+          const a = resolveAppearance(normalizeConfig(body.fromConfig));
+          const base = themeToInput(a.theme, input.id, a.theme.id === input.id ? undefined : a.theme.id);
+          input = parseThemeInput({
+            ...base,
+            name: input.name ?? input.id,
+            description: input.description ?? '',
+            author: '',
+            style: a.style,
+            separator: a.separator,
+            padding: a.padding,
+            glyphs: a.glyphs,
+            colors: { ...a.theme.colors, muted: a.separatorColor },
+          });
+          input.id = base.id;
+          if (base.extends) input.extends = base.extends;
+        }
+        if (!input.id || !ID_RE.test(input.id)) {
+          throw new HttpError(400, 'Theme id must be letters, numbers, dot, dash or underscore');
+        }
+        if (input.extends !== undefined && !ID_RE.test(input.extends)) {
+          throw new HttpError(400, 'Invalid extends id');
+        }
+        saveUserTheme(input);
+        send(res, 200, { ok: true, id: input.id, themes: listThemes() });
         return;
       }
       case 'PUT /api/config': {

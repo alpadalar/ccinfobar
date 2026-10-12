@@ -9,16 +9,45 @@ import {
   truncate,
   visibleWidth,
 } from './ansi.js';
-import { getTheme } from './themes.js';
-import type { Config, RenderContext, WidgetDef, WidgetItem } from './types.js';
+import {
+  resolveTheme,
+  STYLE_GLYPHS,
+  STYLE_SEPARATOR,
+  type Swatch,
+  type Theme,
+  type ThemeGlyphs,
+} from './themes.js';
+import type { Config, RenderContext, ThemeStyle, WidgetDef, WidgetItem } from './types.js';
 
 export interface Part {
   item: WidgetItem;
   def: WidgetDef;
   text: string;
-  fg: string | undefined;
+  status: string | undefined;
   bg: string | undefined;
   flex: boolean;
+}
+
+export interface Appearance {
+  theme: Theme;
+  style: ThemeStyle;
+  separator: string;
+  separatorColor: string;
+  padding: number;
+  glyphs: ThemeGlyphs;
+}
+
+export function resolveAppearance(config: Config, theme: Theme = resolveTheme(config.theme)): Appearance {
+  const style = config.style ?? theme.style;
+  const styleChanged = style !== theme.style;
+  return {
+    theme,
+    style,
+    separator: config.separator ?? (styleChanged ? STYLE_SEPARATOR[style] : theme.separator),
+    separatorColor: config.separatorColor ?? theme.colors.muted,
+    padding: config.padding ?? theme.padding,
+    glyphs: { ...(styleChanged ? STYLE_GLYPHS[style] : theme.glyphs), ...config.glyphs },
+  };
 }
 
 export function labelFor(def: WidgetDef, item: WidgetItem, icons: Config['icons']): string {
@@ -48,53 +77,119 @@ export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
     item,
     def,
     text: flex ? '' : labelFor(def, item, ctx.config.icons) + value,
-    fg: item.color ?? out.color ?? def.color,
-    bg: item.background ?? out.background,
+    status: out.color,
+    bg: out.background,
     flex,
   };
 }
 
-function styleFor(part: Part, fg: string | undefined, bg: string | undefined) {
-  return { fg, bg, bold: part.item.bold, dim: part.item.dim, italic: part.item.italic };
+interface Colors {
+  fg: string | undefined;
+  bg: string | undefined;
 }
 
-function renderPlain(parts: Part[], config: Config, level: Level): string {
+function pick(s: Swatch | undefined, key: 'fg' | 'bg'): string | undefined {
+  if (s === undefined) return undefined;
+  if (typeof s === 'string') return key === 'fg' ? s : undefined;
+  return s[key];
+}
+
+function swatchFor(theme: Theme, part: Part, index: number): Swatch | undefined {
+  const c = theme.colors;
+  if (c.mode === 'category') return c.categories[part.def.category];
+  if (c.mode === 'cycle' && c.cycle.length) return c.cycle[index % c.cycle.length];
+  return undefined;
+}
+
+export function colorsFor(a: Appearance, part: Part, index: number): Colors {
+  const t = a.theme;
+  const sw = swatchFor(t, part, index);
+  const clean = (v: string | undefined) => (v === 'default' ? undefined : v);
+  if (a.style === 'text') {
+    const themed = t.colors.mode === 'widget' ? part.def.color : (pick(sw, 'fg') ?? t.colors.fg);
+    const status = t.statusColors ? part.status : undefined;
+    return { fg: clean(part.item.color ?? status ?? themed), bg: clean(part.item.background ?? part.bg) };
+  }
+  const block =
+    typeof sw === 'string' ? sw : (sw?.bg ?? (t.colors.mode === 'widget' ? part.def.color : t.colors.bg));
+  const text = typeof sw === 'object' && sw.fg ? sw.fg : t.colors.on;
+  return { fg: clean(part.item.color ?? text), bg: clean(part.item.background ?? part.bg ?? block) };
+}
+
+function styleFor(a: Appearance, part: Part, c: Colors) {
+  return {
+    fg: c.fg,
+    bg: c.bg,
+    bold: part.item.bold ?? a.theme.bold,
+    dim: part.item.dim,
+    italic: part.item.italic,
+  };
+}
+
+function renderText(parts: Part[], a: Appearance, level: Level, offset: number): string {
   let out = '';
   parts.forEach((p, i) => {
-    if (i > 0 && !parts[i - 1]!.item.merge && config.separator) {
-      out += style(config.separator, { fg: config.separatorColor }, level);
+    if (i > 0 && !parts[i - 1]!.item.merge && a.separator) {
+      out += style(a.separator, { fg: a.separatorColor }, level);
     }
-    out += style(p.text, styleFor(p, p.fg === 'default' ? undefined : p.fg, p.bg), level);
+    out += style(p.text, styleFor(a, p, colorsFor(a, p, i + offset)), level);
   });
   return out;
 }
 
-function renderPowerline(parts: Part[], config: Config, level: Level, offset: number): string {
-  const theme = getTheme(config.powerline.theme);
-  const pad = ' '.repeat(config.padding);
-  const colors = parts.map((p, i) => {
-    const t = theme.colors[(i + offset) % theme.colors.length]!;
-    return { fg: p.item.color ?? t.fg, bg: p.bg ?? t.bg };
-  });
+function renderBlocks(parts: Part[], a: Appearance, level: Level, offset: number): string {
+  const pad = ' '.repeat(a.padding);
   let out = '';
-  if (config.powerline.startCap && colors[0]) {
-    out += style(config.powerline.startCap, { fg: colors[0].bg }, level);
-  }
+  parts.forEach((p, i) => {
+    const merged = i > 0 && parts[i - 1]!.item.merge;
+    if (i > 0 && !merged && a.separator) out += style(a.separator, { fg: a.separatorColor }, level);
+    const text = `${merged ? '' : pad}${p.text}${p.item.merge ? '' : pad}`;
+    out += style(text, styleFor(a, p, colorsFor(a, p, i + offset)), level);
+  });
+  return out;
+}
+
+function renderPowerline(parts: Part[], a: Appearance, level: Level, offset: number): string {
+  const pad = ' '.repeat(a.padding);
+  const colors = parts.map((p, i) => colorsFor(a, p, i + offset));
+  const g = a.glyphs;
+  let out = '';
+  if (g.startCap && colors[0]) out += style(g.startCap, { fg: colors[0].bg }, level);
   parts.forEach((p, i) => {
     const c = colors[i]!;
     const merged = i > 0 && parts[i - 1]!.item.merge;
-    const leftPad = merged ? '' : pad;
-    const rightPad = p.item.merge ? '' : pad;
-    out += style(`${leftPad}${p.text}${rightPad}`, styleFor(p, c.fg, c.bg), level);
+    out += style(`${merged ? '' : pad}${p.text}${p.item.merge ? '' : pad}`, styleFor(a, p, c), level);
     const next = colors[i + 1];
-    if (next && !p.item.merge) {
-      out += style(config.powerline.separator, { fg: c.bg, bg: next.bg }, level);
-    }
+    if (!next || p.item.merge) return;
+    if (next.bg === c.bg && g.thin) out += style(g.thin, { fg: a.separatorColor, bg: c.bg }, level);
+    else if (g.separator) out += style(g.separator, { fg: c.bg, bg: next.bg }, level);
   });
   const last = colors[colors.length - 1];
-  if (config.powerline.endCap && last) out += style(config.powerline.endCap, { fg: last.bg }, level);
+  if (g.endCap && last) out += style(g.endCap, { fg: last.bg }, level);
   return out;
 }
+
+function renderCapsule(parts: Part[], a: Appearance, level: Level, offset: number): string {
+  const pad = ' '.repeat(a.padding);
+  const g = a.glyphs;
+  let out = '';
+  parts.forEach((p, i) => {
+    const c = colorsFor(a, p, i + offset);
+    const merged = i > 0 && parts[i - 1]!.item.merge;
+    if (i > 0 && !merged && a.separator) out += style(a.separator, { fg: a.separatorColor }, level);
+    if (!merged && g.startCap) out += style(g.startCap, { fg: c.bg }, level);
+    out += style(`${merged ? '' : pad}${p.text}${p.item.merge ? '' : pad}`, styleFor(a, p, c), level);
+    if (!p.item.merge && g.endCap) out += style(g.endCap, { fg: c.bg }, level);
+  });
+  return out;
+}
+
+const RENDERERS = {
+  text: renderText,
+  blocks: renderBlocks,
+  powerline: renderPowerline,
+  capsule: renderCapsule,
+};
 
 export function maxLineWidth(ctx: RenderContext): number | null {
   const { maxWidth, widthOffset } = ctx.config;
@@ -103,7 +198,12 @@ export function maxLineWidth(ctx: RenderContext): number | null {
   return null;
 }
 
-export function renderLine(ctx: RenderContext, items: WidgetItem[], level: Level): string {
+export function renderLine(
+  ctx: RenderContext,
+  items: WidgetItem[],
+  level: Level,
+  a = resolveAppearance(ctx.config),
+): string {
   const parts = items.map((it) => renderPart(ctx, it)).filter((p): p is Part => p !== null);
   if (parts.every((p) => p.flex)) return '';
   const groups: Part[][] = [[]];
@@ -113,9 +213,7 @@ export function renderLine(ctx: RenderContext, items: WidgetItem[], level: Level
   }
   let offset = 0;
   const rendered = groups.map((g) => {
-    const s = ctx.config.powerline.enabled
-      ? renderPowerline(g, ctx.config, level, offset)
-      : renderPlain(g, ctx.config, level);
+    const s = RENDERERS[a.style](g, a, level, offset);
     offset += g.length;
     return s;
   });
@@ -123,9 +221,7 @@ export function renderLine(ctx: RenderContext, items: WidgetItem[], level: Level
   const nonEmpty = rendered.filter((s) => s !== '');
   let line: string;
   if (nonEmpty.length <= 1 || max === null) {
-    const glue = ctx.config.powerline.enabled
-      ? ' '
-      : style(ctx.config.separator || ' ', { fg: ctx.config.separatorColor }, level);
+    const glue = a.style === 'text' ? style(a.separator || ' ', { fg: a.separatorColor }, level) : ' ';
     line = nonEmpty.join(glue);
   } else {
     const used = nonEmpty.reduce((n, s) => n + visibleWidth(s), 0);
@@ -145,8 +241,9 @@ export function renderLine(ctx: RenderContext, items: WidgetItem[], level: Level
 
 export function render(ctx: RenderContext): string[] {
   const level = detectLevel(ctx.config.colorLevel, ctx.env);
+  const a = resolveAppearance(ctx.config, ctx.theme);
   return ctx.config.lines
-    .map((items) => renderLine(ctx, items, level))
+    .map((items) => renderLine(ctx, items, level, a))
     .filter((l) => stripAnsi(l).trim() !== '');
 }
 

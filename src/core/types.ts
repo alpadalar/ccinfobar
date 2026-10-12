@@ -106,26 +106,29 @@ export interface WidgetItem {
 export type ColorLevel = 'auto' | 0 | 1 | 2 | 3;
 export type IconMode = 'nerd' | 'emoji' | 'text' | 'none';
 
-export interface PowerlineConfig {
-  enabled: boolean;
-  separator: string;
-  startCap: string;
-  endCap: string;
-  theme: string;
+export type ThemeStyle = 'text' | 'blocks' | 'powerline' | 'capsule';
+
+export interface GlyphOverrides {
+  separator?: string;
+  thin?: string;
+  startCap?: string;
+  endCap?: string;
 }
 
 export interface Config {
   $schema?: string;
   version: 1;
   lines: WidgetItem[][];
-  separator: string;
-  separatorColor: string;
-  padding: number;
+  theme: string;
+  style?: ThemeStyle;
+  separator?: string;
+  separatorColor?: string;
+  padding?: number;
+  glyphs?: GlyphOverrides;
   colorLevel: ColorLevel;
   icons: IconMode;
   maxWidth: 'auto' | number;
   widthOffset: number;
-  powerline: PowerlineConfig;
   savePayload: boolean;
 }
 
@@ -185,6 +188,7 @@ export interface RenderContext {
   now: Date;
   preview: boolean;
   terminalWidth: number | null;
+  theme?: import('./themes.js').Theme;
   data: DataSources;
 }
 

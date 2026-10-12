@@ -1850,3 +1850,234 @@ body.dragging-chip .trash {
     transition-duration: 0.01ms !important;
   }
 }
+
+.modal.xl {
+  width: min(92rem, 100%);
+  max-height: 92vh;
+}
+
+.modal.xl .modal-body {
+  padding-bottom: 1rem;
+}
+
+.modal-foot .spacer {
+  flex: 1;
+}
+
+.footer-hint {
+  align-self: center;
+  overflow-wrap: anywhere;
+}
+
+.gallery-live {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.gallery-live-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.gallery-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(27rem, 1fr));
+  gap: 0.75rem;
+}
+
+.theme-card {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 1px var(--line);
+  cursor: pointer;
+  min-width: 0;
+  transition-property: background-color, box-shadow, translate;
+  transition-duration: 0.14s;
+  transition-timing-function: var(--ease);
+}
+
+.theme-card:hover {
+  background: var(--surface-3);
+  box-shadow: 0 0 0 1px var(--line-strong);
+  translate: 0 -1px;
+}
+
+.theme-card:active {
+  scale: 0.99;
+}
+
+.theme-card.current {
+  box-shadow:
+    0 0 0 1.5px var(--accent),
+    0 0 1.5rem -0.5rem var(--accent-ring);
+}
+
+.theme-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1.5rem;
+}
+
+.theme-card-head strong {
+  font-size: 0.875rem;
+  letter-spacing: -0.01em;
+}
+
+.theme-desc {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.theme-actions {
+  display: inline-flex;
+  gap: 0.125rem;
+}
+
+.theme-preview {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: hidden;
+  padding: 0.55rem 0.7rem;
+  border-radius: calc(var(--r-lg) - 0.35rem);
+  background: var(--term-bg);
+  color: var(--term-fg);
+  min-height: 2.6rem;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07);
+  font-variant-ligatures: none;
+}
+
+.theme-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.0625rem 0.45rem;
+  border-radius: 99px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.theme-card:hover .theme-tag {
+  background: var(--surface-2);
+}
+
+.theme-tag.yours {
+  background: color-mix(in srgb, var(--gsd) 16%, transparent);
+  color: var(--gsd);
+  box-shadow: none;
+}
+
+.theme-tag.now {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.theme-current {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.theme-current-info {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.theme-current-info strong {
+  font-size: 0.9375rem;
+}
+
+.stack {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.field.has-reset {
+  position: relative;
+}
+
+.reset-link {
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: 0 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: 0.25rem;
+}
+
+.reset-link:hover {
+  background: var(--accent-soft);
+}
+
+@media (max-width: 1180px) {
+  .theme-btn-label {
+    max-width: 6rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.pl {
+  position: relative;
+  color: transparent;
+}
+
+.pl::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--pl, var(--term-fg, currentColor));
+}
+
+.pl-e0b0::before {
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+.pl-e0b2::before {
+  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+}
+
+.pl-e0b1::before {
+  clip-path: polygon(0 0, 18% 0, 100% 50%, 18% 100%, 0 100%, 82% 50%);
+}
+
+.pl-e0b3::before {
+  clip-path: polygon(100% 0, 82% 0, 0 50%, 82% 100%, 100% 100%, 18% 50%);
+}
+
+.pl-e0b4::before {
+  clip-path: ellipse(100% 50% at 0 50%);
+}
+
+.pl-e0b6::before {
+  clip-path: ellipse(100% 50% at 100% 50%);
+}

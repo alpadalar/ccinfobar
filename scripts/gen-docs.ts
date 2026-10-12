@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { THEMES } from '../src/core/themes.js';
+import { BUILTIN_THEMES, STYLES } from '../src/core/themes.js';
 import type { OptionSpec } from '../src/core/types.js';
 import { ALL_WIDGETS, CATEGORIES } from '../src/widgets/index.js';
 
@@ -56,11 +56,76 @@ function widgetsMarkdown(): string {
   return `${out.join('\n')}\n`;
 }
 
-function schema(): object {
-  const color = {
-    type: 'string',
-    description: 'Named color (red, brightBlue...), ansi256:N, #rrggbb or default',
+const color = {
+  type: 'string',
+  description: 'Named color (red, brightBlue...), ansi256:N, #rrggbb or default',
+};
+
+const glyphs = {
+  type: 'object',
+  description: 'Glyphs for powerline and capsule styles',
+  properties: {
+    separator: { type: 'string', description: 'Between powerline segments' },
+    thin: { type: 'string', description: 'Between powerline segments that share a color' },
+    startCap: { type: 'string' },
+    endCap: { type: 'string' },
+  },
+};
+
+const swatch = {
+  anyOf: [color, { type: 'object', properties: { fg: color, bg: color }, additionalProperties: false }],
+};
+
+function themeSchema(): object {
+  return {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    $id: 'https://raw.githubusercontent.com/alpadalar/ccinfobar/main/schema/theme.schema.json',
+    title: 'ccinfobar theme',
+    type: 'object',
+    properties: {
+      $schema: { type: 'string' },
+      name: { type: 'string' },
+      description: { type: 'string' },
+      author: { type: 'string' },
+      extends: {
+        type: 'string',
+        description: 'Theme to start from; only the fields you set are changed',
+        examples: BUILTIN_THEMES.map((t) => t.id),
+      },
+      style: { enum: STYLES.map((s) => s.id) },
+      separator: { type: 'string' },
+      padding: { type: 'integer', minimum: 0, maximum: 4 },
+      bold: { type: 'boolean' },
+      statusColors: {
+        type: 'boolean',
+        description: 'Let widgets such as context-bar color themselves by threshold (text style)',
+      },
+      glyphs,
+      colors: {
+        type: 'object',
+        properties: {
+          mode: {
+            enum: ['widget', 'category', 'cycle'],
+            description:
+              'widget: each widget default color; category: colors per category; cycle: rotate through cycle',
+          },
+          fg: { ...color, description: 'Default text color' },
+          bg: { ...color, description: 'Default block background' },
+          on: { ...color, description: 'Text color on colored blocks' },
+          muted: { ...color, description: 'Separator color' },
+          categories: {
+            type: 'object',
+            properties: Object.fromEntries(CATEGORIES.map((c) => [c.id, swatch])),
+            additionalProperties: false,
+          },
+          cycle: { type: 'array', items: swatch },
+        },
+      },
+    },
   };
+}
+
+function schema(): object {
   return {
     $schema: 'http://json-schema.org/draft-07/schema#',
     $id: 'https://raw.githubusercontent.com/alpadalar/ccinfobar/main/schema/config.schema.json',
@@ -93,24 +158,22 @@ function schema(): object {
           },
         },
       },
-      separator: { type: 'string', default: ' │ ' },
-      separatorColor: color,
-      padding: { type: 'integer', minimum: 0, maximum: 4, default: 1 },
+      theme: {
+        type: 'string',
+        description: 'Built-in theme id or the name of a file in the themes folder',
+        examples: BUILTIN_THEMES.map((t) => t.id),
+        default: 'classic',
+      },
+      style: { enum: STYLES.map((s) => s.id), description: 'Overrides the theme style' },
+      separator: { type: 'string', description: 'Overrides the theme separator' },
+      separatorColor: { ...color, description: 'Overrides the theme separator color' },
+      padding: { type: 'integer', minimum: 0, maximum: 4, description: 'Overrides the theme padding' },
+      glyphs: glyphs,
       colorLevel: { enum: ['auto', 0, 1, 2, 3], default: 'auto' },
       icons: { enum: ['nerd', 'emoji', 'text', 'none'], default: 'text' },
       maxWidth: { anyOf: [{ const: 'auto' }, { type: 'integer', minimum: 1 }], default: 'auto' },
       widthOffset: { type: 'integer', minimum: 0, default: 4 },
       savePayload: { type: 'boolean', default: true },
-      powerline: {
-        type: 'object',
-        properties: {
-          enabled: { type: 'boolean', default: false },
-          separator: { type: 'string' },
-          startCap: { type: 'string' },
-          endCap: { type: 'string' },
-          theme: { enum: Object.keys(THEMES), default: 'default' },
-        },
-      },
     },
   };
 }
@@ -119,4 +182,5 @@ fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
 fs.mkdirSync(path.join(root, 'schema'), { recursive: true });
 fs.writeFileSync(path.join(root, 'docs/WIDGETS.md'), widgetsMarkdown());
 fs.writeFileSync(path.join(root, 'schema/config.schema.json'), `${JSON.stringify(schema(), null, 2)}\n`);
+fs.writeFileSync(path.join(root, 'schema/theme.schema.json'), `${JSON.stringify(themeSchema(), null, 2)}\n`);
 console.log(`wrote docs/WIDGETS.md and schema/config.schema.json (${ALL_WIDGETS.length} widgets)`);

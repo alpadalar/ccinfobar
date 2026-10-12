@@ -8,7 +8,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
-- Status line renderer with unlimited lines, separators, merge, flex spacing, truncation and powerline mode with 8 themes
+- Status line renderer with unlimited lines, separators, merge, flex spacing and truncation
+- Theme system with 19 built-in themes in four styles (text, blocks, powerline, capsule), per-config overrides and user themes in the `themes` folder with `extends`
+- `themes` and `theme` commands, plus theme galleries in both editors
 - Drag-and-drop web editor (`ccinfobar edit`) with live preview from sample or real session data
 - Keyboard and mouse terminal editor (`ccinfobar tui`)
 - GSD widgets: milestone, milestone progress, phase, status, plans, plan progress, next step, workstream, blockers, todos, requirements, last command, update notice, current task, summary

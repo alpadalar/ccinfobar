@@ -128,7 +128,7 @@ describe('modals', () => {
   });
 
   it('renders global settings, presets, confirm and help', () => {
-    expect(text(build(defaultConfig(), { type: 'openGlobal' })).join('\n')).toContain('Powerline');
+    expect(text(build(defaultConfig(), { type: 'openGlobal' })).join('\n')).toContain('Glyph: end cap');
     expect(text(build(defaultConfig(), { type: 'openPresets' })).join('\n')).toContain('Minimal');
     expect(text(build(defaultConfig(), { type: 'removeChip' }, { type: 'quit' })).join('\n')).toContain(
       'unsaved',

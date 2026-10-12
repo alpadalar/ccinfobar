@@ -1,9 +1,10 @@
 import { parseColor } from '../core/ansi.js';
 import { setOption, updateItem } from '../core/edit.js';
-import { THEMES } from '../core/themes.js';
+import { resolveAppearance } from '../core/renderer.js';
+import { resolveTheme, STYLES } from '../core/themes.js';
 import type { Config, OptionChoice, OptionValue, WidgetDef, WidgetItem } from '../core/types.js';
 
-export type FieldKind = 'bool' | 'text' | 'number' | 'select' | 'color';
+export type FieldKind = 'bool' | 'text' | 'number' | 'select' | 'color' | 'theme';
 
 export type Parsed = { ok: true; value: OptionValue | undefined } | { ok: false; error: string };
 
@@ -14,6 +15,8 @@ export interface Field {
   help?: string;
   choices?: OptionChoice[];
   fallback?: OptionValue;
+  defaultEntry?: string;
+  effective?(config: Config): OptionValue | undefined;
   resettable: boolean;
   get(config: Config): OptionValue | undefined;
   set(config: Config, value: OptionValue | undefined): Config;
@@ -54,12 +57,13 @@ export function listEntries(field: Field): ListEntry[] {
       { value: CUSTOM, label: 'custom…' },
     ];
   }
-  return (field.choices ?? []).map((c) => ({ value: c.value, label: c.label }));
+  const list: ListEntry[] = (field.choices ?? []).map((c) => ({ value: c.value, label: c.label }));
+  return field.defaultEntry ? [{ value: undefined, label: field.defaultEntry }, ...list] : list;
 }
 
 export function listCursorFor(field: Field, config: Config): number {
   const entries = listEntries(field);
-  const cur = field.get(config) ?? field.fallback;
+  const cur = field.defaultEntry ? field.get(config) : (field.get(config) ?? field.fallback);
   const at = entries.findIndex(
     (e) => e.value !== CUSTOM && e.value === (cur === undefined ? undefined : String(cur)),
   );
@@ -189,37 +193,101 @@ function globalField(
 
 const choices = (values: string[]): OptionChoice[] => values.map((v) => ({ value: v, label: v }));
 
-export function globalFields(): Field[] {
-  const pl = (patch: Partial<Config['powerline']>) => (config: Config) => ({
-    ...config,
-    powerline: { ...config.powerline, ...patch },
+function withKey<K extends 'style' | 'separator' | 'separatorColor' | 'padding'>(
+  config: Config,
+  key: K,
+  value: Config[K] | undefined,
+): Config {
+  const next = { ...config };
+  if (value === undefined) delete next[key];
+  else next[key] = value;
+  return next;
+}
+
+type GlyphKey = 'separator' | 'thin' | 'startCap' | 'endCap';
+
+function glyphField(key: GlyphKey, label: string): Field {
+  return overrideField({
+    id: `glyphs.${key}`,
+    label,
+    kind: 'text',
+    get: (c) => c.glyphs?.[key],
+    effective: (c) => resolveAppearance(c).glyphs[key],
+    set: (c, v) => {
+      const glyphs = { ...c.glyphs };
+      if (v === undefined) delete glyphs[key];
+      else glyphs[key] = String(v);
+      const next = { ...c };
+      if (Object.keys(glyphs).length) next.glyphs = glyphs;
+      else delete next.glyphs;
+      return next;
+    },
   });
+}
+
+function overrideField(
+  spec: Pick<Field, 'id' | 'label' | 'kind' | 'get' | 'set' | 'effective'> & Partial<Field>,
+): Field {
+  return {
+    resettable: true,
+    help: 'Del resets to the theme value',
+    parse: spec.kind === 'number' ? parseNumberText : spec.kind === 'color' ? parseColorText : parseText,
+    ...spec,
+  };
+}
+
+export function globalFields(): Field[] {
   return [
-    globalField(
-      'separator',
-      'Separator',
-      'text',
-      (c) => c.separator,
-      (c, v) => ({ ...c, separator: String(v) }),
-    ),
-    globalField(
-      'separatorColor',
-      'Separator color',
-      'color',
-      (c) => c.separatorColor,
-      (c, v) => ({ ...c, separatorColor: String(v) }),
-      {
-        resettable: true,
-        set: (c, v) => ({ ...c, separatorColor: v === undefined ? '' : String(v) }),
-      },
-    ),
-    globalField(
-      'padding',
-      'Padding',
-      'number',
-      (c) => c.padding,
-      (c, v) => ({ ...c, padding: Math.max(0, Math.min(4, Math.floor(Number(v)))) }),
-    ),
+    {
+      id: 'theme',
+      label: 'Theme',
+      kind: 'theme',
+      help: 'Enter opens the theme picker',
+      resettable: false,
+      get: (c) => c.theme,
+      set: (c) => c,
+      effective: (c) => resolveTheme(c.theme).name,
+      parse: parseText,
+    },
+    overrideField({
+      id: 'style',
+      label: 'Style',
+      kind: 'select',
+      defaultEntry: 'theme default',
+      choices: STYLES.map((x) => ({ value: x.id, label: x.id })),
+      get: (c) => c.style,
+      effective: (c) => resolveAppearance(c).style,
+      set: (c, v) => withKey(c, 'style', v as Config['style']),
+    }),
+    overrideField({
+      id: 'separator',
+      label: 'Separator',
+      kind: 'text',
+      get: (c) => c.separator,
+      effective: (c) => resolveAppearance(c).separator,
+      set: (c, v) => withKey(c, 'separator', v === undefined ? undefined : String(v)),
+    }),
+    overrideField({
+      id: 'separatorColor',
+      label: 'Separator color',
+      kind: 'color',
+      get: (c) => c.separatorColor,
+      effective: (c) => resolveAppearance(c).separatorColor,
+      set: (c, v) => withKey(c, 'separatorColor', v === undefined ? undefined : String(v)),
+    }),
+    overrideField({
+      id: 'padding',
+      label: 'Padding',
+      kind: 'number',
+      get: (c) => c.padding,
+      effective: (c) => resolveAppearance(c).padding,
+      set: (c, v) =>
+        withKey(c, 'padding', v === undefined ? undefined : Math.max(0, Math.min(4, Math.floor(Number(v))))),
+    }),
+    glyphField('separator', 'Glyph: separator'),
+    glyphField('thin', 'Glyph: thin separator'),
+    glyphField('startCap', 'Glyph: start cap'),
+    glyphField('endCap', 'Glyph: end cap'),
     globalField(
       'icons',
       'Icons',
@@ -273,50 +341,11 @@ export function globalFields(): Field[] {
       (c, v) => ({ ...c, widthOffset: Math.max(0, Math.floor(Number(v))) }),
     ),
     globalField(
-      'powerline.enabled',
-      'Powerline',
-      'bool',
-      (c) => c.powerline.enabled,
-      (c, v) => pl({ enabled: Boolean(v) })(c),
-    ),
-    globalField(
-      'powerline.theme',
-      'Powerline theme',
-      'select',
-      (c) => c.powerline.theme,
-      (c, v) => pl({ theme: String(v) })(c),
-      { choices: Object.entries(THEMES).map(([value, t]) => ({ value, label: t.name })) },
-    ),
-    globalField(
-      'powerline.separator',
-      'Powerline separator',
-      'text',
-      (c) => c.powerline.separator,
-      (c, v) => pl({ separator: String(v) })(c),
-    ),
-    globalField(
-      'powerline.startCap',
-      'Powerline start cap',
-      'text',
-      (c) => c.powerline.startCap,
-      (c, v) => pl({ startCap: String(v) })(c),
-    ),
-    globalField(
-      'powerline.endCap',
-      'Powerline end cap',
-      'text',
-      (c) => c.powerline.endCap,
-      (c, v) => pl({ endCap: String(v) })(c),
-    ),
-    globalField(
       'savePayload',
       'Save last payload',
       'bool',
       (c) => c.savePayload,
-      (c, v) => ({
-        ...c,
-        savePayload: Boolean(v),
-      }),
+      (c, v) => ({ ...c, savePayload: Boolean(v) }),
       { help: 'Lets the preview use your last real session data' },
     ),
   ];
@@ -333,13 +362,13 @@ export function toggled(field: Field, config: Config): OptionValue | undefined {
 export function cycled(field: Field, config: Config, delta: 1 | -1): OptionValue | undefined {
   if (field.kind === 'bool') return toggled(field, config);
   if (field.kind === 'number') {
-    const cur = Number(field.get(config) ?? field.fallback ?? 0);
+    const cur = Number(field.get(config) ?? field.effective?.(config) ?? field.fallback ?? 0);
     return (Number.isFinite(cur) ? cur : 0) + delta;
   }
   if (field.kind === 'select') {
     const list = field.choices ?? [];
     if (!list.length) return undefined;
-    const cur = String(field.get(config) ?? field.fallback ?? '');
+    const cur = String(field.get(config) ?? field.effective?.(config) ?? field.fallback ?? '');
     const at = list.findIndex((c) => c.value === cur);
     return list[(at + delta + list.length * 2) % list.length]!.value;
   }
@@ -348,8 +377,9 @@ export function cycled(field: Field, config: Config, delta: 1 | -1): OptionValue
 
 export function displayValue(field: Field, config: Config): { text: string; isDefault: boolean } {
   const raw = field.get(config);
-  const value = raw ?? field.fallback;
-  const isDefault = raw === undefined || (field.kind === 'color' && raw === '');
+  const value =
+    field.kind === 'theme' ? field.effective?.(config) : (raw ?? field.effective?.(config) ?? field.fallback);
+  const isDefault = field.kind !== 'theme' && (raw === undefined || (field.kind === 'color' && raw === ''));
   if (value === undefined || value === '') {
     if (field.kind === 'bool') return { text: 'off', isDefault: true };
     return { text: field.kind === 'color' ? 'default' : '—', isDefault: true };
@@ -357,9 +387,11 @@ export function displayValue(field: Field, config: Config): { text: string; isDe
   if (field.kind === 'bool') return { text: value ? 'on' : 'off', isDefault };
   if (field.kind === 'select') {
     const c = field.choices?.find((x) => x.value === String(value));
-    return { text: c?.label ?? String(value), isDefault };
+    const label = c?.label ?? String(value);
+    return { text: isDefault && field.effective ? `${label}  (theme)` : label, isDefault };
   }
-  return { text: String(value), isDefault };
+  const text = String(value);
+  return { text: isDefault && field.effective ? `${text}  (theme)` : text, isDefault };
 }
 
 export function editText(field: Field, config: Config): string {

@@ -2,12 +2,14 @@ import { removeItem, setOption, updateItem } from '../../core/edit.js';
 import type { Config, OptionSpec, OptionValue, WidgetItem } from '../../core/types.js';
 import { colorPicker, colorToCss } from './colors.js';
 import { type Child, clear, h, icon } from './dom.js';
-import { commit, emit, S, type WidgetInfo } from './store.js';
+import { commit, currentTheme, emit, S, type StyleId, type WidgetInfo } from './store.js';
+import { openGallery, saveAs } from './themes.js';
 
 const SEPARATORS = [' │ ', ' | ', ' • ', ' · ', ' / ', '  ', ' › '];
 const PL_SEPARATORS = ['', '', '', '', '', '', ''];
-const PL_START = ['', '', '', '', ''];
-const PL_END = ['', '', '', '', ''];
+const PL_START = ['\ue0b6', '\ue0b2', '\ue0ba', '\ue0be', ''];
+const PL_END = ['\ue0b0', '\ue0b4', '\ue0b8', '\ue0bc', ''];
+const PL_THIN = ['\ue0b1', '\ue0b3', '\u2502', '\u2503', '|', ''];
 
 let counter = 0;
 const uid = () => `f${++counter}`;
@@ -280,82 +282,167 @@ function widgetTab(): HTMLElement {
   return root;
 }
 
+type Overrides = 'style' | 'separator' | 'separatorColor' | 'padding' | 'glyphs';
+
+function setOverride(key: Overrides, value: unknown, coalesce?: string): void {
+  const next = { ...S.config } as Record<string, unknown>;
+  if (value === undefined) delete next[key];
+  else next[key] = value;
+  commit(next as unknown as Config, coalesce ? { coalesce, inspector: false } : {});
+}
+
+type GlyphKey = 'separator' | 'thin' | 'startCap' | 'endCap';
+
+function setGlyph(key: GlyphKey, value: string | undefined, coalesce?: string): void {
+  const glyphs = { ...S.config.glyphs };
+  if (value === undefined) delete glyphs[key];
+  else glyphs[key] = value;
+  setOverride('glyphs', Object.keys(glyphs).length ? glyphs : undefined, coalesce);
+}
+
+function resetLink(show: boolean, onClick: () => void): HTMLElement | null {
+  return show
+    ? h(
+        'button',
+        {
+          class: 'reset-link',
+          type: 'button',
+          title: 'Remove the override and use the theme value',
+          onClick,
+        },
+        'Reset to theme',
+      )
+    : null;
+}
+
+function fieldWithReset(
+  label: string,
+  control: Child,
+  reset: HTMLElement | null,
+  help?: string,
+): HTMLElement {
+  const f = field(label, control, help);
+  if (reset) f.querySelector('.field-label')!.after(reset);
+  f.classList.add('has-reset');
+  return f;
+}
+
+function glyphField(label: string, key: GlyphKey, choices: string[], themeValue: string): HTMLElement {
+  const override = S.config.glyphs?.[key];
+  const input = textInput(override ?? '', (v) => setGlyph(key, v, `glyph:${key}`), {
+    class: 'input mono',
+    placeholder: themeValue ? `Theme: ${themeValue}` : 'Theme: none',
+    'aria-label': `${label} glyph`,
+  });
+  return fieldWithReset(
+    label,
+    h(
+      'div',
+      { class: 'stack' },
+      glyphChoices(choices, override ?? themeValue, (v) => setGlyph(key, v)),
+      input,
+    ),
+    resetLink(override !== undefined, () => setGlyph(key, undefined)),
+  );
+}
+
 function globalTab(): HTMLElement {
   const c = S.config;
+  const theme = currentTheme();
+  const style = (c.style ?? theme?.style ?? 'text') as StyleId;
   const set = (p: Partial<Config>, coalesce?: string) =>
     commit({ ...S.config, ...p }, coalesce ? { coalesce, inspector: false } : {});
-  const setPl = (p: Partial<Config['powerline']>, coalesce?: string) =>
-    commit(
-      { ...S.config, powerline: { ...S.config.powerline, ...p } },
-      coalesce ? { coalesce, inspector: false } : {},
-    );
   const section = (title: string, ...body: Child[]) =>
     h('section', { class: 'section' }, h('h4', null, title), ...body);
 
-  const sepInput = textInput(c.separator, (v) => set({ separator: v }, 'sep'), {
+  const sepInput = textInput(c.separator ?? '', (v) => setOverride('separator', v, 'sep'), {
     class: 'input mono',
+    placeholder: `Theme: ${JSON.stringify(theme?.separator ?? ' │ ')}`,
   });
   const sepChoices = h('div', { class: 'glyphs' });
-  for (const s of SEPARATORS) {
+  for (const sp of SEPARATORS) {
     sepChoices.append(
       h(
         'button',
         {
           type: 'button',
-          class: `glyph${s === c.separator ? ' on' : ''}`,
-          onClick: () => set({ separator: s }),
-          title: JSON.stringify(s),
+          class: `glyph${sp === c.separator ? ' on' : ''}`,
+          onClick: () => setOverride('separator', sp),
+          title: JSON.stringify(sp),
         },
-        h('span', { class: 'glyph-sp' }, s.replace(/ /g, ' ') || 'none'),
+        h('span', { class: 'glyph-sp' }, sp.replace(/ /g, ' ') || 'none'),
       ),
     );
   }
 
   const maxAuto = c.maxWidth === 'auto';
-  const themes = h('div', { class: 'themes' });
-  for (const [id, t] of Object.entries(S.api.themes)) {
-    themes.append(
-      h(
-        'button',
-        {
-          type: 'button',
-          class: `theme${id === c.powerline.theme ? ' on' : ''}`,
-          'aria-pressed': String(id === c.powerline.theme),
-          onClick: () => setPl({ theme: id }),
-        },
-        h(
-          'span',
-          { class: 'theme-swatches' },
-          ...t.colors.map((col) => h('i', { style: `background:${colorToCss(col.bg) ?? '#666'}` })),
-        ),
-        h('span', { class: 'theme-name' }, t.name),
-      ),
-    );
-  }
-
+  const mutedFallback = theme?.colors.muted;
   const root = h('div', { class: 'pane' });
   root.append(
     section(
-      'Layout',
-      field('Separator', sepInput, undefined),
-      sepChoices,
-      field(
+      'Theme',
+      h(
+        'div',
+        { class: 'theme-current' },
+        h(
+          'div',
+          { class: 'theme-current-info' },
+          h('strong', null, theme?.name ?? c.theme),
+          h('span', { class: `theme-tag style-${style}` }, style),
+          theme?.source === 'user' ? h('span', { class: 'theme-tag yours' }, 'yours') : null,
+        ),
+        h('div', { class: 'hint' }, theme?.description ?? 'Unknown theme, using Classic'),
+        h(
+          'div',
+          { class: 'row-inline' },
+          h('button', { class: 'btn', type: 'button', onClick: () => void openGallery() }, 'Change theme'),
+          h('button', { class: 'btn ghost', type: 'button', onClick: () => void saveAs() }, 'Save as mine'),
+        ),
+      ),
+    ),
+    section(
+      'Style',
+      fieldWithReset(
+        'Style',
+        segmented(
+          S.api.styles.map((st) => ({ value: st.id, label: st.name, title: st.description })),
+          style,
+          (v) => setOverride('style', v === theme?.style ? undefined : v),
+        ),
+        resetLink(c.style !== undefined, () => setOverride('style', undefined)),
+        'Powerline and Capsule need a Nerd Font.',
+      ),
+      fieldWithReset(
+        'Separator',
+        h('div', { class: 'stack' }, sepChoices, sepInput),
+        resetLink(c.separator !== undefined, () => setOverride('separator', undefined)),
+      ),
+      fieldWithReset(
         'Separator color',
         colorPicker({
           value: c.separatorColor,
-          allowDefault: false,
-          onChange: (v, live) => set({ separatorColor: v ?? 'brightBlack' }, live ? 'sepcolor' : undefined),
+          fallback: typeof mutedFallback === 'string' ? mutedFallback : undefined,
+          onChange: (v, live) => setOverride('separatorColor', v, live ? 'sepcolor' : undefined),
         }),
+        resetLink(c.separatorColor !== undefined, () => setOverride('separatorColor', undefined)),
       ),
-      field(
+      fieldWithReset(
         'Padding',
-        numberInput(c.padding, (v) => v !== null && set({ padding: Math.max(0, Math.min(4, v)) }, 'pad'), {
-          min: 0,
-          max: 4,
-          step: 1,
-        }),
+        numberInput(
+          c.padding ?? '',
+          (v) => setOverride('padding', v === null ? undefined : Math.max(0, Math.min(4, v)), 'pad'),
+          { min: 0, max: 4, step: 1, placeholder: String(theme?.padding ?? 1) },
+        ),
+        resetLink(c.padding !== undefined, () => setOverride('padding', undefined)),
         'Spaces around each widget (0 to 4).',
       ),
+    ),
+    section(
+      'Glyphs',
+      glyphField('Separator', 'separator', PL_SEPARATORS, theme?.glyphs.separator ?? ''),
+      glyphField('Thin separator', 'thin', PL_THIN, theme?.glyphs.thin ?? ''),
+      glyphField('Start cap', 'startCap', PL_START, theme?.glyphs.startCap ?? ''),
+      glyphField('End cap', 'endCap', PL_END, theme?.glyphs.endCap ?? ''),
     ),
     section(
       'Rendering',
@@ -422,47 +509,6 @@ function globalTab(): HTMLElement {
         'Lets the preview use your real last session.',
         true,
       ),
-    ),
-    section(
-      'Powerline',
-      field(
-        'Enabled',
-        toggle(c.powerline.enabled, (v) => setPl({ enabled: v })),
-        'Needs a Nerd Font in your terminal.',
-        true,
-      ),
-      ...(c.powerline.enabled
-        ? [
-            field('Theme', themes),
-            field(
-              'Separator',
-              glyphChoices(PL_SEPARATORS, c.powerline.separator, (v) => setPl({ separator: v })),
-            ),
-            textInput(c.powerline.separator, (v) => setPl({ separator: v }, 'plsep'), {
-              class: 'input mono',
-              placeholder: 'Custom separator',
-              'aria-label': 'Custom powerline separator',
-            }),
-            field(
-              'Start cap',
-              glyphChoices(PL_START, c.powerline.startCap, (v) => setPl({ startCap: v })),
-            ),
-            textInput(c.powerline.startCap, (v) => setPl({ startCap: v }, 'plstart'), {
-              class: 'input mono',
-              placeholder: 'Custom start cap',
-              'aria-label': 'Custom start cap',
-            }),
-            field(
-              'End cap',
-              glyphChoices(PL_END, c.powerline.endCap, (v) => setPl({ endCap: v })),
-            ),
-            textInput(c.powerline.endCap, (v) => setPl({ endCap: v }, 'plend'), {
-              class: 'input mono',
-              placeholder: 'Custom end cap',
-              'aria-label': 'Custom end cap',
-            }),
-          ]
-        : []),
     ),
   );
   return root;

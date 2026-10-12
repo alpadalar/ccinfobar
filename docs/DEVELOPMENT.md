@@ -21,7 +21,7 @@ Requirements: Node.js 20 or newer. There are no runtime dependencies; everything
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` / `lint:fix` | Biome lint and format |
 | `npm run check` | Typecheck, lint and test |
-| `npm run docs` | Regenerate `docs/WIDGETS.md` and `schema/config.schema.json` from the widget registry |
+| `npm run docs` | Regenerate `docs/WIDGETS.md`, `schema/config.schema.json` and `schema/theme.schema.json` |
 | `npm run example` | Render `test/fixtures/payload.json` |
 
 Try your build against a real session without installing it:
@@ -41,11 +41,12 @@ src/
 ├── core/
 │   ├── types.ts         payload, config and widget types
 │   ├── config.ts        defaults, validation, load and save
-│   ├── renderer.ts      lines → ANSI text (separators, powerline, flex, truncation)
+│   ├── renderer.ts      lines → ANSI text (styles, separators, flex, truncation)
+│   ├── themes.ts        built-in themes, user theme loading and resolution
 │   ├── ansi.ts          colors, width measurement, truncation
 │   ├── context.ts       render context with lazy data sources
 │   ├── edit.ts          pure edit operations shared by both editors
-│   ├── presets.ts, themes.ts, sample.ts, preview.ts, paths.ts
+│   ├── presets.ts, sample.ts, preview.ts, paths.ts
 ├── data/                git, transcript, GSD and terminal readers
 ├── widgets/             one file per category, registered in index.ts
 ├── editor/              web editor: HTTP server + browser app (web/)
@@ -94,6 +95,7 @@ Both editors pick up new widgets and their options automatically.
 ## Testing
 
 - `test/core`: renderer, colors, config, edit operations
+- `test/themes`: built-in themes, styles, overrides and user themes
 - `test/widgets`, `test/data`: widgets and data readers
 - `test/gsd`: GSD parser against fixture projects in `test/fixtures/gsd`
 - `test/editor`: editor HTTP API and ANSI to HTML conversion

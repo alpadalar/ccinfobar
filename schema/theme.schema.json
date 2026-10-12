@@ -1,0 +1,381 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/alpadalar/ccinfobar/main/schema/theme.schema.json",
+  "title": "ccinfobar theme",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "author": {
+      "type": "string"
+    },
+    "extends": {
+      "type": "string",
+      "description": "Theme to start from; only the fields you set are changed",
+      "examples": [
+        "classic",
+        "minimal",
+        "mono",
+        "neon",
+        "pastel",
+        "amber",
+        "matrix",
+        "blocks",
+        "slate",
+        "paper",
+        "powerline",
+        "nord",
+        "dracula",
+        "gruvbox",
+        "tokyo-night",
+        "solarized",
+        "monochrome",
+        "catppuccin",
+        "bubblegum"
+      ]
+    },
+    "style": {
+      "enum": ["text", "blocks", "powerline", "capsule"]
+    },
+    "separator": {
+      "type": "string"
+    },
+    "padding": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4
+    },
+    "bold": {
+      "type": "boolean"
+    },
+    "statusColors": {
+      "type": "boolean",
+      "description": "Let widgets such as context-bar color themselves by threshold (text style)"
+    },
+    "glyphs": {
+      "type": "object",
+      "description": "Glyphs for powerline and capsule styles",
+      "properties": {
+        "separator": {
+          "type": "string",
+          "description": "Between powerline segments"
+        },
+        "thin": {
+          "type": "string",
+          "description": "Between powerline segments that share a color"
+        },
+        "startCap": {
+          "type": "string"
+        },
+        "endCap": {
+          "type": "string"
+        }
+      }
+    },
+    "colors": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": ["widget", "category", "cycle"],
+          "description": "widget: each widget default color; category: colors per category; cycle: rotate through cycle"
+        },
+        "fg": {
+          "type": "string",
+          "description": "Default text color"
+        },
+        "bg": {
+          "type": "string",
+          "description": "Default block background"
+        },
+        "on": {
+          "type": "string",
+          "description": "Text color on colored blocks"
+        },
+        "muted": {
+          "type": "string",
+          "description": "Separator color"
+        },
+        "categories": {
+          "type": "object",
+          "properties": {
+            "session": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    },
+                    "bg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "context": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    },
+                    "bg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "tokens": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    },
+                    "bg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "cost": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    },
+                    "bg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "limits": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    },
+                    "bg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "gsd": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    },
+                    "bg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "git": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    },
+                    "bg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "workspace": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    },
+                    "bg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "system": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    },
+                    "bg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "custom": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    },
+                    "bg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "layout": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    },
+                    "bg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "cycle": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "fg": {
+                    "type": "string",
+                    "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                  },
+                  "bg": {
+                    "type": "string",
+                    "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

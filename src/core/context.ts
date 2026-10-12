@@ -27,6 +27,7 @@ export interface ContextOptions {
   preview?: boolean;
   terminalWidth?: number | null;
   data?: Partial<DataSources>;
+  theme?: import('./themes.js').Theme;
 }
 
 export function resolveCwd(payload: StatusPayload): string {
@@ -43,6 +44,7 @@ export function createContext(opts: ContextOptions): RenderContext {
     now: opts.now ?? new Date(),
     preview: opts.preview ?? false,
     terminalWidth: opts.terminalWidth ?? null,
+    ...(opts.theme ? { theme: opts.theme } : {}),
     data: {
       git: opts.data?.git ?? lazy(() => readGit(cwd)),
       transcript: opts.data?.transcript ?? lazy(() => readTranscript(opts.payload.transcript_path)),

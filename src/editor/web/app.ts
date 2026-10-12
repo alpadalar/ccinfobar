@@ -7,6 +7,7 @@ import { clear, h, icon } from './dom.js';
 import { initInspector, renderInspector } from './inspector.js';
 import {
   commit,
+  currentTheme,
   emit,
   init,
   isDirty,
@@ -19,6 +20,7 @@ import {
   undo,
   type WidgetInfo,
 } from './store.js';
+import { openGallery } from './themes.js';
 import { confirmDialog, modal, toast } from './ui.js';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -321,6 +323,7 @@ function renderChrome(): void {
   $<HTMLButtonElement>('undo').disabled = !S.undo.length;
   $<HTMLButtonElement>('redo').disabled = !S.redo.length;
   document.title = `${dirty ? '● ' : ''}ccinfobar editor`;
+  $('theme-btn').querySelector('.theme-btn-label')!.textContent = currentTheme()?.name ?? 'Theme';
   const inst = S.api.claude.installed;
   const btn = $('install');
   btn.classList.toggle('installed', inst);
@@ -579,6 +582,7 @@ function setupStatic(): void {
     ['undo', 'undo'],
     ['redo', 'redo'],
     ['save', 'save'],
+    ['theme-btn', 'palette'],
     ['import', 'upload'],
     ['export', 'download'],
     ['trash', 'trash'],
@@ -589,6 +593,7 @@ function setupStatic(): void {
   }
   $('version').textContent = `v${S.api.version}`;
   $('config-path').textContent = S.api.configPath;
+  $('theme-btn').addEventListener('click', () => void openGallery());
   $('undo').addEventListener('click', undo);
   $('redo').addEventListener('click', redo);
   $('save').addEventListener('click', () => void save());

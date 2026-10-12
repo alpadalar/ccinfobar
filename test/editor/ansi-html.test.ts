@@ -61,3 +61,18 @@ describe('ansiToHtml', () => {
     expect(ansi256ToHex(255)).toBe('#eeeeee');
   });
 });
+
+describe('powerline glyphs', () => {
+  it('draws glyphs as css shapes with fg and bg', () => {
+    const html = ansiToHtml('\x1b[38;2;1;2;3;48;2;4;5;6m\x1b[0m');
+    expect(html).toBe(
+      '<span class="pl pl-e0b0" style="--pl:#010203;background:#040506"> </span><span class="pl pl-e0b6"> </span>',
+    );
+  });
+
+  it('keeps surrounding text styled', () => {
+    expect(ansiToHtml('\x1b[31mab')).toBe(
+      '<span style="color:#cd3131">a</span><span class="pl pl-e0b1" style="--pl:#cd3131"> </span><span style="color:#cd3131">b</span>',
+    );
+  });
+});

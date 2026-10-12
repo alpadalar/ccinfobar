@@ -26,6 +26,7 @@ next: /gsd-execute-phase 4 │ $1.87 │ 5h 42% │ Resets 2h 14m │ 7d 61%
 - [Quick start](#quick-start)
 - [Editing your status line](#editing-your-status-line)
 - [Widgets](#widgets)
+- [Themes](#themes)
 - [GSD integration](#gsd-integration)
 - [Commands](#commands)
 - [Configuration](#configuration)
@@ -37,6 +38,7 @@ next: /gsd-execute-phase 4 │ $1.87 │ 5h 42% │ Resets 2h 14m │ 7d 61%
 ## Why ccinfobar
 
 - **Drag-and-drop editor.** `ccinfobar edit` opens a local web editor with a live terminal preview. Drag widgets in from the palette, reorder them within or across lines, and style them in an inspector. It scales cleanly from 1080p to 4K.
+- **19 themes, or your own.** Colored text, colored blocks, powerline arrows or rounded capsules, from classic to Nord, Dracula, Tokyo Night and Catppuccin. Preview them all with `ccinfobar themes` and write your own in a few lines of JSON.
 - **Terminal editor too.** `ccinfobar tui` does the same from the keyboard (or mouse) when you are on SSH or prefer to stay in the terminal.
 - **First-class GSD support.** Milestone progress, the current phase, plan completion inside the phase, the next command to run, blockers, requirements and more, as separate widgets you can arrange freely. See [docs/GSD.md](docs/GSD.md).
 - **82 widgets** covering model and session, context window, tokens and prompt cache, cost, 5-hour and weekly limits with pace tracking, git, workspace, system and custom commands.
@@ -105,7 +107,8 @@ ccinfobar edit
 | Palette (left) | Search and browse widgets by category, each with a description and sample output. Drag one into any line or click `+`. |
 | Preview (top) | A terminal-style live preview. Switch between sample data and your last real session, and adjust the width to see truncation and flex spacing. |
 | Lines (center) | Drag chips to reorder them or move them between lines, drop them on the trash to remove, drag line handles to reorder lines. `Alt` + arrow keys move the selected chip. |
-| Inspector (right) | Colors (16 named, 256 palette or hex), background, bold/dim/italic, label override, merge, and every widget option. The **Global** tab covers separators, icons, color depth, width and powerline themes. |
+| Inspector (right) | Colors (16 named, 256 palette or hex), background, bold/dim/italic, label override, merge, and every widget option. The **Global** tab covers style, separators, glyphs, icons, color depth and width. |
+| Theme gallery | Every theme rendered live with your own widgets. Apply with one click, filter by style, save your current look as a new theme. |
 | Top bar | Presets, undo/redo, import/export JSON, save (`Ctrl+S`), and one-click install into Claude Code. |
 
 The editor runs only on `127.0.0.1` with a per-session token. Press **Done** or `Ctrl+C` to stop it.
@@ -124,7 +127,7 @@ ccinfobar tui
 | `Enter` / `e` | Edit properties |
 | `d` | Remove widget |
 | `n` / `D` / `K` `J` | New line / delete line / move line |
-| `g` / `t` / `p` | Global settings / presets / preview source |
+| `T` / `g` / `t` / `p` | Theme picker / global settings / presets / preview source |
 | `u` / `U` | Undo / redo |
 | `s` / `i` / `q` | Save / install / quit |
 | `?` | Help |
@@ -148,6 +151,24 @@ Mouse works too: click to select, drag a chip to move it.
 | Layout | text, separator, flex space |
 
 Every widget hides itself when it has nothing to show. The full list with options and examples is in [docs/WIDGETS.md](docs/WIDGETS.md), or run `ccinfobar widgets`.
+
+## Themes
+
+```sh
+ccinfobar themes          # preview every theme in your terminal
+ccinfobar theme dracula   # switch
+```
+
+| Style | Themes |
+| --- | --- |
+| Colored text | `classic` (default), `minimal`, `mono`, `neon`, `pastel`, `amber`, `matrix` |
+| Colored blocks | `blocks`, `slate`, `paper` |
+| Powerline | `powerline`, `nord`, `dracula`, `gruvbox`, `tokyo-night`, `solarized`, `monochrome` |
+| Capsules | `catppuccin`, `bubblegum` |
+
+![Theme gallery](docs/images/themes.png)
+
+Any theme can be drawn in any style (`"style": "capsule"`), and per-widget colors always win. To make your own, run `ccinfobar theme new mine --from nord`, edit `~/.config/ccinfobar/themes/mine.json`, or use **Save as my theme** in the editor. Details: [docs/THEMES.md](docs/THEMES.md).
 
 ## GSD integration
 
@@ -173,6 +194,8 @@ Start with `ccinfobar init gsd --force`, or drag widgets from the GSD category i
 | `ccinfobar tui` | Open the terminal editor |
 | `ccinfobar install` | Set Claude Code's `statusLine` (`--command <cmd>`, `--refresh <seconds>`) |
 | `ccinfobar uninstall` | Remove ccinfobar from Claude Code settings |
+| `ccinfobar themes` | Preview every theme (`--width <n>`) |
+| `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar init [preset]` | Write a preset: `default`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
 | `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`) |
 | `ccinfobar widgets` | List all widgets |
@@ -194,14 +217,13 @@ The config lives in `~/.config/ccinfobar/config.json` (`%APPDATA%\ccinfobar\conf
       { "id": "c", "type": "context-bar", "options": { "width": 12, "usable": true } }
     ]
   ],
-  "separator": " │ ",
-  "powerline": { "enabled": false, "theme": "tokyo-night" }
+  "theme": "tokyo-night"
 }
 ```
 
 ## Platform notes
 
-- **Fonts.** Powerline mode and the `nerd` icon set need a [Nerd Font](https://www.nerdfonts.com/). The default `text` icons work everywhere.
+- **Fonts.** Powerline and capsule themes and the `nerd` icon set need a [Nerd Font](https://www.nerdfonts.com/). The default `text` icons work everywhere.
 - **Colors.** The color depth is detected automatically and honors `NO_COLOR`, `FORCE_COLOR` and `COLORTERM`. Set `colorLevel` if your terminal disagrees.
 - **Terminal width.** Used for `flex` spacing and truncation. ccinfobar probes the terminal Claude Code runs in on Linux and macOS. On Windows, set `maxWidth` to a fixed number if you use `flex`.
 - **Windows.** Works in Windows Terminal, PowerShell and cmd. Prefer a global install; `npx` startup on Windows is slow.
@@ -211,7 +233,7 @@ The config lives in `~/.config/ccinfobar/config.json` (`%APPDATA%\ccinfobar\conf
 | Problem | Fix |
 | --- | --- |
 | Nothing shows up | Run `ccinfobar doctor`. Claude Code also hides the status line in untrusted folders and while dialogs are open. |
-| Odd boxes instead of arrows or icons | Install a Nerd Font, or switch icons to `text` and turn off powerline. |
+| Odd boxes instead of arrows or icons | Install a Nerd Font, or use a text or blocks theme and `text` icons. |
 | GSD line is missing | You are outside a GSD project, or `.planning/STATE.md` / `ROADMAP.md` doesn't exist yet. |
 | Usage limit widgets are empty | Claude Code only sends rate limits to Pro and Max subscribers, and they may be missing until the first response. |
 | Preview in the editor doesn't match | Use **Last session** in the preview, after Claude Code has rendered the status line at least once. |

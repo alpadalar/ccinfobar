@@ -21,6 +21,7 @@ export interface ModalOpts {
   body: Child[];
   actions: (close: (value?: unknown) => void) => Child[];
   wide?: boolean;
+  xl?: boolean;
 }
 
 export function modal<T = unknown>(opts: ModalOpts): Promise<T | undefined> {
@@ -42,7 +43,7 @@ export function modal<T = unknown>(opts: ModalOpts): Promise<T | undefined> {
     const dialog = h(
       'div',
       {
-        class: `modal${opts.wide ? ' wide' : ''}`,
+        class: `modal${opts.wide ? ' wide' : ''}${opts.xl ? ' xl' : ''}`,
         role: 'dialog',
         'aria-modal': 'true',
         'aria-label': opts.title,

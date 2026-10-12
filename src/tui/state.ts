@@ -10,6 +10,7 @@ import {
 } from '../core/edit.js';
 import { getPreset, PRESETS } from '../core/presets.js';
 import type { PreviewSource } from '../core/preview.js';
+import { listThemes, type Theme } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
 import { pickerItems } from './catalog.js';
@@ -36,10 +37,20 @@ export type Mode =
   | { kind: 'picker'; filter: string; cursor: number }
   | { kind: 'settings'; scope: 'widget' | 'global'; itemId: string; cursor: number; sub: Sub | null }
   | { kind: 'presets'; cursor: number }
+  | {
+      kind: 'themes';
+      filter: string;
+      cursor: number;
+      back: Mode;
+      naming: { text: string; pos: number } | null;
+    }
   | { kind: 'confirm'; what: ConfirmKind; preset?: string }
   | { kind: 'help' };
 
-export type Effect = { kind: 'save'; thenQuit?: boolean } | { kind: 'install' };
+export type Effect =
+  | { kind: 'save'; thenQuit?: boolean }
+  | { kind: 'install' }
+  | { kind: 'saveTheme'; id: string };
 
 export interface DragState {
   from: Position;
@@ -77,6 +88,8 @@ export type Action =
   | { type: 'moveLine'; dir: 'up' | 'down' }
   | { type: 'openGlobal' }
   | { type: 'openPresets' }
+  | { type: 'openThemes' }
+  | { type: 'saveTheme' }
   | { type: 'togglePreview' }
   | { type: 'undo' }
   | { type: 'redo' }
@@ -98,7 +111,14 @@ export type Action =
   | { type: 'cycle'; delta: 1 | -1 }
   | { type: 'clickItem'; area: 'main' | 'sub'; index: number }
   | { type: 'confirm'; answer: 'yes' | 'no' | 'save' | 'discard' }
-  | { type: 'effectDone'; ok: boolean; message: string; saved?: boolean; thenQuit?: boolean }
+  | {
+      type: 'effectDone';
+      ok: boolean;
+      message: string;
+      saved?: boolean;
+      thenQuit?: boolean;
+      applyTheme?: string;
+    }
   | { type: 'message'; text: string };
 
 const PAGE = 8;
@@ -120,6 +140,38 @@ export function initialState(config: Config, path: string, message = ''): State 
     effect: null,
     quit: false,
   };
+}
+
+export function themeItems(filter: string): Theme[] {
+  const tokens = filter.toLowerCase().split(/\s+/).filter(Boolean);
+  return listThemes().filter((t) => {
+    const hay =
+      `${t.id} ${t.name} ${t.style} ${t.description} ${t.source === 'user' ? 'yours' : ''}`.toLowerCase();
+    return tokens.every((x) => hay.includes(x));
+  });
+}
+
+export function withTheme(config: Config, id: string): Config {
+  const next: Config = { ...config, theme: id };
+  delete next.style;
+  delete next.separator;
+  delete next.separatorColor;
+  delete next.padding;
+  delete next.glyphs;
+  return next;
+}
+
+let previewCache: { base: Config; id: string; value: Config } | null = null;
+
+export function previewConfig(state: State): Config {
+  const mode = state.mode;
+  if (mode.kind !== 'themes') return state.config;
+  const id = themeItems(mode.filter)[mode.cursor]?.id;
+  if (!id) return state.config;
+  if (previewCache && previewCache.base === state.config && previewCache.id === id) return previewCache.value;
+  const value = withTheme(state.config, id);
+  previewCache = { base: state.config, id, value };
+  return value;
 }
 
 export function selectedItem(state: State): WidgetItem | undefined {
@@ -228,6 +280,8 @@ function reduceNormal(state: State, action: Action): State {
       return { ...state, mode: { kind: 'settings', scope: 'global', itemId: '', cursor: 0, sub: null } };
     case 'openPresets':
       return { ...state, mode: { kind: 'presets', cursor: 0 } };
+    case 'openThemes':
+      return openThemes(state);
     case 'newLine': {
       const at = lines.length ? sel.line + 1 : 0;
       return commit(state, addLine(config, at), { sel: { line: at, index: 0 } });
@@ -308,6 +362,65 @@ function reduceNormal(state: State, action: Action): State {
   }
 }
 
+function openThemes(state: State): State {
+  const at = themeItems('').findIndex((t) => t.id === state.config.theme);
+  return {
+    ...state,
+    mode: { kind: 'themes', filter: '', cursor: Math.max(0, at), back: state.mode, naming: null },
+  };
+}
+
+const THEME_ID = /^[A-Za-z0-9._-]+$/;
+
+function reduceThemes(state: State, action: Action, mode: Extract<Mode, { kind: 'themes' }>): State {
+  const set = (patch: Partial<Extract<Mode, { kind: 'themes' }>>): State => ({
+    ...state,
+    mode: { ...mode, ...patch },
+  });
+  const apply = (index: number): State => {
+    const theme = themeItems(mode.filter)[index];
+    if (!theme) return state;
+    return commit({ ...state, mode: mode.back }, withTheme(state.config, theme.id), {
+      message: `Theme: ${theme.name}`,
+    });
+  };
+  if (mode.naming) {
+    switch (action.type) {
+      case 'enter': {
+        const id = mode.naming.text.trim();
+        if (!THEME_ID.test(id)) return { ...state, message: 'Use letters, numbers, dot, dash or underscore' };
+        return { ...state, effect: { kind: 'saveTheme', id } };
+      }
+      case 'cancel':
+        return set({ naming: null });
+      default:
+        return set({
+          naming: editInput({ kind: 'input', ...mode.naming }, action) as { text: string; pos: number },
+        });
+    }
+  }
+  switch (action.type) {
+    case 'nav':
+      return set({ cursor: step(mode.cursor, action.dir, themeItems(mode.filter).length) });
+    case 'text':
+      return set({ filter: mode.filter + action.text, cursor: 0 });
+    case 'backspace':
+      return set({ filter: [...mode.filter].slice(0, -1).join(''), cursor: 0 });
+    case 'clear':
+      return set({ filter: '', cursor: 0 });
+    case 'enter':
+      return apply(mode.cursor);
+    case 'clickItem':
+      return apply(action.index);
+    case 'saveTheme':
+      return set({ naming: { text: '', pos: 0 } });
+    case 'cancel':
+      return { ...state, mode: mode.back };
+    default:
+      return state;
+  }
+}
+
 function insertFromPicker(state: State, filter: string, cursor: number): State {
   const def = pickerItems(filter)[cursor];
   if (!def) return state;
@@ -359,6 +472,8 @@ function activateField(state: State, mode: Extract<Mode, { kind: 'settings' }>, 
   switch (field.kind) {
     case 'bool':
       return applyField(state, field, toggled(field, state.config));
+    case 'theme':
+      return openThemes(state);
     case 'color':
     case 'select':
       return open({ kind: 'list', cursor: listCursorFor(field, state.config) });
@@ -534,6 +649,13 @@ export function reduce(prev: State, action: Action): State {
     case 'effectDone': {
       const done = { ...state, effect: null, message: action.message };
       if (!action.ok) return done;
+      if (action.applyTheme && state.mode.kind === 'themes') {
+        const applied = commit(
+          { ...done, mode: state.mode.back },
+          withTheme(state.config, action.applyTheme),
+        );
+        return { ...applied, message: action.message };
+      }
       const saved = action.saved ? withDirty({ ...done, savedJson: JSON.stringify(state.config) }) : done;
       return { ...saved, quit: action.thenQuit === true };
     }
@@ -549,6 +671,8 @@ export function reduce(prev: State, action: Action): State {
       return reduceSettings(state, action, mode);
     case 'presets':
       return reducePresets(state, action, mode);
+    case 'themes':
+      return reduceThemes(state, action, mode);
     case 'confirm':
       return reduceConfirm(state, action, mode);
     case 'help':

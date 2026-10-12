@@ -54,7 +54,7 @@ export const PRESETS: Preset[] = [
     description: 'Powerline arrows with the Tokyo Night theme (needs a Nerd Font)',
     build: () => ({
       ...defaultConfig(),
-      powerline: { enabled: true, separator: '', startCap: '', endCap: '', theme: 'tokyo-night' },
+      theme: 'tokyo-night',
       lines: [
         line('model', 'cwd', 'git-branch', 'context-percentage'),
         line('gsd-milestone', 'gsd-phase', 'gsd-plans', 'session-cost', 'five-hour-usage'),

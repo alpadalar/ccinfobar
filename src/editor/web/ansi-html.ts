@@ -127,6 +127,9 @@ function safeHref(url: string): string | null {
 const TOKEN =
   /\x1b\[([0-9;:]*)m|\x1b\]8;[^;\x07\x1b]*;([^\x07\x1b]*)(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[A-Za-ln-z]/g;
 
+const GLYPHS = new Set(['\ue0b0', '\ue0b1', '\ue0b2', '\ue0b3', '\ue0b4', '\ue0b6']);
+const GLYPH_SPLIT = /([\ue0b0-\ue0b4\ue0b6])/u;
+
 export function ansiToHtml(input: string): string {
   const style = blank();
   let href: string | null = null;
@@ -136,8 +139,19 @@ export function ansiToHtml(input: string): string {
   const emit = (text: string) => {
     if (!text) return;
     const s = css(style);
-    let html = escapeHtml(text);
-    if (s) html = `<span style="${s}">${html}</span>`;
+    let html = '';
+    for (const part of text.split(GLYPH_SPLIT)) {
+      if (!part) continue;
+      if (GLYPHS.has(part)) {
+        const code = part.codePointAt(0)!.toString(16);
+        const fg = style.inverse ? style.bg : style.fg;
+        const bg = style.inverse ? style.fg : style.bg;
+        const vars = [fg ? `--pl:${fg}` : '', bg ? `background:${bg}` : ''].filter(Boolean).join(';');
+        html += `<span class="pl pl-${code}"${vars ? ` style="${vars}"` : ''}>\u00a0</span>`;
+      } else {
+        html += s ? `<span style="${s}">${escapeHtml(part)}</span>` : escapeHtml(part);
+      }
+    }
     if (href) html = `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${html}</a>`;
     out += html;
   };

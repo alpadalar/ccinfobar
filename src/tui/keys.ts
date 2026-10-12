@@ -205,6 +205,8 @@ function normalKey(k: Key): Action | null {
       return { type: 'openGlobal' };
     case 't':
       return { type: 'openPresets' };
+    case 'T':
+      return { type: 'openThemes' };
     case 'p':
       return { type: 'togglePreview' };
     case 'u':
@@ -287,6 +289,9 @@ export function keyToAction(k: Key, state: State): Action | null {
       if (k.sequence === 'q' || k.sequence === 'g' || k.sequence === 'e') return { type: 'cancel' };
       return listKey(k);
     }
+    case 'themes':
+      if (k.ctrl && k.name === 's' && !mode.naming) return { type: 'saveTheme' };
+      return textKey(k);
     case 'presets':
       return listKey(k) ?? (k.sequence === 'q' || k.sequence === 't' ? { type: 'cancel' } : null);
     case 'confirm':
