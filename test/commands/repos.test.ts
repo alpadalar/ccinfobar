@@ -157,7 +157,8 @@ describe.skipIf(!available || tmpRepo)('repos dirty job', () => {
     });
 
     it('writes nothing for a relative, missing or foreground path', async () => {
-      const rel = path.relative(process.cwd(), ws);
+      // across drives on windows path.relative returns an absolute path
+      const rel = path.isAbsolute(path.relative(process.cwd(), ws)) ? 'ws' : path.relative(process.cwd(), ws);
       await runRepos(parseArgs(['repos', '--background', rel]), cfg);
       await runRepos(parseArgs(['repos', '--background', path.join(base, 'missing')]), cfg);
       await runRepos(parseArgs(['repos', ws]), cfg);
