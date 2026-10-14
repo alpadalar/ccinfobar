@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import { resolveAppearance } from '../../src/core/renderer.js';
-import { cycled, displayValue, globalFields, listEntries } from '../../src/tui/fields.js';
+import { cycled, displayValue, globalFields, listEntries, widgetFields } from '../../src/tui/fields.js';
 import { themeInputFromConfig } from '../../src/tui/themeio.js';
+import { getWidget } from '../../src/widgets/index.js';
 
 const field = (id: string) => globalFields().find((f) => f.id === id)!;
 
@@ -166,5 +167,19 @@ describe('panel fields', () => {
     expect(charset.set(c, 'text').charset).toBe('text');
     const wrap = globalFields(c).find((f) => f.id === 'autoWrap')!;
     expect(wrap.set(c, !c.autoWrap).autoWrap).toBe(!c.autoWrap);
+  });
+});
+
+describe('conditional option fields', () => {
+  const ids = (options?: Record<string, string>) => {
+    const config = defaultConfig();
+    config.lines = [[{ id: 'c1', type: 'context-percentage', ...(options ? { options } : {}) }]];
+    return widgetFields(getWidget('context-percentage'), 'c1', config).map((f) => f.id);
+  };
+  it('hides reserveTokens unless basis is reserve', () => {
+    expect(ids()).toContain('option:basis');
+    expect(ids()).not.toContain('option:reserveTokens');
+    expect(ids({ basis: 'usable' })).not.toContain('option:reserveTokens');
+    expect(ids({ basis: 'reserve' })).toContain('option:reserveTokens');
   });
 });

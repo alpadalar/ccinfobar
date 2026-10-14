@@ -1,4 +1,4 @@
-import { clearColors, removeItem, setOption, updateItem } from '../../core/edit.js';
+import { clearColors, optionShown, removeItem, setOption, updateItem } from '../../core/edit.js';
 import type { Config, OptionSpec, OptionValue, WidgetItem } from '../../core/types.js';
 import { GLYPHS } from './ansi-html.js';
 import { colorPicker, colorToCss } from './colors.js';
@@ -263,7 +263,8 @@ function widgetTab(): HTMLElement {
   );
 
   if (info?.options.length) {
-    root.append(section('Options', ...info.options.map((o) => optionControl(item, o))));
+    const shown = info.options.filter((o) => optionShown(o, info.options, item.options));
+    root.append(section('Options', ...shown.map((o) => optionControl(item, o))));
   }
   const recent = recentStyles(item.id);
   root.append(

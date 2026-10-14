@@ -99,6 +99,7 @@ const reserveTokensOption: OptionSpec = {
   kind: 'number',
   default: OUTPUT_RESERVE_CAP,
   help: 'Approximate: tokens Claude Code keeps for output (20,000 in Claude Code 2.1.299, may change)',
+  showWhen: { key: 'basis', values: ['reserve'] },
 };
 
 function percentFor(ctx: RenderContext, item: WidgetItem): number | null {

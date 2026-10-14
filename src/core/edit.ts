@@ -1,4 +1,4 @@
-import type { Align, Config, OptionValue, WidgetItem } from './types.js';
+import type { Align, Config, OptionSpec, OptionValue, WidgetItem } from './types.js';
 
 export interface Position {
   line: number;
@@ -83,6 +83,13 @@ export function setOption(
   if (value === undefined) delete options[key];
   else options[key] = value;
   return updateItem(config, id, { options });
+}
+
+export function optionShown(spec: OptionSpec, specs: OptionSpec[], options: WidgetItem['options']): boolean {
+  const w = spec.showWhen;
+  if (!w) return true;
+  const value = options?.[w.key] ?? specs.find((s) => s.key === w.key)?.default;
+  return value !== undefined && w.values.includes(value);
 }
 
 // keep per-line alignment next to its line

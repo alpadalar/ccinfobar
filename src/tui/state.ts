@@ -206,7 +206,7 @@ export function settingsFields(state: State): Field[] {
   if (mode.kind !== 'settings') return [];
   if (mode.scope === 'global') return globalFields(state.config);
   const found = findItem(state.config, mode.itemId);
-  return found ? widgetFields(getWidget(found.item.type), mode.itemId) : [];
+  return found ? widgetFields(getWidget(found.item.type), mode.itemId, state.config) : [];
 }
 
 function withDirty(state: State): State {

@@ -1,6 +1,6 @@
 import { parseColor } from '../core/ansi.js';
 import { normalizeTui } from '../core/config.js';
-import { setOption, updateItem } from '../core/edit.js';
+import { optionShown, setOption, updateItem } from '../core/edit.js';
 import { t } from '../core/i18n/index.js';
 import { BOX_PRESETS } from '../core/panel.js';
 import { resolveAppearance } from '../core/renderer.js';
@@ -170,11 +170,14 @@ function optionField(spec: NonNullable<WidgetDef['options']>[number], itemId: st
   return field;
 }
 
-export function widgetFields(def: WidgetDef | undefined, itemId: string): Field[] {
+export function widgetFields(def: WidgetDef | undefined, itemId: string, config?: Config): Field[] {
   const base = (
     ['color', 'background', 'bold', 'dim', 'italic', 'label', 'raw', 'merge', 'hideEmpty'] as const
   ).map((k) => baseField(k, itemId));
-  return [...base, ...(def?.options ?? []).map((o) => optionField(o, itemId))];
+  const specs = def?.options ?? [];
+  const options = config?.lines.flat().find((i) => i.id === itemId)?.options;
+  const shown = specs.filter((o) => optionShown(o, specs, options));
+  return [...base, ...shown.map((o) => optionField(o, itemId))];
 }
 
 function globalField(

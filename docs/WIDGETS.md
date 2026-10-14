@@ -42,8 +42,8 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 
 | Type | Description | Example | Options |
 | --- | --- | --- | --- |
-| `context-percentage` | Context window used or remaining as a percentage | `Ctx 34%` | `mode` select, default `"used"` (`used`, `remaining`)<br>`basis` select, default `"raw"` (`raw`, `usable`, `reserve`)<br>`reserveTokens` number, default `20000`<br>`thresholdColors` boolean, default `true` |
-| `context-bar` | Progress bar of context window usage | `Ctx ███░░░░░░░ 34%` | `width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false`<br>`basis` select, default `"raw"` (`raw`, `usable`, `reserve`)<br>`reserveTokens` number, default `20000`<br>`thresholdColors` boolean, default `true` |
+| `context-percentage` | Context window used or remaining as a percentage | `Ctx 34%` | `mode` select, default `"used"` (`used`, `remaining`)<br>`basis` select, default `"raw"` (`raw`, `usable`, `reserve`)<br>`reserveTokens` number, default `20000` (when `basis` is `reserve`)<br>`thresholdColors` boolean, default `true` |
+| `context-bar` | Progress bar of context window usage | `Ctx ███░░░░░░░ 34%` | `width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false`<br>`basis` select, default `"raw"` (`raw`, `usable`, `reserve`)<br>`reserveTokens` number, default `20000` (when `basis` is `reserve`)<br>`thresholdColors` boolean, default `true` |
 | `context-length` | Tokens currently in the context window | `Ctx 340k` | `showMax` boolean, default `false` |
 | `context-window-size` | Maximum context window size | `Window 1M` |  |
 | `compactions` | Number of context compactions in this session | `Compacted 1x` | `showZero` boolean, default `false` |

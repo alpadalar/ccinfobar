@@ -12,7 +12,10 @@ const root = process.argv[2] ?? process.cwd();
 function optionText(o: OptionSpec): string {
   const def = typeof o.default === 'string' ? `\`"${o.default}"\`` : `\`${o.default}\``;
   const choices = o.choices ? ` (${o.choices.map((c) => `\`${c.value}\``).join(', ')})` : '';
-  return `\`${o.key}\` ${o.kind}, default ${def}${choices}`;
+  const when = o.showWhen
+    ? ` (when \`${o.showWhen.key}\` is ${o.showWhen.values.map((v) => `\`${v}\``).join(' or ')})`
+    : '';
+  return `\`${o.key}\` ${o.kind}, default ${def}${choices}${when}`;
 }
 
 function widgetsMarkdown(): string {

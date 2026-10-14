@@ -225,6 +225,7 @@ export interface OptionSpec {
   default: OptionValue;
   choices?: OptionChoice[];
   help?: string;
+  showWhen?: { key: string; values: OptionValue[] };
 }
 
 export interface WidgetOutput {
