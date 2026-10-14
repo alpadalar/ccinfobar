@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
@@ -7,7 +8,7 @@ import { runPreview } from '../../src/commands/manage.js';
 import { stripAnsi } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
-import { configDir } from '../../src/core/paths.js';
+import { configDir, lastPayloadPath } from '../../src/core/paths.js';
 import { renderPreview, scenarioFlag, scenarioListLines } from '../../src/core/preview.js';
 import { SCENARIOS } from '../../src/core/scenarios.js';
 import { withoutSideEffects } from '../helpers.js';
@@ -164,5 +165,51 @@ describe('renderPreview with a scenario config', () => {
       const out = withoutSideEffects(() => renderPreview(cfg(), source, 200));
       expect(stripAnsi(out.join('\n'))).not.toContain('$3');
     }
+  });
+});
+
+describe('renderPreview of the last payload', () => {
+  let dir = '';
+  let saved: string | undefined;
+
+  afterEach(() => {
+    if (saved === undefined) delete process.env.CCINFOBAR_CACHE_DIR;
+    else process.env.CCINFOBAR_CACHE_DIR = saved;
+    if (dir) fs.rmSync(dir, { recursive: true, force: true });
+    dir = '';
+  });
+
+  it('writes no transcript or agent cache', () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-preview-'));
+    saved = process.env.CCINFOBAR_CACHE_DIR;
+    const cache = path.join(dir, 'cache');
+    process.env.CCINFOBAR_CACHE_DIR = cache;
+    const transcript = path.join(dir, 'session.jsonl');
+    fs.copyFileSync(path.join(import.meta.dirname, '..', 'fixtures', 'transcript.jsonl'), transcript);
+    const sub = path.join(dir, 'session', 'subagents');
+    fs.mkdirSync(sub, { recursive: true });
+    fs.writeFileSync(path.join(sub, 'agent-a1.meta.json'), JSON.stringify({ agentType: 'Explore' }));
+    fs.writeFileSync(path.join(sub, 'agent-a1.jsonl'), '{"type":"user"}\n');
+    const resets = Math.floor(Date.now() / 1000) + 3600;
+    fs.mkdirSync(cache, { recursive: true });
+    fs.writeFileSync(
+      lastPayloadPath(),
+      JSON.stringify({
+        session_id: 's1',
+        transcript_path: transcript,
+        rate_limits: { five_hour: { used_percentage: 10, resets_at: resets } },
+      }),
+    );
+    const config = {
+      ...defaultConfig(),
+      lines: [
+        [
+          { id: 'f', type: 'five-hour-usage' },
+          { id: 'a', type: 'agents' },
+        ],
+      ],
+    };
+    renderPreview(config, 'last', 200);
+    expect(fs.readdirSync(cache, { recursive: true })).toEqual(['last-payload.json']);
   });
 });

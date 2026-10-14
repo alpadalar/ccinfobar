@@ -73,6 +73,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - A widget that returns malformed output shows as empty instead of crashing the whole status line
 - Emoji such as ⚡ and ✅ are measured as 2 cells
 - Preview and doctor ignore a cached last payload that is not a JSON object
+- Previewing the last session (`ccinfobar preview`, the editor and the TUI) no longer writes transcript or subagent cache files
 - A `command` widget whose command does not read the payload on stdin (such as `echo` or `date`) no longer goes blank now and then when the command exits before the payload is written
 - `--option=value` keeps values that contain `=`, such as `--command=FOO=1 ccinfobar`
 - The editor's install preview no longer runs `npm install` before you confirm, and installing or updating from the editor runs npm in the background instead of freezing the editor

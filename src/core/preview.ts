@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readAgents } from '../data/agents.js';
 import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
 import { accountKey } from '../data/limits.js';
 import { readTranscript } from '../data/transcript.js';
@@ -78,7 +79,7 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
   const last = source === 'last' ? readLastPayload() : null;
   const env = { ...process.env, NO_COLOR: undefined, FORCE_COLOR: undefined };
   if (last) {
-    const transcript = lazy(() => readTranscript(last.transcript_path));
+    const transcript = lazy(() => readTranscript(last.transcript_path, env, { persist: false }));
     const eff = effectiveUsage(config, last, env, { transcript });
     return render(
       createContext({
@@ -90,6 +91,9 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
         ...(theme ? { theme } : {}),
         data: {
           transcript,
+          agents: lazy(() =>
+            readAgents(last.transcript_path, transcript(), Date.now(), env, { persist: false }),
+          ),
           limits: () => eff.limits,
           ...(ledgerOn(config)
             ? {
