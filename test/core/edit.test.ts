@@ -11,6 +11,7 @@ import {
   recordStyles,
   removeItem,
   removeLine,
+  setBudget,
   setLineAlign,
   setOption,
   takeStyle,
@@ -183,5 +184,30 @@ describe('upgradeOptions', () => {
     const cfg = withItems({ id: 'p', type: 'context-percentage', options: { usable: true } });
     expect(normalizeConfig(cfg).lines[0]![0]!.options).toEqual({ usable: true });
     expect(normalizeConfig(upgradeOptions(cfg)).lines[0]![0]!.options).toEqual({ basis: 'usable' });
+  });
+});
+
+describe('setBudget', () => {
+  const base = defaultConfig();
+
+  it('sets, clamps and removes budget values', () => {
+    let c = setBudget(base, 'daily', 10);
+    expect(c.budget).toEqual({ daily: 10 });
+    expect(base.budget).toBeUndefined();
+    c = setBudget(c, 'session', 2.5);
+    c = setBudget(c, 'warnAt', 0.75);
+    expect(c.budget).toEqual({ daily: 10, session: 2.5, warnAt: 0.75 });
+    expect(setBudget(c, 'warnAt', 3).budget?.warnAt).toBe(1);
+    expect(setBudget(c, 'warnAt', 0).budget?.warnAt).toBe(0.05);
+    expect(setBudget(c, 'warnAt', 0.8).budget).toEqual({ daily: 10, session: 2.5 });
+    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined]) {
+      expect(setBudget(c, 'daily', bad).budget).toEqual({ session: 2.5, warnAt: 0.75 });
+    }
+  });
+
+  it('removes the key when nothing is left', () => {
+    const c = setBudget(setBudget(base, 'daily', 5), 'daily', undefined);
+    expect('budget' in c).toBe(false);
+    expect('budget' in setBudget(base, 'warnAt', 0.8)).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import type { Align, Config, OptionSpec, OptionValue, WidgetItem } from './types.js';
+import type { Align, BudgetConfig, Config, OptionSpec, OptionValue, WidgetItem } from './types.js';
 
 export interface Position {
   line: number;
@@ -278,5 +278,17 @@ export function recordStyles(history: StyleHistory, before: Config, after: Confi
     const list = (next[item.id] ?? []).filter((s) => !sameStyle(s, was));
     next[item.id] = [was, ...list].slice(0, keep);
   }
+  return next;
+}
+
+// drops invalid or default values; removes an empty budget
+export function setBudget(config: Config, key: keyof BudgetConfig, value: number | undefined): Config {
+  const budget: BudgetConfig = { ...config.budget };
+  const ok = typeof value === 'number' && Number.isFinite(value) && (key === 'warnAt' || value > 0);
+  if (!ok) delete budget[key];
+  else budget[key] = key === 'warnAt' ? Math.min(1, Math.max(0.05, value)) : value;
+  if (budget.warnAt === 0.8) delete budget.warnAt;
+  const next: Config = { ...config, budget };
+  if (!Object.keys(budget).length) delete next.budget;
   return next;
 }

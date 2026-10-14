@@ -1,6 +1,6 @@
 import { parseColor } from '../core/ansi.js';
 import { normalizeTui } from '../core/config.js';
-import { optionShown, setOption, updateItem } from '../core/edit.js';
+import { optionShown, setBudget, setOption, updateItem } from '../core/edit.js';
 import { t } from '../core/i18n/index.js';
 import { BOX_PRESETS } from '../core/panel.js';
 import { resolveAppearance } from '../core/renderer.js';
@@ -287,6 +287,47 @@ const rangeParser =
     return { ok: true, value: n };
   };
 
+const parseUsd: Field['parse'] = (text) => {
+  const s = text.trim().replace(/^\$/, '');
+  if (!s) return { ok: true, value: undefined };
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0
+    ? { ok: true, value: n }
+    : { ok: false, error: 'Enter an amount above 0' };
+};
+
+function budgetField(id: string, key: 'daily' | 'session', label: string): Field {
+  return {
+    id,
+    label,
+    kind: 'number',
+    resettable: true,
+    help: 'USD for the budget widget; estimated spend, not your bill. Del removes',
+    get: (c) => c.budget?.[key],
+    set: (c, v) => setBudget(c, key, v === undefined ? undefined : Number(v)),
+    parse: parseUsd,
+  };
+}
+
+function budgetFields(): Field[] {
+  return [
+    budgetField('budget.daily', 'daily', 'Budget: daily (USD)'),
+    budgetField('budget.session', 'session', 'Budget: per session (USD)'),
+    {
+      id: 'budget.warnAt',
+      label: 'Budget: warn at (%)',
+      kind: 'number',
+      resettable: true,
+      fallback: 80,
+      range: [5, 100],
+      help: 'The budget widget turns yellow here and red at 100%. Del resets to 80',
+      get: (c) => (c.budget?.warnAt === undefined ? undefined : Math.round(c.budget.warnAt * 100)),
+      set: (c, v) => setBudget(c, 'warnAt', v === undefined ? undefined : Number(v) / 100),
+      parse: rangeParser(5, 100),
+    },
+  ];
+}
+
 function sideField(
   group: 'title' | 'footer',
   side: 'left' | 'right',
@@ -557,6 +598,7 @@ function baseGlobalFields(): Field[] {
       (c, v) => ({ ...c, savePayload: Boolean(v) }),
       { help: 'Lets the preview use your last real session data' },
     ),
+    ...budgetFields(),
   ];
 }
 

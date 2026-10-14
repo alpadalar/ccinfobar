@@ -183,3 +183,38 @@ describe('conditional option fields', () => {
     expect(ids({ basis: 'reserve' })).toContain('option:reserveTokens');
   });
 });
+
+describe('budget fields', () => {
+  it('sets and clears the daily budget', () => {
+    const f = field('budget.daily');
+    expect(f.parse('10')).toEqual({ ok: true, value: 10 });
+    expect(f.parse('$2.5')).toEqual({ ok: true, value: 2.5 });
+    expect(f.parse('')).toEqual({ ok: true, value: undefined });
+    expect(f.parse('-3').ok).toBe(false);
+    expect(f.parse('0').ok).toBe(false);
+    let c = f.set(defaultConfig(), 10);
+    expect(c.budget).toEqual({ daily: 10 });
+    expect(displayValue(f, c)).toEqual({ text: '10', isDefault: false });
+    c = field('budget.session').set(c, 2.5);
+    expect(c.budget).toEqual({ daily: 10, session: 2.5 });
+    c = f.set(c, undefined);
+    expect(c.budget).toEqual({ session: 2.5 });
+    c = field('budget.session').set(c, undefined);
+    expect('budget' in c).toBe(false);
+    expect(f.resettable).toBe(true);
+  });
+
+  it('shows warnAt as a percent and stores a fraction', () => {
+    const f = field('budget.warnAt');
+    expect(displayValue(f, defaultConfig()).text).toBe('80');
+    expect(f.parse('75')).toEqual({ ok: true, value: 75 });
+    expect(f.parse('2').ok).toBe(false);
+    expect(f.parse('101').ok).toBe(false);
+    const c = f.set(field('budget.daily').set(defaultConfig(), 10), 75);
+    expect(c.budget).toEqual({ daily: 10, warnAt: 0.75 });
+    expect(f.get(c)).toBe(75);
+    expect(cycled(f, c, 1)).toBe(76);
+    expect(f.set(c, 80).budget).toEqual({ daily: 10 });
+    expect(f.set(c, undefined).budget).toEqual({ daily: 10 });
+  });
+});

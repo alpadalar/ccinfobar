@@ -1,7 +1,8 @@
+import { setBudget } from '../../core/edit.js';
 import { t } from '../../core/i18n/index.js';
 import { api } from './api.js';
 import { clear, h } from './dom.js';
-import { field, segmented, textInput, toggle } from './inspector.js';
+import { field, numberInput, segmented, textInput, toggle } from './inspector.js';
 import { installDialog } from './install-dialog.js';
 import { commit, S } from './store.js';
 import { modal, toast } from './ui.js';
@@ -13,6 +14,20 @@ const KIND: Record<string, string> = {
   source: 'source checkout',
   unknown: 'unknown install',
 };
+
+function budgetInput(
+  key: 'daily' | 'session' | 'warnAt',
+  value: number | undefined,
+  attrs: Record<string, unknown>,
+  scale = 1,
+): HTMLInputElement {
+  return numberInput(
+    value ?? '',
+    (v) =>
+      commit(setBudget(S.config, key, v === null ? undefined : v / scale), { coalesce: `budget.${key}` }),
+    attrs,
+  );
+}
 
 export async function openSettings(): Promise<void> {
   const body = h('div', { class: 'settings' });
@@ -168,6 +183,28 @@ export async function openSettings(): Promise<void> {
           toggle(c.savePayload, (v) => set({ savePayload: v })),
           'Lets the preview use your real last session.',
           true,
+        ),
+      ),
+      section(
+        'Budget',
+        field(
+          'Daily budget (USD)',
+          budgetInput('daily', c.budget?.daily, { min: 0, step: 'any', placeholder: 'none' }),
+          'Estimated spend for the budget widget. Not your bill.',
+        ),
+        field(
+          'Per session (USD)',
+          budgetInput('session', c.budget?.session, { min: 0, step: 'any', placeholder: 'none' }),
+        ),
+        field(
+          'Warn at (%)',
+          budgetInput(
+            'warnAt',
+            c.budget?.warnAt === undefined ? undefined : Math.round(c.budget.warnAt * 100),
+            { min: 5, max: 100, step: 1, placeholder: '80' },
+            100,
+          ),
+          'The budget widget turns yellow here and red at 100%.',
         ),
       ),
     );
