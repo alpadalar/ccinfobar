@@ -2,7 +2,13 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { t } from '../core/i18n/index.js';
-import { claudeDir, claudeJsonPath, claudeSettingsPath, configDir } from '../core/paths.js';
+import {
+  claudeDir,
+  claudeJsonPath,
+  claudeSettingsPath,
+  configDir,
+  projectSettingsPath,
+} from '../core/paths.js';
 import { HARDEN } from '../data/git.js';
 import type { HookEvent } from '../data/hooks.js';
 import { type BuiltCommand, buildCommand, type CommandTarget } from './command.js';
@@ -494,9 +500,7 @@ export function uninstall(
   return done('foreign', null, sl, hooksOnly());
 }
 
-export function projectSettingsPath(dir: string, local = true): string {
-  return path.join(dir, '.claude', local ? 'settings.local.json' : 'settings.json');
-}
+export { projectSettingsPath };
 
 function projectRoots(dir: string): string[] {
   const roots = [path.resolve(dir)];

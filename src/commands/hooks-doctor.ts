@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { managedSettingsFiles as coreManagedFiles } from '../core/paths.js';
 import { deepEqual, type HookEntry } from './manifest.js';
 
 export interface SettingsLayer {
@@ -29,34 +30,12 @@ const listDir = (dir: string): string[] => {
   }
 };
 
-// file-based only; MDM and registry are not read
 export function managedSettingsFiles(
   platform: NodeJS.Platform,
   env: NodeJS.ProcessEnv,
   list: (dir: string) => string[] = listDir,
 ): string[] {
-  const win = platform === 'win32';
-  const p = win ? path.win32 : path.posix;
-  const bases: string[] = [];
-  if (win) {
-    bases.push('C:\\Program Files\\ClaudeCode');
-    const pf = envOf(env, 'ProgramFiles', true);
-    if (pf && p.isAbsolute(pf)) {
-      const alt = p.join(pf, 'ClaudeCode');
-      if (!bases.some((b) => b.toLowerCase() === alt.toLowerCase())) bases.push(alt);
-    }
-  } else if (platform === 'darwin') bases.push('/Library/Application Support/ClaudeCode');
-  else bases.push('/etc/claude-code');
-  const out: string[] = [];
-  for (const base of bases) {
-    out.push(p.join(base, 'managed-settings.json'));
-    const dir = p.join(base, 'managed-settings.d');
-    const names = list(dir)
-      .filter((n) => n.toLowerCase().endsWith('.json'))
-      .sort();
-    for (const n of names) out.push(p.join(dir, n));
-  }
-  return out;
+  return coreManagedFiles(platform, env, list);
 }
 
 export function readSettingsLayer(name: SettingsLayer['name'], file: string): SettingsLayer {

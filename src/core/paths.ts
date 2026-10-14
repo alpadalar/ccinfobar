@@ -38,6 +38,50 @@ export function claudeSettingsPath(env: NodeJS.ProcessEnv = process.env): string
   return path.join(claudeDir(env), 'settings.json');
 }
 
+export function projectSettingsPath(dir: string, local = true): string {
+  return path.join(dir, '.claude', local ? 'settings.local.json' : 'settings.json');
+}
+
+const envOf = (env: NodeJS.ProcessEnv, key: string, win: boolean): string | undefined => {
+  if (!win) return env[key];
+  const k = Object.keys(env).find((x) => x.toUpperCase() === key.toUpperCase());
+  return k === undefined ? undefined : env[k];
+};
+
+export function managedDirs(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): string[] {
+  if (platform === 'darwin') return ['/Library/Application Support/ClaudeCode'];
+  if (platform !== 'win32') return ['/etc/claude-code'];
+  const bases = ['C:\\Program Files\\ClaudeCode'];
+  const pf = envOf(env, 'ProgramFiles', true);
+  if (pf && path.win32.isAbsolute(pf)) {
+    const alt = path.win32.join(pf, 'ClaudeCode');
+    if (!bases.some((b) => b.toLowerCase() === alt.toLowerCase())) bases.push(alt);
+  }
+  return bases;
+}
+
+export function managedDir(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): string {
+  return managedDirs(platform, env)[0]!;
+}
+
+export function managedFilesIn(base: string, list: (dir: string) => string[], p = path): string[] {
+  const dir = p.join(base, 'managed-settings.d');
+  const names = list(dir)
+    .filter((n) => n.toLowerCase().endsWith('.json'))
+    .sort();
+  return [p.join(base, 'managed-settings.json'), ...names.map((n) => p.join(dir, n))];
+}
+
+// file-based only; MDM and registry are not read
+export function managedSettingsFiles(
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv,
+  list: (dir: string) => string[],
+): string[] {
+  const p = platform === 'win32' ? path.win32 : path.posix;
+  return managedDirs(platform, env).flatMap((b) => managedFilesIn(b, list, p));
+}
+
 export function lastPayloadPath(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(cacheDir(env), 'last-payload.json');
 }
