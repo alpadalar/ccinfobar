@@ -55,7 +55,23 @@ npx ccinfobar@latest install
 
 This installs the `ccinfobar` command globally, points Claude Code's status line at it and keeps it updated. If npm cannot install globally (for example without write access to its global folder), or you pass `--no-global`, it installs a pinned copy in `~/.config/ccinfobar/app` and uses that. The status line never runs `npx …@latest`, so nothing is downloaded and run behind your back on every refresh.
 
-`install` points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar (backing up the file first) and writes a default config. If you were using ccstatusline or claude-powerline, it offers to import that layout first. Projects where a local GSD install set its own status line are switched to ccinfobar too, through their git-ignored `.claude/settings.local.json`. `ccinfobar uninstall` puts your previous status line back. The next Claude Code prompt shows the new status line.
+`install` prints the version it installs, points the `statusLine` setting in `~/.claude/settings.json` at ccinfobar and writes a default config. If you were using ccstatusline or claude-powerline, it offers to import that layout first. Projects where a local GSD install set its own status line are switched to ccinfobar too, through their git-ignored `.claude/settings.local.json`. The next Claude Code prompt shows the new status line.
+
+- **It asks first.** If another tool owns the status line, `install` shows the current and new command and asks `Replace? [y/N]`. `--yes` (`-y`) skips the question; `--dry-run` shows what would change and writes nothing.
+- **Backups.** Before changing `settings.json`, ccinfobar saves a copy in `backups/` inside its config folder (`~/.config/ccinfobar/backups/`, `%APPDATA%\ccinfobar\backups\` on Windows): the last 10, plus the original from before the first install, which is never deleted. File permissions, symlinks, BOM and line endings are kept.
+- **Clean uninstall.** ccinfobar records what it replaced in `manifest.json`, so `ccinfobar uninstall` brings back the status line you had before, even after several reinstalls. Other tools' status lines are never removed.
+- **Broken config.** If `config.json` does not parse, the status line shows `ccinfobar: config error at line N, run ccinfobar doctor` and the file is never overwritten. `ccinfobar doctor` shows the line, column and message.
+- **One setting from the terminal.** `ccinfobar config get|set|unset <path> [value]` reads or changes one value, for example `ccinfobar config set gitHardening false`.
+
+### Pinned install
+
+To install an exact version instead of the latest, check the current version on [npm](https://www.npmjs.com/package/ccinfobar) and run:
+
+```sh
+npx ccinfobar@<version> install
+```
+
+Releases are published from GitHub Actions with [npm provenance](https://docs.npmjs.com/generating-provenance-statements), which links each package to the commit and workflow that built it. `npm view ccinfobar@<version> dist.attestations` shows the attestation, and `npm audit signatures` checks the signatures and provenance of the packages installed in a project.
 
 Then make it yours:
 
@@ -218,7 +234,7 @@ Widgets without an equivalent are listed as warnings instead of being dropped si
 | `ccinfobar` | Render the status line from the JSON on stdin (what Claude Code runs) |
 | `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
 | `ccinfobar tui` | Open the terminal editor |
-| `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--import`, `--no-import`, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally, or a pinned copy with `--no-global`) |
+| `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--yes` to replace another tool's without asking, `--dry-run` to only show the plan, `--import`, `--no-import`, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally, or a pinned copy with `--no-global`) |
 | `ccinfobar usage` | Fetch your 5-hour and weekly usage from Claude now |
 | `ccinfobar install --project` | Use ccinfobar in this project even if its `.claude/settings.json` sets another status line |
 | `ccinfobar uninstall` | Remove ccinfobar from Claude Code settings and restore the status line you had before (`--project` for the project file) |

@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Project
 
-ccinfobar is a Claude Code status line written in TypeScript with zero runtime dependencies. Claude Code pipes a JSON payload on stdin; `src/cli.ts` renders the configured widgets and prints ANSI lines.
+ccinfobar is a Claude Code status line written in TypeScript with zero runtime dependencies. Claude Code pipes a JSON payload on stdin; `src/cli/main.ts` dispatches commands and `src/cli/render.ts` renders the configured widgets as ANSI lines.
 
 ## Commands
 
