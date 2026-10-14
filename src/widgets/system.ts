@@ -68,6 +68,7 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰒋', emoji: '🖥️' },
     color: 'brightBlack',
     sample: 'devbox',
+    sources: ['system'],
     render: () => os.hostname().split('.')[0] || null,
   },
   {
@@ -78,6 +79,7 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '', emoji: '👤' },
     color: 'brightBlack',
     sample: 'dev',
+    sources: ['system'],
     render(ctx) {
       try {
         return os.userInfo().username || null;
@@ -95,6 +97,7 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰍛', emoji: '🧠' },
     color: 'green',
     sample: '11.2/31.2 GB',
+    sources: ['system'],
     options: [
       {
         key: 'format',
@@ -124,6 +127,7 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰓅', emoji: '📈' },
     color: 'green',
     sample: '0.52 0.48 0.40',
+    sources: ['system'],
     options: [{ key: 'full', label: 'Show 1/5/15 minute averages', kind: 'boolean', default: true }],
     render(_ctx, item) {
       if (process.platform === 'win32') return null;
@@ -151,6 +155,7 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '', emoji: '💻' },
     color: 'brightBlack',
     sample: 'Linux',
+    sources: ['system'],
     render: () => PLATFORMS[process.platform] ?? process.platform,
   },
 ];

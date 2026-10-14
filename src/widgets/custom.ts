@@ -23,6 +23,7 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '', emoji: '⚙️' },
     color: 'white',
     sample: 'command output',
+    sources: ['config:options.command'],
     options: [
       { key: 'command', label: 'Command', kind: 'text', default: '' },
       { key: 'timeout', label: 'Timeout (ms)', kind: 'number', default: 1000 },

@@ -15,6 +15,7 @@ export const explainMessages = {
   'explain.reason.no-replies':
     'Claude has not answered in this session yet; it appears after the first reply',
   'explain.reason.payload-field-absent': 'Claude Code did not send {path}{since}',
+  'explain.since': ' (Claude Code {version}+)',
   'explain.reason.error': 'the widget failed',
   'explain.reason.no-data': 'no data for this widget in the current session',
   'explain.reason.commandEmpty': 'the command failed or printed nothing',
