@@ -5,6 +5,7 @@ import path from 'node:path';
 import { t } from '../core/i18n/index.js';
 import { claudeDir, claudeSettingsPath } from '../core/paths.js';
 import { type BuiltCommand, buildCommand, type CommandTarget } from './command.js';
+import { deleteSettingsFile, patchSettings, readSettings } from './settings-file.js';
 import { type InstallKind, installKind, installVersion, localPrefix, npmCommand } from './update.js';
 
 export interface StatusLineSetting {
@@ -12,22 +13,6 @@ export interface StatusLineSetting {
   command: string;
   padding?: number;
   refreshInterval?: number;
-}
-
-function readJson(file: string): Record<string, unknown> {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {};
-    throw new Error(`Cannot parse ${file}: ${(err as Error).message}`);
-  }
-}
-
-function writeJson(file: string, data: unknown): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`);
-  fs.renameSync(tmp, file);
 }
 
 // npx puts its cache on PATH; that is not an install
@@ -83,7 +68,7 @@ export function defaultCommand(
 }
 
 export function currentStatusLine(file = claudeSettingsPath()): StatusLineSetting | null {
-  const sl = readJson(file).statusLine;
+  const sl = readSettings(file).data.statusLine;
   return sl && typeof sl === 'object' ? (sl as StatusLineSetting) : null;
 }
 
@@ -92,39 +77,37 @@ export function install(
   refreshInterval?: number,
   file = claudeSettingsPath(),
 ): string | null {
-  const settings = readJson(file);
-  let backup: string | null = null;
-  if (fs.existsSync(file)) {
-    backup = `${file}.ccinfobar-backup`;
-    if (!fs.existsSync(backup)) fs.copyFileSync(file, backup);
-  }
-  const statusLine: StatusLineSetting = { type: 'command', command, padding: 0 };
-  const prev = settings.statusLine as StatusLineSetting | undefined;
-  const refresh =
-    refreshInterval ?? (prev?.command?.includes('ccinfobar') ? prev.refreshInterval : undefined);
-  if (refresh && refresh > 0) statusLine.refreshInterval = Math.floor(refresh);
-  settings.statusLine = statusLine;
-  writeJson(file, settings);
-  return backup;
+  const res = patchSettings(file, (settings) => {
+    const statusLine: StatusLineSetting = { type: 'command', command, padding: 0 };
+    const prev = settings.statusLine as StatusLineSetting | undefined;
+    const refresh =
+      refreshInterval ?? (prev?.command?.includes('ccinfobar') ? prev.refreshInterval : undefined);
+    if (refresh && refresh > 0) statusLine.refreshInterval = Math.floor(refresh);
+    settings.statusLine = statusLine;
+  });
+  return res.backup;
 }
 
 export type UninstallResult = { removed: false } | { removed: true; restored: StatusLineSetting | null };
 
 export function uninstall(file = claudeSettingsPath()): UninstallResult {
-  const settings = readJson(file);
+  const settings = readSettings(file).data;
   const sl = settings.statusLine as StatusLineSetting | undefined;
   if (!sl || typeof sl.command !== 'string' || !sl.command.includes('ccinfobar')) return { removed: false };
+  const legacy = `${file}.ccinfobar-backup`;
   let previous: StatusLineSetting | null = null;
   try {
-    const backup = readJson(`${file}.ccinfobar-backup`).statusLine as StatusLineSetting | undefined;
+    const backup = readSettings(legacy).data.statusLine as StatusLineSetting | undefined;
     if (backup && typeof backup.command === 'string' && !backup.command.includes('ccinfobar'))
       previous = backup;
   } catch {}
-  if (previous) settings.statusLine = previous;
-  else delete settings.statusLine;
-  if (!previous && !fs.existsSync(`${file}.ccinfobar-backup`) && Object.keys(settings).length === 0) {
-    fs.rmSync(file, { force: true });
-  } else writeJson(file, settings);
+  const { statusLine: _, ...rest } = settings;
+  if (!previous && !fs.existsSync(legacy) && Object.keys(rest).length === 0) deleteSettingsFile(file);
+  else
+    patchSettings(file, (d) => {
+      if (previous) d.statusLine = previous;
+      else delete d.statusLine;
+    });
   return { removed: true, restored: previous };
 }
 
@@ -218,7 +201,7 @@ export function claudeJsonPath(env: NodeJS.ProcessEnv = process.env): string {
 
 export function knownProjects(env: NodeJS.ProcessEnv = process.env): string[] {
   try {
-    const projects = (readJson(claudeJsonPath(env)).projects ?? {}) as Record<string, unknown>;
+    const projects = (readSettings(claudeJsonPath(env)).data.projects ?? {}) as Record<string, unknown>;
     const own = path.resolve(claudeDir(env));
     return Object.keys(projects).filter((p) => path.resolve(p, '.claude') !== own);
   } catch {

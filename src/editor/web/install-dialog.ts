@@ -76,7 +76,7 @@ export async function installDialog(): Promise<void> {
               emit('ui');
               emit('config');
               close();
-              toast(r.backup ? 'Installed. Backup saved next to settings.json' : 'Installed in Claude Code');
+              toast(r.backup ? 'Installed. Settings backed up' : 'Installed in Claude Code');
             } catch (e) {
               toast(`Install failed: ${(e as Error).message}`, 'error');
             }

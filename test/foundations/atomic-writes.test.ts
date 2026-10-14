@@ -4,10 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = path.resolve(__dirname, '../..');
 const STORE = 'src/data/store.ts';
-const ALLOWLIST: Record<string, string> = {
-  'src/commands/install.ts':
-    'writeJson and the legacy backup copy; replaced by settings-file.ts in plan 01-10',
-};
+const ALLOWLIST: Record<string, string> = {};
 const RAW = /\b(?:writeFileSync|renameSync)\(/;
 
 function sources(): Map<string, string> {

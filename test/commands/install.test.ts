@@ -17,7 +17,9 @@ import {
   takeOverProjects,
   uninstall,
 } from '../../src/commands/install.js';
+import { backupsDir } from '../../src/commands/settings-file.js';
 import { t } from '../../src/core/i18n/index.js';
+import { claudeSettingsPath } from '../../src/core/paths.js';
 
 const settingsFile = (data: object | null) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-install-'));
@@ -28,21 +30,55 @@ const settingsFile = (data: object | null) => {
 const read = (f: string) => JSON.parse(fs.readFileSync(f, 'utf8'));
 
 describe('install and uninstall', () => {
-  it('backs up once, keeps other settings and restores the previous status line', () => {
+  it('backs up into the config dir, keeps other settings and restores the previous status line', () => {
     const previous = { type: 'command', command: '/usr/bin/ccstatusline', padding: 0 };
-    const file = settingsFile({ model: 'opus', statusLine: previous });
-    expect(install('/bin/ccinfobar', 10, file)).toBe(`${file}.ccinfobar-backup`);
-    install('/bin/ccinfobar', 10, file);
-    expect(read(`${file}.ccinfobar-backup`).statusLine).toEqual(previous);
-    expect(read(file)).toEqual({
-      model: 'opus',
-      statusLine: { type: 'command', command: '/bin/ccinfobar', padding: 0, refreshInterval: 10 },
-    });
-    install('/bin/ccinfobar', undefined, file);
-    expect(read(file).statusLine.refreshInterval).toBe(10);
+    const file = claudeSettingsPath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ model: 'opus', statusLine: previous }));
+    try {
+      const backup = install('/bin/ccinfobar', 10, file);
+      expect(path.dirname(backup ?? '')).toBe(backupsDir());
+      expect(backup).toMatch(/settings-\d{8}T\d{6}Z(-\d+)?\.json$/);
+      expect(read(backup ?? '').statusLine).toEqual(previous);
+      expect(read(path.join(backupsDir(), 'settings-original.json')).statusLine).toEqual(previous);
+      expect(install('/bin/ccinfobar', 10, file)).toBeNull();
+      expect(fs.existsSync(`${file}.ccinfobar-backup`)).toBe(false);
+      expect(read(file)).toEqual({
+        model: 'opus',
+        statusLine: { type: 'command', command: '/bin/ccinfobar', padding: 0, refreshInterval: 10 },
+      });
+      install('/bin/ccinfobar', undefined, file);
+      expect(read(file).statusLine.refreshInterval).toBe(10);
+    } finally {
+      fs.rmSync(file, { force: true });
+    }
+  });
+
+  it('honours a legacy backup on uninstall and leaves it in place', () => {
+    const previous = { type: 'command', command: '/usr/bin/ccstatusline', padding: 0 };
+    const file = settingsFile({ model: 'opus', statusLine: { type: 'command', command: 'ccinfobar' } });
+    const legacy = `${file}.ccinfobar-backup`;
+    fs.writeFileSync(legacy, JSON.stringify({ model: 'opus', statusLine: previous }));
     expect(uninstall(file)).toEqual({ removed: true, restored: previous });
     expect(read(file)).toEqual({ model: 'opus', statusLine: previous });
+    expect(fs.existsSync(legacy)).toBe(true);
     expect(uninstall(file)).toEqual({ removed: false });
+  });
+
+  it('names project backups by a path hash', () => {
+    const file = settingsFile({ model: 'opus' });
+    expect(install('ccinfobar', undefined, file)).toMatch(/project-[0-9a-f]{8}-\d{8}T\d{6}Z(-\d+)?\.json$/);
+    expect(fs.existsSync(`${file}.ccinfobar-backup`)).toBe(false);
+    expect(uninstall(file)).toEqual({ removed: true, restored: null });
+    expect(read(file)).toEqual({ model: 'opus' });
+  });
+
+  it('refuses to touch a settings file that does not parse', () => {
+    const file = settingsFile(null);
+    fs.writeFileSync(file, '{"model": ');
+    expect(() => install('ccinfobar', undefined, file)).toThrow(/Cannot parse/);
+    expect(() => uninstall(file)).toThrow(/Cannot parse/);
+    expect(fs.readFileSync(file, 'utf8')).toBe('{"model": ');
   });
 
   it('removes the file it created when nothing else is left', () => {
