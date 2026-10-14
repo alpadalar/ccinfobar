@@ -16,6 +16,7 @@ import {
   type Owner,
   type Restore,
   readManifest,
+  realKey,
   recordGitExclude,
   recordStatusLine,
   type StatusLineEntry,
@@ -102,9 +103,9 @@ export function currentStatusLine(file = claudeSettingsPath()): StatusLineSettin
 const EMPTY: Manifest = { version: 1, entries: [] };
 const NO_ORIGINAL = { original: false };
 
-function openManifest(): Manifest {
-  const m = readManifest();
-  if (m.readOnly) throw new Error(t('install.manifestReadOnly', { file: manifestFile() }));
+function openManifest(env: NodeJS.ProcessEnv = process.env): Manifest {
+  const m = readManifest(env);
+  if (m.readOnly) throw new Error(t('install.manifestReadOnly', { file: manifestFile(env) }));
   return m;
 }
 
@@ -138,32 +139,104 @@ function legacyPrevious(file: string, command: string | null): StatusLineSetting
   }
 }
 
-export function install(
-  command: string,
-  refreshInterval?: number,
-  file = claudeSettingsPath(),
-): string | null {
-  const m = openManifest();
-  const entry = findStatusLineEntry(m, file);
-  const seen: { owner: Owner; current: StatusLineSetting | null; value: StatusLineSetting | null } = {
-    owner: 'none',
-    current: null,
-    value: null,
+export interface InstallDiff {
+  key: 'refreshInterval' | 'padding';
+  current: number | null;
+  proposed: number | null;
+}
+
+export interface InstallPlan {
+  file: string;
+  real: string;
+  current: StatusLineSetting | null;
+  proposed: StatusLineSetting;
+  owner: Owner;
+  changes: boolean;
+  needsConfirm: boolean;
+  diff: InstallDiff[];
+}
+
+export interface InstallResult {
+  backup: string | null;
+  written: StatusLineSetting;
+  replaced: StatusLineSetting | null;
+  changed: boolean;
+}
+
+export class InstallNeedsConfirmError extends Error {
+  constructor(readonly plan: InstallPlan) {
+    super(t('install.needsConfirm'));
+    this.name = 'InstallNeedsConfirmError';
+  }
+}
+
+function proposal(command: string, owner: Owner, current: StatusLineSetting | null, refresh?: number) {
+  const statusLine: StatusLineSetting = { type: 'command', command, padding: 0 };
+  const r = refresh ?? (isMine(owner) ? current?.refreshInterval : undefined);
+  if (typeof r === 'number' && Number.isFinite(r) && r > 0) statusLine.refreshInterval = Math.floor(r);
+  return statusLine;
+}
+
+const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+function diffOf(current: StatusLineSetting | null, proposed: StatusLineSetting): InstallDiff[] {
+  if (!current) return [];
+  const out: InstallDiff[] = [];
+  for (const key of ['refreshInterval', 'padding'] as const) {
+    const a = num(current[key]);
+    const b = num(proposed[key]);
+    if (a !== b) out.push({ key, current: a, proposed: b });
+  }
+  return out;
+}
+
+// reads only
+export function planInstall(opts: {
+  file?: string;
+  command: string;
+  refresh?: number;
+  env?: NodeJS.ProcessEnv;
+}): InstallPlan {
+  const env = opts.env ?? process.env;
+  const file = opts.file ?? claudeSettingsPath(env);
+  const m = openManifest(env);
+  const current = statusLineOf(readSettings(file).data);
+  const owner = classify(m, file, current, opts.command);
+  const proposed = proposal(opts.command, owner, current, opts.refresh);
+  return {
+    file,
+    real: realKey(file),
+    current,
+    proposed,
+    owner,
+    changes: !deepEqual(current, proposed),
+    needsConfirm: owner === 'foreign' || owner === 'legacy-ask',
+    diff: diffOf(current, proposed),
   };
+}
+
+export function applyInstall(
+  plan: InstallPlan,
+  opts: { confirmed: boolean; adoptLegacy?: boolean; env?: NodeJS.ProcessEnv },
+): InstallResult {
+  if (plan.needsConfirm && !opts.confirmed) throw new InstallNeedsConfirmError(plan);
+  const env = opts.env ?? process.env;
+  const { file, proposed } = plan;
+  const command = proposed.command;
+  const m = openManifest(env);
+  const entry = findStatusLineEntry(m, file);
   const res = patchSettings(
     file,
     (settings) => {
       const current = statusLineOf(settings);
-      const owner = classify(m, file, current, command);
-      const statusLine: StatusLineSetting = { type: 'command', command, padding: 0 };
-      const refresh = refreshInterval ?? (isMine(owner) ? current?.refreshInterval : undefined);
-      if (typeof refresh === 'number' && refresh > 0) statusLine.refreshInterval = Math.floor(refresh);
-      settings.statusLine = statusLine;
-      Object.assign(seen, { owner, current, value: statusLine });
+      if (!deepEqual(current, plan.current) || classify(m, file, current, command) !== plan.owner)
+        throw new InstallNeedsConfirmError(plan);
+      settings.statusLine = structuredClone(proposed);
     },
-    { original: !entry },
+    { original: !entry, env },
   );
-  const { owner, current } = seen;
+  const current = plan.current;
+  const owner: Owner = plan.owner === 'legacy-ask' && opts.adoptLegacy ? 'legacy-ours' : plan.owner;
   const previous =
     owner === 'ours'
       ? (entry?.previous ?? null)
@@ -176,7 +249,7 @@ export function install(
   } else if (owner !== 'legacy-ours') {
     if (!res.existed) restore = { absent: true };
     else if (res.backup && res.beforeHash)
-      restore = { backup: path.relative(configDir(), res.backup), hash: res.beforeHash };
+      restore = { backup: path.relative(configDir(env), res.backup), hash: res.beforeHash };
   }
   const fileExisted = entry
     ? entry.fileExisted
@@ -186,14 +259,23 @@ export function install(
   writeManifest(
     recordStatusLine(m, {
       file: res.real,
-      value: seen.value ?? { type: 'command', command, padding: 0 },
+      value: structuredClone(proposed),
       previous,
       fileExisted,
       restore,
       writtenHash: res.afterHash,
     }),
+    env,
   );
-  return res.backup;
+  return { backup: res.backup, written: proposed, replaced: current, changed: res.changed };
+}
+
+export function install(
+  command: string,
+  refreshInterval?: number,
+  file = claudeSettingsPath(),
+): string | null {
+  return applyInstall(planInstall({ file, command, refresh: refreshInterval }), { confirmed: true }).backup;
 }
 
 export type UninstallStatus =
@@ -453,7 +535,7 @@ export function takeOverProjects(
   for (const root of gsdProjects(env)) {
     try {
       const file = projectSettingsPath(root);
-      install(command, refreshInterval, file);
+      applyInstall(planInstall({ file, command, refresh: refreshInterval, env }), { confirmed: true, env });
       ignoreLocally(file);
       done.push(root);
     } catch {}
