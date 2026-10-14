@@ -347,3 +347,12 @@ export function deleteSettingsFile(
   fs.rmSync(cur.real, { force: true });
   return { changed: true, real: cur.real, backup };
 }
+
+// undo a write unless someone changed the file since
+export function rollbackPatch(file: string, res: PatchResult, env?: NodeJS.ProcessEnv): void {
+  try {
+    const opts = { env, backup: false, ifHash: res.afterHash };
+    if (!res.existed) deleteSettingsFile(file, opts);
+    else if (readSettings(file).hash === res.afterHash) writeSettingsBytes(file, res.beforeBytes, opts);
+  } catch {}
+}

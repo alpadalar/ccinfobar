@@ -29,7 +29,23 @@ export interface GitExcludeEntry {
   at: string;
 }
 
-export type ManifestEntry = StatusLineEntry | GitExcludeEntry | { kind: string; [k: string]: unknown };
+export interface HookEntry {
+  kind: 'hook';
+  file: string;
+  event: string;
+  matcher?: string;
+  value: unknown;
+  claudeCode: string | null;
+  writtenHash: string | null;
+  version: string;
+  at: string;
+}
+
+export type ManifestEntry =
+  | StatusLineEntry
+  | GitExcludeEntry
+  | HookEntry
+  | { kind: string; [k: string]: unknown };
 
 export interface Manifest {
   version: 1;
@@ -204,4 +220,57 @@ export function recordGitExclude(m: Manifest, file: string, line: string): Manif
 export function dropEntry(m: Manifest, file: string, kind: string): Manifest {
   const key = realKey(file);
   return { ...m, entries: m.entries.filter((e) => !(e.kind === kind && sameFile(String(e.file), key))) };
+}
+
+const isHookEntry = (e: ManifestEntry): e is HookEntry =>
+  e.kind === 'hook' && typeof e.file === 'string' && typeof e.event === 'string';
+
+export function findHookEntries(m: Manifest, file: string): HookEntry[] {
+  if (m.readOnly) return [];
+  const key = realKey(file);
+  return m.entries.filter((e): e is HookEntry => isHookEntry(e) && sameFile(e.file, key));
+}
+
+const isHookOf = (e: ManifestEntry, key: string, event: string) =>
+  e.kind === 'hook' && sameFile(String(e.file), key) && e.event === event;
+
+export function recordHook(
+  m: Manifest,
+  e: {
+    file: string;
+    event: string;
+    matcher?: string;
+    value: unknown;
+    claudeCode: string | null;
+    writtenHash: string | null;
+  },
+): Manifest {
+  const file = realKey(e.file);
+  const next: HookEntry = {
+    kind: 'hook',
+    file,
+    event: e.event,
+    ...(e.matcher !== undefined ? { matcher: e.matcher } : {}),
+    value: e.value,
+    claudeCode: e.claudeCode,
+    writtenHash: e.writtenHash,
+    version: VERSION,
+    at: stampNow(),
+  };
+  const rest = m.entries.filter((x) => !isHookOf(x, file, e.event));
+  return { ...m, entries: [...rest, next] };
+}
+
+export function dropHookEntry(m: Manifest, file: string, event: string): Manifest {
+  const key = realKey(file);
+  return { ...m, entries: m.entries.filter((e) => !isHookOf(e, key, event)) };
+}
+
+// D-19: the file's last ccinfobar write is the reference
+export function refreshWrittenHash(m: Manifest, file: string, hash: string | null): Manifest {
+  const key = realKey(file);
+  const entries = m.entries.map((e) =>
+    Object.hasOwn(e, 'writtenHash') && sameFile(String(e.file), key) ? { ...e, writtenHash: hash } : e,
+  );
+  return { ...m, entries };
 }

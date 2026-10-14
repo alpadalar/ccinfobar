@@ -6,6 +6,8 @@ import { applyInstall, planInstall, uninstall } from '../../src/commands/install
 import {
   classifyOwner,
   dropEntry,
+  dropHookEntry,
+  findHookEntries,
   findStatusLineEntry,
   isLegacyCcinfobarCommand,
   type Manifest,
@@ -13,7 +15,9 @@ import {
   owns,
   readManifest,
   recordGitExclude,
+  recordHook,
   recordStatusLine,
+  refreshWrittenHash,
   writeManifest,
 } from '../../src/commands/manifest.js';
 import { settingsFixture } from './fixtures.js';
@@ -286,5 +290,62 @@ describe('uninstall through the manifest', () => {
       if (saved) fs.writeFileSync(file, saved);
       else fs.rmSync(file, { force: true });
     }
+  });
+});
+
+describe('hook entries', () => {
+  const group = (cmd: string) => ({ hooks: [{ type: 'command', command: cmd, async: true, timeout: 5 }] });
+  const hook = (file: string, event: string, cmd = 'ccinfobar hook X') => ({
+    file,
+    event,
+    value: group(cmd),
+    claudeCode: '2.1.299',
+    writtenHash: 'sha256:a',
+  });
+
+  it('replaces the entry for the same event and drops one event only', () => {
+    const { dir } = tmpEnv();
+    const file = path.join(dir, 'settings.json');
+    let m: Manifest = { version: 1, entries: [] };
+    m = recordHook(m, hook(file, 'Stop', 'a'));
+    m = recordHook(m, { ...hook(file, 'Notification'), matcher: 'permission_prompt' });
+    m = recordHook(m, hook(file, 'Stop', 'b'));
+    const found = findHookEntries(m, file);
+    expect(found.map((e) => e.event)).toEqual(['Notification', 'Stop']);
+    expect(found[1]?.value).toEqual(group('b'));
+    expect(found[0]).toMatchObject({ kind: 'hook', matcher: 'permission_prompt', claudeCode: '2.1.299' });
+    expect(Object.hasOwn(found[1] as object, 'matcher')).toBe(false);
+    expect(findHookEntries(dropHookEntry(m, file, 'Stop'), file).map((e) => e.event)).toEqual([
+      'Notification',
+    ]);
+    expect(findHookEntries({ ...m, readOnly: true }, file)).toEqual([]);
+  });
+
+  it('refreshes writtenHash on every entry of that file only', () => {
+    const { dir } = tmpEnv();
+    const file = path.join(dir, 'settings.json');
+    const other = path.join(dir, 'other.json');
+    let m: Manifest = { version: 1, entries: [] };
+    m = recordStatusLine(m, entryFor(file));
+    m = recordHook(m, hook(file, 'Stop'));
+    m = recordHook(m, hook(other, 'Stop'));
+    m = recordGitExclude(m, file, '/x');
+    const next = refreshWrittenHash(m, file, 'sha256:new');
+    expect(findStatusLineEntry(next, file)?.writtenHash).toBe('sha256:new');
+    expect(findHookEntries(next, file)[0]?.writtenHash).toBe('sha256:new');
+    expect(findHookEntries(next, other)[0]?.writtenHash).toBe('sha256:a');
+    const git = next.entries.find((e) => e.kind === 'gitExclude');
+    expect(git && Object.hasOwn(git, 'writtenHash')).toBe(false);
+  });
+
+  it('round-trips hook entries with manifest version 1', () => {
+    const { dir, env } = tmpEnv();
+    const file = path.join(dir, 'settings.json');
+    const m = recordHook(recordStatusLine({ version: 1, entries: [] }, entryFor(file)), hook(file, 'Stop'));
+    writeManifest(m, env);
+    expect(JSON.parse(fs.readFileSync(manifestFile(env), 'utf8')).version).toBe(1);
+    const back = readManifest(env);
+    expect(back.readOnly).toBeUndefined();
+    expect(findHookEntries(back, file)).toEqual(findHookEntries(m, file));
   });
 });

@@ -5,6 +5,7 @@ import { benchMessages } from '../../src/core/i18n/en/bench.js';
 import { configMessages } from '../../src/core/i18n/en/config.js';
 import { doctorMessages } from '../../src/core/i18n/en/doctor.js';
 import { explainMessages } from '../../src/core/i18n/en/explain.js';
+import { hookMessages } from '../../src/core/i18n/en/hooks.js';
 import { en } from '../../src/core/i18n/en/index.js';
 import { installMessages } from '../../src/core/i18n/en/install.js';
 import { previewMessages } from '../../src/core/i18n/en/preview.js';
@@ -54,6 +55,7 @@ describe('en table', () => {
       previewMessages,
       benchMessages,
       widgetMessages,
+      hookMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);
