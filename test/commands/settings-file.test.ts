@@ -215,7 +215,21 @@ describe('settings backups', () => {
     if (posix) expect(fs.statSync(fx.file).mode & 0o777).toBe(0o600);
     expect(writeSettingsBytes(fx.file, Buffer.from('{"x":1}'), { env: fx.env }).changed).toBe(false);
     const del = deleteSettingsFile(fx.file, { env: fx.env });
-    expect(fs.readFileSync(del.backup ?? '', 'utf8')).toBe('{"x":1}');
+    expect(fs.readFileSync(del?.backup ?? '', 'utf8')).toBe('{"x":1}');
     expect(fs.existsSync(fx.file)).toBe(false);
+  });
+
+  it('does not delete a file that changed since it was read', () => {
+    const fx = settingsFixture({ data: { x: 1 } });
+    const read = readSettings(fx.file);
+    fs.writeFileSync(fx.file, '{"x":1,"added":true}');
+    expect(deleteSettingsFile(fx.file, { env: fx.env, ifHash: read.hash })).toBeNull();
+    expect(JSON.parse(fs.readFileSync(fx.file, 'utf8'))).toEqual({ x: 1, added: true });
+    const late = deleteSettingsFile(fx.file, {
+      env: fx.env,
+      beforeRename: () => fs.writeFileSync(fx.file, '{"late":true}'),
+    });
+    expect(late).toBeNull();
+    expect(JSON.parse(fs.readFileSync(fx.file, 'utf8'))).toEqual({ late: true });
   });
 });

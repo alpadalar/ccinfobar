@@ -327,19 +327,27 @@ export function writeSettingsBytes(file: string, bytes: Uint8Array, opts: PatchO
   return { changed: true, real: cur.real, backup };
 }
 
-// a symlinked file is emptied, not unlinked
-export function deleteSettingsFile(file: string, opts: PatchOpts = {}): WriteResult {
+// a symlinked file is emptied, not unlinked; null if it changed since ifHash
+export function deleteSettingsFile(
+  file: string,
+  opts: PatchOpts & { ifHash?: string | null } = {},
+): WriteResult | null {
   const cur = readRaw(file);
   if (!cur.exists) return { changed: false, real: cur.real, backup: null };
+  const expected = opts.ifHash === undefined ? cur.hash : opts.ifHash;
+  if (cur.hash !== expected) return null;
   let link = false;
   try {
     link = fs.lstatSync(file).isSymbolicLink();
   } catch {}
   if (link) {
-    const empty = serialize({}, detectFormat(cur.bytes.toString('utf8')));
-    return writeSettingsBytes(file, Buffer.from(empty, 'utf8'), opts);
+    const empty = Buffer.from(serialize({}, detectFormat(cur.bytes.toString('utf8'))), 'utf8');
+    const backup = commit(cur, empty, opts);
+    return backup === false ? null : { changed: true, real: cur.real, backup };
   }
+  opts.beforeRename?.();
   const backup = takeBackup(cur, opts);
+  if (currentHash(cur.real) !== expected) return null;
   fs.rmSync(cur.real, { force: true });
   return { changed: true, real: cur.real, backup };
 }

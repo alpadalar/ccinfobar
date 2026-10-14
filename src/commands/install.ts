@@ -25,6 +25,7 @@ import {
 import {
   deleteSettingsFile,
   hashBytes,
+  type PatchResult,
   patchSettings,
   readSettings,
   resolveReal,
@@ -271,18 +272,32 @@ export function applyInstall(
     : owner === 'legacy-ours'
       ? legacyBackup(file) !== null
       : res.existed;
-  writeManifest(
-    recordStatusLine(m, {
-      file: res.real,
-      value: structuredClone(proposed),
-      previous,
-      fileExisted,
-      restore,
-      writtenHash: res.afterHash,
-    }),
-    env,
-  );
+  try {
+    writeManifest(
+      recordStatusLine(m, {
+        file: res.real,
+        value: structuredClone(proposed),
+        previous,
+        fileExisted,
+        restore,
+        writtenHash: res.afterHash,
+      }),
+      env,
+    );
+  } catch (err) {
+    if (res.changed) rollback(file, res, env);
+    throw err;
+  }
   return { backup: res.backup, written: proposed, replaced: current, changed: res.changed };
+}
+
+// no manifest entry: undo our write unless someone changed it since
+function rollback(file: string, res: PatchResult, env: NodeJS.ProcessEnv): void {
+  try {
+    const opts = { env, backup: false, ifHash: res.afterHash };
+    if (!res.existed) deleteSettingsFile(file, opts);
+    else if (readSettings(file).hash === res.afterHash) writeSettingsBytes(file, res.beforeBytes, opts);
+  } catch {}
 }
 
 export type UninstallStatus =
@@ -324,10 +339,8 @@ function backupBytes(restore: { backup: string; hash: string }): Buffer | null {
 function restoreExact(file: string, entry: StatusLineEntry, hash: string | null): UninstallStatus | null {
   const r = entry.restore;
   if (!r || !hash || hash !== entry.writtenHash) return null;
-  if ('absent' in r) {
-    deleteSettingsFile(file, NO_ORIGINAL);
-    return 'deleted-file';
-  }
+  if ('absent' in r)
+    return deleteSettingsFile(file, { ...NO_ORIGINAL, ifHash: hash }) ? 'deleted-file' : null;
   const bytes = backupBytes(r);
   if (!bytes) return null;
   writeSettingsBytes(file, bytes, NO_ORIGINAL);
@@ -340,12 +353,11 @@ function restoreKey(
   ours: StatusLineSetting,
   previous: StatusLineSetting | null,
   fileExisted: boolean,
+  hash: string | null,
 ): [UninstallStatus, StatusLineSetting | null] {
   const { statusLine: _, ...rest } = data;
-  if (!previous && !fileExisted && Object.keys(rest).length === 0) {
-    deleteSettingsFile(file, NO_ORIGINAL);
-    return ['deleted-file', null];
-  }
+  const empty = !previous && !fileExisted && Object.keys(rest).length === 0;
+  if (empty && deleteSettingsFile(file, { ...NO_ORIGINAL, ifHash: hash })) return ['deleted-file', null];
   const state = { raced: false };
   patchSettings(
     file,
@@ -395,13 +407,13 @@ export function uninstall(
     if (!deepEqual(sl, entry.value)) return done('foreign', null, sl);
     const exact = restoreExact(file, entry, cur.hash);
     if (exact) return done(exact, exact === 'restored-exact' ? entry.previous : null);
-    return done(...restoreKey(file, cur.data, sl, entry.previous, entry.fileExisted));
+    return done(...restoreKey(file, cur.data, sl, entry.previous, entry.fileExisted, cur.hash));
   }
   if (!sl) return done('not-installed', null, null);
   const owner = classify(m, file, sl, null);
   if (owner === 'legacy-ours' || (owner === 'legacy-ask' && opts.adoptLegacy)) {
     const previous = legacyPrevious(file, null);
-    return done(...restoreKey(file, cur.data, sl, previous, legacyBackup(file) !== null));
+    return done(...restoreKey(file, cur.data, sl, previous, legacyBackup(file) !== null, cur.hash));
   }
   return done('foreign', null, sl);
 }

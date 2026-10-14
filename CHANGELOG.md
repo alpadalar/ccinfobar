@@ -51,6 +51,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - `--option=value` keeps values that contain `=`, such as `--command=FOO=1 ccinfobar`
 - The editor's install preview no longer runs `npm install` before you confirm, and installing or updating from the editor runs npm in the background instead of freezing the editor
 - An editor install confirmation must include the status line it was shown, so a stale or partial request cannot replace a different one
+- `uninstall` no longer deletes a settings file that Claude Code changed after ccinfobar read it; it removes only the statusLine key instead
+- If `manifest.json` cannot be written, `install` puts the settings file back as it was instead of leaving an unrecorded statusLine
 
 ### Security
 
