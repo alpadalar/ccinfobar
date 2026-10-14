@@ -197,7 +197,7 @@ Tests: `test/cli/hook.test.ts`, `test/data/hooks.test.ts`, `test/commands/hooks-
 
 ### Plugin
 
-`.claude-plugin/marketplace.json` lists one plugin with `source: "./plugin"`. `plugin/` holds only `.claude-plugin/plugin.json` and five `skills/<name>/SKILL.md`. Every skill has `disable-model-invocation: true`, `allowed-tools: Bash(ccinfobar *)` and a ``!`ccinfobar --version || echo ccinfobar-missing` `` preflight, stops when that (or the `npx ccinfobar@latest --version` it runs before installing) prints 0.6.2 or lower, and only runs `ccinfobar` commands. There are no commands, hooks, agents, bin, MCP or settings in the plugin.
+`.claude-plugin/marketplace.json` lists one plugin with `source: "./plugin"`. `plugin/` holds only `.claude-plugin/plugin.json` and five `skills/<name>/SKILL.md`. Every skill has `disable-model-invocation: true`, an `allowed-tools` list that pre-approves only read-only commands (`ccinfobar --version`, the dry runs, `doctor`, `edit --detach`, `themes --list`, `theme <id>`; never `--yes` or `uninstall`, so those always ask) and a ``!`ccinfobar --version || echo ccinfobar-missing` `` preflight, stops when that (or the `npx ccinfobar@latest --version` it runs before installing) prints 0.6.2 or lower, and only runs `ccinfobar` commands. There are no commands, hooks, agents, bin, MCP or settings in the plugin.
 
 `claude plugin validate --strict` checks the schema but not these rules, so `test/plugin/structure.test.ts` pins them: the manifest shape, the five skill dirs, no forbidden paths, no `"statusLine"` key or `CLAUDE_PLUGIN_ROOT`, the exact frontmatter, the preflight, the version gate and each skill's commands in order.
 

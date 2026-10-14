@@ -1,7 +1,7 @@
 ---
 description: Check the ccinfobar setup and explain any problems
 disable-model-invocation: true
-allowed-tools: Bash(ccinfobar *)
+allowed-tools: Bash(ccinfobar --version), Bash(ccinfobar doctor)
 ---
 ccinfobar check: !`ccinfobar --version || echo ccinfobar-missing`
 

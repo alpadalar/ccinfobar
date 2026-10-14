@@ -1,7 +1,7 @@
 ---
 description: Open the ccinfobar status line editor in your browser
 disable-model-invocation: true
-allowed-tools: Bash(ccinfobar *)
+allowed-tools: Bash(ccinfobar --version), Bash(ccinfobar edit --detach)
 ---
 ccinfobar check: !`ccinfobar --version || echo ccinfobar-missing`
 

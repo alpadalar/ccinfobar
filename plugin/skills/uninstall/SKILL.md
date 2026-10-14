@@ -1,7 +1,7 @@
 ---
 description: Remove the ccinfobar status line and hooks from Claude Code
 disable-model-invocation: true
-allowed-tools: Bash(ccinfobar *)
+allowed-tools: Bash(ccinfobar --version)
 ---
 ccinfobar check: !`ccinfobar --version || echo ccinfobar-missing`
 

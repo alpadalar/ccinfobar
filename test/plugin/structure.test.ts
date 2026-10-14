@@ -6,6 +6,14 @@ const root = path.resolve(__dirname, '../..');
 const pluginDir = path.join(root, 'plugin');
 const marketDir = path.join(root, '.claude-plugin');
 const SKILLS = ['doctor', 'edit', 'install', 'theme', 'uninstall'];
+const ALLOWED: Record<string, string> = {
+  doctor: 'Bash(ccinfobar --version), Bash(ccinfobar doctor)',
+  edit: 'Bash(ccinfobar --version), Bash(ccinfobar edit --detach)',
+  install:
+    'Bash(ccinfobar --version), Bash(ccinfobar install --hooks --dry-run), Bash(ccinfobar install --dry-run)',
+  theme: 'Bash(ccinfobar --version), Bash(ccinfobar themes --list), Bash(ccinfobar theme *)',
+  uninstall: 'Bash(ccinfobar --version)',
+};
 const PREFLIGHT = 'ccinfobar check: !`ccinfobar --version || echo ccinfobar-missing`';
 const PLUGIN_KEYS = [
   'name',
@@ -120,8 +128,8 @@ describe('skills', () => {
       const { meta, body } = skill(id);
       expect(meta.description).toBeTruthy();
       expect(meta['disable-model-invocation']).toBe('true');
-      expect(meta['allowed-tools']).toBe('Bash(ccinfobar *)');
-      expect(meta['allowed-tools']).not.toMatch(/npx/);
+      expect(meta['allowed-tools']).toBe(ALLOWED[id]);
+      expect(meta['allowed-tools']).not.toMatch(/npx|--yes|uninstall|ccinfobar \*/);
       if (id === 'theme' || id === 'install') expect(meta['argument-hint']).toBeTruthy();
       else expect(meta).not.toHaveProperty('argument-hint');
       expect(Object.keys(meta).sort()).toEqual(

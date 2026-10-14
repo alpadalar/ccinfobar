@@ -1,7 +1,7 @@
 ---
 description: Switch the ccinfobar theme
 disable-model-invocation: true
-allowed-tools: Bash(ccinfobar *)
+allowed-tools: Bash(ccinfobar --version), Bash(ccinfobar themes --list), Bash(ccinfobar theme *)
 argument-hint: "[theme-id]"
 ---
 ccinfobar check: !`ccinfobar --version || echo ccinfobar-missing`

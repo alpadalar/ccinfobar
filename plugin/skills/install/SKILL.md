@@ -1,7 +1,7 @@
 ---
 description: Install the ccinfobar status line and its optional hooks
 disable-model-invocation: true
-allowed-tools: Bash(ccinfobar *)
+allowed-tools: Bash(ccinfobar --version), Bash(ccinfobar install --hooks --dry-run), Bash(ccinfobar install --dry-run)
 argument-hint: "[--no-hooks]"
 ---
 ccinfobar check: !`ccinfobar --version || echo ccinfobar-missing`
