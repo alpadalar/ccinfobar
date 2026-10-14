@@ -8,7 +8,8 @@ const repo = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const pkg = JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8'));
 const win = process.platform === 'win32';
 const argv = process.argv.slice(2);
-const onlyCase = argv.includes('--case') ? argv[argv.indexOf('--case') + 1] : null;
+const caseArg = argv.includes('--case') ? (argv[argv.indexOf('--case') + 1] ?? '') : null;
+const onlyCase = caseArg?.startsWith('--') ? '' : caseArg;
 const skipBuild = argv.includes('--skip-build');
 const MAX_OUT = 4000;
 
@@ -559,9 +560,9 @@ function pack(npm, packDir, env) {
 }
 
 function main() {
-  const cases = CASES.filter((c) => !onlyCase || c.name === onlyCase);
+  const cases = CASES.filter((c) => onlyCase === null || c.name === onlyCase);
   if (!cases.length) {
-    console.error(`unknown case ${onlyCase}; use a..g`);
+    console.error(onlyCase ? `unknown case ${onlyCase}; use a..g` : '--case needs a name, a..g');
     process.exit(2);
   }
   console.log(`ccinfobar ${pkg.version} clean install on ${process.platform}, node ${process.version}`);

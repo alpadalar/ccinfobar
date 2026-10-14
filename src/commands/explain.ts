@@ -416,6 +416,20 @@ export function runExplain(args: Args, cfgFile: string, io: CliIo = cliIo()): vo
     process.exitCode = 1;
     return;
   }
+  const w = args.flags.width;
+  const widthFlag =
+    typeof w === 'string' && w.trim() ? Number(w) : w === undefined || w === false ? undefined : Number.NaN;
+  const badFlag =
+    args.flags.payload === true
+      ? t('explain.payloadMissing')
+      : widthFlag !== undefined && !(Number.isFinite(widthFlag) && widthFlag > 0)
+        ? t('explain.badWidth')
+        : null;
+  if (badFlag) {
+    io.error(badFlag);
+    process.exitCode = 1;
+    return;
+  }
   if (flag.kind === 'scenario' && args.flags.payload !== undefined && args.flags.payload !== false) {
     io.error(t('explain.scenarioWithPayload'));
     process.exitCode = 1;
@@ -426,7 +440,6 @@ export function runExplain(args: Args, cfgFile: string, io: CliIo = cliIo()): vo
     process.exitCode = 1;
     return;
   }
-  const widthFlag = typeof args.flags.width === 'string' ? Number(args.flags.width) : undefined;
   let data: InspectInput | null;
   try {
     data = loadInspectInput({
@@ -434,7 +447,7 @@ export function runExplain(args: Args, cfgFile: string, io: CliIo = cliIo()): vo
       loaded,
       ...(typeof args.flags.payload === 'string' ? { payloadFile: args.flags.payload } : {}),
       ...(flag.kind === 'scenario' ? { scenario: flag.id } : {}),
-      ...(widthFlag && Number.isFinite(widthFlag) ? { width: widthFlag } : {}),
+      ...(widthFlag !== undefined ? { width: widthFlag } : {}),
       fallback: 'sample',
     });
   } catch (e) {

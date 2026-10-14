@@ -18,11 +18,11 @@ All notable changes to this project are documented here. The format follows [Kee
 - `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` (when set and non-empty) stops the background update check and the background usage fetch; `ccinfobar update` and `ccinfobar usage` still work on demand, and `ccinfobar doctor` says when it is on
 - `-y` as a short form of `--yes`, and `--` to end option parsing (for example `-- -1`)
 - `ccinfobar explain [widget-id]` lists every widget with its current value, where it came from (payload field, cache and its age, git, GSD or another data source) and why it is empty, including which payload field Claude Code did not send and which Claude Code version adds it (`prompt_cache` 2.1.251+, `last_miss_cause` 2.1.260+); a widget id prints details for one widget
-- `ccinfobar explain --json` prints one sanitized JSON object for bug reports, with `env` and `command` widget values replaced by `<redacted N chars>`; `--scenario <name>` or `--payload <file>` picks the input (not both), and a broken config makes it exit 1
+- `ccinfobar explain --json` prints one sanitized JSON object for bug reports, with `env` and `command` widget values replaced by `<redacted N chars>`; `--scenario <name>` or `--payload <file>` picks the input (not both), and a broken config, a bare `--payload` or a `--width` that is not a positive number makes it exit 1
 - `explain` also redacts `env` and `command` values in its text output, and `explain <widget-id>` prints text options (such as a `command` string or a `link` URL) as `<N chars>`; `--show-values` shows them, only in a terminal and never in `--json`
 - `ccinfobar preview --scenario <name>` renders seven named situations (fresh session, context nearly full, near 5h limit, many subagents, GSD project, no git repo, API key user); a bare `--scenario` lists them
 - The web editor's preview has a Scenario picker next to Sample data / Last session
-- `ccinfobar bench` measures cold and warm render time (median, p95) against a `node -e 0` control (`--runs <n>`, `--scenario <name>` for a scenario's payload and env, `--json`); the method and a baseline are in docs/DEVELOPMENT.md
+- `ccinfobar bench` measures cold and warm render time (median, p95) against a `node -e 0` control (`--runs <n>`, where a missing or non-numeric value is an error, `--scenario <name>` for a scenario's payload and env, `--json`); the method and a baseline are in docs/DEVELOPMENT.md
 - CI installs the packed package into an empty profile on Linux, macOS and Windows, renders through the exact settings command in every shell, and checks that uninstall restores the settings file byte for byte and leaves no process behind
 
 ### Changed

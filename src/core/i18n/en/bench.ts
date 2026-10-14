@@ -24,5 +24,6 @@ export const benchMessages = {
   'bench.row.warmNoCache': 'warm, compile cache off',
   'bench.overhead': 'ccinfobar overhead = warm median − control median = {ms} ms',
   'bench.failed': 'Bench run "{row}" failed with exit {code}',
+  'bench.badRuns': '--runs needs a number from 1 to 1000',
   'bench.noEntry': 'Bench cannot find the ccinfobar entry script to run.',
 } as const;

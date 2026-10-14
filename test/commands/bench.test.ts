@@ -7,8 +7,8 @@ import {
   benchBaseEnv,
   benchEnv,
   benchPayload,
-  clampRuns,
   overhead,
+  parseRuns,
   runBench,
   runBenchCommand,
   stats,
@@ -40,16 +40,31 @@ describe('stats', () => {
   });
 });
 
-describe('clampRuns', () => {
+describe('parseRuns', () => {
   it('defaults, floors and clamps', () => {
-    expect(clampRuns(undefined)).toBe(20);
-    expect(clampRuns(true)).toBe(20);
-    expect(clampRuns(false)).toBe(20);
-    expect(clampRuns('0')).toBe(1);
-    expect(clampRuns('5000')).toBe(1000);
-    expect(clampRuns('abc')).toBe(20);
-    expect(clampRuns('7.9')).toBe(7);
-    expect(clampRuns('-3')).toBe(1);
+    expect(parseRuns(undefined)).toBe(20);
+    expect(parseRuns(false)).toBe(20);
+    expect(parseRuns('0')).toBe(1);
+    expect(parseRuns('5000')).toBe(1000);
+    expect(parseRuns('7.9')).toBe(7);
+    expect(parseRuns('-3')).toBe(1);
+  });
+
+  it('rejects a bare or non-numeric value', () => {
+    expect(parseRuns(true)).toBeNull();
+    expect(parseRuns('abc')).toBeNull();
+    expect(parseRuns(' ')).toBeNull();
+  });
+
+  it('makes bench exit 1 with a message', () => {
+    for (const argv of [['--runs'], ['--runs', 'x'], ['--runs', '-5']]) {
+      process.exitCode = undefined;
+      const c = capture();
+      runBenchCommand(parseArgs(['bench', ...argv]), cfg(), c.io);
+      expect(c.err).toEqual([t('bench.badRuns')]);
+      expect(c.out).toEqual([]);
+      expect(process.exitCode).toBe(1);
+    }
   });
 });
 

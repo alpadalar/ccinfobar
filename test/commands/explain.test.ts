@@ -168,6 +168,26 @@ describe('runExplain input', () => {
     }
   });
 
+  it('refuses a bare --payload and a bad --width', () => {
+    const cases: [string[], string][] = [
+      [['--payload'], t('explain.payloadMissing')],
+      [['--width', 'abc'], t('explain.badWidth')],
+      [['--width', '0'], t('explain.badWidth')],
+      [['--width'], t('explain.badWidth')],
+      [['--width=-5'], t('explain.badWidth')],
+    ];
+    for (const [argv, msg] of cases) {
+      process.exitCode = undefined;
+      const { out, err } = run(argv);
+      expect(out).toEqual([]);
+      expect(err).toEqual([msg]);
+      expect(process.exitCode).toBe(1);
+    }
+    process.exitCode = undefined;
+    expect(run(['--width', '90']).out).toContain(t('explain.width', { width: 90 }));
+    expect(process.exitCode).toBeUndefined();
+  });
+
   it('reports a bad payload file', () => {
     const file = path.join(dir, 'bad.json');
     fs.writeFileSync(file, '[1]');

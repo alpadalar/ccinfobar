@@ -42,10 +42,12 @@ export function overhead(warm: Stats, control: Stats): number {
   return warm.median - control.median;
 }
 
-export function clampRuns(v: string | boolean | undefined): number {
-  if (typeof v !== 'string' || v.trim() === '') return 20;
+// null for a bare or non-numeric --runs
+export function parseRuns(v: string | boolean | undefined): number | null {
+  if (v === undefined || v === false) return 20;
+  if (typeof v !== 'string' || v.trim() === '') return null;
   const n = Number(v);
-  if (!Number.isFinite(n)) return 20;
+  if (!Number.isFinite(n)) return null;
   return Math.min(1000, Math.max(1, Math.floor(n)));
 }
 
@@ -394,9 +396,15 @@ function report(
 
 export function runBenchCommand(args: Args, cfgFile: string, io: CliIo = cliIo()): void {
   const scenario = args.flags.scenario;
+  const runs = parseRuns(args.flags.runs);
+  if (runs === null) {
+    io.error(t('bench.badRuns'));
+    process.exitCode = 1;
+    return;
+  }
   const code = runBench(
     {
-      runs: clampRuns(args.flags.runs),
+      runs,
       ...(scenario === true ? { scenario: '' } : typeof scenario === 'string' ? { scenario } : {}),
       json: args.flags.json === true,
       cfgFile,
