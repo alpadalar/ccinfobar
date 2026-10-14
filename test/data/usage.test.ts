@@ -71,16 +71,16 @@ describe('usage api', () => {
 
   it('asks only when limit widgets lack data and the cache is stale', () => {
     const config = defaultConfig();
-    expect(needsUsage(config, {})).toBe(true);
+    expect(needsUsage(config, {}, {})).toBe(true);
     expect(
       needsUsage(config, {
         rate_limits: { five_hour: { used_percentage: 1 }, seven_day: { used_percentage: 1 } },
       }),
     ).toBe(false);
-    expect(needsUsage({ ...config, lines: [[{ id: 'm', type: 'model' }]] }, {})).toBe(false);
+    expect(needsUsage({ ...config, lines: [[{ id: 'm', type: 'model' }]] }, {}, {})).toBe(false);
     const full = { five_hour: { used_percentage: 1 }, seven_day: { used_percentage: 1 } };
     const model = { ...config, lines: [[{ id: 'f', type: 'weekly-model-usage' }]] };
-    expect(needsUsage(model, { rate_limits: full })).toBe(true);
+    expect(needsUsage(model, { rate_limits: full }, {})).toBe(true);
     expect(usageDue(null, NOW)).toBe(true);
     expect(usageDue({ fetchedAt: NOW - 60_000 }, NOW)).toBe(false);
     expect(usageDue({ fetchedAt: NOW - 200_000 }, NOW)).toBe(true);

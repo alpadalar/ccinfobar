@@ -6,6 +6,7 @@ import { spawnSelf } from '../commands/update.js';
 import { cacheDir, claudeDir } from '../core/paths.js';
 import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
+import { detectProvider } from './provider.js';
 
 type RateLimits = NonNullable<StatusPayload['rate_limits']>;
 
@@ -51,7 +52,12 @@ export function usageApiDisabled(config: Config, env: NodeJS.ProcessEnv = proces
   return !config.usageApi || !!env.CCINFOBAR_NO_USAGE_API;
 }
 
-export function needsUsage(config: Config, payload: StatusPayload): boolean {
+export function needsUsage(
+  config: Config,
+  payload: StatusPayload,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (!detectProvider(env).planLimits) return false;
   const r = payload.rate_limits;
   const types = config.lines.flat().map((i) => i.type);
   if (types.some((t) => /^weekly-(model|sonnet|opus)-/.test(t)) && !r?.seven_day_models) return true;
