@@ -1,10 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { configWarnings, runDoctor } from '../../src/commands/doctor.js';
+import { commandWarnings, configWarnings, runDoctor } from '../../src/commands/doctor.js';
+import { install } from '../../src/commands/install.js';
+import { manifestFile, readManifest } from '../../src/commands/manifest.js';
+import { backupsDir } from '../../src/commands/settings-file.js';
 import { inspectConfigText } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
-import { configDir } from '../../src/core/paths.js';
+import { cacheDir, claudeSettingsPath, configDir, tildify } from '../../src/core/paths.js';
 
 const cfgFile = (name: string, text: string) => {
   const dir = configDir();
@@ -24,7 +27,15 @@ const capture = (fn: () => void): string[] => {
   }
 };
 
-afterEach(() => vi.restoreAllMocks());
+const reset = () => {
+  fs.rmSync(claudeSettingsPath(), { force: true });
+  fs.rmSync(manifestFile(), { force: true });
+};
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  reset();
+});
 
 describe('configWarnings', () => {
   it('lists unknown widget types and unsupported option values', () => {
@@ -89,8 +100,81 @@ describe('runDoctor config report', () => {
   });
 
   it('reads a config with a BOM', () => {
-    const file = cfgFile('bom.json', `﻿${JSON.stringify({ lines: [[{ type: 'no-such' }]] })}`);
+    const file = cfgFile('bom.json', `\uFEFF${JSON.stringify({ lines: [[{ type: 'no-such' }]] })}`);
     const out = capture(() => runDoctor(file));
     expect(out).toContain(t('doctor.unknownWidget', { type: 'no-such', line: 1 }));
+  });
+});
+
+describe('commandWarnings', () => {
+  it('warns on win32 about backslashes and a quoted first token', () => {
+    expect(commandWarnings('C:\\Users\\a\\npm\\ccinfobar.cmd', 'win32')).toEqual([t('doctor.winCommand')]);
+    expect(commandWarnings('"C:/x y/ccinfobar"', 'win32')).toEqual([t('doctor.winCommand')]);
+    expect(commandWarnings("  'C:/x y/ccinfobar'", 'win32')).toEqual([t('doctor.winCommand')]);
+    expect(commandWarnings('ccinfobar', 'win32')).toEqual([]);
+    expect(commandWarnings('C:\\x', 'linux')).toEqual([]);
+  });
+});
+
+describe('runDoctor install report', () => {
+  const plain = () => cfgFile('plain.json', JSON.stringify({ lines: [[{ type: 'model' }]] }));
+
+  it('prints git hardening off', () => {
+    const file = cfgFile('hard.json', JSON.stringify({ gitHardening: false, lines: [] }));
+    expect(capture(() => runDoctor(file))).toContain(t('doctor.gitHardeningOff'));
+    expect(capture(() => runDoctor(plain()))).not.toContain(t('doctor.gitHardeningOff'));
+  });
+
+  it('reports the manifest, backups and manifest ownership', () => {
+    install('/opt/bin/ccinfobar', undefined, claudeSettingsPath());
+    const m = readManifest();
+    expect(m.entries).toHaveLength(1);
+    const out = capture(() => runDoctor(plain()));
+    expect(out).toContain(t('doctor.manifest', { file: tildify(manifestFile()), count: 1 }));
+    const entry = m.entries[0]!;
+    expect(out).toContain(t('doctor.manifestEntry', { kind: entry.kind, file: tildify(String(entry.file)) }));
+    expect(out).toContain(t('doctor.backups', { dir: tildify(backupsDir()) }));
+    expect(
+      out.some((l) => l.startsWith('✓ Claude Code statusLine') && l.includes('/opt/bin/ccinfobar')),
+    ).toBe(true);
+  });
+
+  it('does not claim a foreign statusLine that mentions ccinfobar', () => {
+    const file = claudeSettingsPath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ statusLine: { type: 'command', command: 'bash -c "ccinfobar | x"' } }),
+    );
+    const out = capture(() => runDoctor(plain()));
+    expect(out.some((l) => l.startsWith('✗ Claude Code statusLine'))).toBe(true);
+    expect(out.some((l) => l.startsWith('✓ Claude Code statusLine'))).toBe(false);
+  });
+
+  it('still treats a legacy ccinfobar command as ours', () => {
+    const file = claudeSettingsPath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ statusLine: { type: 'command', command: 'ccinfobar' } }));
+    const out = capture(() => runDoctor(plain()));
+    expect(out.some((l) => l.startsWith('✓ Claude Code statusLine'))).toBe(true);
+  });
+
+  it('sweeps stale temp files from the cache dir', () => {
+    const dir = cacheDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const stale = path.join(dir, 'x.json.1.abcd1234.tmp');
+    const fresh = path.join(dir, 'y.json.1.abcd1234.tmp');
+    const other = path.join(dir, 'keep.json');
+    for (const f of [stale, fresh, other]) fs.writeFileSync(f, '{}');
+    const old = new Date(Date.now() - 2 * 3_600_000);
+    fs.utimesSync(stale, old, old);
+    fs.utimesSync(other, old, old);
+    const out = capture(() => runDoctor(plain()));
+    expect(out).toContain(t('doctor.tmpPruned', { count: 1 }));
+    expect(fs.existsSync(stale)).toBe(false);
+    expect(fs.existsSync(fresh)).toBe(true);
+    expect(fs.existsSync(other)).toBe(true);
+    fs.rmSync(fresh);
+    expect(capture(() => runDoctor(plain())).some((l) => l.includes('stale temp'))).toBe(false);
   });
 });

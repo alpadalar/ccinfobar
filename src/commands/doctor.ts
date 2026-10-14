@@ -9,6 +9,7 @@ import { readLastPayload } from '../core/preview.js';
 import { maxLineWidth, renderLine, renderPart, renderValue, resolveAppearance } from '../core/renderer.js';
 import type { Config, OptionSpec, RenderContext, StatusPayload, WidgetItem } from '../core/types.js';
 import { VERSION } from '../core/version.js';
+import { pruneTmp } from '../data/store.js';
 import { terminalWidth } from '../data/terminal.js';
 import {
   availableUpdate,
@@ -20,6 +21,8 @@ import {
 import { mergeUsage, readUsageCache, usageApiDisabled } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
 import { currentStatusLine, projectOverride } from './install.js';
+import { classifyOwner, manifestFile, owns, readManifest } from './manifest.js';
+import { backupsDir } from './settings-file.js';
 
 export { hasReplies } from '../core/payload.js';
 
@@ -109,6 +112,12 @@ function rawConfig(file: string): unknown {
   } catch {
     return null;
   }
+}
+
+export function commandWarnings(command: string, platform: NodeJS.Platform = process.platform): string[] {
+  if (platform !== 'win32') return [];
+  const first = command.trimStart()[0];
+  return command.includes('\\') || first === '"' || first === "'" ? [t('doctor.winCommand')] : [];
 }
 
 export function sessionNotes(p: StatusPayload): string[] {
@@ -226,7 +235,10 @@ export function runDoctor(cfgFile: string): void {
       return null;
     }
   })();
-  const usesUs = !!sl?.command?.includes('ccinfobar');
+  const settingsFile = claudeSettingsPath();
+  const manifest = readManifest();
+  const usesUs =
+    owns(manifest, settingsFile, sl) || classifyOwner(manifest, settingsFile, sl, null) === 'legacy-ours';
   const nodeMajor = Number(process.versions.node.split('.')[0]);
   console.log(`ccinfobar ${VERSION}`);
   console.log(`${ok(nodeMajor >= 20)} Node.js ${process.versions.node} (needs 20+)`);
@@ -239,8 +251,17 @@ export function runDoctor(cfgFile: string): void {
   } else if (loaded.error) console.log(`  ${loaded.error}`);
   else if (loaded.exists) for (const w of configWarnings(rawConfig(loaded.path))) console.log(w);
   console.log(
-    `${ok(usesUs)} Claude Code statusLine in ${tildify(claudeSettingsPath())}: ${sl?.command ?? 'not set'}`,
+    `${ok(usesUs)} Claude Code statusLine in ${tildify(settingsFile)}: ${sl?.command ?? 'not set'}`,
   );
+  if (typeof sl?.command === 'string') for (const w of commandWarnings(sl.command)) console.log(w);
+  if (manifest.readOnly) console.log(`⚠ ${t('install.manifestReadOnly', { file: tildify(manifestFile()) })}`);
+  else {
+    console.log(t('doctor.manifest', { file: tildify(manifestFile()), count: manifest.entries.length }));
+    for (const e of manifest.entries) {
+      console.log(t('doctor.manifestEntry', { kind: e.kind, file: tildify(String(e.file)) }));
+    }
+  }
+  console.log(t('doctor.backups', { dir: tildify(backupsDir()) }));
   const dirs = new Set([process.cwd()]);
   const last = readLastPayload();
   const lastDir = last?.workspace?.project_dir ?? last?.workspace?.current_dir ?? last?.cwd;
@@ -253,9 +274,12 @@ export function runDoctor(cfgFile: string): void {
   }
   console.log(`${ok(fs.existsSync(lastPayloadPath()))} Last payload ${tildify(lastPayloadPath())}`);
   console.log(`  Cache dir ${tildify(cacheDir())}`);
+  const pruned = pruneTmp(cacheDir(), 3_600_000);
+  if (pruned > 0) console.log(t('doctor.tmpPruned', { count: pruned }));
   console.log(`  Detected width ${terminalWidth(undefined) ?? 'unknown'}`);
   const upd = readUpdateState();
   const newer = availableUpdate(VERSION);
+  if (loaded.config.gitHardening === false) console.log(t('doctor.gitHardeningOff'));
   if (updatesDisabled(loaded.config)) console.log('  Update checks off');
   else if (newer) console.log(`✗ Update available: ${VERSION} → ${newer} (run \`ccinfobar update\`)`);
   else {
