@@ -12,6 +12,7 @@ export interface WidgetInfo {
   options: OptionSpec[];
   sample?: string;
   hidden?: boolean;
+  timeBased?: boolean;
 }
 
 export type StyleId = 'text' | 'blocks' | 'powerline' | 'capsule' | 'tui';

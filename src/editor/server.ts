@@ -183,6 +183,7 @@ function widgetCatalog() {
     options: w.options ?? [],
     sample: w.sample,
     hidden: w.hidden ?? false,
+    timeBased: w.timeBased === true,
   }));
 }
 

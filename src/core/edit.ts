@@ -295,6 +295,19 @@ export function needsRefresh(
   return [...out].sort();
 }
 
+export type RefreshFeed = (config: Config) => string[];
+
+export function refreshReasons(
+  config: Config,
+  isTimeBased: (type: string) => boolean,
+  feeds: RefreshFeed[] = [],
+  extra: Iterable<string> = [],
+): { widgets: string[]; rules: string[] } {
+  const rules = new Set<string>();
+  for (const f of feeds) for (const r of f(config)) rules.add(r);
+  return { widgets: needsRefresh(config, isTimeBased, extra), rules: [...rules].sort() };
+}
+
 export function setBudget(config: Config, key: keyof BudgetConfig, value: number | undefined): Config {
   const budget: BudgetConfig = { ...config.budget };
   const ok = typeof value === 'number' && Number.isFinite(value) && (key === 'warnAt' || value > 0);

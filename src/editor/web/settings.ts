@@ -1,5 +1,6 @@
-import { setBudget } from '../../core/edit.js';
+import { REFRESH_SUGGEST, refreshReasons, setBudget } from '../../core/edit.js';
 import { t } from '../../core/i18n/index.js';
+import { titleWidgets } from '../../core/panel.js';
 import { api } from './api.js';
 import { clear, h } from './dom.js';
 import { field, numberInput, segmented, textInput, toggle } from './inspector.js';
@@ -98,6 +99,45 @@ export async function openSettings(): Promise<void> {
     return out;
   }
 
+  async function openInstall(dialog: Promise<void>) {
+    await dialog;
+    info = await api.system().catch(() => info);
+    render();
+  }
+
+  function refreshWarning(cl: typeof S.api.claude): HTMLElement[] {
+    if (cl.statusLine?.refreshInterval) return [];
+    const c = S.config;
+    const why = refreshReasons(
+      c,
+      (type) => S.widgetMap.get(type)?.timeBased === true,
+      [],
+      c.tui ? titleWidgets(c.tui) : [],
+    );
+    const list = [...why.widgets, ...why.rules];
+    if (!list.length) return [];
+    return [
+      h(
+        'div',
+        { class: 'hint warn' },
+        `These widgets only update when Claude Code refreshes the status line: ${list.join(', ')}. Claude Code does not refresh it on hook events or while a permission dialog is open.`,
+      ),
+      h(
+        'div',
+        { class: 'row-inline' },
+        h(
+          'button',
+          {
+            class: 'btn',
+            type: 'button',
+            onClick: () => openInstall(installDialog({ refresh: REFRESH_SUGGEST })),
+          },
+          'Use 5 s refresh',
+        ),
+      ),
+    ];
+  }
+
   function render() {
     clear(body);
     const c = S.config;
@@ -138,15 +178,12 @@ export async function openSettings(): Promise<void> {
             {
               class: `btn${cl.installed ? '' : ' primary'}`,
               type: 'button',
-              onClick: async () => {
-                await installDialog();
-                info = await api.system().catch(() => info);
-                render();
-              },
+              onClick: () => openInstall(installDialog()),
             },
             cl.installed ? 'Change command or refresh' : 'Install in Claude Code',
           ),
         ),
+        ...refreshWarning(cl),
         ...hooksFields(),
       ),
       section(

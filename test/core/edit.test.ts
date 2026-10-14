@@ -11,6 +11,7 @@ import {
   needsRefresh,
   REFRESH_SUGGEST,
   recordStyles,
+  refreshReasons,
   removeItem,
   removeLine,
   setBudget,
@@ -236,5 +237,19 @@ describe('needsRefresh', () => {
     expect(needsRefresh(cfg([]), isTimed)).toEqual([]);
     expect(needsRefresh(cfg([['model']]), isTimed, new Set(['git-branch']))).toEqual([]);
     expect(REFRESH_SUGGEST).toBe(5);
+  });
+
+  it('refreshReasons lists widgets and fed rules', () => {
+    const c = cfg([['model', 'turn-timer']]);
+    expect(refreshReasons(c, isTimed)).toEqual({ widgets: ['turn-timer'], rules: [] });
+    expect(refreshReasons(c, isTimed, [() => ['rule b', 'rule a'], () => ['rule a']])).toEqual({
+      widgets: ['turn-timer'],
+      rules: ['rule a', 'rule b'],
+    });
+    expect(refreshReasons(cfg([]), isTimed)).toEqual({ widgets: [], rules: [] });
+    expect(refreshReasons(cfg([['model']]), isTimed, [], ['clock'])).toEqual({
+      widgets: ['clock'],
+      rules: [],
+    });
   });
 });

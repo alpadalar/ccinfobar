@@ -113,6 +113,8 @@ describe('editor server', () => {
     expect(s.widgets[0]).toHaveProperty('type');
     expect(s.widgets[0]).not.toHaveProperty('render');
     expect(Array.isArray(s.widgets[0].options)).toBe(true);
+    const timed = (type: string) => s.widgets.find((w: { type: string }) => w.type === type)?.timeBased;
+    expect([timed('turn-timer'), timed('clock'), timed('model')]).toEqual([true, true, false]);
     expect(s.categories.length).toBeGreaterThan(0);
     expect(s.presets[0]).toHaveProperty('config');
     expect(Array.isArray(s.themes)).toBe(true);

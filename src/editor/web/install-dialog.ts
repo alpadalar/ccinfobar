@@ -4,7 +4,7 @@ import { clear, h } from './dom.js';
 import { emit, isDirty, S } from './store.js';
 import { modal, toast } from './ui.js';
 
-export async function installDialog(): Promise<void> {
+export async function installDialog(opts: { refresh?: number } = {}): Promise<void> {
   const claude = S.api.claude;
   const cmd = h('input', {
     class: 'input mono',
@@ -18,7 +18,11 @@ export async function installDialog(): Promise<void> {
     min: '0',
     step: '1',
     placeholder: 'off',
-    value: claude.statusLine?.refreshInterval ? String(claude.statusLine.refreshInterval) : '',
+    value: opts.refresh
+      ? String(opts.refresh)
+      : claude.statusLine?.refreshInterval
+        ? String(claude.statusLine.refreshInterval)
+        : '',
   });
   const preview = h('pre', { class: 'code-preview' });
   const update = () => {
