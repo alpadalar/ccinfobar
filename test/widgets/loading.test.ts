@@ -105,3 +105,50 @@ describe('loading placeholder for context and token widgets', () => {
     expect(normalizeConfig({ version: 1, lines: [[]], loadingText: '' }).loadingText).toBe('');
   });
 });
+
+describe('loading placeholder for plan-limit widgets', () => {
+  const LIMITS = ['five-hour-usage', 'weekly-usage'];
+
+  it.each(LIMITS)('%s shows loading… for a first-party session', (type) => {
+    expect(render(type)).toBe('loading…');
+  });
+
+  it.each([
+    { ANTHROPIC_API_KEY: 'x' },
+    { CLAUDE_CODE_USE_BEDROCK: '1' },
+    { ANTHROPIC_BASE_URL: 'https://gw.example.com' },
+    { CLAUDE_CODE_USE_VERTEX: '1' },
+    { CLAUDE_CODE_USE_FOUNDRY: '1' },
+  ])('stays null for %o', (env) => {
+    for (const type of LIMITS) expect(render(type, { env })).toBeNull();
+  });
+
+  it('lets payload rate_limits win over the env', () => {
+    const payload: StatusPayload = { ...FRESH, rate_limits: { five_hour: { used_percentage: 42 } } };
+    expect(render('five-hour-usage', { payload, env: { ANTHROPIC_API_KEY: 'x' } })).toBe('42%');
+    expect(render('weekly-usage', { payload })).toBeNull();
+  });
+
+  it('stays null after the first reply without rate_limits', () => {
+    const payload: StatusPayload = { ...FRESH, cost: { total_cost_usd: 0.3 } };
+    for (const type of LIMITS) expect(render(type, { payload })).toBeNull();
+  });
+
+  it('respects hideEmpty and an empty loadingText', () => {
+    expect(render('five-hour-usage', { hideEmpty: true })).toBeNull();
+    expect(render('five-hour-usage', { config: { loadingText: '' } })).toBeNull();
+  });
+
+  it('covers the other limit widgets', () => {
+    for (const type of [
+      'five-hour-reset',
+      'weekly-reset',
+      'weekly-model-usage',
+      'spend-limit',
+      'usage-pace',
+    ]) {
+      expect(render(type)).toBe('loading…');
+      expect(render(type, { env: { CLAUDE_CODE_USE_BEDROCK: 'true' } })).toBeNull();
+    }
+  });
+});

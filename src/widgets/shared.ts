@@ -1,6 +1,7 @@
 import { t } from '../core/i18n/index.js';
 import { isFreshSession } from '../core/payload.js';
 import type { OptionSpec, OptionValue, RenderContext, WidgetItem, WidgetOutput } from '../core/types.js';
+import { detectProvider } from '../data/provider.js';
 
 export function opt<T extends OptionValue>(item: WidgetItem, key: string, fallback: T): T {
   const v = item.options?.[key];
@@ -20,6 +21,14 @@ export function loading(ctx: RenderContext, item: WidgetItem): WidgetOutput | nu
     text: ctx.config.loadingText ?? t('loading.default'),
     color: ctx.theme?.colors.muted ?? 'brightBlack',
   };
+}
+
+// payload wins; other providers never send plan limits
+export function limitsLoading(ctx: RenderContext, item: WidgetItem): WidgetOutput | null {
+  const r = ctx.payload.rate_limits;
+  if (r && Object.values(r).some((v) => v != null && !(Array.isArray(v) && !v.length))) return null;
+  if (!detectProvider(ctx.env).planLimits) return null;
+  return loading(ctx, item);
 }
 
 export interface BarStyle {

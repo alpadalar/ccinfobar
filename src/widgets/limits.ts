@@ -12,6 +12,7 @@ import {
   barOptions,
   formatCurrency,
   formatDuration,
+  limitsLoading,
   opt,
   thresholdColor,
   thresholdOption,
@@ -94,7 +95,7 @@ function usage(ctx: RenderContext, item: WidgetItem, key: Key): WidgetResult {
 
 function usageOf(ctx: RenderContext, item: WidgetItem, w: RateWindow | null, len: number): WidgetResult {
   const pct = w?.used_percentage;
-  if (typeof pct !== 'number') return null;
+  if (typeof pct !== 'number') return limitsLoading(ctx, item);
   const clamped = Math.max(0, Math.min(100, pct));
   const pace = opt(item, 'showPace', false) ? paceOf(ctx, w, len) : null;
   let text = pace === null ? `${Math.round(pct)}%` : `${Math.round(pct)}%/${pace}%`;
@@ -105,13 +106,13 @@ function usageOf(ctx: RenderContext, item: WidgetItem, w: RateWindow | null, len
   return opt(item, 'thresholdColors', true) ? { text, color: thresholdColor(clamped) } : text;
 }
 
-function reset(ctx: RenderContext, item: WidgetItem, key: Key): string | null {
+function reset(ctx: RenderContext, item: WidgetItem, key: Key): WidgetResult {
   return resetOf(ctx, item, win(ctx, key));
 }
 
-function resetOf(ctx: RenderContext, item: WidgetItem, w: RateWindow | null): string | null {
+function resetOf(ctx: RenderContext, item: WidgetItem, w: RateWindow | null): WidgetResult {
   const at = toEpochMs(w?.resets_at);
-  if (at === null) return null;
+  if (at === null) return limitsLoading(ctx, item);
   const left = at - ctx.now.getTime();
   if (left <= 0) return null;
   if (opt(item, 'showClockTime', false)) {
@@ -210,7 +211,7 @@ export const widgets: WidgetDef[] = [
     options: [modelOption, displayOption, thresholdOption, paceOption, ...barOptions],
     render(ctx, item) {
       const m = modelWindow(ctx, opt(item, 'model', ''));
-      if (!m) return null;
+      if (!m) return limitsLoading(ctx, item);
       const r = usageOf(ctx, item, m, WEEK);
       if (!r) return null;
       return typeof r === 'string' ? `${m.model} ${r}` : { ...r, text: `${m.model} ${r.text}` };
@@ -239,9 +240,9 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰇁', emoji: '💳' },
     color: 'yellow',
     sample: '$12/$50',
-    render(ctx) {
+    render(ctx, item) {
       const s = ctx.payload.rate_limits?.spend_limit;
-      if (typeof s?.used_usd !== 'number' || typeof s.limit_usd !== 'number') return null;
+      if (typeof s?.used_usd !== 'number' || typeof s.limit_usd !== 'number') return limitsLoading(ctx, item);
       const f = (n: number) => formatCurrency(n, Number.isInteger(n) ? 0 : 2);
       return `${f(s.used_usd)}/${f(s.limit_usd)}`;
     },
@@ -271,7 +272,7 @@ export const widgets: WidgetDef[] = [
       const w = opt<string>(item, 'window', '5h') === '7d' ? '7d' : '5h';
       const rw = win(ctx, w === '7d' ? 'seven_day' : 'five_hour');
       const at = toEpochMs(rw?.resets_at);
-      if (typeof rw?.used_percentage !== 'number' || at === null) return null;
+      if (typeof rw?.used_percentage !== 'number' || at === null) return limitsLoading(ctx, item);
       const len = WINDOW_MS[w];
       const left = Math.max(0, Math.min(len, at - ctx.now.getTime()));
       const diff = Math.round(rw.used_percentage - (1 - left / len) * 100);
