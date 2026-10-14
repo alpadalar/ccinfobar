@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { detectLevel, style } from '../core/ansi.js';
 import { createContext } from '../core/context.js';
+import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { lastPayloadPath } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
@@ -50,8 +51,27 @@ export function renderStatus(config: Config, payload: StatusPayload, widthFlag?:
   return render(createContext({ payload, config, terminalWidth: width }));
 }
 
+function safeLine(text: string): void {
+  process.stdout.write(`${style(text, { dim: true }, detectLevel('auto'))}\n`);
+}
+
 export async function runRender(args: Args, cfgFile: string): Promise<void> {
-  const config = loadForUse(cfgFile).config;
+  try {
+    await renderOnce(args, cfgFile);
+  } catch {
+    try {
+      safeLine(t('safe.render'));
+    } catch {}
+  }
+}
+
+async function renderOnce(args: Args, cfgFile: string): Promise<void> {
+  const loaded = loadForUse(cfgFile);
+  if (loaded.issue) {
+    safeLine(t('safe.line', { line: loaded.issue.line }));
+    return;
+  }
+  const config = loaded.config;
   let raw: string;
   if (typeof args.flags.payload === 'string') raw = fs.readFileSync(args.flags.payload, 'utf8');
   else raw = await readStdin();
@@ -71,6 +91,8 @@ export async function runRender(args: Args, cfgFile: string): Promise<void> {
     lines[lines.length - 1] += ` ${style(notice, { fg: 'yellow' }, level)}`;
   }
   process.stdout.write(lines.map(finalizeLine).join('\n') + (lines.length ? '\n' : ''));
-  scheduleCheck(config, payload.session_id);
-  if (usageOn && usageDue(usage)) scheduleUsage();
+  try {
+    scheduleCheck(config, payload.session_id);
+    if (usageOn && usageDue(usage)) scheduleUsage();
+  } catch {}
 }
