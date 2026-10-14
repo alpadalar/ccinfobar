@@ -9,7 +9,7 @@ import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionSpec, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { pruneTmp } from '../data/store.js';
-import { terminalWidth } from '../data/terminal.js';
+import { cachedTerminalWidth } from '../data/terminal.js';
 import {
   availableUpdate,
   installKind,
@@ -113,9 +113,17 @@ function widgetRow(r: InspectRow): string | null {
   }
 }
 
+const doctorWidth = (p: StatusPayload | null): number | null =>
+  cachedTerminalWidth(p?.session_id, p?.terminal_width ?? p?.columns);
+
 export function printWidgetReport(cfgFile: string, loaded?: LoadResult): void {
   console.log('\nWidgets');
-  const data = loadInspectInput({ cfgFile, fallback: 'none', ...(loaded ? { loaded } : {}) });
+  const data = loadInspectInput({
+    cfgFile,
+    fallback: 'none',
+    widthOf: doctorWidth,
+    ...(loaded ? { loaded } : {}),
+  });
   if (!data) {
     console.log(t('doctor.noPayload'));
     return;
@@ -202,7 +210,7 @@ export function runDoctor(cfgFile: string): void {
   console.log(`  Cache dir ${tildify(cacheDir())}`);
   const pruned = pruneTmp(cacheDir(), 3_600_000);
   if (pruned > 0) console.log(t('doctor.tmpPruned', { count: pruned }));
-  console.log(`  Detected width ${terminalWidth(undefined) ?? 'unknown'}`);
+  console.log(`  Detected width ${doctorWidth(last) ?? 'unknown'}`);
   const upd = readUpdateState();
   const newer = availableUpdate(VERSION);
   if (loaded.config.gitHardening === false) console.log(t('doctor.gitHardeningOff'));

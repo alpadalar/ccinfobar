@@ -57,6 +57,7 @@ export interface InspectOptions {
   payloadFile?: string;
   scenario?: string;
   width?: number;
+  widthOf?: (payload: StatusPayload) => number | null;
   fallback: 'sample' | 'none';
   env?: NodeJS.ProcessEnv;
   loaded?: LoadResult;
@@ -82,6 +83,7 @@ function once<T>(fn: () => T): () => T {
 
 function probeFreeWidth(opts: InspectOptions, payload: StatusPayload, env: NodeJS.ProcessEnv): number | null {
   if (opts.width && opts.width > 0) return opts.width;
+  if (opts.widthOf) return opts.widthOf(payload);
   const hint = payload.terminal_width ?? payload.columns;
   if (typeof hint === 'number' && hint > 0) return hint;
   const cols = Number(env.COLUMNS);

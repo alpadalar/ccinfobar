@@ -41,7 +41,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - On macOS and Linux, a path with spaces or quotes is single-quoted in the statusLine command
 - `ccinfobar import` config backups are created with mode 0600
 - `ccinfobar preview` prints plain text when its output is not a terminal
-- `ccinfobar doctor` builds its widget list from the same data as `explain` and points to it for details
+- `ccinfobar doctor` builds its widget list from the same data as `explain` and points to it for details; it takes the width from the last session's cached terminal width and no longer runs `ps`/`stty` or writes a width cache file
 - CI also tests on Node 26
 
 ### Fixed

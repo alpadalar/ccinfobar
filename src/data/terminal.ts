@@ -46,17 +46,40 @@ function probe(): number | null {
   return null;
 }
 
-export function terminalWidth(sessionId: string | undefined, hint?: number): number | null {
+function direct(hint?: number): number | null {
   if (hint && hint > 0) return hint;
   const fromEnv = positive(process.env.COLUMNS);
   if (fromEnv) return fromEnv;
   if (process.stdout.isTTY && process.stdout.columns) return process.stdout.columns;
+  return null;
+}
+
+function widthFile(sessionId: string | undefined): string {
   const key = (sessionId ?? 'default').replace(/[^a-zA-Z0-9_-]/g, '');
-  const file = path.join(cacheDir(), `width-${key || 'default'}.json`);
+  return path.join(cacheDir(), `width-${key || 'default'}.json`);
+}
+
+function readCached(file: string, maxAge: number): number | null | undefined {
   try {
-    const cached = JSON.parse(fs.readFileSync(file, 'utf8')) as { width: number | null; at: number };
-    if (Date.now() - cached.at < TTL_MS) return cached.width;
-  } catch {}
+    const cached = JSON.parse(fs.readFileSync(file, 'utf8')) as { width: unknown; at: unknown };
+    if (typeof cached.at !== 'number' || Date.now() - cached.at >= maxAge) return undefined;
+    return typeof cached.width === 'number' && cached.width > 0 ? cached.width : null;
+  } catch {
+    return undefined;
+  }
+}
+
+// read-only: no probe, no cache write
+export function cachedTerminalWidth(sessionId: string | undefined, hint?: number): number | null {
+  return direct(hint) ?? readCached(widthFile(sessionId), Number.POSITIVE_INFINITY) ?? null;
+}
+
+export function terminalWidth(sessionId: string | undefined, hint?: number): number | null {
+  const known = direct(hint);
+  if (known) return known;
+  const file = widthFile(sessionId);
+  const cached = readCached(file, TTL_MS);
+  if (cached !== undefined) return cached;
   const width = probe();
   writeAtomic(file, JSON.stringify({ width, at: Date.now() }));
   return width;

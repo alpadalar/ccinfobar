@@ -1,4 +1,6 @@
+import cp from 'node:child_process';
 import fs from 'node:fs';
+import module from 'node:module';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { commandWarnings, configWarnings, printWidgetReport, runDoctor } from '../../src/commands/doctor.js';
@@ -309,6 +311,55 @@ describe('printWidgetReport', () => {
       if (prev === undefined) delete process.env.CCINFOBAR_NO_USAGE_API;
       else process.env.CCINFOBAR_NO_USAGE_API = prev;
       fs.rmSync(usageFile(), { force: true });
+    }
+  });
+
+  const noColumns = () => {
+    const cols = process.env.COLUMNS;
+    delete process.env.COLUMNS;
+    return () => {
+      if (cols !== undefined) process.env.COLUMNS = cols;
+    };
+  };
+
+  it('uses the cached width of the last session and warns about a cut line', () => {
+    const restore = noColumns();
+    const width = path.join(cacheDir(), 'width-doctor-test.json');
+    try {
+      save();
+      fs.mkdirSync(cacheDir(), { recursive: true });
+      fs.writeFileSync(width, JSON.stringify({ width: 12, at: Date.now() - 3_600_000 }));
+      const cfg = JSON.stringify({
+        autoWrap: false,
+        lines: [[{ type: 'model' }, { type: 'session-cost' }, { type: 'model', id: 'm2' }]],
+      });
+      const out = capture(() => runDoctor(cfgFile('cut.json', cfg)));
+      expect(out).toContain('  Detected width 12');
+      expect(out.some((l) => l.startsWith('\n  Width: 12 columns detected, '))).toBe(true);
+      expect(out.some((l) => l.startsWith('  ⚠ Line 1 needs '))).toBe(true);
+    } finally {
+      fs.rmSync(width, { force: true });
+      restore();
+    }
+  });
+
+  it('runDoctor writes nothing under the cache dir and runs no ps or stty', () => {
+    const restore = noColumns();
+    try {
+      save();
+      const list = () =>
+        fs.existsSync(cacheDir()) ? fs.readdirSync(cacheDir(), { recursive: true }).map(String).sort() : [];
+      const before = list();
+      const exec = vi.spyOn(cp, 'execFileSync');
+      module.syncBuiltinESMExports();
+      const out = capture(() => runDoctor(cfgFile('ro2.json', LAYOUT)));
+      expect(out).toContain('  Detected width unknown');
+      expect(list()).toEqual(before);
+      expect(exec.mock.calls.filter((c) => c[0] === 'ps' || c[0] === 'stty')).toEqual([]);
+    } finally {
+      vi.restoreAllMocks();
+      module.syncBuiltinESMExports();
+      restore();
     }
   });
 
