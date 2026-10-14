@@ -362,6 +362,15 @@ Hook path after the Phase 4 review fixes, 2026-10-15, same machine and method, l
 
 Hook overhead 29.3 ms → 13.0 ms, within the 20 ms target; the render path is unchanged. Against an empty ESM file with piped stdio (40 interleaved runs of `hook Stop`) the overhead went from 26.5 to 8.2 ms. The savings: no stdout/stderr streams (silent sinks), `fs.read` instead of `process.stdin`, `node:fs` through `process.getBuiltinModule`, and no `node:crypto`. The compile cache still saves 1 to 2 ms on this path, so `bin.ts` keeps enabling it.
 
+Phase 5 (live session widgets), 2026-10-15, same machine and method, `nice -n -10` (priority 0), load average about 1.0 to 1.3, N = 20. Layouts: `default`; `live`, the default plus `tool-activity`, `turn-timer`, `permission-wait`, `env-counts` and `workspace-repos` (`dirty: true`) on line 1; `placebo`, the default plus five `text` widgets, to separate the cost of a longer line. Warm medians are the mean of interleaved runs (3 in this repo, 2 in a synthetic workspace folder holding two repos):
+
+| cwd | default warm (p95) | placebo warm | live warm (p95) | live − default |
+|-----|-------------------:|-------------:|----------------:|---------------:|
+| this git repo | 123.8 (131.1) | 125.4 | 127.5 (136.0) | +3.7 |
+| workspace folder | 115.5 (122.3) | 115.7 | 118.5 (125.0) | +3.0 |
+
+The live widgets cost about 2 to 3 ms warm, slightly above the 2 ms target. One source at a time in the workspace folder: `env-counts` +2.2 ms, `workspace-repos` +0.6 ms, the three transcript and hook widgets together +0.7 ms. In-process, a warm `readEnvironment` takes 0.1 to 0.2 ms, but the first call in a fresh process takes 1.7 to 2.2 ms, so its cost is mostly first-run code, not I/O; it never spawns and rewrites its cache only on change. Cold runs with `dirty: true` are about 11 ms slower, because each fresh cache dir starts the detached dirty job; in a real session that happens at most once a minute. Nothing changes for layouts without these widgets.
+
 ## Releasing
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` under a new version heading.

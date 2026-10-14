@@ -21,7 +21,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `ccinfobar explain --json` prints one sanitized JSON object for bug reports, with `env` and `command` widget values replaced by `<redacted N chars>`; `--scenario <name>` or `--payload <file>` picks the input (not both), and a broken config, a bare `--payload` or a `--width` that is not a positive number makes it exit 1
 - `ccinfobar doctor` also shows `env` and `command` widget values as `<redacted N chars>` in its widget list
 - `explain` also redacts `env` and `command` values in its text output, and `explain <widget-id>` prints text options (such as a `command` string or a `link` URL) as `<N chars>`; `--show-values` shows them, only in a terminal and never in `--json`
-- `ccinfobar preview --scenario <name>` renders nine named situations (fresh session, context nearly full, near 5h limit, near weekly limit, many subagents, GSD project, no git repo, API key user, over budget); a bare `--scenario` lists them
+- `ccinfobar preview --scenario <name>` renders eleven named situations (fresh session, context nearly full, near 5h limit, near weekly limit, many subagents, GSD project, no git repo, API key user, over budget, workspace folder, waiting for permission); a bare `--scenario` lists them, and `explain`, `bench` and the editor use the same list
 - The web editor's preview has a Scenario picker next to Sample data / Last session
 - `ccinfobar bench` measures cold and warm render time (median, p95) against a `node -e 0` control (`--runs <n>`, where a missing or non-numeric value is an error, `--scenario <name>` for a scenario's payload and env, `--json`); the method and a baseline are in docs/DEVELOPMENT.md
 - CI installs the packed package into an empty profile on Linux, macOS and Windows, renders through the exact settings command in every shell, and checks that uninstall restores the settings file byte for byte and leaves no process behind
@@ -37,7 +37,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `ccinfobar explain` says whether a limits value came from this session, another session or the usage API, and when a window has just reset
 - `ccinfobar explain` shows the cost ledger age and says when no cost has been recorded yet
 - A Claude Code plugin in this repo: `claude plugin marketplace add alpadalar/ccinfobar`, then `claude plugin install ccinfobar@ccinfobar`, gives `/ccinfobar:install`, `/ccinfobar:edit`, `/ccinfobar:doctor`, `/ccinfobar:theme` and `/ccinfobar:uninstall`. It calls the installed `ccinfobar`, has no status line or hooks of its own and never writes settings itself; `alpadalar/ccinfobar#v<version>` pins it to a release
-- `ccinfobar install --hooks` adds optional Claude Code hooks (SessionStart, UserPromptSubmit, Stop, SubagentStart, SubagentStop, and Notification for permission prompts) to user settings, recorded in the manifest and checked against the Claude Code version (2.1.101+); `--hooks=permission` also adds PermissionRequest; `--dry-run` lists every hook change
+- `ccinfobar install --hooks` adds optional Claude Code hooks (SessionStart, UserPromptSubmit, Stop, SubagentStart, SubagentStop, Notification for permission prompts, and `PermissionDenied`, which needs Claude Code 2.1.89+ and cannot block) to user settings, recorded in the manifest and checked against the Claude Code version (2.1.101+); `--hooks=permission` also adds PermissionRequest; `--dry-run` lists every hook change
 - `ccinfobar uninstall --hooks` removes only ccinfobar's hooks
 - `ccinfobar hook <Event>` records Claude Code hook events in a per-session log, prints nothing and always exits 0 (used by the optional hooks); prompt text, replies and tool input are never stored. It costs about 13 ms over a bare Node start (`ccinfobar bench`), and Claude Code never waits for it
 - With hooks on, a new session (SessionStart `startup`) runs the daily update check and removes hook logs older than 7 days; resume, clear and compact never do, and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` or `update: off` still turn the check off
@@ -48,6 +48,15 @@ All notable changes to this project are documented here. The format follows [Kee
 - INSTALL.md, a pinned runbook Claude can follow to install ccinfobar, pick a preset and check it with `ccinfobar preview`
 - `ccinfobar bench` has a `hook UserPromptSubmit` row and prints the hook overhead
 - CI validates the plugin with `claude plugin validate --strict` and checks its version against package.json, and the clean-install check also installs hooks, runs a hook in every shell and checks that uninstall restores the settings file byte for byte
+- `tool-activity` widget: the running tool and this turn's tool counts (`Bash npm test · Read 4, Edit 2, Bash 1`), from the transcript (opt-in; `scope`, `mode`, `maxTools`, `groupMcp`, `showArgs`)
+- `turn-timer` widget: how long the current turn has run and how long the last one took, exact with hooks and from the transcript otherwise (opt-in; `afterStop`)
+- `permission-wait` widget: how long the last permission prompt in this turn waited, such as `Wait Bash 42s` (needs hooks; Claude Code hides the status line while the dialog is open, so only closed waits are shown, timed from the permission notification about 6 s after the dialog appears)
+- `env-counts` widget: CLAUDE.md, AGENTS.md, rules, MCP servers and hooks in effect, read from config files without running `claude` or probing servers (opt-in; on Windows the `.claude.json` project entry is found with either slash style); plugin MCP servers, connectors and plugin hooks are not counted, and the `mcpHealth` option is reserved until Claude Code exposes MCP status
+- `workspace-repos` widget: the git repos inside a folder that is not a repo, with their branches (`repos: api (main) · web (dev)`), from `.git/HEAD` files without running git (opt-in)
+- In a workspace folder, `workspace-repos` hides the empty git widgets instead of showing `—` (option `hideGitPlaceholders`); `explain` and `doctor` say why
+- `workspace-repos` option `dirty` marks repos with uncommitted changes (`api (main*)`), checked by a background job with hardened git about once a minute, never in the render path
+- `install` and `doctor` suggest `--refresh 5` when time-based widgets (`turn-timer`, `permission-wait`, `tool-activity`, `clock` and others) are on the layout and no refresh interval is set; nothing is set automatically
+- The web editor's Settings warns when time-based widgets have no refresh interval and offers a 5 s refresh that installs after you confirm
 
 ### Changed
 
@@ -80,6 +89,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `install` and `uninstall` stop with an error on an unexpected argument, such as `--hooks permission` (meant as `--hooks=permission`), instead of ignoring it
 - `install --hooks` warns when the status line command runs through `npx`, `bunx` or a `dlx` runner, because every hook event would start it
 - The web editor checks the Claude Code version in the background instead of freezing for up to 4 s on its first request, and turning Permission requests off writes settings.json once
+- `agents` and `agent-count` use the exact subagent start, stop and type from hooks when they are installed; without hooks nothing changes
 
 ### Fixed
 
@@ -116,6 +126,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The `usable` context percentage on 1M-token windows uses Claude Code's compaction threshold (about 967K) instead of 83.5% of the window
 - Two Claude config dirs (`CLAUDE_CONFIG_DIR`) no longer share one usage cache, so their limits never mix
 - `cache-timer` shows `off` instead of `cold` when Claude Code saw no caching
+- The web editor's settings switches have accessible names for screen readers
 
 ### Security
 
