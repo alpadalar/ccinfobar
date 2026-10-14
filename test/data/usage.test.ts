@@ -3,10 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
+import { limitsOn, resolveLimits } from '../../src/data/limits.js';
 import {
   effectiveUsage,
   fetchUsage,
-  mergeUsage,
   needsUsage,
   parseUsageResponse,
   readUsageCache,
@@ -67,9 +67,15 @@ describe('usage api', () => {
       fetchedAt: NOW,
       rate_limits: { five_hour: { used_percentage: 10 }, seven_day: { used_percentage: 90 } },
     };
-    const p = mergeUsage({ rate_limits: { five_hour: { used_percentage: 20 } } }, cache, NOW);
+    const p = resolveLimits(
+      { rate_limits: { five_hour: { used_percentage: 20 } } },
+      null,
+      cache,
+      NOW,
+      null,
+    ).payload;
     expect(p.rate_limits).toEqual({ five_hour: { used_percentage: 20 }, seven_day: { used_percentage: 90 } });
-    expect(mergeUsage({}, cache, NOW + 3_600_000).rate_limits).toBeUndefined();
+    expect(resolveLimits({}, null, cache, NOW + 3_600_000, null).payload.rate_limits).toBeUndefined();
   });
 
   it('asks only when limit widgets lack data and the cache is stale', () => {
@@ -148,8 +154,36 @@ describe('effectiveUsage', () => {
   };
 
   it('skips the cache when Claude Code sent both windows', () => {
+    const env = { CCINFOBAR_CACHE_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-eff-')) };
+    try {
+      const p = { ...both };
+      const r = effectiveUsage(defaultConfig(), p, env);
+      expect(r).toMatchObject({ usageOn: false, usage: null, limitsOn: true, payload: p, captureAt: null });
+      expect(r.limits?.windows.five_hour?.source).toBe('payload');
+    } finally {
+      fs.rmSync(env.CCINFOBAR_CACHE_DIR, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves provider sessions untouched', () => {
     const p = { ...both };
-    expect(effectiveUsage(defaultConfig(), p, {})).toEqual({ usageOn: false, usage: null, payload: p });
+    expect(effectiveUsage(defaultConfig(), p, { ANTHROPIC_API_KEY: 'x' })).toEqual({
+      usageOn: false,
+      usage: null,
+      payload: p,
+      limitsOn: false,
+      limits: null,
+      captureAt: null,
+    });
+  });
+
+  it('gates the limits store on a limits widget and plan limits only', () => {
+    const config = defaultConfig();
+    const only = (type: string) => ({ ...config, lines: [[{ id: 'a', type }]] });
+    expect(limitsOn(only('five-hour-usage'), {})).toBe(true);
+    expect(limitsOn(only('five-hour-usage'), { ANTHROPIC_API_KEY: 'x' })).toBe(false);
+    expect(limitsOn(only('model'), {})).toBe(false);
+    expect(limitsOn({ ...only('five-hour-usage'), usageApi: false }, {})).toBe(true);
   });
 
   it('merges a fresh cache when limit widgets lack data', () => {
@@ -165,7 +199,7 @@ describe('effectiveUsage', () => {
       expect(r.usage?.fetchedAt).toBe(cache.fetchedAt);
       expect(r.payload.rate_limits?.five_hour?.used_percentage).toBe(44);
       const off = effectiveUsage(defaultConfig(), {}, { ...env, CCINFOBAR_NO_USAGE_API: '1' });
-      expect(off).toEqual({ usageOn: false, usage: null, payload: {} });
+      expect(off).toMatchObject({ usageOn: false, usage: null, payload: {}, limitsOn: true });
     } finally {
       fs.rmSync(env.CCINFOBAR_CACHE_DIR, { recursive: true, force: true });
     }

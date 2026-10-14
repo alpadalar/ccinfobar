@@ -59,6 +59,7 @@ const PURE = [
   'src/core/i18n/',
   'src/core/scenarios.ts',
   'src/core/trace.ts',
+  'src/core/time.ts',
 ];
 
 function walk(dir: string): string[] {

@@ -6,15 +6,16 @@ import { cacheDir, claudeDir } from '../core/paths.js';
 import { deepSanitize } from '../core/sanitize.js';
 import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
+import { captureTime, type LimitsView, limitsOn, readLimitsStore, resolveLimits } from './limits.js';
 import { detectProvider } from './provider.js';
 import { acquireLock, writeAtomic } from './store.js';
+import type { TranscriptInfo } from './transcript.js';
 import { nonessentialTrafficOff, spawnSelf } from './update-state.js';
 
 type RateLimits = NonNullable<StatusPayload['rate_limits']>;
 
 export const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const FRESH_MS = 180_000;
-const MAX_AGE_MS = 30 * 60_000;
 const RETRY_MS = 60_000;
 const BACKOFF_MS = 300_000;
 const NO_TOKEN_MS = 10 * 60_000;
@@ -63,20 +64,13 @@ export function needsUsage(
   return types.some((t) => getWidget(t)?.category === 'limits');
 }
 
-// payload wins, the API fills gaps
-export function mergeUsage(
-  payload: StatusPayload,
-  cache: UsageCache | null,
-  now = Date.now(),
-): StatusPayload {
-  if (!cache?.rate_limits || now - cache.fetchedAt > MAX_AGE_MS) return payload;
-  return { ...payload, rate_limits: { ...cache.rate_limits, ...payload.rate_limits } };
-}
-
 export interface EffectiveUsage {
   usageOn: boolean;
   usage: UsageCache | null;
   payload: StatusPayload;
+  limitsOn: boolean;
+  limits: LimitsView | null;
+  captureAt: number | null;
 }
 
 // render, explain and doctor share this rule
@@ -84,10 +78,16 @@ export function effectiveUsage(
   config: Config,
   payload: StatusPayload,
   env: NodeJS.ProcessEnv = process.env,
+  opts: { transcript?: () => TranscriptInfo | null; now?: number } = {},
 ): EffectiveUsage {
+  if (!limitsOn(config, env)) {
+    return { usageOn: false, usage: null, payload, limitsOn: false, limits: null, captureAt: null };
+  }
   const usageOn = !usageApiDisabled(config, env) && needsUsage(config, payload, env);
   const usage = usageOn ? readUsageCache(env) : null;
-  return { usageOn, usage, payload: usage ? mergeUsage(payload, usage) : payload };
+  const captureAt = captureTime(payload, opts.transcript);
+  const r = resolveLimits(payload, readLimitsStore(env), usage, opts.now ?? Date.now(), captureAt);
+  return { usageOn, usage, payload: r.payload, limitsOn: true, limits: r.view, captureAt };
 }
 
 type Bucket = { utilization?: number | null; resets_at?: string | null } | null | undefined;

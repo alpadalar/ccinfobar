@@ -1,15 +1,17 @@
 import fs from 'node:fs';
 import { detectLevel, style } from '../core/ansi.js';
-import { createContext } from '../core/context.js';
+import { createContext, lazy } from '../core/context.js';
 import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { lastPayloadPath } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
 import { finalizeLine, render } from '../core/renderer.js';
-import type { Config, StatusPayload } from '../core/types.js';
+import type { Config, DataSources, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
+import { recordLimits } from '../data/limits.js';
 import { writeAtomic } from '../data/store.js';
 import { terminalWidth } from '../data/terminal.js';
+import { readTranscript } from '../data/transcript.js';
 import { scheduleCheck, updateNotice } from '../data/update-state.js';
 import { effectiveUsage, scheduleUsage, usageDue } from '../data/usage.js';
 import type { Args } from './args.js';
@@ -39,9 +41,14 @@ export function savePayload(payload: StatusPayload): void {
   } catch {}
 }
 
-export function renderStatus(config: Config, payload: StatusPayload, widthFlag?: number): string[] {
+export function renderStatus(
+  config: Config,
+  payload: StatusPayload,
+  widthFlag?: number,
+  data?: Partial<DataSources>,
+): string[] {
   const width = widthFlag ?? terminalWidth(payload.session_id, payload.terminal_width ?? payload.columns);
-  return render(createContext({ payload, config, terminalWidth: width }));
+  return render(createContext({ payload, config, terminalWidth: width, ...(data ? { data } : {}) }));
 }
 
 function safeLine(text: string): void {
@@ -75,8 +82,9 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
   }
   if (config.savePayload && typeof args.flags.payload !== 'string') savePayload(payload);
   const width = typeof args.flags.width === 'string' ? Number(args.flags.width) : undefined;
-  const { usageOn, usage, payload: shown } = effectiveUsage(config, payload);
-  const lines = renderStatus(config, shown, width);
+  const transcript = lazy(() => readTranscript(payload.transcript_path));
+  const eff = effectiveUsage(config, payload, process.env, { transcript });
+  const lines = renderStatus(config, eff.payload, width, { transcript });
   let notice: string | null = null;
   try {
     notice = updateNotice(config, VERSION);
@@ -87,7 +95,8 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
   }
   process.stdout.write(lines.map(finalizeLine).join('\n') + (lines.length ? '\n' : ''));
   try {
+    if (eff.limitsOn) recordLimits(process.env, payload, eff.captureAt, Date.now());
     scheduleCheck(config, payload.session_id);
-    if (usageOn && usageDue(usage)) scheduleUsage();
+    if (eff.usageOn && usageDue(eff.usage)) scheduleUsage();
   } catch {}
 }
