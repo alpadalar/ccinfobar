@@ -39,6 +39,7 @@ import { loadHistory } from '../data/history.js';
 import { readHookState } from '../data/hooks.js';
 import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
 import { accountKey, type LimitsView, modelKey, readLimitsStore } from '../data/limits.js';
+import { hookTurnStart } from '../data/live.js';
 import { readRepos } from '../data/repos.js';
 import { readTranscript, type TranscriptInfo, transcriptCacheName } from '../data/transcript.js';
 import { effectiveUsage, type UsageCache } from '../data/usage.js';
@@ -95,14 +96,21 @@ function readOnlyData(
   const transcript = lazy<TranscriptInfo | null>(() =>
     readTranscript(payload.transcript_path, env, { persist: false }),
   );
+  const hooks = lazy(() =>
+    payload.session_id ? readHookState(payload.session_id, env, { persist: false }) : null,
+  );
+  const agents = lazy(() => {
+    const h = hooks();
+    const t = transcript();
+    const turnStart = hookTurnStart(h, t, payload.prompt_id, now);
+    return readAgents(payload.transcript_path, t, now, env, { persist: false, hooks: h, turnStart });
+  });
   const data: Partial<DataSources> = {
     transcript,
-    agents: lazy(() => readAgents(payload.transcript_path, transcript(), now, env, { persist: false })),
+    agents,
     history: () => loadHistory(payload.session_id, env),
     repos: lazy(() => readRepos(resolveCwd(payload), env, { persist: false, now })),
-    hooks: lazy(() =>
-      payload.session_id ? readHookState(payload.session_id, env, { persist: false }) : null,
-    ),
+    hooks,
   };
   if (ledgerOn(config)) {
     data.ledger = lazy(() => {

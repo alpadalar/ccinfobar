@@ -3,6 +3,7 @@ import { readAgents } from '../data/agents.js';
 import { readHookState } from '../data/hooks.js';
 import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
 import { accountKey } from '../data/limits.js';
+import { hookTurnStart } from '../data/live.js';
 import { readRepos } from '../data/repos.js';
 import { readTranscript } from '../data/transcript.js';
 import { effectiveUsage } from '../data/usage.js';
@@ -84,6 +85,9 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
   if (last) {
     const transcript = lazy(() => readTranscript(last.transcript_path, env, { persist: false }));
     const eff = effectiveUsage(config, last, env, { transcript });
+    const hooks = lazy(() =>
+      last.session_id ? readHookState(last.session_id, env, { persist: false }) : null,
+    );
     return render(
       createContext({
         payload: eff.payload,
@@ -94,14 +98,16 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
         ...(theme ? { theme } : {}),
         data: {
           transcript,
-          agents: lazy(() =>
-            readAgents(last.transcript_path, transcript(), Date.now(), env, { persist: false }),
-          ),
+          agents: lazy(() => {
+            const h = hooks();
+            const t = transcript();
+            const n = Date.now();
+            const turnStart = hookTurnStart(h, t, last.prompt_id, n);
+            return readAgents(last.transcript_path, t, n, env, { persist: false, hooks: h, turnStart });
+          }),
           limits: () => eff.limits,
           repos: lazy(() => readRepos(resolveCwd(last), env, { persist: false })),
-          hooks: lazy(() =>
-            last.session_id ? readHookState(last.session_id, env, { persist: false }) : null,
-          ),
+          hooks,
           ...(ledgerOn(config)
             ? {
                 ledger: lazy(() => {

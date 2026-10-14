@@ -2,9 +2,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { defaultConfig } from '../../src/core/config.js';
+import { createContext } from '../../src/core/context.js';
 import { readAgents } from '../../src/data/agents.js';
 import type { HookAgent, HookState } from '../../src/data/hooks.js';
 import { parseTranscriptText, type TranscriptInfo } from '../../src/data/transcript.js';
+import { renderWidget } from '../helpers.js';
 
 const NOW = Date.parse('2026-10-15T12:00:00Z');
 const line = (o: object) => JSON.stringify(o);
@@ -237,5 +240,40 @@ describe('readAgents with hooks (D-12)', () => {
     });
     const rows = readAgents(f.transcript, info(), NOW, f.env, { hooks: h });
     expect(rows.map((r) => r.type).sort()).toEqual(['Explore', 'Plan']);
+  });
+});
+
+describe('createContext agents with hooks', () => {
+  it('renders agent-count from the hook-backed list', () => {
+    const f = setup();
+    f.add('a1', { first: NOW - 100_000, last: NOW - 60_000 });
+    const h = hooks(
+      {
+        a1: { type: 'Explore', start: NOW - 100_000, end: NOW - 50_000 },
+        b2: { type: 'Plan', start: NOW - 3_000 },
+      },
+      NOW - 120_000,
+    );
+    const ctx = createContext({
+      payload: { session_id: 's1', transcript_path: f.transcript, cwd: f.dir },
+      config: defaultConfig(),
+      env: f.env,
+      now: new Date(NOW),
+      data: { hooks: () => h, transcript: () => info({ turnStart: NOW - 30_000 }) },
+    });
+    expect(renderWidget('agent-count', ctx)).toBe('1 running · 1 done');
+  });
+
+  it('keeps the transcript turn without hooks', () => {
+    const f = setup();
+    f.add('a1', { first: NOW - 100_000, last: NOW - 60_000 });
+    const ctx = createContext({
+      payload: { session_id: 's1', transcript_path: f.transcript, cwd: f.dir },
+      config: defaultConfig(),
+      env: f.env,
+      now: new Date(NOW),
+      data: { hooks: () => null, transcript: () => info({ turnStart: NOW - 30_000 }) },
+    });
+    expect(renderWidget('agent-count', ctx)).toBeNull();
   });
 });

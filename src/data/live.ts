@@ -40,6 +40,18 @@ export function trustedTurn(
   };
 }
 
+// trusted hook turn start for agent scoping, else the transcript turn
+export function hookTurnStart(
+  h: HookState | null,
+  t: TranscriptInfo | null,
+  promptId: string | undefined,
+  now: number,
+): number | null {
+  if (!h) return null;
+  const turn = trustedTurn(h, t, promptId, now);
+  return turn?.source === 'hooks' ? turn.start : null;
+}
+
 // closed waits only: the status line is hidden while a dialog is open
 export function lastWait(
   h: HookState | null,
