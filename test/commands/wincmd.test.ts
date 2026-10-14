@@ -24,6 +24,15 @@ describe('rules', () => {
       });
     });
 
+    it.each(['$', '%', '`', '"'])('falls back to bare ccinfobar on PATH when the js path has %s', (ch) => {
+      const bin = `C:\\Users\\svc${ch}\\AppData\\Roaming\\npm\\ccinfobar.cmd`;
+      expect(buildCommand({ kind: 'bin', bin, onPath: true }, 'win32', () => true)).toEqual({
+        ok: true,
+        command: 'ccinfobar',
+      });
+      expect(buildCommand({ kind: 'bin', bin, onPath: false }, 'win32', () => true).ok).toBe(false);
+    });
+
     it('runs the npm global js through node when the bin is off PATH', () => {
       expect(cmd(buildCommand({ kind: 'bin', bin: npmBin, onPath: false }, 'win32'))).toBe(
         'node "C:/Users/A B/AppData/Roaming/npm/node_modules/ccinfobar/dist/ccinfobar.js"',

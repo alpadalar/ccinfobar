@@ -51,7 +51,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Uninstall after Claude Code reformatted settings.json keeps your other edits and only restores the statusLine key; if Claude Code already removed the statusLine, uninstall restores the previous one and says so
 - Editor and TUI installs are recorded in the manifest, so `ccinfobar uninstall` brings back the previous status line
 - Windows: `install` writes `node "<path with forward slashes>/dist/ccinfobar.js"` instead of backslash or `.cmd` paths that Git Bash cannot run (which left the status line blank) and instead of the `ccinfobar` shim, which PowerShell blocks under the default Restricted execution policy
-- Windows: `install` refuses a path containing `"`, `` ` ``, `$` or `%` and explains why, instead of writing a command the shell would expand
+- Windows: `install` refuses a path containing `"`, `` ` ``, `$` or `%` and explains why, instead of writing a command the shell would expand; when `ccinfobar` is on PATH it writes the bare `ccinfobar` command instead
 - Cache, update state, last payload, terminal width, theme, preset, styles and config files are written atomically (temp file and rename), so a cancelled render or crash cannot leave a half-written file
 - Windows: renames briefly blocked by antivirus or indexers (EPERM/EACCES/EBUSY) are retried instead of failing
 - A config.json saved with a UTF-8 BOM (common on Windows) loads instead of falling back to the default layout

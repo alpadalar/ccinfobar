@@ -53,8 +53,9 @@ export function buildCommand(
   if (platform === 'win32') {
     if (target.kind === 'script') return viaNode(target.script);
     const js = jsForWinBin(target.bin);
-    if (target.onPath && !exists(js)) return { ok: true, command: 'ccinfobar' };
-    return viaNode(js);
+    if (!target.onPath) return viaNode(js);
+    const viaJs = exists(js) ? viaNode(js) : null;
+    return viaJs?.ok ? viaJs : { ok: true, command: 'ccinfobar' };
   }
   if (target.kind === 'bin') return { ok: true, command: shQuote(target.bin) };
   return { ok: true, command: `${shQuote(target.node ?? process.execPath)} ${shQuote(target.script)}` };
