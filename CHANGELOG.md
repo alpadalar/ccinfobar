@@ -79,6 +79,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Only `ccinfobar [--config <file>] hook <Event>` takes the silent hook path; a command such as `ccinfobar config set hook 1` prints its result again
 - `install` and `uninstall` stop with an error on an unexpected argument, such as `--hooks permission` (meant as `--hooks=permission`), instead of ignoring it
 - `install --hooks` warns when the status line command runs through `npx`, `bunx` or a `dlx` runner, because every hook event would start it
+- The web editor checks the Claude Code version in the background instead of freezing for up to 4 s on its first request, and turning Permission requests off writes settings.json once
 
 ### Fixed
 

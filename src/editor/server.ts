@@ -8,7 +8,7 @@ import { hookEntryState } from '../commands/hooks-doctor.js';
 import {
   applyHooks,
   DEFAULT_EVENTS,
-  detectClaudeCode,
+  detectClaudeCodeAsync,
   HOOK_FLOOR,
   type HookRefusal,
   OPTIONAL_EVENTS,
@@ -76,7 +76,7 @@ export interface EditorOptions {
   host?: string;
   terminal?: TerminalColors | null;
   setup?: (version: string) => Promise<Setup>;
-  claudeVersion?: () => string | null;
+  claudeVersion?: () => string | null | Promise<string | null>;
   detached?: { idleMs: number; stateFile: string; checkMs?: number; now?: () => number };
 }
 
@@ -264,16 +264,14 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const token = crypto.randomBytes(16).toString('hex');
   let command = defaultCommand();
   const setup = opts.setup ?? ((v: string) => setupCommandAsync(v));
-  let detected: string | null | undefined;
-  const claudeVersion = (): string | null => {
-    if (detected === undefined) {
-      try {
-        detected = (opts.claudeVersion ?? (() => detectClaudeCode()))();
-      } catch {
-        detected = null;
-      }
-    }
-    return detected;
+  // async and once; started after listen, so the first request rarely waits
+  const detectAbort = new AbortController();
+  let detecting: Promise<string | null> | null = null;
+  const claudeVersion = (): Promise<string | null> => {
+    detecting ??= Promise.resolve()
+      .then(() => (opts.claudeVersion ?? (() => detectClaudeCodeAsync({ signal: detectAbort.signal })))())
+      .catch(() => null);
+    return detecting;
   };
   const refusalOf = (version: string | null): HookRefusal | null =>
     planHooks({
@@ -285,10 +283,10 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       events: [],
     }).refused;
 
-  function hooksInfo(cmd: string | null): HooksInfo {
+  async function hooksInfo(cmd: string | null): Promise<HooksInfo> {
     const base = { installed: installedHooks(), events: [...DEFAULT_EVENTS], optional: [...OPTIONAL_EVENTS] };
     if (!activeCommand(cmd)) return { ...base, available: false, reason: t('hooks.reason.notActive') };
-    const version = claudeVersion();
+    const version = await claudeVersion();
     const refused = refusalOf(version);
     const claudeCode = version ? { claudeCode: version } : {};
     if (refused) return { ...base, available: false, reason: refusalText(refused, version), ...claudeCode };
@@ -410,7 +408,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           styles: STYLES,
           themesDir: tildify(themesDir()),
           claude: claudeInfo(command),
-          hooks: hooksInfo(command),
+          hooks: await hooksInfo(command),
           hasLastPayload: fs.existsSync(lastPayloadPath()),
           scenarios: scenarioList(),
           terminal: opts.terminal ?? null,
@@ -582,8 +580,9 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         let backup: string | null = null;
         if (enabled) {
           const active = activeCommand(command);
-          if (!active) throw new HttpError(409, t('hooks.reason.notActive'), { hooks: hooksInfo(command) });
-          const claudeCode = claudeVersion();
+          if (!active)
+            throw new HttpError(409, t('hooks.reason.notActive'), { hooks: await hooksInfo(command) });
+          const claudeCode = await claudeVersion();
           const plan = planHooks({
             settings: readSettings(file).data as Record<string, unknown>,
             manifest: readManifest(),
@@ -593,14 +592,14 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
             events: permission ? [...DEFAULT_EVENTS, ...OPTIONAL_EVENTS] : DEFAULT_EVENTS,
           });
           if (plan.refused)
-            throw new HttpError(409, refusalText(plan.refused, claudeCode), { hooks: hooksInfo(command) });
-          backup = applyHooks(file, plan).backup;
-          if (permission === false)
-            backup = uninstallHooks(file, process.env, OPTIONAL_EVENTS).backup ?? backup;
+            throw new HttpError(409, refusalText(plan.refused, claudeCode), {
+              hooks: await hooksInfo(command),
+            });
+          backup = applyHooks(file, plan, process.env, permission === false ? OPTIONAL_EVENTS : []).backup;
         } else {
           backup = uninstallHooks(file).backup;
         }
-        send(res, 200, { ok: true, hooks: hooksInfo(command), backup });
+        send(res, 200, { ok: true, hooks: await hooksInfo(command), backup });
         return;
       }
       case 'GET /api/system': {
@@ -609,7 +608,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           kind: installKind(),
           update: readUpdateState(),
           claude: claudeInfo(command),
-          hooks: hooksInfo(command),
+          hooks: await hooksInfo(command),
         });
         return;
       }
@@ -665,6 +664,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
 
   let closing: Promise<void> | null = null;
   function close(): Promise<void> {
+    detectAbort.abort();
     closing ??= new Promise<void>((resolve) => {
       server.close(() => resolve());
       server.closeAllConnections();
@@ -680,6 +680,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     });
   });
   port = (server.address() as AddressInfo).port;
+  void claudeVersion();
 
   function startDetached(d: NonNullable<EditorOptions['detached']>, url: string): void {
     const pid = process.pid;

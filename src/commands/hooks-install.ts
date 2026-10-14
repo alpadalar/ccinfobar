@@ -1,4 +1,4 @@
-import { type ExecFileSyncOptionsWithStringEncoding, execFileSync } from 'node:child_process';
+import { type ExecFileSyncOptionsWithStringEncoding, execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { t } from '../core/i18n/index.js';
 import { claudeSettingsPath, lastPayloadPath } from '../core/paths.js';
@@ -111,29 +111,59 @@ export const claudeExecOptions = (): ExecFileSyncOptionsWithStringEncoding & { e
 const realExec: Exec = (file, argv) => execFileSync(file, argv, claudeExecOptions());
 
 // npm's claude.cmd needs a shell
+function claudeTries(platform: NodeJS.Platform): Array<[string, string[]]> {
+  return platform === 'win32'
+    ? [
+        ['claude.exe', ['--version']],
+        ['cmd.exe', ['/d', '/s', '/c', 'claude --version']],
+      ]
+    : [['claude', ['--version']]];
+}
+
+function payloadVersion(env: NodeJS.ProcessEnv): string | null {
+  try {
+    const raw: unknown = JSON.parse(fs.readFileSync(lastPayloadPath(env), 'utf8'));
+    return raw && typeof raw === 'object' ? parseClaudeVersion((raw as { version?: unknown }).version) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function detectClaudeCode(
   deps: { exec?: Exec; platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv } = {},
 ): string | null {
   const exec = deps.exec ?? realExec;
-  const tries: Array<[string, string[]]> =
-    (deps.platform ?? process.platform) === 'win32'
-      ? [
-          ['claude.exe', ['--version']],
-          ['cmd.exe', ['/d', '/s', '/c', 'claude --version']],
-        ]
-      : [['claude', ['--version']]];
-  for (const [file, argv] of tries) {
+  for (const [file, argv] of claudeTries(deps.platform ?? process.platform)) {
     try {
       const v = parseClaudeVersion(exec(file, argv));
       if (v) return v;
     } catch {}
   }
-  try {
-    const raw: unknown = JSON.parse(fs.readFileSync(lastPayloadPath(deps.env ?? process.env), 'utf8'));
-    return raw && typeof raw === 'object' ? parseClaudeVersion((raw as { version?: unknown }).version) : null;
-  } catch {
-    return null;
+  return payloadVersion(deps.env ?? process.env);
+}
+
+type AsyncExec = (file: string, argv: string[], signal?: AbortSignal) => Promise<string>;
+
+const realExecAsync: AsyncExec = (file, argv, signal) =>
+  new Promise((resolve, reject) => {
+    execFile(file, argv, { ...claudeExecOptions(), ...(signal ? { signal } : {}) }, (err, out) =>
+      err ? reject(err) : resolve(String(out)),
+    );
+  });
+
+// the editor must not block on claude --version
+export async function detectClaudeCodeAsync(
+  deps: { exec?: AsyncExec; platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv; signal?: AbortSignal } = {},
+): Promise<string | null> {
+  const exec = deps.exec ?? realExecAsync;
+  for (const [file, argv] of claudeTries(deps.platform ?? process.platform)) {
+    if (deps.signal?.aborted) return null;
+    try {
+      const v = parseClaudeVersion(await exec(file, argv, deps.signal));
+      if (v) return v;
+    } catch {}
   }
+  return payloadVersion(deps.env ?? process.env);
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -280,16 +310,21 @@ export const isUserSettings = (file: string, env: NodeJS.ProcessEnv) =>
   realKey(file) === realKey(claudeSettingsPath(env));
 
 // hooks-only write; re-decided against the re-read file
+// remove: owned events to drop in the same write
 export function applyHooks(
   file: string,
   plan: HookPlan,
   env: NodeJS.ProcessEnv = process.env,
-): { changed: boolean; backup: string | null; items: HookPlanItem[] } {
-  if (plan.refused || !isUserSettings(file, env)) return { changed: false, backup: null, items: [] };
+  remove: readonly string[] = [],
+): { changed: boolean; backup: string | null; items: HookPlanItem[]; removed: string[] } {
+  if (plan.refused || !isUserSettings(file, env))
+    return { changed: false, backup: null, items: [], removed: [] };
   const m = readManifest(env);
   if (m.readOnly) throw new Error(t('install.manifestReadOnly', { file: manifestFile(env) }));
   const entries = findHookEntries(m, file);
-  const state = { planned: [] as HookPlanItem[], applied: [] as HookPlanItem[] };
+  const planned = new Set<string>(plan.items.map((i) => i.event));
+  const drop = entries.filter((e) => remove.includes(e.event) && !planned.has(e.event));
+  const state = { planned: [] as HookPlanItem[], applied: [] as HookPlanItem[], removed: [] as string[] };
   const res = patchSettings(
     file,
     (draft) => {
@@ -297,17 +332,24 @@ export function applyHooks(
         i.action === 'skip-version' ? i : decide(i.event, i.group, draft, entryOf(entries, i.event)),
       );
       state.applied = mutateHooks(draft, state.planned);
+      state.removed = drop.length ? removeOwnedHooks(draft, drop).removed : [];
     },
     { original: false, env },
   );
   try {
-    const next = recordHooks(m, res.real, state.applied, plan.claudeCode, res.afterHash);
+    let next = recordHooks(m, res.real, state.applied, plan.claudeCode, res.afterHash);
+    for (const e of drop) next = dropHookEntry(next, res.real, e.event);
     writeManifest(res.changed ? noteWrite(next, res.real, res.beforeHash, res.afterHash) : next, env);
   } catch (err) {
     if (res.changed) rollbackPatch(file, res, env);
     throw err;
   }
-  return { changed: res.changed, backup: res.backup, items: appliedItems(state.planned, state.applied) };
+  return {
+    changed: res.changed,
+    backup: res.backup,
+    items: appliedItems(state.planned, state.applied),
+    removed: state.removed,
+  };
 }
 
 // D-19: deepEqual ownership; only arrays we emptied are dropped

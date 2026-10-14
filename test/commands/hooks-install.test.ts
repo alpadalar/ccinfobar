@@ -7,6 +7,7 @@ import {
   claudeExecOptions,
   DEFAULT_EVENTS,
   detectClaudeCode,
+  detectClaudeCodeAsync,
   HOOK_FLOOR,
   hookEventsFor,
   hookGroup,
@@ -230,6 +231,23 @@ describe('detectClaudeCode', () => {
     expect(o.stdio).toEqual(['ignore', 'pipe', 'ignore']);
   });
 
+  it('detects asynchronously with the same tries and fallback', async () => {
+    const calls: string[] = [];
+    const exec = async (f: string) => {
+      calls.push(f);
+      if (f === 'claude.exe') throw new Error('ENOENT');
+      return '2.1.300 (Claude Code)\n';
+    };
+    expect(await detectClaudeCodeAsync({ exec, platform: 'win32', env: payloadEnv() })).toBe('2.1.300');
+    expect(calls).toEqual(['claude.exe', 'cmd.exe']);
+    const fail = async () => {
+      throw new Error('ENOENT');
+    };
+    expect(await detectClaudeCodeAsync({ exec: fail, platform: 'linux', env: payloadEnv('2.1.250') })).toBe(
+      '2.1.250',
+    );
+  });
+
   it('falls back to the last payload version', () => {
     expect(detectClaudeCode({ exec: fail, platform: 'darwin', env: payloadEnv('2.1.250') })).toBe('2.1.250');
   });
@@ -412,6 +430,34 @@ describe('install with hooks', () => {
     expect(findStatusLineEntry(m, fx.file)?.writtenHash).toBe(hash);
     expect(applyHooks(fx.file, p, fx.env).items.map((i) => i.action)).toEqual(Array(6).fill('keep'));
     const other = projectSettingsPath(path.join(fx.dir, 'proj'));
-    expect(applyHooks(other, p, fx.env)).toEqual({ changed: false, backup: null, items: [] });
+    expect(applyHooks(other, p, fx.env)).toEqual({ changed: false, backup: null, items: [], removed: [] });
+  });
+
+  it('applyHooks drops owned events in the same write', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx, '/bin/ccinfobar');
+    const plan = (events: readonly HookEvent[]) =>
+      planHooks({
+        settings: read(fx.file),
+        manifest: readManifest(fx.env),
+        file: fx.file,
+        command: '/bin/ccinfobar',
+        claudeCode: '2.1.299',
+        events,
+      });
+    applyHooks(fx.file, plan([...DEFAULT_EVENTS, ...OPTIONAL_EVENTS]), fx.env);
+    expect(read(fx.file).hooks.PermissionRequest).toHaveLength(1);
+    const res = applyHooks(fx.file, plan(DEFAULT_EVENTS), fx.env, OPTIONAL_EVENTS);
+    expect(res.changed).toBe(true);
+    expect(res.removed).toEqual(['PermissionRequest']);
+    expect(res.items.map((i) => i.action)).toEqual(Array(6).fill('keep'));
+    expect(read(fx.file).hooks.PermissionRequest).toBeUndefined();
+    expect(findHookEntries(readManifest(fx.env), fx.file).map((e) => e.event)).not.toContain(
+      'PermissionRequest',
+    );
+    expect(applyHooks(fx.file, plan(DEFAULT_EVENTS), fx.env, OPTIONAL_EVENTS)).toMatchObject({
+      changed: false,
+      removed: [],
+    });
   });
 });

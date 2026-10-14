@@ -203,6 +203,27 @@ describe('editor hooks route', () => {
     expect(readSettings().hooks).toBeUndefined();
   });
 
+  it('a slow version check does not block other requests', async () => {
+    fs.writeFileSync(configFile, JSON.stringify(defaultConfig()));
+    let done = false;
+    handle = await startEditor({
+      configPath: configFile,
+      open: false,
+      port: 0,
+      setup: async () => ({ command: CMD, onPath: false }),
+      claudeVersion: () =>
+        new Promise((r) =>
+          setTimeout(() => {
+            done = true;
+            r('2.1.299');
+          }, 400),
+        ),
+    });
+    port = Number(new URL(handle.url).port);
+    expect((await request('GET', '/api/ping')).status).toBe(200);
+    expect(done).toBe(false);
+  });
+
   it('detects the Claude Code version once per editor', async () => {
     await startInstalled();
     for (let i = 0; i < 3; i++) await request('GET', '/api/state');
