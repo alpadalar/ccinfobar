@@ -144,11 +144,15 @@ export function detectClaudeCode(
 
 type AsyncExec = (file: string, argv: string[], signal?: AbortSignal) => Promise<string>;
 
+// no AbortSignal: killing a child whose spawn failed can signal our whole process group
 const realExecAsync: AsyncExec = (file, argv, signal) =>
   new Promise((resolve, reject) => {
-    execFile(file, argv, { ...claudeExecOptions(), ...(signal ? { signal } : {}) }, (err, out) =>
-      err ? reject(err) : resolve(String(out)),
-    );
+    const done = () => reject(new Error('aborted'));
+    signal?.addEventListener('abort', done, { once: true });
+    execFile(file, argv, claudeExecOptions(), (err, out) => {
+      signal?.removeEventListener('abort', done);
+      err ? reject(err) : resolve(String(out));
+    });
   });
 
 // the editor must not block on claude --version
