@@ -272,15 +272,14 @@ function advance(s: Summary, file: string, key: string, budget: number): Step {
   }
 }
 
-// month keys, newest first
+// month keys, oldest first
 function monthFiles(dir: string): string[] {
   try {
     return fs
       .readdirSync(dir)
       .filter((f) => LEDGER_FILE.test(f))
       .map((f) => f.slice(0, 7))
-      .sort()
-      .reverse();
+      .sort();
   } catch {
     return [];
   }
@@ -297,7 +296,7 @@ export function readLedger(
     let moved = false;
     for (let pass = 0; pass < 2; pass++) {
       const cold = !summary.built;
-      // cold: every month file, newest first; warm: the last two in order
+      // cold: every month file, oldest first, so a session crossing months keeps its highs
       const keys = cold ? monthFiles(dir) : [monthKey(prevMonth(now)), monthKey(now)];
       let budget = opts.budget ?? BYTE_BUDGET;
       let shrank = false;

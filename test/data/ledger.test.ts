@@ -478,18 +478,18 @@ describe('cold fold byte budget', () => {
 
   const size = (t: number) => fs.statSync(path.join(ledger(), `${monthKey(t)}.jsonl`)).size;
 
-  it('folds newest month first, stops at the budget and finishes over later calls', () => {
+  it('folds oldest month first, stops at the budget and finishes over later calls', () => {
     const ref = readLedger(env, T, { persist: false }).summary;
     expect(ledgerView(ref, A, P, T)?.partial).toBe(false);
     expect(ref.sessions.foreign).toBeUndefined();
-    const budget = Math.floor(size(months[2]!) * 1.5);
+    const budget = Math.floor(size(months[0]!) * 1.5);
     const first = readLedger(env, T, { persist: true, budget });
     expect(first.moved).toBe(true);
     expect(ledgerView(first.summary, A, P, T)?.partial).toBe(true);
-    expect(first.summary.files['2026-10']).toBe(size(months[2]!));
+    expect(first.summary.files['2026-08']).toBe(size(months[0]!));
     expect(first.summary.files['2026-09']).toBeGreaterThan(0);
     expect(first.summary.files['2026-09']).toBeLessThan(size(months[1]!));
-    expect(first.summary.files['2026-08']).toBeUndefined();
+    expect(first.summary.files['2026-10']).toBeUndefined();
     let calls = 1;
     let last = first;
     while (ledgerView(last.summary, A, P, T)?.partial && calls < 10) {
@@ -501,6 +501,16 @@ describe('cold fold byte budget', () => {
     expect(last.summary.days).toEqual(ref.days);
     expect(last.summary.projects).toEqual(ref.projects);
     expect(readLedger(env, T, { budget }).moved).toBe(false);
+  });
+
+  it('keeps the month-boundary step of a session on a cold rebuild', () => {
+    const sep = local(2026, 9, 30, 23);
+    const oct = local(2026, 10, 1, 1);
+    fs.writeFileSync(path.join(ledger(), '2026-09.jsonl'), line('x', 0, sep) + line('x', 2, sep));
+    fs.writeFileSync(path.join(ledger(), '2026-10.jsonl'), line('x', 2.5, oct) + line('x', 3, oct));
+    const days = readLedger(env, T).summary.days[A]!;
+    expect(close(days['2026-09-30'])).toBe(2);
+    expect(close(days['2026-10-01'])).toBe(1);
   });
 
   it('reads at most the budget per call', () => {
