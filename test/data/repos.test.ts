@@ -182,7 +182,8 @@ describe.skipIf(tmpRepo)('scanRepos', () => {
     for (let i = 0; i < 1005; i++) repo(w, `r${String(i).padStart(4, '0')}`);
     const s = scanRepos(w);
     expect(s.total).toBe(1000);
-  });
+    // 1,005 fixture repos are slow to create on windows
+  }, 90_000);
 
   it('returns nothing for an unreadable folder', () => {
     expect(scanRepos(path.join(dir, 'missing'))).toEqual({ repos: [], total: 0 });
