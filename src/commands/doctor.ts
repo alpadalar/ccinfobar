@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import { stripAnsi, visibleWidth } from '../core/ansi.js';
 import { createContext } from '../core/context.js';
+import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { cacheDir, claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { hasReplies } from '../core/payload.js';
 import { readLastPayload } from '../core/preview.js';
 import { maxLineWidth, renderLine, renderPart, renderValue, resolveAppearance } from '../core/renderer.js';
-import type { Config, RenderContext, StatusPayload, WidgetItem } from '../core/types.js';
+import type { Config, OptionSpec, RenderContext, StatusPayload, WidgetItem } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { terminalWidth } from '../data/terminal.js';
 import {
@@ -65,6 +66,49 @@ export function hiddenReason(ctx: RenderContext, item: WidgetItem): string {
     return 'Claude has not answered in this session yet; it appears after the first reply';
   }
   return 'no data for this widget in the current session';
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+
+function validOption(spec: OptionSpec, v: unknown): boolean {
+  if (spec.kind === 'select') return !spec.choices || spec.choices.some((c) => c.value === String(v));
+  if (spec.kind === 'number')
+    return (typeof v === 'number' || typeof v === 'string') && Number.isFinite(Number(v)) && v !== '';
+  if (spec.kind === 'boolean') return typeof v === 'boolean' || v === 'true' || v === 'false';
+  return true;
+}
+
+export function configWarnings(raw: unknown): string[] {
+  const out: string[] = [];
+  if (!isRecord(raw) || !Array.isArray(raw.lines)) return out;
+  raw.lines.forEach((items: unknown, index) => {
+    if (!Array.isArray(items)) return;
+    for (const item of items) {
+      if (!isRecord(item) || typeof item.type !== 'string' || !item.type) continue;
+      const type = item.type;
+      const def = getWidget(type);
+      if (!def) {
+        out.push(t('doctor.unknownWidget', { type, line: index + 1 }));
+        continue;
+      }
+      if (!isRecord(item.options)) continue;
+      for (const [key, v] of Object.entries(item.options)) {
+        const spec = def.options?.find((o) => o.key === key);
+        if (spec && !validOption(spec, v)) out.push(t('doctor.badOption', { type, key }));
+      }
+    }
+  });
+  return out;
+}
+
+function rawConfig(file: string): unknown {
+  try {
+    const text = fs.readFileSync(file, 'utf8');
+    return JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+  } catch {
+    return null;
+  }
 }
 
 export function sessionNotes(p: StatusPayload): string[] {
@@ -189,7 +233,11 @@ export function runDoctor(cfgFile: string): void {
   console.log(
     `${ok(loaded.exists && !loaded.error)} Config ${tildify(loaded.path)}${loaded.exists ? '' : ' (not created yet, defaults in use)'}`,
   );
-  if (loaded.error) console.log(`  ${loaded.error}`);
+  if (loaded.issue) {
+    console.log(t('doctor.configIssue', { ...loaded.issue }));
+    console.log(t('doctor.columnNote'));
+  } else if (loaded.error) console.log(`  ${loaded.error}`);
+  else if (loaded.exists) for (const w of configWarnings(rawConfig(loaded.path))) console.log(w);
   console.log(
     `${ok(usesUs)} Claude Code statusLine in ${tildify(claudeSettingsPath())}: ${sl?.command ?? 'not set'}`,
   );
