@@ -19,7 +19,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `-y` as a short form of `--yes`, and `--` to end option parsing (for example `-- -1`)
 - `ccinfobar explain [widget-id]` lists every widget with its current value, where it came from (payload field, cache and its age, git, GSD or another data source) and why it is empty, including which payload field Claude Code did not send and which Claude Code version adds it (`prompt_cache` 2.1.251+, `last_miss_cause` 2.1.260+); a widget id prints details for one widget
 - `ccinfobar explain --json` prints one sanitized JSON object for bug reports, with `env` and `command` widget values replaced by `<redacted N chars>`; `--scenario <name>` and `--payload <file>` pick the input, and a broken config makes it exit 1
-- `explain` also redacts `env` and `command` values in its text output; `--show-values` shows them, only in a terminal and never in `--json`
+- `explain` also redacts `env` and `command` values in its text output, and `explain <widget-id>` prints text options (such as a `command` string or a `link` URL) as `<N chars>`; `--show-values` shows them, only in a terminal and never in `--json`
 - `ccinfobar preview --scenario <name>` renders seven named situations (fresh session, context nearly full, near 5h limit, many subagents, GSD project, no git repo, API key user); a bare `--scenario` lists them
 - The web editor's preview has a Scenario picker next to Sample data / Last session
 - `ccinfobar bench` measures cold and warm render time (median, p95) against a `node -e 0` control (`--runs <n>`, `--scenario <name>`, `--json`); the method and a baseline are in docs/DEVELOPMENT.md

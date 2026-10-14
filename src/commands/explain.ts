@@ -487,7 +487,18 @@ function pick(rows: InspectRow[], id: string): InspectRow[] {
   return byId.length ? byId : rows.filter((r) => r.type === id);
 }
 
-function detailLines(data: InspectInput, r: InspectRow): string[] {
+function maskOptions(type: string, options: Record<string, unknown>): Record<string, unknown> {
+  const spec = getWidget(type)?.options ?? [];
+  return Object.fromEntries(
+    Object.entries(options).map(([k, v]) => {
+      const kind = spec.find((o) => o.key === k)?.kind;
+      const text = kind === 'text' || (kind === undefined && typeof v === 'string');
+      return [k, text ? t('explain.maskedOption', { n: String(v).length }) : v];
+    }),
+  );
+}
+
+function detailLines(data: InspectInput, r: InspectRow, reveal: boolean): string[] {
   const none = t('explain.detail.none');
   const s = (v: string) => sanitizeText(v);
   const id = s(r.id);
@@ -506,7 +517,10 @@ function detailLines(data: InspectInput, r: InspectRow): string[] {
   ];
   if (r.error !== null) out.push(t('explain.detail.error', { error: s(r.error) }));
   else if (r.empty) out.push(t('explain.detail.reason', { reason: s(r.empty.text) }));
-  const opts = options && Object.keys(options).length ? JSON.stringify(clean(options)) : none;
+  const opts =
+    options && Object.keys(options).length
+      ? JSON.stringify(clean(reveal ? options : maskOptions(r.type, options)))
+      : none;
   out.push(t('explain.detail.options', { options: opts }));
   return out;
 }
@@ -541,7 +555,7 @@ function printExplain(
   if (id !== undefined) {
     for (const r of picked) {
       io.log('');
-      for (const l of detailLines(data, shown(r))) io.log(l);
+      for (const l of detailLines(data, shown(r), reveal)) io.log(l);
     }
     return;
   }

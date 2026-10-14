@@ -569,6 +569,38 @@ describe('explain <widget-id>', () => {
     expect(process.exitCode).toBeUndefined();
   });
 
+  it('masks text options unless --show-values in a terminal', () => {
+    const token = 'echo Bearer tok-123';
+    const url = 'https://example.com/?key=url-secret';
+    const cfg = {
+      lines: [
+        [
+          { id: 'cmd', type: 'command', options: { command: token, timeout: 50 } },
+          { id: 'docs', type: 'link', options: { url, text: 'docs' } },
+        ],
+      ],
+    };
+    const masked = (s: string) => t('explain.maskedOption', { n: s.length });
+    for (const [argv, tty] of [
+      [['cmd'], false],
+      [['cmd', '--show-values'], false],
+      [['cmd'], true],
+    ] as const) {
+      const b = block(run([...argv], cfg, tty).out);
+      expect(b.join('\n')).not.toContain('tok-123');
+      expect(b).toContain(
+        t('explain.detail.options', { options: JSON.stringify({ command: masked(token), timeout: 50 }) }),
+      );
+    }
+    const link = block(run(['docs'], cfg).out).join('\n');
+    expect(link).not.toContain('url-secret');
+    expect(link).toContain(masked(url));
+    const shown = block(run(['cmd', '--show-values'], cfg, true).out);
+    expect(shown).toContain(
+      t('explain.detail.options', { options: JSON.stringify({ command: token, timeout: 50 }) }),
+    );
+  });
+
   it('prints the reason and no options for an empty widget', () => {
     const { out } = run(['branch', '--scenario', 'no-git'], LAYOUT);
     const b = block(out);

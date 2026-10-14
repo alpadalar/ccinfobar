@@ -87,6 +87,7 @@ export const explainMessages = {
   'explain.detail.options': '  options: {options}',
   'explain.detail.none': 'none',
   'explain.redacted': '<redacted {n} chars>',
+  'explain.maskedOption': '<{n} chars>',
   'explain.showValuesTty':
-    '--show-values only works in a terminal without --json; env and command values stay redacted',
+    '--show-values only works in a terminal without --json; env and command values and text options stay redacted',
 } as const;

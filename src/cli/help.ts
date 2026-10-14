@@ -42,7 +42,7 @@ Options
   --scenario <name>              preview/explain/bench: use a named scenario (bare flag lists them)
   --runs <n>                     bench: number of runs (default 20, max 1000)
   --json                         explain, bench: print one JSON object
-  --show-values                  explain: show env and command values in a terminal (redacted otherwise)
+  --show-values                  explain: in a terminal, show env and command values and text options
   --refresh <seconds>            install: also set statusLine.refreshInterval
   --project                      install/uninstall: use .claude/settings.local.json here
   --import / --no-import         install: import the previous status line's layout without asking
