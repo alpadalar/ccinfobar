@@ -65,7 +65,7 @@ export function recordHistory(
       fs.mkdirSync(dir(env), { recursive: true });
       prune(env, sample.t);
     }
-    writeAtomic(file, JSON.stringify({ samples: kept }));
+    writeAtomic(file, JSON.stringify({ samples: kept }), { mode: 0o600 });
   } catch {}
   return kept;
 }

@@ -42,7 +42,7 @@ export function readStdin(timeoutMs = 3000): Promise<string> {
 
 export function savePayload(payload: StatusPayload): void {
   try {
-    writeAtomic(lastPayloadPath(), JSON.stringify(payload));
+    writeAtomic(lastPayloadPath(), JSON.stringify(payload), { mode: 0o600 });
   } catch {}
 }
 

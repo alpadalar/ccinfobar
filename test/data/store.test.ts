@@ -2,6 +2,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { savePayload } from '../../src/cli/render.js';
+import { lastPayloadPath } from '../../src/core/paths.js';
+import { cacheFile, writeCache } from '../../src/data/cache.js';
 import { acquireLock, pruneTmp, readJsonSafe, renameWithRetry, writeAtomic } from '../../src/data/store.js';
 
 let dir = '';
@@ -30,6 +33,14 @@ describe('writeAtomic', () => {
     expect(writeAtomic(dangling, 'x')).toBe(true);
     expect(fs.lstatSync(dangling).isSymbolicLink()).toBe(true);
     expect(fs.readFileSync(path.join(dir, 'dotfiles', 'later.json'), 'utf8')).toBe('x');
+  });
+
+  it.skipIf(process.platform === 'win32')('keeps session data private (0600)', () => {
+    const env = { CCINFOBAR_CACHE_DIR: dir };
+    writeCache('x.json', { a: 1 }, env);
+    expect(fs.statSync(cacheFile('x.json', env)).mode & 0o777).toBe(0o600);
+    savePayload({ session_id: 's' });
+    expect(fs.statSync(lastPayloadPath()).mode & 0o777).toBe(0o600);
   });
 
   it('replaces the file and leaves no tmp files', () => {

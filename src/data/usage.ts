@@ -43,7 +43,7 @@ export function readUsageCache(env: NodeJS.ProcessEnv = process.env): UsageCache
 }
 
 function writeUsageCache(cache: UsageCache, env: NodeJS.ProcessEnv): void {
-  writeAtomic(usageFile(env), JSON.stringify(cache));
+  writeAtomic(usageFile(env), JSON.stringify(cache), { mode: 0o600 });
 }
 
 export function usageApiDisabled(config: Config, env: NodeJS.ProcessEnv = process.env): boolean {

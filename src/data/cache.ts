@@ -22,6 +22,6 @@ export function readCache<T>(name: string, env: NodeJS.ProcessEnv = process.env)
 
 export function writeCache(name: string, value: unknown, env: NodeJS.ProcessEnv = process.env): void {
   try {
-    writeAtomic(cacheFile(name, env), JSON.stringify(value));
+    writeAtomic(cacheFile(name, env), JSON.stringify(value), { mode: 0o600 });
   } catch {}
 }
