@@ -7,6 +7,7 @@ import type {
   WidgetItem,
   WidgetResult,
 } from '../core/types.js';
+import { formatProjection, itemKey, itemPace, projectionFor, riskColor } from './projection.js';
 import {
   barFor,
   barOptions,
@@ -45,6 +46,29 @@ const clockOption: OptionSpec = {
   label: 'Show clock time',
   kind: 'boolean',
   default: false,
+};
+
+const projectionWindowOption: OptionSpec = {
+  key: 'window',
+  label: 'Window',
+  kind: 'select',
+  default: '5h',
+  choices: [
+    { value: '5h', label: '5 hours' },
+    { value: '7d', label: '7 days' },
+  ],
+};
+
+export const projectionPaceOption: OptionSpec = {
+  key: 'pace',
+  label: 'Pace',
+  kind: 'select',
+  default: 'window',
+  choices: [
+    { value: 'window', label: 'Window average' },
+    { value: 'recent', label: 'Recent trend' },
+  ],
+  help: 'Window: average since the window started. Recent: trend of the last 30 minutes (5h) or 12 hours (7d)',
 };
 
 function win(ctx: RenderContext, key: Key): RateWindow | null {
@@ -278,6 +302,25 @@ export const widgets: WidgetDef[] = [
       const diff = Math.round(rw.used_percentage - (1 - left / len) * 100);
       if (diff === 0) return { text: 'on pace', color: 'green' };
       return diff > 0 ? { text: `⇡${diff}%`, color: 'red' } : { text: `⇣${-diff}%`, color: 'green' };
+    },
+  },
+  {
+    type: 'usage-projection',
+    name: 'Usage projection',
+    category: 'limits',
+    description: 'Expected usage at the end of the window at the current pace',
+    label: '',
+    icon: { nerd: '󰓅', emoji: '🏃' },
+    color: 'green',
+    sample: '5h →76%',
+    options: [projectionWindowOption, projectionPaceOption],
+    render(ctx, item) {
+      const key = itemKey(item);
+      const p = projectionFor(ctx, key, itemPace(item));
+      if (!p) return limitsLoading(ctx, item);
+      if (p.state === 'warming') return null;
+      const w = key === 'seven_day' ? '7d' : '5h';
+      return { text: `${w} →${formatProjection(p.proj)}`, color: riskColor(p.proj, 90) };
     },
   },
 ];

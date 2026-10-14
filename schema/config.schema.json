@@ -66,6 +66,7 @@
                 "weekly-opus-usage",
                 "spend-limit",
                 "usage-pace",
+                "usage-projection",
                 "token-rate-graph",
                 "output-speed-graph",
                 "context-graph",
