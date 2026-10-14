@@ -151,7 +151,11 @@ export function spawnSelf(args: string[], env: NodeJS.ProcessEnv = process.env):
   spawnSelfDetached(args, env);
 }
 
-export function spawnSelfDetached(args: string[], env: NodeJS.ProcessEnv = process.env): number | null {
+export function spawnSelfDetached(
+  args: string[],
+  env: NodeJS.ProcessEnv = process.env,
+  cwd?: string,
+): number | null {
   const entry = process.argv[1];
   if (!entry || !/ccinfobar(\.js)?$/.test(entry)) return null;
   const child = spawn(process.execPath, [entry, ...args], {
@@ -159,6 +163,7 @@ export function spawnSelfDetached(args: string[], env: NodeJS.ProcessEnv = proce
     stdio: 'ignore',
     windowsHide: true,
     env,
+    ...(cwd ? { cwd } : {}),
   });
   child.on('error', () => {});
   child.unref();

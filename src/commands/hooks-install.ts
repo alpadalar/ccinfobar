@@ -1,5 +1,6 @@
-import { execFileSync } from 'node:child_process';
+import { type ExecFileSyncOptionsWithStringEncoding, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import { t } from '../core/i18n/index.js';
 import { claudeSettingsPath, lastPayloadPath } from '../core/paths.js';
 import { HOOK_EVENTS, type HookEvent, isHookEvent } from '../data/hooks.js';
@@ -98,13 +99,17 @@ export function parseClaudeVersion(s: unknown): string | null {
 
 type Exec = (file: string, argv: string[]) => string;
 
-const realExec: Exec = (file, argv) =>
-  execFileSync(file, argv, {
-    encoding: 'utf8',
-    timeout: 2000,
-    windowsHide: true,
-    stdio: ['ignore', 'pipe', 'ignore'],
-  });
+// windows searches cwd first; never run a planted claude
+export const claudeExecOptions = (): ExecFileSyncOptionsWithStringEncoding & { env: NodeJS.ProcessEnv } => ({
+  encoding: 'utf8',
+  timeout: 2000,
+  windowsHide: true,
+  cwd: os.homedir(),
+  env: { ...process.env, NoDefaultCurrentDirectoryInExePath: '1' },
+  stdio: ['ignore', 'pipe', 'ignore'],
+});
+
+const realExec: Exec = (file, argv) => execFileSync(file, argv, claudeExecOptions());
 
 // npm's claude.cmd needs a shell
 export function detectClaudeCode(

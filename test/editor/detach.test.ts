@@ -138,7 +138,7 @@ describe('runDetach', () => {
     });
     expect(code).toBe(0);
     expect(spawned).toEqual([
-      ['edit', '--serve-detached', '--no-open', '--config', '/x/c.json', '--port', '9999'],
+      ['edit', '--serve-detached', '--no-open', '--config', path.resolve('/x/c.json'), '--port', '9999'],
     ]);
     expect(lines.join('\n')).toContain(fresh);
   });

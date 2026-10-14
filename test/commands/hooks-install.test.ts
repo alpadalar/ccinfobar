@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   applyHooks,
+  claudeExecOptions,
   DEFAULT_EVENTS,
   detectClaudeCode,
   HOOK_FLOOR,
@@ -219,6 +220,13 @@ describe('detectClaudeCode', () => {
     };
     expect(detectClaudeCode({ exec, platform: 'linux', env: payloadEnv() })).toBe('2.1.299');
     expect(calls).toEqual([['claude', ['--version']]]);
+  });
+
+  it('runs claude from the home dir and never from the current dir', () => {
+    const o = claudeExecOptions();
+    expect(o.cwd).toBe(os.homedir());
+    expect(o.env.NoDefaultCurrentDirectoryInExePath).toBe('1');
+    expect(o.stdio).toEqual(['ignore', 'pipe', 'ignore']);
   });
 
   it('falls back to the last payload version', () => {

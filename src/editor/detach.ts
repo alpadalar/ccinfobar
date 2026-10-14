@@ -1,4 +1,5 @@
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { t } from '../core/i18n/index.js';
 import { cacheDir } from '../core/paths.js';
@@ -89,9 +90,10 @@ export async function runDetach(opts: DetachOptions): Promise<number> {
   const live = readEditorState(env);
   if (live && (await pingEditor(live.url))) return ready(live.url);
 
-  const args = ['edit', '--serve-detached', '--no-open', '--config', opts.configPath];
+  const args = ['edit', '--serve-detached', '--no-open', '--config', path.resolve(opts.configPath)];
   if (opts.port) args.push('--port', String(opts.port));
-  const pid = (opts.spawn ?? ((a: string[]) => spawnSelfDetached(a, env)))(args);
+  // home cwd: the server runs claude --version
+  const pid = (opts.spawn ?? ((a: string[]) => spawnSelfDetached(a, env, os.homedir())))(args);
   if (pid !== null) {
     const end = Date.now() + (opts.waitMs ?? 5000);
     for (;;) {

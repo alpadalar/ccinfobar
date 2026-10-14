@@ -114,6 +114,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Security
 
+- Windows: the Claude Code version check (`install --hooks`, doctor, the editor) runs `claude` from your home folder with `NoDefaultCurrentDirectoryInExePath`, so a `claude.exe` or `claude.cmd` in the current folder is never run; `edit --detach` starts the editor from the home folder too
 - Terminal escape sequences, 8-bit control characters and bidi overrides are stripped from payload, git, transcript, subagent and GSD text, so a hostile branch name, session name or planning file cannot write the clipboard, retitle the terminal or overwrite the status line
 - The `command` widget with `preserveColors` keeps only colors and safe links; clipboard writes, title changes and other terminal sequences are removed
 - PR links are only clickable for `http(s)` URLs without control characters, the `link` widget rejects `javascript:` and `data:` URLs, and environment variable values are shown as plain text
