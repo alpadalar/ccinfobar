@@ -248,3 +248,205 @@ describe('transcript cache misses and response times', () => {
     expect(again?.responseMs).toBe(3200);
   });
 });
+
+describe('transcript tool activity', () => {
+  const T0 = Date.parse('2026-10-12T10:00:00Z');
+  const at = (s: number) => new Date(T0 + s * 1000).toISOString();
+  const line = (o: object) => JSON.stringify(o);
+  const usage = { input_tokens: 1, output_tokens: 1 };
+  const prompt = (s: number, text: string, promptId?: string) =>
+    line({ type: 'user', timestamp: at(s), ...(promptId ? { promptId } : {}), message: { content: text } });
+  const use = (s: number, id: string, name: string, input: object = {}, extra: object = {}) =>
+    line({
+      type: 'assistant',
+      timestamp: at(s),
+      ...extra,
+      message: {
+        id: `m_${id}`,
+        model: 'claude-opus-4',
+        stop_reason: 'tool_use',
+        content: [{ type: 'tool_use', id, name, input }],
+        usage,
+      },
+    });
+  const result = (s: number, id: string, promptId?: string) =>
+    line({
+      type: 'user',
+      timestamp: at(s),
+      ...(promptId ? { promptId } : {}),
+      message: { content: [{ type: 'tool_result', tool_use_id: id, content: 'ok' }] },
+    });
+  const reply = (s: number, stop: string | null) =>
+    line({
+      type: 'assistant',
+      timestamp: at(s),
+      message: {
+        id: `r${s}`,
+        model: 'claude-opus-4',
+        stop_reason: stop,
+        content: [{ type: 'text', text: 'x' }],
+        usage,
+      },
+    });
+  const parse = (lines: string[]) => parseTranscriptText(lines.join('\n'));
+
+  it('tracks running tools and turn counts', () => {
+    const t = parse([
+      prompt(0, 'go', 'p1'),
+      use(1, 't1', 'Read', { file_path: '/a/b/c.ts' }),
+      result(2, 't1', 'p1'),
+      use(3, 't2', 'Bash', { command: 'npm test' }),
+    ]);
+    expect(t.runningTools).toEqual([{ id: 't2', name: 'Bash', arg: 'npm test', start: T0 + 3000 }]);
+    expect(t.turnToolCounts).toEqual([
+      ['Read', 1],
+      ['Bash', 1],
+    ]);
+    expect(t.lastToolResultAt).toBe(T0 + 2000);
+    expect(t.promptId).toBe('p1');
+    expect(t.promptStart).toBe(T0);
+    expect(t.turnEnd).toBeNull();
+  });
+
+  it('counts a streamed rewrite of the same tool_use once', () => {
+    const t = parse([prompt(0, 'go', 'p1'), use(1, 't1', 'Bash'), use(1, 't1', 'Bash')]);
+    expect(t.turnToolCounts).toEqual([['Bash', 1]]);
+    expect(t.runningTools).toHaveLength(1);
+  });
+
+  it('resets turn counts and running tools on a new prompt', () => {
+    const t = parse([
+      prompt(0, 'go', 'p1'),
+      use(1, 't1', 'Read'),
+      use(2, 't2', 'Bash'),
+      prompt(10, 'next', 'p2'),
+      use(11, 't3', 'Edit'),
+      result(12, 't3', 'p2'),
+    ]);
+    expect(t.turnToolCounts).toEqual([['Edit', 1]]);
+    expect(t.sessionToolCounts).toEqual([
+      ['Read', 1],
+      ['Bash', 1],
+      ['Edit', 1],
+    ]);
+    expect(t.runningTools).toEqual([]);
+    expect(t.promptStart).toBe(T0 + 10_000);
+  });
+
+  it('starts a turn by the pendingPrompt rule without prompt ids', () => {
+    const t = parse([
+      prompt(0, 'go'),
+      use(1, 't1', 'Read'),
+      result(2, 't1'),
+      prompt(5, 'again'),
+      use(6, 't2', 'Bash'),
+    ]);
+    expect(t.turnToolCounts).toEqual([['Bash', 1]]);
+    expect(t.promptStart).toBe(T0 + 5000);
+  });
+
+  it('does not reset turn counts on a tool result', () => {
+    const t = parse([
+      prompt(0, 'go', 'p1'),
+      use(1, 't1', 'Read'),
+      result(2, 't1', 'p9'),
+      use(3, 't2', 'Read'),
+    ]);
+    expect(t.turnToolCounts).toEqual([['Read', 2]]);
+    expect(t.lastToolResultAt).toBe(T0 + 2000);
+    expect(t.promptStart).toBe(T0);
+  });
+
+  it('ends the turn on an interrupt marker without starting a new one', () => {
+    const t = parse([
+      prompt(0, 'go', 'p1'),
+      use(1, 't1', 'Bash'),
+      prompt(4, '[Request interrupted by user for tool use]', 'p1'),
+    ]);
+    expect(t.runningTools).toEqual([]);
+    expect(t.turnEnd).toBe(T0 + 4000);
+    expect(t.turnToolCounts).toEqual([['Bash', 1]]);
+    expect(t.promptStart).toBe(T0);
+    expect(t.turnStart).toBe(T0 + 4000);
+  });
+
+  it('ends the turn on turn_duration after the prompt', () => {
+    const sys = (s: number) =>
+      line({ type: 'system', subtype: 'turn_duration', durationMs: 1, timestamp: at(s) });
+    expect(parse([prompt(0, 'go', 'p1'), use(1, 't1', 'Read'), sys(3)]).turnEnd).toBe(T0 + 3000);
+    expect(parse([sys(-5), prompt(0, 'go', 'p1'), use(1, 't1', 'Read')]).turnEnd).toBeNull();
+  });
+
+  it('ends the turn on a final stop_reason only', () => {
+    expect(parse([prompt(0, 'go', 'p1'), reply(2, 'end_turn')]).turnEnd).toBe(T0 + 2000);
+    expect(parse([prompt(0, 'go', 'p1'), reply(2, 'max_tokens')]).turnEnd).toBe(T0 + 2000);
+    expect(parse([prompt(0, 'go', 'p1'), use(2, 't1', 'Bash')]).turnEnd).toBeNull();
+    expect(parse([prompt(0, 'go', 'p1'), reply(2, 'end_turn'), use(3, 't1', 'Bash')]).turnEnd).toBeNull();
+    expect(parse([prompt(0, 'go', 'p1'), reply(2, 'end_turn'), prompt(5, 'more', 'p2')]).turnEnd).toBeNull();
+  });
+
+  it('ignores sidechain tools', () => {
+    const t = parse([prompt(0, 'go', 'p1'), use(1, 's1', 'Grep', {}, { isSidechain: true })]);
+    expect(t.turnToolCounts).toEqual([]);
+    expect(t.sessionToolCounts).toEqual([]);
+    expect(t.runningTools).toEqual([]);
+  });
+
+  it('stores a short, safe argument', () => {
+    const arg = (input: object) => parse([use(1, 't1', 'X', input)]).runningTools[0]?.arg;
+    const long = arg({ command: 'a'.repeat(200) })!;
+    expect([...long]).toHaveLength(32);
+    expect(long.endsWith('…')).toBe(true);
+    expect(arg({ file_path: '/a/b/c.ts' })).toBe('c.ts');
+    expect(arg({ path: 'C:\\src\\lib\\' })).toBe('lib');
+    expect(arg({ pattern: 'x', command: 'npm  run\n test' })).toBe('npm run test');
+    expect(arg({ command: 'echo \u001b[2Jhi' })).not.toContain('\u001b');
+    expect(arg({ other: 'x' })).toBe('');
+    expect(arg({ command: 5, query: 'q' })).toBe('q');
+  });
+
+  it('counts a tool named __proto__ as a plain tuple', () => {
+    const t = parse([use(1, 't1', '__proto__'), use(2, 't2', 'constructor')]);
+    expect(t.sessionToolCounts).toEqual([
+      ['__proto__', 1],
+      ['constructor', 1],
+    ]);
+    expect(Object.keys(Object.prototype)).toEqual([]);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it('keeps the 50 highest counts and the newest 8 running tools', () => {
+    const lines: string[] = [];
+    let n = 0;
+    for (let i = 10; i < 60; i++) {
+      for (let k = 0; k < 2; k++) lines.push(use(n, `c${n++}`, `T${i}`));
+    }
+    for (let i = 0; i < 10; i++) lines.push(use(n, `c${n++}`, `T0${i}`));
+    const t = parse(lines);
+    expect(t.sessionToolCounts).toHaveLength(50);
+    expect(t.sessionToolCounts.every(([, c]) => c === 2)).toBe(true);
+    expect(t.sessionToolCounts.some(([name]) => name.startsWith('T0'))).toBe(false);
+    const par = parse(Array.from({ length: 12 }, (_, i) => use(1, `p${i}`, 'Bash')));
+    expect(par.runningTools.map((r) => r.id)).toEqual(['p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11']);
+  });
+
+  it('refolds a cache from the previous version', () => {
+    const file = path.join(dir, 'tools.jsonl');
+    fs.writeFileSync(
+      file,
+      `${[prompt(0, 'go', 'p1'), use(1, 't1', 'Read'), result(2, 't1', 'p1')].join('\n')}\n`,
+    );
+    expect(readTranscript(file, env)?.turnToolCounts).toEqual([['Read', 1]]);
+    const cdir = path.join(dir, 'cache');
+    const [name] = fs.readdirSync(cdir);
+    const f = path.join(cdir, name!);
+    const st = JSON.parse(fs.readFileSync(f, 'utf8'));
+    fs.writeFileSync(
+      f,
+      JSON.stringify({ ...st, v: st.v - 1, sessionTools: [['Fake', 99]], turnTools: undefined }),
+    );
+    const again = readTranscript(file, env);
+    expect(again?.sessionToolCounts).toEqual([['Read', 1]]);
+    expect(again?.turnToolCounts).toEqual([['Read', 1]]);
+  });
+});

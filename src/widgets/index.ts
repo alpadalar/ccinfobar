@@ -8,6 +8,7 @@ import { widgets as git } from './git.js';
 import { widgets as gsd } from './gsd.js';
 import { widgets as layout } from './layout.js';
 import { widgets as limits } from './limits.js';
+import { widgets as live } from './live.js';
 import { widgets as session } from './session.js';
 import { widgets as system } from './system.js';
 import { widgets as tokens } from './tokens.js';
@@ -37,6 +38,7 @@ export const ALL_WIDGETS: WidgetDef[] = [
   ...limits,
   ...charts,
   ...agents,
+  ...live,
   ...gsd,
   ...git,
   ...workspace,

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { classify, type Outcome, type Req } from '../core/cache-rule.js';
 import { deepSanitize, sanitizeText } from '../core/sanitize.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
+import { byCount } from './live.js';
 
 export interface Todo {
   content: string;
@@ -14,6 +15,13 @@ export interface AgentCall {
   start: number | null;
   done: number | null;
   async?: boolean;
+}
+
+export interface RunningTool {
+  id: string;
+  name: string;
+  arg: string;
+  start: number | null;
 }
 
 export interface TranscriptInfo {
@@ -42,6 +50,13 @@ export interface TranscriptInfo {
   lastMissAt: number | null;
   responseMs: number | null;
   responseCount: number;
+  runningTools: RunningTool[];
+  turnToolCounts: [string, number][];
+  sessionToolCounts: [string, number][];
+  lastToolResultAt: number | null;
+  promptId: string | null;
+  promptStart: number | null;
+  turnEnd: number | null;
 }
 
 interface Recent {
@@ -97,14 +112,29 @@ interface State {
   expectNext: boolean;
   pendingPrompt: number | null;
   responses: number[];
+  running: RunningTool[];
+  turnTools: [string, number][];
+  sessionTools: [string, number][];
+  counted: string[];
+  lastToolResultAt: number | null;
+  promptId: string | null;
+  promptStart: number | null;
+  turnEnd: number | null;
+  lastStop: { ts: number | null; final: boolean } | null;
 }
 
-const VERSION = 7;
+const VERSION = 8;
 const RESPONSES = 20;
 const MAX_RESPONSE_MS = 300_000;
 const RECENT = 64;
 const SPEED_WINDOW = 10;
 const CHUNK = 8 * 1024 * 1024;
+const RUNNING = 8;
+const TOOL_NAMES = 50;
+const COUNTED = 64;
+const ARG_MAX = 32;
+const FINAL = new Set(['end_turn', 'stop_sequence', 'max_tokens']);
+const INTERRUPT = /^\s*\[Request interrupted/;
 
 export function emptyState(): State {
   return {
@@ -141,6 +171,15 @@ export function emptyState(): State {
     expectNext: false,
     pendingPrompt: null,
     responses: [],
+    running: [],
+    turnTools: [],
+    sessionTools: [],
+    counted: [],
+    lastToolResultAt: null,
+    promptId: null,
+    promptStart: null,
+    turnEnd: null,
+    lastStop: null,
   };
 }
 
@@ -235,6 +274,56 @@ function handleToolUse(s: State, block: Json, ts: number | null) {
   }
 }
 
+const ARG_KEYS = ['command', 'pattern', 'file_path', 'path', 'url', 'query', 'description'];
+
+function baseName(p: string): string {
+  const parts = p.split(/[\\/]+/).filter(Boolean);
+  return parts[parts.length - 1] ?? p;
+}
+
+function shortArg(input: unknown): string {
+  if (!input || typeof input !== 'object') return '';
+  for (const key of ARG_KEYS) {
+    const v = (input as Json)[key];
+    if (typeof v !== 'string') continue;
+    const raw = key === 'file_path' || key === 'path' ? baseName(v) : v;
+    const one = sanitizeText(raw.slice(0, 1024)).replace(/\s+/g, ' ').trim();
+    if (!one) continue;
+    const chars = Array.from(one);
+    return chars.length > ARG_MAX ? `${chars.slice(0, ARG_MAX - 1).join('')}…` : one;
+  }
+  return '';
+}
+
+function bump(list: [string, number][], name: string) {
+  const hit = list.find((x) => x[0] === name);
+  if (hit) hit[1]++;
+  else list.push([name, 1]);
+  list.sort(byCount);
+  if (list.length > TOOL_NAMES) list.length = TOOL_NAMES;
+}
+
+function trackTool(s: State, block: Json, ts: number | null) {
+  const id = block.id;
+  const name = typeof block.name === 'string' ? sanitizeText(block.name).slice(0, 64).trim() : '';
+  if (typeof id !== 'string' || !id || !name || s.counted.includes(id)) return;
+  s.counted.push(id);
+  if (s.counted.length > COUNTED) s.counted.shift();
+  s.running.push({ id, name, arg: shortArg(block.input), start: ts });
+  if (s.running.length > RUNNING) s.running.shift();
+  bump(s.turnTools, name);
+  bump(s.sessionTools, name);
+}
+
+function startTurn(s: State, promptId: string | null, ts: number | null) {
+  s.promptId = promptId;
+  s.promptStart = ts;
+  s.turnTools = [];
+  s.running = [];
+  s.turnEnd = null;
+  s.lastStop = null;
+}
+
 // Claude Code's miss rule, per API request
 function classifyRequest(s: State, rec: Recent, ts: number | null, isNew: boolean) {
   const cur = { input: rec.input, read: rec.read, write: rec.write };
@@ -260,7 +349,12 @@ function applyAssistant(s: State, e: Json, ts: number | null, prevTs: number | n
   const msg = e.message as Json | undefined;
   if (!msg) return;
   const content = Array.isArray(msg.content) ? (msg.content as Json[]) : [];
-  for (const b of content) if (b?.type === 'tool_use') handleToolUse(s, b, ts);
+  for (const b of content) {
+    if (b?.type !== 'tool_use') continue;
+    handleToolUse(s, b, ts);
+    trackTool(s, b, ts);
+  }
+  s.lastStop = { ts, final: FINAL.has(msg.stop_reason) };
   const u = msg.usage as Json | undefined;
   if (!u || msg.model === '<synthetic>') return;
   if (ts !== null && (s.lastAssistantAt === null || ts > s.lastAssistantAt)) s.lastAssistantAt = ts;
@@ -322,6 +416,9 @@ function applyLine(s: State, line: string, st: { prevTs: number | null }) {
       const m = /<command-name>\s*\/?([^<\s]+)\s*<\/command-name>/.exec(e.content);
       if (m) setCommand(s, m[1]!);
     }
+    if (e.subtype === 'turn_duration' && tsv !== null && (s.promptStart === null || tsv >= s.promptStart)) {
+      s.turnEnd ??= tsv;
+    }
     if (e.subtype === 'compact_boundary') {
       s.compactions++;
       s.boundaryPending = true;
@@ -339,6 +436,8 @@ function applyLine(s: State, line: string, st: { prevTs: number | null }) {
       if (Array.isArray(content)) {
         for (const b of content as Json[]) {
           if (b?.type !== 'tool_result') continue;
+          s.running = s.running.filter((r) => r.id !== b.tool_use_id);
+          if (tsv !== null) s.lastToolResultAt = tsv;
           const call = s.agentCalls.find((c) => c.id === b.tool_use_id);
           if (!call || call.done !== null) continue;
           // background agents report back with a task notification
@@ -349,6 +448,13 @@ function applyLine(s: State, line: string, st: { prevTs: number | null }) {
       const text = userText(content);
       if (text !== null) s.turnStart = tsv;
       if (text !== null && !hasToolResult(content) && !WRAPPED.test(text)) s.pendingPrompt = tsv;
+      if (text !== null && INTERRUPT.test(text)) {
+        s.running = [];
+        s.turnEnd ??= tsv;
+      } else if (text !== null && !hasToolResult(content)) {
+        const pid = typeof e.promptId === 'string' ? e.promptId : null;
+        if (pid !== null ? pid !== s.promptId : !WRAPPED.test(text)) startTurn(s, pid, tsv);
+      }
       if (text !== null) {
         s.userMessageCount++;
         const m = /<command-name>\s*\/?([^<\s]+)\s*<\/command-name>/.exec(text);
@@ -391,6 +497,15 @@ function clean(v: string | null): string | null {
   return v === null ? null : sanitizeText(v) || null;
 }
 
+function turnEnd(s: State): number | null {
+  const end = s.turnEnd ?? (s.lastStop?.final ? s.lastStop.ts : null);
+  return end !== null && s.promptStart !== null && end < s.promptStart ? null : end;
+}
+
+function counts(list: [string, number][]): [string, number][] {
+  return list.map(([name, n]) => [sanitizeText(name), n]);
+}
+
 function toInfo(s: State): TranscriptInfo {
   return {
     inputTokens: s.inputTokens,
@@ -418,6 +533,13 @@ function toInfo(s: State): TranscriptInfo {
     lastMissAt: s.lastMissAt,
     responseMs: s.responses.length ? s.responses.reduce((a, b) => a + b, 0) / s.responses.length : null,
     responseCount: s.responses.length,
+    runningTools: deepSanitize(s.running),
+    turnToolCounts: counts(s.turnTools),
+    sessionToolCounts: counts(s.sessionTools),
+    lastToolResultAt: s.lastToolResultAt,
+    promptId: clean(s.promptId),
+    promptStart: s.promptStart,
+    turnEnd: turnEnd(s),
   };
 }
 

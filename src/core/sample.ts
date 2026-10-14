@@ -140,6 +140,23 @@ export function sampleTranscript(now = Date.now()): TranscriptInfo {
     lastMissAt: now - 6 * 60_000,
     responseMs: 3_200,
     responseCount: 20,
+    runningTools: [{ id: 'toolu_bash', name: 'Bash', arg: 'npm test', start: now - 8_000 }],
+    turnToolCounts: [
+      ['Read', 4],
+      ['Edit', 2],
+      ['Bash', 1],
+    ],
+    sessionToolCounts: [
+      ['Read', 38],
+      ['Edit', 21],
+      ['Bash', 17],
+      ['Grep', 9],
+      ['Agent', 3],
+    ],
+    lastToolResultAt: now - 10_000,
+    promptId: null,
+    promptStart: now - 134_000,
+    turnEnd: null,
   };
 }
 
