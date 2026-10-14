@@ -11,10 +11,13 @@ import type { RenderContext, StatusPayload, WidgetDef, WidgetItem, WidgetResult 
 
 export type { SourceKind } from './trace.js';
 
+export type LimitOrigin = 'session' | 'usage-api';
+
 export interface Source {
   kind: SourceKind;
   path?: string;
   age?: number;
+  origin?: LimitOrigin;
 }
 
 export type EmptyCode =
@@ -22,6 +25,7 @@ export type EmptyCode =
   | 'missing-option'
   | 'no-gsd'
   | 'no-rate-limits'
+  | 'limits-expired'
   | 'provider-no-plan-limits'
   | 'no-context-window'
   | 'no-transcript'
@@ -93,6 +97,21 @@ function absentField(reads: TraceRead[] | undefined): EmptyReason | null {
   return reason('payload-field-absent', undefined, { path: sanitizeText(path), since: sinceFor(path) });
 }
 
+// an absent payload window the store saw roll over
+function expiredWindow(ctx: RenderContext, reads: TraceRead[] | undefined): boolean {
+  let expired: string[] | undefined;
+  try {
+    expired = ctx.data.limits?.()?.expired;
+  } catch {
+    return false;
+  }
+  if (!expired?.length || !reads) return false;
+  return leaves(reads).some((r) => {
+    const w = r.kind === 'payload' && r.absent && r.path ? windowOf(r.path) : null;
+    return !!w && expired.includes(w);
+  });
+}
+
 export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceRead[]): EmptyReason {
   const def = getWidget(item.type);
   if (!def) return reason('unknown-type', undefined, { type: sanitizeText(item.type) });
@@ -105,6 +124,7 @@ export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceR
     return ctx.data.gsd() ? reason('no-data', t('explain.reason.gsdNothing')) : reason('no-gsd');
   }
   if (def.category === 'limits') {
+    if (expiredWindow(ctx, reads)) return reason('limits-expired');
     const provider = detectProvider(ctx.env);
     if (!provider.planLimits && !p.rate_limits) {
       return reason('provider-no-plan-limits', undefined, { provider: providerName(provider) });
@@ -128,8 +148,14 @@ function firstLine(e: unknown): string {
   return sanitizeText(msg.split(/\r?\n/)[0] ?? '').trim();
 }
 
+export interface LimitWindowMeta {
+  kind: 'limits-cache' | 'usage-cache';
+  age?: number;
+  origin?: LimitOrigin;
+}
+
 export interface InspectMeta {
-  usageWindows?: string[];
+  limitWindows?: Record<string, LimitWindowMeta>;
   ages?: Partial<Record<'usage' | 'transcript' | 'agents', number>>;
   gsdPath?: string;
 }
@@ -171,18 +197,21 @@ export function sourcesFor(
 
 function toSources(item: WidgetItem, reads: TraceRead[], meta: InspectMeta): Source[] {
   const ages = meta.ages ?? {};
-  const windows = new Set(meta.usageWindows ?? []);
+  const windows = meta.limitWindows ?? {};
   const out: Source[] = [];
   for (const r of leaves(reads)) {
     if (r.absent) continue;
     switch (r.kind) {
       case 'payload': {
         const w = r.path ? windowOf(r.path) : null;
-        if (w && windows.has(w)) {
+        const lw = w && Object.hasOwn(windows, w) ? windows[w] : undefined;
+        if (lw) {
+          const age = lw.age ?? (lw.kind === 'usage-cache' ? ages.usage : undefined);
           out.push({
-            kind: 'usage-cache',
+            kind: lw.kind,
             path: r.path!,
-            ...(ages.usage !== undefined ? { age: ages.usage } : {}),
+            ...(age !== undefined ? { age } : {}),
+            ...(lw.kind === 'limits-cache' && lw.origin ? { origin: lw.origin } : {}),
           });
         } else out.push({ kind: 'payload', ...(r.path ? { path: r.path } : {}) });
         break;

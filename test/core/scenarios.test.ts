@@ -241,11 +241,11 @@ describe('preview of the last payload', () => {
     const transcript = path.join(dir, 's.jsonl');
     fs.writeFileSync(
       transcript,
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'assistant',
         timestamp: new Date(now - 3 * 3_600_000).toISOString(),
         message: { id: 'm1', model: 'x', usage: { input_tokens: 1, output_tokens: 1 } },
-      }) + '\n',
+      })}\n`,
     );
     fs.mkdirSync(path.dirname(lastPayloadPath()), { recursive: true });
     fs.writeFileSync(

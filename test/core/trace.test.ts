@@ -20,7 +20,7 @@ function traced(payload: StatusPayload = samplePayload(NOW.getTime()), withHisto
       gsd: () => null,
       transcript: () => null,
       agents: () => [],
-      ...(withHistory ? { history: () => [] } : {}),
+      ...(withHistory ? { history: () => [], limits: () => null } : {}),
     },
   });
   const ctx = trace.wrap(base);
@@ -88,10 +88,12 @@ describe('createTrace', () => {
       c.data.gsd();
       c.data.agents();
       c.data.history?.();
+      c.data.limits?.();
     });
-    expect(got.map((r) => r.kind)).toEqual(['git', 'transcript', 'gsd', 'agents', 'history']);
+    expect(got.map((r) => r.kind)).toEqual(['git', 'transcript', 'gsd', 'agents', 'history', 'limits-cache']);
     const none = traced(undefined, false);
     expect(none.ctx.data.history).toBeUndefined();
+    expect(none.ctx.data.limits).toBeUndefined();
     expect(none.trace.forWidget(none.ctx).data.history).toBeUndefined();
   });
 

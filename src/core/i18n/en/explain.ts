@@ -6,6 +6,7 @@ export const explainMessages = {
   'explain.reason.no-rate-limits':
     'no rate_limits from Claude Code and none from the usage API yet (needs a Claude Pro/Max login; see `ccinfobar usage`)',
   'explain.reason.limitsWindow': 'this usage window is not in rate_limits',
+  'explain.reason.limits-expired': 'the window reset and no new usage has come in yet',
   'explain.reason.provider-no-plan-limits': '{provider} sessions have no plan limits',
   'explain.reason.no-context-window':
     'Claude Code sent no context_window and the transcript has no usage yet (update Claude Code or send a message)',
@@ -54,6 +55,10 @@ export const explainMessages = {
   'explain.source.payload': 'payload: {path}',
   'explain.source.usage-cache': 'usage cache',
   'explain.source.usage-cache.age': 'usage cache (age {age})',
+  'explain.source.limits-cache': 'limits cache',
+  'explain.source.limits-cache.age': 'limits cache, {age} old, {origin}',
+  'explain.source.origin.session': 'from another session',
+  'explain.source.origin.usage-api': 'from usage API',
   'explain.source.transcript': 'transcript',
   'explain.source.transcript.age': 'transcript (cache age {age})',
   'explain.source.agents': 'subagents',

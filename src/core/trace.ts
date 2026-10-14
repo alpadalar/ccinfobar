@@ -3,6 +3,7 @@ import type { DataSources, RenderContext, StatusPayload } from './types.js';
 export type SourceKind =
   | 'payload'
   | 'usage-cache'
+  | 'limits-cache'
   | 'transcript'
   | 'agents'
   | 'git'
@@ -103,6 +104,8 @@ export function createTrace(): Trace {
     };
     const history = d.history;
     if (history) data.history = via('history', () => history());
+    const limits = d.limits;
+    if (limits) data.limits = via('limits-cache', () => limits());
     return { ...ctx, payload: deep(ctx.payload, ''), env: envProxy(ctx.env), data };
   }
 

@@ -174,8 +174,30 @@ describe('inspectRows sources', () => {
     expect(b!.sources).toContainEqual({ kind: 'history' });
   });
 
+  it('maps limits-cache windows with age and origin', () => {
+    const path = 'rate_limits.five_hour.used_percentage';
+    const meta = (origin: 'session' | 'usage-api') => ({
+      meta: { limitWindows: { five_hour: { kind: 'limits-cache' as const, age: 120_000, origin } } },
+    });
+    expect(one('five-hour-usage', {}, meta('session')).sources).toEqual([
+      { kind: 'limits-cache', path, age: 120_000, origin: 'session' },
+    ]);
+    expect(one('five-hour-usage', {}, meta('usage-api')).sources).toEqual([
+      { kind: 'limits-cache', path, age: 120_000, origin: 'usage-api' },
+    ]);
+    expect(one('weekly-usage', {}, meta('session')).sources).toContainEqual({
+      kind: 'payload',
+      path: 'rate_limits.seven_day.used_percentage',
+    });
+    expect(one('five-hour-usage').sources).toEqual([{ kind: 'payload', path }]);
+  });
+
   it('marks usage cache windows and ages', () => {
-    const r = one('five-hour-usage', {}, { meta: { usageWindows: ['five_hour'], ages: { usage: 240_000 } } });
+    const r = one(
+      'five-hour-usage',
+      {},
+      { meta: { limitWindows: { five_hour: { kind: 'usage-cache' } }, ages: { usage: 240_000 } } },
+    );
     expect(r.sources).toEqual([
       { kind: 'usage-cache', path: 'rate_limits.five_hour.used_percentage', age: 240_000 },
     ]);
@@ -342,6 +364,47 @@ describe('emptyReason', () => {
       });
       expect(r.text).toContain(provider);
     }
+  });
+
+  it('says limits-expired for a window that rolled over', () => {
+    const now = NOW.getTime();
+    const payload = { rate_limits: { seven_day: { used_percentage: 10, resets_at: now / 1000 + 86400 } } };
+    const limits = () => ({ windows: {}, expired: ['five_hour'], storeAt: now - 60_000 });
+    const row = withoutSideEffects(
+      () =>
+        inspectRows(
+          ctxWith({ env: {}, payload, limits, config: { lines: [[item('five-hour-usage')]] } }),
+        )[0]!,
+    );
+    expect(row.empty).toEqual({ code: 'limits-expired', text: t('explain.reason.limits-expired') });
+    const week = withoutSideEffects(
+      () =>
+        inspectRows(ctxWith({ env: {}, payload, limits, config: { lines: [[item('weekly-usage')]] } }))[0]!,
+    );
+    expect(week.status).toBe('shown');
+    const other = withoutSideEffects(
+      () =>
+        inspectRows(
+          ctxWith({
+            env: {},
+            payload,
+            limits: () => ({ windows: {}, expired: [], storeAt: null }),
+            config: { lines: [[item('five-hour-usage')]] },
+          }),
+        )[0]!,
+    );
+    expect(other.empty?.code).toBe('no-data');
+    const broken = () => {
+      throw new Error('x');
+    };
+    expect(
+      withoutSideEffects(
+        () =>
+          inspectRows(
+            ctxWith({ env: {}, payload, limits: broken, config: { lines: [[item('five-hour-usage')]] } }),
+          )[0]!,
+      ).empty?.code,
+    ).toBe('no-data');
   });
 
   it('says when no rate limits arrived', () => {

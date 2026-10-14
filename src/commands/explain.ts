@@ -9,6 +9,7 @@ import {
   type InspectMeta,
   type InspectRow,
   inspectRows,
+  type LimitWindowMeta,
   type LineRow,
   lineReport,
   type Source,
@@ -22,6 +23,7 @@ import {
   sampleGit,
   sampleGsd,
   sampleHistory,
+  sampleLimits,
   samplePayload,
   sampleTranscript,
 } from '../core/sample.js';
@@ -32,6 +34,7 @@ import { VERSION } from '../core/version.js';
 import { agentsCacheName, readAgents } from '../data/agents.js';
 import { cacheFile } from '../data/cache.js';
 import { loadHistory } from '../data/history.js';
+import { type LimitsView, readLimitsStore } from '../data/limits.js';
 import { readTranscript, type TranscriptInfo, transcriptCacheName } from '../data/transcript.js';
 import { effectiveUsage, type UsageCache } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
@@ -88,13 +91,14 @@ function readOnlyData(payload: StatusPayload, env: NodeJS.ProcessEnv, now: numbe
   };
 }
 
-function sampleData(now: number): DataSources {
+function sampleData(now: number, payload: StatusPayload): DataSources {
   return {
     git: sampleGit,
     gsd: sampleGsd,
     transcript: () => sampleTranscript(now),
     history: () => sampleHistory(now),
     agents: () => sampleAgents(now),
+    limits: () => sampleLimits(now, payload.rate_limits ?? null),
   };
 }
 
@@ -141,22 +145,50 @@ function agentsAge(transcriptPath: string, env: NodeJS.ProcessEnv, now: number):
   return ages.length ? Math.min(...ages) : undefined;
 }
 
+// winner of each limits window, when not this session's payload
+function limitWindows(
+  view: LimitsView | null,
+  usage: UsageCache | null,
+  env: NodeJS.ProcessEnv,
+  now: number,
+): Record<string, LimitWindowMeta> {
+  const out: Record<string, LimitWindowMeta> = Object.create(null);
+  if (!view) return out;
+  const wins = Object.entries(view.windows);
+  const store = wins.some(([, w]) => w.source === 'limits-cache') ? readLimitsStore(env) : null;
+  for (const [key, w] of wins) {
+    if (w.source === 'limits-cache') {
+      const src = store?.windows[key]?.src;
+      out[key] = {
+        kind: 'limits-cache',
+        ...(w.at !== null ? { age: Math.max(0, now - w.at) } : {}),
+        ...(src ? { origin: src === 'usage-api' ? 'usage-api' : 'session' } : {}),
+      };
+    } else if (w.source === 'usage-api') {
+      out[key] = {
+        kind: 'usage-cache',
+        ...(usage ? { age: Math.max(0, now - usage.fetchedAt) } : {}),
+      };
+    }
+  }
+  return out;
+}
+
 function sourceMeta(
   config: Config,
   ctx: RenderContext,
   raw: StatusPayload,
   usage: UsageCache | null,
+  limits: LimitsView | null,
   env: NodeJS.ProcessEnv,
   live: boolean,
 ): InspectMeta {
   const meta: InspectMeta = {};
   const now = Date.now();
   const ages: NonNullable<InspectMeta['ages']> = {};
-  if (usage?.rate_limits && ctx.payload !== raw) {
-    const own = (raw.rate_limits ?? {}) as Record<string, unknown>;
-    meta.usageWindows = Object.keys(usage.rate_limits).filter((k) => own[k] === undefined);
-    ages.usage = Math.max(0, now - usage.fetchedAt);
-  }
+  if (usage?.rate_limits && ctx.payload !== raw) ages.usage = Math.max(0, now - usage.fetchedAt);
+  const windows = live ? limitWindows(limits, usage, env, now) : {};
+  if (Object.keys(windows).length) meta.limitWindows = windows;
   const tp = raw.transcript_path;
   if (live && typeof tp === 'string' && tp) {
     const tAge = mtimeAge(cacheFile(transcriptCacheName(tp), env), now);
@@ -210,10 +242,16 @@ export function loadInspectInput(opts: LoadOptions): InspectInput | null {
     if (opts.fallback === 'none') return null;
     payload = samplePayload(now.getTime());
     input = { kind: 'sample' };
-    data = sampleData(now.getTime());
+    data = sampleData(now.getTime(), payload);
   }
   const live = input.kind === 'payload' || input.kind === 'last';
-  const { usage, payload: shown } = live ? effectiveUsage(config, payload, env) : { usage: null, payload };
+  const eff = live ? effectiveUsage(config, payload, env, { transcript: data.transcript }) : null;
+  const usage = eff?.usage ?? null;
+  const shown = eff?.payload ?? payload;
+  if (eff) {
+    const view = eff.limits;
+    data = { ...data, limits: () => view };
+  }
   const width = probeFreeWidth(opts, payload, env);
   let tmp: string | null = null;
   let lines = config.lines;
@@ -234,7 +272,7 @@ export function loadInspectInput(opts: LoadOptions): InspectInput | null {
     terminalWidth: width,
     data,
   });
-  const meta = sourceMeta(config, ctx, payload, usage, env, live);
+  const meta = sourceMeta(config, ctx, payload, usage, eff?.limits ?? null, env, live);
   return {
     loaded,
     config,
@@ -279,6 +317,13 @@ export function shortAge(ms: number): string {
 export function sourceText(src: Source): string {
   const path = sanitizeText(src.path ?? '');
   switch (src.kind) {
+    case 'limits-cache':
+      return src.age === undefined || !src.origin
+        ? t('explain.source.limits-cache')
+        : t('explain.source.limits-cache.age', {
+            age: shortAge(src.age),
+            origin: t(`explain.source.origin.${src.origin}`),
+          });
     case 'usage-cache':
     case 'transcript':
     case 'agents':
@@ -396,6 +441,7 @@ export function explainJson(
         kind: s.kind,
         ...(s.path !== undefined ? { path: s.path } : {}),
         ...(s.age !== undefined ? { age: Math.round(s.age) } : {}),
+        ...(s.origin !== undefined ? { origin: s.origin } : {}),
       })),
       empty: r.empty ? { code: r.empty.code, text: r.empty.text } : null,
       error: r.error,
