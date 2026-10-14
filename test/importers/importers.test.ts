@@ -38,6 +38,13 @@ describe('ccstatusline import', () => {
     ]);
   });
 
+  it('imports the usable context widget as basis usable', () => {
+    const r = importCcstatusline({ lines: [[{ id: '1', type: 'context-percentage-usable' }]] });
+    expect(r.config.lines![0]).toEqual([
+      { id: '1', type: 'context-percentage', options: { basis: 'usable' } },
+    ]);
+  });
+
   it('maps powerline mode, colors and unknown widgets', () => {
     const r = importCcstatusline({
       powerline: { enabled: true, separators: [''], theme: 'nord' },

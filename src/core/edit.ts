@@ -92,6 +92,25 @@ export function optionShown(spec: OptionSpec, specs: OptionSpec[], options: Widg
   return value !== undefined && w.values.includes(value);
 }
 
+const CONTEXT_TYPES = ['context-percentage', 'context-bar'];
+const BASES: OptionValue[] = ['raw', 'usable', 'reserve'];
+
+// legacy usable switch -> basis
+export function upgradeOptions(config: Config): Config {
+  const next = clone(config);
+  next.lines = next.lines.map((l) =>
+    l.map((i) => {
+      if (!CONTEXT_TYPES.includes(i.type) || !i.options || !('usable' in i.options)) return i;
+      const { usable, ...options } = i.options;
+      if (!BASES.includes(options.basis as OptionValue) && (usable === true || usable === 'true')) {
+        options.basis = 'usable';
+      }
+      return { ...i, options };
+    }),
+  );
+  return next;
+}
+
 // keep per-line alignment next to its line
 function withAligns(next: Config, edit: (aligns: (Align | null)[]) => void): Config {
   if (!next.lineAlign) return next;

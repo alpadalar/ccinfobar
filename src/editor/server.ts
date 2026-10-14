@@ -26,7 +26,7 @@ import {
   writeUpdateState,
 } from '../commands/update.js';
 import { ConfigBrokenError, normalizeConfig, saveConfig } from '../core/config.js';
-import { applyStyle, type StyleHistory } from '../core/edit.js';
+import { applyStyle, type StyleHistory, upgradeOptions } from '../core/edit.js';
 import { t } from '../core/i18n/index.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
@@ -439,7 +439,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       }
       case 'PUT /api/config': {
         const body = asObject(await readBody(req));
-        const config = normalizeConfig(body.config);
+        const config = upgradeOptions(normalizeConfig(body.config));
         try {
           saveConfig(config, opts.configPath);
         } catch (err) {

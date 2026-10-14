@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultConfig } from '../../src/core/config.js';
+import { defaultConfig, normalizeConfig } from '../../src/core/config.js';
 import {
   addLine,
   applyStyle,
@@ -15,6 +15,7 @@ import {
   setOption,
   takeStyle,
   updateItem,
+  upgradeOptions,
 } from '../../src/core/edit.js';
 import type { Config, WidgetItem } from '../../src/core/types.js';
 
@@ -141,5 +142,46 @@ describe('line alignment', () => {
     expect(c.lineAlign).toEqual(['right']);
     c = removeLine(c, 0);
     expect(c.lineAlign).toBeUndefined();
+  });
+});
+
+describe('upgradeOptions', () => {
+  const withItems = (...items: WidgetItem[]): Config => ({ ...defaultConfig(), lines: [items] });
+  const opts = (c: Config) => c.lines[0]!.map((i) => i.options);
+
+  it('maps legacy usable to basis without mutating the input', () => {
+    const cfg = withItems({ id: 'p', type: 'context-percentage', options: { usable: true } });
+    const before = JSON.stringify(cfg);
+    expect(opts(upgradeOptions(cfg))).toEqual([{ basis: 'usable' }]);
+    expect(JSON.stringify(cfg)).toBe(before);
+  });
+
+  it('keeps an existing basis and drops usable false', () => {
+    const cfg = withItems(
+      { id: 'a', type: 'context-bar', options: { basis: 'reserve', usable: true, width: 8 } },
+      { id: 'b', type: 'context-percentage', options: { usable: false, mode: 'remaining' } },
+      { id: 'c', type: 'context-percentage', options: { usable: true, basis: 'bogus' } },
+      { id: 'd', type: 'text', options: { usable: true } },
+    );
+    expect(opts(upgradeOptions(cfg))).toEqual([
+      { basis: 'reserve', width: 8 },
+      { mode: 'remaining' },
+      { basis: 'usable' },
+      { usable: true },
+    ]);
+  });
+
+  it('leaves configs without usable unchanged', () => {
+    const cfg = withItems(
+      { id: 'p', type: 'context-percentage', options: { basis: 'raw' } },
+      { id: 't', type: 'text' },
+    );
+    expect(upgradeOptions(cfg)).toEqual(cfg);
+  });
+
+  it('round-trips through normalizeConfig', () => {
+    const cfg = withItems({ id: 'p', type: 'context-percentage', options: { usable: true } });
+    expect(normalizeConfig(cfg).lines[0]![0]!.options).toEqual({ usable: true });
+    expect(normalizeConfig(upgradeOptions(cfg)).lines[0]![0]!.options).toEqual({ basis: 'usable' });
   });
 });

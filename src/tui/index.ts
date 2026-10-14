@@ -7,6 +7,7 @@ import {
 } from '../commands/install.js';
 import { backupsDir } from '../commands/settings-file.js';
 import { ConfigBrokenError, type LoadResult, saveConfig } from '../core/config.js';
+import { upgradeOptions } from '../core/edit.js';
 import { t } from '../core/i18n/index.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { saveUserTheme } from '../core/themes.js';
@@ -67,7 +68,7 @@ function tuiPlan(plan: InstallPlan): TuiInstallPlan {
 export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): Action {
   try {
     if (effect.kind === 'save') {
-      saveConfig(state.config, state.path);
+      saveConfig(upgradeOptions(state.config), state.path);
       return {
         type: 'effectDone',
         ok: true,
@@ -89,7 +90,7 @@ export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): 
     if (effect.kind === 'planInstall') {
       return { type: 'installPlanned', plan: tuiPlan(planInstall({ file, command: planCommand(deps) })) };
     }
-    saveConfig(state.config, state.path);
+    saveConfig(upgradeOptions(state.config), state.path);
     const proposed = effect.plan?.proposed;
     const command = proposed && proposed !== PENDING ? proposed : installCommand(deps);
     const plan = planInstall({ file, command });

@@ -42,7 +42,7 @@ const RENAMED: Record<string, { type: string; options?: Record<string, OptionVal
   'thinking-effort': { type: 'effort' },
   'claude-session-id': { type: 'session-id' },
   version: { type: 'claude-version' },
-  'context-percentage-usable': { type: 'context-percentage', options: { usable: true } },
+  'context-percentage-usable': { type: 'context-percentage', options: { basis: 'usable' } },
   'context-window': { type: 'context-window-size' },
   'compaction-counter': { type: 'compactions' },
   'cache-read': { type: 'tokens-cached' },

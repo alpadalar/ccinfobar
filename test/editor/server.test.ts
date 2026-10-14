@@ -229,6 +229,16 @@ describe('editor server', () => {
     expect(state.config.separator).toBe(' :: ');
   });
 
+  it('saves legacy usable as basis usable', async () => {
+    const config = {
+      ...defaultConfig(),
+      lines: [[{ id: 'p', type: 'context-percentage', options: { usable: true } }]],
+    };
+    const res = await request('PUT', '/api/config', { body: JSON.stringify({ config }) });
+    expect(res.status).toBe(200);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).lines[0][0].options).toEqual({ basis: 'usable' });
+  });
+
   it('rejects invalid json and oversized bodies', async () => {
     expect((await request('PUT', '/api/config', { body: '{nope' })).status).toBe(400);
     const big = JSON.stringify({ config: defaultConfig(), pad: 'x'.repeat(1024 * 1024 + 10) });
