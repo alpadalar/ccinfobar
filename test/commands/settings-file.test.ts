@@ -174,6 +174,20 @@ describe('settings backups', () => {
     expect(names).toContain(path.basename(project));
   });
 
+  it('never rotates a backup the manifest restores from', () => {
+    const fx = settingsFixture({ data: base });
+    const pinned = backupSettings(fx.real, Buffer.from('pinned'), { env: fx.env, now: at(-50) });
+    const manifest = path.join(fx.env.CCINFOBAR_CONFIG_DIR ?? '', 'manifest.json');
+    const backup = path.relative(fx.env.CCINFOBAR_CONFIG_DIR ?? '', pinned);
+    fs.writeFileSync(manifest, JSON.stringify({ version: 1, entries: [{ restore: { backup, hash: 'x' } }] }));
+    for (let i = 0; i < 12; i++) backupSettings(fx.real, Buffer.from(`${i}`), { env: fx.env, now: at(i) });
+    expect(fs.readFileSync(pinned, 'utf8')).toBe('pinned');
+    expect(list(fx.env).filter((n) => /^settings-\d{8}T/.test(n))).toHaveLength(11);
+    fs.writeFileSync(manifest, JSON.stringify({ version: 1, entries: [] }));
+    backupSettings(fx.real, Buffer.from('next'), { env: fx.env, now: at(20) });
+    expect(fs.existsSync(pinned)).toBe(false);
+  });
+
   it('writes the original once and prefers the legacy backup', () => {
     const fx = settingsFixture({ data: base });
     const legacy = `${fx.file}.ccinfobar-backup`;

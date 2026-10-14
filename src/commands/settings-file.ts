@@ -170,7 +170,22 @@ export function backupPrefix(real: string, env: NodeJS.ProcessEnv = process.env)
 
 const STAMPED = /^(.+)-(\d{8}T\d{6}Z)(?:-(\d+))?\.json$/;
 
-function rotate(dir: string, prefix: string): void {
+// backups a manifest entry restores from
+function pinnedBackups(env: NodeJS.ProcessEnv): string[] {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(configDir(env), 'manifest.json'), 'utf8')) as {
+      entries?: { restore?: { backup?: unknown } | null }[];
+    };
+    return (Array.isArray(m.entries) ? m.entries : [])
+      .map((e) => e?.restore?.backup)
+      .filter((b): b is string => typeof b === 'string')
+      .map((b) => path.resolve(configDir(env), b));
+  } catch {
+    return [];
+  }
+}
+
+function rotate(dir: string, prefix: string, env: NodeJS.ProcessEnv): void {
   let names: string[];
   try {
     names = fs.readdirSync(dir);
@@ -182,9 +197,12 @@ function rotate(dir: string, prefix: string): void {
     .filter((x) => x.m?.[1] === prefix)
     .map(({ name, m }) => ({ name, at: m?.[2] ?? '', n: Number(m?.[3] ?? 1) }))
     .sort((a, b) => (a.at === b.at ? a.n - b.n : a.at < b.at ? -1 : 1));
+  const pinned = pinnedBackups(env);
   for (const old of mine.slice(0, Math.max(0, mine.length - KEEP))) {
+    const file = path.join(dir, old.name);
+    if (pinned.some((p) => samePath(p, file))) continue;
     try {
-      fs.rmSync(path.join(dir, old.name), { force: true });
+      fs.rmSync(file, { force: true });
     } catch {}
   }
 }
@@ -201,7 +219,7 @@ export function backupSettings(
   let target = path.join(dir, `${name}.json`);
   for (let n = 2; fs.existsSync(target); n++) target = path.join(dir, `${name}-${n}.json`);
   writeAtomic(target, bytes, { mode: 0o600, class: 'settings' });
-  rotate(dir, prefix);
+  rotate(dir, prefix, env);
   return target;
 }
 

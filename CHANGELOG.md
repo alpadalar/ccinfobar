@@ -19,7 +19,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
-- Settings backups are timestamped under the config dir (`backups/settings-<UTC stamp>.json`, last 10 kept, plus a `settings-original.json` that is never deleted); no new `.ccinfobar-backup` file is created, but an existing one is still used on uninstall
+- Settings backups are timestamped under the config dir (`backups/settings-<UTC stamp>.json`, last 10 kept, plus a `settings-original.json` and the backup `uninstall` restores from, which are never deleted); no new `.ccinfobar-backup` file is created, but an existing one is still used on uninstall
 - `uninstall` restores exactly what ccinfobar replaced, using `<configDir>/manifest.json`, and after several reinstalls brings back the status line you had before ccinfobar; other tools' status lines are never removed, even when they mention ccinfobar
 - `uninstall` asks once before removing a status line that mentions ccinfobar but was not set by it; without a terminal it is left alone
 - The editor and TUI show the current and new status line and ask before replacing another tool's; the editor's Install toast says where backups are kept
