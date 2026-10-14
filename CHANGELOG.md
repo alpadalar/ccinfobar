@@ -55,6 +55,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - If `manifest.json` cannot be written, `install` puts the settings file back as it was instead of leaving an unrecorded statusLine
 - A link cut off by truncation is closed, so the rest of the terminal line no longer belongs to it
 - `command` output with `preserveColors` that leaves a color on is reset at its end, so the color no longer bleeds into the next widgets
+- A damaged `update.json` in the cache no longer replaces the whole status line with the render error line
 
 ### Security
 

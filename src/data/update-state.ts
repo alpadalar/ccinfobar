@@ -21,12 +21,26 @@ export function updateFile(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(cacheDir(env), 'update.json');
 }
 
+const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/;
+const version = (v: unknown): string | null => (typeof v === 'string' && VERSION_RE.test(v) ? v : null);
+
+// a corrupt file reads as missing fields
 export function readUpdateState(env: NodeJS.ProcessEnv = process.env): UpdateState | null {
+  let o: Record<string, unknown>;
   try {
-    return JSON.parse(fs.readFileSync(updateFile(env), 'utf8')) as UpdateState;
+    const v = JSON.parse(fs.readFileSync(updateFile(env), 'utf8')) as unknown;
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+    o = v as Record<string, unknown>;
   } catch {
     return null;
   }
+  const checkedAt = typeof o.checkedAt === 'number' && Number.isFinite(o.checkedAt) ? o.checkedAt : 0;
+  const state: UpdateState = { checkedAt, latest: version(o.latest) };
+  const installed = version(o.installed);
+  if (installed) state.installed = installed;
+  if (typeof o.error === 'string') state.error = o.error;
+  if (typeof o.session === 'string') state.session = o.session;
+  return state;
 }
 
 export function writeUpdateState(state: UpdateState, env: NodeJS.ProcessEnv = process.env): void {
@@ -34,6 +48,7 @@ export function writeUpdateState(state: UpdateState, env: NodeJS.ProcessEnv = pr
 }
 
 export function compareVersions(a: string, b: string): number {
+  if (typeof a !== 'string' || typeof b !== 'string') return 0;
   const pa = a
     .replace(/^v/, '')
     .split(/[.-]/)

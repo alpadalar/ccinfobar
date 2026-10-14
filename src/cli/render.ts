@@ -85,7 +85,10 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
   const usageOn = !usageApiDisabled(config) && needsUsage(config, payload);
   const usage = usageOn ? readUsageCache() : null;
   const lines = renderStatus(config, usage ? mergeUsage(payload, usage) : payload, width);
-  const notice = updateNotice(config, VERSION);
+  let notice: string | null = null;
+  try {
+    notice = updateNotice(config, VERSION);
+  } catch {}
   if (notice && lines.length) {
     const level = detectLevel(config.colorLevel);
     lines[lines.length - 1] += ` ${style(notice, { fg: 'yellow' }, level)}`;

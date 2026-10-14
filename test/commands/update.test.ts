@@ -60,6 +60,23 @@ describe('update', () => {
     expect(updateNotice(cfg, '0.2.0', { ...env, CCINFOBAR_NO_UPDATE: '1' })).toBeNull();
   });
 
+  it('treats a corrupt update.json as having no update', () => {
+    const env = envWith();
+    const cfg = { ...defaultConfig(), update: 'notify' as const };
+    for (const state of [
+      { checkedAt: 1, latest: 42 },
+      { latest: { x: 1 } },
+      [1, 2],
+      { latest: '1.0.0\u001b]0;x' },
+    ]) {
+      writeState(env, state);
+      expect(() => updateNotice(cfg, '0.2.0', env)).not.toThrow();
+      expect(updateNotice(cfg, '0.2.0', env)).toBeNull();
+      expect(availableUpdate('0.2.0', env)).toBeNull();
+    }
+    expect(compareVersions(42 as unknown as string, '1.0.0')).toBe(0);
+  });
+
   it('honours off, CI and the opt-out variable', () => {
     const cfg = defaultConfig();
     expect(updatesDisabled({ ...cfg, update: 'off' }, {})).toBe(true);
