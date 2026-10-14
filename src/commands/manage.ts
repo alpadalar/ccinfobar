@@ -8,6 +8,7 @@ import { loadForUse } from '../core/load.js';
 import { tildify } from '../core/paths.js';
 import { forGsd, listPresets } from '../core/presets.js';
 import { renderPreview } from '../core/preview.js';
+import { sanitizeText } from '../core/sanitize.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from '../core/themes.js';
 import { gsdInstalled } from '../data/gsd.js';
 import { fetchUsage } from '../data/usage.js';
@@ -115,6 +116,8 @@ export function runPreview(args: Args, cfgFile: string): void {
   for (const line of renderPreview(loadForUse(cfgFile).config, source, width)) console.log(line);
 }
 
+const clean = (v: unknown): string => sanitizeText(String(v ?? ''));
+
 export function runThemes(args: Args, cfgFile: string): void {
   const width =
     typeof args.flags.width === 'string' ? Number(args.flags.width) : (process.stdout.columns ?? 120);
@@ -123,7 +126,7 @@ export function runThemes(args: Args, cfgFile: string): void {
     const mark = t.id === current.theme ? ' (current)' : '';
     const origin = t.source === 'user' ? ' · yours' : '';
     console.log(
-      `\n\x1b[1m${t.name}\x1b[0m  ${t.id}${mark}  \x1b[2m${t.style}${origin} · ${t.description}\x1b[0m`,
+      `\n\x1b[1m${clean(t.name)}\x1b[0m  ${clean(t.id)}${mark}  \x1b[2m${clean(t.style)}${origin} · ${clean(t.description)}\x1b[0m`,
     );
     const demo = {
       ...current,
@@ -199,7 +202,7 @@ export function runWidgets(_args: Args, _cfgFile: string): void {
 export async function runUsage(args: Args, _cfgFile: string): Promise<void> {
   const cache = await fetchUsage();
   if (args.flags.background) return;
-  if (cache.error) console.log(`✗ ${cache.error}`);
+  if (cache.error) console.log(`✗ ${clean(cache.error)}`);
   const r = cache.rate_limits;
   if (!r) {
     process.exitCode = 1;
@@ -210,7 +213,7 @@ export async function runUsage(args: Args, _cfgFile: string): Promise<void> {
   if (r.five_hour) console.log(`  5-hour: ${r.five_hour.used_percentage ?? '?'}%${at(r.five_hour)}`);
   if (r.seven_day) console.log(`  weekly: ${r.seven_day.used_percentage ?? '?'}%${at(r.seven_day)}`);
   for (const m of r.seven_day_models ?? []) {
-    console.log(`  weekly ${m.model}: ${m.used_percentage ?? '?'}%${at(m)}`);
+    console.log(`  weekly ${clean(m.model)}: ${m.used_percentage ?? '?'}%${at(m)}`);
   }
   if (r.spend_limit)
     console.log(`  extra usage: $${r.spend_limit.used_usd} of $${r.spend_limit.limit_usd ?? '?'}`);

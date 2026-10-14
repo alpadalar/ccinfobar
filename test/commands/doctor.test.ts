@@ -161,6 +161,27 @@ describe('runDoctor install report', () => {
     expect(out.some((l) => l.startsWith('✓ Claude Code statusLine'))).toBe(true);
   });
 
+  it('strips terminal escapes from external text', () => {
+    const file = claudeSettingsPath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const evil = 'evil\u001b]0;pwned\u0007\u001b[2Jcmd';
+    fs.writeFileSync(file, JSON.stringify({ statusLine: { type: 'command', command: evil } }));
+    fs.mkdirSync(cacheDir(), { recursive: true });
+    const upd = path.join(cacheDir(), 'update.json');
+    fs.writeFileSync(
+      upd,
+      JSON.stringify({ checkedAt: Date.now(), latest: null, error: `bad\u001b]52;c;eA==\u0007` }),
+    );
+    try {
+      const out = capture(() => runDoctor(plain()));
+      expect(out.join('\n')).not.toMatch(/[\u0007\u001b]/);
+      expect(out.some((l) => l.endsWith(': evilcmd'))).toBe(true);
+      expect(out).toContain('  Last update check failed: bad');
+    } finally {
+      fs.rmSync(upd, { force: true });
+    }
+  });
+
   it('sweeps stale temp files from the cache dir', () => {
     const dir = cacheDir();
     fs.mkdirSync(dir, { recursive: true });

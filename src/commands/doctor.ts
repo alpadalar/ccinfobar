@@ -7,6 +7,7 @@ import { cacheDir, claudeSettingsPath, lastPayloadPath, tildify } from '../core/
 import { hasReplies } from '../core/payload.js';
 import { readLastPayload } from '../core/preview.js';
 import { maxLineWidth, renderLine, renderPart, renderValue, resolveAppearance } from '../core/renderer.js';
+import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionSpec, RenderContext, StatusPayload, WidgetItem } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { pruneTmp } from '../data/store.js';
@@ -82,6 +83,8 @@ function validOption(spec: OptionSpec, v: unknown): boolean {
   return true;
 }
 
+const safe = (v: unknown): string => sanitizeText(typeof v === 'string' ? v : String(JSON.stringify(v)));
+
 export function configWarnings(raw: unknown): string[] {
   const out: string[] = [];
   if (!isRecord(raw) || !Array.isArray(raw.lines)) return out;
@@ -92,13 +95,14 @@ export function configWarnings(raw: unknown): string[] {
       const type = item.type;
       const def = getWidget(type);
       if (!def) {
-        out.push(t('doctor.unknownWidget', { type, line: index + 1 }));
+        out.push(t('doctor.unknownWidget', { type: safe(type), line: index + 1 }));
         continue;
       }
       if (!isRecord(item.options)) continue;
       for (const [key, v] of Object.entries(item.options)) {
         const spec = def.options?.find((o) => o.key === key);
-        if (spec && !validOption(spec, v)) out.push(t('doctor.badOption', { type, key }));
+        if (spec && !validOption(spec, v))
+          out.push(t('doctor.badOption', { type: safe(type), key: safe(key) }));
       }
     }
   });
@@ -188,7 +192,7 @@ export function usageLine(
   if (!usage) return 'Usage limits: usage API not called yet';
   const age = Math.round((now - usage.fetchedAt) / 60_000);
   const data = usage.rate_limits ? `from the usage API, ${age} min old` : 'no data from the usage API';
-  return `Usage limits: ${data}${usage.error ? ` (last error: ${usage.error})` : ''}`;
+  return `Usage limits: ${data}${usage.error ? ` (last error: ${safe(usage.error)})` : ''}`;
 }
 
 export function printWidgetReport(config: Config, payload: StatusPayload | null = readLastPayload()): void {
@@ -199,7 +203,7 @@ export function printWidgetReport(config: Config, payload: StatusPayload | null 
   }
   const keys = Object.keys(payload).filter((k) => (payload as Record<string, unknown>)[k] !== undefined);
   console.log(
-    `  Last payload: Claude Code ${payload.version ?? 'unknown version'}, fields: ${keys.sort().join(', ')}`,
+    `  Last payload: Claude Code ${safe(payload.version ?? 'unknown version')}, fields: ${safe(keys.sort().join(', '))}`,
   );
   for (const n of sessionNotes(payload)) console.log(`  ℹ ${n}`);
   const usage = usageApiDisabled(config) ? null : readUsageCache();
@@ -208,7 +212,7 @@ export function printWidgetReport(config: Config, payload: StatusPayload | null 
   const width = terminalWidth(payload.session_id, payload.terminal_width ?? payload.columns);
   const ctx = createContext({ payload: shown, config: { ...config, colorLevel: 0 }, terminalWidth: width });
   for (const r of widgetReport(ctx)) {
-    const name = `${r.item.type}${r.item.id !== r.item.type ? ` (${r.item.id})` : ''}`;
+    const name = safe(`${r.item.type}${r.item.id !== r.item.type ? ` (${r.item.id})` : ''}`);
     if (r.value !== null) console.log(`  ✓ L${r.line + 1} ${name}: ${r.value}`);
     else if (r.item.hideEmpty) console.log(`  ✗ L${r.line + 1} ${name}: hidden (hideEmpty), ${r.reason}`);
     else console.log(`  – L${r.line + 1} ${name}: shows —, ${r.reason}`);
@@ -248,17 +252,17 @@ export function runDoctor(cfgFile: string): void {
   if (loaded.issue) {
     console.log(t('doctor.configIssue', { ...loaded.issue }));
     console.log(t('doctor.columnNote'));
-  } else if (loaded.error) console.log(`  ${loaded.error}`);
+  } else if (loaded.error) console.log(`  ${safe(loaded.error)}`);
   else if (loaded.exists) for (const w of configWarnings(rawConfig(loaded.path))) console.log(w);
   console.log(
-    `${ok(usesUs)} Claude Code statusLine in ${tildify(settingsFile)}: ${sl?.command ?? 'not set'}`,
+    `${ok(usesUs)} Claude Code statusLine in ${tildify(settingsFile)}: ${sl?.command !== undefined ? safe(sl.command) : 'not set'}`,
   );
   if (typeof sl?.command === 'string') for (const w of commandWarnings(sl.command)) console.log(w);
   if (manifest.readOnly) console.log(`⚠ ${t('install.manifestReadOnly', { file: tildify(manifestFile()) })}`);
   else {
     console.log(t('doctor.manifest', { file: tildify(manifestFile()), count: manifest.entries.length }));
     for (const e of manifest.entries) {
-      console.log(t('doctor.manifestEntry', { kind: e.kind, file: tildify(String(e.file)) }));
+      console.log(t('doctor.manifestEntry', { kind: safe(e.kind), file: safe(tildify(String(e.file))) }));
     }
   }
   console.log(t('doctor.backups', { dir: tildify(backupsDir()) }));
@@ -269,7 +273,7 @@ export function runDoctor(cfgFile: string): void {
   for (const dir of dirs) {
     const o = projectOverride(dir);
     if (!o) continue;
-    console.log(`✗ ${tildify(o.file)} overrides it with: ${o.command}`);
+    console.log(`✗ ${tildify(o.file)} overrides it with: ${safe(o.command)}`);
     console.log(`  Run \`${selfCommand()} install --project\` in ${tildify(dir)} to use ccinfobar there.`);
   }
   console.log(`${ok(fs.existsSync(lastPayloadPath()))} Last payload ${tildify(lastPayloadPath())}`);
@@ -286,7 +290,7 @@ export function runDoctor(cfgFile: string): void {
     const when = upd ? `last checked ${new Date(upd.checkedAt).toLocaleString()}` : 'not checked yet';
     console.log(`✓ Up to date (${loaded.config.update} mode, ${installKind()} install, ${when})`);
   }
-  if (upd?.error) console.log(`  Last update check failed: ${upd.error}`);
+  if (upd?.error) console.log(`  Last update check failed: ${safe(upd.error)}`);
   printWidgetReport(loaded.config);
   if (!usesUs) console.log(`\nRun \`${selfCommand()} install\` to enable it in Claude Code.`);
 }

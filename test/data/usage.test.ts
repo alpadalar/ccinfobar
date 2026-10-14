@@ -101,6 +101,24 @@ describe('usage api', () => {
     expect(readUsageCache(env)?.rate_limits?.five_hour?.used_percentage).toBe(5);
   });
 
+  it('sanitizes cached usage text', async () => {
+    const env = sandbox(null);
+    fs.mkdirSync(env.CCINFOBAR_CACHE_DIR, { recursive: true });
+    fs.writeFileSync(
+      path.join(env.CCINFOBAR_CACHE_DIR, 'usage.json'),
+      JSON.stringify({
+        fetchedAt: 1,
+        error: 'x\u001b]0;t\u0007y',
+        rate_limits: { seven_day_models: [{ model: 'Op\u001b[2Jus', used_percentage: 1 }] },
+      }),
+    );
+    const c = readUsageCache(env);
+    expect(c?.error).toBe('xy');
+    expect(c?.rate_limits?.seven_day_models?.[0]?.model).toBe('Opus');
+    fs.writeFileSync(path.join(env.CCINFOBAR_CACHE_DIR, 'usage.json'), '[1]');
+    expect(readUsageCache(env)).toBeNull();
+  });
+
   it('backs off without a login', async () => {
     const env = sandbox(null);
     const c = await fetchUsage(env, reply(200, {}));

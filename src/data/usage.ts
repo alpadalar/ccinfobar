@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { cacheDir, claudeDir } from '../core/paths.js';
+import { deepSanitize } from '../core/sanitize.js';
 import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
 import { detectProvider } from './provider.js';
@@ -31,9 +32,11 @@ export function usageFile(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(cacheDir(env), 'usage.json');
 }
 
+// cached API text reaches widgets after payload ingest
 export function readUsageCache(env: NodeJS.ProcessEnv = process.env): UsageCache | null {
   try {
-    return JSON.parse(fs.readFileSync(usageFile(env), 'utf8')) as UsageCache;
+    const v = JSON.parse(fs.readFileSync(usageFile(env), 'utf8')) as unknown;
+    return v && typeof v === 'object' && !Array.isArray(v) ? deepSanitize(v as UsageCache) : null;
   } catch {
     return null;
   }
@@ -220,6 +223,7 @@ export async function fetchUsage(
       cache = keep({ error: (err as Error).message, blockedUntil: now + RETRY_MS });
     }
   }
+  cache = deepSanitize(cache);
   writeUsageCache(cache, env);
   return cache;
 }

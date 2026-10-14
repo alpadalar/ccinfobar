@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { cacheDir, configDir } from '../core/paths.js';
+import { sanitizeText } from '../core/sanitize.js';
 import type { Config } from '../core/types.js';
 import { acquireLock, writeAtomic } from './store.js';
 
@@ -38,7 +39,7 @@ export function readUpdateState(env: NodeJS.ProcessEnv = process.env): UpdateSta
   const state: UpdateState = { checkedAt, latest: version(o.latest) };
   const installed = version(o.installed);
   if (installed) state.installed = installed;
-  if (typeof o.error === 'string') state.error = o.error;
+  if (typeof o.error === 'string') state.error = sanitizeText(o.error);
   if (typeof o.session === 'string') state.session = o.session;
   return state;
 }
