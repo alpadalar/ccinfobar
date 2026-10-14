@@ -14,6 +14,7 @@ import {
   monthKey,
   projectRoot,
   pruneLedger,
+  RENDER_BUDGET,
   readLedger,
   recordLedger,
   type Summary,
@@ -511,6 +512,22 @@ describe('cold fold byte budget', () => {
     const days = readLedger(env, T).summary.days[A]!;
     expect(close(days['2026-09-30'])).toBe(2);
     expect(close(days['2026-10-01'])).toBe(1);
+  });
+
+  it('reads a small budget before stdout and finishes the build after it', () => {
+    let text = '';
+    for (let i = 0; text.length < RENDER_BUDGET * 1.5; i++)
+      text += line(`big${i % 50}`, i * 0.01, months[0]! + i);
+    fs.writeFileSync(path.join(ledger(), '2026-08.jsonl'), text);
+    const ref = readLedger(env, T, { persist: false }).summary;
+    const read = readLedger(env, T, { budget: RENDER_BUDGET });
+    expect(read.more).toBe(true);
+    expect(ledgerView(read.summary, A, P, T)?.partial).toBe(true);
+    expect(fs.existsSync(path.join(ledger(), 'summary.json'))).toBe(false);
+    recordLedger(env, { session_id: 'new', cost: { total_cost_usd: 0 } } as StatusPayload, read, T);
+    const saved = readLedger(env, T, { budget: 0 });
+    expect(saved.summary.built).toBe(true);
+    expect(saved.summary.days).toEqual(ref.days);
   });
 
   it('reads at most the budget per call', () => {

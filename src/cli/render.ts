@@ -8,7 +8,14 @@ import { ingestPayload } from '../core/payload.js';
 import { finalizeLine, render } from '../core/renderer.js';
 import type { Config, DataSources, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
-import { ledgerOn, ledgerView, projectRoot, readLedger, recordLedger } from '../data/ledger.js';
+import {
+  ledgerOn,
+  ledgerView,
+  projectRoot,
+  RENDER_BUDGET,
+  readLedger,
+  recordLedger,
+} from '../data/ledger.js';
 import { accountKey, recordLimits } from '../data/limits.js';
 import { writeAtomic } from '../data/store.js';
 import { terminalWidth } from '../data/terminal.js';
@@ -87,7 +94,7 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
   const eff = effectiveUsage(config, payload, process.env, { transcript });
   const data: Partial<DataSources> = { transcript, limits: () => eff.limits };
   const ledgerUsed = ledgerOn(config);
-  const ledger = lazy(() => readLedger(process.env, Date.now()));
+  const ledger = lazy(() => readLedger(process.env, Date.now(), { budget: RENDER_BUDGET }));
   if (ledgerUsed) {
     data.ledger = lazy(() => {
       const read = ledger();

@@ -37,6 +37,7 @@ export interface Summary {
 export interface LedgerRead {
   summary: Summary;
   moved: boolean;
+  more: boolean;
 }
 
 export interface LedgerView {
@@ -55,6 +56,7 @@ const MAX_COST = 1e6;
 const MAX_PROJECT = 1024;
 const CHUNK = 1024 * 1024;
 export const BYTE_BUDGET = 16 * 1024 * 1024;
+export const RENDER_BUDGET = 256 * 1024;
 const MAX_LINE = 64 * 1024;
 const KEEP_MONTHS = 13;
 const KEEP_DAYS = 400;
@@ -285,49 +287,60 @@ function monthFiles(dir: string): string[] {
   }
 }
 
+function foldFiles(env: NodeJS.ProcessEnv, start: Summary, now: number, total: number): LedgerRead {
+  const dir = ledgerDir(env);
+  let summary = start;
+  let moved = false;
+  let more = false;
+  for (let pass = 0; pass < 2; pass++) {
+    const cold = !summary.built;
+    // cold: every month file, oldest first, so a session crossing months keeps its highs
+    const keys = cold ? monthFiles(dir) : [monthKey(prevMonth(now)), monthKey(now)];
+    let budget = total;
+    let shrank = false;
+    more = false;
+    for (const key of keys) {
+      const r = advance(summary, path.join(dir, `${key}.jsonl`), key, budget);
+      budget -= r.used;
+      if (r.moved) moved = true;
+      if (r.cut) more = true;
+      if (r.shrank) {
+        shrank = true;
+        break;
+      }
+    }
+    if (!shrank) {
+      if (cold && !more) {
+        summary.built = true;
+        moved = true;
+      }
+      break;
+    }
+    // rebuild: re-reading a rewritten file on old highs would double count
+    summary = emptySummary();
+    moved = true;
+  }
+  if (moved) summary.at = now;
+  return { summary, moved, more };
+}
+
 export function readLedger(
   env: NodeJS.ProcessEnv = process.env,
   now = Date.now(),
   opts: { persist?: boolean; budget?: number } = {},
 ): LedgerRead {
   try {
-    const dir = ledgerDir(env);
-    let summary = parseSummary(readJsonSafe(summaryFile(env)));
-    let moved = false;
-    for (let pass = 0; pass < 2; pass++) {
-      const cold = !summary.built;
-      // cold: every month file, oldest first, so a session crossing months keeps its highs
-      const keys = cold ? monthFiles(dir) : [monthKey(prevMonth(now)), monthKey(now)];
-      let budget = opts.budget ?? BYTE_BUDGET;
-      let shrank = false;
-      let cut = false;
-      for (const key of keys) {
-        const r = advance(summary, path.join(dir, `${key}.jsonl`), key, budget);
-        budget -= r.used;
-        if (r.moved) moved = true;
-        if (r.cut) cut = true;
-        if (r.shrank) {
-          shrank = true;
-          break;
-        }
-      }
-      if (!shrank) {
-        if (cold && !cut) {
-          summary.built = true;
-          moved = true;
-        }
-        break;
-      }
-      // rebuild: re-reading a rewritten file on old highs would double count
-      summary = emptySummary();
-      moved = true;
-    }
-    if (moved) summary.at = now;
-    if (moved && opts.persist === true)
-      writeAtomic(summaryFile(env), JSON.stringify(summary), { mode: 0o600 });
-    return { summary, moved };
+    const read = foldFiles(
+      env,
+      parseSummary(readJsonSafe(summaryFile(env))),
+      now,
+      opts.budget ?? BYTE_BUDGET,
+    );
+    if (read.moved && opts.persist === true)
+      writeAtomic(summaryFile(env), JSON.stringify(read.summary), { mode: 0o600 });
+    return read;
   } catch {
-    return { summary: emptySummary(), moved: false };
+    return { summary: emptySummary(), moved: false, more: false };
   }
 }
 
@@ -433,11 +446,16 @@ function transcriptHash(file: string | undefined): string {
 export function recordLedger(
   env: NodeJS.ProcessEnv,
   payload: StatusPayload,
-  read: LedgerRead,
+  first: LedgerRead,
   now = Date.now(),
 ): void {
   let pruned = false;
+  let read = first;
   try {
+    if (read.more) {
+      const next = foldFiles(env, read.summary, now, BYTE_BUDGET);
+      read = { ...next, moved: read.moved || next.moved };
+    }
     const c = payload.cost?.total_cost_usd;
     const s = payload.session_id;
     if (costOk(c) && idOk(s)) {
