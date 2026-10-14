@@ -192,6 +192,18 @@ describe('inspectRows sources', () => {
     expect(one('five-hour-usage').sources).toEqual([{ kind: 'payload', path }]);
   });
 
+  it('maps model windows to their model key', () => {
+    const lw = { kind: 'limits-cache' as const, age: 60_000, origin: 'usage-api' as const };
+    const meta = { meta: { limitWindows: { 'model:fable': lw }, limitModels: ['model:fable'] } };
+    const src = one('weekly-model-usage', {}, meta).sources;
+    expect(src).toContainEqual(expect.objectContaining({ kind: 'limits-cache', origin: 'usage-api' }));
+    expect(src.some((x) => x.kind === 'payload')).toBe(false);
+    const other = {
+      meta: { limitWindows: { 'model:opus': lw }, limitModels: ['model:fable', 'model:opus'] },
+    };
+    expect(one('weekly-model-usage', {}, other).sources.some((x) => x.kind === 'limits-cache')).toBe(false);
+  });
+
   it('marks usage cache windows and ages', () => {
     const r = one(
       'five-hour-usage',

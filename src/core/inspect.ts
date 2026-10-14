@@ -104,7 +104,7 @@ function absentField(reads: TraceRead[] | undefined): EmptyReason | null {
 }
 
 // an absent payload window the store saw roll over
-function expiredWindow(ctx: RenderContext, reads: TraceRead[] | undefined): boolean {
+function expiredWindow(ctx: RenderContext, item: WidgetItem, reads: TraceRead[] | undefined): boolean {
   let expired: string[] | undefined;
   try {
     expired = ctx.data.limits?.()?.expired;
@@ -112,8 +112,9 @@ function expiredWindow(ctx: RenderContext, reads: TraceRead[] | undefined): bool
     return false;
   }
   if (!expired?.length || !reads) return false;
+  const models = expired.filter((k) => k.startsWith('model:'));
   return leaves(reads).some((r) => {
-    const w = r.kind === 'payload' && r.absent && r.path ? windowOf(r.path) : null;
+    const w = r.kind === 'payload' && r.absent && r.path ? windowOf(r.path, item, models) : null;
     return !!w && expired.includes(w);
   });
 }
@@ -139,7 +140,7 @@ export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceR
       const below = BELOW[item.type as keyof typeof BELOW];
       if (s === 'ok' && below) return reason('no-data', t(below));
     }
-    if (expiredWindow(ctx, reads)) return reason('limits-expired');
+    if (expiredWindow(ctx, item, reads)) return reason('limits-expired');
     const provider = detectProvider(ctx.env);
     if (!provider.planLimits && !p.rate_limits) {
       return reason('provider-no-plan-limits', undefined, { provider: providerName(provider) });
@@ -177,6 +178,7 @@ export interface LimitWindowMeta {
 
 export interface InspectMeta {
   limitWindows?: Record<string, LimitWindowMeta>;
+  limitModels?: string[];
   ages?: Partial<Record<'usage' | 'transcript' | 'agents' | 'ledger', number>>;
   gsdPath?: string;
 }
@@ -195,9 +197,16 @@ function hinted(hints: string[]): Source[] {
   });
 }
 
-function windowOf(path: string): string | null {
+const LEGACY_MODEL: Record<string, string> = { 'weekly-sonnet-usage': 'sonnet', 'weekly-opus-usage': 'opus' };
+
+// model windows are keyed model:<name>; the same match as modelWindow
+function windowOf(path: string, item: WidgetItem, models: string[]): string | null {
   const m = /^rate_limits\.([^.[]+)/.exec(path);
-  return m ? m[1]! : null;
+  if (!m) return null;
+  if (m[1] !== 'seven_day_models') return m[1]!;
+  const opt = item.options?.model;
+  const want = (LEGACY_MODEL[item.type] ?? (typeof opt === 'string' ? opt : '')).trim().toLowerCase();
+  return models.find((k) => k.slice(k.indexOf(':') + 1).includes(want)) ?? null;
 }
 
 export function sourcesFor(
@@ -224,7 +233,7 @@ function toSources(item: WidgetItem, reads: TraceRead[], meta: InspectMeta): Sou
     if (r.absent) continue;
     switch (r.kind) {
       case 'payload': {
-        const w = r.path ? windowOf(r.path) : null;
+        const w = r.path ? windowOf(r.path, item, meta.limitModels ?? []) : null;
         const lw = w && Object.hasOwn(windows, w) ? windows[w] : undefined;
         if (lw) {
           const age = lw.age ?? (lw.kind === 'usage-cache' ? ages.usage : undefined);

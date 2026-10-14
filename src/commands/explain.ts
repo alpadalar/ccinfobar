@@ -36,7 +36,7 @@ import { agentsCacheName, readAgents } from '../data/agents.js';
 import { cacheFile } from '../data/cache.js';
 import { loadHistory } from '../data/history.js';
 import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
-import { accountKey, type LimitsView, readLimitsStore } from '../data/limits.js';
+import { accountKey, type LimitsView, modelKey, readLimitsStore } from '../data/limits.js';
 import { readTranscript, type TranscriptInfo, transcriptCacheName } from '../data/transcript.js';
 import { effectiveUsage, type UsageCache } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
@@ -207,6 +207,10 @@ function sourceMeta(
   if (usage?.rate_limits && ctx.payload !== raw) ages.usage = Math.max(0, now - usage.fetchedAt);
   const windows = live ? limitWindows(limits, usage, env, now) : {};
   if (Object.keys(windows).length) meta.limitWindows = windows;
+  const models = (ctx.payload.rate_limits?.seven_day_models ?? [])
+    .map((m) => modelKey(m?.model)?.key)
+    .filter((k): k is string => !!k);
+  if (live && models.length) meta.limitModels = models;
   const tp = raw.transcript_path;
   if (live && typeof tp === 'string' && tp) {
     const tAge = mtimeAge(cacheFile(transcriptCacheName(tp), env), now);
