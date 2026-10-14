@@ -37,7 +37,7 @@ function ctxFor(id: string): RenderContext {
   const b = getScenario(id)!.build(SCENARIO_NOW);
   return createContext({
     payload: b.payload,
-    config: { ...defaultConfig(), colorLevel: 0 },
+    config: scenarioConfig({ ...defaultConfig(), colorLevel: 0 }, b),
     env: { ...b.env },
     now: new Date(SCENARIO_NOW),
     preview: true,
@@ -206,6 +206,63 @@ describe('scenarios', () => {
     a.payload.session_name = 'changed';
     expect(s.build(SCENARIO_NOW).payload.session_name).not.toBe('changed');
     expect(getScenario('gsd-project')!.build(SCENARIO_NOW).payload.workspace?.repo).toBeDefined();
+  });
+});
+
+const NEW_WIDGETS = [
+  'usage-projection',
+  'limit-eta',
+  'limit-risk',
+  'cost-today',
+  'cost-week',
+  'cost-project',
+  'budget',
+  'performance',
+];
+
+const raw = (id: string, type: string) =>
+  withoutSideEffects(() => getWidget(type)!.render(ctxFor(id), { id: type, type }));
+
+describe('new widgets across scenarios', () => {
+  it('render a string, an object or null under every scenario', () => {
+    for (const id of IDS) {
+      for (const type of NEW_WIDGETS) {
+        const out = raw(id, type);
+        if (out === null || out === undefined || typeof out === 'string') continue;
+        expect(typeof out.text, `${id} ${type}`).toBe('string');
+      }
+    }
+  });
+
+  it('api-key-user shows no limits or projection', () => {
+    for (const type of ['usage-projection', 'limit-eta', 'limit-risk']) {
+      expect(widget('api-key-user', type), type).toBeNull();
+    }
+  });
+
+  it('near-5h-limit is red and has an ETA', () => {
+    expect(raw('near-5h-limit', 'limit-risk')).toMatchObject({ color: 'red' });
+    expect(widget('near-5h-limit', 'limit-eta')).toMatch(/ in \d+m$/);
+  });
+
+  it('near-7d-limit is amber and base-derived scenarios have no chip', () => {
+    expect(raw('near-7d-limit', 'limit-risk')).toMatchObject({ color: 'yellow' });
+    for (const id of ['gsd-project', 'no-git', 'many-subagents', 'over-budget']) {
+      expect(widget(id, 'limit-risk'), id).toBeNull();
+    }
+  });
+
+  it('fresh-session has no ledger costs', () => {
+    for (const type of ['cost-today', 'cost-week', 'cost-project']) {
+      expect(widget('fresh-session', type), type).toBeNull();
+    }
+  });
+
+  it('only over-budget shows a budget, in red', () => {
+    expect(raw('over-budget', 'budget')).toEqual({ text: '~$4.12/$3', color: 'red' });
+    for (const id of IDS.filter((x) => x !== 'over-budget')) {
+      expect(widget(id, 'budget'), id).toBeNull();
+    }
   });
 });
 

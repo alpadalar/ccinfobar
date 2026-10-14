@@ -97,6 +97,25 @@ describe('withoutSideEffects', () => {
     expect(lines.length).toBeGreaterThan(0);
   });
 
+  it('renders every new widget without spawn, fetch or config save', () => {
+    const types = [
+      'usage-projection',
+      'limit-eta',
+      'limit-risk',
+      'cost-today',
+      'cost-week',
+      'cost-project',
+      'budget',
+      'performance',
+    ];
+    const ctx = ctxWith({
+      config: { budget: { daily: 3 }, lines: [types.map((type) => ({ id: type, type }))] },
+      width: 400,
+    });
+    const lines = withoutSideEffects(() => render(ctx));
+    expect(lines.join('')).toContain('~$4.12/$3');
+  });
+
   it('passes an env override to the context', () => {
     expect(ctxWith({ env: { FOO: '1' } }).env.FOO).toBe('1');
     expect(ctxWith({}).env).toEqual({});
