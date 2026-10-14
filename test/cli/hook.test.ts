@@ -452,11 +452,26 @@ describe('pruneHookLogs', () => {
     }
   });
 
-  it('stops after maxScan entries and tolerates a missing dir', () => {
+  it('stops after maxRemove deletions and tolerates a missing dir', () => {
     const dir = tmp();
     for (let i = 0; i < 10; i++) make(dir, `s${i}.jsonl`, 9);
     expect(pruneHookLogs(dir, [], now, 7 * DAY, 4)).toBe(4);
     expect(fs.readdirSync(dir)).toHaveLength(6);
     expect(pruneHookLogs(path.join(dir, 'missing'), [], now)).toBe(0);
+  });
+
+  it('reaches old files behind many fresh ones', () => {
+    const dir = tmp();
+    for (let i = 0; i < 600; i++) fs.writeFileSync(path.join(dir, `f${i}.jsonl`), '');
+    const old = make(dir, 'zz-old.jsonl', 9);
+    expect(pruneHookLogs(dir, [], Date.now(), 7 * DAY, 200, 10_000)).toBe(1);
+    expect(fs.existsSync(old)).toBe(false);
+  });
+
+  it('stops at the time budget', () => {
+    const dir = tmp();
+    for (let i = 0; i < 10; i++) make(dir, `s${i}.jsonl`, 9);
+    let c = 0;
+    expect(pruneHookLogs(dir, [], now, 7 * DAY, 200, 15, () => (c += 10))).toBe(1);
   });
 });

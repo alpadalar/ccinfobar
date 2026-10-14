@@ -123,19 +123,22 @@ export async function scheduleUpdate(
 
 const PRUNE_RE = /^([A-Za-z0-9_-]{1,128})(\.jsonl|\.fold\.json)$/;
 
-// bounded and silent; regular files only
+// bounded by deletions and time, not entries; regular files only
 export function pruneHookLogs(
   dir: string,
   keep: string[],
   now: number,
   maxAgeMs = PRUNE_AGE,
-  maxScan = 500,
+  maxRemove = 200,
+  budgetMs = 15,
+  clock: () => number = Date.now,
 ): number {
   let removed = 0;
   let handle: fs.Dir | undefined;
+  const end = clock() + budgetMs;
   try {
     handle = fs.opendirSync(dir);
-    for (let i = 0; i < maxScan; i++) {
+    while (removed < maxRemove && clock() < end) {
       const ent = handle.readSync();
       if (!ent) break;
       if (!PRUNE_RE.test(ent.name) || keep.includes(ent.name)) continue;
