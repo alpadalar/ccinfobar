@@ -65,14 +65,14 @@ export interface StatusPayload {
     warm?: boolean;
     caching_observed?: boolean;
     ttl?: string;
-    expires_at?: number | string;
+    expires_at?: number | string | null;
     requests?: number;
     misses?: number;
     expected_rebuilds?: number;
-    hit_ratio?: number;
+    hit_ratio?: number | null;
     cache_write_tokens?: number;
     miss_recache_tokens?: number;
-    last_miss_at?: number | string;
+    last_miss_at?: number | string | null;
     last_miss_cause?: MissCause | string | null;
     miss_causes?: Record<string, number>;
     recache_tokens_if_cold?: number;

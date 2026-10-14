@@ -60,6 +60,7 @@ const PURE = [
   'src/core/scenarios.ts',
   'src/core/trace.ts',
   'src/core/time.ts',
+  'src/core/cache-rule.ts',
 ];
 
 function walk(dir: string): string[] {

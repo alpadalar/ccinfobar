@@ -57,8 +57,8 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `tokens-cached` | Cache read and write tokens | `Cache 3.2M` |  |
 | `tokens-total` | Input plus output tokens | `Tokens 450k` |  |
 | `cache-hit-rate` | Prompt cache hit ratio | `Hit 94%` |  |
-| `cache-timer` | Time left before the prompt cache expires | `Cache 41m` |  |
-| `cache-miss-cause` | Reason for the last prompt cache miss | `Miss tools changed (+2/-0)` |  |
+| `cache-timer` | Time left before the prompt cache expires | `Cache 41m` | `showTtl` boolean, default `false` |
+| `cache-miss-cause` | Reason for the last prompt cache miss | `Miss tools changed (+2/-0)` | `show` select, default `"latest"` (`latest`, `always`) |
 | `output-speed` | Recent output tokens per second | `72 t/s` |  |
 
 ## Cost & time

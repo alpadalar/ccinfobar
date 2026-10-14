@@ -1,6 +1,8 @@
+import { latestMiss } from '../core/cache-rule.js';
+import { t } from '../core/i18n/index.js';
 import type { MissCause, WidgetDef } from '../core/types.js';
 import { tok } from './context.js';
-import { formatDuration, loading, toEpochMs } from './shared.js';
+import { formatDuration, loading, opt, toEpochMs } from './shared.js';
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
@@ -16,6 +18,13 @@ function missPart(cause: string, c: MissCause): string {
     if (d !== null) return `${name} (${d < 0 ? '-' : '+'}${Math.abs(d)} chars)`;
   }
   return name;
+}
+
+function missText(c: MissCause | string | null | undefined): string | null {
+  if (typeof c === 'string') return c.replace(/_/g, ' ').trim() || null;
+  if (!c || typeof c !== 'object' || !Array.isArray(c.causes)) return null;
+  const parts = c.causes.filter((x): x is string => typeof x === 'string').map((x) => missPart(x, c));
+  return parts.filter(Boolean).join(', ') || null;
 }
 
 export const widgets: WidgetDef[] = [
@@ -118,15 +127,29 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󱎫', emoji: '⏳' },
     color: 'green',
     sample: '41m',
-    render(ctx) {
+    options: [
+      {
+        key: 'showTtl',
+        label: 'Show TTL',
+        kind: 'boolean',
+        default: false,
+        help: 'Append the cache lifetime, for example 41m/1h',
+      },
+    ],
+    render(ctx, item) {
       const c = ctx.payload.prompt_cache;
       if (!c) return null;
-      if (c.warm === false) return { text: 'cold', color: 'red' };
+      if (c.caching_observed === false) {
+        return { text: t('widget.cache.off'), color: ctx.theme?.colors.muted ?? 'brightBlack' };
+      }
+      const cold = { text: t('widget.cache.cold'), color: 'red' };
+      if (c.warm === false) return cold;
       const exp = toEpochMs(c.expires_at);
-      if (exp === null) return null;
+      if (exp === null || !Number.isFinite(exp)) return null;
       const left = exp - ctx.now.getTime();
-      if (left <= 0) return { text: 'cold', color: 'red' };
-      return { text: formatDuration(left), color: left < 5 * 60_000 ? 'yellow' : 'green' };
+      if (left <= 0) return cold;
+      const ttl = opt(item, 'showTtl', false) && typeof c.ttl === 'string' && c.ttl ? `/${c.ttl}` : '';
+      return { text: formatDuration(left) + ttl, color: left < 5 * 60_000 ? 'yellow' : 'green' };
     },
   },
   {
@@ -138,12 +161,24 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰀦', emoji: '❄️' },
     color: 'yellow',
     sample: 'tools changed (+2/-0)',
-    render(ctx) {
-      const c = ctx.payload.prompt_cache?.last_miss_cause;
-      if (typeof c === 'string') return c.replace(/_/g, ' ').trim() || null;
-      if (!c || typeof c !== 'object' || !Array.isArray(c.causes)) return null;
-      const parts = c.causes.filter((x): x is string => typeof x === 'string').map((x) => missPart(x, c));
-      return parts.filter(Boolean).join(', ') || null;
+    options: [
+      {
+        key: 'show',
+        label: 'Show',
+        kind: 'select',
+        default: 'latest',
+        choices: [
+          { value: 'latest', label: 'Latest miss only' },
+          { value: 'always', label: 'Always' },
+        ],
+        help: 'Latest: only while the last request missed the cache',
+      },
+    ],
+    render(ctx, item) {
+      const pc = ctx.payload.prompt_cache;
+      const text = missText(pc?.last_miss_cause);
+      if (!text) return null;
+      return opt<string>(item, 'show', 'latest') === 'latest' && latestMiss(pc) === 'no' ? null : text;
     },
   },
   {
