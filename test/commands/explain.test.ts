@@ -10,6 +10,7 @@ import {
   loadInspectInput,
   runExplain,
   shortAge,
+  sourceText,
 } from '../../src/commands/explain.js';
 import type { CliIo } from '../../src/commands/io.js';
 import { t } from '../../src/core/i18n/index.js';
@@ -20,6 +21,7 @@ import type { StatusPayload } from '../../src/core/types.js';
 import { VERSION } from '../../src/core/version.js';
 import { agentsCacheName, readAgents } from '../../src/data/agents.js';
 import { cacheFile } from '../../src/data/cache.js';
+import { limitsFile, recordLimits, recordUsageApi } from '../../src/data/limits.js';
 import { readTranscript, transcriptCacheName } from '../../src/data/transcript.js';
 import { usageFile } from '../../src/data/usage.js';
 
@@ -749,5 +751,133 @@ describe('explain with a broken config', () => {
       expect(err[1]).toBe(t('explain.runDoctor'));
       expect(process.exitCode).toBe(1);
     }
+  });
+});
+
+describe('explain limits sources', () => {
+  const FIVE = { lines: [[{ id: 'five-hour-usage', type: 'five-hour-usage' }]] };
+  const PROVIDER = /^(CLAUDE_CODE_USE_|ANTHROPIC_)|^CLAUDE_CODE_OAUTH_TOKEN$/;
+  let saved: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    saved = {};
+    for (const k of Object.keys(process.env)) {
+      if (PROVIDER.test(k)) {
+        saved[k] = process.env[k];
+        delete process.env[k];
+      }
+    }
+  });
+
+  afterEach(() => {
+    fs.rmSync(limitsFile(), { force: true });
+    Object.assign(process.env, saved);
+  });
+
+  const resetsSec = () => Math.floor(Date.now() / 1000) + 2 * 3600;
+
+  function sessionAt(ago: number, rate_limits: StatusPayload['rate_limits']): void {
+    const file = path.join(dir, 'limits-session.jsonl');
+    fs.writeFileSync(
+      file,
+      `${JSON.stringify({
+        type: 'assistant',
+        timestamp: new Date(Date.now() - ago).toISOString(),
+        message: { id: 'm1', model: 'claude-opus-5-5', usage: { input_tokens: 10, output_tokens: 5 } },
+      })}\n`,
+    );
+    savedPayload({ transcript_path: file, rate_limits });
+  }
+
+  const five = (pct: number, resets_at = resetsSec()) => ({ five_hour: { used_percentage: pct, resets_at } });
+
+  function otherSession(pct: number, ago: number): void {
+    recordLimits(process.env, { rate_limits: five(pct) }, Date.now() - ago, Date.now());
+  }
+
+  const detail = (out: string[], key: string) => out.find((l) => l.startsWith(`  ${key}: `)) ?? '';
+
+  it('names the limits cache and another session when its value is newer', () => {
+    sessionAt(3 * 3_600_000, five(40));
+    otherSession(70, 2 * 60_000);
+    const { out } = run(['five-hour-usage'], FIVE);
+    expect(detail(out, 'value')).toBe('  value: 70%');
+    const src = detail(out, 'sources');
+    expect(src).toContain('limits cache');
+    expect(src).toContain('2m');
+    expect(src).toContain('another session');
+  });
+
+  it('says usage API when the store entry came from the worker', () => {
+    sessionAt(3 * 3_600_000, five(40));
+    recordUsageApi(
+      process.env,
+      { fetchedAt: Date.now() - 2 * 60_000, rate_limits: five(55) },
+      false,
+      Date.now(),
+    );
+    const { out } = run(['five-hour-usage'], FIVE);
+    expect(detail(out, 'value')).toBe('  value: 55%');
+    const src = detail(out, 'sources');
+    expect(src).toContain('limits cache');
+    expect(src).toContain('usage API');
+  });
+
+  it('names the payload field when this session is the newest and writes nothing', () => {
+    sessionAt(10_000, five(40));
+    otherSession(70, 2 * 60_000);
+    const before = fs.readFileSync(limitsFile(), 'utf8');
+    const { out } = run(['five-hour-usage'], FIVE);
+    expect(detail(out, 'value')).toBe('  value: 40%');
+    expect(detail(out, 'sources')).toContain('payload: rate_limits.five_hour.used_percentage');
+    expect(fs.readFileSync(limitsFile(), 'utf8')).toBe(before);
+  });
+
+  it('formats the limits cache source and keeps origin in --json', () => {
+    expect(sourceText({ kind: 'limits-cache', age: 120_000, origin: 'session' })).toBe(
+      'limits cache, 2m old, from another session',
+    );
+    expect(sourceText({ kind: 'limits-cache', age: 120_000, origin: 'usage-api' })).toBe(
+      'limits cache, 2m old, from usage API',
+    );
+    expect(sourceText({ kind: 'limits-cache' })).toBe('limits cache');
+    sessionAt(3 * 3_600_000, five(40));
+    otherSession(70, 2 * 60_000);
+    const { obj } = json(['five-hour-usage'], FIVE);
+    expect(obj.widgets[0].sources).toEqual([
+      {
+        kind: 'limits-cache',
+        path: 'rate_limits.five_hour.used_percentage',
+        age: expect.any(Number),
+        origin: 'session',
+      },
+    ]);
+  });
+
+  it('never creates the limits file', () => {
+    sessionAt(10_000, five(40));
+    run([], FIVE);
+    expect(fs.existsSync(limitsFile())).toBe(false);
+  });
+
+  it('explains limits-expired for a window that just reset', () => {
+    const now = Date.now();
+    sessionAt(3 * 3_600_000, {
+      seven_day: { used_percentage: 10, resets_at: Math.floor(now / 1000) + 86400 },
+    });
+    fs.mkdirSync(path.dirname(limitsFile()), { recursive: true });
+    fs.writeFileSync(
+      limitsFile(),
+      JSON.stringify({
+        v: 1,
+        windows: {
+          five_hour: { pct: 80, resetsAt: now - 60_000, at: now - 3_600_000, src: 'payload', samples: [] },
+        },
+      }),
+    );
+    const { out } = run(['five-hour-usage'], FIVE);
+    expect(detail(out, 'reason')).toBe(`  reason: ${t('explain.reason.limits-expired')}`);
+    const { obj } = json(['five-hour-usage'], FIVE);
+    expect(obj.widgets[0].empty.code).toBe('limits-expired');
   });
 });
