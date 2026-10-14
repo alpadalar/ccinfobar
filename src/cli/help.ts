@@ -19,6 +19,8 @@ Usage
   ccinfobar theme new <id>       Create your own theme (--from <theme>)
   ccinfobar init [preset]        Write a preset config (${PRESETS.map((p) => p.id).join(', ')})
   ccinfobar preview              Print the status line with sample data
+  ccinfobar preview --scenario <name>
+                                 Preview a named situation (list them with --scenario)
   ccinfobar update               Update to the latest release (--check to only look)
   ccinfobar usage                Fetch your plan usage from Claude now
   ccinfobar widgets              List all widgets
@@ -32,6 +34,7 @@ Options
   --config <file>                Use a specific config file
   --payload <file>               Render using a JSON payload file
   --width <n>                    Override the detected terminal width
+  --scenario <name>              preview: render a named scenario (bare flag lists them)
   --refresh <seconds>            install: also set statusLine.refreshInterval
   --project                      install/uninstall: use .claude/settings.local.json here
   --import / --no-import         install: import the previous status line's layout without asking

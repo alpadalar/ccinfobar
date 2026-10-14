@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
-import { visibleWidth } from '../core/ansi.js';
+import { stripAnsi, visibleWidth } from '../core/ansi.js';
 import { type LoadResult, saveConfig } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { tildify } from '../core/paths.js';
 import { forGsd, listPresets } from '../core/presets.js';
-import { renderPreview } from '../core/preview.js';
+import { type PreviewSource, renderPreview, scenarioFlag, scenarioListLines } from '../core/preview.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from '../core/themes.js';
 import { gsdInstalled } from '../data/gsd.js';
@@ -109,11 +109,42 @@ export function runInit(args: Args, cfgFile: string): void {
   if (backup) console.log(`  Previous config: ${tildify(backup)}`);
 }
 
-export function runPreview(args: Args, cfgFile: string): void {
+export interface PreviewIo {
+  tty: boolean;
+  log(line: string): void;
+  error(line: string): void;
+}
+
+const previewIo = (): PreviewIo => ({
+  tty: !!process.stdout.isTTY,
+  log: (line) => console.log(line),
+  error: (line) => console.error(line),
+});
+
+export function runPreview(args: Args, cfgFile: string, io: PreviewIo = previewIo()): void {
+  const flag = scenarioFlag(args.flags.scenario);
+  if (flag.kind === 'list') {
+    for (const line of scenarioListLines()) io.log(line);
+    return;
+  }
+  if (flag.kind === 'unknown') {
+    io.error(t('preview.unknownScenario', { name: sanitizeText(flag.name) }));
+    for (const line of scenarioListLines().slice(1)) io.error(line);
+    process.exitCode = 1;
+    return;
+  }
+  if (flag.kind === 'scenario' && args.flags.last) {
+    io.error(t('preview.scenarioWithLast'));
+    process.exitCode = 1;
+    return;
+  }
   const width =
     typeof args.flags.width === 'string' ? Number(args.flags.width) : (process.stdout.columns ?? 120);
-  const source = args.flags.last ? 'last' : 'sample';
-  for (const line of renderPreview(loadForUse(cfgFile).config, source, width)) console.log(line);
+  const source: PreviewSource =
+    flag.kind === 'scenario' ? { scenario: flag.id } : args.flags.last ? 'last' : 'sample';
+  for (const line of renderPreview(loadForUse(cfgFile).config, source, width)) {
+    io.log(io.tty ? line : stripAnsi(line));
+  }
 }
 
 const clean = (v: unknown): string => sanitizeText(String(v ?? ''));

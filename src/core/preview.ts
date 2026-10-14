@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { createContext } from './context.js';
+import { t } from './i18n/index.js';
 import { lastPayloadPath } from './paths.js';
 import { ingestPayload } from './payload.js';
 import { render } from './renderer.js';
@@ -11,11 +12,36 @@ import {
   samplePayload,
   sampleTranscript,
 } from './sample.js';
-import { getScenario, SCENARIO_NOW, scenarioEnv } from './scenarios.js';
+import { sanitizeText } from './sanitize.js';
+import { getScenario, SCENARIO_NOW, scenarioEnv, scenarioList } from './scenarios.js';
 import type { Theme } from './themes.js';
 import type { Config, StatusPayload } from './types.js';
 
 export type PreviewSource = 'sample' | 'last' | { scenario: string };
+
+export type ScenarioFlag =
+  | { kind: 'none' }
+  | { kind: 'list' }
+  | { kind: 'scenario'; id: string }
+  | { kind: 'unknown'; name: string };
+
+export function scenarioFlag(value: string | boolean | undefined): ScenarioFlag {
+  if (value === undefined || value === false) return { kind: 'none' };
+  if (value === true || value === '') return { kind: 'list' };
+  return getScenario(value) ? { kind: 'scenario', id: value } : { kind: 'unknown', name: value };
+}
+
+export function scenarioListLines(): string[] {
+  const list = scenarioList().map((s) => ({
+    id: sanitizeText(s.id),
+    description: sanitizeText(s.description),
+  }));
+  const pad = Math.max(0, ...list.map((s) => s.id.length));
+  return [
+    t('preview.scenariosHeader'),
+    ...list.map((s) => t('preview.scenarioLine', { id: s.id.padEnd(pad), description: s.description })),
+  ];
+}
 
 export function readLastPayload(): StatusPayload | null {
   try {

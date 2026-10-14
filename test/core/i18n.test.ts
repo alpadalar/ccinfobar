@@ -5,6 +5,7 @@ import { configMessages } from '../../src/core/i18n/en/config.js';
 import { doctorMessages } from '../../src/core/i18n/en/doctor.js';
 import { en } from '../../src/core/i18n/en/index.js';
 import { installMessages } from '../../src/core/i18n/en/install.js';
+import { previewMessages } from '../../src/core/i18n/en/preview.js';
 import { widgetMessages } from '../../src/core/i18n/en/widgets.js';
 import { t } from '../../src/core/i18n/index.js';
 
@@ -43,7 +44,7 @@ describe('en table', () => {
   });
 
   it('has no id in two area tables', () => {
-    const areas = [installMessages, configMessages, doctorMessages, widgetMessages];
+    const areas = [installMessages, configMessages, doctorMessages, previewMessages, widgetMessages];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);
   });

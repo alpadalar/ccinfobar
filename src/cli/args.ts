@@ -4,7 +4,18 @@ export interface Args {
   flags: Record<string, string | boolean>;
 }
 
-const VALUE_FLAGS = ['config', 'payload', 'width', 'refresh', 'command', 'port', 'from', 'file'];
+const VALUE_FLAGS = [
+  'config',
+  'payload',
+  'width',
+  'refresh',
+  'command',
+  'port',
+  'from',
+  'file',
+  'scenario',
+  'runs',
+];
 
 export function parseArgs(argv: string[]): Args {
   const args: Args = { command: null, positional: [], flags: {} };

@@ -34,4 +34,13 @@ describe('parseArgs', () => {
     expect(parseArgs(['--command=FOO=1 ccinfobar']).flags.command).toBe('FOO=1 ccinfobar');
     expect(parseArgs(['--payload=']).flags.payload).toBe('');
   });
+
+  it('takes values for --scenario and --runs', () => {
+    expect(parseArgs(['preview', '--scenario', 'context-full']).flags.scenario).toBe('context-full');
+    expect(parseArgs(['bench', '--runs', '20']).flags.runs).toBe('20');
+    expect(parseArgs(['preview', '--scenario']).flags.scenario).toBe(true);
+    const a = parseArgs(['preview', '--scenario', '--width', '80']);
+    expect(a.flags.scenario).toBe(true);
+    expect(a.flags.width).toBe('80');
+  });
 });
