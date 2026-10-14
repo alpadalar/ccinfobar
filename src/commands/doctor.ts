@@ -1,12 +1,13 @@
 import fs from 'node:fs';
-import { stripAnsi, visibleWidth } from '../core/ansi.js';
+import { stripAnsi } from '../core/ansi.js';
 import { createContext } from '../core/context.js';
 import { t } from '../core/i18n/index.js';
+import { lineReport, sessionNotes } from '../core/inspect.js';
 import { loadForUse } from '../core/load.js';
 import { cacheDir, claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { hasReplies } from '../core/payload.js';
 import { readLastPayload } from '../core/preview.js';
-import { maxLineWidth, renderLine, renderPart, renderValue, resolveAppearance } from '../core/renderer.js';
+import { renderPart, renderValue } from '../core/renderer.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionSpec, RenderContext, StatusPayload, WidgetItem } from '../core/types.js';
 import { VERSION } from '../core/version.js';
@@ -125,25 +126,6 @@ export function commandWarnings(command: string, platform: NodeJS.Platform = pro
   return command.includes('\\') || first === '"' || first === "'" ? [t('doctor.winCommand')] : [];
 }
 
-export function sessionNotes(p: StatusPayload): string[] {
-  const notes: string[] = [];
-  const full = (['five_hour', 'seven_day'] as const).filter(
-    (k) => (p.rate_limits?.[k]?.used_percentage ?? 0) >= 100,
-  );
-  if (full.length) {
-    const names = full.map((k) => (k === 'five_hour' ? '5-hour' : 'weekly')).join(' and ');
-    notes.push(
-      `Your ${names} usage limit is at 100%, so Claude cannot reply right now. Context, cache and token widgets fill in after the next successful reply.`,
-    );
-  }
-  if (!hasReplies(p)) {
-    notes.push(
-      'This session has no replies yet (cost $0, no prompt cache). Send a message and run doctor again; context, cache and speed widgets need at least one answer.',
-    );
-  }
-  return notes;
-}
-
 export function widgetReport(ctx: RenderContext): WidgetReport[] {
   const out: WidgetReport[] = [];
   ctx.config.lines.forEach((items, line) => {
@@ -161,24 +143,6 @@ export function widgetReport(ctx: RenderContext): WidgetReport[] {
     }
   });
   return out;
-}
-
-export function lineReport(
-  ctx: RenderContext,
-): { line: number; width: number; max: number | null; cut: boolean }[] {
-  const a = resolveAppearance(ctx.config);
-  if (a.style === 'tui') return [];
-  const max = maxLineWidth(ctx);
-  return ctx.config.lines.map((items, line) => {
-    const full = renderLine(
-      { ...ctx, terminalWidth: null, config: { ...ctx.config, maxWidth: 'auto' } },
-      items,
-      0,
-      a,
-    );
-    const width = visibleWidth(full);
-    return { line, width, max, cut: max !== null && width > max && !ctx.config.autoWrap };
-  });
 }
 
 export function usageLine(

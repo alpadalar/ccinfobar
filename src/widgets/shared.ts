@@ -14,13 +14,21 @@ export function opt<T extends OptionValue>(item: WidgetItem, key: string, fallba
   return String(v) as T;
 }
 
+const LOADING = new WeakSet<WidgetOutput>();
+
+export function isLoadingOutput(o: unknown): boolean {
+  return !!o && typeof o === 'object' && LOADING.has(o as WidgetOutput);
+}
+
 export function loading(ctx: RenderContext, item: WidgetItem): WidgetOutput | null {
   if (item.hideEmpty || ctx.config.loadingText === '') return null;
   if (!isFreshSession(ctx.payload, ctx.data.transcript())) return null;
-  return {
+  const out = {
     text: ctx.config.loadingText ?? t('loading.default'),
     color: ctx.theme?.colors.muted ?? 'brightBlack',
   };
+  LOADING.add(out);
+  return out;
 }
 
 // payload wins; other providers never send plan limits

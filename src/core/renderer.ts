@@ -28,6 +28,7 @@ import type {
   WidgetDef,
   WidgetItem,
   WidgetOutput,
+  WidgetResult,
 } from './types.js';
 
 export interface Part {
@@ -122,12 +123,16 @@ export function emptyHint(def: WidgetDef): string {
 }
 
 export function renderValue(ctx: RenderContext, def: WidgetDef, item: WidgetItem): WidgetOutput | null {
-  let result: ReturnType<WidgetDef['render']>;
+  let result: WidgetResult;
   try {
     result = def.render(ctx, item);
   } catch {
     return null;
   }
+  return normalizeResult(def, result);
+}
+
+export function normalizeResult(def: WidgetDef, result: WidgetResult): WidgetOutput | null {
   if (result === null || result === undefined) return null;
   const out = typeof result === 'string' ? { text: result } : result;
   if (typeof out !== 'object' || typeof out.text !== 'string') return null;
