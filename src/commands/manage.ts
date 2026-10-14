@@ -145,6 +145,12 @@ export function runThemes(args: Args, cfgFile: string): void {
   const width =
     typeof args.flags.width === 'string' ? Number(args.flags.width) : (process.stdout.columns ?? 120);
   const current = loadForUse(cfgFile).config;
+  if (args.flags.list === true) {
+    for (const t of listThemes()) {
+      console.log(`${clean(t.id)}  ${clean(t.name)}${t.id === current.theme ? '  (current)' : ''}`);
+    }
+    return;
+  }
   for (const t of listThemes()) {
     const mark = t.id === current.theme ? ' (current)' : '';
     const origin = t.source === 'user' ? ' · yours' : '';

@@ -19,6 +19,7 @@ Usage
   ccinfobar uninstall --hooks    Remove only ccinfobar's hooks
   ccinfobar import <tool>        Import a ccstatusline or claude-powerline layout
   ccinfobar themes               Preview every theme
+  ccinfobar themes --list        List theme ids and names only
   ccinfobar theme <id>           Switch theme
   ccinfobar theme new <id>       Create your own theme (--from <theme>)
   ccinfobar init [preset]        Write a preset config (${PRESETS.map((p) => p.id).join(', ')})
@@ -62,6 +63,7 @@ Options
   --detach                       edit: run in the background; stops after 30 min idle
   --no-open                      edit: do not open a browser
   --no-detect                    edit: do not ask the terminal for its colors
+  --list                         themes: print ids and names, no previews
   -v, --version                  Print the version
   -h, --help                     Show this help
 `;
