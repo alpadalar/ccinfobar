@@ -21,10 +21,21 @@ All notable changes to this project are documented here. The format follows [Kee
 - `ccinfobar explain --json` prints one sanitized JSON object for bug reports, with `env` and `command` widget values replaced by `<redacted N chars>`; `--scenario <name>` or `--payload <file>` picks the input (not both), and a broken config, a bare `--payload` or a `--width` that is not a positive number makes it exit 1
 - `ccinfobar doctor` also shows `env` and `command` widget values as `<redacted N chars>` in its widget list
 - `explain` also redacts `env` and `command` values in its text output, and `explain <widget-id>` prints text options (such as a `command` string or a `link` URL) as `<N chars>`; `--show-values` shows them, only in a terminal and never in `--json`
-- `ccinfobar preview --scenario <name>` renders seven named situations (fresh session, context nearly full, near 5h limit, many subagents, GSD project, no git repo, API key user); a bare `--scenario` lists them
+- `ccinfobar preview --scenario <name>` renders nine named situations (fresh session, context nearly full, near 5h limit, near weekly limit, many subagents, GSD project, no git repo, API key user, over budget); a bare `--scenario` lists them
 - The web editor's preview has a Scenario picker next to Sample data / Last session
 - `ccinfobar bench` measures cold and warm render time (median, p95) against a `node -e 0` control (`--runs <n>`, where a missing or non-numeric value is an error, `--scenario <name>` for a scenario's payload and env, `--json`); the method and a baseline are in docs/DEVELOPMENT.md
 - CI installs the packed package into an empty profile on Linux, macOS and Windows, renders through the exact settings command in every shell, and checks that uninstall restores the settings file byte for byte and leaves no process behind
+- `usage-projection` widget: expected 5h or weekly usage at the end of the window, at the window's pace or the recent one
+- `limit-eta` widget: time until a limit reaches 100% at the current pace, or `safe`
+- `limit-risk` chip that turns amber or red when a limit is projected to run out before it resets
+- `performance` widget with cache hit rate and average response time (`show`, `display: badge`, `hitWarn`, `timeWarn`, `showMisses`)
+- `cost-today`, `cost-week` and `cost-project` widgets: estimated cost of all your sessions today, this week or per project, from a local ledger shared by all sessions; counting starts when one of them is added, and resume, fork, `/clear` and `/login` are not counted twice
+- `budget.daily`, `budget.session` and `budget.warnAt` settings (config, editor, TUI)
+- `budget` widget: estimated spend against your daily or session budget, yellow from `warnAt` (80%) and red when over
+- `context-percentage` and `context-bar` `basis` option (`raw`, `usable`, `reserve`) with `reserveTokens`; it replaces the `usable` switch, which still works
+- `cache-timer` `showTtl` option
+- `ccinfobar explain` says whether a limits value came from this session, another session or the usage API, and when a window has just reset
+- `ccinfobar explain` shows the cost ledger age and says when no cost has been recorded yet
 
 ### Changed
 
@@ -44,6 +55,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - `ccinfobar preview` prints plain text when its output is not a terminal, unless `FORCE_COLOR` is set; `NO_COLOR` (or `FORCE_COLOR=0`) always gives plain text
 - `ccinfobar doctor` builds its widget list from the same data as `explain` and points to it for details; it takes the width from the last session's cached terminal width and no longer runs `ps`/`stty` or writes a width cache file
 - CI also tests on Node 26
+- Plan limits are shared across sessions of the same account, so an idle session shows the newest 5h and weekly usage and an expired window never comes back; chart history in idle sessions follows the shared value
+- `cache-miss-cause` shows the cause only while the latest request missed; set `show: always` for the old behaviour
 
 ### Fixed
 
@@ -76,6 +89,9 @@ All notable changes to this project are documented here. The format follows [Kee
 - The editor's install dialog shows the settings file it will write, including a `CLAUDE_CONFIG_DIR` location, instead of always `~/.claude/settings.json`
 - Saving a symlinked `config.json` (for example from a dotfiles repo) writes through the link instead of replacing it with a plain file; the same holds for themes, presets and cache files
 - `ccinfobar doctor` no longer merges the cached usage limits when the status line would not, so its widget list matches the status line
+- The `usable` context percentage on 1M-token windows uses Claude Code's compaction threshold (about 967K) instead of 83.5% of the window
+- Two Claude config dirs (`CLAUDE_CONFIG_DIR`) no longer share one usage cache, so their limits never mix
+- `cache-timer` shows `off` instead of `cold` when Claude Code saw no caching
 
 ### Security
 

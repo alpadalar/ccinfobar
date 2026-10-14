@@ -252,6 +252,17 @@ Baseline, 2026-10-14, `nice -n -10` (priority 0), Node v22.23.1, Intel i7-1165G7
 
 ccinfobar overhead: 57.0 ms. The compile cache saves about 7 to 11 ms. A git repo as cwd adds about 9 ms: the same run from a non-git dir gave a warm median of 121.2 ms (overhead 47.6 ms).
 
+Phase 3 (shared limits, cost ledger, projections), 2026-10-14, same machine and method, load average about 9.3, default layout, N = 20:
+
+| Row | median (ms) | p95 (ms) | min (ms) | max (ms) |
+|-----|------------:|---------:|---------:|---------:|
+| `node -e 0` | 69.2 | 72.9 | 67.2 | 80.9 |
+| cold | 144.5 | 151.0 | 141.6 | 151.2 |
+| warm | 136.9 | 143.9 | 131.1 | 144.0 |
+| warm, compile cache off | 141.7 | 150.0 | 134.9 | 152.2 |
+
+The machine was busier than for the baseline, so the absolute numbers are higher. Run back to back under the same load, the build before Phase 3 gave warm medians of 138.7 and 133.5 ms and the Phase 3 build 135.1 and 132.2 ms: no measurable change. Layouts without limits or cost widgets do no limits or ledger I/O.
+
 ## Releasing
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` under a new version heading.
