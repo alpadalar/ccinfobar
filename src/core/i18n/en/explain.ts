@@ -34,6 +34,7 @@ export const explainMessages = {
   'explain.sampleNotice':
     'Input: sample data (no saved payload yet; use Claude Code once with ccinfobar installed, or pass --payload or --scenario)',
   'explain.unknownVersion': 'unknown version',
+  'explain.scenarioWithPayload': '--scenario and --payload cannot be used together',
   'explain.payloadUnreadable': 'Cannot read the payload file {file}',
   'explain.payloadInvalid': 'The payload file {file} is not a JSON object',
   'explain.width': 'Width: {width} columns',

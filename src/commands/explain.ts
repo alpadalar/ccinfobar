@@ -454,6 +454,11 @@ export function runExplain(args: Args, cfgFile: string, io: ExplainIo = explainI
     process.exitCode = 1;
     return;
   }
+  if (flag.kind === 'scenario' && args.flags.payload !== undefined && args.flags.payload !== false) {
+    io.error(t('explain.scenarioWithPayload'));
+    process.exitCode = 1;
+    return;
+  }
   const loaded = loadForUse(cfgFile);
   if (reportConfigIssue(loaded, io)) return;
   const widthFlag = typeof args.flags.width === 'string' ? Number(args.flags.width) : undefined;

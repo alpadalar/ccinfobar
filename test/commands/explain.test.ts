@@ -144,13 +144,28 @@ describe('runExplain input', () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it('prefers --payload over --scenario and the last payload', () => {
+  it('prefers --payload over the last payload', () => {
     savedPayload();
     const file = path.join(dir, 'p.json');
     fs.writeFileSync(file, JSON.stringify({ model: { display_name: 'From File' } }));
-    const { out } = run(['--payload', file, '--scenario', 'context-full']);
+    const { out } = run(['--payload', file]);
     expect(out[1]).toContain('Input: payload file');
     expect(out.some((l) => l.includes('From File'))).toBe(true);
+  });
+
+  it('refuses --scenario with --payload', () => {
+    const file = path.join(dir, 'p.json');
+    fs.writeFileSync(file, JSON.stringify({ model: { display_name: 'From File' } }));
+    for (const argv of [
+      ['--payload', file, '--scenario', 'context-full'],
+      ['--scenario', 'context-full', '--payload', file, '--json'],
+    ]) {
+      process.exitCode = undefined;
+      const { out, err } = run(argv);
+      expect(out).toEqual([]);
+      expect(err).toEqual([t('explain.scenarioWithPayload')]);
+      expect(process.exitCode).toBe(1);
+    }
   });
 
   it('reports a bad payload file', () => {
