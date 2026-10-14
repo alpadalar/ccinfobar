@@ -1,6 +1,6 @@
 import type { StyleHistory } from '../../core/edit.js';
 import type { Config } from '../../core/types.js';
-import type { ApiState, ClaudeInfo, PresetInfo, Store, ThemeInfo } from './store.js';
+import type { ApiState, ClaudeInfo, HooksInfo, PresetInfo, Store, ThemeInfo } from './store.js';
 
 export type PreviewSrc = { source: 'sample' | 'last' | 'scenario'; scenario?: string };
 
@@ -83,7 +83,13 @@ export const api = {
       kind: string;
       update: { checkedAt: number; latest: string | null; error?: string } | null;
       claude: ClaudeInfo;
+      hooks: HooksInfo;
     }>('GET', '/api/system'),
+  hooks: (enabled: boolean, permission?: boolean) =>
+    call<{ ok: boolean; hooks: HooksInfo; backup: string | null }>('POST', '/api/hooks', {
+      enabled,
+      permission,
+    }),
   update: (install: boolean) =>
     call<{ current: string; latest: string; newer: boolean; kind: string; installed?: string }>(
       'POST',

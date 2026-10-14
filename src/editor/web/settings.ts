@@ -54,6 +54,50 @@ export async function openSettings(): Promise<void> {
     render();
   }
 
+  async function runHooks(enabled: boolean, permission: boolean) {
+    busy = true;
+    render();
+    try {
+      const r = await api.hooks(enabled, permission);
+      const on = r.hooks.installed;
+      toast(enabled ? (on.length ? `Hooks on: ${on.join(', ')}` : 'No hooks were added') : 'Hooks removed');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+    info = await api.system().catch(() => info);
+    busy = false;
+    render();
+  }
+
+  function hooksFields(): HTMLElement[] {
+    const hk = info?.hooks ?? S.api.hooks;
+    if (!hk) return [];
+    const permission = hk.optional.some((e) => hk.installed.includes(e));
+    const hint = `Optional. Records ${hk.events.join(', ')} so live widgets are exact; every widget also works without hooks. ${
+      hk.available ? `Claude Code ${hk.claudeCode ?? ''}.` : (hk.reason ?? '')
+    }`;
+    const out = [
+      field(
+        'Hooks',
+        toggle(hk.installed.length > 0, (v) => void runHooks(v, permission), undefined, {
+          disabled: busy || (!hk.available && hk.installed.length === 0),
+        }),
+        hint,
+        true,
+      ),
+    ];
+    if (hk.available)
+      out.push(
+        field(
+          'Permission requests',
+          toggle(permission, (v) => void runHooks(true, v), undefined, { disabled: busy }),
+          `Opt-in. Also records ${hk.optional.join(', ')} so a waiting permission prompt shows at once. Best left off on Windows without Git Bash.`,
+          true,
+        ),
+      );
+    return out;
+  }
+
   function render() {
     clear(body);
     const c = S.config;
@@ -103,6 +147,7 @@ export async function openSettings(): Promise<void> {
             cl.installed ? 'Change command or refresh' : 'Install in Claude Code',
           ),
         ),
+        ...hooksFields(),
       ),
       section(
         'Updates',

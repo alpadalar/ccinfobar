@@ -32,11 +32,17 @@ export function field(label: string, control: Child, help?: string, inline = fal
   );
 }
 
-export function toggle(checked: boolean, onChange: (v: boolean) => void, label?: string): HTMLElement {
+export function toggle(
+  checked: boolean,
+  onChange: (v: boolean) => void,
+  label?: string,
+  opts?: { disabled?: boolean },
+): HTMLElement {
   const input = h('input', {
     type: 'checkbox',
     class: 'switch-input',
     checked,
+    disabled: opts?.disabled ?? false,
     onChange: () => onChange(input.checked),
   });
   return h(

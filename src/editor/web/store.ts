@@ -46,6 +46,15 @@ export interface ClaudeInfo {
   settingsFile: string;
 }
 
+export interface HooksInfo {
+  installed: string[];
+  available: boolean;
+  reason?: string;
+  claudeCode?: string;
+  events: string[];
+  optional: string[];
+}
+
 export interface ConfigIssueInfo {
   line: number;
   column: number;
@@ -69,6 +78,7 @@ export interface ApiState {
   styles: { id: StyleId; name: string; description: string }[];
   themesDir: string;
   claude: ClaudeInfo;
+  hooks: HooksInfo;
   hasLastPayload: boolean;
   scenarios: { id: string; label: string; description: string }[];
   terminal: import('./terminals.js').DetectedColors | null;
