@@ -422,7 +422,9 @@ export function ledgerView(
 }
 
 export function ledgerOn(config: Config): boolean {
-  return config.lines.some((items) => items.some((i) => LEDGER_TYPES.has(i.type)));
+  return config.lines.some((items) =>
+    items.some((i) => LEDGER_TYPES.has(i.type) || (i.type === 'budget' && i.options?.period !== 'session')),
+  );
 }
 
 function transcriptHash(file: string | undefined): string {

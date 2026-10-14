@@ -54,6 +54,7 @@
                 "cost-today",
                 "cost-week",
                 "cost-project",
+                "budget",
                 "cost-rate",
                 "session-duration",
                 "api-duration",

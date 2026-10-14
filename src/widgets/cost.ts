@@ -1,5 +1,5 @@
-import type { OptionSpec, WidgetDef } from '../core/types.js';
-import { formatCurrency, formatDuration, opt } from './shared.js';
+import type { OptionSpec, RenderContext, WidgetDef, WidgetItem, WidgetResult } from '../core/types.js';
+import { barFor, barOptions, formatCurrency, formatDuration, opt } from './shared.js';
 
 const durationOption: OptionSpec = {
   key: 'format',
@@ -13,6 +13,38 @@ const durationOption: OptionSpec = {
 };
 
 const decimalsOption: OptionSpec = { key: 'decimals', label: 'Decimals', kind: 'number', default: 2 };
+
+export function budgetColor(fraction: number, warnAt: number): 'red' | 'yellow' | null {
+  if (fraction >= 1) return 'red';
+  return fraction >= warnAt ? 'yellow' : null;
+}
+
+export const budgetPeriod = (item: WidgetItem): 'daily' | 'session' =>
+  item.options?.period === 'session' ? 'session' : 'daily';
+
+function budget(ctx: RenderContext, item: WidgetItem): WidgetResult {
+  const period = budgetPeriod(item);
+  const limit = ctx.config.budget?.[period];
+  if (typeof limit !== 'number' || !(limit > 0)) return null;
+  const spend = period === 'session' ? ctx.payload.cost?.total_cost_usd : ctx.data.ledger?.()?.today;
+  if (typeof spend !== 'number' || !Number.isFinite(spend)) return null;
+  const fraction = Math.max(0, spend) / limit;
+  const pct = `${Math.round(fraction * 100)}%`;
+  const display = opt<string>(item, 'display', 'amount');
+  let text: string;
+  if (display === 'percent') text = pct;
+  else if (display === 'bar') {
+    const b = barFor(ctx, item, Math.min(100, fraction * 100));
+    text = opt(item, 'showPercent', true) ? `${b} ${pct}` : b;
+  } else {
+    const d = opt(item, 'decimals', 2);
+    text = `~${formatCurrency(spend, d)}/${formatCurrency(limit, Number.isInteger(limit) ? 0 : d)}`;
+  }
+  const color = budgetColor(fraction, ctx.config.budget?.warnAt ?? 0.8);
+  return color ? { text, color } : text;
+}
+
+const forBar = { key: 'display', values: ['bar'] };
 
 export const widgets: WidgetDef[] = [
   {
@@ -91,6 +123,43 @@ export const widgets: WidgetDef[] = [
       const key = p === 'today' || p === 'week' || p === 'month' ? p : 'all';
       return formatCurrency(view.project[key], opt(item, 'decimals', 2));
     },
+  },
+  {
+    type: 'budget',
+    name: 'Budget',
+    category: 'cost',
+    description: 'Estimated spend against your daily or session budget',
+    label: 'Budget ',
+    icon: { nerd: '󰈸', emoji: '💰' },
+    color: 'green',
+    sample: '~$4.10/$10',
+    options: [
+      {
+        key: 'period',
+        label: 'Period',
+        kind: 'select',
+        default: 'daily',
+        choices: [
+          { value: 'daily', label: 'Today (budget.daily)' },
+          { value: 'session', label: 'This session (budget.session)' },
+        ],
+        help: 'Set the amount in Settings or with ccinfobar config set budget.daily 10',
+      },
+      {
+        key: 'display',
+        label: 'Display',
+        kind: 'select',
+        default: 'amount',
+        choices: [
+          { value: 'amount', label: '~$4.10/$10' },
+          { value: 'percent', label: '41%' },
+          { value: 'bar', label: 'Bar' },
+        ],
+      },
+      ...barOptions.map((o) => ({ ...o, showWhen: forBar })),
+      decimalsOption,
+    ],
+    render: budget,
   },
   {
     type: 'cost-rate',

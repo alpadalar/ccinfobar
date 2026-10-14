@@ -19,6 +19,7 @@ export const explainMessages = {
   'explain.reason.no-git': 'not a git repository, or git is not on PATH',
   'explain.reason.no-ledger':
     'no cost recorded yet; counting starts when a cost ledger widget is on the status line',
+  'explain.reason.no-budget': 'no budget.{period} set in config',
   'explain.reason.no-replies':
     'Claude has not answered in this session yet; it appears after the first reply',
   'explain.reason.payload-field-absent': 'Claude Code did not send {path}{since}',

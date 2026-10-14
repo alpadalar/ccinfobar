@@ -1,5 +1,6 @@
 import { LEDGER_TYPES } from '../data/ledger.js';
 import { detectProvider, type Provider } from '../data/provider.js';
+import { budgetPeriod } from '../widgets/cost.js';
 import { getWidget } from '../widgets/index.js';
 import { projectionState } from '../widgets/projection.js';
 import { isLoadingOutput } from '../widgets/shared.js';
@@ -34,6 +35,7 @@ export type EmptyCode =
   | 'no-transcript'
   | 'no-git'
   | 'no-ledger'
+  | 'no-budget'
   | 'no-replies'
   | 'payload-field-absent'
   | 'error'
@@ -149,6 +151,11 @@ export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceR
   }
   if (def.category === 'git' && !ctx.data.git()) return reason('no-git');
   if (TRANSCRIPT_TYPES.has(item.type) && !ctx.data.transcript()) return reason('no-transcript');
+  if (item.type === 'budget') {
+    const period = budgetPeriod(item);
+    if (!ctx.config.budget?.[period]) return reason('no-budget', undefined, { period });
+    if (period === 'daily' && !ctx.data.ledger?.()) return reason('no-ledger');
+  }
   if (LEDGER_TYPES.has(item.type) && !ctx.data.ledger?.()) return reason('no-ledger');
   if (!hasReplies(p) && /^(context|tokens|cost)$/.test(def.category)) return reason('no-replies');
   const absent = absentField(reads);
