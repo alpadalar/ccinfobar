@@ -145,6 +145,43 @@ Both editors pick up new widgets and their options automatically.
 
 CI runs the suite on Linux, macOS and Windows with Node 20, 22 and 24.
 
+## Benchmark
+
+```sh
+ccinfobar bench [--runs N] [--scenario <name>] [--json] [--config <file>]
+```
+
+`bench` times your own layout. N defaults to 20 and is clamped to 1..1000. `--json` prints the same data as one object.
+
+Rows:
+
+- `node -e 0`: the control, the time it takes Node itself to boot.
+- `cold`: every run gets fresh ccinfobar cache, config copy and Node compile-cache dirs. The OS file cache stays warm, so "cold" means ccinfobar's and Node's caches, not the disk.
+- `warm`: shared dirs after 2 discarded warm-up runs. This is what Claude Code sees on most refreshes.
+- `warm, compile cache off`: the warm dirs with `NODE_DISABLE_COMPILE_CACHE=1`.
+
+Method:
+
+- Each run spawns `process.execPath` with the same entry script (`spawnSync`) and measures from spawn to exit with `process.hrtime.bigint()`.
+- The payload goes on stdin. It is the sample (or `--scenario`) payload with `cwd` set to the current dir, so a real git repo is exercised when there is one, and `transcript_path` set to a synthetic transcript of about 200 entries.
+- The child env gets temp `CCINFOBAR_CACHE_DIR`, `CCINFOBAR_CONFIG_DIR`, `CLAUDE_CONFIG_DIR` and `NODE_COMPILE_CACHE`, plus `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` (no update or usage workers) and `COLUMNS=140` (like Claude Code, so no width probe). Your config and user themes are copied in read-only; the real caches and `~/.claude` are never touched, and the temp dirs are removed afterwards.
+- Stats: median (mean of the two middle values when N is even), nearest-rank p95, min and max.
+
+Measure at nice 0. A machine that starts tools at nice 10 must run `nice -n -10 ccinfobar bench`; the header shows the priority and warns when it is above 0. Measure when the machine is idle and note the load average, because the numbers move with machine state.
+
+`ccinfobar overhead = warm median − control median` is the cost ccinfobar adds on top of Node boot. Phase 10 (F2, a single binary) compares this number, taken the same way, to decide whether a compiled binary is worth it. The clean-install CI job also prints `bench --runs 10 --json` for each OS; that step never fails the job.
+
+Baseline, 2026-10-14, `nice -n -10` (priority 0), Node v22.23.1, Intel i7-1165G7 (8 threads), Linux 7.2.9 (Fedora 44), load average 2.10 → 1.85, cwd this git repo, default layout, N = 20:
+
+| Row | median (ms) | p95 (ms) | min (ms) | max (ms) |
+|-----|------------:|---------:|---------:|---------:|
+| `node -e 0` | 73.1 | 78.3 | 69.8 | 83.1 |
+| cold | 141.4 | 148.6 | 134.6 | 157.6 |
+| warm | 130.1 | 136.0 | 123.4 | 136.3 |
+| warm, compile cache off | 137.2 | 142.0 | 129.7 | 145.5 |
+
+ccinfobar overhead: 57.0 ms. The compile cache saves about 7 to 11 ms. A git repo as cwd adds about 9 ms: the same run from a non-git dir gave a warm median of 121.2 ms (overhead 47.6 ms).
+
 ## Releasing
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` under a new version heading.
