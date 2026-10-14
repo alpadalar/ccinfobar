@@ -142,8 +142,11 @@ export function runPreview(args: Args, cfgFile: string, io: PreviewIo = previewI
     typeof args.flags.width === 'string' ? Number(args.flags.width) : (process.stdout.columns ?? 120);
   const source: PreviewSource =
     flag.kind === 'scenario' ? { scenario: flag.id } : args.flags.last ? 'last' : 'sample';
+  const env = process.env;
+  const forced = env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '0';
+  const plain = (!io.tty && !forced) || !!env.NO_COLOR || env.FORCE_COLOR === '0';
   for (const line of renderPreview(loadForUse(cfgFile).config, source, width)) {
-    io.log(io.tty ? line : stripAnsi(line));
+    io.log(plain ? stripAnsi(line) : line);
   }
 }
 

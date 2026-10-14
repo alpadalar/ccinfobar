@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import { type PreviewIo, runPreview } from '../../src/commands/manage.js';
 import { t } from '../../src/core/i18n/index.js';
@@ -87,6 +87,20 @@ describe('runPreview --scenario', () => {
     expect(out).toEqual([]);
     expect(err).toEqual([t('preview.scenarioWithLast')]);
     expect(process.exitCode).toBe(1);
+  });
+
+  it('keeps colors off a TTY with FORCE_COLOR and drops them with NO_COLOR', () => {
+    try {
+      vi.stubEnv('FORCE_COLOR', '1');
+      expect(run(['--width', '140']).out.join('\n')).toContain(`${ESC}[`);
+      vi.stubEnv('FORCE_COLOR', '0');
+      expect(run(['--width', '140'], true).out.join('\n')).not.toContain(ESC);
+      vi.unstubAllEnvs();
+      vi.stubEnv('NO_COLOR', '1');
+      expect(run(['--width', '140'], true).out.join('\n')).not.toContain(ESC);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('keeps sample preview, plain off a TTY and colored on one', () => {
