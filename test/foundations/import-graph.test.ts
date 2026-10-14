@@ -41,6 +41,7 @@ const EXCLUDED_FILES = [
   'src/commands/settings-file.ts',
   'src/commands/manifest.ts',
   'src/commands/config-cmd.ts',
+  'src/core/scenarios.ts',
 ];
 const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/'];
 
@@ -51,6 +52,7 @@ const PURE = [
   'src/core/json-locate.ts',
   'src/core/config-path.ts',
   'src/core/i18n/',
+  'src/core/scenarios.ts',
 ];
 
 function walk(dir: string): string[] {
