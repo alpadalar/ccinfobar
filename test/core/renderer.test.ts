@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { stripAnsi, visibleWidth } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
-import { finalizeLine, render } from '../../src/core/renderer.js';
-import type { WidgetItem } from '../../src/core/types.js';
-import { ctxWith } from '../helpers.js';
+import { finalizeLine, render, renderValue } from '../../src/core/renderer.js';
+import { samplePayload } from '../../src/core/sample.js';
+import type { StatusPayload, WidgetDef, WidgetItem, WidgetResult } from '../../src/core/types.js';
+import { ctxWith, NOW } from '../helpers.js';
 
 const text = (t: string, extra: Partial<WidgetItem> = {}): WidgetItem => ({
   id: t,
@@ -118,5 +119,53 @@ describe('alignment', () => {
       '    ab',
       'cd',
     ]);
+  });
+});
+
+describe('renderValue guard', () => {
+  const def = (render: () => WidgetResult): WidgetDef => ({
+    type: 'bad',
+    name: 'Bad',
+    category: 'session',
+    description: 'bad widget',
+    color: 'white',
+    render,
+  });
+  const item: WidgetItem = { id: 'bad', type: 'bad' };
+  const ctx = ctxWith();
+
+  it('returns null for non-string text', () => {
+    const bad = (v: unknown) =>
+      renderValue(
+        ctx,
+        def(() => v as WidgetResult),
+        item,
+      );
+    expect(bad({ text: { causes: [] } })).toBeNull();
+    expect(bad({ text: 42 })).toBeNull();
+    expect(bad({ causes: ['x'] })).toBeNull();
+  });
+
+  it('returns null when render throws', () => {
+    const throws = def(() => {
+      throw new Error('boom');
+    });
+    expect(renderValue(ctx, throws, item)).toBeNull();
+  });
+
+  it('keeps the other widgets when the miss cause is an object', () => {
+    const payload = samplePayload(NOW.getTime()) as StatusPayload;
+    payload.prompt_cache = {
+      ...payload.prompt_cache,
+      last_miss_cause: { causes: ['tools_changed'], tools_added: 2, tools_removed: 0 },
+    } as unknown as StatusPayload['prompt_cache'];
+    const lines = [
+      [
+        { id: 'm', type: 'model' },
+        { id: 'c', type: 'cache-miss-cause' },
+      ],
+    ];
+    const out = render(ctxWith({ config: { lines }, payload }));
+    expect(out[0]).toContain('Opus 5.5');
   });
 });

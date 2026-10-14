@@ -130,8 +130,13 @@ export function renderValue(ctx: RenderContext, def: WidgetDef, item: WidgetItem
   }
   if (result === null || result === undefined) return null;
   const out = typeof result === 'string' ? { text: result } : result;
-  const text = sanitize(out.text);
-  return text.trim() === '' && def.type !== 'flex' ? null : { ...out, text };
+  if (typeof out !== 'object' || typeof out.text !== 'string') return null;
+  try {
+    const text = sanitize(out.text);
+    return text.trim() === '' && def.type !== 'flex' ? null : { ...out, text };
+  } catch {
+    return null;
+  }
 }
 
 export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
