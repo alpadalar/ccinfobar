@@ -45,7 +45,7 @@ const EXCLUDED_FILES = [
 const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/'];
 
 // later plans extend this
-const PURE = ['src/core/sanitize.ts', 'src/core/payload.ts', 'src/core/i18n/'];
+const PURE = ['src/core/sanitize.ts', 'src/core/payload.ts', 'src/core/json-locate.ts', 'src/core/i18n/'];
 
 function walk(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
