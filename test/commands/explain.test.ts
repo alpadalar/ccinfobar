@@ -4,7 +4,13 @@ import module from 'node:module';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
-import { type ExplainIo, formatAge, loadInspectInput, runExplain } from '../../src/commands/explain.js';
+import {
+  type ExplainIo,
+  formatAge,
+  loadInspectInput,
+  runExplain,
+  shortAge,
+} from '../../src/commands/explain.js';
 import { t } from '../../src/core/i18n/index.js';
 import { cacheDir, configDir, lastPayloadPath } from '../../src/core/paths.js';
 import { scenarioListLines } from '../../src/core/preview.js';
@@ -12,6 +18,7 @@ import type { StatusPayload } from '../../src/core/types.js';
 import { agentsCacheName, readAgents } from '../../src/data/agents.js';
 import { cacheFile } from '../../src/data/cache.js';
 import { readTranscript, transcriptCacheName } from '../../src/data/transcript.js';
+import { usageFile } from '../../src/data/usage.js';
 
 const ESC = '\u001b';
 const root = () => process.env.CCIB_TEST_ROOT!;
@@ -173,6 +180,86 @@ describe('runExplain table', () => {
   });
 });
 
+describe('runExplain sources', () => {
+  const rowOf = (out: string[], name: string) => out.find((l) => l.includes(`${name}:`))!;
+
+  it('names the payload field for the sample', () => {
+    const { out } = run([], { lines: [[{ id: 'context-percentage', type: 'context-percentage' }]] });
+    const row = rowOf(out, 'context-percentage');
+    expect(row).toMatch(/^ {2}✓ context-percentage: \d+% ← /);
+    expect(row).toContain('payload: context_window.used_percentage');
+  });
+
+  it('shows git, system and GSD sources', () => {
+    const cfg = {
+      lines: [
+        [
+          { id: 'branch', type: 'git-branch' },
+          { id: 'host', type: 'hostname' },
+          { id: 'phase', type: 'gsd-phase' },
+        ],
+      ],
+    };
+    const { out } = run(['--scenario', 'gsd-project'], cfg);
+    expect(rowOf(out, 'branch (git-branch)')).toMatch(/ ← git \(live\)$/);
+    expect(rowOf(out, 'host (hostname)')).toMatch(/ ← system$/);
+    expect(rowOf(out, 'phase (gsd-phase)')).toMatch(/ ← GSD \.planning\/STATE\.md$/);
+  });
+
+  it('shows the usage cache age', () => {
+    const prev = process.env.CCINFOBAR_NO_USAGE_API;
+    delete process.env.CCINFOBAR_NO_USAGE_API;
+    try {
+      savedPayload();
+      fs.mkdirSync(path.dirname(usageFile()), { recursive: true });
+      fs.writeFileSync(
+        usageFile(),
+        JSON.stringify({
+          fetchedAt: Date.now() - 4 * 60_000,
+          rate_limits: { five_hour: { used_percentage: 40, resets_at: Date.now() / 1000 + 3600 } },
+        }),
+      );
+      const { out } = run([], { lines: [[{ id: 'five', type: 'five-hour-usage' }]] });
+      expect(rowOf(out, 'five (five-hour-usage)')).toMatch(/: 40% ← usage cache \(age 4m\)$/);
+    } finally {
+      if (prev === undefined) delete process.env.CCINFOBAR_NO_USAGE_API;
+      else process.env.CCINFOBAR_NO_USAGE_API = prev;
+      fs.rmSync(usageFile(), { force: true });
+    }
+  });
+
+  it('shows the transcript cache age', () => {
+    const p = savedPayload();
+    readTranscript(p.transcript_path);
+    const cache = cacheFile(transcriptCacheName(p.transcript_path!));
+    const t12 = (Date.now() - 12_000) / 1000;
+    fs.utimesSync(cache, t12, t12);
+    try {
+      const { out } = run([], { lines: [[{ id: 'messages', type: 'message-count' }]] });
+      expect(rowOf(out, 'messages (message-count)')).toMatch(/ ← transcript \(cache age 1[1-3]s\)$/);
+    } finally {
+      fs.rmSync(cache, { force: true });
+    }
+  });
+
+  it('lists sources on empty rows too', () => {
+    const { out } = run(['--scenario', 'api-key-user'], {
+      lines: [[{ id: 'five', type: 'five-hour-usage' }]],
+    });
+    const row = rowOf(out, 'five (five-hour-usage)');
+    expect(row).toContain('empty');
+    expect(row).toContain(' ← env: provider');
+    expect(out.join('\n')).not.toContain('sk-ant-scenario');
+  });
+
+  it('formats short ages', () => {
+    expect(shortAge(12_000)).toBe('12s');
+    expect(shortAge(4 * 60_000)).toBe('4m');
+    expect(shortAge(3 * 3_600_000)).toBe('3h');
+    expect(shortAge(72 * 3_600_000)).toBe('3d');
+  });
+});
+
 describe('explain is read-only', () => {
   function watch() {
     const writes: string[] = [];
@@ -245,7 +332,10 @@ describe('explain is read-only', () => {
       log: (l) => out.push(l),
       error: (l) => out.push(l),
     });
-    expect(out).toContain(t('explain.row.shown', { name: 'cmd (command)', value: 'hi' }));
+    expect(out).toContain(
+      t('explain.row.shown', { name: 'cmd (command)', value: 'hi' }) +
+        t('explain.sources', { sources: t('explain.source.config', { path: 'options.command' }) }),
+    );
     const cached = fs.existsSync(cacheDir())
       ? fs.readdirSync(cacheDir()).filter((f) => f.startsWith('cmd-'))
       : [];

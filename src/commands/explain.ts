@@ -5,7 +5,7 @@ import type { Args } from '../cli/args.js';
 import type { LoadResult } from '../core/config.js';
 import { createContext } from '../core/context.js';
 import { t } from '../core/i18n/index.js';
-import { type InspectRow, inspectRows, lineReport } from '../core/inspect.js';
+import { type InspectMeta, type InspectRow, inspectRows, lineReport, type Source } from '../core/inspect.js';
 import { loadForUse } from '../core/load.js';
 import { lastPayloadPath, tildify } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
@@ -22,10 +22,12 @@ import { sanitizeText } from '../core/sanitize.js';
 import { getScenario, SCENARIO_NOW, scenarioEnv } from '../core/scenarios.js';
 import type { Config, DataSources, RenderContext, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
-import { readAgents } from '../data/agents.js';
+import { agentsCacheName, readAgents } from '../data/agents.js';
+import { cacheFile } from '../data/cache.js';
 import { loadHistory } from '../data/history.js';
-import { readTranscript, type TranscriptInfo } from '../data/transcript.js';
+import { readTranscript, type TranscriptInfo, transcriptCacheName } from '../data/transcript.js';
 import { mergeUsage, needsUsage, readUsageCache, type UsageCache, usageApiDisabled } from '../data/usage.js';
+import { getWidget } from '../widgets/index.js';
 
 export type InputKind = 'payload' | 'scenario' | 'last' | 'sample';
 
@@ -37,6 +39,7 @@ export interface InspectInput {
   usage: UsageCache | null;
   width: number | null;
   ctx: RenderContext;
+  meta: InspectMeta;
   commandEnv?: NodeJS.ProcessEnv;
   cleanup(): void;
 }
@@ -120,6 +123,62 @@ function lastAge(): number | undefined {
   }
 }
 
+function mtimeAge(file: string, now: number): number | undefined {
+  try {
+    return Math.max(0, now - fs.statSync(file).mtimeMs);
+  } catch {
+    return undefined;
+  }
+}
+
+function agentsAge(transcriptPath: string, env: NodeJS.ProcessEnv, now: number): number | undefined {
+  const dir = path.join(transcriptPath.replace(/\.jsonl$/, ''), 'subagents');
+  let files: string[];
+  try {
+    files = fs.readdirSync(dir).filter((f) => f.endsWith('.jsonl'));
+  } catch {
+    return undefined;
+  }
+  const ages = files
+    .map((f) => mtimeAge(cacheFile(agentsCacheName(path.join(dir, f)), env), now))
+    .filter((a): a is number => a !== undefined);
+  return ages.length ? Math.min(...ages) : undefined;
+}
+
+function sourceMeta(
+  config: Config,
+  ctx: RenderContext,
+  raw: StatusPayload,
+  usage: UsageCache | null,
+  env: NodeJS.ProcessEnv,
+  live: boolean,
+): InspectMeta {
+  const meta: InspectMeta = {};
+  const now = Date.now();
+  const ages: NonNullable<InspectMeta['ages']> = {};
+  if (usage?.rate_limits && ctx.payload !== raw) {
+    const own = (raw.rate_limits ?? {}) as Record<string, unknown>;
+    meta.usageWindows = Object.keys(usage.rate_limits).filter((k) => own[k] === undefined);
+    ages.usage = Math.max(0, now - usage.fetchedAt);
+  }
+  const tp = raw.transcript_path;
+  if (live && typeof tp === 'string' && tp) {
+    const tAge = mtimeAge(cacheFile(transcriptCacheName(tp), env), now);
+    if (tAge !== undefined) ages.transcript = tAge;
+    const aAge = agentsAge(tp, env, now);
+    if (aAge !== undefined) ages.agents = aAge;
+  }
+  if (Object.keys(ages).length) meta.ages = ages;
+  if (config.lines.some((items) => items.some((i) => getWidget(i.type)?.category === 'gsd'))) {
+    const g = ctx.data.gsd();
+    if (g) {
+      const rel = path.relative(g.projectDir, path.join(g.planningDir, 'STATE.md')).replace(/\\/g, '/');
+      meta.gsdPath = rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel : '.planning/STATE.md';
+    }
+  }
+  return meta;
+}
+
 export function loadInspectInput(opts: InspectOptions): InspectInput | null {
   const baseEnv = opts.env ?? process.env;
   const loaded = loadForUse(opts.cfgFile);
@@ -170,6 +229,7 @@ export function loadInspectInput(opts: InspectOptions): InspectInput | null {
     terminalWidth: width,
     data,
   });
+  const meta = sourceMeta(config, ctx, payload, usage, env, live);
   let tmp: string | null = null;
   if (config.lines.some((items) => items.some((i) => i.type === 'command'))) {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-explain-'));
@@ -182,6 +242,7 @@ export function loadInspectInput(opts: InspectOptions): InspectInput | null {
     usage,
     width,
     ctx,
+    meta,
     ...(tmp ? { commandEnv: { ...env, CCINFOBAR_CACHE_DIR: tmp } } : {}),
     cleanup() {
       if (!tmp) return;
@@ -217,6 +278,42 @@ export function formatAge(ms: number): string {
   return t('explain.age.days', { n: Math.round(h / 24) });
 }
 
+export function shortAge(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return t('explain.ageShort.seconds', { n: s });
+  const m = Math.round(s / 60);
+  if (m < 60) return t('explain.ageShort.minutes', { n: m });
+  const h = Math.round(m / 60);
+  if (h < 48) return t('explain.ageShort.hours', { n: h });
+  return t('explain.ageShort.days', { n: Math.round(h / 24) });
+}
+
+export function sourceText(src: Source): string {
+  const path = sanitizeText(src.path ?? '');
+  switch (src.kind) {
+    case 'usage-cache':
+    case 'transcript':
+    case 'agents':
+      return src.age === undefined
+        ? t(`explain.source.${src.kind}`)
+        : t(`explain.source.${src.kind}.age`, { age: shortAge(src.age) });
+    case 'payload':
+    case 'env':
+    case 'config':
+      return path ? t(`explain.source.${src.kind}`, { path }) : src.kind;
+    case 'gsd':
+      return t('explain.source.gsd', { path: path || '.planning/STATE.md' });
+    default:
+      return t(`explain.source.${src.kind}`);
+  }
+}
+
+function sourcesSuffix(r: InspectRow): string {
+  if (!r.sources.length) return '';
+  const list = [...new Set(r.sources.map(sourceText))].join(', ');
+  return t('explain.sources', { sources: list });
+}
+
 function inputLine(input: InspectInput['input']): string {
   const s = (v: string) => sanitizeText(v);
   switch (input.kind) {
@@ -235,6 +332,11 @@ function inputLine(input: InspectInput['input']): string {
 }
 
 export function rowLine(r: InspectRow): string {
+  const line = statusLine(r);
+  return r.status === 'error' || r.status === 'skipped' ? line : line + sourcesSuffix(r);
+}
+
+function statusLine(r: InspectRow): string {
   const id = sanitizeText(r.id);
   const type = sanitizeText(r.type);
   const name = id === type ? type : `${id} (${type})`;
@@ -296,7 +398,10 @@ function printExplain(data: InspectInput, io: ExplainIo): void {
   io.log(t('explain.header', { version: VERSION }));
   io.log(inputLine(data.input));
   io.log(data.width === null ? t('explain.widthUnknown') : t('explain.width', { width: data.width }));
-  const rows = inspectRows(data.ctx, data.commandEnv ? { commandEnv: data.commandEnv } : {});
+  const rows = inspectRows(data.ctx, {
+    meta: data.meta,
+    ...(data.commandEnv ? { commandEnv: data.commandEnv } : {}),
+  });
   const lines = lineReport(data.commandEnv ? { ...data.ctx, env: data.commandEnv } : data.ctx);
   data.config.lines.forEach((_, line) => {
     io.log('');
