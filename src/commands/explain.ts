@@ -500,6 +500,7 @@ export function explainJson(
       })),
       empty: r.empty ? { code: r.empty.code, text: r.empty.text } : null,
       error: r.error,
+      ...(r.note ? { note: { code: r.note.code, text: r.note.text } } : {}),
     })),
     lines: lines.map((l) => ({ line: l.line, width: l.width, max: l.max, cut: l.cut })),
   });
@@ -603,6 +604,7 @@ function detailLines(data: InspectInput, r: InspectRow, reveal: boolean): string
   ];
   if (r.error !== null) out.push(t('explain.detail.error', { error: s(r.error) }));
   else if (r.empty) out.push(t('explain.detail.reason', { reason: s(r.empty.text) }));
+  if (r.note) out.push(t('explain.detail.note', { note: s(r.note.text) }));
   const opts =
     options && Object.keys(options).length
       ? JSON.stringify(clean(reveal ? options : maskOptions(r.type, options)))
@@ -648,7 +650,11 @@ function printExplain(
   data.config.lines.forEach((_, line) => {
     io.log('');
     io.log(t('explain.lineHeader', { line: line + 1 }));
-    for (const r of rows) if (r.line === line) io.log(rowLine(shown(r)));
+    for (const r of rows) {
+      if (r.line !== line) continue;
+      io.log(rowLine(shown(r)));
+      if (r.note) io.log(t('explain.row.note', { reason: sanitizeText(r.note.text) }));
+    }
     const l = lines[line];
     if (l?.cut) io.log(t('explain.lineCut', { line: line + 1, width: l.width, max: l.max ?? 0 }));
   });

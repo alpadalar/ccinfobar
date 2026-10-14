@@ -50,6 +50,16 @@ describe('env-counts end to end', () => {
     put(path.join(fx.managedDir, 'managed-settings.json'), handlers(2));
     const sub = path.join(p, 'src');
     put(path.join(sub, 'CLAUDE.md'));
+    const servers = (...n: string[]) => ({ mcpServers: Object.fromEntries(n.map((k) => [k, {}])) });
+    put(
+      path.join(c, '.claude.json'),
+      JSON.stringify({ ...servers('github', 'linear'), projects: { [p]: servers('db') } }),
+    );
+    put(path.join(p, '.mcp.json'), JSON.stringify(servers('web', 'db')));
+    put(
+      path.join(p, '.claude', 'settings.local.json'),
+      JSON.stringify({ ...JSON.parse(handlers(1)), enabledMcpjsonServers: ['web'] }),
+    );
     const env = { CLAUDE_CONFIG_DIR: c, CCINFOBAR_CACHE_DIR: path.join(root, 'cache') };
     const ctx = createContext({
       payload: { cwd: sub, workspace: { current_dir: sub, project_dir: p } },
@@ -57,7 +67,9 @@ describe('env-counts end to end', () => {
       env,
       now: NOW,
     });
-    expect(withoutSideEffects(() => renderWidget('env-counts', ctx))).toBe('CLAUDE.md 2 · rules 3 · hooks 5');
+    expect(withoutSideEffects(() => renderWidget('env-counts', ctx))).toBe(
+      'CLAUDE.md 2 · rules 3 · MCP 4 · hooks 5',
+    );
     const preview = createContext({
       payload: { cwd: p },
       config: { ...defaultConfig(), colorLevel: 0 },
@@ -65,7 +77,7 @@ describe('env-counts end to end', () => {
       now: NOW,
       preview: true,
     });
-    expect(renderWidget('env-counts', preview)).toBe('CLAUDE.md 2 · rules 3 · hooks 5');
+    expect(renderWidget('env-counts', preview)).toBe('CLAUDE.md 2 · rules 3 · MCP 4 · hooks 5');
     expect(fs.existsSync(path.join(root, 'cache2'))).toBe(false);
   });
 });
@@ -75,33 +87,44 @@ describe('env-counts widget', () => {
     ctxWith({ environment: () => ({ ...sampleEnvironment(), ...o }) });
 
   it('renders the sample', () => {
-    expect(renderWidget('env-counts', ctxWith())).toBe('CLAUDE.md 2 · rules 3 · hooks 5');
+    expect(renderWidget('env-counts', ctxWith())).toBe('CLAUDE.md 2 · rules 3 · MCP 4 · hooks 5');
   });
 
   it('shows AGENTS.md after CLAUDE.md and hooks off', () => {
     expect(renderWidget('env-counts', env({ agentsMd: 1, hooks: 0, hooksDisabled: true }))).toBe(
-      'CLAUDE.md 2 · AGENTS.md 1 · rules 3 · hooks off',
+      'CLAUDE.md 2 · AGENTS.md 1 · rules 3 · MCP 4 · hooks off',
     );
   });
 
   it('hides zero parts unless hideZero is off', () => {
-    const z = env({ claudeMd: 0, rules: 0 });
+    const z = env({ claudeMd: 0, rules: 0, mcp: 0 });
     expect(renderWidget('env-counts', z)).toBe('hooks 5');
     expect(renderWidget('env-counts', z, { options: { hideZero: false } })).toBe(
-      'CLAUDE.md 0 · rules 0 · hooks 5',
+      'CLAUDE.md 0 · rules 0 · MCP 0 · hooks 5',
     );
   });
 
   it('drops parts that are switched off and returns null when nothing is left', () => {
     expect(renderWidget('env-counts', env(), { options: { showRules: false } })).toBe(
-      'CLAUDE.md 2 · hooks 5',
+      'CLAUDE.md 2 · MCP 4 · hooks 5',
     );
-    expect(renderWidget('env-counts', env({ claudeMd: 0, rules: 0, hooks: 0 }))).toBeNull();
+    expect(renderWidget('env-counts', env(), { options: { showMcp: false } })).toBe(
+      'CLAUDE.md 2 · rules 3 · hooks 5',
+    );
+    expect(renderWidget('env-counts', env({ claudeMd: 0, rules: 0, mcp: 0, hooks: 0 }))).toBeNull();
     expect(renderWidget('env-counts', ctxWith({ environment: () => null }))).toBeNull();
   });
 
   it('uses the text separator for the text charset', () => {
     const ctx = ctxWith({ config: { charset: 'text' } });
-    expect(renderWidget('env-counts', ctx)).toBe('CLAUDE.md 2 | rules 3 | hooks 5');
+    expect(renderWidget('env-counts', ctx)).toBe('CLAUDE.md 2 | rules 3 | MCP 4 | hooks 5');
+  });
+
+  it('keeps the plain count with mcpHealth on until Claude Code exposes health', () => {
+    const on = { options: { mcpHealth: true } };
+    expect(renderWidget('env-counts', env(), on)).toBe('CLAUDE.md 2 · rules 3 · MCP 4 · hooks 5');
+    const health = env({ mcpHealth: { ok: 3, total: 4 } });
+    expect(renderWidget('env-counts', health, on)).toBe('CLAUDE.md 2 · rules 3 · MCP 3/4 · hooks 5');
+    expect(renderWidget('env-counts', health)).toBe('CLAUDE.md 2 · rules 3 · MCP 4 · hooks 5');
   });
 });

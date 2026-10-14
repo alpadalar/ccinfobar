@@ -22,6 +22,7 @@ export const explainMessages = {
   'explain.reason.no-tools': 'no tool is running and none ran in this {scope}',
   'explain.reason.needs-hooks': 'needs `ccinfobar install --hooks`',
   'explain.reason.no-hook-state': 'hooks are installed but this session has no hook log yet',
+  'explain.reason.no-mcp-health': 'Claude Code does not expose MCP health',
   'explain.reason.noPermissionWait': 'no permission prompt waited in this turn',
   'explain.reason.workspace-mode': 'hidden in a workspace folder (workspace-repos hideGitPlaceholders)',
   'explain.reason.no-ledger':
@@ -96,6 +97,7 @@ export const explainMessages = {
   'explain.row.hidden': '  ✗ {name}: hidden, {reason}',
   'explain.row.error': '  ✗ {name}: error: {error}',
   'explain.row.skipped': '  · {name}: skipped (flex)',
+  'explain.row.note': '      {reason}',
   'explain.lineCut':
     '  ⚠ Line {line} needs {width} columns and is cut at {max}. Lower widthOffset, set autoWrap, or move widgets to another line.',
   'explain.runDoctor': 'Run ccinfobar doctor for details',
@@ -110,6 +112,7 @@ export const explainMessages = {
   'explain.detail.value': '  value: {value}',
   'explain.detail.sources': '  sources: {sources}',
   'explain.detail.reason': '  reason: {reason}',
+  'explain.detail.note': '  note: {note}',
   'explain.detail.error': '  error: {error}',
   'explain.detail.options': '  options: {options}',
   'explain.detail.none': 'none',

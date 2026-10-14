@@ -239,6 +239,18 @@ describe('runExplain table', () => {
     expect(out).toContain(t('explain.row.skipped', { name: 'flex' }));
   });
 
+  it('prints a shown row note on its own line', () => {
+    const ec = { lines: [[{ id: 'env', type: 'env-counts', options: { mcpHealth: true } }]] };
+    const { out } = run(['--scenario', 'no-git'], ec);
+    const i = out.findIndex((l) => l.includes('env (env-counts): CLAUDE.md 2'));
+    expect(i).toBeGreaterThan(-1);
+    expect(out[i + 1]).toBe(t('explain.row.note', { reason: t('explain.reason.no-mcp-health') }));
+    const json = JSON.parse(run(['--scenario', 'no-git', '--json'], ec).out.join('\n'));
+    expect(json.widgets[0].note).toEqual({ code: 'no-mcp-health', text: t('explain.reason.no-mcp-health') });
+    const detail = run(['env', '--scenario', 'no-git'], ec).out;
+    expect(detail).toContain(t('explain.detail.note', { note: t('explain.reason.no-mcp-health') }));
+  });
+
   it('notes a cut line', () => {
     const { out } = run(['--scenario', 'context-full', '--width', '20'], { ...LAYOUT, autoWrap: false });
     expect(out.some((l) => l.startsWith('  ⚠ Line 1 needs'))).toBe(true);

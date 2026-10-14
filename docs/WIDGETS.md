@@ -170,7 +170,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `hostname` | Machine hostname | `devbox` |  |
 | `username` | Current OS user | `dev` |  |
 | `memory` | System memory usage | `Mem 11.2/31.2 GB` | `format` select, default `"gb"` (`gb`, `percent`) |
-| `env-counts` | CLAUDE.md, AGENTS.md, rules and hooks in effect, from config files | `CLAUDE.md 2 · rules 3 · hooks 5` | `showClaudeMd` boolean, default `true`<br>`showAgentsMd` boolean, default `true`<br>`showRules` boolean, default `true`<br>`showHooks` boolean, default `true`<br>`hideZero` boolean, default `true` |
+| `env-counts` | CLAUDE.md, AGENTS.md, rules, MCP servers and hooks in effect, from config files | `CLAUDE.md 2 · rules 3 · MCP 4 · hooks 5` | `showClaudeMd` boolean, default `true`<br>`showAgentsMd` boolean, default `true`<br>`showRules` boolean, default `true`<br>`showMcp` boolean, default `true`<br>`showHooks` boolean, default `true`<br>`hideZero` boolean, default `true`<br>`mcpHealth` boolean, default `false` |
 | `load-average` | System load average (not available on Windows) | `Load 0.52 0.48 0.40` | `full` boolean, default `true` |
 | `terminal-width` | Detected terminal width in columns | `Cols 140` |  |
 | `platform` | Operating system | `Linux` |  |

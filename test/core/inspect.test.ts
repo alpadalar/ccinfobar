@@ -621,3 +621,18 @@ describe('permission-wait empty reasons', () => {
     });
   });
 });
+
+describe('env-counts mcp health note', () => {
+  const ec = (options?: WidgetItem['options']): WidgetItem => ({
+    id: 'env-counts',
+    type: 'env-counts',
+    ...(options ? { options } : {}),
+  });
+
+  it('notes no-mcp-health on a shown row with mcpHealth on', () => {
+    const on = rowsFor(ctxWith({ config: { lines: [[ec({ mcpHealth: true })]] } }))[0]!;
+    expect(on).toMatchObject({ status: 'shown', value: 'CLAUDE.md 2 · rules 3 · MCP 4 · hooks 5' });
+    expect(on.note).toEqual({ code: 'no-mcp-health', text: 'Claude Code does not expose MCP health' });
+    expect(rowsFor(ctxWith({ config: { lines: [[ec()]] } }))[0]!.note).toBeUndefined();
+  });
+});

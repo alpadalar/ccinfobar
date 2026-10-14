@@ -51,6 +51,7 @@ export type EmptyCode =
   | 'no-budget'
   | 'no-replies'
   | 'payload-field-absent'
+  | 'no-mcp-health'
   | 'error'
   | 'no-data';
 
@@ -71,6 +72,7 @@ export interface InspectRow {
   sources: Source[];
   empty: EmptyReason | null;
   error: string | null;
+  note?: EmptyReason;
 }
 
 export interface LineRow {
@@ -334,12 +336,14 @@ function inspectItem(
   const sources = sourcesFor(def, item, reads, opts.meta);
   const out = normalizeResult(def, result);
   if (out) {
-    return {
+    const shown: InspectRow = {
       ...row,
       status: isLoadingOutput(result) ? 'loading' : 'shown',
       value: stripAnsi(out.text),
       sources,
     };
+    const note = shownNote(ctx, item);
+    return note ? { ...shown, note } : shown;
   }
   if (!item.hideEmpty && hiddenByWorkspace(ctx, def)) {
     return { ...row, status: 'hidden', sources, empty: reason('workspace-mode') };
@@ -347,6 +351,12 @@ function inspectItem(
   const status = item.hideEmpty || def.category === 'layout' ? 'hidden' : 'empty';
   const empty = emptyReason(ctx, item, def.sources ? undefined : reads, opts.meta);
   return { ...row, status, sources, empty };
+}
+
+// the payload has no mcp status yet
+function shownNote(ctx: RenderContext, item: WidgetItem): EmptyReason | null {
+  if (item.type !== 'env-counts' || item.options?.mcpHealth !== true) return null;
+  return ctx.data.environment?.()?.mcpHealth ? null : reason('no-mcp-health');
 }
 
 export function inspectRows(base: RenderContext, opts: InspectOptions = {}): InspectRow[] {

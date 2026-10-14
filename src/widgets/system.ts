@@ -123,16 +123,23 @@ export const widgets: WidgetDef[] = [
     type: 'env-counts',
     name: 'Environment counts',
     category: 'system',
-    description: 'CLAUDE.md, AGENTS.md, rules and hooks in effect, from config files',
+    description: 'CLAUDE.md, AGENTS.md, rules, MCP servers and hooks in effect, from config files',
     icon: { nerd: '⚙', emoji: '⚙', text: '⚙' },
     color: 'blue',
-    sample: 'CLAUDE.md 2 · rules 3 · hooks 5',
+    sample: 'CLAUDE.md 2 · rules 3 · MCP 4 · hooks 5',
     options: [
       { key: 'showClaudeMd', label: 'Show CLAUDE.md', kind: 'boolean', default: true },
       { key: 'showAgentsMd', label: 'Show AGENTS.md', kind: 'boolean', default: true },
       { key: 'showRules', label: 'Show rules', kind: 'boolean', default: true },
+      { key: 'showMcp', label: 'Show MCP servers', kind: 'boolean', default: true },
       { key: 'showHooks', label: 'Show hooks', kind: 'boolean', default: true },
       { key: 'hideZero', label: 'Hide zero counts', kind: 'boolean', default: true },
+      {
+        key: 'mcpHealth',
+        label: 'MCP health (only when Claude Code exposes it)',
+        kind: 'boolean',
+        default: false,
+      },
     ],
     render(ctx, item) {
       const e = ctx.data.environment?.();
@@ -145,6 +152,9 @@ export const widgets: WidgetDef[] = [
       add('showClaudeMd', 'CLAUDE.md', e.claudeMd);
       if (opt(item, 'showAgentsMd', true) && e.agentsMd > 0) parts.push(`AGENTS.md ${e.agentsMd}`);
       add('showRules', 'rules', e.rules);
+      const health = opt(item, 'mcpHealth', false) ? e.mcpHealth : undefined;
+      if (health && opt(item, 'showMcp', true)) parts.push(`MCP ${health.ok}/${health.total}`);
+      else add('showMcp', 'MCP', e.mcp);
       if (opt(item, 'showHooks', true)) {
         if (e.hooksDisabled) parts.push(t('widget.env.hooksOff'));
         else if (e.hooks > 0 || !hideZero) parts.push(`hooks ${e.hooks}`);
