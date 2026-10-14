@@ -23,12 +23,13 @@ export function ctxWith(
     history?: RenderContext['data']['history'];
     agents?: RenderContext['data']['agents'];
     width?: number | null;
+    env?: NodeJS.ProcessEnv;
   } = {},
 ): RenderContext {
   return createContext({
     payload: overrides.payload ?? samplePayload(NOW.getTime()),
     config: { ...defaultConfig(), colorLevel: 0, ...overrides.config },
-    env: {},
+    env: overrides.env ?? {},
     now: NOW,
     terminalWidth: overrides.width ?? null,
     data: {
@@ -51,4 +52,22 @@ export function renderWidget(
   const out = def.render(ctx, { id: type, type, ...item });
   if (out === null || out === undefined) return null;
   return typeof out === 'string' ? out : out.text;
+}
+
+export function withoutSideEffects<T>(fn: () => T): T {
+  globalThis.__ccibRenderGuard = true;
+  try {
+    return fn();
+  } finally {
+    globalThis.__ccibRenderGuard = false;
+  }
+}
+
+export async function withoutSideEffectsAsync<T>(fn: () => Promise<T>): Promise<T> {
+  globalThis.__ccibRenderGuard = true;
+  try {
+    return await fn();
+  } finally {
+    globalThis.__ccibRenderGuard = false;
+  }
 }
