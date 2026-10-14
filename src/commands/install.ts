@@ -4,7 +4,18 @@ import path from 'node:path';
 import { t } from '../core/i18n/index.js';
 import { claudeDir, claudeJsonPath, claudeSettingsPath, configDir } from '../core/paths.js';
 import { HARDEN } from '../data/git.js';
+import type { HookEvent } from '../data/hooks.js';
 import { type BuiltCommand, buildCommand, type CommandTarget } from './command.js';
+import {
+  appliedItems,
+  type HookFloor,
+  type HookPlan,
+  type HookPlanItem,
+  mutateHooks,
+  planHookRewrites,
+  planHooks,
+  recordHooks,
+} from './hooks-install.js';
 import {
   classifyOwner,
   deepEqual,
@@ -18,16 +29,17 @@ import {
   realKey,
   recordGitExclude,
   recordStatusLine,
+  refreshWrittenHash,
   type StatusLineEntry,
   writeManifest,
 } from './manifest.js';
 import {
   deleteSettingsFile,
   hashBytes,
-  type PatchResult,
   patchSettings,
   readSettings,
   resolveReal,
+  rollbackPatch,
   writeSettingsBytes,
 } from './settings-file.js';
 import {
@@ -176,6 +188,13 @@ export interface InstallResult {
   written: StatusLineSetting;
   replaced: StatusLineSetting | null;
   changed: boolean;
+  hooks: HookPlan | null;
+}
+
+export interface InstallHooks {
+  events: readonly HookEvent[];
+  claudeCode: string | null;
+  floor?: HookFloor;
 }
 
 export class InstallNeedsConfirmError extends Error {
@@ -232,7 +251,7 @@ export function planInstall(opts: {
 
 export function applyInstall(
   plan: InstallPlan,
-  opts: { confirmed: boolean; adoptLegacy?: boolean; env?: NodeJS.ProcessEnv },
+  opts: { confirmed: boolean; adoptLegacy?: boolean; env?: NodeJS.ProcessEnv; hooks?: InstallHooks },
 ): InstallResult {
   if (plan.needsConfirm && !opts.confirmed) throw new InstallNeedsConfirmError(plan);
   const env = opts.env ?? process.env;
@@ -240,6 +259,13 @@ export function applyInstall(
   const command = proposed.command;
   const m = openManifest(env);
   const entry = findStatusLineEntry(m, file);
+  // D-17: also guards takeOverProjects
+  const userFile = realKey(file) === realKey(claudeSettingsPath(env));
+  const hooks = {
+    plan: null as HookPlan | null,
+    planned: [] as HookPlanItem[],
+    applied: [] as HookPlanItem[],
+  };
   const res = patchSettings(
     file,
     (settings) => {
@@ -247,6 +273,17 @@ export function applyInstall(
       if (!deepEqual(current, plan.current) || classify(m, file, current, command) !== plan.owner)
         throw new InstallNeedsConfirmError(plan);
       settings.statusLine = structuredClone(proposed);
+      hooks.plan = null;
+      hooks.planned = [];
+      hooks.applied = [];
+      if (!userFile) return;
+      const asked = opts.hooks ? planHooks({ settings, manifest: m, file, command, ...opts.hooks }) : null;
+      const covered = new Set(asked?.items.map((i) => i.event));
+      const rewrites = planHookRewrites(settings, m, file, command).filter((i) => !covered.has(i.event));
+      hooks.planned = [...(asked?.items ?? []), ...rewrites];
+      hooks.applied = mutateHooks(settings, hooks.planned);
+      if (asked || rewrites.length)
+        hooks.plan = { ...(asked ?? { claudeCode: null, refused: null, asyncOmitted: false }), items: [] };
     },
     { original: !entry, env },
   );
@@ -271,32 +308,25 @@ export function applyInstall(
     : owner === 'legacy-ours'
       ? legacyBackup(file) !== null
       : res.existed;
+  const next = recordStatusLine(m, {
+    file: res.real,
+    value: structuredClone(proposed),
+    previous,
+    fileExisted,
+    restore,
+    writtenHash: res.afterHash,
+  });
+  const claudeCode = hooks.plan?.claudeCode ?? null;
   try {
-    writeManifest(
-      recordStatusLine(m, {
-        file: res.real,
-        value: structuredClone(proposed),
-        previous,
-        fileExisted,
-        restore,
-        writtenHash: res.afterHash,
-      }),
-      env,
-    );
+    const all = recordHooks(next, res.real, hooks.applied, claudeCode, res.afterHash);
+    // D-19: one write, every entry of the file refreshed
+    writeManifest(refreshWrittenHash(all, res.real, res.afterHash), env);
   } catch (err) {
-    if (res.changed) rollback(file, res, env);
+    if (res.changed) rollbackPatch(file, res, env);
     throw err;
   }
-  return { backup: res.backup, written: proposed, replaced: current, changed: res.changed };
-}
-
-// no manifest entry: undo our write unless someone changed it since
-function rollback(file: string, res: PatchResult, env: NodeJS.ProcessEnv): void {
-  try {
-    const opts = { env, backup: false, ifHash: res.afterHash };
-    if (!res.existed) deleteSettingsFile(file, opts);
-    else if (readSettings(file).hash === res.afterHash) writeSettingsBytes(file, res.beforeBytes, opts);
-  } catch {}
+  const hookPlan = hooks.plan ? { ...hooks.plan, items: appliedItems(hooks.planned, hooks.applied) } : null;
+  return { backup: res.backup, written: proposed, replaced: current, changed: res.changed, hooks: hookPlan };
 }
 
 export type UninstallStatus =

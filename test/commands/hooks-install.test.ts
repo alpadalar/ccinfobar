@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  applyHooks,
   DEFAULT_EVENTS,
   detectClaudeCode,
   HOOK_FLOOR,
@@ -15,11 +16,22 @@ import {
   planHookRewrites,
   planHooks,
 } from '../../src/commands/hooks-install.js';
-import { type Manifest, recordHook } from '../../src/commands/manifest.js';
+import { applyInstall, planInstall, projectSettingsPath } from '../../src/commands/install.js';
+import {
+  findHookEntries,
+  findStatusLineEntry,
+  type Manifest,
+  readManifest,
+  recordHook,
+} from '../../src/commands/manifest.js';
+import { backupsDir, hashBytes } from '../../src/commands/settings-file.js';
+import { claudeSettingsPath } from '../../src/core/paths.js';
 import type { HookEvent } from '../../src/data/hooks.js';
+import { formatJson, type SettingsFixture, settingsFixture } from './fixtures.js';
 
 const EMPTY: Manifest = { version: 1, entries: [] };
 const FILE = path.join(os.tmpdir(), 'ccib-hooks-plan', 'settings.json');
+const read = (f: string) => JSON.parse(fs.readFileSync(f, 'utf8').replace(/^﻿/, ''));
 const handler = (command: string, event: string) => ({
   type: 'command',
   command: `${command} hook ${event}`,
@@ -39,6 +51,27 @@ function plan(over: Partial<Parameters<typeof planHooks>[0]> = {}) {
     ...over,
   });
 }
+
+function install(
+  fx: SettingsFixture,
+  command: string,
+  hooks?: { events: readonly HookEvent[]; claudeCode: string | null },
+  file = fx.file,
+) {
+  return applyInstall(planInstall({ file, command, env: fx.env }), {
+    confirmed: true,
+    env: fx.env,
+    ...(hooks ? { hooks } : {}),
+  });
+}
+
+const backups = (fx: SettingsFixture) => {
+  try {
+    return fs.readdirSync(backupsDir(fx.env)).filter((f) => /^settings-\d{8}T/.test(f));
+  } catch {
+    return [];
+  }
+};
 
 describe('hook groups and events', () => {
   it('builds the shell-form handler with a permission_prompt matcher for Notification only', () => {
@@ -209,5 +242,167 @@ describe('detectClaudeCode', () => {
   it('returns null when nothing works', () => {
     expect(detectClaudeCode({ exec: fail, platform: 'win32', env: payloadEnv() })).toBeNull();
     expect(detectClaudeCode({ exec: () => 'garbage', platform: 'linux', env: payloadEnv(42) })).toBeNull();
+  });
+});
+
+describe('install with hooks', () => {
+  const HOOKS = { events: DEFAULT_EVENTS, claudeCode: '2.1.299' };
+
+  it('writes six own groups in one patch, format-preserved, and owns them in the manifest', () => {
+    const data = { model: 'opus', hooks: { Stop: [userStop] } };
+    const fmt = { bom: true, eol: '\r\n' as const, indent: '    ' };
+    const fx = settingsFixture({ data, ...fmt });
+    expect(claudeSettingsPath(fx.env)).toBe(fx.file);
+    const res = install(fx, '/bin/ccinfobar', HOOKS);
+    expect(res.changed).toBe(true);
+    expect(res.hooks?.items.map((i) => i.action)).toEqual(Array(6).fill('add'));
+    expect(backups(fx)).toHaveLength(1);
+
+    const expected = structuredClone(data) as Record<string, unknown> & { hooks: Record<string, unknown[]> };
+    expected.statusLine = { type: 'command', command: '/bin/ccinfobar', padding: 0 };
+    for (const e of DEFAULT_EVENTS) {
+      const g = hookGroup(e, '/bin/ccinfobar', { async: true });
+      if (e === 'Stop') expected.hooks.Stop?.push(g);
+      else expected.hooks[e] = [g];
+    }
+    const bytes = fs.readFileSync(fx.file);
+    expect(bytes.toString('utf8')).toBe(formatJson(expected, fmt));
+
+    const out = read(fx.file);
+    expect(out.hooks.Stop[0]).toEqual(userStop);
+    expect(out.hooks.Notification[0].matcher).toBe('permission_prompt');
+    for (const e of DEFAULT_EVENTS) {
+      const groups = out.hooks[e];
+      expect(groups[groups.length - 1].hooks).toEqual([handler('/bin/ccinfobar', e)]);
+    }
+
+    const m = readManifest(fx.env);
+    expect(m.version).toBe(1);
+    expect(m.entries.filter((e) => e.kind === 'statusLine')).toHaveLength(1);
+    const hooks = findHookEntries(m, fx.file);
+    expect(hooks.map((h) => h.event).sort()).toEqual([...DEFAULT_EVENTS].sort());
+    const hash = hashBytes(bytes);
+    for (const h of hooks) {
+      const groups = out.hooks[h.event];
+      expect(h.value).toEqual(groups[groups.length - 1]);
+      expect(h.claudeCode).toBe('2.1.299');
+      expect(h.writtenHash).toBe(hash);
+    }
+    expect(hooks.find((h) => h.event === 'Notification')?.matcher).toBe('permission_prompt');
+    expect(findStatusLineEntry(m, fx.file)?.writtenHash).toBe(hash);
+  });
+
+  it('keeps everything on a second identical install', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx, '/bin/ccinfobar', HOOKS);
+    const before = fs.readFileSync(fx.file);
+    const n = backups(fx).length;
+    const res = install(fx, '/bin/ccinfobar', HOOKS);
+    expect(res.changed).toBe(false);
+    expect(res.backup).toBeNull();
+    expect(res.hooks?.items.map((i) => i.action)).toEqual(Array(6).fill('keep'));
+    expect(fs.readFileSync(fx.file).equals(before)).toBe(true);
+    expect(backups(fx)).toHaveLength(n);
+    expect(findHookEntries(readManifest(fx.env), fx.file)).toHaveLength(6);
+  });
+
+  it('does not duplicate a handler the user already has', () => {
+    const mine = { hooks: [handler('/bin/ccinfobar', 'Stop')] };
+    const fx = settingsFixture({ data: { hooks: { Stop: [mine] } } });
+    const res = install(fx, '/bin/ccinfobar', HOOKS);
+    expect(res.hooks?.items.find((i) => i.event === 'Stop')?.action).toBe('skip-unmanaged');
+    expect(read(fx.file).hooks.Stop).toEqual([mine]);
+    const events = findHookEntries(readManifest(fx.env), fx.file).map((h) => h.event);
+    expect(events).not.toContain('Stop');
+    expect(events).toHaveLength(5);
+  });
+
+  it('writes PermissionRequest only when asked for', () => {
+    const fx = settingsFixture({ data: {} });
+    install(fx, '/bin/ccinfobar', HOOKS);
+    expect(read(fx.file).hooks.PermissionRequest).toBeUndefined();
+    install(fx, '/bin/ccinfobar', { events: hookEventsFor('permission') ?? [], claudeCode: '2.1.299' });
+    expect(read(fx.file).hooks.PermissionRequest).toEqual([
+      hookGroup('PermissionRequest', '/bin/ccinfobar', { async: true }),
+    ]);
+  });
+
+  it('refuses hooks without a known version but still installs the status line', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    const res = install(fx, '/bin/ccinfobar', { events: DEFAULT_EVENTS, claudeCode: null });
+    expect(res.hooks?.refused).toBe('unknown-version');
+    const out = read(fx.file);
+    expect(out.statusLine.command).toBe('/bin/ccinfobar');
+    expect(out.hooks).toBeUndefined();
+    expect(findHookEntries(readManifest(fx.env), fx.file)).toEqual([]);
+    const old = install(fx, '/bin/ccinfobar', { events: DEFAULT_EVENTS, claudeCode: '2.1.100' });
+    expect(old.hooks?.refused).toBe('old-version');
+    expect(read(fx.file).hooks).toBeUndefined();
+  });
+
+  it('rewrites owned hooks when the command changes, without --hooks (D-20)', () => {
+    const own = { hooks: [{ type: 'command', command: '/bin/ccinfobar hook Stop', timeout: 9 }] };
+    const fx = settingsFixture({ data: { hooks: { Stop: [userStop] } } });
+    install(fx, '/bin/ccinfobar', HOOKS);
+    const raw = read(fx.file);
+    raw.hooks.Stop.unshift(own);
+    fs.writeFileSync(fx.file, JSON.stringify(raw, null, 2));
+    const res = install(fx, '/new/ccinfobar');
+    expect(res.hooks?.items.map((i) => i.action)).toEqual(Array(6).fill('rewrite'));
+    const out = read(fx.file);
+    expect(out.statusLine.command).toBe('/new/ccinfobar');
+    expect(out.hooks.Stop).toEqual([own, userStop, hookGroup('Stop', '/new/ccinfobar', { async: true })]);
+    for (const e of DEFAULT_EVENTS) {
+      expect(out.hooks[e].at(-1)).toEqual(hookGroup(e, '/new/ccinfobar', { async: true }));
+    }
+    const m = readManifest(fx.env);
+    const hash = hashBytes(fs.readFileSync(fx.file));
+    for (const h of findHookEntries(m, fx.file)) {
+      expect(h.value).toEqual(hookGroup(h.event as HookEvent, '/new/ccinfobar', { async: true }));
+      expect(h.writtenHash).toBe(hash);
+    }
+    expect(findStatusLineEntry(m, fx.file)?.writtenHash).toBe(hash);
+  });
+
+  it('rewrites owned hooks even when a new hooks request is refused', () => {
+    const fx = settingsFixture({ data: {} });
+    install(fx, '/bin/ccinfobar', HOOKS);
+    install(fx, '/new/ccinfobar', { events: DEFAULT_EVENTS, claudeCode: null });
+    const out = read(fx.file);
+    expect(out.hooks.Stop).toEqual([hookGroup('Stop', '/new/ccinfobar', { async: true })]);
+  });
+
+  it('never writes hooks to a project file', () => {
+    const fx = settingsFixture({ data: {} });
+    const file = projectSettingsPath(path.join(fx.dir, 'proj'));
+    const res = install(fx, '/bin/ccinfobar', HOOKS, file);
+    expect(res.hooks).toBeNull();
+    expect(read(file).statusLine.command).toBe('/bin/ccinfobar');
+    expect(read(file).hooks).toBeUndefined();
+    expect(findHookEntries(readManifest(fx.env), file)).toEqual([]);
+  });
+
+  it('applyHooks writes hooks only and refreshes every hash for the file', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx, '/bin/ccinfobar');
+    const p = planHooks({
+      settings: read(fx.file),
+      manifest: readManifest(fx.env),
+      file: fx.file,
+      command: '/bin/ccinfobar',
+      claudeCode: '2.1.299',
+      events: DEFAULT_EVENTS,
+    });
+    const res = applyHooks(fx.file, p, fx.env);
+    expect(res.changed).toBe(true);
+    expect(res.items.map((i) => i.action)).toEqual(Array(6).fill('add'));
+    const hash = hashBytes(fs.readFileSync(fx.file));
+    const m = readManifest(fx.env);
+    expect(findHookEntries(m, fx.file)).toHaveLength(6);
+    expect(findHookEntries(m, fx.file).every((h) => h.writtenHash === hash)).toBe(true);
+    expect(findStatusLineEntry(m, fx.file)?.writtenHash).toBe(hash);
+    expect(applyHooks(fx.file, p, fx.env).items.map((i) => i.action)).toEqual(Array(6).fill('keep'));
+    const other = projectSettingsPath(path.join(fx.dir, 'proj'));
+    expect(applyHooks(other, p, fx.env)).toEqual({ changed: false, backup: null, items: [] });
   });
 });

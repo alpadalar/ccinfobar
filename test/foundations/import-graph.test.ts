@@ -40,6 +40,7 @@ const EXCLUDED_FILES = [
   'src/commands/command.ts',
   'src/commands/settings-file.ts',
   'src/commands/manifest.ts',
+  'src/commands/hooks-install.ts',
   'src/commands/config-cmd.ts',
   'src/core/scenarios.ts',
   'src/commands/explain.ts',

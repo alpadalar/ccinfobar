@@ -268,7 +268,7 @@ export function recordHooks(
       writtenHash: hash,
     });
   }
-  return refreshWrittenHash(next, file, hash);
+  return next;
 }
 
 export const isUserSettings = (file: string, env: NodeJS.ProcessEnv) =>
@@ -296,7 +296,8 @@ export function applyHooks(
     { original: false, env },
   );
   try {
-    writeManifest(recordHooks(m, res.real, state.applied, plan.claudeCode, res.afterHash), env);
+    const next = recordHooks(m, res.real, state.applied, plan.claudeCode, res.afterHash);
+    writeManifest(refreshWrittenHash(next, res.real, res.afterHash), env);
   } catch (err) {
     if (res.changed) rollbackPatch(file, res, env);
     throw err;
