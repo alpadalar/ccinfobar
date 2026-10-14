@@ -74,7 +74,7 @@ const idOk = (v: unknown): v is string => typeof v === 'string' && ID.test(v) &&
 const projectOk = (v: unknown): v is string =>
   typeof v === 'string' && v.length > 0 && v.length <= MAX_PROJECT && !BAD_KEYS.has(v);
 
-// segmented high-water fold (D-43)
+// segmented high-water fold (D-43); most recently updated first
 export function credit(highs: number[] | undefined, c: number): { highs: number[]; delta: number } {
   if (!highs) return { highs: [c], delta: 0 };
   let best = -1;
@@ -82,9 +82,7 @@ export function credit(highs: number[] | undefined, c: number): { highs: number[
     if (highs[i]! <= c && (best < 0 || highs[i]! > highs[best]!)) best = i;
   if (best >= 0) {
     const delta = c - highs[best]!;
-    const next = highs.slice();
-    next[best] = c;
-    return { highs: next, delta };
+    return { highs: [c, ...highs.filter((_, i) => i !== best)], delta };
   }
   const delta = c <= ZERO ? c : 0;
   return { highs: [c, ...highs].slice(0, SEGMENTS), delta };

@@ -77,6 +77,21 @@ describe('credit (segmented high-water)', () => {
     for (const c of [9, 8, 7, 6, 5, 4]) highs = credit(highs, c).highs;
     expect(highs).toEqual([4, 5, 6, 7]);
   });
+
+  it('moves an updated segment to the front', () => {
+    expect(credit([1, 5, 3], 5.5).highs).toEqual([5.5, 1, 3]);
+  });
+
+  it('keeps the main stream through five live segments', () => {
+    const feed = [0, 5];
+    let main = 5;
+    for (const top of [4, 3, 2, 1]) {
+      main += 0.1;
+      feed.push(0, top, main);
+    }
+    const credited = chain(feed).reduce((a, b) => a + b, 0);
+    expect(close(credited)).toBe(close(5 + 4 + 3 + 2 + 1 + 0.4));
+  });
 });
 
 describe('day and week keys', () => {
