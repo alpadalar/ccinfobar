@@ -42,6 +42,49 @@ describe('update', () => {
     expect(selfCommand('npm-global')).toBe('ccinfobar');
   });
 
+  it('runs npm without install scripts and quotes args for the Windows shell', async () => {
+    const { npmCommand, npmInstallRuns, shellArg } = await import('../../src/commands/update.js');
+    const node = { file: '/n/node', args: ['/n/npm-cli.js'], shell: false };
+    const plain = npmInstallRuns('0.5.1', '/home/a b/app', node);
+    expect(plain.opts.shell).toBe(false);
+    expect(plain.runs[0]).toEqual([
+      '/n/npm-cli.js',
+      'install',
+      '--prefix',
+      '/home/a b/app',
+      '--save-exact',
+      'ccinfobar@0.5.1',
+      '--ignore-scripts',
+      '--no-audit',
+      '--no-fund',
+      '--loglevel=error',
+    ]);
+    expect(plain.runs[1]).toContain('--ignore-scripts');
+    const win = npmInstallRuns('0.5.1', 'C:\\Users\\A B\\ccinfobar\\app', {
+      file: 'npm.cmd',
+      args: [],
+      shell: true,
+    });
+    expect(win.runs[0]?.[2]).toBe('"C:\\Users\\A B\\ccinfobar\\app"');
+    expect(win.runs[1]?.[4]).toBe(
+      'https://github.com/alpadalar/ccinfobar/releases/download/v0.5.1/ccinfobar.tgz',
+    );
+    expect(shellArg('-g')).toBe('-g');
+    const none = () => false;
+    expect(npmCommand({ platform: 'win32', env: {}, exists: none })).toEqual({
+      file: 'npm.cmd',
+      args: [],
+      shell: true,
+    });
+    const viaNpx = npmCommand({
+      execPath: '/n/node',
+      platform: 'win32',
+      env: { npm_execpath: '/x/npm/bin/npm-cli.js' },
+      exists: (f) => f === '/x/npm/bin/npm-cli.js',
+    });
+    expect(viaNpx).toEqual({ file: '/n/node', args: ['/x/npm/bin/npm-cli.js'], shell: false });
+  });
+
   it('compares versions', () => {
     expect(compareVersions('0.3.0', '0.2.9')).toBeGreaterThan(0);
     expect(compareVersions('v1.0.0', '1.0.0')).toBe(0);

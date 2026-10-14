@@ -60,21 +60,40 @@ export function tarballUrl(version: string): string {
   return `https://github.com/${REPO}/releases/download/v${assertVersion(version)}/ccinfobar.tgz`;
 }
 
-export function npmCommand(): { file: string; args: string[]; shell: boolean } {
-  const cli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
-  if (fs.existsSync(cli)) return { file: process.execPath, args: [cli], shell: false };
-  const unixCli = path.join(
-    path.dirname(process.execPath),
-    '..',
-    'lib',
-    'node_modules',
-    'npm',
-    'bin',
-    'npm-cli.js',
-  );
-  if (fs.existsSync(unixCli)) return { file: process.execPath, args: [unixCli], shell: false };
-  if (process.platform === 'win32') return { file: 'npm.cmd', args: [], shell: true };
+export interface NpmCommand {
+  file: string;
+  args: string[];
+  shell: boolean;
+}
+
+export interface NpmDeps {
+  execPath?: string;
+  platform?: NodeJS.Platform;
+  env?: NodeJS.ProcessEnv;
+  exists?: (file: string) => boolean;
+}
+
+// npm-cli.js runs without a shell
+export function npmCommand(deps: NpmDeps = {}): NpmCommand {
+  const execPath = deps.execPath ?? process.execPath;
+  const platform = deps.platform ?? process.platform;
+  const env = deps.env ?? process.env;
+  const exists = deps.exists ?? fs.existsSync;
+  const dir = path.dirname(execPath);
+  const candidates = [
+    path.join(dir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.join(dir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  ];
+  if (env.npm_execpath && /npm-cli\.js$/.test(env.npm_execpath)) candidates.push(env.npm_execpath);
+  const cli = candidates.find((c) => exists(c));
+  if (cli) return { file: execPath, args: [cli], shell: false };
+  if (platform === 'win32') return { file: 'npm.cmd', args: [], shell: true };
   return { file: 'npm', args: [], shell: false };
+}
+
+// cmd.exe joins args unquoted
+export function shellArg(a: string): string {
+  return /^[\w@./:=\\-]+$/.test(a) ? a : `"${a}"`;
 }
 
 // npm registry first, GitHub release if npm lags
@@ -82,21 +101,27 @@ export function installSources(version: string): string[] {
   return [`ccinfobar@${assertVersion(version)}`, tarballUrl(version)];
 }
 
-function npmInstall(version: string, prefix?: string) {
-  const npm = npmCommand();
+export function npmInstallRuns(version: string, prefix?: string, npm: NpmCommand = npmCommand()) {
   const where = prefix ? ['--prefix', prefix, '--save-exact'] : ['-g'];
-  if (prefix) fs.mkdirSync(prefix, { recursive: true });
-  const runs = installSources(version).map((spec) => [
-    ...npm.args,
-    'install',
-    ...where,
-    spec,
-    '--no-audit',
-    '--no-fund',
-    '--loglevel=error',
-  ]);
+  const runs = installSources(version).map((spec) => {
+    const args = [
+      'install',
+      ...where,
+      spec,
+      '--ignore-scripts',
+      '--no-audit',
+      '--no-fund',
+      '--loglevel=error',
+    ];
+    return [...npm.args, ...(npm.shell ? args.map(shellArg) : args)];
+  });
   const opts = { timeout: 120_000, windowsHide: true, shell: npm.shell };
   return { file: npm.file, runs, opts };
+}
+
+function npmInstall(version: string, prefix?: string) {
+  if (prefix) fs.mkdirSync(prefix, { recursive: true });
+  return npmInstallRuns(version, prefix);
 }
 
 function npmError(err: unknown, stderr: unknown): Error {

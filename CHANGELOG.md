@@ -56,6 +56,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - A link cut off by truncation is closed, so the rest of the terminal line no longer belongs to it
 - `command` output with `preserveColors` that leaves a color on is reset at its end, so the color no longer bleeds into the next widgets
 - A damaged `update.json` in the cache no longer replaces the whole status line with the render error line
+- Windows: updates and the pinned-copy install no longer fail when npm is only available as `npm.cmd` and the config folder path contains spaces; npm's own `npm-cli.js` is used without a shell when it can be found
 - Saving a symlinked `config.json` (for example from a dotfiles repo) writes through the link instead of replacing it with a plain file; the same holds for themes, presets and cache files
 
 ### Security
@@ -64,6 +65,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The `command` widget with `preserveColors` keeps only colors and safe links; clipboard writes, title changes and other terminal sequences are removed
 - PR links are only clickable for `http(s)` URLs without control characters, the `link` widget rejects `javascript:` and `data:` URLs, and environment variable values are shown as plain text
 - Git calls, including the ones `install` makes, ignore repo-local `core.fsmonitor` and filter drivers (`gitHardening`, on by default)
+- `install`, `update` and background updates run `npm install` with `--ignore-scripts`, so no package lifecycle script runs during an update
 - `doctor`, `themes` and `usage` strip terminal escapes from statusLine commands, project settings, theme files, cached usage data and update errors, and cached usage limits are sanitized before widgets show them
 
 ## [0.6.2] - 2026-10-12
