@@ -81,6 +81,7 @@
                 "todo-list",
                 "agents",
                 "agent-count",
+                "tool-activity",
                 "gsd-milestone",
                 "gsd-milestone-progress",
                 "gsd-phase",

@@ -43,6 +43,7 @@ export type EmptyCode =
   | 'no-git'
   | 'inside-repo'
   | 'no-child-repos'
+  | 'no-tools'
   | 'workspace-mode'
   | 'no-ledger'
   | 'no-budget'
@@ -84,6 +85,7 @@ const TRANSCRIPT_TYPES = new Set([
   'output-speed',
   'gsd-last-command',
   'gsd-task',
+  'tool-activity',
 ]);
 
 const reason = (code: EmptyCode, text?: string, params?: Record<string, string>): EmptyReason => ({
@@ -163,6 +165,9 @@ export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceR
   if (item.type === 'workspace-repos') return reason(ctx.data.repos?.() ? 'no-child-repos' : 'inside-repo');
   if (def.category === 'git' && !ctx.data.git()) return reason('no-git');
   if (TRANSCRIPT_TYPES.has(item.type) && !ctx.data.transcript()) return reason('no-transcript');
+  if (item.type === 'tool-activity') {
+    return reason('no-tools', undefined, { scope: item.options?.scope === 'session' ? 'session' : 'turn' });
+  }
   if (item.type === 'budget') {
     const period = budgetPeriod(item);
     if (!ctx.config.budget?.[period]) return reason('no-budget', undefined, { period });

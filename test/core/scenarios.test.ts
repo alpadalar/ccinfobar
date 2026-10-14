@@ -220,6 +220,7 @@ const NEW_WIDGETS = [
   'budget',
   'performance',
   'workspace-repos',
+  'tool-activity',
 ];
 
 const raw = (id: string, type: string) =>

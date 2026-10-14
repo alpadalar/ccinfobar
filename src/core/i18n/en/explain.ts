@@ -19,6 +19,7 @@ export const explainMessages = {
   'explain.reason.no-git': 'not a git repository, or git is not on PATH',
   'explain.reason.inside-repo': 'the folder is inside a git repo',
   'explain.reason.no-child-repos': 'no child folder is a git repo',
+  'explain.reason.no-tools': 'no tool is running and none ran in this {scope}',
   'explain.reason.workspace-mode': 'hidden in a workspace folder (workspace-repos hideGitPlaceholders)',
   'explain.reason.no-ledger':
     'no cost recorded yet; counting starts when a cost ledger widget is on the status line',

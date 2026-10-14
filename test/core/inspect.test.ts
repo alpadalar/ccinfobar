@@ -6,6 +6,7 @@ import { normalizeResult, renderValue } from '../../src/core/renderer.js';
 import { samplePayload } from '../../src/core/sample.js';
 import { getScenario, SCENARIO_NOW } from '../../src/core/scenarios.js';
 import type { RenderContext, StatusPayload, WidgetDef, WidgetItem } from '../../src/core/types.js';
+import { parseTranscriptText } from '../../src/data/transcript.js';
 import { ALL_WIDGETS, getWidget } from '../../src/widgets/index.js';
 import { ctxWith, NOW, withoutSideEffects } from '../helpers.js';
 
@@ -570,5 +571,26 @@ describe('workspace mode rows', () => {
   it('measures lines as the real render does', () => {
     const ctx = ctxWith({ git: () => null, repos, config: { lines: [ws] } });
     expect(lineReport(ctx)[0]!.width).toBe('repos: api (main)'.length);
+  });
+});
+
+describe('tool-activity empty reasons', () => {
+  const ta: WidgetItem = { id: 'tool-activity', type: 'tool-activity' };
+
+  it('names a missing transcript, then no tools for the scope', () => {
+    expect(emptyReason(ctxWith({ transcript: () => null }), ta).code).toBe('no-transcript');
+    const empty = emptyReason(ctxWith({ transcript: () => parseTranscriptText('') }), ta);
+    expect(empty.code).toBe('no-tools');
+    expect(empty.text).toBe('no tool is running and none ran in this turn');
+    const session = emptyReason(ctxWith({ transcript: () => parseTranscriptText('') }), {
+      ...ta,
+      options: { scope: 'session' },
+    });
+    expect(session.text).toBe('no tool is running and none ran in this session');
+  });
+
+  it('reports an empty row through inspectRows', () => {
+    const ctx = ctxWith({ transcript: () => parseTranscriptText(''), config: { lines: [[ta]] } });
+    expect(inspectRows(ctx)[0]).toMatchObject({ status: 'empty', empty: { code: 'no-tools' } });
   });
 });
