@@ -1,11 +1,14 @@
 import { stripAnsi, visibleWidth } from '../core/ansi.js';
 import { createContext } from '../core/context.js';
+import { hasReplies } from '../core/payload.js';
 import { readLastPayload } from '../core/preview.js';
 import { maxLineWidth, renderLine, renderPart, renderValue, resolveAppearance } from '../core/renderer.js';
 import type { Config, RenderContext, StatusPayload, WidgetItem } from '../core/types.js';
 import { terminalWidth } from '../data/terminal.js';
 import { mergeUsage, readUsageCache, usageApiDisabled } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
+
+export { hasReplies } from '../core/payload.js';
 
 export interface WidgetReport {
   line: number;
@@ -50,12 +53,6 @@ export function hiddenReason(ctx: RenderContext, item: WidgetItem): string {
     return 'Claude has not answered in this session yet; it appears after the first reply';
   }
   return 'no data for this widget in the current session';
-}
-
-export function hasReplies(p: StatusPayload): boolean {
-  return (
-    (p.cost?.total_cost_usd ?? 0) > 0 || !!p.prompt_cache || (p.context_window?.total_output_tokens ?? 0) > 0
-  );
 }
 
 export function sessionNotes(p: StatusPayload): string[] {

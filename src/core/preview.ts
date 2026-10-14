@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { createContext } from './context.js';
 import { lastPayloadPath } from './paths.js';
+import { ingestPayload } from './payload.js';
 import { render } from './renderer.js';
 import {
   sampleAgents,
@@ -17,7 +18,7 @@ export type PreviewSource = 'sample' | 'last';
 
 export function readLastPayload(): StatusPayload | null {
   try {
-    return JSON.parse(fs.readFileSync(lastPayloadPath(), 'utf8')) as StatusPayload;
+    return ingestPayload(fs.readFileSync(lastPayloadPath(), 'utf8'));
   } catch {
     return null;
   }
