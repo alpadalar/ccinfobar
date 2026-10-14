@@ -23,6 +23,10 @@ Usage
   ccinfobar usage                Fetch your plan usage from Claude now
   ccinfobar widgets              List all widgets
   ccinfobar doctor               Check the setup
+  ccinfobar config get <path>    Print a config value (e.g. theme, lines.0.2.type)
+  ccinfobar config set <path> <value>
+                                 Set a value (JSON, else a string); invalid values are refused
+  ccinfobar config unset <path>  Remove a value (defaults come back)
 
 Options
   --config <file>                Use a specific config file

@@ -90,6 +90,11 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       await runUsage(args, cfgFile);
       return;
     }
+    case 'config': {
+      const { runConfig } = await import('../commands/config-cmd.js');
+      runConfig(args, cfgFile);
+      return;
+    }
     case 'doctor': {
       const { runDoctor } = await import('../commands/doctor.js');
       runDoctor(cfgFile);

@@ -26,6 +26,8 @@ export const configMessages = {
   'cfg.unset': '✓ Removed {path}',
   'cfg.resetDefault': '✓ {path} reset to default: {value}',
   'cfg.brokenFile': 'Config {file} does not parse (line {line}, column {column}). Run ccinfobar doctor.',
+  'cfg.readError': 'Cannot read {file}: {message}',
+  'cfg.writeError': 'Cannot write {file}: {message}',
   'editor.configBroken':
     'config.json has an error at line {line}, column {column}: {message}. Fix the file and reload; the editor will not overwrite it.',
   'tui.configBroken':

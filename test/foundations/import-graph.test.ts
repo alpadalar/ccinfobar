@@ -74,7 +74,7 @@ describe('import graph', () => {
 
   it('loads every command lazily from main', () => {
     const text = fs.readFileSync(path.join(src, 'cli/main.ts'), 'utf8');
-    for (const mod of ['install-cli', 'manage', 'update', 'doctor']) {
+    for (const mod of ['install-cli', 'manage', 'update', 'doctor', 'config-cmd']) {
       expect(text).toContain(`await import('../commands/${mod}.js')`);
     }
   });

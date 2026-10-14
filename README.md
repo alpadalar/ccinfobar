@@ -230,6 +230,7 @@ Widgets without an equivalent are listed as warnings instead of being dropped si
 | `ccinfobar update` | Update to the latest release now (`--check` to only look) |
 | `ccinfobar widgets` | List all widgets |
 | `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off |
+| `ccinfobar config get\|set\|unset <path> [value]` | Read or change one config value by dotted path, e.g. `ccinfobar config set gitHardening false` or `ccinfobar config get lines.0.2.type`. Values are parsed as JSON, else taken as a string; a value that would not pass validation is refused and nothing is written |
 
 All commands accept `--config <file>`.
 
