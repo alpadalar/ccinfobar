@@ -278,11 +278,11 @@ ccinfobar keeps itself up to date: each time Claude Code starts a session (and a
 | `"notify"` | Adds `⬆ ccinfobar 0.4.0 · ccinfobar update` to the end of the status line |
 | `"off"` | Never checks |
 
-`ccinfobar update` updates right away (`--check` only looks). Checks are skipped when `CI` or `CCINFOBAR_NO_UPDATE` is set.
+`ccinfobar update` updates right away (`--check` only looks). Checks are skipped when `CI` or `CCINFOBAR_NO_UPDATE` is set, and when Claude Code's `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set (to any non-empty value) ccinfobar starts no background network request at all: no update check and no usage fetch. `ccinfobar update` and `ccinfobar usage` still work when you run them, and `ccinfobar doctor` says when this is on.
 
 ## Usage limits
 
-Claude Code sends your 5-hour and weekly usage only in some sessions, and never the per-model weekly limits (such as Fable) that some plans have. When they are missing, ccinfobar asks Claude for them with your existing login, the same way ccstatusline does, in the background and at most every 3 minutes. Data from Claude Code always wins. `ccinfobar usage` fetches it now; `usageApi: false` turns this off. See [SECURITY.md](SECURITY.md) for what is sent where.
+Claude Code sends your 5-hour and weekly usage only in some sessions, and never the per-model weekly limits (such as Fable) that some plans have. When they are missing, ccinfobar asks Claude for them with your existing login, the same way ccstatusline does, in the background and at most every 3 minutes. Data from Claude Code always wins. `ccinfobar usage` fetches it now; `usageApi: false` turns this off, and so does `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`. See [SECURITY.md](SECURITY.md) for what is sent where.
 
 ## Platform notes
 

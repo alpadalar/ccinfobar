@@ -8,7 +8,7 @@ import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/typ
 import { getWidget } from '../widgets/index.js';
 import { detectProvider } from './provider.js';
 import { acquireLock, writeAtomic } from './store.js';
-import { spawnSelf } from './update-state.js';
+import { nonessentialTrafficOff, spawnSelf } from './update-state.js';
 
 type RateLimits = NonNullable<StatusPayload['rate_limits']>;
 
@@ -231,6 +231,7 @@ export async function fetchUsage(
 const LOCK_MS = 30_000;
 
 export function scheduleUsage(env: NodeJS.ProcessEnv = process.env, now = Date.now()): void {
+  if (nonessentialTrafficOff(env)) return;
   if (!acquireLock(`${usageFile(env)}.lock`, LOCK_MS, now)) return;
   try {
     spawnSelf(['usage', '--background'], env);

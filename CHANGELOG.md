@@ -15,6 +15,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Plan-limit widgets show `loading…` until Claude Code sends usage limits, only in Claude subscription sessions
 - `ccinfobar doctor` shows the line and column of a broken config and warns about unknown widgets and unsupported option values
 - `ccinfobar doctor` lists the install manifest, where backups are kept and whether git hardening is off, warns on Windows about a backslash or quoted first token in the statusLine command, and removes stale temp files
+- `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` (when set and non-empty) stops the background update check and the background usage fetch; `ccinfobar update` and `ccinfobar usage` still work on demand, and `ccinfobar doctor` says when it is on
 - `-y` as a short form of `--yes`, and `--` to end option parsing (for example `-- -1`)
 
 ### Changed

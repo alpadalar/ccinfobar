@@ -84,6 +84,11 @@ export function compareVersions(a: string, b: string): number {
   return comparePre(pa.pre, pb.pre);
 }
 
+// Claude Code's opt-out of nonessential network traffic
+export function nonessentialTrafficOff(env: NodeJS.ProcessEnv = process.env): boolean {
+  return !!env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC;
+}
+
 export function updatesDisabled(config: Config, env: NodeJS.ProcessEnv = process.env): boolean {
   return config.update === 'off' || !!env.CI || !!env.CCINFOBAR_NO_UPDATE;
 }
@@ -129,7 +134,7 @@ export function selfCommand(kind: InstallKind = installKind()): string {
 
 // on every new Claude Code session, else daily
 export function scheduleCheck(config: Config, session?: string, env: NodeJS.ProcessEnv = process.env): void {
-  if (updatesDisabled(config, env)) return;
+  if (updatesDisabled(config, env) || nonessentialTrafficOff(env)) return;
   const state = readUpdateState(env);
   const now = Date.now();
   const age = state ? now - state.checkedAt : Number.POSITIVE_INFINITY;

@@ -146,6 +146,18 @@ describe('update', () => {
     expect(fs.readFileSync(updateFile(stale), 'utf8')).toContain('"checkedAt":0');
   });
 
+  it('schedules no background check when nonessential traffic is off', () => {
+    const lock = (env: NodeJS.ProcessEnv) => fs.existsSync(`${updateFile(env)}.lock`);
+    const off = { ...envWith(), CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' };
+    writeState(off, { checkedAt: 0, latest: '0.2.0' });
+    scheduleCheck(defaultConfig(), 'a', off);
+    expect(lock(off)).toBe(false);
+    const empty = { ...envWith(), CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '' };
+    writeState(empty, { checkedAt: 0, latest: '0.2.0' });
+    scheduleCheck(defaultConfig(), 'a', empty);
+    expect(lock(empty)).toBe(true);
+  });
+
   it('checks again when a new Claude Code session starts', () => {
     const lock = (env: NodeJS.ProcessEnv) => fs.existsSync(`${updateFile(env)}.lock`);
     const env = envWith();

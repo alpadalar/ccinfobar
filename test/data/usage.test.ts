@@ -9,6 +9,7 @@ import {
   needsUsage,
   parseUsageResponse,
   readUsageCache,
+  scheduleUsage,
   usageDue,
 } from '../../src/data/usage.js';
 
@@ -117,6 +118,15 @@ describe('usage api', () => {
     expect(c?.rate_limits?.seven_day_models?.[0]?.model).toBe('Opus');
     fs.writeFileSync(path.join(env.CCINFOBAR_CACHE_DIR, 'usage.json'), '[1]');
     expect(readUsageCache(env)).toBeNull();
+  });
+
+  it('schedules no usage fetch when nonessential traffic is off', () => {
+    const env = sandbox(null);
+    const lock = path.join(env.CCINFOBAR_CACHE_DIR, 'usage.json.lock');
+    scheduleUsage({ ...env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' });
+    expect(fs.existsSync(lock)).toBe(false);
+    scheduleUsage({ ...env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '' });
+    expect(fs.existsSync(lock)).toBe(true);
   });
 
   it('backs off without a login', async () => {

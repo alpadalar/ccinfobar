@@ -182,6 +182,16 @@ describe('runDoctor install report', () => {
     }
   });
 
+  it('says when Claude Code turned off nonessential traffic', () => {
+    vi.stubEnv('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', '1');
+    try {
+      expect(capture(() => runDoctor(plain()))).toContain(t('doctor.noTraffic'));
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect(capture(() => runDoctor(plain()))).not.toContain(t('doctor.noTraffic'));
+  });
+
   it('sweeps stale temp files from the cache dir', () => {
     const dir = cacheDir();
     fs.mkdirSync(dir, { recursive: true });

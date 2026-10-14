@@ -4,6 +4,8 @@ export const doctorMessages = {
   'doctor.unknownWidget': '⚠ Unknown widget type "{type}" on line {line}',
   'doctor.badOption': '⚠ {type}: option "{key}" has an unsupported value',
   'doctor.gitHardeningOff': '  Git hardening off (gitHardening: false)',
+  'doctor.noTraffic':
+    '  Background update and usage checks off (CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC is set)',
   'doctor.manifest': '  Manifest {file}: {count} recorded change(s)',
   'doctor.manifestEntry': '    {kind} in {file}',
   'doctor.backups': '  Backups {dir}',
