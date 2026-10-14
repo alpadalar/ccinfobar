@@ -23,7 +23,13 @@ function remove(dir) {
 }
 
 process.on('exit', () => {
-  for (const dir of owned) remove(dir);
+  for (const dir of owned) {
+    try {
+      remove(dir);
+    } catch (e) {
+      console.error(`could not remove ${dir}: ${e.message}`);
+    }
+  }
 });
 
 const SETTINGS = { model: 'opus', permissions: { allow: ['Bash(ls:*)'] } };
@@ -460,9 +466,15 @@ function pollLeftovers(ctx) {
     const left = processList().filter((p) => forms.some((f) => norm(p.cmd).includes(f)));
     if (!left.length) return console.log(`  no leftover process after ${Date.now() - start} ms`);
     if (Date.now() - start >= 30_000) {
-      return fail(ctx, 'leftover processes', {
+      fail(ctx, 'leftover processes', {
         detail: `still running after 30 s:\n${left.map((p) => `  ${p.pid} ${p.cmd}`).join('\n')}`,
       });
+      for (const p of left) {
+        try {
+          process.kill(Number(p.pid), 'SIGKILL');
+        } catch {}
+      }
+      return;
     }
     sleep(500);
   }
@@ -510,7 +522,11 @@ function runCase(spec, tgz, npm) {
   } catch (e) {
     fail(ctx, 'driver', { detail: e.stack ?? String(e) });
   } finally {
-    remove(d.root);
+    try {
+      remove(d.root);
+    } catch (e) {
+      fail(ctx, 'cleanup', { detail: `cannot remove ${d.root}: ${e.message}` });
+    }
   }
   return ctx;
 }
@@ -569,7 +585,11 @@ function main() {
       console.log(`${ctx.failed ? 'FAIL' : 'PASS'} case ${spec.name} (${spec.label})`);
     }
   } finally {
-    remove(packRoot.root);
+    try {
+      remove(packRoot.root);
+    } catch (e) {
+      console.error(`could not remove ${packRoot.root}: ${e.message}`);
+    }
   }
   const failed = results.filter((c) => c.failed).length;
   console.log(`${results.length - failed}/${results.length} cases passed, ${failures.length} failure(s)`);

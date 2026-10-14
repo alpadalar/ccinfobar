@@ -45,6 +45,7 @@ jobs:
           node dist/ccinfobar.js preview --width 120
 
   clean-install:
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
