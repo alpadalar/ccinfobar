@@ -111,9 +111,9 @@ function readPayloadFile(file: string): StatusPayload {
   return payload;
 }
 
-function lastAge(): number | undefined {
+function lastAge(env: NodeJS.ProcessEnv): number | undefined {
   try {
-    return Math.max(0, Date.now() - fs.statSync(lastPayloadPath()).mtimeMs);
+    return Math.max(0, Date.now() - fs.statSync(lastPayloadPath(env)).mtimeMs);
   } catch {
     return undefined;
   }
@@ -185,7 +185,7 @@ export function loadInspectInput(opts: LoadOptions): InspectInput | null {
   let payload: StatusPayload;
   let data: Partial<DataSources>;
   const scenario = opts.scenario ? getScenario(opts.scenario) : null;
-  const last = opts.payloadFile || scenario ? null : readLastPayload();
+  const last = opts.payloadFile || scenario ? null : readLastPayload(baseEnv);
   if (opts.payloadFile) {
     payload = readPayloadFile(opts.payloadFile);
     input = { kind: 'payload', name: opts.payloadFile };
@@ -199,7 +199,7 @@ export function loadInspectInput(opts: LoadOptions): InspectInput | null {
     data = bundle.data;
   } else if (last) {
     payload = last;
-    const ageMs = lastAge();
+    const ageMs = lastAge(baseEnv);
     input = {
       kind: 'last',
       ...(ageMs !== undefined ? { ageMs } : {}),

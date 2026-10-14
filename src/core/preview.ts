@@ -43,9 +43,9 @@ export function scenarioListLines(): string[] {
   ];
 }
 
-export function readLastPayload(): StatusPayload | null {
+export function readLastPayload(env: NodeJS.ProcessEnv = process.env): StatusPayload | null {
   try {
-    return ingestPayload(fs.readFileSync(lastPayloadPath(), 'utf8'));
+    return ingestPayload(fs.readFileSync(lastPayloadPath(env), 'utf8'));
   } catch {
     return null;
   }

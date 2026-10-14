@@ -415,10 +415,33 @@ describe('loadInspectInput', () => {
     expect(a.width).toBe(77);
     a.cleanup();
     savedPayload({ terminal_width: 133 });
-    const b = loadInspectInput({ cfgFile: cfgFile(), fallback: 'sample', env: { COLUMNS: '77' } })!;
+    const b = loadInspectInput({
+      cfgFile: cfgFile(),
+      fallback: 'sample',
+      env: { ...process.env, COLUMNS: '77' },
+    })!;
     expect(b.width).toBe(133);
     expect(b.input.kind).toBe('last');
     b.cleanup();
+  });
+
+  it('reads the last payload from the cache dir of opts.env', () => {
+    savedPayload({ version: '2.1.111' });
+    const other = path.join(dir, 'other-cache');
+    fs.mkdirSync(other);
+    fs.writeFileSync(path.join(other, 'last-payload.json'), JSON.stringify({ version: '2.1.222' }));
+    const env = { ...process.env, CCINFOBAR_CACHE_DIR: other };
+    const a = loadInspectInput({ cfgFile: cfgFile(), fallback: 'none', env })!;
+    expect(a.input).toMatchObject({ kind: 'last', claudeCode: '2.1.222' });
+    expect(typeof a.input.ageMs).toBe('number');
+    a.cleanup();
+    expect(
+      loadInspectInput({
+        cfgFile: cfgFile(),
+        fallback: 'none',
+        env: { ...env, CCINFOBAR_CACHE_DIR: path.join(dir, 'none') },
+      }),
+    ).toBeNull();
   });
 
   it('formats ages', () => {
