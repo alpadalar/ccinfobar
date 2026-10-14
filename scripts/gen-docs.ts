@@ -288,6 +288,10 @@ function schema(): object {
         default: true,
         description: 'Ignore repo-local core.fsmonitor and filter drivers when ccinfobar runs git',
       },
+      gsdAutoLine: {
+        type: 'boolean',
+        description: 'Set by ccinfobar when it left the GSD line out because GSD was not installed',
+      },
       tui: tuiSchema,
       colorLevel: { enum: ['auto', 0, 1, 2, 3], default: 'auto' },
       icons: { enum: ['nerd', 'emoji', 'text', 'none'], default: 'text' },
