@@ -157,7 +157,6 @@ function childEnv(d) {
     npm_config_userconfig: path.join(d.home, '.npmrc'),
     npm_config_update_notifier: 'false',
     // a hashed keychain service, so macOS never finds the real token
-    CLAUDE_CONFIG_DIR: path.join(d.home, '.claude'),
     CLAUDE_SECURESTORAGE_CONFIG_DIR: path.join(d.home, '.claude'),
     COLUMNS: '200',
   });
@@ -200,7 +199,6 @@ const CONTAINED = [
   'npm_config_cache',
   'npm_config_logs_dir',
   'npm_config_userconfig',
-  'CLAUDE_CONFIG_DIR',
   'CLAUDE_SECURESTORAGE_CONFIG_DIR',
 ];
 

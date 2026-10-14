@@ -20,7 +20,7 @@ import {
 } from '../data/update-state.js';
 import { readUsageCache, type UsageCache, usageApiDisabled } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
-import { loadInspectInput } from './explain.js';
+import { loadInspectInput, redactValue } from './explain.js';
 import { currentStatusLine, projectOverride } from './install.js';
 import { classifyOwner, manifestFile, owns, readManifest } from './manifest.js';
 import { backupsDir } from './settings-file.js';
@@ -101,7 +101,7 @@ function widgetRow(r: InspectRow): string | null {
   switch (r.status) {
     case 'shown':
     case 'loading':
-      return `  ✓ ${at}: ${safe(r.value ?? '')}`;
+      return `  ✓ ${at}: ${safe(redactValue(r) ?? '')}`;
     case 'hidden':
       return `  ✗ ${at}: hidden (hideEmpty), ${why}`;
     case 'error':
