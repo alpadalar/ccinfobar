@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeAtomic } from '../data/store.js';
 import { configDir } from './paths.js';
 import type { ThemeStyle, WidgetCategory } from './types.js';
 
@@ -656,14 +657,13 @@ export function themeToInput(theme: Theme, id: string, extendsId?: string): Them
 export function saveUserTheme(input: ThemeInput, dir = themesDir()): string {
   if (!input.id || !ID_RE.test(input.id))
     throw new Error('Theme id must be letters, numbers, dot, dash or underscore');
-  fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${input.id}.json`);
   const { id: _id, ...body } = input;
   const data = {
     $schema: 'https://raw.githubusercontent.com/alpadalar/ccinfobar/main/schema/theme.schema.json',
     ...body,
   };
-  fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
+  writeAtomic(file, `${JSON.stringify(data, null, 2)}\n`, { class: 'settings' });
   return file;
 }
 

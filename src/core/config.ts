@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import path from 'node:path';
+import { writeAtomic } from '../data/store.js';
 import { configPath } from './paths.js';
 import type {
   Align,
@@ -264,9 +264,6 @@ export function loadConfig(file = configPath(), fallback: () => Config = default
 }
 
 export function saveConfig(config: Config, file = configPath()): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
   const data = { $schema: SCHEMA_URL, ...normalizeConfig(config) };
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`);
-  fs.renameSync(tmp, file);
+  writeAtomic(file, `${JSON.stringify(data, null, 2)}\n`, { class: 'settings' });
 }

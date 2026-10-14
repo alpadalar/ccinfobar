@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeAtomic } from '../data/store.js';
 import { defaultConfig, normalizeConfig } from './config.js';
 import { uniqueId } from './edit.js';
 import { configDir } from './paths.js';
@@ -253,10 +254,9 @@ export function saveUserPreset(
 ): string {
   if (!ID_RE.test(input.id)) throw new Error('Preset id must be letters, numbers, dot, dash or underscore');
   const { $schema: _s, ...config } = normalizeConfig(input.config);
-  fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${input.id}.json`);
   const data = { name: input.name || input.id, description: input.description ?? '', config };
-  fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
+  writeAtomic(file, `${JSON.stringify(data, null, 2)}\n`, { class: 'settings' });
   return file;
 }
 

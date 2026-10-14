@@ -33,6 +33,7 @@ import {
 } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
 import { gsdInstalled } from '../data/gsd.js';
+import { writeAtomic } from '../data/store.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import type { TerminalColors } from './terminal-colors.js';
 
@@ -374,8 +375,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           if (Array.isArray(list))
             clean[id.slice(0, 80)] = list.filter((s) => s && typeof s === 'object').slice(0, 3);
         }
-        fs.mkdirSync(path.dirname(stylesFile), { recursive: true });
-        fs.writeFileSync(stylesFile, `${JSON.stringify(clean, null, 2)}\n`);
+        writeAtomic(stylesFile, `${JSON.stringify(clean, null, 2)}\n`, { class: 'settings' });
         send(res, 200, { ok: true });
         return;
       }

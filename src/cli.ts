@@ -35,6 +35,7 @@ import { finalizeLine, render } from './core/renderer.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from './core/themes.js';
 import type { Config, StatusPayload } from './core/types.js';
 import { gsdInstalled } from './data/gsd.js';
+import { writeAtomic } from './data/store.js';
 import { terminalWidth } from './data/terminal.js';
 import {
   fetchUsage,
@@ -148,9 +149,7 @@ function readStdin(timeoutMs = 3000): Promise<string> {
 
 function savePayload(payload: StatusPayload): void {
   try {
-    const file = lastPayloadPath();
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify(payload));
+    writeAtomic(lastPayloadPath(), JSON.stringify(payload));
   } catch {}
 }
 
@@ -172,6 +171,9 @@ function backupConfig(cfgFile: string): string | null {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const backup = `${cfgFile}.${stamp}.bak`;
   fs.copyFileSync(cfgFile, backup);
+  try {
+    fs.chmodSync(backup, 0o600);
+  } catch {}
   return backup;
 }
 
