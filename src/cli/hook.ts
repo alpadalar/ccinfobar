@@ -1,5 +1,10 @@
-import { hookLine, hookLogPath, isHookEvent, SESSION_RE } from '../data/hooks.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { configPath } from '../core/paths.js';
+import type { Config } from '../core/types.js';
+import { hookLine, hookLogPath, hooksDir, isHookEvent, SESSION_RE } from '../data/hooks.js';
 import { appendLine } from '../data/store.js';
+import { parseArgs } from './args.js';
 
 export interface HookDeps {
   argv: string[];
@@ -7,7 +12,13 @@ export interface HookDeps {
   env: NodeJS.ProcessEnv;
   now: () => number;
   append: (file: string, line: string) => boolean;
+  schedule?: (sessionId: string, configFile: string) => void | Promise<void>;
+  prune?: (dir: string, keep: string[], now: number) => number;
+  debug?: (reason: string) => void;
 }
+
+const DEBUG_CAP = 262_144;
+const PRUNE_AGE = 7 * 86_400_000;
 
 const SCAN_BYTES = 65_536;
 const SCAN_RE =
@@ -82,21 +93,122 @@ function parseInput(text: string): Record<string, unknown> | null {
   }
 }
 
+// only the update key; missing file is the default, a broken file skips
+export function readUpdateSetting(configFile: string): Config['update'] | null {
+  let text: string;
+  try {
+    text = fs.readFileSync(configFile, 'utf8');
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'ENOENT' ? 'auto' : null;
+  }
+  try {
+    const v: unknown = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+    const u = v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>).update : null;
+    return u === 'notify' || u === 'auto' || u === 'off' ? u : 'auto';
+  } catch {
+    return null;
+  }
+}
+
+export async function scheduleUpdate(
+  sessionId: string,
+  configFile: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const update = readUpdateSetting(configFile);
+  if (update === null) return;
+  const { scheduleCheck } = await import('../data/update-state.js');
+  scheduleCheck({ update } as Config, sessionId, env);
+}
+
+const PRUNE_RE = /^([A-Za-z0-9_-]{1,128})(\.jsonl|\.fold\.json)$/;
+
+// bounded and silent; regular files only
+export function pruneHookLogs(
+  dir: string,
+  keep: string[],
+  now: number,
+  maxAgeMs = PRUNE_AGE,
+  maxScan = 500,
+): number {
+  let removed = 0;
+  let handle: fs.Dir | undefined;
+  try {
+    handle = fs.opendirSync(dir);
+    for (let i = 0; i < maxScan; i++) {
+      const ent = handle.readSync();
+      if (!ent) break;
+      if (!PRUNE_RE.test(ent.name) || keep.includes(ent.name)) continue;
+      const file = path.join(dir, ent.name);
+      try {
+        const st = fs.lstatSync(file);
+        if (!st.isFile() || now - st.mtimeMs <= maxAgeMs) continue;
+        fs.unlinkSync(file);
+        removed++;
+      } catch {}
+    }
+  } catch {}
+  try {
+    handle?.closeSync();
+  } catch {}
+  return removed;
+}
+
+export function debugLog(env: NodeJS.ProcessEnv, now: () => number): (reason: string) => void {
+  if (!env.CCINFOBAR_DEBUG) return () => {};
+  const file = path.join(hooksDir(env), 'debug.log');
+  return (reason) => {
+    try {
+      if (fs.statSync(file).size > DEBUG_CAP) return;
+    } catch {}
+    try {
+      appendLine(file, `${new Date(now()).toISOString()} ${reason}`);
+    } catch {}
+  };
+}
+
+function configFileOf(argv: string[], env: NodeJS.ProcessEnv): string {
+  const at = argv.lastIndexOf('hook');
+  const flag = parseArgs(at < 0 ? argv : argv.slice(0, at)).flags.config;
+  return typeof flag === 'string' ? path.resolve(flag) : configPath(env);
+}
+
 export async function runHook(d: HookDeps): Promise<void> {
   try {
+    const debug = d.debug ?? debugLog(d.env, d.now);
     const raw = await d.readStdin();
-    if (!raw) return;
+    if (!raw) return debug('tty');
+    if (!raw.text) return debug('no-input');
+    if (raw.overflow) debug('overflow');
     const input = raw.overflow ? scanFields(raw.text) : parseInput(raw.text);
-    if (!input) return;
+    if (!input) return debug('bad-json');
     const at = d.argv.lastIndexOf('hook');
     const fromArgv = at < 0 ? undefined : d.argv[at + 1];
     const event = typeof input.hook_event_name === 'string' ? input.hook_event_name : fromArgv;
-    if (!isHookEvent(event)) return;
+    if (!isHookEvent(event)) return debug('unknown-event');
     const sid = input.session_id;
-    if (typeof sid !== 'string' || !SESSION_RE.test(sid)) return;
+    if (typeof sid !== 'string' || !SESSION_RE.test(sid)) return debug('bad-session');
     const file = hookLogPath(sid, d.env);
-    if (!file) return;
-    d.append(file, JSON.stringify(hookLine(event, input, d.now())));
+    if (!file) return debug('bad-session');
+    const line = hookLine(event, input, d.now());
+    let ok = false;
+    try {
+      ok = d.append(file, JSON.stringify(line));
+    } catch {}
+    if (!ok) debug('append-failed');
+    // new sessions only (D-23)
+    if (event !== 'SessionStart' || line.s !== 'startup') return;
+    const prune = d.prune ?? pruneHookLogs;
+    try {
+      const n = prune(hooksDir(d.env), [`${sid}.jsonl`, `${sid}.fold.json`], d.now());
+      if (n > 0) debug(`pruned:${n}`);
+    } catch {}
+    try {
+      const configFile = configFileOf(d.argv, d.env);
+      const schedule = d.schedule ?? ((s: string, f: string) => scheduleUpdate(s, f, d.env));
+      await schedule(sid, configFile);
+      debug('scheduled');
+    } catch {}
   } catch {}
 }
 

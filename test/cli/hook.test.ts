@@ -1,8 +1,19 @@
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
-import { type HookDeps, readHookStdin, runHook, scanFields } from '../../src/cli/hook.js';
-import { HOOK_EVENTS, hookLine, hookLogPath, isHookEvent } from '../../src/data/hooks.js';
+import {
+  type HookDeps,
+  pruneHookLogs,
+  readHookStdin,
+  readUpdateSetting,
+  runHook,
+  scanFields,
+} from '../../src/cli/hook.js';
+import { configPath } from '../../src/core/paths.js';
+import { HOOK_EVENTS, hookLine, hookLogPath, hooksDir, isHookEvent } from '../../src/data/hooks.js';
+import { appendLine } from '../../src/data/store.js';
 
 const env = { CCINFOBAR_CACHE_DIR: path.join('/tmp', 'ccib-hook-unit') } as NodeJS.ProcessEnv;
 const SID = 'abc_DEF-1';
@@ -217,5 +228,235 @@ describe('readHookStdin', () => {
   it('returns null for a TTY', async () => {
     const s = Object.assign(new PassThrough(), { isTTY: true });
     expect(await readHookStdin(s)).toBeNull();
+  });
+});
+
+const DAY = 86_400_000;
+const tmp = () => fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-hook-ss-unit-')));
+const start = (source?: unknown) => body({ hook_event_name: 'SessionStart', source });
+
+function wired(text: string | null, argv = ['hook', 'SessionStart']) {
+  const { d, calls } = deps(text, argv);
+  const order: string[] = [];
+  const scheduled: Array<[string, string]> = [];
+  const pruned: Array<[string, string[], number]> = [];
+  const reasons: string[] = [];
+  const append = d.append;
+  d.append = (f, l) => {
+    order.push('append');
+    return append(f, l);
+  };
+  d.schedule = (sid, file) => {
+    order.push('schedule');
+    scheduled.push([sid, file]);
+  };
+  d.prune = (dir, keep, now) => {
+    order.push('prune');
+    pruned.push([dir, keep, now]);
+    return 0;
+  };
+  d.debug = (r) => reasons.push(r);
+  return { d, calls, order, scheduled, pruned, reasons };
+}
+
+describe('SessionStart trigger', () => {
+  it('schedules and prunes only on source startup, after the append', async () => {
+    const w = wired(start('startup'));
+    await runHook(w.d);
+    expect(w.order).toEqual(['append', 'prune', 'schedule']);
+    expect(w.scheduled).toEqual([[SID, configPath(env)]]);
+    expect(w.pruned).toEqual([[hooksDir(env), [`${SID}.jsonl`, `${SID}.fold.json`], 1000]]);
+    expect(w.reasons).toEqual(['scheduled']);
+  });
+
+  it('never schedules on other sources or other events', async () => {
+    for (const text of [
+      start('resume'),
+      start('clear'),
+      start('compact'),
+      start('fork'),
+      start(),
+      start(1),
+      start('startup '),
+      body({ hook_event_name: 'Stop', source: 'startup' }),
+    ]) {
+      const w = wired(text);
+      await runHook(w.d);
+      expect(w.calls).toHaveLength(1);
+      expect(w.scheduled).toEqual([]);
+      expect(w.pruned).toEqual([]);
+    }
+  });
+
+  it('passes the resolved --config flag given before hook', async () => {
+    const w = wired(start('startup'), ['--config', 'rel/c.json', 'hook', 'SessionStart']);
+    await runHook(w.d);
+    expect(w.scheduled[0]![1]).toBe(path.resolve('rel/c.json'));
+    const v = wired(start('startup'), ['hook', 'SessionStart', '--config', 'x.json']);
+    await runHook(v.d);
+    expect(v.scheduled[0]![1]).toBe(configPath(env));
+  });
+
+  it('never lets a throwing schedule, prune or debug escape', async () => {
+    const w = wired(start('startup'));
+    w.d.prune = () => {
+      throw new Error('p');
+    };
+    w.d.schedule = () => Promise.reject(new Error('s'));
+    await expect(runHook(w.d)).resolves.toBeUndefined();
+    const v = wired(start('startup'));
+    v.d.debug = () => {
+      throw new Error('d');
+    };
+    v.d.schedule = () => {
+      throw new Error('s');
+    };
+    await expect(runHook(v.d)).resolves.toBeUndefined();
+    expect(v.calls).toHaveLength(1);
+  });
+
+  it('reports fixed reasons for early returns', async () => {
+    const cases: Array<[string | null, string]> = [
+      [null, 'tty'],
+      ['', 'no-input'],
+      ['{', 'bad-json'],
+      [body({ hook_event_name: 'PreToolUse' }), 'unknown-event'],
+      [JSON.stringify({ session_id: '../x', hook_event_name: 'Stop' }), 'bad-session'],
+    ];
+    for (const [text, reason] of cases) {
+      const w = wired(text);
+      await runHook(w.d);
+      expect(w.reasons).toEqual([reason]);
+    }
+    const w = wired(body({ hook_event_name: 'Stop' }));
+    w.d.append = () => false;
+    await runHook(w.d);
+    expect(w.reasons).toEqual(['append-failed']);
+  });
+});
+
+describe('debug log', () => {
+  const run = async (e: NodeJS.ProcessEnv) => {
+    const d: HookDeps = {
+      argv: ['hook', 'Stop'],
+      readStdin: async () => ({
+        text: JSON.stringify({ session_id: '../SECRET', hook_event_name: 'Stop', prompt: 'SECRET' }),
+        overflow: false,
+      }),
+      env: e,
+      now: () => Date.UTC(2026, 0, 2),
+      append: appendLine,
+    };
+    await runHook(d);
+  };
+
+  it('writes a reason line only under CCINFOBAR_DEBUG', async () => {
+    const dir = tmp();
+    await run({ CCINFOBAR_CACHE_DIR: dir, CCINFOBAR_DEBUG: '1' });
+    const log = path.join(dir, 'hooks', 'debug.log');
+    expect(fs.readFileSync(log, 'utf8')).toBe('2026-01-02T00:00:00.000Z bad-session\n');
+    const quiet = tmp();
+    await run({ CCINFOBAR_CACHE_DIR: quiet });
+    expect(fs.existsSync(path.join(quiet, 'hooks', 'debug.log'))).toBe(false);
+  });
+
+  it('stops writing once debug.log passes 256 KB', async () => {
+    const dir = tmp();
+    const log = path.join(dir, 'hooks', 'debug.log');
+    fs.mkdirSync(path.dirname(log), { recursive: true });
+    fs.writeFileSync(log, 'x'.repeat(262_145));
+    await run({ CCINFOBAR_CACHE_DIR: dir, CCINFOBAR_DEBUG: '1' });
+    expect(fs.statSync(log).size).toBe(262_145);
+  });
+});
+
+describe('readUpdateSetting', () => {
+  it('reads only the update key', () => {
+    const dir = tmp();
+    const file = (name: string, text: string) => {
+      const f = path.join(dir, name);
+      fs.writeFileSync(f, text);
+      return f;
+    };
+    expect(readUpdateSetting(path.join(dir, 'missing.json'))).toBe('auto');
+    expect(readUpdateSetting(file('a.json', '{"update":"off"}'))).toBe('off');
+    expect(readUpdateSetting(file('b.json', '{"update":"notify"}'))).toBe('notify');
+    expect(readUpdateSetting(file('c.json', '\uFEFF{"update":"off"}'))).toBe('off');
+    expect(readUpdateSetting(file('d.json', '{"update": 3}'))).toBe('auto');
+    expect(readUpdateSetting(file('e.json', '[1]'))).toBe('auto');
+    expect(readUpdateSetting(file('f.json', 'not json'))).toBeNull();
+    expect(readUpdateSetting(dir)).toBeNull();
+  });
+});
+
+describe('default schedule', () => {
+  const run = async (extra: NodeJS.ProcessEnv, config?: string) => {
+    const dir = tmp();
+    const e: NodeJS.ProcessEnv = {
+      CCINFOBAR_CACHE_DIR: path.join(dir, 'cache'),
+      CCINFOBAR_CONFIG_DIR: path.join(dir, 'config'),
+      ...extra,
+    };
+    if (config !== undefined) {
+      fs.mkdirSync(path.join(dir, 'config'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'config', 'config.json'), config);
+    }
+    await runHook({
+      argv: ['hook', 'SessionStart'],
+      readStdin: async () => ({ text: start('startup'), overflow: false }),
+      env: e,
+      now: Date.now,
+      append: appendLine,
+    });
+    return fs.existsSync(path.join(dir, 'cache', 'update.json.lock'));
+  };
+
+  it('takes the update lock on startup', async () => {
+    expect(await run({})).toBe(true);
+  });
+
+  it('honours the traffic and update opt-outs (D-03)', async () => {
+    expect(await run({ CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' })).toBe(false);
+    expect(await run({ CI: '1' })).toBe(false);
+    expect(await run({ CCINFOBAR_NO_UPDATE: '1' })).toBe(false);
+    expect(await run({}, '{"update":"off"}')).toBe(false);
+    expect(await run({}, '{"update":')).toBe(false);
+  });
+});
+
+describe('pruneHookLogs', () => {
+  const now = Date.UTC(2026, 5, 1);
+  const make = (dir: string, name: string, days: number) => {
+    const f = path.join(dir, name);
+    fs.writeFileSync(f, '{}\n');
+    const t = (now - days * DAY) / 1000;
+    fs.utimesSync(f, t, t);
+    return f;
+  };
+
+  it('removes only old session logs and fold caches', () => {
+    const dir = tmp();
+    const old = make(dir, 'a.jsonl', 8);
+    const oldFold = make(dir, 'a.fold.json', 8);
+    const fresh = make(dir, 'b.jsonl', 6);
+    const kept = make(dir, 'me.jsonl', 30);
+    const keptFold = make(dir, 'me.fold.json', 30);
+    const debug = make(dir, 'debug.log', 30);
+    const other = make(dir, 'notes.json', 30);
+    fs.mkdirSync(path.join(dir, 'd.jsonl'));
+    expect(pruneHookLogs(dir, ['me.jsonl', 'me.fold.json'], now)).toBe(2);
+    expect(fs.existsSync(old)).toBe(false);
+    expect(fs.existsSync(oldFold)).toBe(false);
+    for (const f of [fresh, kept, keptFold, debug, other, path.join(dir, 'd.jsonl')]) {
+      expect(fs.existsSync(f)).toBe(true);
+    }
+  });
+
+  it('stops after maxScan entries and tolerates a missing dir', () => {
+    const dir = tmp();
+    for (let i = 0; i < 10; i++) make(dir, `s${i}.jsonl`, 9);
+    expect(pruneHookLogs(dir, [], now, 7 * DAY, 4)).toBe(4);
+    expect(fs.readdirSync(dir)).toHaveLength(6);
+    expect(pruneHookLogs(path.join(dir, 'missing'), [], now)).toBe(0);
   });
 });
