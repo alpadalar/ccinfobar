@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import type { LoadResult } from '../core/config.js';
-import { createContext } from '../core/context.js';
+import { createContext, lazy } from '../core/context.js';
 import { t } from '../core/i18n/index.js';
 import {
   type InspectMeta,
@@ -35,6 +35,7 @@ import { loadHistory } from '../data/history.js';
 import { readTranscript, type TranscriptInfo, transcriptCacheName } from '../data/transcript.js';
 import { effectiveUsage, type UsageCache } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
+import { type CliIo, cliIo, reportConfigIssue } from './io.js';
 
 export type InputKind = 'payload' | 'scenario' | 'last' | 'sample';
 
@@ -52,7 +53,7 @@ export interface InspectInput {
   cleanup(): void;
 }
 
-export interface InspectOptions {
+export interface LoadOptions {
   cfgFile: string;
   payloadFile?: string;
   scenario?: string;
@@ -65,23 +66,7 @@ export interface InspectOptions {
 
 export class PayloadFileError extends Error {}
 
-function once<T>(fn: () => T): () => T {
-  let done = false;
-  let value: T;
-  return () => {
-    if (!done) {
-      try {
-        value = fn();
-      } catch {
-        value = null as T;
-      }
-      done = true;
-    }
-    return value;
-  };
-}
-
-function probeFreeWidth(opts: InspectOptions, payload: StatusPayload, env: NodeJS.ProcessEnv): number | null {
+function probeFreeWidth(opts: LoadOptions, payload: StatusPayload, env: NodeJS.ProcessEnv): number | null {
   if (opts.width && opts.width > 0) return opts.width;
   if (opts.widthOf) return opts.widthOf(payload);
   const hint = payload.terminal_width ?? payload.columns;
@@ -93,12 +78,12 @@ function probeFreeWidth(opts: InspectOptions, payload: StatusPayload, env: NodeJ
 }
 
 function readOnlyData(payload: StatusPayload, env: NodeJS.ProcessEnv, now: number): Partial<DataSources> {
-  const transcript = once<TranscriptInfo | null>(() =>
+  const transcript = lazy<TranscriptInfo | null>(() =>
     readTranscript(payload.transcript_path, env, { persist: false }),
   );
   return {
     transcript,
-    agents: once(() => readAgents(payload.transcript_path, transcript(), now, env, { persist: false })),
+    agents: lazy(() => readAgents(payload.transcript_path, transcript(), now, env, { persist: false })),
     history: () => loadHistory(payload.session_id, env),
   };
 }
@@ -190,7 +175,7 @@ function sourceMeta(
   return meta;
 }
 
-export function loadInspectInput(opts: InspectOptions): InspectInput | null {
+export function loadInspectInput(opts: LoadOptions): InspectInput | null {
   const baseEnv = opts.env ?? process.env;
   const loaded = opts.loaded ?? loadForUse(opts.cfgFile);
   const config = loaded.config;
@@ -268,20 +253,6 @@ export function loadInspectInput(opts: InspectOptions): InspectInput | null {
       } catch {}
       tmp = null;
     },
-  };
-}
-
-export interface ExplainIo {
-  tty: boolean;
-  log(line: string): void;
-  error(line: string): void;
-}
-
-export function explainIo(): ExplainIo {
-  return {
-    tty: !!process.stdout.isTTY,
-    log: (line) => console.log(line),
-    error: (line) => console.error(line),
   };
 }
 
@@ -433,23 +404,7 @@ export function explainJson(
   });
 }
 
-function reportConfigIssue(loaded: LoadResult, io: ExplainIo): boolean {
-  if (!loaded.issue) return false;
-  const { line, column, message } = loaded.issue;
-  io.error(
-    t('config.issue', {
-      file: sanitizeText(tildify(loaded.path)),
-      line,
-      column,
-      message: sanitizeText(message),
-    }),
-  );
-  io.error(t('explain.runDoctor'));
-  process.exitCode = 1;
-  return true;
-}
-
-export function runExplain(args: Args, cfgFile: string, io: ExplainIo = explainIo()): void {
+export function runExplain(args: Args, cfgFile: string, io: CliIo = cliIo()): void {
   const flag = scenarioFlag(args.flags.scenario);
   if (flag.kind === 'list') {
     for (const l of scenarioListLines()) io.log(l);
@@ -467,7 +422,10 @@ export function runExplain(args: Args, cfgFile: string, io: ExplainIo = explainI
     return;
   }
   const loaded = loadForUse(cfgFile);
-  if (reportConfigIssue(loaded, io)) return;
+  if (reportConfigIssue(loaded, io)) {
+    process.exitCode = 1;
+    return;
+  }
   const widthFlag = typeof args.flags.width === 'string' ? Number(args.flags.width) : undefined;
   let data: InspectInput | null;
   try {
@@ -541,7 +499,7 @@ function detailLines(data: InspectInput, r: InspectRow, reveal: boolean): string
 
 function printExplain(
   data: InspectInput,
-  io: ExplainIo,
+  io: CliIo,
   id: string | undefined,
   json: boolean,
   reveal: boolean,

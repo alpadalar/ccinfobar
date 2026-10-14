@@ -5,13 +5,13 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import {
-  type ExplainIo,
   explainJson,
   formatAge,
   loadInspectInput,
   runExplain,
   shortAge,
 } from '../../src/commands/explain.js';
+import type { CliIo } from '../../src/commands/io.js';
 import { t } from '../../src/core/i18n/index.js';
 import type { InspectRow } from '../../src/core/inspect.js';
 import { cacheDir, configDir, lastPayloadPath } from '../../src/core/paths.js';
@@ -66,7 +66,7 @@ const LAYOUT = {
 function run(argv: string[], cfg: object = LAYOUT, tty = false): { out: string[]; err: string[] } {
   const out: string[] = [];
   const err: string[] = [];
-  const io: ExplainIo = { tty, log: (l) => out.push(l), error: (l) => err.push(l) };
+  const io: CliIo = { tty, log: (l) => out.push(l), error: (l) => err.push(l) };
   runExplain(parseArgs(['explain', ...argv]), cfgFile(cfg), io);
   return { out, err };
 }

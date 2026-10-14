@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
-import { type PreviewIo, runPreview } from '../../src/commands/manage.js';
+import type { CliIo } from '../../src/commands/io.js';
+import { runPreview } from '../../src/commands/manage.js';
 import { t } from '../../src/core/i18n/index.js';
 import { configDir } from '../../src/core/paths.js';
 import { scenarioFlag, scenarioListLines } from '../../src/core/preview.js';
@@ -22,7 +23,7 @@ const cfgFile = () => {
 function run(argv: string[], tty = false): { out: string[]; err: string[] } {
   const out: string[] = [];
   const err: string[] = [];
-  const io: PreviewIo = { tty, log: (l) => out.push(l), error: (l) => err.push(l) };
+  const io: CliIo = { tty, log: (l) => out.push(l), error: (l) => err.push(l) };
   withoutSideEffects(() => runPreview(parseArgs(['preview', ...argv]), cfgFile(), io));
   return { out, err };
 }

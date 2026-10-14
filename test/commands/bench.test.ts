@@ -4,7 +4,6 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import {
-  type BenchIo,
   benchBaseEnv,
   benchEnv,
   benchPayload,
@@ -15,6 +14,7 @@ import {
   stats,
   syntheticTranscript,
 } from '../../src/commands/bench.js';
+import type { CliIo } from '../../src/commands/io.js';
 import { t } from '../../src/core/i18n/index.js';
 import { cacheDir, configDir } from '../../src/core/paths.js';
 import { samplePayload } from '../../src/core/sample.js';
@@ -143,7 +143,7 @@ const root = path.resolve(__dirname, '../..');
 const bin = path.join(root, 'dist/ccinfobar.js');
 const ESC = '\u001b';
 
-function capture(): { io: BenchIo; out: string[]; err: string[] } {
+function capture(): { io: CliIo; out: string[]; err: string[] } {
   const out: string[] = [];
   const err: string[] = [];
   return { io: { tty: false, log: (l) => out.push(l), error: (l) => err.push(l) }, out, err };
@@ -192,7 +192,8 @@ describe('runBench', () => {
     const c = capture();
     const file = cfg('{ "theme": ');
     expect(runBench({ entry: bin, runs: 1, json: false, cfgFile: file }, c.io)).toBe(1);
-    expect(c.err.join('\n')).toContain('has an error at line');
+    expect(c.err[0]).toContain('has an error at line');
+    expect(c.err[1]).toBe(t('explain.runDoctor'));
     expect(c.out).toEqual([]);
   });
 

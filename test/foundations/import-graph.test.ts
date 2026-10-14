@@ -46,6 +46,7 @@ const EXCLUDED_FILES = [
   'src/core/inspect.ts',
   'src/core/trace.ts',
   'src/commands/bench.ts',
+  'src/commands/io.ts',
 ];
 const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/'];
 

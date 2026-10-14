@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
-import { configDir, tildify } from '../core/paths.js';
+import { configDir } from '../core/paths.js';
 import { scenarioFlag, scenarioListLines } from '../core/preview.js';
 import { samplePayload } from '../core/sample.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -13,6 +13,7 @@ import { getScenario, SCENARIO_NOW, scenarioEnv } from '../core/scenarios.js';
 import type { StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { writeAtomic } from '../data/store.js';
+import { type CliIo, cliIo, reportConfigIssue } from './io.js';
 
 export interface Stats {
   n: number;
@@ -148,20 +149,6 @@ export function syntheticTranscript(now: number): string {
   return `${lines.join('\n')}\n`;
 }
 
-export interface BenchIo {
-  tty: boolean;
-  log(line: string): void;
-  error(line: string): void;
-}
-
-export function benchIo(): BenchIo {
-  return {
-    tty: !!process.stdout.isTTY,
-    log: (l) => console.log(l),
-    error: (l) => console.error(l),
-  };
-}
-
 export interface BenchOptions {
   entry?: string;
   runs: number;
@@ -230,7 +217,7 @@ const rm = (p: string) => fs.rmSync(p, { recursive: true, force: true, maxRetrie
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-export function runBench(opts: BenchOptions, io: BenchIo = benchIo()): number {
+export function runBench(opts: BenchOptions, io: CliIo = cliIo()): number {
   const flag = scenarioFlag(opts.scenario);
   if (flag.kind === 'list') {
     for (const line of scenarioListLines()) io.log(line);
@@ -242,18 +229,7 @@ export function runBench(opts: BenchOptions, io: BenchIo = benchIo()): number {
     return 1;
   }
   const loaded = loadForUse(opts.cfgFile);
-  if (loaded.issue) {
-    const { line, column, message } = loaded.issue;
-    io.error(
-      t('config.issue', {
-        file: sanitizeText(tildify(loaded.path)),
-        line,
-        column,
-        message: sanitizeText(message),
-      }),
-    );
-    return 1;
-  }
+  if (reportConfigIssue(loaded, io)) return 1;
   const entry = opts.entry ?? process.argv[1];
   if (!entry) {
     io.error(t('bench.noEntry'));
@@ -332,7 +308,7 @@ export function runBench(opts: BenchOptions, io: BenchIo = benchIo()): number {
 }
 
 function report(
-  io: BenchIo,
+  io: CliIo,
   r: {
     scenario: string;
     runs: number;
@@ -416,7 +392,7 @@ function report(
   io.log(t('bench.overhead', { ms: r.overheadMs.toFixed(1) }));
 }
 
-export function runBenchCommand(args: Args, cfgFile: string, io: BenchIo = benchIo()): void {
+export function runBenchCommand(args: Args, cfgFile: string, io: CliIo = cliIo()): void {
   const scenario = args.flags.scenario;
   const code = runBench(
     {

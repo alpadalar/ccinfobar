@@ -4,7 +4,7 @@ import { readGsd } from '../data/gsd.js';
 import { readTranscript } from '../data/transcript.js';
 import type { Config, DataSources, RenderContext, StatusPayload } from './types.js';
 
-function lazy<T>(fn: () => T): () => T {
+export function lazy<T>(fn: () => T): () => T {
   let done = false;
   let value: T;
   return () => {

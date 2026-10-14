@@ -15,6 +15,7 @@ import { fetchUsage } from '../data/usage.js';
 import { type ImportSource, importFrom, toConfig } from '../importers/index.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import { currentStatusLine } from './install.js';
+import { type CliIo, cliIo } from './io.js';
 
 const DEMO_LINE = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gsd-plans', 'session-cost'].map(
   (type) => ({
@@ -109,19 +110,7 @@ export function runInit(args: Args, cfgFile: string): void {
   if (backup) console.log(`  Previous config: ${tildify(backup)}`);
 }
 
-export interface PreviewIo {
-  tty: boolean;
-  log(line: string): void;
-  error(line: string): void;
-}
-
-const previewIo = (): PreviewIo => ({
-  tty: !!process.stdout.isTTY,
-  log: (line) => console.log(line),
-  error: (line) => console.error(line),
-});
-
-export function runPreview(args: Args, cfgFile: string, io: PreviewIo = previewIo()): void {
+export function runPreview(args: Args, cfgFile: string, io: CliIo = cliIo()): void {
   const flag = scenarioFlag(args.flags.scenario);
   if (flag.kind === 'list') {
     for (const line of scenarioListLines()) io.log(line);

@@ -43,6 +43,7 @@ src/
 │   ├── install.ts       planInstall / applyInstall / uninstall
 │   ├── explain.ts       `ccinfobar explain` and the read-only loader doctor shares
 │   ├── bench.ts         `ccinfobar bench`
+│   ├── io.ts            CliIo and the config-issue printer shared by explain, preview and bench
 │   ├── settings-file.ts format-preserving settings.json reads, writes and backups
 │   ├── manifest.ts      what ccinfobar wrote, for uninstall and ownership
 │   └── command.ts       statusLine command quoting per platform
