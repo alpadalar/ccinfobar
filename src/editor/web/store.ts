@@ -45,10 +45,17 @@ export interface ClaudeInfo {
   defaultCommand: string;
 }
 
+export interface ConfigIssueInfo {
+  line: number;
+  column: number;
+  message: string;
+}
+
 export interface ApiState {
   version: string;
   configPath: string;
   configError: string | null;
+  configIssue: ConfigIssueInfo | null;
   config: Config;
   savedConfig: Config;
   widgets: WidgetInfo[];
@@ -116,7 +123,7 @@ export function init(api: ApiState): void {
     collapsed: new Set(api.categories.map((c) => c.id)),
     source: 'sample',
     width: savedWidth(),
-    api,
+    api: { ...api, configIssue: api.configIssue ?? null },
     widgetMap: new Map(api.widgets.map((w) => [w.type, w])),
     clip: null,
     groups: ['colors', 'text'],

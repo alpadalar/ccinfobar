@@ -8,10 +8,11 @@ import {
   setLineAlign,
   uniqueId,
 } from '../../core/edit.js';
+import { t } from '../../core/i18n/index.js';
 import { titleWidgets } from '../../core/panel.js';
 import type { Config } from '../../core/types.js';
 import { ansiToHtml, escapeHtml } from './ansi-html.js';
-import { api, setToken } from './api.js';
+import { ApiError, api, setToken } from './api.js';
 import { colorToCss } from './colors.js';
 import { type DragSpec, type DropTarget, press } from './dnd.js';
 import { clear, h, icon } from './dom.js';
@@ -409,7 +410,40 @@ function renderChrome(): void {
   status.title = `Claude Code runs: ${S.api.claude.statusLine?.command ?? ''}\nSaved changes show up on its next refresh. Settings: Global tab.`;
 }
 
+function configBrokenText(): string | null {
+  const i = S.api.configIssue;
+  return i ? t('editor.configBroken', { line: i.line, column: i.column, message: i.message }) : null;
+}
+
+function renderConfigBanner(): void {
+  const app = $('app');
+  document.getElementById('config-banner')?.remove();
+  const text = configBrokenText();
+  app.classList.toggle('has-banner', text !== null);
+  if (!text) return;
+  app.prepend(
+    h(
+      'div',
+      { id: 'config-banner', class: 'config-banner', role: 'alert' },
+      icon('alert', 16),
+      h('span', null, text),
+    ),
+  );
+}
+
+function issueFrom(err: unknown): { line: number; column: number; message: string } | null {
+  if (!(err instanceof ApiError) || err.status !== 409 || !err.data) return null;
+  const { line, column, message } = err.data;
+  if (typeof line !== 'number' || typeof column !== 'number' || typeof message !== 'string') return null;
+  return { line, column, message };
+}
+
 async function save(): Promise<void> {
+  const blocked = configBrokenText();
+  if (blocked) {
+    toast(blocked, 'error');
+    return;
+  }
   try {
     const before = JSON.parse(S.saved) as Config;
     await api.save(S.config);
@@ -421,6 +455,13 @@ async function save(): Promise<void> {
         : 'Saved. Install in Claude Code to see it there.',
     );
   } catch (err) {
+    const issue = issueFrom(err);
+    if (issue) {
+      S.api.configIssue = issue;
+      renderConfigBanner();
+      toast(configBrokenText() ?? '', 'error');
+      return;
+    }
     toast(`Save failed: ${(err as Error).message}`, 'error');
   }
 }
@@ -649,7 +690,8 @@ async function boot(): Promise<void> {
     return;
   }
   $('boot').remove();
-  if (S.api.configError) toast(`Config problem: ${S.api.configError}. Defaults loaded.`, 'error');
+  renderConfigBanner();
+  if (S.api.configError && !S.api.configIssue) toast(`Config problem: ${S.api.configError}`, 'error');
   setupStatic();
   on('config', (o) => {
     renderCanvas();

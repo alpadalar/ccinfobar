@@ -4,6 +4,16 @@ import type { ApiState, ClaudeInfo, PresetInfo, ThemeInfo } from './store.js';
 
 let token = '';
 
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly data: Record<string, unknown> | null,
+  ) {
+    super(message);
+  }
+}
+
 export function setToken(t: string): void {
   token = t;
 }
@@ -18,7 +28,11 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   try {
     data = await res.json();
   } catch {}
-  if (!res.ok) throw new Error((data as { error?: string } | null)?.error ?? `HTTP ${res.status}`);
+  if (!res.ok) {
+    const body = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
+    const msg = typeof body?.error === 'string' ? body.error : `HTTP ${res.status}`;
+    throw new ApiError(res.status, msg, body);
+  }
   return data as T;
 }
 

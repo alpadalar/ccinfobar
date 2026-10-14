@@ -168,6 +168,28 @@ button:disabled {
   grid-template-areas: "top top top" "pal main insp";
 }
 
+.app.has-banner {
+  grid-template-rows: auto 3.25rem minmax(0, 1fr);
+  grid-template-areas: "banner banner banner" "top top top" "pal main insp";
+}
+
+.config-banner {
+  grid-area: banner;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem;
+  background: color-mix(in srgb, var(--danger) 16%, var(--surface));
+  box-shadow: 0 0.0625rem 0 var(--danger);
+  color: var(--text);
+  z-index: 6;
+}
+
+.config-banner .icon {
+  flex: none;
+  color: var(--danger);
+}
+
 .boot {
   position: fixed;
   inset: 0;

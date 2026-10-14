@@ -1,5 +1,6 @@
 import { install, setupCommand } from '../commands/install.js';
-import { saveConfig } from '../core/config.js';
+import { ConfigBrokenError, type LoadResult, saveConfig } from '../core/config.js';
+import { t } from '../core/i18n/index.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { saveUserTheme } from '../core/themes.js';
 import { gsdInstalled } from '../data/gsd.js';
@@ -18,6 +19,12 @@ export interface TuiOptions {
 
 const ENTER = '\x1b[?1049h\x1b[?25l\x1b[?1000h\x1b[?1002h\x1b[?1006h';
 const LEAVE = '\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?25h\x1b[?1049l';
+
+export function brokenConfigMessage(loaded: Pick<LoadResult, 'issue' | 'path'>): string | null {
+  const i = loaded.issue;
+  if (!i) return null;
+  return t('tui.configBroken', { file: loaded.path, line: i.line, column: i.column, message: i.message });
+}
 
 export function runEffect(state: State, effect: Effect): Action {
   try {
@@ -46,11 +53,23 @@ export function runEffect(state: State, effect: Effect): Action {
     install(command);
     return { type: 'effectDone', ok: true, saved: true, message: `Installed: statusLine runs "${command}"` };
   } catch (err) {
+    if (err instanceof ConfigBrokenError) {
+      const message = brokenConfigMessage({ issue: err.issue, path: err.file }) ?? err.message;
+      return { type: 'effectDone', ok: false, message };
+    }
     return { type: 'effectDone', ok: false, message: `Failed: ${(err as Error).message}` };
   }
 }
 
 export async function runTui(opts: TuiOptions): Promise<void> {
+  const gsd = gsdInstalled();
+  const loaded = loadForUse(opts.configPath, () => gsd);
+  const broken = brokenConfigMessage(loaded);
+  if (broken) {
+    console.error(broken);
+    process.exitCode = 1;
+    return;
+  }
   const stdin = process.stdin;
   const stdout = process.stdout;
   if (!stdin.isTTY || !stdout.isTTY || typeof stdin.setRawMode !== 'function') {
@@ -61,8 +80,6 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     return;
   }
 
-  const gsd = gsdInstalled();
-  const loaded = loadForUse(opts.configPath, () => gsd);
   const note = loaded.error
     ? `Could not read config (${loaded.error}); starting from defaults`
     : loaded.exists
