@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { classify, type Outcome, type Req } from '../core/cache-rule.js';
 import { deepSanitize, sanitizeText } from '../core/sanitize.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
 
@@ -37,6 +38,10 @@ export interface TranscriptInfo {
   agentCalls: AgentCall[];
   turnStart: number | null;
   lastAssistantAt: number | null;
+  cacheMisses: number;
+  lastMissAt: number | null;
+  responseMs: number | null;
+  responseCount: number;
 }
 
 interface Recent {
@@ -47,6 +52,15 @@ interface Recent {
   output: number;
   read: number;
   write: number;
+  outcome?: Outcome;
+}
+
+interface ReqBase {
+  prev: Req | null;
+  ever: boolean;
+  expect: boolean;
+  missAt: number | null;
+  at: number | null;
 }
 
 interface State {
@@ -75,9 +89,19 @@ interface State {
   agentCalls: AgentCall[];
   turnStart: number | null;
   lastAssistantAt: number | null;
+  cacheMisses: number;
+  lastMissAt: number | null;
+  prevReq: Req | null;
+  reqBase: ReqBase | null;
+  everCached: boolean;
+  expectNext: boolean;
+  pendingPrompt: number | null;
+  responses: number[];
 }
 
-const VERSION = 6;
+const VERSION = 7;
+const RESPONSES = 20;
+const MAX_RESPONSE_MS = 300_000;
 const RECENT = 64;
 const SPEED_WINDOW = 10;
 const CHUNK = 8 * 1024 * 1024;
@@ -109,6 +133,14 @@ export function emptyState(): State {
     agentCalls: [],
     turnStart: null,
     lastAssistantAt: null,
+    cacheMisses: 0,
+    lastMissAt: null,
+    prevReq: null,
+    reqBase: null,
+    everCached: false,
+    expectNext: false,
+    pendingPrompt: null,
+    responses: [],
   };
 }
 
@@ -133,6 +165,12 @@ function userText(content: unknown): string | null {
     if (b && b.type === 'text' && typeof b.text === 'string') parts.push(b.text);
   }
   return parts.length ? parts.join('\n') : null;
+}
+
+const WRAPPED = /^\s*<(command-name|local-command-stdout|local-command-caveat)>/;
+
+function hasToolResult(content: unknown): boolean {
+  return Array.isArray(content) && content.some((b) => b?.type === 'tool_result');
 }
 
 const STATUSES = new Set(['pending', 'in_progress', 'completed']);
@@ -197,6 +235,27 @@ function handleToolUse(s: State, block: Json, ts: number | null) {
   }
 }
 
+// Claude Code's miss rule, per API request
+function classifyRequest(s: State, rec: Recent, ts: number | null, isNew: boolean) {
+  const cur = { input: rec.input, read: rec.read, write: rec.write };
+  if (isNew) {
+    s.reqBase = { prev: s.prevReq, ever: s.everCached, expect: s.expectNext, missAt: s.lastMissAt, at: ts };
+  } else {
+    if (rec !== s.recent[s.recent.length - 1] || !s.reqBase) return;
+    if (rec.outcome === 'miss') s.cacheMisses--;
+    s.lastMissAt = s.reqBase.missAt;
+  }
+  const b = s.reqBase;
+  rec.outcome = classify(b.prev, cur, b.ever, b.expect);
+  if (rec.outcome === 'miss') {
+    s.cacheMisses++;
+    s.lastMissAt = b.at;
+  }
+  s.prevReq = cur;
+  s.everCached = b.ever || cur.read + cur.write > 0;
+  s.expectNext = false;
+}
+
 function applyAssistant(s: State, e: Json, ts: number | null, prevTs: number | null) {
   const msg = e.message as Json | undefined;
   if (!msg) return;
@@ -218,6 +277,7 @@ function applyAssistant(s: State, e: Json, ts: number | null, prevTs: number | n
     s.cacheReadTokens += read - rec.read;
     s.cacheWriteTokens += write - rec.write;
     Object.assign(rec, { ts, input, output, read, write });
+    classifyRequest(s, rec, ts, false);
   } else {
     s.inputTokens += input;
     s.outputTokens += output;
@@ -227,6 +287,7 @@ function applyAssistant(s: State, e: Json, ts: number | null, prevTs: number | n
     rec = { key, prev: prevTs, ts, input, output, read, write };
     s.recent.push(rec);
     if (s.recent.length > RECENT) s.recent.shift();
+    classifyRequest(s, rec, ts, true);
   }
   if (input + read + write > 0) s.contextLength = input + read + write;
 }
@@ -264,11 +325,15 @@ function applyLine(s: State, line: string, st: { prevTs: number | null }) {
     if (e.subtype === 'compact_boundary') {
       s.compactions++;
       s.boundaryPending = true;
+      s.expectNext = true;
     }
   } else if (type === 'user') {
     if (e.isCompactSummary === true) {
       if (s.boundaryPending) s.boundaryPending = false;
-      else s.compactions++;
+      else {
+        s.compactions++;
+        s.expectNext = true;
+      }
     } else if (!e.isMeta) {
       const content = e.message?.content;
       if (Array.isArray(content)) {
@@ -283,6 +348,7 @@ function applyLine(s: State, line: string, st: { prevTs: number | null }) {
       }
       const text = userText(content);
       if (text !== null) s.turnStart = tsv;
+      if (text !== null && !hasToolResult(content) && !WRAPPED.test(text)) s.pendingPrompt = tsv;
       if (text !== null) {
         s.userMessageCount++;
         const m = /<command-name>\s*\/?([^<\s]+)\s*<\/command-name>/.exec(text);
@@ -290,6 +356,14 @@ function applyLine(s: State, line: string, st: { prevTs: number | null }) {
       }
     }
   } else if (type === 'assistant') {
+    if (s.pendingPrompt !== null && tsv !== null && e.message?.model !== '<synthetic>') {
+      const gap = tsv - s.pendingPrompt;
+      if (gap > 0 && gap < MAX_RESPONSE_MS) {
+        s.responses.push(gap);
+        if (s.responses.length > RESPONSES) s.responses.shift();
+      }
+      s.pendingPrompt = null;
+    }
     applyAssistant(s, e, tsv, st.prevTs);
   } else if (type === 'queue-operation' && typeof e.content === 'string') {
     const id = /<tool-use-id>([^<]+)<\/tool-use-id>/.exec(e.content)?.[1];
@@ -340,6 +414,10 @@ function toInfo(s: State): TranscriptInfo {
     agentCalls: deepSanitize(s.agentCalls),
     turnStart: s.turnStart,
     lastAssistantAt: s.lastAssistantAt,
+    cacheMisses: s.cacheMisses,
+    lastMissAt: s.lastMissAt,
+    responseMs: s.responses.length ? s.responses.reduce((a, b) => a + b, 0) / s.responses.length : null,
+    responseCount: s.responses.length,
   };
 }
 

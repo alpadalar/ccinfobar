@@ -45,15 +45,14 @@ export function avgResponseMs(ctx: RenderContext): number | null {
     const avg = ms / n;
     if (avg > 0 && avg <= MAX_AVG_MS) return avg;
   }
-  const t = ctx.data.transcript() as { responseMs?: unknown } | null;
-  const v = num(t?.responseMs);
+  const v = num(ctx.data.transcript()?.responseMs);
   return v !== null && v > 0 ? v : null;
 }
 
 function misses(ctx: RenderContext): number | null {
   const pc = ctx.payload.prompt_cache;
   if (pc) return num(pc.misses);
-  return num((ctx.data.transcript() as { cacheMisses?: unknown } | null)?.cacheMisses);
+  return num(ctx.data.transcript()?.cacheMisses);
 }
 
 const secs = (ms: number) => (ms < 60_000 ? `${(ms / 1000).toFixed(1)}s` : formatDuration(ms));

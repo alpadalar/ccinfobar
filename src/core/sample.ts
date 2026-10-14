@@ -134,6 +134,10 @@ export function sampleTranscript(now = Date.now()): TranscriptInfo {
     ],
     turnStart: now - 240_000,
     lastAssistantAt: now - 4_000,
+    cacheMisses: 3,
+    lastMissAt: now - 6 * 60_000,
+    responseMs: 3_200,
+    responseCount: 20,
   };
 }
 
