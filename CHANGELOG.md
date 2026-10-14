@@ -6,8 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
-- `install` shows the current and new status line and asks `Replace? [y/N]` before replacing another tool's; `--yes` (`-y`) replaces without asking and `--dry-run` shows the plan and writes nothing (no backup, no npm install)
-- `install` prints `Installing ccinfobar <version>`, and `Replaced: <command>` when it replaced another status line without a terminal
+- In a terminal, `install` shows the current and new status line and asks `Replace? [y/N]` before replacing another tool's; `--yes` (`-y`) replaces without asking. Non-interactive runs replace it and print the replaced command (`Replaced: <command>`); use `--dry-run` to preview the plan without writing anything (no backup, no npm install)
+- `install` prints `Installing ccinfobar <version>`
 - `ccinfobar config get|set|unset <path> [value]` reads or changes one config value by dotted path (`lines.0.2.type`, `gitHardening`); values are parsed as JSON, else taken as a string, and a value that would not pass validation is refused without writing
 - A config that does not parse shows `ccinfobar: config error at line N, run ccinfobar doctor` and is never overwritten
 - An unexpected render error shows `ccinfobar: render error, run ccinfobar doctor` instead of a blank status line
