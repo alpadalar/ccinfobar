@@ -44,7 +44,7 @@
 - **99 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, git, workspace, system and custom commands.
 - **Uses the current Claude Code payload.** Rate limits, prompt cache statistics, PR status and repository info come straight from the status line JSON, without extra API calls.
 - **Fast, dependency-free, self-updating.** Zero runtime dependencies, lazy data loading, an incremental transcript cache and background updates.
-- **Cross-platform.** Linux, macOS and Windows, tested in CI on all three with Node 20, 22 and 24.
+- **Cross-platform.** Linux, macOS and Windows, tested in CI on all three with Node 20, 22, 24 and 26.
 
 ## Quick start
 

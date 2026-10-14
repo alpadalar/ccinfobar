@@ -17,4 +17,4 @@ Please do not open a public issue. Use [GitHub private vulnerability reporting](
 - The status line command is always an installed copy (global, or pinned under `~/.config/ccinfobar/app`), never `npx …@latest`, so a refresh never downloads code.
 - The `command` widget runs the shell command you configure, with the Claude Code payload on stdin. Only add commands you trust, and be careful when importing configs from others.
 - `ccinfobar edit` listens on `127.0.0.1` only, on a random port. Every API call requires a random per-session token, and requests with a foreign `Host` or `Origin` header are rejected.
-- `ccinfobar install` backs up `~/.claude/settings.json` to `settings.json.ccinfobar-backup` before changing it.
+- `ccinfobar install` saves a timestamped copy of `~/.claude/settings.json` (mode 0600) under `<configDir>/backups/` before every change that alters the file, keeps the last 10 plus the original, and records what it wrote in `<configDir>/manifest.json` so `uninstall` can restore it.
