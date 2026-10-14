@@ -22,4 +22,20 @@ export const doctorMessages = {
   'doctor.note.noReplies':
     'This session has no replies yet (cost $0, no prompt cache). Send a message and run doctor again; context, cache and speed widgets need at least one answer.',
   'doctor.explainPointer': '  Details: `ccinfobar explain` (or `ccinfobar explain <widget-id>`)',
+  'doctor.hooks.off':
+    '  Hooks: off. Run `ccinfobar install --hooks` for exact turn, permission and subagent state.',
+  'doctor.hooks.summary': '  Hooks: {count} installed by ccinfobar (recorded with Claude Code {versions})',
+  'doctor.hooks.entry': '    {event} (Claude Code {claudeCode})',
+  'doctor.hooks.edited':
+    '⚠ The {event} hook was changed or removed outside ccinfobar; ccinfobar leaves it alone.',
+  'doctor.hooks.missingBinary':
+    '⚠ Hook command not found: {command} ({count} hook(s)). Claude Code shows a hook error on each event. Run `ccinfobar install --hooks` again, or `ccinfobar uninstall` to remove them.',
+  'doctor.hooks.disableAll':
+    '⚠ disableAllHooks is on in {layer} settings ({file}): Claude Code runs no hooks and no status line',
+  'doctor.hooks.managedOnly':
+    '⚠ allowManagedHooksOnly is on in managed settings ({file}): user hooks are ignored and only a managed statusLine runs',
+  'doctor.hooks.managedNote':
+    '  Only file-based managed settings were checked (not MDM or registry policies)',
+  'doctor.hooks.lastEvent': '  Last hook event {age} ago (last payload session)',
+  'doctor.hooks.noEvents': '  No hook events logged for the last payload session yet',
 } as const;

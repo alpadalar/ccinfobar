@@ -8,6 +8,7 @@ import { readLastPayload } from '../core/preview.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionSpec, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
+import { readHookState } from '../data/hooks.js';
 import { pruneTmp } from '../data/store.js';
 import { cachedTerminalWidth } from '../data/terminal.js';
 import {
@@ -20,9 +21,25 @@ import {
 } from '../data/update-state.js';
 import { readUsageCache, type UsageCache, usageApiDisabled } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
-import { loadInspectInput, redactValue } from './explain.js';
-import { currentStatusLine, projectOverride } from './install.js';
-import { classifyOwner, manifestFile, owns, readManifest } from './manifest.js';
+import { loadInspectInput, redactValue, shortAge } from './explain.js';
+import {
+  commandResolves,
+  entryCommand,
+  hookEntryState,
+  hookGateWarnings,
+  managedSettingsFiles,
+  readSettingsLayer,
+  type SettingsLayer,
+} from './hooks-doctor.js';
+import { currentStatusLine, projectOverride, projectSettingsPath } from './install.js';
+import {
+  classifyOwner,
+  findHookEntries,
+  type Manifest,
+  manifestFile,
+  owns,
+  readManifest,
+} from './manifest.js';
 import { backupsDir } from './settings-file.js';
 
 export { hasReplies } from '../core/payload.js';
@@ -159,7 +176,50 @@ export function printWidgetReport(cfgFile: string, loaded?: LoadResult): void {
   }
 }
 
-export function runDoctor(cfgFile: string): void {
+function printHooks(
+  manifest: Manifest,
+  settingsFile: string,
+  dirs: Set<string>,
+  last: StatusPayload | null,
+  managedFiles: string[],
+): void {
+  const entries = manifest.readOnly ? [] : findHookEntries(manifest, settingsFile);
+  if (!manifest.readOnly && entries.length === 0) console.log(t('doctor.hooks.off'));
+  if (entries.length) {
+    const versions = [...new Set(entries.map((e) => safe(e.claudeCode ?? 'unknown')))].join(', ');
+    console.log(t('doctor.hooks.summary', { count: entries.length, versions }));
+    const user = readSettingsLayer('user', settingsFile).data ?? {};
+    const missing = new Map<string, number>();
+    for (const e of entries) {
+      console.log(
+        t('doctor.hooks.entry', { event: safe(e.event), claudeCode: safe(e.claudeCode ?? 'unknown') }),
+      );
+      if (hookEntryState(e, user) === 'edited')
+        console.log(t('doctor.hooks.edited', { event: safe(e.event) }));
+      const cmd = entryCommand(e);
+      if (cmd !== null && !commandResolves(cmd)) missing.set(cmd, (missing.get(cmd) ?? 0) + 1);
+    }
+    for (const [command, count] of missing)
+      console.log(t('doctor.hooks.missingBinary', { command: safe(command), count }));
+  }
+  const layers: SettingsLayer[] = [readSettingsLayer('user', settingsFile)];
+  for (const dir of dirs) {
+    layers.push(readSettingsLayer('project', projectSettingsPath(dir, false)));
+    layers.push(readSettingsLayer('local', projectSettingsPath(dir, true)));
+  }
+  for (const f of managedFiles) layers.push(readSettingsLayer('managed', f));
+  for (const w of hookGateWarnings(layers)) {
+    const params = Object.fromEntries(Object.entries(w.params).map(([k, v]) => [k, safe(tildify(v))]));
+    console.log(t(w.key, params));
+  }
+  console.log(t('doctor.hooks.managedNote'));
+  if (!last?.session_id) return;
+  const at = readHookState(last.session_id, process.env, { persist: false })?.lastEventAt;
+  if (typeof at === 'number') console.log(t('doctor.hooks.lastEvent', { age: shortAge(Date.now() - at) }));
+  else if (entries.length) console.log(t('doctor.hooks.noEvents'));
+}
+
+export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {}): void {
   const ok = (b: boolean) => (b ? '✓' : '✗');
   const loaded = loadForUse(cfgFile);
   const sl = (() => {
@@ -195,11 +255,18 @@ export function runDoctor(cfgFile: string): void {
       console.log(t('doctor.manifestEntry', { kind: safe(e.kind), file: safe(tildify(String(e.file))) }));
     }
   }
-  console.log(t('doctor.backups', { dir: tildify(backupsDir()) }));
   const dirs = new Set([process.cwd()]);
   const last = readLastPayload();
   const lastDir = last?.workspace?.project_dir ?? last?.workspace?.current_dir ?? last?.cwd;
   if (lastDir && fs.existsSync(lastDir)) dirs.add(lastDir);
+  printHooks(
+    manifest,
+    settingsFile,
+    dirs,
+    last,
+    opts.managedFiles ?? managedSettingsFiles(process.platform, process.env),
+  );
+  console.log(t('doctor.backups', { dir: tildify(backupsDir()) }));
   for (const dir of dirs) {
     const o = projectOverride(dir);
     if (!o) continue;
