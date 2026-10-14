@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { stripAnsi, visibleWidth } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
-import { finalizeLine, render, renderValue } from '../../src/core/renderer.js';
+import { finalizeLine, render, renderValue, workspaceMode } from '../../src/core/renderer.js';
 import { samplePayload } from '../../src/core/sample.js';
 import type { StatusPayload, WidgetDef, WidgetItem, WidgetResult } from '../../src/core/types.js';
 import { ctxWith, NOW } from '../helpers.js';
@@ -167,5 +167,56 @@ describe('renderValue guard', () => {
     ];
     const out = render(ctxWith({ config: { lines }, payload }));
     expect(out[0]).toContain('Opus 5.5');
+  });
+});
+
+describe('workspace mode', () => {
+  const repos = () => ({
+    root: '/w',
+    total: 3,
+    repos: ['api', 'web', 'infra'].map((name) => ({
+      name,
+      branch: 'main',
+      detached: false,
+      activity: null,
+      hidden: false,
+    })),
+  });
+  const layout = (opts: WidgetItem['options'] = {}): WidgetItem[][] => [
+    [
+      { id: 'b', type: 'git-branch' },
+      { id: 'r', type: 'workspace-repos', options: opts },
+    ],
+  ];
+
+  it('hides empty git widgets when workspace-repos shows repos', () => {
+    const out = render(ctxWith({ git: () => null, repos, config: { lines: layout() } }));
+    expect(out[0]).toContain('repos: api (main)');
+    expect(out[0]).not.toContain('—');
+  });
+
+  it('keeps placeholders with hideGitPlaceholders off', () => {
+    const out = render(
+      ctxWith({ git: () => null, repos, config: { lines: layout({ hideGitPlaceholders: false }) } }),
+    );
+    expect(out[0]).toContain('—');
+    expect(out[0]).toContain('repos: api (main)');
+  });
+
+  it('keeps placeholders inside a repo or without workspace-repos', () => {
+    expect(render(ctxWith({ git: () => null, config: { lines: layout() } }))[0]).toContain('—');
+    const plain = [[{ id: 'b', type: 'git-branch' }]];
+    expect(render(ctxWith({ git: () => null, repos, config: { lines: plain } }))[0]).toContain('—');
+  });
+
+  it('applies to the tui panel too', () => {
+    const out = render(ctxWith({ git: () => null, repos, config: { style: 'tui', lines: layout() } }));
+    expect(out.join('\n')).toContain('api (main)');
+    expect(out.join('\n')).not.toContain('—');
+  });
+
+  it('exports the pre-pass', () => {
+    expect(workspaceMode(ctxWith({ git: () => null, repos, config: { lines: layout() } }))).toBe(true);
+    expect(workspaceMode(ctxWith({ git: () => null, config: { lines: layout() } }))).toBe(false);
   });
 });

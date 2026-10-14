@@ -144,6 +144,19 @@ export function normalizeResult(def: WidgetDef, result: WidgetResult): WidgetOut
   }
 }
 
+export function workspaceMode(ctx: RenderContext): boolean {
+  for (const item of ctx.config.lines.flat()) {
+    if (item.type !== 'workspace-repos' || item.options?.hideGitPlaceholders === false) continue;
+    const def = getWidget(item.type);
+    if (def && renderValue(ctx, def, item)) return true;
+  }
+  return false;
+}
+
+export function hiddenByWorkspace(ctx: RenderContext, def: WidgetDef): boolean {
+  return ctx.workspaceMode === true && def.category === 'git' && def.type !== 'workspace-repos';
+}
+
 export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
   const def = getWidget(item.type);
   if (!def) return null;
@@ -151,7 +164,7 @@ export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
   let out = renderValue(ctx, def, item);
   let empty = false;
   if (!out) {
-    if (item.hideEmpty || def.category === 'layout') return null;
+    if (item.hideEmpty || def.category === 'layout' || hiddenByWorkspace(ctx, def)) return null;
     out = { text: EMPTY_VALUE };
     empty = true;
   }
@@ -391,7 +404,8 @@ function wrapLine(parts: Part[], a: Appearance, level: Level, max: number): stri
     .join('\n');
 }
 
-export function render(ctx: RenderContext): string[] {
+export function render(base: RenderContext): string[] {
+  const ctx = workspaceMode(base) ? { ...base, workspaceMode: true } : base;
   const level = detectLevel(ctx.config.colorLevel, ctx.env);
   const a = resolveAppearance(ctx.config, ctx.theme, ctx.env);
   if (a.style === 'tui') {

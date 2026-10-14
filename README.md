@@ -166,7 +166,7 @@ Mouse works too: click to select, drag a chip to move it.
 
 A widget without data (a new chat, a folder that is not a git repo or GSD project) shows its label and `—`, so every line you add is always visible. Turn on **Hide when no data** (`hideEmpty`) for any widget you would rather hide. The full list with options and examples is in [docs/WIDGETS.md](docs/WIDGETS.md), or run `ccinfobar widgets`.
 
-`workspace-repos` lists the git repos directly inside the current folder with their branches, such as `repos: api (main) · web (dev)`, when the folder itself is not a repo. It reads `.git/HEAD` files, never runs git and rescans at most every 10 seconds. It shows nothing anywhere below a folder that holds `.git`, so a dotfiles repo at `~/.git` hides it in your whole home folder. `GIT_DIR` and `GIT_WORK_TREE` are ignored.
+`workspace-repos` lists the git repos directly inside the current folder with their branches, such as `repos: api (main) · web (dev)`, when the folder itself is not a repo. It reads `.git/HEAD` files, never runs git and rescans at most every 10 seconds. It shows nothing anywhere below a folder that holds `.git`, so a dotfiles repo at `~/.git` hides it in your whole home folder. `GIT_DIR` and `GIT_WORK_TREE` are ignored. While it shows repos, the other git widgets hide instead of showing `—`; set `hideGitPlaceholders: false` to keep them, and `ccinfobar explain` names the reason.
 
 ## Themes
 

@@ -268,6 +268,27 @@ describe('printWidgetReport', () => {
     expect(out.at(-1)).toBe(t('doctor.explainPointer'));
   });
 
+  it('names workspace mode for hidden git rows', () => {
+    const p = save();
+    fs.mkdirSync(path.join(p.cwd!, 'api', '.git'), { recursive: true });
+    fs.writeFileSync(path.join(p.cwd!, 'api', '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    const layout = JSON.stringify({
+      lines: [
+        [
+          { id: 'branch', type: 'git-branch' },
+          { id: 'r', type: 'workspace-repos' },
+        ],
+        [{ id: 'hid', type: 'session-name', hideEmpty: true }],
+      ],
+    });
+    const out = capture(() => printWidgetReport(cfgFile('ws.json', layout)));
+    expect(out).toContain(
+      `  ✗ L1 git-branch (branch): ${t('doctor.row.workspaceHidden')}, ${t('explain.reason.workspace-mode')}`,
+    );
+    expect(out).toContain('  ✓ L1 workspace-repos (r): api (main)');
+    expect(out.some((l) => l.startsWith('  ✗ L2 session-name (hid): hidden (hideEmpty), '))).toBe(true);
+  });
+
   it('points to explain --scenario without a payload', () => {
     const out = capture(() => printWidgetReport(cfgFile('rows.json', LAYOUT)));
     expect(out).toEqual(['\nWidgets', t('doctor.noPayload')]);

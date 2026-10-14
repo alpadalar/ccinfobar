@@ -120,6 +120,7 @@ function widgetRow(r: InspectRow): string | null {
     case 'loading':
       return `  ✓ ${at}: ${safe(redactValue(r) ?? '')}`;
     case 'hidden':
+      if (r.empty?.code === 'workspace-mode') return `  ✗ ${at}: ${t('doctor.row.workspaceHidden')}, ${why}`;
       return `  ✗ ${at}: hidden (hideEmpty), ${why}`;
     case 'error':
       return `  ✗ ${at}: error, ${safe(r.error ?? '')}`;

@@ -73,6 +73,32 @@ describe.skipIf(tmpRepo)('workspace-repos on a real folder', () => {
   });
 });
 
+describe.skipIf(tmpRepo)('workspace-repos placeholders', () => {
+  const mixed = (cwd: string, options: WidgetItem['options'] = {}) => {
+    const ctx = ctxAt(cwd);
+    ctx.config.lines = [
+      [
+        { id: 'b', type: 'git-branch' },
+        { id: 'r', type: 'workspace-repos', options },
+      ],
+    ];
+    return render({ ...ctx, data: { ...ctx.data, git: () => null } }).map(stripAnsi);
+  };
+
+  it('hides git placeholders in a workspace folder', () => {
+    const line = mixed(workspace())[0]!;
+    expect(line).toContain('repos: api (main) · web (dev)');
+    expect(line).not.toContain('—');
+  });
+
+  it('keeps them with hideGitPlaceholders off or without child repos', () => {
+    expect(mixed(workspace(), { hideGitPlaceholders: false })[0]).toContain('—');
+    const e = path.join(dir, 'empty');
+    fs.mkdirSync(e);
+    expect(mixed(e)[0]).toContain('—');
+  });
+});
+
 describe.skipIf(tmpRepo)('workspace-repos real heads', () => {
   it('shows a detached sha and strips escapes from branch names', () => {
     const w = path.join(dir, 'w');

@@ -17,6 +17,9 @@ export const explainMessages = {
   'explain.reason.no-transcript':
     'no transcript yet: Claude Code creates it with the first message of the session',
   'explain.reason.no-git': 'not a git repository, or git is not on PATH',
+  'explain.reason.inside-repo': 'the folder is inside a git repo',
+  'explain.reason.no-child-repos': 'no child folder is a git repo',
+  'explain.reason.workspace-mode': 'hidden in a workspace folder (workspace-repos hideGitPlaceholders)',
   'explain.reason.no-ledger':
     'no cost recorded yet; counting starts when a cost ledger widget is on the status line',
   'explain.reason.no-budget': 'no budget.{period} set in config',

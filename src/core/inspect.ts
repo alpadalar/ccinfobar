@@ -7,7 +7,14 @@ import { isLoadingOutput } from '../widgets/shared.js';
 import { stripAnsi, visibleWidth } from './ansi.js';
 import { t } from './i18n/index.js';
 import { hasReplies } from './payload.js';
-import { maxLineWidth, normalizeResult, renderLine, resolveAppearance } from './renderer.js';
+import {
+  hiddenByWorkspace,
+  maxLineWidth,
+  normalizeResult,
+  renderLine,
+  resolveAppearance,
+  workspaceMode,
+} from './renderer.js';
 import { sanitizeText } from './sanitize.js';
 import { createTrace, leaves, type SourceKind, type Trace, type TraceRead } from './trace.js';
 import type { RenderContext, StatusPayload, WidgetDef, WidgetItem, WidgetResult } from './types.js';
@@ -34,6 +41,9 @@ export type EmptyCode =
   | 'no-context-window'
   | 'no-transcript'
   | 'no-git'
+  | 'inside-repo'
+  | 'no-child-repos'
+  | 'workspace-mode'
   | 'no-ledger'
   | 'no-budget'
   | 'no-replies'
@@ -150,6 +160,7 @@ export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceR
   if (def.category === 'context' && !p.context_window && !ctx.data.transcript()?.contextLength) {
     return reason('no-context-window');
   }
+  if (item.type === 'workspace-repos') return reason(ctx.data.repos?.() ? 'no-child-repos' : 'inside-repo');
   if (def.category === 'git' && !ctx.data.git()) return reason('no-git');
   if (TRANSCRIPT_TYPES.has(item.type) && !ctx.data.transcript()) return reason('no-transcript');
   if (item.type === 'budget') {
@@ -313,11 +324,15 @@ function inspectItem(
       sources,
     };
   }
+  if (!item.hideEmpty && hiddenByWorkspace(ctx, def)) {
+    return { ...row, status: 'hidden', sources, empty: reason('workspace-mode') };
+  }
   const status = item.hideEmpty || def.category === 'layout' ? 'hidden' : 'empty';
   return { ...row, status, sources, empty: emptyReason(ctx, item, def.sources ? undefined : reads) };
 }
 
-export function inspectRows(ctx: RenderContext, opts: InspectOptions = {}): InspectRow[] {
+export function inspectRows(base: RenderContext, opts: InspectOptions = {}): InspectRow[] {
+  const ctx = withWorkspace(base);
   const trace = createTrace();
   const traced = trace.wrap(ctx);
   const out: InspectRow[] = [];
@@ -342,7 +357,11 @@ export function sessionNotes(p: StatusPayload): string[] {
   return notes;
 }
 
-export function lineReport(ctx: RenderContext): LineRow[] {
+const withWorkspace = (ctx: RenderContext): RenderContext =>
+  workspaceMode(ctx) ? { ...ctx, workspaceMode: true } : ctx;
+
+export function lineReport(base: RenderContext): LineRow[] {
+  const ctx = withWorkspace(base);
   const a = resolveAppearance(ctx.config);
   if (a.style === 'tui') return [];
   const max = maxLineWidth(ctx);

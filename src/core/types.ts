@@ -270,6 +270,7 @@ export interface RenderContext {
   theme?: import('./themes.js').Theme;
   data: DataSources;
   extra?: number;
+  workspaceMode?: boolean;
 }
 
 export interface DataSources {

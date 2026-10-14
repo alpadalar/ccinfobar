@@ -253,6 +253,12 @@ export const widgets: WidgetDef[] = [
         ],
       },
       { key: 'includeHidden', label: 'Include hidden folders', kind: 'boolean', default: false },
+      {
+        key: 'hideGitPlaceholders',
+        label: 'Hide empty git widgets in a workspace folder',
+        kind: 'boolean',
+        default: true,
+      },
     ],
     render(ctx, item) {
       const ws = ctx.data.repos?.();

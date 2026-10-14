@@ -531,3 +531,44 @@ describe('ledger widgets', () => {
     expect(row.sources).toEqual([{ kind: 'ledger', age: 5_000 }]);
   });
 });
+
+describe('workspace mode rows', () => {
+  const repos = () => ({
+    root: '/w',
+    total: 1,
+    repos: [{ name: 'api', branch: 'main', detached: false, activity: null, hidden: false }],
+  });
+  const ws = [item('git-branch'), item('workspace-repos')];
+
+  it('reports empty git rows as hidden by workspace mode', () => {
+    const rows = rowsFor(ctxWith({ git: () => null, repos, config: { lines: [ws] } }));
+    expect(rows[0]).toMatchObject({ status: 'hidden', empty: { code: 'workspace-mode' } });
+    expect(rows[0]!.empty!.text).toBe(t('explain.reason.workspace-mode'));
+    expect(rows[1]).toMatchObject({ status: 'shown', value: 'api (main)' });
+  });
+
+  it('keeps empty git rows without workspace mode', () => {
+    const rows = rowsFor(ctxWith({ git: () => null, config: { lines: [ws] } }));
+    expect(rows[0]).toMatchObject({ status: 'empty', empty: { code: 'no-git' } });
+    const off = [item('git-branch'), item('workspace-repos', { options: { hideGitPlaceholders: false } })];
+    const rows2 = rowsFor(ctxWith({ git: () => null, repos, config: { lines: [off] } }));
+    expect(rows2[0]).toMatchObject({ status: 'empty', empty: { code: 'no-git' } });
+  });
+
+  it('explains an empty workspace-repos row without git', () => {
+    const git = vi.fn(() => null);
+    const lines = [[item('workspace-repos')]];
+    const inside = rowsFor(ctxWith({ git, repos: () => null, config: { lines } }));
+    expect(inside[0]).toMatchObject({ status: 'empty', empty: { code: 'inside-repo' } });
+    const none = rowsFor(
+      ctxWith({ git, repos: () => ({ root: '/w', repos: [], total: 0 }), config: { lines } }),
+    );
+    expect(none[0]).toMatchObject({ status: 'empty', empty: { code: 'no-child-repos' } });
+    expect(git).not.toHaveBeenCalled();
+  });
+
+  it('measures lines as the real render does', () => {
+    const ctx = ctxWith({ git: () => null, repos, config: { lines: [ws] } });
+    expect(lineReport(ctx)[0]!.width).toBe('repos: api (main)'.length);
+  });
+});

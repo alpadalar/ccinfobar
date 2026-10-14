@@ -14,6 +14,7 @@ export const doctorMessages = {
   'doctor.tmpPruned': '  Removed {count} stale temp file(s)',
   'doctor.noPayload':
     '  No payload yet. Use Claude Code once with ccinfobar installed, or try `ccinfobar explain --scenario <name>`.',
+  'doctor.row.workspaceHidden': 'hidden (workspace mode)',
   'doctor.limit.five_hour': '5-hour',
   'doctor.limit.seven_day': 'weekly',
   'doctor.limit.both': '5-hour and weekly',
