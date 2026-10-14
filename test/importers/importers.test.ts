@@ -34,7 +34,7 @@ describe('ccstatusline import', () => {
       'acme-app | feat/statusline | +148 -37',
       'Opus 5.5 | Effort high | Elapsed: 45m | Skill frontend-design',
       'Ctx ███░░░░░░░ 34% | Hit 94% | Tokens 450k | 72 t/s',
-      '5h Limit: 42% | Resets 2h 14m | Weekly Limit: 61% | Resets 3d 5h',
+      '5h Limit: 42% | Resets 2h 14m | Weekly Limit: 61% | Resets 1d 5h',
     ]);
   });
 

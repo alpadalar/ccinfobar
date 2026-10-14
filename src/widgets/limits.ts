@@ -222,7 +222,7 @@ export const widgets: WidgetDef[] = [
   ),
   resetWidget('five-hour-reset', 'Five-hour reset', 'Resets ', 'five_hour', '2h 14m'),
   usageWidget('weekly-usage', 'Weekly usage', '7d ', 'seven_day', '61%', 'Usage of the weekly rate limit'),
-  resetWidget('weekly-reset', 'Weekly reset', 'Resets ', 'seven_day', '3d 5h'),
+  resetWidget('weekly-reset', 'Weekly reset', 'Resets ', 'seven_day', '1d 5h'),
   {
     type: 'weekly-model-usage',
     name: 'Weekly model limit',
@@ -249,7 +249,7 @@ export const widgets: WidgetDef[] = [
     label: 'Resets ',
     icon: { nerd: '󰑓', emoji: '🔄' },
     color: 'blue',
-    sample: '3d 5h',
+    sample: '1d 5h',
     options: [modelOption, clockOption],
     render: (ctx, item) => resetOf(ctx, item, modelWindow(ctx, opt(item, 'model', ''))),
   },

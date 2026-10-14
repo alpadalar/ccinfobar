@@ -1,5 +1,6 @@
 import { detectProvider, type Provider } from '../data/provider.js';
 import { getWidget } from '../widgets/index.js';
+import { projectionState } from '../widgets/projection.js';
 import { isLoadingOutput } from '../widgets/shared.js';
 import { stripAnsi, visibleWidth } from './ansi.js';
 import { t } from './i18n/index.js';
@@ -26,6 +27,7 @@ export type EmptyCode =
   | 'no-gsd'
   | 'no-rate-limits'
   | 'limits-expired'
+  | 'projection-warming'
   | 'provider-no-plan-limits'
   | 'no-context-window'
   | 'no-transcript'
@@ -112,6 +114,8 @@ function expiredWindow(ctx: RenderContext, reads: TraceRead[] | undefined): bool
   });
 }
 
+const PROJECTION_TYPES = new Set(['usage-projection']);
+
 export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceRead[]): EmptyReason {
   const def = getWidget(item.type);
   if (!def) return reason('unknown-type', undefined, { type: sanitizeText(item.type) });
@@ -124,6 +128,9 @@ export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceR
     return ctx.data.gsd() ? reason('no-data', t('explain.reason.gsdNothing')) : reason('no-gsd');
   }
   if (def.category === 'limits') {
+    if (PROJECTION_TYPES.has(item.type) && projectionState(ctx, item) === 'warming') {
+      return reason('projection-warming');
+    }
     if (expiredWindow(ctx, reads)) return reason('limits-expired');
     const provider = detectProvider(ctx.env);
     if (!provider.planLimits && !p.rate_limits) {

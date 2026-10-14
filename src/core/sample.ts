@@ -61,8 +61,8 @@ export function samplePayload(now = Date.now()): StatusPayload {
     },
     rate_limits: {
       five_hour: { used_percentage: 42, resets_at: sec + 2 * 3600 + 14 * 60 },
-      seven_day: { used_percentage: 61, resets_at: sec + 3 * 86400 + 5 * 3600 },
-      seven_day_models: [{ model: 'Fable', used_percentage: 23, resets_at: sec + 3 * 86400 + 5 * 3600 }],
+      seven_day: { used_percentage: 61, resets_at: sec + 1 * 86400 + 5 * 3600 },
+      seven_day_models: [{ model: 'Fable', used_percentage: 23, resets_at: sec + 1 * 86400 + 5 * 3600 }],
     },
     pr: {
       number: 128,

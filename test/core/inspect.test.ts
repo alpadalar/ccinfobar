@@ -407,6 +407,18 @@ describe('emptyReason', () => {
     ).toBe('no-data');
   });
 
+  it('says projection-warming early in the window', () => {
+    const sec = NOW.getTime() / 1000;
+    const payload = { rate_limits: { five_hour: { used_percentage: 3, resets_at: sec + 5 * 3600 - 600 } } };
+    const lines = [[item('usage-projection')]];
+    const row = withoutSideEffects(() => inspectRows(ctxWith({ env: {}, payload, config: { lines } }))[0]!);
+    expect(row.empty).toEqual({ code: 'projection-warming', text: t('explain.reason.projection-warming') });
+    const week = { ...item('usage-projection'), options: { window: '7d' } };
+    expect(emptyReason(ctxWith({ env: {}, payload }), week).code).toBe('no-data');
+    const shown = withoutSideEffects(() => inspectRows(ctxWith({ config: { lines } }))[0]!);
+    expect(shown.status).toBe('shown');
+  });
+
   it('says when no rate limits arrived', () => {
     expect(emptyReason(ctxWith({ env: {}, payload: bare }), item('five-hour-usage'))).toEqual({
       code: 'no-rate-limits',

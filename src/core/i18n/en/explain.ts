@@ -7,6 +7,8 @@ export const explainMessages = {
     'no rate_limits from Claude Code and none from the usage API yet (needs a Claude Pro/Max login; see `ccinfobar usage`)',
   'explain.reason.limitsWindow': 'this usage window is not in rate_limits',
   'explain.reason.limits-expired': 'the window reset and no new usage has come in yet',
+  'explain.reason.projection-warming':
+    'too early in the window to project; shown after 15 minutes (5h) or about 8 hours (7d)',
   'explain.reason.provider-no-plan-limits': '{provider} sessions have no plan limits',
   'explain.reason.no-context-window':
     'Claude Code sent no context_window and the transcript has no usage yet (update Claude Code or send a message)',
