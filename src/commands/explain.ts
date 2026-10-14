@@ -366,6 +366,12 @@ function statusLine(r: InspectRow): string {
   }
 }
 
+const REDACT = new Set(['env', 'command']);
+
+export function redactValue(r: InspectRow): string | null {
+  return r.value !== null && REDACT.has(r.type) ? t('explain.redacted', { n: r.value.length }) : r.value;
+}
+
 function clean<T>(v: T): T {
   if (typeof v === 'string') return sanitizeText(v) as T;
   if (Array.isArray(v)) return v.map(clean) as T;
@@ -405,7 +411,7 @@ export function explainJson(
       id: r.id,
       type: r.type,
       status: r.status,
-      value: r.value,
+      value: redactValue(r),
       sources: r.sources.map((s) => ({
         kind: s.kind,
         ...(s.path !== undefined ? { path: s.path } : {}),
@@ -466,8 +472,11 @@ export function runExplain(args: Args, cfgFile: string, io: ExplainIo = explainI
     return;
   }
   if (!data) return;
+  const json = args.flags.json === true;
+  const show = args.flags['show-values'] === true;
+  if (show && (json || !io.tty)) io.error(t('explain.showValuesTty'));
   try {
-    printExplain(data, io, args.positional[0], args.flags.json === true);
+    printExplain(data, io, args.positional[0], json, show && !json && io.tty);
   } finally {
     data.cleanup();
   }
@@ -502,7 +511,13 @@ function detailLines(data: InspectInput, r: InspectRow): string[] {
   return out;
 }
 
-function printExplain(data: InspectInput, io: ExplainIo, id: string | undefined, json: boolean): void {
+function printExplain(
+  data: InspectInput,
+  io: ExplainIo,
+  id: string | undefined,
+  json: boolean,
+  reveal: boolean,
+): void {
   const rows = inspectRows(data.ctx, {
     meta: data.meta,
     ...(data.commandEnv ? { commandEnv: data.commandEnv } : {}),
@@ -519,20 +534,21 @@ function printExplain(data: InspectInput, io: ExplainIo, id: string | undefined,
     io.log(JSON.stringify(explainJson(data.input, picked, lines, data.width), null, 2));
     return;
   }
+  const shown = (r: InspectRow): InspectRow => (reveal ? r : { ...r, value: redactValue(r) });
   io.log(t('explain.header', { version: VERSION }));
   io.log(inputLine(data.input));
   io.log(data.width === null ? t('explain.widthUnknown') : t('explain.width', { width: data.width }));
   if (id !== undefined) {
     for (const r of picked) {
       io.log('');
-      for (const l of detailLines(data, r)) io.log(l);
+      for (const l of detailLines(data, shown(r))) io.log(l);
     }
     return;
   }
   data.config.lines.forEach((_, line) => {
     io.log('');
     io.log(t('explain.lineHeader', { line: line + 1 }));
-    for (const r of rows) if (r.line === line) io.log(rowLine(r));
+    for (const r of rows) if (r.line === line) io.log(rowLine(shown(r)));
     const l = lines[line];
     if (l?.cut) io.log(t('explain.lineCut', { line: line + 1, width: l.width, max: l.max ?? 0 }));
   });

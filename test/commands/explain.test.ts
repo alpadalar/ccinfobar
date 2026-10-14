@@ -63,10 +63,10 @@ const LAYOUT = {
   ],
 };
 
-function run(argv: string[], cfg: object = LAYOUT): { out: string[]; err: string[] } {
+function run(argv: string[], cfg: object = LAYOUT, tty = false): { out: string[]; err: string[] } {
   const out: string[] = [];
   const err: string[] = [];
-  const io: ExplainIo = { tty: false, log: (l) => out.push(l), error: (l) => err.push(l) };
+  const io: ExplainIo = { tty, log: (l) => out.push(l), error: (l) => err.push(l) };
   runExplain(parseArgs(['explain', ...argv]), cfgFile(cfg), io);
   return { out, err };
 }
@@ -325,7 +325,9 @@ describe('explain is read-only', () => {
   it('runs command widgets against a temp cache dir', () => {
     savedPayload();
     const cfg = {
-      lines: [[{ id: 'cmd', type: 'command', options: { command: 'echo hi', cacheSeconds: 60 } }]],
+      lines: [
+        [{ id: 'cmd', type: 'command', options: { command: 'echo hi', cacheSeconds: 60, timeout: 10_000 } }],
+      ],
     };
     const file = cfgFile(cfg);
     const w = watch();
@@ -336,7 +338,7 @@ describe('explain is read-only', () => {
       error: (l) => out.push(l),
     });
     expect(out).toContain(
-      t('explain.row.shown', { name: 'cmd (command)', value: 'hi' }) +
+      t('explain.row.shown', { name: 'cmd (command)', value: t('explain.redacted', { n: 2 }) }) +
         t('explain.sources', { sources: t('explain.source.config', { path: 'options.command' }) }),
     );
     const cached = fs.existsSync(cacheDir())
@@ -484,6 +486,64 @@ describe('explain --json', () => {
     const { obj } = json(['ctx']);
     expect(obj.widgets.map((w: InspectRow) => w.id)).toEqual(['ctx']);
     expect(obj.lines.length).toBe(2);
+  });
+});
+
+describe('explain redacts env and command values', () => {
+  const SECRET = 'supersecret-env-value';
+  const CMD_OUT = 'cmd-output-secret';
+  const cfg = {
+    lines: [
+      [
+        { id: 'tok', type: 'env', options: { name: 'CCIB_TEST_SECRET' } },
+        { id: 'cmd', type: 'command', options: { command: `echo ${CMD_OUT}`, timeout: 10_000 } },
+        { id: 'model', type: 'model' },
+      ],
+    ],
+  };
+  const redacted = (s: string) => t('explain.redacted', { n: s.length });
+
+  beforeEach(() => {
+    process.env.CCIB_TEST_SECRET = SECRET;
+    savedPayload();
+  });
+  afterEach(() => {
+    delete process.env.CCIB_TEST_SECRET;
+  });
+
+  it('never puts the values in --json', () => {
+    for (const argv of [[], ['tok'], ['--show-values']]) {
+      const { obj, text } = json(argv, cfg);
+      expect(text).not.toContain(SECRET);
+      expect(text).not.toContain(CMD_OUT);
+      const tok = obj.widgets.find((w: InspectRow) => w.id === 'tok');
+      expect(tok).toMatchObject({ status: 'shown', value: redacted(SECRET) });
+    }
+    const cmd = json([], cfg).obj.widgets.find((w: InspectRow) => w.id === 'cmd');
+    expect(cmd.value).toBe(redacted(CMD_OUT));
+  });
+
+  it('redacts them off a terminal, even with --show-values', () => {
+    for (const argv of [[], ['tok'], ['--show-values'], ['tok', '--show-values']]) {
+      const { out, err } = run(argv, cfg);
+      const text = [...out, ...err].join('\n');
+      expect(text).not.toContain(SECRET);
+      expect(text).toContain(redacted(SECRET));
+      if (argv[0] !== 'tok') {
+        expect(text).not.toContain(CMD_OUT);
+        expect(text).toContain(redacted(CMD_OUT));
+      }
+    }
+    expect(run(['--show-values'], cfg).err).toEqual([t('explain.showValuesTty')]);
+    expect(run([], cfg).out.join('\n')).toContain('Opus');
+  });
+
+  it('shows them in a terminal only with --show-values', () => {
+    expect(run([], cfg, true).out.join('\n')).not.toContain(SECRET);
+    const { out, err } = run(['--show-values'], cfg, true);
+    expect(err).toEqual([]);
+    expect(out.join('\n')).toContain(SECRET);
+    expect(out.join('\n')).toContain(CMD_OUT);
   });
 });
 
