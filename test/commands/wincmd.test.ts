@@ -11,8 +11,14 @@ describe('rules', () => {
   describe('win32', () => {
     const npmBin = 'C:\\Users\\A B\\AppData\\Roaming\\npm\\ccinfobar.cmd';
 
-    it('writes bare ccinfobar when it is on PATH', () => {
-      expect(buildCommand({ kind: 'bin', bin: npmBin, onPath: true }, 'win32')).toEqual({
+    it('runs the package js through node even when ccinfobar is on PATH', () => {
+      expect(cmd(buildCommand({ kind: 'bin', bin: npmBin, onPath: true }, 'win32', () => true))).toBe(
+        'node "C:/Users/A B/AppData/Roaming/npm/node_modules/ccinfobar/dist/ccinfobar.js"',
+      );
+    });
+
+    it('falls back to bare ccinfobar on PATH when the package js is not found', () => {
+      expect(buildCommand({ kind: 'bin', bin: npmBin, onPath: true }, 'win32', () => false)).toEqual({
         ok: true,
         command: 'ccinfobar',
       });

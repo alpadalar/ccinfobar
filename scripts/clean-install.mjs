@@ -372,9 +372,8 @@ function renderCase(ctx, command) {
     const restricted = (c) => [...PS_ARGS, '-ExecutionPolicy', 'Restricted', '-Command', c];
     const ps = { name: 'powershell', file: 'powershell.exe' };
     const { r, problems } = render(ctx, ps, command, ctx.d.work, { args: restricted });
-    console.log(
-      `REPORT powershell restricted: exit ${r.status}, output ${problems.length ? 'missing' : 'ok'}`,
-    );
+    if (!problems.length) console.log('  render powershell restricted policy: ok');
+    else failRun(ctx, 'render with Restricted policy', r, problems.join('; '), ps.name);
   }
 }
 

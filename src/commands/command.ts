@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
 export type CommandTarget =
@@ -42,14 +43,18 @@ function viaNode(js: string): BuiltCommand {
   return arg.ok ? { ok: true, command: `node ${arg.command}` } : arg;
 }
 
-// never a backslash, a .cmd first token or process.execPath on win32
+// never a backslash, a .cmd first token or process.execPath on win32;
+// node + js also runs where PowerShell blocks the .ps1 shim
 export function buildCommand(
   target: CommandTarget,
   platform: NodeJS.Platform = process.platform,
+  exists: (p: string) => boolean = fs.existsSync,
 ): BuiltCommand {
   if (platform === 'win32') {
     if (target.kind === 'script') return viaNode(target.script);
-    return target.onPath ? { ok: true, command: 'ccinfobar' } : viaNode(jsForWinBin(target.bin));
+    const js = jsForWinBin(target.bin);
+    if (target.onPath && !exists(js)) return { ok: true, command: 'ccinfobar' };
+    return viaNode(js);
   }
   if (target.kind === 'bin') return { ok: true, command: shQuote(target.bin) };
   return { ok: true, command: `${shQuote(target.node ?? process.execPath)} ${shQuote(target.script)}` };
