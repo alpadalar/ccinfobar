@@ -363,6 +363,22 @@ describe('printWidgetReport', () => {
     }
   });
 
+  it('reports the usage cache even when no limits widget needs it', () => {
+    const prev = process.env.CCINFOBAR_NO_USAGE_API;
+    delete process.env.CCINFOBAR_NO_USAGE_API;
+    try {
+      save();
+      fs.mkdirSync(path.dirname(usageFile()), { recursive: true });
+      fs.writeFileSync(usageFile(), JSON.stringify({ fetchedAt: Date.now(), error: 'rate limited' }));
+      const out = capture(() => printWidgetReport(cfgFile('nolimits.json', LAYOUT)));
+      expect(out).toContain('  Usage limits: no data from the usage API (last error: rate limited)');
+    } finally {
+      if (prev === undefined) delete process.env.CCINFOBAR_NO_USAGE_API;
+      else process.env.CCINFOBAR_NO_USAGE_API = prev;
+      fs.rmSync(usageFile(), { force: true });
+    }
+  });
+
   it('writes nothing under the cache dir', () => {
     save();
     const list = () =>

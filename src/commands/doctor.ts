@@ -18,7 +18,7 @@ import {
   selfCommand,
   updatesDisabled,
 } from '../data/update-state.js';
-import { type UsageCache, usageApiDisabled } from '../data/usage.js';
+import { readUsageCache, type UsageCache, usageApiDisabled } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
 import { loadInspectInput } from './explain.js';
 import { currentStatusLine, projectOverride } from './install.js';
@@ -135,7 +135,7 @@ export function printWidgetReport(cfgFile: string, loaded?: LoadResult): void {
       `  Last payload: Claude Code ${safe(payload.version ?? 'unknown version')}, fields: ${safe(keys.sort().join(', '))}`,
     );
     for (const n of sessionNotes(payload)) console.log(`  ℹ ${n}`);
-    console.log(`  ${usageLine(data.config, payload, data.usage)}`);
+    console.log(`  ${usageLine(data.config, payload, readUsageCache())}`);
     const rows = inspectRows(data.ctx, {
       meta: data.meta,
       ...(data.commandEnv ? { commandEnv: data.commandEnv } : {}),
