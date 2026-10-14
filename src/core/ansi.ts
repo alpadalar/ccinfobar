@@ -315,7 +315,10 @@ export function hyperlink(text: string, url: string): string {
 }
 
 export function sanitize(text: string): string {
-  return text.replace(/[\x00-\x08\x0b-\x1a\x1c-\x1f\x7f\x80-\x9f\u202a-\u202e\u2066-\u2069]/g, '');
+  return text.replace(
+    /[\x00-\x08\x0b-\x1a\x1c-\x1f\x7f\x80-\x9f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g,
+    '',
+  );
 }
 
 // colors carry over to each new line

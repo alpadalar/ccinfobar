@@ -67,6 +67,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The `command` widget with `preserveColors` keeps only colors and safe links; clipboard writes, title changes and other terminal sequences are removed
 - PR links are only clickable for `http(s)` URLs without control characters, the `link` widget rejects `javascript:` and `data:` URLs, and environment variable values are shown as plain text
 - Git calls, including the ones `install` makes, ignore repo-local `core.fsmonitor` and filter drivers (`gitHardening`, on by default)
+- Payload, git and cache object keys are sanitized like values, only the top-level `transcript_path` is left as is, and the U+2028/U+2029 line separators become spaces
 - `install`, `update` and background updates run `npm install` with `--ignore-scripts`, so no package lifecycle script runs during an update
 - `doctor`, `themes` and `usage` strip terminal escapes from statusLine commands, project settings, theme files, cached usage data and update errors, and cached usage limits are sanitized before widgets show them
 

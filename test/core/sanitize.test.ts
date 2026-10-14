@@ -156,6 +156,27 @@ describe('deepSanitize', () => {
     expect(deepSanitize(null)).toBeNull();
   });
 
+  it('skips keys only at the top level and sanitizes keys', () => {
+    const input = {
+      transcript_path: '/t\u001b',
+      nested: { transcript_path: 'x\u001b[2Jy' },
+      ['k\u001b[31m']: 'v',
+    };
+    expect(deepSanitize(input, new Set(['transcript_path']))).toEqual({
+      transcript_path: '/t\u001b',
+      nested: { transcript_path: 'xy' },
+      k: 'v',
+    });
+    const proto = deepSanitize(JSON.parse('{"__pro\\u0007to__":{"x":1}}')) as Record<string, unknown>;
+    expect(Object.getPrototypeOf(proto)).toBe(Object.prototype);
+    expect(Object.keys(proto)).toEqual([]);
+  });
+
+  it('turns line separators into spaces and rejects marks in URLs', () => {
+    expect(sanitizeText('a\u2028b\u2029c')).toBe('a b c');
+    expect(safeUrl('https://a.b/\u200e')).toBeNull();
+  });
+
   it('drops __proto__ keys', () => {
     const out = deepSanitize(JSON.parse('{"__proto__":{"x":1},"a":"b"}')) as Record<string, unknown>;
     expect(Object.getPrototypeOf(out)).toBe(Object.prototype);

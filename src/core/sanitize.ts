@@ -1,12 +1,12 @@
 // pure and browser-safe
 const SEQ =
   /\x1b\[[0-?]*[ -/]*[@-~]|\x1b[\]PX^_][\s\S]*?(?:\x07|\x1b\\|\x9c|$)|\x9b[0-?]*[ -/]*[@-~]|[\x9d\x90\x98\x9e\x9f][\s\S]*?(?:\x07|\x1b\\|\x9c|$)|\x1b[ -/]*[0-~]?/g;
-const WS = /[\t\r\n]+/g;
+const WS = /[\t\r\n\u2028\u2029]+/g;
 const CTRL = /[\x00-\x1f\x7f-\x9f]/g;
 const BIDI = /[\u202a-\u202e\u2066-\u2069]/g;
 const SGR = /^\x1b\[[0-9;:]*m$/;
 const OSC8 = /^\x1b\]8;[^;]*;([\s\S]*?)(?:\x07|\x1b\\)$/;
-const URL_BAD = /[\x00-\x20\x7f-\x9f\u202a-\u202e\u2066-\u2069]/;
+const URL_BAD = /[\x00-\x20\x7f-\x9f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
 const LINK_CLOSE = '\x1b]8;;\x1b\\';
 
 function cleanText(s: string): string {
@@ -74,14 +74,18 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return proto === Object.prototype || proto === null;
 }
 
-export function deepSanitize<T>(value: T, skipKeys: ReadonlySet<string> = new Set()): T {
+const NONE: ReadonlySet<string> = new Set();
+
+// skipKeys apply to top-level keys only
+export function deepSanitize<T>(value: T, skipKeys: ReadonlySet<string> = NONE): T {
   if (typeof value === 'string') return sanitizeText(value) as T;
-  if (Array.isArray(value)) return value.map((v) => deepSanitize(v, skipKeys)) as T;
+  if (Array.isArray(value)) return value.map((v) => deepSanitize(v)) as T;
   if (isPlainObject(value)) {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value)) {
-      if (k === '__proto__') continue;
-      out[k] = skipKeys.has(k) ? v : deepSanitize(v, skipKeys);
+      const key = sanitizeText(k);
+      if (key === '__proto__') continue;
+      out[key] = skipKeys.has(k) ? v : deepSanitize(v);
     }
     return out as T;
   }
