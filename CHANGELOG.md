@@ -55,7 +55,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `ccinfobar preview` prints plain text when its output is not a terminal, unless `FORCE_COLOR` is set; `NO_COLOR` (or `FORCE_COLOR=0`) always gives plain text
 - `ccinfobar doctor` builds its widget list from the same data as `explain` and points to it for details; it takes the width from the last session's cached terminal width and no longer runs `ps`/`stty` or writes a width cache file
 - CI also tests on Node 26
-- Plan limits are shared across sessions of the same account, so an idle session shows the newest 5h and weekly usage and an expired window never comes back; chart history in idle sessions follows the shared value
+- Plan limits are shared across sessions of the same account, so an idle session shows the newest 5h and weekly usage and an expired window never comes back; chart history in idle sessions follows the shared value. Logging in to another account drops the shared values, even after a logout in between; a token refresh does not
 - `cache-miss-cause` shows the cause only while the latest request missed; set `show: always` for the old behaviour
 
 ### Fixed

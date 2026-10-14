@@ -1,9 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { t } from '../core/i18n/index.js';
-import { claudeDir, claudeSettingsPath, configDir } from '../core/paths.js';
+import { claudeDir, claudeJsonPath, claudeSettingsPath, configDir } from '../core/paths.js';
 import { HARDEN } from '../data/git.js';
 import { type BuiltCommand, buildCommand, type CommandTarget } from './command.js';
 import {
@@ -511,12 +510,6 @@ export function ignoreLocally(file: string): boolean {
   } catch {
     return false;
   }
-}
-
-export function claudeJsonPath(env: NodeJS.ProcessEnv = process.env): string {
-  return env.CLAUDE_CONFIG_DIR
-    ? path.join(env.CLAUDE_CONFIG_DIR, '.claude.json')
-    : path.join(os.homedir(), '.claude.json');
 }
 
 export function knownProjects(env: NodeJS.ProcessEnv = process.env): string[] {

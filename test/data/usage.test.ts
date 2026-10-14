@@ -208,6 +208,69 @@ describe('usage api', () => {
     expect(readLimitsStore(env)?.windows.five_hour?.pct).toBe(2);
   });
 
+  describe('account identity', () => {
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const login = (env: NodeJS.ProcessEnv, oauth: Record<string, unknown> | null) => {
+      const file = path.join(env.CLAUDE_CONFIG_DIR!, '.credentials.json');
+      if (oauth)
+        fs.writeFileSync(
+          file,
+          JSON.stringify({ claudeAiOauth: { expiresAt: Date.now() + 3_600_000, ...oauth } }),
+        );
+      else fs.rmSync(file, { force: true });
+    };
+    const uuid = (env: NodeJS.ProcessEnv, accountUuid: string) =>
+      fs.writeFileSync(
+        path.join(env.CLAUDE_CONFIG_DIR!, '.claude.json'),
+        JSON.stringify({ projects: {}, oauthAccount: { accountUuid, organizationUuid: 'org' } }),
+      );
+    const ok = () => {
+      const now = Date.now();
+      return reply(200, {
+        five_hour: { utilization: 60, resets_at: iso(now + 7_200_000) },
+        seven_day: { utilization: 30, resets_at: iso(now + 3 * 86_400_000) },
+      });
+    };
+    const windows = (env: NodeJS.ProcessEnv) => Object.keys(readLimitsStore(env)?.windows ?? {});
+
+    it('keeps the store through a token refresh', async () => {
+      const env = sandbox(null);
+      login(env, { accessToken: 'a1', refreshToken: 'r1' });
+      await fetchUsage(env, ok());
+      login(env, { accessToken: 'a2', refreshToken: 'r1' });
+      await fetchUsage(env, reply(500, {}));
+      expect(windows(env)).toEqual(['five_hour', 'seven_day']);
+      expect(readUsageCache(env)?.rate_limits?.five_hour?.used_percentage).toBe(60);
+    });
+
+    it('keys on the account uuid from .claude.json when present', async () => {
+      const env = sandbox(null);
+      uuid(env, 'u-1');
+      login(env, { accessToken: 'a1', refreshToken: 'r1' });
+      await fetchUsage(env, ok());
+      login(env, { accessToken: 'a2', refreshToken: 'r2' });
+      await fetchUsage(env, reply(500, {}));
+      expect(windows(env)).toEqual(['five_hour', 'seven_day']);
+      uuid(env, 'u-2');
+      await fetchUsage(env, reply(500, {}));
+      expect(windows(env)).toEqual([]);
+    });
+
+    it('sees a switch after a logout', async () => {
+      const env = sandbox(null);
+      login(env, { accessToken: 'a1', refreshToken: 'r1' });
+      await fetchUsage(env, ok());
+      login(env, null);
+      const out = await fetchUsage(env, reply(200, {}));
+      expect(out.error).toMatch(/no Claude login/);
+      expect(out.account).toBeDefined();
+      expect(windows(env)).toEqual(['five_hour', 'seven_day']);
+      login(env, { accessToken: 'b1', refreshToken: 'r9' });
+      await fetchUsage(env, reply(500, {}));
+      expect(windows(env)).toEqual([]);
+    });
+  });
+
   it('backs off without a login', async () => {
     const env = sandbox(null);
     const c = await fetchUsage(env, reply(200, {}));

@@ -174,6 +174,7 @@ Plan limits (5-hour, weekly and per-model weekly) are kept in one file per accou
 - An expired window is dropped and never comes back.
 - The usage API only replaces a payload value when its fetch is newer.
 - With `usageApi: false` sessions still share the values Claude Code sends; only the fetch is off.
+- When the usage fetch sees that you logged in to another account, the stored values are dropped. A token refresh does not count as a switch: the account is recognized by its id in `.claude.json` (`oauthAccount`), else by the refresh token.
 
 The file holds percentages, reset times and a few samples for the projection widgets, never a token. `ccinfobar explain` says whether a value came from this session, another session or the usage API.
 

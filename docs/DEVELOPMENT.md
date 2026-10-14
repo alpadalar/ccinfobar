@@ -131,7 +131,7 @@ Text from outside is sanitized where it enters, not in each widget: the stdin pa
 - Merge (`pick`): only plausible windows (pct in range, reset in the future and no further than one window length plus 10 minutes ahead). The latest reset wins, then the newest capture, then the payload over the API, then the higher pct. Expired windows are dropped and never stored. With nothing plausible, this session's own unexpired payload window, then an API `resets_at: null` bucket, is shown but not stored.
 - Each window keeps a ring of up to 32 samples for the projection widgets; a point closer than 60 s (5h) or 20 min (7d) to the last one replaces it, and a new window clears the ring.
 - Two gates in `effectiveUsage`: `limitsOn` (the provider has plan limits and a limits widget is configured) controls the store read; `usageOn` (`limitsOn`, `usageApi` not disabled, and data missing) controls the usage cache read and the worker.
-- `recordLimits` runs after stdout with the unmerged payload, writes 0600 and only on change, and never throws. `recordUsageApi` does the same for the worker and empties the store when the token hash changes; the hash never enters the limits file.
+- `recordLimits` runs after stdout with the unmerged payload, writes 0600 and only on change, and never throws. `recordUsageApi` does the same for the worker and empties the store when the login changes; the worker keys the login on a hash of `oauthAccount.accountUuid` (from the credentials or `.claude.json`), else the refresh token, else the access token, keeps it through error and no-login caches, and never writes it to the limits file.
 - `explain`, `doctor`, `preview` and the editor read the store and never write it.
 
 ### Cost ledger

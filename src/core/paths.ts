@@ -28,6 +28,12 @@ export function claudeDir(env: NodeJS.ProcessEnv = process.env): string {
   return env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), '.claude');
 }
 
+export function claudeJsonPath(env: NodeJS.ProcessEnv = process.env): string {
+  return env.CLAUDE_CONFIG_DIR
+    ? path.join(env.CLAUDE_CONFIG_DIR, '.claude.json')
+    : path.join(os.homedir(), '.claude.json');
+}
+
 export function claudeSettingsPath(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(claudeDir(env), 'settings.json');
 }

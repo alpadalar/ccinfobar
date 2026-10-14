@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { cacheDir, claudeDir } from '../core/paths.js';
+import { cacheDir, claudeDir, claudeJsonPath } from '../core/paths.js';
 import { deepSanitize } from '../core/sanitize.js';
 import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
@@ -175,17 +175,56 @@ export function parseUsageResponse(body: unknown): RateLimits | null {
   return out.five_hour || out.seven_day ? out : null;
 }
 
-function tokenFrom(raw: string | null): string | null {
+interface Login {
+  token: string;
+  refresh: string | null;
+  uuid: string | null;
+}
+
+const MAX_CLAUDE_JSON = 32 * 1024 * 1024;
+
+function uuidOf(v: unknown): string | null {
+  const a = (v as { oauthAccount?: { accountUuid?: unknown; organizationUuid?: unknown } } | null)
+    ?.oauthAccount;
+  if (typeof a?.accountUuid !== 'string' || !a.accountUuid) return null;
+  return `${a.accountUuid}\u0000${typeof a.organizationUuid === 'string' ? a.organizationUuid : ''}`;
+}
+
+function loginFrom(raw: string | null): Login | null {
   if (!raw) return null;
   try {
-    const oauth = (JSON.parse(raw) as { claudeAiOauth?: { accessToken?: unknown; expiresAt?: unknown } })
-      .claudeAiOauth;
+    const v = JSON.parse(raw) as {
+      claudeAiOauth?: { accessToken?: unknown; refreshToken?: unknown; expiresAt?: unknown };
+    };
+    const oauth = v.claudeAiOauth;
     if (typeof oauth?.accessToken !== 'string' || !oauth.accessToken) return null;
     if (typeof oauth.expiresAt === 'number' && oauth.expiresAt < Date.now()) return null;
-    return oauth.accessToken;
+    const refresh = typeof oauth.refreshToken === 'string' && oauth.refreshToken ? oauth.refreshToken : null;
+    return { token: oauth.accessToken, refresh, uuid: uuidOf(v) };
   } catch {
     return null;
   }
+}
+
+// oauthAccount only; the file can be large
+function claudeJsonUuid(env: NodeJS.ProcessEnv): string | null {
+  try {
+    const file = claudeJsonPath(env);
+    if (fs.statSync(file).size > MAX_CLAUDE_JSON) return null;
+    return uuidOf(JSON.parse(fs.readFileSync(file, 'utf8')));
+  } catch {
+    return null;
+  }
+}
+
+const hash16 = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16);
+
+// stable across token refreshes: account uuid, else refresh token, else access token
+export function loginAccount(login: Login, env: NodeJS.ProcessEnv = process.env): string {
+  const uuid = login.uuid ?? claudeJsonUuid(env);
+  if (uuid) return hash16(`uuid\u0000${uuid}`);
+  if (login.refresh) return hash16(`refresh\u0000${login.refresh}`);
+  return hash16(login.token);
 }
 
 function keychain(service: string): string | null {
@@ -207,16 +246,16 @@ export function keychainService(env: NodeJS.ProcessEnv = process.env): string {
   return `${KEYCHAIN_SERVICE}-${suffix}`;
 }
 
-export function readToken(env: NodeJS.ProcessEnv = process.env): string | null {
+export function readLogin(env: NodeJS.ProcessEnv = process.env): Login | null {
   const file = () => {
     try {
-      return tokenFrom(fs.readFileSync(path.join(claudeDir(env), '.credentials.json'), 'utf8'));
+      return loginFrom(fs.readFileSync(path.join(claudeDir(env), '.credentials.json'), 'utf8'));
     } catch {
       return null;
     }
   };
   if (process.platform !== 'darwin') return file();
-  return tokenFrom(keychain(keychainService(env))) ?? file();
+  return loginFrom(keychain(keychainService(env))) ?? file();
 }
 
 export function usageDue(cache: UsageCache | null, now = Date.now()): boolean {
@@ -231,22 +270,24 @@ export async function fetchUsage(
 ): Promise<UsageCache> {
   const now = Date.now();
   const prev = readUsageCache(env);
+  const known = prev?.account ? { account: prev.account } : {};
   const keep = (extra: Partial<UsageCache>): UsageCache => ({
-    ...(prev?.rate_limits ? { rate_limits: prev.rate_limits, account: prev.account } : {}),
+    ...(prev?.rate_limits ? { rate_limits: prev.rate_limits } : {}),
+    ...known,
     fetchedAt: prev?.rate_limits ? prev.fetchedAt : now,
     ...extra,
   });
-  const token = readToken(env);
+  const login = readLogin(env);
   let account: string | undefined;
   let cache: UsageCache;
-  if (!token) {
-    cache = { fetchedAt: now, error: 'no Claude login found', blockedUntil: now + NO_TOKEN_MS };
+  if (!login) {
+    cache = { fetchedAt: now, error: 'no Claude login found', blockedUntil: now + NO_TOKEN_MS, ...known };
   } else {
-    account = createHash('sha256').update(token).digest('hex').slice(0, 16);
+    account = loginAccount(login, env);
     try {
       const res = await fetcher(USAGE_URL, {
         headers: {
-          authorization: `Bearer ${token}`,
+          authorization: `Bearer ${login.token}`,
           'anthropic-beta': 'oauth-2025-04-20',
           'user-agent': 'ccinfobar',
         },
@@ -264,9 +305,12 @@ export async function fetchUsage(
           ? { fetchedAt: now, rate_limits: limits, account }
           : keep({ error: 'usage API sent no limits', blockedUntil: now + BACKOFF_MS });
       }
-      if (cache.account && cache.account !== account) cache = { fetchedAt: now, error: cache.error };
     } catch (err) {
       cache = keep({ error: (err as Error).message, blockedUntil: now + RETRY_MS });
+    }
+    if (cache.account !== account) {
+      const { rate_limits: _, ...rest } = cache;
+      cache = { ...rest, fetchedAt: now, account };
     }
   }
   cache = deepSanitize(cache);
