@@ -17,7 +17,8 @@ import {
   takeOverProjects,
   uninstall,
 } from '../../src/commands/install.js';
-import { backupsDir } from '../../src/commands/settings-file.js';
+import { findStatusLineEntry, readManifest } from '../../src/commands/manifest.js';
+import { backupsDir, hashBytes } from '../../src/commands/settings-file.js';
 import { t } from '../../src/core/i18n/index.js';
 import { claudeSettingsPath } from '../../src/core/paths.js';
 
@@ -59,17 +60,17 @@ describe('install and uninstall', () => {
     const file = settingsFile({ model: 'opus', statusLine: { type: 'command', command: 'ccinfobar' } });
     const legacy = `${file}.ccinfobar-backup`;
     fs.writeFileSync(legacy, JSON.stringify({ model: 'opus', statusLine: previous }));
-    expect(uninstall(file)).toEqual({ removed: true, restored: previous });
+    expect(uninstall(file)).toMatchObject({ status: 'restored-previous', removed: true, restored: previous });
     expect(read(file)).toEqual({ model: 'opus', statusLine: previous });
     expect(fs.existsSync(legacy)).toBe(true);
-    expect(uninstall(file)).toEqual({ removed: false });
+    expect(uninstall(file)).toMatchObject({ status: 'foreign', removed: false, current: previous });
   });
 
   it('names project backups by a path hash', () => {
     const file = settingsFile({ model: 'opus' });
     expect(install('ccinfobar', undefined, file)).toMatch(/project-[0-9a-f]{8}-\d{8}T\d{6}Z(-\d+)?\.json$/);
     expect(fs.existsSync(`${file}.ccinfobar-backup`)).toBe(false);
-    expect(uninstall(file)).toEqual({ removed: true, restored: null });
+    expect(uninstall(file)).toMatchObject({ status: 'restored-exact', removed: true, restored: null });
     expect(read(file)).toEqual({ model: 'opus' });
   });
 
@@ -84,8 +85,9 @@ describe('install and uninstall', () => {
   it('removes the file it created when nothing else is left', () => {
     const file = settingsFile(null);
     expect(install('ccinfobar', undefined, file)).toBeNull();
-    expect(uninstall(file)).toEqual({ removed: true, restored: null });
+    expect(uninstall(file)).toMatchObject({ status: 'deleted-file', removed: true, restored: null });
     expect(fs.existsSync(file)).toBe(false);
+    expect(uninstall(file)).toMatchObject({ status: 'not-installed', removed: false });
   });
 
   it('finds a project status line that beats the user one and wins over it locally', () => {
@@ -98,7 +100,7 @@ describe('install and uninstall', () => {
     install('ccinfobar', undefined, local);
     expect(projectOverride(root)).toBeNull();
     expect(projectLocalFile(root)).toBe(local);
-    expect(uninstall(local)).toEqual({ removed: true, restored: null });
+    expect(uninstall(local)).toMatchObject({ status: 'deleted-file', removed: true });
     expect(projectOverride(root)?.command).toBe('node gsd.js');
   });
 
@@ -117,8 +119,13 @@ describe('install and uninstall', () => {
       install('ccinfobar', undefined, local);
       expect(ignoreLocally(local)).toBe(true);
       expect(ignoreLocally(local)).toBe(false);
-      const exclude = fs.readFileSync(path.join(root, '.git', 'info', 'exclude'), 'utf8');
+      const excludeFile = path.join(root, '.git', 'info', 'exclude');
+      const exclude = fs.readFileSync(excludeFile, 'utf8');
       expect(exclude.match(/\/\.claude\/settings\.local\.json/g)).toHaveLength(1);
+      const recorded = readManifest().entries.filter(
+        (e) => e.kind === 'gitExclude' && e.file === excludeFile,
+      );
+      expect(recorded).toMatchObject([{ line: '/.claude/settings.local.json' }]);
     } finally {
       process.env = saved;
     }
@@ -157,6 +164,58 @@ describe('install and uninstall', () => {
     expect(releaseProjects(env)).toEqual([gsd]);
     expect(fs.existsSync(projectSettingsPath(gsd))).toBe(false);
     expect(read(projectSettingsPath(gsd, false)).statusLine.command).toMatch(/gsd-statusline/);
+  });
+
+  it('records every install in the manifest', () => {
+    const previous = { type: 'command', command: 'npx ccstatusline' };
+    const file = settingsFile({ statusLine: previous });
+    install('/bin/ccinfobar', 4, file);
+    const entry = findStatusLineEntry(readManifest(), file);
+    expect(entry).toMatchObject({
+      kind: 'statusLine',
+      file,
+      key: ['statusLine'],
+      value: { type: 'command', command: '/bin/ccinfobar', padding: 0, refreshInterval: 4 },
+      previous,
+      fileExisted: true,
+      writtenHash: hashBytes(fs.readFileSync(file)),
+      version: expect.any(String),
+      at: expect.any(String),
+    });
+  });
+
+  it('writes the original copy only before the first recorded install', () => {
+    const file = settingsFile({ model: 'opus' });
+    install('/bin/ccinfobar', undefined, file);
+    const original = fs
+      .readdirSync(backupsDir())
+      .map((n) => path.join(backupsDir(), n))
+      .find((f) => f.endsWith('-original.json') && read(f).model === 'opus' && !read(f).statusLine);
+    expect(original).toBeDefined();
+    fs.rmSync(original ?? '');
+    install('/opt/ccinfobar', undefined, file);
+    expect(fs.existsSync(original ?? '')).toBe(false);
+  });
+
+  it('never releases or shadows by substring', () => {
+    const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-own-')));
+    const claude = path.join(base, 'claude');
+    const root = path.join(base, 'proj');
+    const wrapper = { type: 'command', command: 'bash -c "ccinfobar | tee /tmp/x"' };
+    const local = projectSettingsPath(root);
+    fs.mkdirSync(path.dirname(local), { recursive: true });
+    fs.writeFileSync(local, JSON.stringify({ statusLine: wrapper }));
+    fs.mkdirSync(claude);
+    fs.writeFileSync(path.join(claude, '.claude.json'), JSON.stringify({ projects: { [root]: {} } }));
+    const env = { ...process.env, CLAUDE_CONFIG_DIR: claude };
+    expect(releaseProjects(env)).toEqual([]);
+    expect(read(local).statusLine).toEqual(wrapper);
+    expect(projectOverride(root)).toEqual({ file: local, command: wrapper.command });
+    expect(projectLocalFile(root)).toBe(local);
+    install('/bin/ccinfobar', undefined, local);
+    expect(projectOverride(root)).toBeNull();
+    expect(releaseProjects(env)).toEqual([root]);
+    expect(read(local).statusLine).toEqual(wrapper);
   });
 
   it('never writes npx@latest as the status line command', () => {

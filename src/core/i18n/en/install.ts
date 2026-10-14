@@ -18,6 +18,8 @@ export const installMessages = {
   'install.unsafePath':
     'Cannot build a safe command for {path}: it contains {chars}. Move ccinfobar to a path without them.',
   'install.projectsTaken': "✓ Also replaced GSD's status line in {count} project(s):",
+  'install.manifestReadOnly':
+    '{file} was written by a newer ccinfobar or is damaged; not changing any settings. Move it aside to continue.',
   'install.needsConfirm': 'Confirm replacing the current statusLine first.',
   'uninstall.restoredExact': '✓ Restored {file} exactly as it was before ccinfobar',
   'uninstall.restoredPrevious': '✓ Restored the previous statusLine: {command}',

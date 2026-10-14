@@ -27,6 +27,7 @@ export interface SettingsRead {
 export interface PatchOpts {
   env?: NodeJS.ProcessEnv;
   backup?: boolean;
+  original?: boolean;
   beforeRename?: () => void;
 }
 
@@ -247,7 +248,8 @@ export function ensureOriginal(
 
 function takeBackup(raw: RawRead, opts: PatchOpts): string | null {
   if (!raw.exists || opts.backup === false) return null;
-  ensureOriginal(raw.real, raw.bytes, { env: opts.env, legacyFile: legacyFile(raw) });
+  if (opts.original !== false)
+    ensureOriginal(raw.real, raw.bytes, { env: opts.env, legacyFile: legacyFile(raw) });
   return backupSettings(raw.real, raw.bytes, { env: opts.env });
 }
 

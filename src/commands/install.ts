@@ -3,9 +3,32 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { t } from '../core/i18n/index.js';
-import { claudeDir, claudeSettingsPath } from '../core/paths.js';
+import { claudeDir, claudeSettingsPath, configDir } from '../core/paths.js';
+import { HARDEN } from '../data/git.js';
 import { type BuiltCommand, buildCommand, type CommandTarget } from './command.js';
-import { deleteSettingsFile, patchSettings, readSettings } from './settings-file.js';
+import {
+  classifyOwner,
+  deepEqual,
+  dropEntry,
+  findStatusLineEntry,
+  type Manifest,
+  manifestFile,
+  type Owner,
+  type Restore,
+  readManifest,
+  recordGitExclude,
+  recordStatusLine,
+  type StatusLineEntry,
+  writeManifest,
+} from './manifest.js';
+import {
+  deleteSettingsFile,
+  hashBytes,
+  patchSettings,
+  readSettings,
+  resolveReal,
+  writeSettingsBytes,
+} from './settings-file.js';
 import { type InstallKind, installKind, installVersion, localPrefix, npmCommand } from './update.js';
 
 export interface StatusLineSetting {
@@ -67,9 +90,52 @@ export function defaultCommand(
   return target ? acceptCommand(buildCommand(target), log) : null;
 }
 
+function statusLineOf(data: Record<string, unknown>): StatusLineSetting | null {
+  const sl = data.statusLine;
+  return sl && typeof sl === 'object' && !Array.isArray(sl) ? (sl as StatusLineSetting) : null;
+}
+
 export function currentStatusLine(file = claudeSettingsPath()): StatusLineSetting | null {
-  const sl = readSettings(file).data.statusLine;
-  return sl && typeof sl === 'object' ? (sl as StatusLineSetting) : null;
+  return statusLineOf(readSettings(file).data);
+}
+
+const EMPTY: Manifest = { version: 1, entries: [] };
+const NO_ORIGINAL = { original: false };
+
+function openManifest(): Manifest {
+  const m = readManifest();
+  if (m.readOnly) throw new Error(t('install.manifestReadOnly', { file: manifestFile() }));
+  return m;
+}
+
+// defaultCommand() spawns, so only for the unclear case
+function classify(m: Manifest, file: string, sl: StatusLineSetting | null, command: string | null): Owner {
+  const owner = classifyOwner(m, file, sl, command);
+  if (owner !== 'legacy-ask') return owner;
+  const def = defaultCommand();
+  return def && def !== command ? classifyOwner(m, file, sl, def) : owner;
+}
+
+const isMine = (o: Owner) => o === 'ours' || o === 'legacy-ours';
+
+function legacyBackup(file: string): string | null {
+  const candidates = [`${file}.ccinfobar-backup`];
+  try {
+    candidates.push(`${resolveReal(file)}.ccinfobar-backup`);
+  } catch {}
+  return candidates.find((f) => fs.existsSync(f)) ?? null;
+}
+
+function legacyPrevious(file: string, command: string | null): StatusLineSetting | null {
+  const legacy = legacyBackup(file);
+  if (!legacy) return null;
+  try {
+    const sl = statusLineOf(readSettings(legacy).data);
+    if (!sl || typeof sl.command !== 'string') return null;
+    return classifyOwner(EMPTY, file, sl, command) === 'legacy-ours' ? null : sl;
+  } catch {
+    return null;
+  }
 }
 
 export function install(
@@ -77,38 +143,178 @@ export function install(
   refreshInterval?: number,
   file = claudeSettingsPath(),
 ): string | null {
-  const res = patchSettings(file, (settings) => {
-    const statusLine: StatusLineSetting = { type: 'command', command, padding: 0 };
-    const prev = settings.statusLine as StatusLineSetting | undefined;
-    const refresh =
-      refreshInterval ?? (prev?.command?.includes('ccinfobar') ? prev.refreshInterval : undefined);
-    if (refresh && refresh > 0) statusLine.refreshInterval = Math.floor(refresh);
-    settings.statusLine = statusLine;
-  });
+  const m = openManifest();
+  const entry = findStatusLineEntry(m, file);
+  const seen: { owner: Owner; current: StatusLineSetting | null; value: StatusLineSetting | null } = {
+    owner: 'none',
+    current: null,
+    value: null,
+  };
+  const res = patchSettings(
+    file,
+    (settings) => {
+      const current = statusLineOf(settings);
+      const owner = classify(m, file, current, command);
+      const statusLine: StatusLineSetting = { type: 'command', command, padding: 0 };
+      const refresh = refreshInterval ?? (isMine(owner) ? current?.refreshInterval : undefined);
+      if (typeof refresh === 'number' && refresh > 0) statusLine.refreshInterval = Math.floor(refresh);
+      settings.statusLine = statusLine;
+      Object.assign(seen, { owner, current, value: statusLine });
+    },
+    { original: !entry },
+  );
+  const { owner, current } = seen;
+  const previous =
+    owner === 'ours'
+      ? (entry?.previous ?? null)
+      : owner === 'legacy-ours'
+        ? legacyPrevious(file, command)
+        : current;
+  let restore: Restore | null = null;
+  if (entry) {
+    if (res.beforeHash !== null && res.beforeHash === entry.writtenHash) restore = entry.restore;
+  } else if (owner !== 'legacy-ours') {
+    if (!res.existed) restore = { absent: true };
+    else if (res.backup && res.beforeHash)
+      restore = { backup: path.relative(configDir(), res.backup), hash: res.beforeHash };
+  }
+  const fileExisted = entry
+    ? entry.fileExisted
+    : owner === 'legacy-ours'
+      ? legacyBackup(file) !== null
+      : res.existed;
+  writeManifest(
+    recordStatusLine(m, {
+      file: res.real,
+      value: seen.value ?? { type: 'command', command, padding: 0 },
+      previous,
+      fileExisted,
+      restore,
+      writtenHash: res.afterHash,
+    }),
+  );
   return res.backup;
 }
 
-export type UninstallResult = { removed: false } | { removed: true; restored: StatusLineSetting | null };
+export type UninstallStatus =
+  | 'restored-exact'
+  | 'restored-previous'
+  | 'removed'
+  | 'deleted-file'
+  | 'foreign'
+  | 'gone-restored'
+  | 'gone-nothing'
+  | 'not-installed';
 
-export function uninstall(file = claudeSettingsPath()): UninstallResult {
-  const settings = readSettings(file).data;
-  const sl = settings.statusLine as StatusLineSetting | undefined;
-  if (!sl || typeof sl.command !== 'string' || !sl.command.includes('ccinfobar')) return { removed: false };
-  const legacy = `${file}.ccinfobar-backup`;
-  let previous: StatusLineSetting | null = null;
+export interface UninstallResult {
+  status: UninstallStatus;
+  file: string;
+  removed: boolean;
+  restored: StatusLineSetting | null;
+  current?: StatusLineSetting | null;
+}
+
+const REMOVED = new Set<UninstallStatus>([
+  'restored-exact',
+  'restored-previous',
+  'removed',
+  'deleted-file',
+  'gone-restored',
+]);
+
+function backupBytes(restore: { backup: string; hash: string }): Buffer | null {
   try {
-    const backup = readSettings(legacy).data.statusLine as StatusLineSetting | undefined;
-    if (backup && typeof backup.command === 'string' && !backup.command.includes('ccinfobar'))
-      previous = backup;
-  } catch {}
-  const { statusLine: _, ...rest } = settings;
-  if (!previous && !fs.existsSync(legacy) && Object.keys(rest).length === 0) deleteSettingsFile(file);
-  else
-    patchSettings(file, (d) => {
+    const bytes = fs.readFileSync(path.resolve(configDir(), restore.backup));
+    return hashBytes(bytes) === restore.hash ? bytes : null;
+  } catch {
+    return null;
+  }
+}
+
+// only while the file is byte-identical to our last write
+function restoreExact(file: string, entry: StatusLineEntry, hash: string | null): UninstallStatus | null {
+  const r = entry.restore;
+  if (!r || !hash || hash !== entry.writtenHash) return null;
+  if ('absent' in r) {
+    deleteSettingsFile(file, NO_ORIGINAL);
+    return 'deleted-file';
+  }
+  const bytes = backupBytes(r);
+  if (!bytes) return null;
+  writeSettingsBytes(file, bytes, NO_ORIGINAL);
+  return 'restored-exact';
+}
+
+function restoreKey(
+  file: string,
+  data: Record<string, unknown>,
+  ours: StatusLineSetting,
+  previous: StatusLineSetting | null,
+  fileExisted: boolean,
+): [UninstallStatus, StatusLineSetting | null] {
+  const { statusLine: _, ...rest } = data;
+  if (!previous && !fileExisted && Object.keys(rest).length === 0) {
+    deleteSettingsFile(file, NO_ORIGINAL);
+    return ['deleted-file', null];
+  }
+  const state = { raced: false };
+  patchSettings(
+    file,
+    (d) => {
+      state.raced = !deepEqual(d.statusLine, ours);
+      if (state.raced) return;
       if (previous) d.statusLine = previous;
       else delete d.statusLine;
-    });
-  return { removed: true, restored: previous };
+    },
+    NO_ORIGINAL,
+  );
+  if (state.raced) return ['foreign', null];
+  return previous ? ['restored-previous', previous] : ['removed', null];
+}
+
+export function uninstall(
+  file = claudeSettingsPath(),
+  opts: { adoptLegacy?: boolean } = {},
+): UninstallResult {
+  const m = openManifest();
+  const cur = readSettings(file);
+  const sl = statusLineOf(cur.data);
+  const entry = findStatusLineEntry(m, file);
+  const done = (
+    status: UninstallStatus,
+    restored: StatusLineSetting | null = null,
+    current?: StatusLineSetting | null,
+  ): UninstallResult => {
+    if (entry) writeManifest(dropEntry(m, file, 'statusLine'));
+    const res: UninstallResult = { status, file, removed: REMOVED.has(status), restored };
+    if (current !== undefined) res.current = current;
+    return res;
+  };
+  if (entry) {
+    if (!sl) {
+      const prev = entry.previous;
+      if (!prev) return done('gone-nothing', null, null);
+      patchSettings(
+        file,
+        (d) => {
+          if (!statusLineOf(d)) d.statusLine = prev;
+        },
+        NO_ORIGINAL,
+      );
+      return done('gone-restored', prev, null);
+    }
+    if (!deepEqual(sl, entry.value)) return done('foreign', null, sl);
+    const exact = restoreExact(file, entry, cur.hash);
+    if (exact) return done(exact, exact === 'restored-exact' ? entry.previous : null);
+    return done(...restoreKey(file, cur.data, sl, entry.previous, entry.fileExisted));
+  }
+  if (!sl) return done('not-installed', null, null);
+  const owner = classify(m, file, sl, null);
+  if (owner === 'legacy-ours' || (owner === 'legacy-ask' && opts.adoptLegacy)) {
+    const previous = legacyPrevious(file, null);
+    return done(...restoreKey(file, cur.data, sl, previous, legacyBackup(file) !== null));
+  }
+  return done('foreign', null, sl);
 }
 
 export function projectSettingsPath(dir: string, local = true): string {
@@ -118,7 +324,7 @@ export function projectSettingsPath(dir: string, local = true): string {
 function projectRoots(dir: string): string[] {
   const roots = [path.resolve(dir)];
   try {
-    const top = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+    const top = execFileSync('git', [...HARDEN, 'rev-parse', '--show-toplevel'], {
       cwd: dir,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -130,11 +336,17 @@ function projectRoots(dir: string): string[] {
   return roots;
 }
 
+// ours by the manifest, or a plain 0.6.x command
+function ownedHere(m: Manifest, file: string, sl: StatusLineSetting | null): boolean {
+  return isMine(classifyOwner(m, file, sl, null));
+}
+
 export function projectLocalFile(dir: string): string {
+  const m = readManifest();
   for (const root of projectRoots(dir)) {
     const file = projectSettingsPath(root);
     try {
-      if (currentStatusLine(file)?.command?.includes('ccinfobar')) return file;
+      if (ownedHere(m, file, currentStatusLine(file))) return file;
     } catch {}
   }
   return projectSettingsPath(dir);
@@ -147,6 +359,7 @@ export interface ProjectOverride {
 
 // project settings beat ~/.claude/settings.json
 export function projectOverride(dir: string): ProjectOverride | null {
+  const m = readManifest();
   for (const root of projectRoots(dir)) {
     for (const file of [projectSettingsPath(root, true), projectSettingsPath(root, false)]) {
       let sl: StatusLineSetting | null = null;
@@ -154,7 +367,7 @@ export function projectOverride(dir: string): ProjectOverride | null {
         sl = currentStatusLine(file);
       } catch {}
       if (!sl || typeof sl.command !== 'string') continue;
-      return sl.command.includes('ccinfobar') ? null : { file, command: sl.command };
+      return ownedHere(m, file, sl) ? null : { file, command: sl.command };
     }
   }
   return null;
@@ -164,7 +377,7 @@ export function projectOverride(dir: string): ProjectOverride | null {
 export function ignoreLocally(file: string): boolean {
   const dir = path.dirname(file);
   const git = (args: string[]) =>
-    execFileSync('git', args, {
+    execFileSync('git', [...HARDEN, ...args], {
       cwd: dir,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -187,6 +400,10 @@ export function ignoreLocally(file: string): boolean {
     fs.mkdirSync(path.dirname(exclude), { recursive: true });
     const prev = fs.existsSync(exclude) ? fs.readFileSync(exclude, 'utf8') : '';
     fs.appendFileSync(exclude, `${prev && !prev.endsWith('\n') ? '\n' : ''}${rel}\n`);
+    try {
+      const m = readManifest();
+      if (!m.readOnly) writeManifest(recordGitExclude(m, exclude, rel));
+    } catch {}
     return true;
   } catch {
     return false;
@@ -246,10 +463,11 @@ export function takeOverProjects(
 
 export function releaseProjects(env: NodeJS.ProcessEnv = process.env): string[] {
   const done: string[] = [];
+  const m = readManifest();
   for (const root of knownProjects(env)) {
     const file = projectSettingsPath(root);
-    if (!ownStatusLine(file)?.includes('ccinfobar')) continue;
     try {
+      if (!ownedHere(m, file, currentStatusLine(file))) continue;
       if (uninstall(file).removed) done.push(root);
     } catch {}
   }
