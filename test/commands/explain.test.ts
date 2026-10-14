@@ -13,9 +13,10 @@ import {
   sourceText,
 } from '../../src/commands/explain.js';
 import type { CliIo } from '../../src/commands/io.js';
+import { manifestFile, readManifest, recordHook, writeManifest } from '../../src/commands/manifest.js';
 import { t } from '../../src/core/i18n/index.js';
 import type { InspectRow } from '../../src/core/inspect.js';
-import { cacheDir, configDir, lastPayloadPath } from '../../src/core/paths.js';
+import { cacheDir, claudeSettingsPath, configDir, lastPayloadPath } from '../../src/core/paths.js';
 import { scenarioListLines } from '../../src/core/preview.js';
 import type { StatusPayload } from '../../src/core/types.js';
 import { VERSION } from '../../src/core/version.js';
@@ -314,6 +315,25 @@ describe('runExplain sources', () => {
     expect(row).toContain('empty');
     expect(row).toContain(' ← env: provider');
     expect(out.join('\n')).not.toContain('sk-ant-scenario');
+  });
+
+  it('tells needs-hooks from no-hook-state by the manifest', () => {
+    const layout = { lines: [[{ id: 'pw', type: 'permission-wait' }]] };
+    savedPayload();
+    expect(rowOf(run([], layout).out, 'pw (permission-wait)')).toContain(t('explain.reason.needs-hooks'));
+    const m = recordHook(readManifest(), {
+      file: claudeSettingsPath(),
+      event: 'Stop',
+      value: { hooks: [{ type: 'command', command: 'ccinfobar hook Stop', async: true, timeout: 5 }] },
+      claudeCode: '2.1.299',
+      writtenHash: null,
+    });
+    writeManifest(m);
+    try {
+      expect(rowOf(run([], layout).out, 'pw (permission-wait)')).toContain(t('explain.reason.no-hook-state'));
+    } finally {
+      fs.rmSync(manifestFile(), { force: true });
+    }
   });
 
   it('formats short ages', () => {

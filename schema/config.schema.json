@@ -83,6 +83,7 @@
                 "agent-count",
                 "tool-activity",
                 "turn-timer",
+                "permission-wait",
                 "gsd-milestone",
                 "gsd-milestone-progress",
                 "gsd-phase",

@@ -44,6 +44,8 @@ export type EmptyCode =
   | 'inside-repo'
   | 'no-child-repos'
   | 'no-tools'
+  | 'needs-hooks'
+  | 'no-hook-state'
   | 'workspace-mode'
   | 'no-ledger'
   | 'no-budget'
@@ -134,7 +136,12 @@ function expiredWindow(ctx: RenderContext, item: WidgetItem, reads: TraceRead[] 
 const PROJECTION_TYPES = new Set(['usage-projection', 'limit-eta', 'limit-risk']);
 const BELOW = { 'limit-risk': 'explain.reason.belowRisk', 'limit-eta': 'explain.reason.limitSafe' } as const;
 
-export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceRead[]): EmptyReason {
+export function emptyReason(
+  ctx: RenderContext,
+  item: WidgetItem,
+  reads?: TraceRead[],
+  meta: InspectMeta = {},
+): EmptyReason {
   const def = getWidget(item.type);
   if (!def) return reason('unknown-type', undefined, { type: sanitizeText(item.type) });
   if (item.type === 'command' && !String(item.options?.command ?? '').trim()) {
@@ -165,6 +172,10 @@ export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceR
   if (item.type === 'workspace-repos') return reason(ctx.data.repos?.() ? 'no-child-repos' : 'inside-repo');
   if (def.category === 'git' && !ctx.data.git()) return reason('no-git');
   if (TRANSCRIPT_TYPES.has(item.type) && !ctx.data.transcript()) return reason('no-transcript');
+  if (item.type === 'permission-wait') {
+    if (!ctx.data.hooks?.()) return reason(meta.hooksInstalled ? 'no-hook-state' : 'needs-hooks');
+    return reason('no-data', t('explain.reason.noPermissionWait'));
+  }
   if (item.type === 'tool-activity') {
     return reason('no-tools', undefined, { scope: item.options?.scope === 'session' ? 'session' : 'turn' });
   }
@@ -197,6 +208,7 @@ export interface InspectMeta {
   limitModels?: string[];
   ages?: Partial<Record<'usage' | 'transcript' | 'agents' | 'ledger', number>>;
   gsdPath?: string;
+  hooksInstalled?: boolean;
 }
 
 export interface InspectOptions {
@@ -333,7 +345,8 @@ function inspectItem(
     return { ...row, status: 'hidden', sources, empty: reason('workspace-mode') };
   }
   const status = item.hideEmpty || def.category === 'layout' ? 'hidden' : 'empty';
-  return { ...row, status, sources, empty: emptyReason(ctx, item, def.sources ? undefined : reads) };
+  const empty = emptyReason(ctx, item, def.sources ? undefined : reads, opts.meta);
+  return { ...row, status, sources, empty };
 }
 
 export function inspectRows(base: RenderContext, opts: InspectOptions = {}): InspectRow[] {

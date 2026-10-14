@@ -1,6 +1,7 @@
 import { t as tr } from '../core/i18n/index.js';
+import { sanitizeText } from '../core/sanitize.js';
 import type { RenderContext, WidgetDef } from '../core/types.js';
-import { activeTools, groupName, mergeCounts, trustedTurn } from '../data/live.js';
+import { activeTools, groupName, lastWait, mergeCounts, trustedTurn } from '../data/live.js';
 import { opt, span } from './shared.js';
 
 const turnOf = (ctx: RenderContext) =>
@@ -101,6 +102,34 @@ export const widgets: WidgetDef[] = [
       if (turn.end === null) return span(Math.max(0, ctx.now.getTime() - turn.start));
       if (opt<string>(item, 'afterStop', 'last') === 'hide' || turn.durationMs === null) return null;
       return tr('widget.turn.last', { time: span(turn.durationMs) });
+    },
+  },
+  {
+    type: 'permission-wait',
+    name: 'Permission wait',
+    category: 'session',
+    description:
+      'How long the last permission prompt in this turn waited (needs hooks; Claude Code hides the status line while the dialog is open)',
+    label: 'Wait ',
+    icon: { nerd: '\u{f03e4}', emoji: '\u23f8\ufe0f', text: '\u23f8' },
+    color: 'yellow',
+    sample: 'Bash 42s',
+    options: [
+      { key: 'showTool', label: 'Show the tool name', kind: 'boolean', default: true },
+      { key: 'maxAgeMin', label: 'Ignore waits longer than (minutes)', kind: 'number', default: 30 },
+    ],
+    // starts at the Notification, about 6 s after the dialog opened
+    render(ctx, item) {
+      const h = ctx.data.hooks?.() ?? null;
+      if (!h) return null;
+      const t = ctx.data.transcript();
+      const now = ctx.now.getTime();
+      const turn = trustedTurn(h, t, ctx.payload.prompt_id, now);
+      const max = Math.max(1, Number(opt(item, 'maxAgeMin', 30)) || 30) * 60_000;
+      const w = lastWait(h, t, turn?.start ?? null, now, max);
+      if (!w) return null;
+      const tool = opt(item, 'showTool', true) && w.tool ? sanitizeText(w.tool).trim() : '';
+      return { text: tool ? `${tool} ${span(w.ms)}` : span(w.ms), color: 'yellow' };
     },
   },
 ];

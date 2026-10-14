@@ -15,7 +15,7 @@ import {
   type Source,
 } from '../core/inspect.js';
 import { loadForUse } from '../core/load.js';
-import { lastPayloadPath, tildify } from '../core/paths.js';
+import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
 import { readLastPayload, scenarioFlag, scenarioListLines } from '../core/preview.js';
 import {
@@ -44,6 +44,7 @@ import { readTranscript, type TranscriptInfo, transcriptCacheName } from '../dat
 import { effectiveUsage, type UsageCache } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
 import { type CliIo, cliIo, reportConfigIssue } from './io.js';
+import { findHookEntries, readManifest } from './manifest.js';
 
 export type InputKind = 'payload' | 'scenario' | 'last' | 'sample';
 
@@ -232,6 +233,8 @@ function sourceMeta(
     if (typeof at === 'number') ages.ledger = Math.max(0, ctx.now.getTime() - at);
   }
   if (Object.keys(ages).length) meta.ages = ages;
+  if (config.lines.some((items) => items.some((i) => i.type === 'permission-wait')))
+    meta.hooksInstalled = findHookEntries(readManifest(env), claudeSettingsPath(env)).length > 0;
   if (config.lines.some((items) => items.some((i) => getWidget(i.type)?.category === 'gsd'))) {
     const g = ctx.data.gsd();
     if (g) {

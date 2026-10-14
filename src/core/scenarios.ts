@@ -203,6 +203,13 @@ function overBudget(now: number): ScenarioBundle {
   return b;
 }
 
+function waitingPermission(now: number): ScenarioBundle {
+  const b = base(now);
+  const h = { ...sampleHooks(now), lastPermission: { since: now - 60_000, end: now - 18_000, tool: 'Bash' } };
+  b.data.hooks = () => h;
+  return b;
+}
+
 export const SCENARIOS: readonly Scenario[] = [
   {
     id: 'fresh-session',
@@ -263,6 +270,12 @@ export const SCENARIOS: readonly Scenario[] = [
     label: 'Workspace folder',
     description: 'A folder holding several repos that is not a repo itself',
     build: workspaceFolder,
+  },
+  {
+    id: 'waiting-permission',
+    label: 'Permission wait',
+    description: 'The last permission prompt in this turn waited 42 s',
+    build: waitingPermission,
   },
 ];
 

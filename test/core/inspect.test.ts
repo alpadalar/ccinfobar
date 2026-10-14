@@ -594,3 +594,30 @@ describe('tool-activity empty reasons', () => {
     expect(inspectRows(ctx)[0]).toMatchObject({ status: 'empty', empty: { code: 'no-tools' } });
   });
 });
+
+describe('permission-wait empty reasons', () => {
+  const pw: WidgetItem = { id: 'permission-wait', type: 'permission-wait' };
+
+  it('asks for hooks, names a missing hook log, then no wait', () => {
+    expect(emptyReason(ctxWith({ hooks: () => null }), pw)).toEqual({
+      code: 'needs-hooks',
+      text: 'needs `ccinfobar install --hooks`',
+    });
+    expect(emptyReason(ctxWith({ hooks: () => null }), pw, undefined, { hooksInstalled: true })).toEqual({
+      code: 'no-hook-state',
+      text: 'hooks are installed but this session has no hook log yet',
+    });
+    expect(emptyReason(ctxWith(), pw)).toEqual({
+      code: 'no-data',
+      text: 'no permission prompt waited in this turn',
+    });
+  });
+
+  it('passes the hook meta through inspectRows', () => {
+    const ctx = ctxWith({ hooks: () => null, config: { lines: [[pw]] } });
+    expect(inspectRows(ctx)[0]).toMatchObject({ status: 'empty', empty: { code: 'needs-hooks' } });
+    expect(inspectRows(ctx, { meta: { hooksInstalled: true } })[0]).toMatchObject({
+      empty: { code: 'no-hook-state' },
+    });
+  });
+});

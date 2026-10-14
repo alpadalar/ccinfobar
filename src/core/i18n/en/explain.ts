@@ -20,6 +20,9 @@ export const explainMessages = {
   'explain.reason.inside-repo': 'the folder is inside a git repo',
   'explain.reason.no-child-repos': 'no child folder is a git repo',
   'explain.reason.no-tools': 'no tool is running and none ran in this {scope}',
+  'explain.reason.needs-hooks': 'needs `ccinfobar install --hooks`',
+  'explain.reason.no-hook-state': 'hooks are installed but this session has no hook log yet',
+  'explain.reason.noPermissionWait': 'no permission prompt waited in this turn',
   'explain.reason.workspace-mode': 'hidden in a workspace folder (workspace-repos hideGitPlaceholders)',
   'explain.reason.no-ledger':
     'no cost recorded yet; counting starts when a cost ledger widget is on the status line',

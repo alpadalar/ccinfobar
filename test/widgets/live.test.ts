@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { OptionValue } from '../../src/core/types.js';
 import type { HookState, HookTurn } from '../../src/data/hooks.js';
 import { parseTranscriptText, type TranscriptInfo } from '../../src/data/transcript.js';
+import { getWidget } from '../../src/widgets/index.js';
 import { ctxWith, NOW, renderWidget } from '../helpers.js';
 
 const line = (o: object) => JSON.stringify(o);
@@ -198,5 +199,59 @@ describe('tool-activity with hooks', () => {
       hooks: () => hookState({ promptId: 'p1', start: NOW.getTime() - 60_000 }),
     });
     expect(renderWidget('tool-activity', ctx)).toBe('Bash npm test · Read 2, Edit 1, Bash 1');
+  });
+});
+
+describe('permission-wait', () => {
+  const now = NOW.getTime();
+  const running = { start: now - 134_000 };
+  const withPerm = (over: Partial<HookState>, turn: Partial<HookTurn> = running): HookState => ({
+    ...hookState(turn),
+    ...over,
+  });
+  const wait = (
+    h: HookState | null,
+    t: TranscriptInfo | null = null,
+    options: Record<string, OptionValue> = {},
+  ) => renderWidget('permission-wait', ctxWith({ hooks: () => h, transcript: () => t }), { options });
+  const closed = { lastPermission: { since: now - 60_000, end: now - 18_000, tool: 'Bash' } };
+
+  it('shows the last closed wait of the turn in yellow', () => {
+    expect(wait(withPerm(closed))).toBe('Bash 42s');
+    expect(wait(withPerm(closed), null, { showTool: false })).toBe('42s');
+    const def = getWidget('permission-wait')!;
+    const ctx = ctxWith({ hooks: () => withPerm(closed), transcript: () => null });
+    expect(def.render(ctx, { id: 'w', type: 'permission-wait' })).toMatchObject({ color: 'yellow' });
+  });
+
+  it('never shows an open wait; a newer tool result closes it', () => {
+    const open = withPerm({ pendingPermission: { since: now - 30_000, tool: null } });
+    expect(wait(open, transcriptAt({ lastToolResultAt: now - 40_000 }))).toBeNull();
+    expect(wait(open, null)).toBeNull();
+    expect(wait(open, transcriptAt({ lastToolResultAt: now - 18_000 }))).toBe('12s');
+  });
+
+  it('is null for a wait before the turn or without hooks', () => {
+    const before = withPerm(closed, { start: now - 30_000 });
+    expect(wait(before)).toBeNull();
+    expect(wait(null, transcriptAt({ lastToolResultAt: now }))).toBeNull();
+  });
+
+  it('drops an open wait older than maxAgeMin', () => {
+    const old = withPerm({ pendingPermission: { since: now - 120_000, tool: 'Bash' } });
+    expect(wait(old, null, { maxAgeMin: 1 })).toBeNull();
+    expect(wait(old, transcriptAt({ lastToolResultAt: now - 10_000 }), { maxAgeMin: 1 })).toBeNull();
+    expect(wait(old, transcriptAt({ lastToolResultAt: now - 10_000 }))).toBe('Bash 1m50s');
+  });
+
+  it('strips control characters from the tool name', () => {
+    const h = withPerm({
+      lastPermission: { since: now - 60_000, end: now - 18_000, tool: 'Ba\u001b[31msh' },
+    });
+    expect(wait(h)).not.toContain('\u001b');
+  });
+
+  it('is null for the sample data without a wait', () => {
+    expect(renderWidget('permission-wait', ctxWith())).toBeNull();
   });
 });

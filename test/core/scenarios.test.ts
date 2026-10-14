@@ -32,6 +32,7 @@ const IDS = [
   'api-key-user',
   'over-budget',
   'workspace-folder',
+  'waiting-permission',
 ];
 
 function ctxFor(id: string): RenderContext {
@@ -103,8 +104,13 @@ describe('scenarios', () => {
     for (const id of IDS) {
       const b = getScenario(id)!.build(SCENARIO_NOW);
       expect(typeof b.data.hooks, id).toBe('function');
+      if (id === 'waiting-permission') continue;
       expect(b.data.hooks(), id).toEqual(id === 'fresh-session' ? null : sampleHooks(SCENARIO_NOW));
     }
+    expect(getScenario('waiting-permission')!.build(SCENARIO_NOW).data.hooks()).toEqual({
+      ...sampleHooks(SCENARIO_NOW),
+      lastPermission: { since: SCENARIO_NOW - 60_000, end: SCENARIO_NOW - 18_000, tool: 'Bash' },
+    });
   });
 
   it('near-5h-limit is at 92% and resets in 25 minutes', () => {
@@ -230,6 +236,7 @@ const NEW_WIDGETS = [
   'workspace-repos',
   'tool-activity',
   'turn-timer',
+  'permission-wait',
 ];
 
 const raw = (id: string, type: string) =>
@@ -249,6 +256,12 @@ describe('new widgets across scenarios', () => {
   it('turn-timer shows the sample hook turn, and nothing in a fresh session', () => {
     expect(widget('context-full', 'turn-timer')).toBe('2m14s');
     expect(widget('fresh-session', 'turn-timer')).toBeNull();
+  });
+
+  it('waiting-permission shows the closed 42 s Bash wait, other scenarios none', () => {
+    expect(widget('waiting-permission', 'permission-wait')).toBe('Bash 42s');
+    for (const id of IDS.filter((x) => x !== 'waiting-permission'))
+      expect(widget(id, 'permission-wait'), id).toBeNull();
   });
 
   it('api-key-user shows no limits or projection', () => {
