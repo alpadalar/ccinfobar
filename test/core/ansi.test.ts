@@ -55,6 +55,13 @@ describe('ansi', () => {
     expect(visibleWidth('á')).toBe(1);
   });
 
+  it('closes a hyperlink cut by truncation', () => {
+    const link = '\u001b]8;;https://example.com\u001b\\a long link text\u001b]8;;\u001b\\';
+    const out = truncate(`${link} tail`, 6);
+    expect(out).toBe('\u001b]8;;https://example.com\u001b\\a lon…\u001b]8;;\u001b\\\u001b[0m');
+    expect(truncate(`${link} more text here`, 20).endsWith('…\u001b[0m')).toBe(true);
+  });
+
   it('truncates keeping ansi intact', () => {
     const out = truncate('\x1b[31mhello world\x1b[0m', 6);
     expect(stripAnsi(out)).toBe('hello…');

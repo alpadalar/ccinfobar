@@ -285,12 +285,15 @@ export function truncate(text: string, max: number, ellipsis = '…'): string {
   let w = 0;
   let i = 0;
   let hadAnsi = false;
+  let linkOpen = false;
   while (i < text.length) {
     ANSI_RE.lastIndex = i;
     const m = ANSI_RE.exec(text);
     if (m && m.index === i) {
       out += m[0];
       hadAnsi = true;
+      const link = OSC8_RE.exec(m[0]);
+      if (link) linkOpen = link[1] !== '';
       i += m[0].length;
       continue;
     }
@@ -301,8 +304,11 @@ export function truncate(text: string, max: number, ellipsis = '…'): string {
     w += cw;
     i += ch.length;
   }
-  return out + ellipsis + (hadAnsi ? RESET : '');
+  return out + ellipsis + (linkOpen ? LINK_CLOSE : '') + (hadAnsi ? RESET : '');
 }
+
+const OSC8_RE = /^\u001b\]8;[^;\u0007\u001b]*;([^\u0007\u001b]*)/;
+const LINK_CLOSE = '\u001b]8;;\u001b\\';
 
 export function hyperlink(text: string, url: string): string {
   return `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`;
