@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { buildCommand } from '../../src/commands/command.js';
 import {
+  acceptCommand,
   defaultCommand,
   ignoreLocally,
   install,
@@ -15,6 +17,7 @@ import {
   takeOverProjects,
   uninstall,
 } from '../../src/commands/install.js';
+import { t } from '../../src/core/i18n/index.js';
 
 const settingsFile = (data: object | null) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-install-'));
@@ -129,6 +132,28 @@ describe('install and uninstall', () => {
     } finally {
       process.env.PATH = path0;
     }
+  });
+
+  it('builds the fallback command with the shared builder', () => {
+    const path0 = process.env.PATH;
+    process.env.PATH = '';
+    try {
+      const entry = path.resolve(process.argv[1] ?? '');
+      const want = buildCommand({ kind: 'script', script: entry });
+      expect(defaultCommand('source')).toBe(want.ok ? want.command : null);
+    } finally {
+      process.env.PATH = path0;
+    }
+  });
+
+  it('logs and returns null for an unsafe path', () => {
+    const lines: string[] = [];
+    const bad = buildCommand({ kind: 'script', script: 'C:\\a$b\\ccinfobar.js' }, 'win32');
+    expect(acceptCommand(bad, (l) => lines.push(l))).toBeNull();
+    expect(lines).toEqual([t('install.unsafePath', { path: 'C:\\a$b\\ccinfobar.js', chars: '$' })]);
+    expect(acceptCommand(buildCommand({ kind: 'bin', bin: '/x/ccinfobar', onPath: true }, 'linux'))).toBe(
+      '/x/ccinfobar',
+    );
   });
 
   it('does not mistake the npx cache for a global install', () => {

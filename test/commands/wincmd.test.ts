@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { buildCommand, jsForWinBin, shQuote, winArg } from '../../src/commands/command.js';
 
 const cmd = (r: ReturnType<typeof buildCommand>) => (r.ok ? r.command : `!${r.reason}`);
@@ -130,4 +134,149 @@ describe('rules', () => {
       );
     });
   });
+});
+
+const INPUT = '{"x":1}';
+const LEN_JS =
+  "let n = 0;\nprocess.stdin.on('data', (d) => { n += d.length; }).on('end', () => console.log(n));\n";
+
+function envWith(prepend: string[]): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  let base = '';
+  for (const [k, v] of Object.entries(process.env)) {
+    if (/^path$/i.test(k)) base = v ?? '';
+    else env[k] = v;
+  }
+  env.PATH = [...prepend, base].join(path.delimiter);
+  return env;
+}
+
+function built(target: Parameters<typeof buildCommand>[0]): string {
+  const r = buildCommand(target, process.platform);
+  if (!r.ok) throw new Error(`unsafe test path: ${r.path}`);
+  return r.command;
+}
+
+describe.skipIf(process.platform === 'win32')('posix shell', () => {
+  const sh = (command: string, cwd: string) =>
+    spawnSync('/bin/sh', ['-c', command], {
+      input: INPUT,
+      encoding: 'utf8',
+      cwd,
+      env: envWith([]),
+      timeout: 10_000,
+    });
+
+  it.each(['a b', "it's a b"])('runs a bin under %s', (name) => {
+    const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-wincmd-')), name);
+    const bin = path.join(dir, 'bin', 'ccinfobar');
+    fs.mkdirSync(path.dirname(bin), { recursive: true });
+    fs.writeFileSync(bin, "#!/bin/sh\nwc -c | tr -d ' '\n", { mode: 0o755 });
+    const res = sh(built({ kind: 'bin', bin, onPath: false }), dir);
+    expect(res.stderr).toBe('');
+    expect({ status: res.status, out: res.stdout.trim() }).toEqual({ status: 0, out: '7' });
+  });
+
+  it('runs a script target with node', () => {
+    const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-wincmd-')), 'a b');
+    const script = path.join(dir, 'dist', 'ccinfobar.js');
+    fs.mkdirSync(path.dirname(script), { recursive: true });
+    fs.writeFileSync(script, LEN_JS);
+    const res = sh(built({ kind: 'script', script }), dir);
+    expect(res.stderr).toBe('');
+    expect({ status: res.status, out: res.stdout.trim() }).toEqual({ status: 0, out: '7' });
+  });
+});
+
+describe.skipIf(process.platform !== 'win32')('win32 shells', () => {
+  let npm = '';
+  let env: NodeJS.ProcessEnv = {};
+
+  beforeAll(() => {
+    npm = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-wincmd-')), 'a b', 'npm');
+    const js = path.join(npm, 'node_modules', 'ccinfobar', 'dist', 'ccinfobar.js');
+    fs.mkdirSync(path.dirname(js), { recursive: true });
+    fs.writeFileSync(js, LEN_JS);
+    fs.writeFileSync(
+      path.join(npm, 'ccinfobar.cmd'),
+      '@ECHO off\r\nnode "%~dp0\\node_modules\\ccinfobar\\dist\\ccinfobar.js" %*\r\n',
+    );
+    fs.writeFileSync(
+      path.join(npm, 'ccinfobar'),
+      [
+        '#!/bin/sh',
+        'basedir=$(dirname "$(echo "$0" | sed -e \'s,\\\\,/,g\')")',
+        'case `uname` in',
+        '  *CYGWIN*|*MINGW*|*MSYS*)',
+        '    if command -v cygpath > /dev/null 2>&1; then basedir=`cygpath -w "$basedir"`; fi',
+        '  ;;',
+        'esac',
+        'exec node "$basedir/node_modules/ccinfobar/dist/ccinfobar.js" "$@"',
+        '',
+      ].join('\n'),
+    );
+    fs.writeFileSync(
+      path.join(npm, 'ccinfobar.ps1'),
+      [
+        '$basedir = Split-Path $MyInvocation.MyCommand.Definition -Parent',
+        'if ($MyInvocation.ExpectingInput) {',
+        '  $input | & node "$basedir/node_modules/ccinfobar/dist/ccinfobar.js" $args',
+        '} else {',
+        '  & node "$basedir/node_modules/ccinfobar/dist/ccinfobar.js" $args',
+        '}',
+        'exit $LASTEXITCODE',
+        '',
+      ].join('\r\n'),
+    );
+    env = envWith([npm, path.dirname(process.execPath)]);
+  });
+
+  type Shell = { name: string; file: string; args: (c: string) => string[]; verbatim?: boolean };
+
+  function shells(): Shell[] {
+    const out: Shell[] = [];
+    const bash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+    if (fs.existsSync(bash)) out.push({ name: 'git bash', file: bash, args: (c) => ['-c', c] });
+    const ps = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command'];
+    out.push({ name: 'powershell', file: 'powershell.exe', args: (c) => [...ps, c] });
+    if (spawnSync('where', ['pwsh'], { windowsHide: true }).status === 0)
+      out.push({ name: 'pwsh', file: 'pwsh', args: (c) => [...ps, c] });
+    out.push({ name: 'cmd', file: 'cmd.exe', args: (c) => ['/d', '/s', '/c', `"${c}"`], verbatim: true });
+    return out;
+  }
+
+  it.each([
+    ['bare ccinfobar', true],
+    ['node "<fwd path>"', false],
+  ])(
+    'runs %s in every shell',
+    (_label, onPath) => {
+      const command = built({ kind: 'bin', bin: path.join(npm, 'ccinfobar.cmd'), onPath });
+      expect(command).not.toContain('\\');
+      for (const s of shells()) {
+        const res = spawnSync(s.file, s.args(command), {
+          input: INPUT,
+          encoding: 'utf8',
+          env,
+          timeout: 10_000,
+          windowsHide: true,
+          windowsVerbatimArguments: s.verbatim ?? false,
+        });
+        expect({
+          shell: s.name,
+          command,
+          status: res.status,
+          out: (res.stdout ?? '').trim(),
+          err: res.stderr,
+        }).toEqual({
+          shell: s.name,
+          command,
+          status: 0,
+          out: '7',
+          err: expect.any(String),
+        });
+      }
+    },
+    60_000,
+  );
 });

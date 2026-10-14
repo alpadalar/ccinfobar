@@ -2,7 +2,9 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { t } from '../core/i18n/index.js';
 import { claudeDir, claudeSettingsPath } from '../core/paths.js';
+import { type BuiltCommand, buildCommand, type CommandTarget } from './command.js';
 import { type InstallKind, installKind, installVersion, localPrefix, npmCommand } from './update.js';
 
 export interface StatusLineSetting {
@@ -51,23 +53,33 @@ export function globalBinary(): string | null {
   }
 }
 
-export function quote(p: string): string {
-  return /[\s"]/.test(p) ? `"${p}"` : p;
-}
-
 export function localBin(env: NodeJS.ProcessEnv = process.env): string {
   const bin = path.join(localPrefix(env), 'node_modules', '.bin');
   return path.join(bin, process.platform === 'win32' ? 'ccinfobar.cmd' : 'ccinfobar');
 }
 
-// never npx@latest: it runs whatever npm serves
-export function defaultCommand(kind: InstallKind = installKind()): string | null {
-  const bin = globalBinary();
-  if (bin) return quote(bin);
-  if (fs.existsSync(localBin())) return quote(localBin());
-  const entry = process.argv[1] ? path.resolve(process.argv[1]) : null;
-  if (kind !== 'npx' && entry && fs.existsSync(entry)) return `${quote(process.execPath)} ${quote(entry)}`;
+export function acceptCommand(built: BuiltCommand, log: (line: string) => void = () => {}): string | null {
+  if (built.ok) return built.command;
+  log(t('install.unsafePath', { path: built.path, chars: built.chars }));
   return null;
+}
+
+// never npx@latest: it runs whatever npm serves
+function defaultTarget(kind: InstallKind): CommandTarget | null {
+  const bin = globalBinary();
+  if (bin) return { kind: 'bin', bin, onPath: true };
+  if (fs.existsSync(localBin())) return { kind: 'bin', bin: localBin(), onPath: false };
+  const entry = process.argv[1] ? path.resolve(process.argv[1]) : null;
+  if (kind !== 'npx' && entry && fs.existsSync(entry)) return { kind: 'script', script: entry };
+  return null;
+}
+
+export function defaultCommand(
+  kind: InstallKind = installKind(),
+  log?: (line: string) => void,
+): string | null {
+  const target = defaultTarget(kind);
+  return target ? acceptCommand(buildCommand(target), log) : null;
 }
 
 export function currentStatusLine(file = claudeSettingsPath()): StatusLineSetting | null {
@@ -307,15 +319,20 @@ export interface Setup {
   onPath: boolean;
 }
 
+function setup(command: string | null, onPath: boolean): Setup {
+  return { command, onPath: !!command && onPath };
+}
+
 // npx: global command, else a pinned copy under the config dir
 export function setupCommand(
   version: string,
   opts: { global?: boolean; log?: (line: string) => void } = {},
 ): Setup {
   const log = opts.log ?? (() => {});
-  if (installKind() !== 'npx') return { command: defaultCommand(), onPath: !!globalBinary() };
+  if (installKind() !== 'npx') return setup(defaultCommand(undefined, log), !!globalBinary());
   const existing = globalBinary();
-  if (existing) return { command: quote(existing), onPath: true };
+  if (existing)
+    return setup(acceptCommand(buildCommand({ kind: 'bin', bin: existing, onPath: true }), log), true);
   if (opts.global !== false) {
     log(`Installing ccinfobar ${version} globally (skip with --no-global) ...`);
     const g = installGlobal(version);
@@ -323,7 +340,7 @@ export function setupCommand(
       log(`✓ Installed ${g.bin}`);
       if (!g.onPath)
         log(`  ${path.dirname(g.bin)} is not on your PATH; add it to type \`ccinfobar\` directly.`);
-      return { command: quote(g.bin), onPath: g.onPath };
+      return setup(acceptCommand(buildCommand({ kind: 'bin', bin: g.bin, onPath: g.onPath }), log), g.onPath);
     }
     log(`⚠ Global install failed: ${g.error}`);
   }
@@ -339,5 +356,5 @@ export function setupCommand(
     return { command: null, onPath: false };
   }
   log(`✓ Installed ${localBin()}`);
-  return { command: quote(localBin()), onPath: false };
+  return setup(acceptCommand(buildCommand({ kind: 'bin', bin: localBin(), onPath: false }), log), false);
 }
