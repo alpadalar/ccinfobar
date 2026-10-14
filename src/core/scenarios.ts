@@ -2,6 +2,7 @@ import type { AgentInfo } from '../data/agents.js';
 import type { AgentCall } from '../data/transcript.js';
 import {
   sampleAgents,
+  sampleEnvironment,
   sampleGit,
   sampleGsd,
   sampleHistory,
@@ -44,6 +45,7 @@ function base(now: number): ScenarioBundle {
       ledger: () => sampleLedger(now),
       repos: () => null,
       hooks: () => sampleHooks(now),
+      environment: sampleEnvironment,
     },
     env: {},
   };

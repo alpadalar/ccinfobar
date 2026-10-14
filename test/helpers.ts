@@ -2,6 +2,7 @@ import { defaultConfig } from '../src/core/config.js';
 import { createContext } from '../src/core/context.js';
 import {
   sampleAgents,
+  sampleEnvironment,
   sampleGit,
   sampleGsd,
   sampleHistory,
@@ -29,6 +30,7 @@ export function ctxWith(
     agents?: RenderContext['data']['agents'];
     repos?: RenderContext['data']['repos'];
     hooks?: RenderContext['data']['hooks'];
+    environment?: RenderContext['data']['environment'];
     width?: number | null;
     env?: NodeJS.ProcessEnv;
   } = {},
@@ -49,6 +51,7 @@ export function ctxWith(
       ledger: overrides.ledger ?? (() => sampleLedger(NOW.getTime())),
       repos: overrides.repos ?? (() => null),
       hooks: overrides.hooks ?? (() => sampleHooks(NOW.getTime())),
+      environment: overrides.environment ?? sampleEnvironment,
     },
   });
 }

@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { t } from '../core/i18n/index.js';
 import type { WidgetDef } from '../core/types.js';
 import { opt } from './shared.js';
 
@@ -116,6 +117,40 @@ export const widgets: WidgetDef[] = [
       const used = total - os.freemem();
       if (opt<string>(item, 'format', 'gb') === 'percent') return `${Math.round((used / total) * 100)}%`;
       return `${(used / GB).toFixed(1)}/${(total / GB).toFixed(1)} GB`;
+    },
+  },
+  {
+    type: 'env-counts',
+    name: 'Environment counts',
+    category: 'system',
+    description: 'CLAUDE.md, AGENTS.md, rules and hooks in effect, from config files',
+    icon: { nerd: '⚙', emoji: '⚙', text: '⚙' },
+    color: 'blue',
+    sample: 'CLAUDE.md 2 · rules 3 · hooks 5',
+    options: [
+      { key: 'showClaudeMd', label: 'Show CLAUDE.md', kind: 'boolean', default: true },
+      { key: 'showAgentsMd', label: 'Show AGENTS.md', kind: 'boolean', default: true },
+      { key: 'showRules', label: 'Show rules', kind: 'boolean', default: true },
+      { key: 'showHooks', label: 'Show hooks', kind: 'boolean', default: true },
+      { key: 'hideZero', label: 'Hide zero counts', kind: 'boolean', default: true },
+    ],
+    render(ctx, item) {
+      const e = ctx.data.environment?.();
+      if (!e) return null;
+      const hideZero = opt(item, 'hideZero', true);
+      const parts: string[] = [];
+      const add = (key: string, label: string, n: number) => {
+        if (opt(item, key, true) && (n > 0 || !hideZero)) parts.push(`${label} ${n}`);
+      };
+      add('showClaudeMd', 'CLAUDE.md', e.claudeMd);
+      if (opt(item, 'showAgentsMd', true) && e.agentsMd > 0) parts.push(`AGENTS.md ${e.agentsMd}`);
+      add('showRules', 'rules', e.rules);
+      if (opt(item, 'showHooks', true)) {
+        if (e.hooksDisabled) parts.push(t('widget.env.hooksOff'));
+        else if (e.hooks > 0 || !hideZero) parts.push(`hooks ${e.hooks}`);
+      }
+      if (!parts.length) return null;
+      return parts.join(ctx.config.charset === 'text' ? ' | ' : ' · ');
     },
   },
   {

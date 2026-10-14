@@ -1,4 +1,5 @@
 import type { AgentInfo } from '../data/agents.js';
+import type { EnvCounts } from '../data/environment.js';
 import type { GitInfo } from '../data/git.js';
 import type { GsdInfo } from '../data/gsd.js';
 import type { HistorySample } from '../data/history.js';
@@ -316,6 +317,21 @@ export function sampleHooks(now = Date.now()): HookState {
     pendingPermission: null,
     lastPermission: null,
     agents: Object.create(null),
+  };
+}
+
+export function sampleEnvironment(): EnvCounts {
+  return {
+    claudeMd: 2,
+    agentsMd: 0,
+    rules: 3,
+    hooks: 5,
+    hooksDisabled: false,
+    files: [
+      '/home/dev/.claude/CLAUDE.md',
+      '/home/dev/projects/acme-app/CLAUDE.md',
+      '/home/dev/.claude/settings.json',
+    ],
   };
 }
 

@@ -12,6 +12,7 @@ export type SourceKind =
   | 'ledger'
   | 'repos'
   | 'hooks'
+  | 'environment'
   | 'env'
   | 'config'
   | 'clock'
@@ -115,6 +116,8 @@ export function createTrace(): Trace {
     if (repos) data.repos = via('repos', () => repos());
     const hooks = d.hooks;
     if (hooks) data.hooks = via('hooks', () => hooks());
+    const environment = d.environment;
+    if (environment) data.environment = via('environment', () => environment());
     return { ...ctx, payload: deep(ctx.payload, ''), env: envProxy(ctx.env), data };
   }
 

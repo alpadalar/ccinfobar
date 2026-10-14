@@ -282,5 +282,6 @@ export interface DataSources {
   ledger?(): import('../data/ledger.js').LedgerView | null;
   repos?(): import('../data/repos.js').WorkspaceRepos | null;
   hooks?(): import('../data/hooks.js').HookState | null;
+  environment?(): import('../data/environment.js').EnvCounts | null;
   agents(): import('../data/agents.js').AgentInfo[];
 }

@@ -20,6 +20,7 @@ import { ingestPayload } from '../core/payload.js';
 import { readLastPayload, scenarioFlag, scenarioListLines } from '../core/preview.js';
 import {
   sampleAgents,
+  sampleEnvironment,
   sampleGit,
   sampleGsd,
   sampleHistory,
@@ -35,6 +36,7 @@ import type { Config, DataSources, RenderContext, StatusPayload } from '../core/
 import { VERSION } from '../core/version.js';
 import { agentsCacheName, readAgents } from '../data/agents.js';
 import { cacheFile } from '../data/cache.js';
+import { readEnvironment } from '../data/environment.js';
 import { loadHistory } from '../data/history.js';
 import { readHookState } from '../data/hooks.js';
 import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
@@ -111,6 +113,10 @@ function readOnlyData(
     history: () => loadHistory(payload.session_id, env),
     repos: lazy(() => readRepos(resolveCwd(payload), env, { persist: false, now })),
     hooks,
+    environment: lazy(() => {
+      const cwd = resolveCwd(payload);
+      return readEnvironment(payload.workspace?.project_dir ?? cwd, cwd, env, { persist: false, now });
+    }),
   };
   if (ledgerOn(config)) {
     data.ledger = lazy(() => {
@@ -135,6 +141,7 @@ function sampleData(now: number, payload: StatusPayload): DataSources {
     ledger: () => sampleLedger(now),
     repos: () => null,
     hooks: () => sampleHooks(now),
+    environment: sampleEnvironment,
   };
 }
 

@@ -57,7 +57,7 @@ export function lastWait(
   h: HookState | null,
   t: TranscriptInfo | null,
   turnStart: number | null,
-  now: number,
+  _now: number,
   maxAgeMs: number,
 ): { ms: number; tool: string | null } | null {
   if (!h) return null;

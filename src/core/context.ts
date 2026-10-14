@@ -1,4 +1,5 @@
 import { readAgents } from '../data/agents.js';
+import { readEnvironment } from '../data/environment.js';
 import { readGit } from '../data/git.js';
 import { readGsd } from '../data/gsd.js';
 import { readHookState } from '../data/hooks.js';
@@ -71,6 +72,14 @@ export function createContext(opts: ContextOptions): RenderContext {
         opts.data?.repos ??
         lazy(() => readRepos(cwd, env, { persist: !(opts.preview ?? false), now: now.getTime() })),
       hooks,
+      environment:
+        opts.data?.environment ??
+        lazy(() =>
+          readEnvironment(opts.payload.workspace?.project_dir ?? cwd, cwd, env, {
+            persist: !(opts.preview ?? false),
+            now: now.getTime(),
+          }),
+        ),
       agents:
         opts.data?.agents ??
         lazy(() => {

@@ -121,6 +121,7 @@
                 "hostname",
                 "username",
                 "memory",
+                "env-counts",
                 "load-average",
                 "terminal-width",
                 "platform",

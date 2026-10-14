@@ -6,4 +6,5 @@ export const widgetMessages = {
   'widget.limit.safe': 'safe',
   'widget.limit.reached': 'limit reached',
   'widget.turn.last': 'last {time}',
+  'widget.env.hooksOff': 'hooks off',
 } as const;

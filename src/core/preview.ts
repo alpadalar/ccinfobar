@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { readAgents } from '../data/agents.js';
+import { readEnvironment } from '../data/environment.js';
 import { readHookState } from '../data/hooks.js';
 import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
 import { accountKey } from '../data/limits.js';
@@ -14,6 +15,7 @@ import { ingestPayload } from './payload.js';
 import { render } from './renderer.js';
 import {
   sampleAgents,
+  sampleEnvironment,
   sampleGit,
   sampleGsd,
   sampleHistory,
@@ -108,6 +110,10 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
           limits: () => eff.limits,
           repos: lazy(() => readRepos(resolveCwd(last), env, { persist: false })),
           hooks,
+          environment: lazy(() => {
+            const cwd = resolveCwd(last);
+            return readEnvironment(last.workspace?.project_dir ?? cwd, cwd, env, { persist: false });
+          }),
           ...(ledgerOn(config)
             ? {
                 ledger: lazy(() => {
@@ -144,6 +150,7 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
         ledger: () => sampleLedger(now),
         repos: () => null,
         hooks: () => sampleHooks(now),
+        environment: sampleEnvironment,
       },
     }),
   );

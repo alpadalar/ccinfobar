@@ -22,6 +22,7 @@ const noData = (config?: Partial<Config>) =>
     ledger: () => null,
     repos: () => null,
     hooks: () => null,
+    environment: () => null,
     config,
   });
 

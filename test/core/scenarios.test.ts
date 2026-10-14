@@ -237,6 +237,7 @@ const NEW_WIDGETS = [
   'tool-activity',
   'turn-timer',
   'permission-wait',
+  'env-counts',
 ];
 
 const raw = (id: string, type: string) =>
