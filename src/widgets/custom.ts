@@ -56,8 +56,11 @@ export const widgets: WidgetDef[] = [
             windowsHide: true,
             stdio: ['pipe', 'pipe', 'ignore'],
           });
-        } catch {
-          return null;
+        } catch (e) {
+          // the command exited without reading stdin
+          const r = e as { code?: string; status?: number | null; stdout?: unknown };
+          if (r.code !== 'EPIPE' || r.status !== 0 || typeof r.stdout !== 'string') return null;
+          out = r.stdout;
         }
         if (ttl > 0) writeCache(name, { at: now, out } satisfies Cached, ctx.env);
       }

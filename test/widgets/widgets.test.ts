@@ -1,6 +1,8 @@
+import cp from 'node:child_process';
+import module from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { sampleGit, samplePayload } from '../../src/core/sample.js';
 import type { Config, StatusPayload } from '../../src/core/types.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
@@ -318,6 +320,27 @@ describe('custom', () => {
         options: { command: 'node -e "setTimeout(()=>{},3000)"', timeout: 100 },
       }),
     ).toBeNull();
+  });
+  it('command keeps the output of a command that did not read stdin', () => {
+    const ctx = ctxWith();
+    ctx.cwd = process.cwd();
+    const epipe = (status: number) =>
+      Object.assign(new Error('spawnSync /bin/sh EPIPE'), { code: 'EPIPE', status, stdout: 'out\n' });
+    const spy = vi.spyOn(cp, 'execSync');
+    module.syncBuiltinESMExports();
+    try {
+      spy.mockImplementationOnce(() => {
+        throw epipe(0);
+      });
+      expect(renderWidget('command', ctx, { options: { command: 'echo out' } })).toBe('out');
+      spy.mockImplementationOnce(() => {
+        throw epipe(1);
+      });
+      expect(renderWidget('command', ctx, { options: { command: 'echo out' } })).toBeNull();
+    } finally {
+      spy.mockRestore();
+      module.syncBuiltinESMExports();
+    }
   });
   it('link and env', () => {
     expect(r('link', { text: 'docs', url: 'https://x.dev' })).toBe(
