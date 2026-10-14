@@ -66,11 +66,11 @@ describe('performance', () => {
   });
 
   it('falls back to the transcript when the ratio is implausible after a resume', () => {
-    expect(perf({ payload: withPc({ requests: 2 }, 9_000_000) })).toBe('94% · 3.2s');
+    expect(perf({ payload: withPc({ requests: 2 }, 9_000_000) })).toBe('94% · ~3.2s');
   });
 
   it('falls back to the transcript when requests is zero', () => {
-    expect(perf({ payload: withPc({ requests: 0 }) })).toBe('94% · 3.2s');
+    expect(perf({ payload: withPc({ requests: 0 }) })).toBe('94% · ~3.2s');
   });
 
   it('formats times of a minute or more as a duration', () => {
@@ -82,7 +82,7 @@ describe('performance', () => {
   });
 
   it('uses the transcript without prompt_cache', () => {
-    expect(perf({ payload: noPc() })).toBe('86% · 3.2s');
+    expect(perf({ payload: noPc() })).toBe('86% · ~3.2s');
   });
 
   it('shows only the hit rate when no time is known', () => {
@@ -94,7 +94,7 @@ describe('performance', () => {
   });
 
   it('appends transcript misses without prompt_cache', () => {
-    expect(perf({ payload: noPc(), options: { showMisses: true } })).toBe('86% · 3.2s · 2 miss');
+    expect(perf({ payload: noPc(), options: { showMisses: true } })).toBe('86% · ~3.2s · 2 miss');
   });
 
   it('ignores transcript misses when the payload has prompt_cache', () => {

@@ -38,15 +38,16 @@ export function hitRate(ctx: RenderContext): number | null {
 // resume restores api time but resets requests
 const MAX_AVG_MS = 300_000;
 
-export function avgResponseMs(ctx: RenderContext): number | null {
+// api: API time per main request; reply: prompt to first reply, from the transcript
+export function avgResponseMs(ctx: RenderContext): { ms: number; kind: 'api' | 'reply' } | null {
   const ms = num(ctx.payload.cost?.total_api_duration_ms);
   const n = num(ctx.payload.prompt_cache?.requests);
   if (ms !== null && n !== null && n > 0) {
     const avg = ms / n;
-    if (avg > 0 && avg <= MAX_AVG_MS) return avg;
+    if (avg > 0 && avg <= MAX_AVG_MS) return { ms: avg, kind: 'api' };
   }
   const v = num(ctx.data.transcript()?.responseMs);
-  return v !== null && v > 0 ? v : null;
+  return v !== null && v > 0 ? { ms: v, kind: 'reply' } : null;
 }
 
 function misses(ctx: RenderContext): number | null {
@@ -214,7 +215,7 @@ export const widgets: WidgetDef[] = [
     type: 'performance',
     name: 'Performance',
     category: 'tokens',
-    description: 'Cache hit rate and average API time per main request',
+    description: 'Cache hit rate and average API time per main request (~: time to first reply)',
     label: 'Perf ',
     icon: { nerd: '󰓾', emoji: '🎯' },
     color: 'green',
@@ -230,7 +231,7 @@ export const widgets: WidgetDef[] = [
           { value: 'hit', label: 'Hit rate' },
           { value: 'time', label: 'Time' },
         ],
-        help: 'Time is the average API time per main request',
+        help: 'Time is the average API time per main request; ~ marks the transcript fallback, the average time from a prompt to its first reply',
       },
       {
         key: 'display',
@@ -272,11 +273,12 @@ export const widgets: WidgetDef[] = [
       if (l) return l;
       const show = opt<string>(item, 'show', 'both');
       const h = show === 'time' ? null : hitRate(ctx);
-      const ms = show === 'hit' ? null : avgResponseMs(ctx);
+      const time = show === 'hit' ? null : avgResponseMs(ctx);
+      const ms = time?.ms ?? null;
       if (h === null && ms === null) return null;
       const parts: string[] = [];
       if (h !== null) parts.push(`${Math.round(h)}%`);
-      if (ms !== null) parts.push(secs(ms));
+      if (time) parts.push(`${time.kind === 'reply' ? '~' : ''}${secs(time.ms)}`);
       const m = opt(item, 'showMisses', false) ? misses(ctx) : null;
       if (m !== null) parts.push(`${m} ${t('widget.performance.miss')}`);
       const text = parts.join(' · ');
