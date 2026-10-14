@@ -1,12 +1,24 @@
+import fs from 'node:fs';
 import { stripAnsi, visibleWidth } from '../core/ansi.js';
 import { createContext } from '../core/context.js';
+import { loadForUse } from '../core/load.js';
+import { cacheDir, claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { hasReplies } from '../core/payload.js';
 import { readLastPayload } from '../core/preview.js';
 import { maxLineWidth, renderLine, renderPart, renderValue, resolveAppearance } from '../core/renderer.js';
 import type { Config, RenderContext, StatusPayload, WidgetItem } from '../core/types.js';
+import { VERSION } from '../core/version.js';
 import { terminalWidth } from '../data/terminal.js';
+import {
+  availableUpdate,
+  installKind,
+  readUpdateState,
+  selfCommand,
+  updatesDisabled,
+} from '../data/update-state.js';
 import { mergeUsage, readUsageCache, usageApiDisabled } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
+import { currentStatusLine, projectOverride } from './install.js';
 
 export { hasReplies } from '../core/payload.js';
 
@@ -158,4 +170,51 @@ export function printWidgetReport(config: Config, payload: StatusPayload | null 
       `  ⚠ Line ${l.line + 1} needs ${l.width} columns and is cut with "…". Lower widthOffset, set autoWrap, or move widgets to another line.`,
     );
   }
+}
+
+export function runDoctor(cfgFile: string): void {
+  const ok = (b: boolean) => (b ? '✓' : '✗');
+  const loaded = loadForUse(cfgFile);
+  const sl = (() => {
+    try {
+      return currentStatusLine();
+    } catch {
+      return null;
+    }
+  })();
+  const usesUs = !!sl?.command?.includes('ccinfobar');
+  const nodeMajor = Number(process.versions.node.split('.')[0]);
+  console.log(`ccinfobar ${VERSION}`);
+  console.log(`${ok(nodeMajor >= 20)} Node.js ${process.versions.node} (needs 20+)`);
+  console.log(
+    `${ok(loaded.exists && !loaded.error)} Config ${tildify(loaded.path)}${loaded.exists ? '' : ' (not created yet, defaults in use)'}`,
+  );
+  if (loaded.error) console.log(`  ${loaded.error}`);
+  console.log(
+    `${ok(usesUs)} Claude Code statusLine in ${tildify(claudeSettingsPath())}: ${sl?.command ?? 'not set'}`,
+  );
+  const dirs = new Set([process.cwd()]);
+  const last = readLastPayload();
+  const lastDir = last?.workspace?.project_dir ?? last?.workspace?.current_dir ?? last?.cwd;
+  if (lastDir && fs.existsSync(lastDir)) dirs.add(lastDir);
+  for (const dir of dirs) {
+    const o = projectOverride(dir);
+    if (!o) continue;
+    console.log(`✗ ${tildify(o.file)} overrides it with: ${o.command}`);
+    console.log(`  Run \`${selfCommand()} install --project\` in ${tildify(dir)} to use ccinfobar there.`);
+  }
+  console.log(`${ok(fs.existsSync(lastPayloadPath()))} Last payload ${tildify(lastPayloadPath())}`);
+  console.log(`  Cache dir ${tildify(cacheDir())}`);
+  console.log(`  Detected width ${terminalWidth(undefined) ?? 'unknown'}`);
+  const upd = readUpdateState();
+  const newer = availableUpdate(VERSION);
+  if (updatesDisabled(loaded.config)) console.log('  Update checks off');
+  else if (newer) console.log(`✗ Update available: ${VERSION} → ${newer} (run \`ccinfobar update\`)`);
+  else {
+    const when = upd ? `last checked ${new Date(upd.checkedAt).toLocaleString()}` : 'not checked yet';
+    console.log(`✓ Up to date (${loaded.config.update} mode, ${installKind()} install, ${when})`);
+  }
+  if (upd?.error) console.log(`  Last update check failed: ${upd.error}`);
+  printWidgetReport(loaded.config);
+  if (!usesUs) console.log(`\nRun \`${selfCommand()} install\` to enable it in Claude Code.`);
 }
