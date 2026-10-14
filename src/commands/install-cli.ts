@@ -11,6 +11,7 @@ import { selfCommand } from '../data/update-state.js';
 import { type DetectedTool, detectTool, type ImportSource } from '../importers/index.js';
 import {
   detectClaudeCode,
+  eventFloor,
   HOOK_FLOOR,
   type HookAction,
   type HookPlan,
@@ -129,12 +130,7 @@ function previewHooks(
 const hookCommand = (i: HookPlanItem | undefined, from = false) =>
   show((from ? i?.from : i?.group)?.hooks[0]?.command ?? '');
 
-const eventFloor = (i: HookPlanItem) =>
-  i.event === 'PermissionRequest'
-    ? HOOK_FLOOR.PermissionRequest
-    : i.event === 'Notification'
-      ? HOOK_FLOOR.notificationMatcher
-      : HOOK_FLOOR.core;
+const floorOf = (i: HookPlanItem) => eventFloor(i.event) ?? HOOK_FLOOR.core;
 
 function dryHookLine(i: HookPlanItem): string {
   const event = i.event;
@@ -148,7 +144,7 @@ function dryHookLine(i: HookPlanItem): string {
     case 'skip-unmanaged':
       return t('hooks.dry.skipUnmanaged', { event });
     case 'skip-version':
-      return t('hooks.dry.skipVersion', { event, floor: eventFloor(i) });
+      return t('hooks.dry.skipVersion', { event, floor: floorOf(i) });
   }
 }
 

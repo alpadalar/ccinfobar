@@ -94,13 +94,16 @@ describe('hook groups and events', () => {
 
   it('maps the --hooks flag; PermissionRequest is opt-in', () => {
     expect(hookEventsFor(true)).toEqual(DEFAULT_EVENTS);
-    expect(hookEventsFor(true)).toHaveLength(6);
+    expect(hookEventsFor(true)).toHaveLength(7);
+    expect(hookEventsFor(true)).toContain('PermissionDenied');
     expect(hookEventsFor(true)).not.toContain('PermissionRequest');
     expect(hookEventsFor('permission')).toEqual([...DEFAULT_EVENTS, ...OPTIONAL_EVENTS]);
     expect(hookEventsFor(undefined)).toEqual([]);
     expect(hookEventsFor(false)).toEqual([]);
     expect(hookEventsFor('x')).toBeNull();
-    expect(Object.values(HOOK_FLOOR).every((v) => v === '2.1.101')).toBe(true);
+    const { PermissionDenied, ...rest } = HOOK_FLOOR;
+    expect(PermissionDenied).toBe('2.1.89');
+    expect(Object.values(rest).every((v) => v === '2.1.101')).toBe(true);
   });
 
   it('parses Claude Code versions', () => {
@@ -135,7 +138,7 @@ describe('planHooks', () => {
     const ok = plan({ claudeCode: '2.1.101' });
     expect(ok.refused).toBeNull();
     expect(ok.asyncOmitted).toBe(false);
-    expect(ok.items.map((i) => i.action)).toEqual(Array(6).fill('add'));
+    expect(ok.items.map((i) => i.action)).toEqual(Array(7).fill('add'));
   });
 
   it('follows the floor table for async and per-event skips', () => {
@@ -144,12 +147,25 @@ describe('planHooks', () => {
       async: '2.1.101',
       notificationMatcher: '2.0.0',
       PermissionRequest: '2.2.0',
+      PermissionDenied: '2.0.0',
     };
     const p = plan({ claudeCode: '2.0.50', floor, events: [...DEFAULT_EVENTS, 'PermissionRequest'] });
     expect(p.asyncOmitted).toBe(true);
     const perm = p.items.find((i) => i.event === 'PermissionRequest');
     expect(perm?.action).toBe('skip-version');
     for (const i of p.items) expect(Object.hasOwn(i.group.hooks[0] as object, 'async')).toBe(false);
+  });
+
+  it('skips PermissionDenied below its floor', () => {
+    const floor = { ...HOOK_FLOOR, PermissionDenied: '2.2.0' };
+    const p = plan({ claudeCode: '2.1.150', floor });
+    expect(p.items.find((i) => i.event === 'PermissionDenied')?.action).toBe('skip-version');
+    expect(p.items.filter((i) => i.action === 'add')).toHaveLength(6);
+    expect(plan().items.find((i) => i.event === 'PermissionDenied')).toMatchObject({
+      action: 'add',
+      group: { hooks: [handler('/bin/ccinfobar', 'PermissionDenied')] },
+    });
+    expect(Object.hasOwn(hookGroup('PermissionDenied', 'x', { async: true }), 'matcher')).toBe(false);
   });
 
   it('skips a handler that is already there without a manifest entry', () => {
@@ -172,7 +188,7 @@ describe('planHooks', () => {
     const b: Record<string, unknown> = { hooks: { Stop: { odd: true } } };
     mutateHooks(b, items);
     expect((b.hooks as Record<string, unknown>).Stop).toEqual({ odd: true });
-    expect(Object.keys(b.hooks as object)).toHaveLength(6);
+    expect(Object.keys(b.hooks as object)).toHaveLength(7);
     const c: Record<string, unknown> = { hooks: null };
     mutateHooks(c, items);
     expect(c).toEqual({ hooks: null });
@@ -275,14 +291,14 @@ describe('detectClaudeCode', () => {
 describe('install with hooks', () => {
   const HOOKS = { events: DEFAULT_EVENTS, claudeCode: '2.1.299' };
 
-  it('writes six own groups in one patch, format-preserved, and owns them in the manifest', () => {
+  it('writes seven own groups in one patch, format-preserved, and owns them in the manifest', () => {
     const data = { model: 'opus', hooks: { Stop: [userStop] } };
     const fmt = { bom: true, eol: '\r\n' as const, indent: '    ' };
     const fx = settingsFixture({ data, ...fmt });
     expect(claudeSettingsPath(fx.env)).toBe(fx.file);
     const res = install(fx, '/bin/ccinfobar', HOOKS);
     expect(res.changed).toBe(true);
-    expect(res.hooks?.items.map((i) => i.action)).toEqual(Array(6).fill('add'));
+    expect(res.hooks?.items.map((i) => i.action)).toEqual(Array(7).fill('add'));
     expect(backups(fx)).toHaveLength(1);
 
     const expected = structuredClone(data) as Record<string, unknown> & { hooks: Record<string, unknown[]> };
@@ -327,10 +343,10 @@ describe('install with hooks', () => {
     const res = install(fx, '/bin/ccinfobar', HOOKS);
     expect(res.changed).toBe(false);
     expect(res.backup).toBeNull();
-    expect(res.hooks?.items.map((i) => i.action)).toEqual(Array(6).fill('keep'));
+    expect(res.hooks?.items.map((i) => i.action)).toEqual(Array(7).fill('keep'));
     expect(fs.readFileSync(fx.file).equals(before)).toBe(true);
     expect(backups(fx)).toHaveLength(n);
-    expect(findHookEntries(readManifest(fx.env), fx.file)).toHaveLength(6);
+    expect(findHookEntries(readManifest(fx.env), fx.file)).toHaveLength(7);
   });
 
   it('does not duplicate a handler the user already has', () => {
@@ -341,7 +357,7 @@ describe('install with hooks', () => {
     expect(read(fx.file).hooks.Stop).toEqual([mine]);
     const events = findHookEntries(readManifest(fx.env), fx.file).map((h) => h.event);
     expect(events).not.toContain('Stop');
-    expect(events).toHaveLength(5);
+    expect(events).toHaveLength(6);
   });
 
   it('writes PermissionRequest only when asked for', () => {
@@ -375,7 +391,7 @@ describe('install with hooks', () => {
     raw.hooks.Stop.unshift(own);
     fs.writeFileSync(fx.file, JSON.stringify(raw, null, 2));
     const res = install(fx, '/new/ccinfobar');
-    expect(res.hooks?.items.map((i) => i.action)).toEqual(Array(6).fill('rewrite'));
+    expect(res.hooks?.items.map((i) => i.action)).toEqual(Array(7).fill('rewrite'));
     const out = read(fx.file);
     expect(out.statusLine.command).toBe('/new/ccinfobar');
     expect(out.hooks.Stop).toEqual([own, userStop, hookGroup('Stop', '/new/ccinfobar', { async: true })]);
@@ -422,13 +438,13 @@ describe('install with hooks', () => {
     });
     const res = applyHooks(fx.file, p, fx.env);
     expect(res.changed).toBe(true);
-    expect(res.items.map((i) => i.action)).toEqual(Array(6).fill('add'));
+    expect(res.items.map((i) => i.action)).toEqual(Array(7).fill('add'));
     const hash = hashBytes(fs.readFileSync(fx.file));
     const m = readManifest(fx.env);
-    expect(findHookEntries(m, fx.file)).toHaveLength(6);
+    expect(findHookEntries(m, fx.file)).toHaveLength(7);
     expect(findHookEntries(m, fx.file).every((h) => h.writtenHash === hash)).toBe(true);
     expect(findStatusLineEntry(m, fx.file)?.writtenHash).toBe(hash);
-    expect(applyHooks(fx.file, p, fx.env).items.map((i) => i.action)).toEqual(Array(6).fill('keep'));
+    expect(applyHooks(fx.file, p, fx.env).items.map((i) => i.action)).toEqual(Array(7).fill('keep'));
     const other = projectSettingsPath(path.join(fx.dir, 'proj'));
     expect(applyHooks(other, p, fx.env)).toEqual({ changed: false, backup: null, items: [], removed: [] });
   });
@@ -450,7 +466,7 @@ describe('install with hooks', () => {
     const res = applyHooks(fx.file, plan(DEFAULT_EVENTS), fx.env, OPTIONAL_EVENTS);
     expect(res.changed).toBe(true);
     expect(res.removed).toEqual(['PermissionRequest']);
-    expect(res.items.map((i) => i.action)).toEqual(Array(6).fill('keep'));
+    expect(res.items.map((i) => i.action)).toEqual(Array(7).fill('keep'));
     expect(read(fx.file).hooks.PermissionRequest).toBeUndefined();
     expect(findHookEntries(readManifest(fx.env), fx.file).map((e) => e.event)).not.toContain(
       'PermissionRequest',

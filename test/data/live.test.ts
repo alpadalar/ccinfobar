@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HookState, HookTurn } from '../../src/data/hooks.js';
-import { activeTools, groupName, mergeCounts, trustedTurn } from '../../src/data/live.js';
+import { activeTools, groupName, lastWait, mergeCounts, trustedTurn } from '../../src/data/live.js';
 import { parseTranscriptText, type RunningTool, type TranscriptInfo } from '../../src/data/transcript.js';
 
 const NOW = Date.parse('2026-10-12T12:00:00Z');
@@ -66,6 +66,7 @@ const hooks = (turn: Partial<HookTurn> | null): HookState => ({
   lastSource: 'startup',
   turn: turn ? { promptId: null, start: null, end: null, durationMs: null, ...turn } : null,
   pendingPermission: null,
+  lastPermission: null,
   agents: Object.create(null),
 });
 
@@ -134,5 +135,51 @@ describe('trustedTurn', () => {
       end: null,
       durationMs: null,
     });
+  });
+});
+
+describe('lastWait', () => {
+  const MAX = 30 * 60_000;
+  const perm = (over: Partial<HookState>): HookState => ({ ...hooks(null), ...over });
+  const closed = { since: NOW - 60_000, end: NOW - 18_000, tool: 'Bash' };
+
+  it('returns the closed wait', () => {
+    expect(lastWait(perm({ lastPermission: closed }), null, null, NOW, MAX)).toEqual({
+      ms: 42_000,
+      tool: 'Bash',
+    });
+  });
+
+  it('closes an open wait at a newer tool result only', () => {
+    const open = perm({ pendingPermission: { since: NOW - 30_000, tool: null } });
+    expect(lastWait(open, null, null, NOW, MAX)).toBeNull();
+    expect(lastWait(open, info({ lastToolResultAt: NOW - 30_000 }), null, NOW, MAX)).toBeNull();
+    expect(lastWait(open, info({ lastToolResultAt: NOW - 18_000 }), null, NOW, MAX)).toEqual({
+      ms: 12_000,
+      tool: null,
+    });
+  });
+
+  it('keeps only waits of the current turn', () => {
+    const h = perm({ lastPermission: closed });
+    expect(lastWait(h, null, NOW - 61_000, NOW, MAX)).not.toBeNull();
+    expect(lastWait(h, null, NOW - 59_000, NOW, MAX)).toBeNull();
+  });
+
+  it('picks the newest wait', () => {
+    const h = perm({
+      lastPermission: closed,
+      pendingPermission: { since: NOW - 10_000, tool: 'Edit' },
+    });
+    expect(lastWait(h, info({ lastToolResultAt: NOW - 4_000 }), null, NOW, MAX)).toEqual({
+      ms: 6_000,
+      tool: 'Edit',
+    });
+  });
+
+  it('ignores a wait open longer than the max age', () => {
+    const open = perm({ pendingPermission: { since: NOW - 120_000, tool: null } });
+    expect(lastWait(open, info({ lastToolResultAt: NOW - 1_000 }), null, NOW, 60_000)).toBeNull();
+    expect(lastWait(null, info({ lastToolResultAt: NOW }), null, NOW, MAX)).toBeNull();
   });
 });

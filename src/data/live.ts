@@ -1,4 +1,4 @@
-import type { HookState } from './hooks.js';
+import type { HookState, PermissionWait } from './hooks.js';
 import type { RunningTool, TranscriptInfo } from './transcript.js';
 
 export const TOOL_MAX_MS = 600_000;
@@ -38,6 +38,29 @@ export function trustedTurn(
     end: tEnd,
     durationMs: tEnd !== null ? Math.max(0, tEnd - pStart) : null,
   };
+}
+
+// closed waits only: the status line is hidden while a dialog is open
+export function lastWait(
+  h: HookState | null,
+  t: TranscriptInfo | null,
+  turnStart: number | null,
+  now: number,
+  maxAgeMs: number,
+): { ms: number; tool: string | null } | null {
+  if (!h) return null;
+  const list: PermissionWait[] = [];
+  if (h.lastPermission) list.push(h.lastPermission);
+  const p = h.pendingPermission;
+  const res = t?.lastToolResultAt ?? null;
+  if (p && res !== null && res > p.since) list.push({ since: p.since, end: res, tool: p.tool });
+  let best: PermissionWait | null = null;
+  for (const w of list) {
+    if (w.end < w.since || w.end - w.since > maxAgeMs) continue;
+    if (turnStart !== null && w.since < turnStart) continue;
+    if (!best || w.since > best.since) best = w;
+  }
+  return best ? { ms: best.end - best.since, tool: best.tool } : null;
 }
 
 // stable: ties keep the order they reached the count

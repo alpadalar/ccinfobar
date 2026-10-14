@@ -141,6 +141,7 @@ const hookState = (turn: Partial<HookTurn>): HookState => ({
   lastSource: 'startup',
   turn: { promptId: null, start: null, end: null, durationMs: null, ...turn },
   pendingPermission: null,
+  lastPermission: null,
   agents: Object.create(null),
 });
 const transcriptAt = (over: Partial<TranscriptInfo>): TranscriptInfo => ({

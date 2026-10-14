@@ -35,11 +35,19 @@ export interface HookState {
   turn: HookTurn | null;
   // a prompt was shown at since; any later activity clears it
   pendingPermission: { since: number; tool: string | null } | null;
+  // closed by a denial, Stop, prompt or session start
+  lastPermission: PermissionWait | null;
   agents: Record<string, HookAgent>;
 }
 
+export interface PermissionWait {
+  since: number;
+  end: number;
+  tool: string | null;
+}
+
 export const DUP_WINDOW_MS = 2000;
-const FOLD_VERSION = 2;
+const FOLD_VERSION = 3;
 const MAX_TURNS = 50;
 const MAX_AGENTS = 100;
 const MAX_SEEN = 512;
@@ -61,6 +69,7 @@ interface Fold {
   agents: Map<string, Agent>;
   seen: Map<string, number>;
   pending: { since: number; tool: string | null } | null;
+  last: PermissionWait | null;
   clearAt: number | null;
   lastEventAt: number | null;
   lastSource: string | null;
@@ -74,6 +83,7 @@ function emptyFold(): Fold {
     agents: new Map(),
     seen: new Map(),
     pending: null,
+    last: null,
     clearAt: null,
     lastEventAt: null,
     lastSource: null,
@@ -117,6 +127,13 @@ function dedupe(f: Fold, key: string, t: number): boolean {
 function clearPending(f: Fold, t: number) {
   f.clearAt = hi(f.clearAt, t);
   if (f.pending && t >= f.pending.since) f.pending = null;
+}
+
+function closePending(f: Fold, t: number, tool: string | null = null) {
+  const p = f.pending;
+  if (p && t >= p.since && (!f.last || p.since >= f.last.since))
+    f.last = { since: p.since, end: t, tool: p.tool ?? tool };
+  clearPending(f, t);
 }
 
 function setPending(f: Fold, t: number, tool: string | null) {
@@ -188,7 +205,7 @@ function step(f: Fold, x: any) {
         f.sourceAt = t;
         f.lastSource = v.s ?? null;
       }
-      clearPending(f, t);
+      closePending(f, t);
       break;
     case 'UserPromptSubmit':
       if (v.p) {
@@ -196,7 +213,7 @@ function step(f: Fold, x: any) {
         u.start = lo(u.start, t);
         trim(f.turns, MAX_TURNS);
       } else looseStart(f, t);
-      clearPending(f, t);
+      closePending(f, t);
       break;
     case 'Stop':
       if (v.p) {
@@ -204,7 +221,7 @@ function step(f: Fold, x: any) {
         u.end = hi(u.end, t);
         trim(f.turns, MAX_TURNS);
       } else looseStop(f, t);
-      clearPending(f, t);
+      closePending(f, t);
       break;
     case 'SubagentStart':
     case 'SubagentStop': {
@@ -223,6 +240,9 @@ function step(f: Fold, x: any) {
     case 'Notification':
       if (v.n === 'permission_prompt') setPending(f, t, null);
       else clearPending(f, t);
+      break;
+    case 'PermissionDenied':
+      if (f.pending && t >= f.pending.since) closePending(f, t, v.tn ?? null);
       break;
     case 'PermissionRequest':
       setPending(f, t, v.tn ?? null);
@@ -262,6 +282,7 @@ function toState(f: Fold): HookState {
           }
         : null,
     pendingPermission: f.pending ? { since: f.pending.since, tool: f.pending.tool } : null,
+    lastPermission: f.last ? { ...f.last } : null,
     agents,
   };
 }
@@ -281,6 +302,7 @@ interface Saved {
   agents: [string, Str, Num, Num, Str][];
   seen: [string, number][];
   pending: { since: number; tool: Str } | null;
+  last: PermissionWait | null;
   clearAt: Num;
   lastEventAt: Num;
   lastSource: Str;
@@ -294,6 +316,7 @@ function save(f: Fold): Saved {
     agents: [...f.agents].map(([id, a]) => [id, a.type, a.start, a.end, a.transcript]),
     seen: [...f.seen],
     pending: f.pending,
+    last: f.last,
     clearAt: f.clearAt,
     lastEventAt: f.lastEventAt,
     lastSource: f.lastSource,
@@ -322,6 +345,9 @@ function load(s: any): Fold {
   f.loose.splice(0, Math.max(0, f.loose.length - MAX_TURNS));
   const pd = s.pending;
   if (pd && typeof pd === 'object' && isNum(pd.since)) f.pending = { since: pd.since, tool: str(pd.tool) };
+  const ls = s.last;
+  if (ls && typeof ls === 'object' && isNum(ls.since) && isNum(ls.end))
+    f.last = { since: ls.since, end: ls.end, tool: str(ls.tool) };
   f.clearAt = num(s.clearAt);
   f.lastEventAt = num(s.lastEventAt);
   f.lastSource = str(s.lastSource);

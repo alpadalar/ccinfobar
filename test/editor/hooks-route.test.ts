@@ -7,7 +7,15 @@ import { defaultConfig } from '../../src/core/config.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
 
 const CMD = '/opt/ccib/bin/ccinfobar';
-const SIX = ['SessionStart', 'UserPromptSubmit', 'Stop', 'SubagentStart', 'SubagentStop', 'Notification'];
+const SEVEN = [
+  'SessionStart',
+  'UserPromptSubmit',
+  'Stop',
+  'SubagentStart',
+  'SubagentStop',
+  'Notification',
+  'PermissionDenied',
+];
 const FOREIGN = { type: 'command', command: 'npx ccstatusline', padding: 0 };
 
 let dir: string;
@@ -105,7 +113,7 @@ describe('editor hooks route', () => {
       installed: [],
       available: true,
       claudeCode: '2.1.299',
-      events: SIX,
+      events: SEVEN,
       optional: ['PermissionRequest'],
     };
     expect((await request('GET', '/api/state')).json().hooks).toEqual(want);
@@ -119,25 +127,25 @@ describe('editor hooks route', () => {
     const body = res.json();
     expect(body.ok).toBe(true);
     expect(typeof body.backup === 'string' || body.backup === null).toBe(true);
-    expect(body.hooks.installed).toEqual(SIX);
+    expect(body.hooks.installed).toEqual(SEVEN);
     const data = readSettings();
-    expect(Object.keys(data.hooks)).toEqual(SIX);
+    expect(Object.keys(data.hooks)).toEqual(SEVEN);
     expect(data.hooks.Stop[0].hooks[0].command).toBe(`${CMD} hook Stop`);
-    expect(hookEntries()).toHaveLength(6);
-    expect((await request('GET', '/api/state')).json().hooks.installed).toEqual(SIX);
+    expect(hookEntries()).toHaveLength(7);
+    expect((await request('GET', '/api/state')).json().hooks.installed).toEqual(SEVEN);
   });
 
   it('adds PermissionRequest only when asked and removes it again', async () => {
     await startInstalled();
     const on = await request('POST', '/api/hooks', { enabled: true, permission: true });
     expect(on.status).toBe(200);
-    expect(on.json().hooks.installed).toEqual([...SIX, 'PermissionRequest']);
+    expect(on.json().hooks.installed).toEqual([...SEVEN, 'PermissionRequest']);
     expect(readSettings().hooks.PermissionRequest).toHaveLength(1);
     const off = await request('POST', '/api/hooks', { enabled: true, permission: false });
     expect(off.status).toBe(200);
-    expect(off.json().hooks.installed).toEqual(SIX);
+    expect(off.json().hooks.installed).toEqual(SEVEN);
     expect(readSettings().hooks.PermissionRequest).toBeUndefined();
-    expect(hookEntries()).toHaveLength(6);
+    expect(hookEntries()).toHaveLength(7);
   });
 
   it('turns hooks off and keeps the statusLine', async () => {

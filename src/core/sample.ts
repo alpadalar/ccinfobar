@@ -314,6 +314,7 @@ export function sampleHooks(now = Date.now()): HookState {
     lastSource: 'startup',
     turn: { promptId: null, start, end: null, durationMs: null },
     pendingPermission: null,
+    lastPermission: null,
     agents: Object.create(null),
   };
 }

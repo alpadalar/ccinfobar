@@ -8,7 +8,15 @@ const root = path.resolve(__dirname, '../..');
 const bin = path.join(root, 'dist/ccinfobar.js');
 const win = process.platform === 'win32';
 
-const SIX = ['SessionStart', 'UserPromptSubmit', 'Stop', 'SubagentStart', 'SubagentStop', 'Notification'];
+const SEVEN = [
+  'SessionStart',
+  'UserPromptSubmit',
+  'Stop',
+  'SubagentStart',
+  'SubagentStop',
+  'Notification',
+  'PermissionDenied',
+];
 const NEVER = ['PreToolUse', 'PostToolUse', 'PostToolBatch', 'PreModelSwitch', 'SessionEnd'];
 
 type Fake = string | null;
@@ -64,21 +72,21 @@ const commandsOf = (hooks: Record<string, unknown[]>, event: string) =>
   (hooks[event] as Array<{ hooks: Array<{ command: string }> }>).map((g) => g.hooks[0]?.command);
 
 describe.skipIf(!fs.existsSync(bin))('install --hooks with the built CLI', () => {
-  it('adds the six default hooks to user settings and the manifest', () => {
+  it('adds the seven default hooks to user settings and the manifest', () => {
     const s = sandbox();
     const res = s.run(['install', '--hooks', '--yes']);
     expect(res.status).toBe(0);
     const hooks = s.read().hooks as Record<string, unknown[]>;
-    expect(Object.keys(hooks).sort()).toEqual([...SIX].sort());
-    for (const e of SIX) expect(commandsOf(hooks, e)).toEqual([`ccinfobar-test hook ${e}`]);
+    expect(Object.keys(hooks).sort()).toEqual([...SEVEN].sort());
+    for (const e of SEVEN) expect(commandsOf(hooks, e)).toEqual([`ccinfobar-test hook ${e}`]);
     expect((hooks.Notification?.[0] as { matcher?: string } | undefined)?.matcher).toBe('permission_prompt');
     expect(hooks.PermissionRequest).toBeUndefined();
     for (const e of NEVER) expect(hooks[e]).toBeUndefined();
     expect(res.stdout).toContain('Claude Code 2.1.299');
-    expect(res.stdout).toContain(`✓ hooks added: ${SIX.join(', ')}`);
+    expect(res.stdout).toContain(`✓ hooks added: ${SEVEN.join(', ')}`);
     const m = JSON.parse(fs.readFileSync(s.manifest, 'utf8'));
     const entries = m.entries.filter((e: { kind: string }) => e.kind === 'hook');
-    expect(entries.map((e: { event: string }) => e.event).sort()).toEqual([...SIX].sort());
+    expect(entries.map((e: { event: string }) => e.event).sort()).toEqual([...SEVEN].sort());
   });
 
   it('--dry-run writes nothing and prints one line per hook', () => {
@@ -88,7 +96,7 @@ describe.skipIf(!fs.existsSync(bin))('install --hooks with the built CLI', () =>
     expect(fs.existsSync(s.settings)).toBe(false);
     expect(fs.existsSync(s.manifest)).toBe(false);
     const adds = res.stdout.split('\n').filter((l) => l.startsWith('  + hook '));
-    expect(adds).toHaveLength(6);
+    expect(adds).toHaveLength(7);
     expect(adds).toContain('  + hook Stop: ccinfobar-test hook Stop');
     expect(res.stdout).toContain('Dry run: nothing was written.');
   });
@@ -99,7 +107,7 @@ describe.skipIf(!fs.existsSync(bin))('install --hooks with the built CLI', () =>
     expect(res.status).toBe(0);
     const hooks = s.read().hooks as Record<string, unknown[]>;
     expect(commandsOf(hooks, 'PermissionRequest')).toEqual(['ccinfobar-test hook PermissionRequest']);
-    expect(Object.keys(hooks)).toHaveLength(7);
+    expect(Object.keys(hooks)).toHaveLength(8);
   });
 
   it('--hooks=bogus exits 1 and writes nothing', () => {
@@ -139,7 +147,7 @@ describe.skipIf(!fs.existsSync(bin))('install --hooks with the built CLI', () =>
     const before = fs.readFileSync(s.settings);
     const res = s.run(['install', '--hooks', '--yes']);
     expect(res.status).toBe(0);
-    expect(res.stdout).toContain(`hooks already installed: ${SIX.join(', ')}`);
+    expect(res.stdout).toContain(`hooks already installed: ${SEVEN.join(', ')}`);
     expect(fs.readFileSync(s.settings).equals(before)).toBe(true);
     const dry = s.run(['install', '--hooks', '--dry-run']);
     expect(dry.stdout).toContain('  = hook Stop (already installed)');
@@ -153,7 +161,7 @@ describe.skipIf(!fs.existsSync(bin))('install --hooks with the built CLI', () =>
     const res = s.run(['install', '--yes'], 'ccinfobar-test2');
     expect(res.status).toBe(0);
     const hooks = s.read().hooks as Record<string, unknown[]>;
-    for (const e of SIX) expect(commandsOf(hooks, e)).toEqual([`ccinfobar-test2 hook ${e}`]);
+    for (const e of SEVEN) expect(commandsOf(hooks, e)).toEqual([`ccinfobar-test2 hook ${e}`]);
     expect(res.stdout).toContain('✓ hooks updated to the new command:');
   });
 
@@ -182,7 +190,7 @@ describe.skipIf(!fs.existsSync(bin))('install --hooks with the built CLI', () =>
     const res = s.run(['install', '--hooks']);
     expect(res.status).toBe(0);
     expect(res.stdout).toContain('Replaced: npx ccstatusline');
-    expect(Object.keys(s.read().hooks)).toHaveLength(6);
+    expect(Object.keys(s.read().hooks)).toHaveLength(7);
   });
 
   it('--project --hooks warns and writes no hooks to the project file', () => {
@@ -201,7 +209,7 @@ describe.skipIf(!fs.existsSync(bin))('install --hooks with the built CLI', () =>
     expect(s.run(['install', '--hooks', '--yes']).status).toBe(0);
     const res = s.run(['uninstall', '--hooks']);
     expect(res.status).toBe(0);
-    expect(res.stdout).toContain(`✓ Removed ccinfobar hooks: ${SIX.join(', ')}`);
+    expect(res.stdout).toContain(`✓ Removed ccinfobar hooks: ${SEVEN.join(', ')}`);
     const data = s.read();
     expect(data.statusLine.command).toBe('ccinfobar-test');
     expect(data.hooks).toBeUndefined();
@@ -215,10 +223,10 @@ describe.skipIf(!fs.existsSync(bin))('install --hooks with the built CLI', () =>
     const before = '{\r\n    "model": "opus",\r\n    "hooks": {\r\n        "Stop": []\r\n    }\r\n}\r\n';
     fs.writeFileSync(s.settings, before);
     expect(s.run(['install', '--hooks', '--yes']).status).toBe(0);
-    expect(Object.keys(s.read().hooks)).toHaveLength(6);
+    expect(Object.keys(s.read().hooks)).toHaveLength(7);
     const res = s.run(['uninstall']);
     expect(res.status).toBe(0);
-    expect(res.stdout).toContain(`✓ Removed ccinfobar hooks: ${SIX.join(', ')}`);
+    expect(res.stdout).toContain(`✓ Removed ccinfobar hooks: ${SEVEN.join(', ')}`);
     expect(fs.readFileSync(s.settings, 'utf8')).toBe(before);
     const m = JSON.parse(fs.readFileSync(s.manifest, 'utf8'));
     expect(m.entries.filter((e: { kind: string }) => e.kind === 'hook')).toEqual([]);
@@ -230,6 +238,6 @@ describe.skipIf(!fs.existsSync(bin))('install --hooks with the built CLI', () =>
     const res = s.run(['uninstall', '--project', '--hooks']);
     expect(res.status).toBe(0);
     expect(res.stdout).toContain('Hooks live in user settings only');
-    expect(Object.keys(s.read().hooks)).toHaveLength(6);
+    expect(Object.keys(s.read().hooks)).toHaveLength(7);
   });
 });

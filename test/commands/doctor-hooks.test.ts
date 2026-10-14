@@ -58,11 +58,11 @@ describe('doctor Hooks block', () => {
   it('lists the hook entries with the recorded Claude Code version and flags a missing binary', () => {
     install();
     const out = doctor();
-    expect(out).toContain(t('doctor.hooks.summary', { count: 6, versions: '2.1.299' }));
+    expect(out).toContain(t('doctor.hooks.summary', { count: 7, versions: '2.1.299' }));
     for (const e of DEFAULT_EVENTS) {
       expect(out).toContain(t('doctor.hooks.entry', { event: e, claudeCode: '2.1.299' }));
     }
-    expect(out).toContain(t('doctor.hooks.missingBinary', { command: COMMAND, count: 6 }));
+    expect(out).toContain(t('doctor.hooks.missingBinary', { command: COMMAND, count: 7 }));
     expect(out.some((l) => l === t('doctor.hooks.off'))).toBe(false);
   });
 

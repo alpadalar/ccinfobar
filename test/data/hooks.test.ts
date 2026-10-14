@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { foldHookLog, readHookState } from '../../src/data/hooks.js';
+import { foldHookLog, hookLine, readHookState } from '../../src/data/hooks.js';
 
 type L = Record<string, unknown>;
 const j = (o: L) => JSON.stringify({ v: 1, ...o });
@@ -151,6 +151,57 @@ describe('foldHookLog permission and session', () => {
   });
 });
 
+describe('foldHookLog permission waits', () => {
+  const note = (t: number, n = 'permission_prompt') => j({ t, e: 'Notification', n });
+  const denied = (t: number, tn = 'Bash') => j({ t, e: 'PermissionDenied', tn });
+
+  it('closes an open wait on PermissionDenied', () => {
+    const s = foldHookLog([ups(1000, 'p1'), note(2000), denied(9000)]);
+    expect(s.pendingPermission).toBeNull();
+    expect(s.lastPermission).toEqual({ since: 2000, end: 9000, tool: 'Bash' });
+  });
+
+  it('keeps the PermissionRequest tool over the denial tool', () => {
+    const s = foldHookLog([note(2000), j({ t: 2100, e: 'PermissionRequest', tn: 'Edit' }), denied(9000)]);
+    expect(s.lastPermission).toEqual({ since: 2000, end: 9000, tool: 'Edit' });
+  });
+
+  it('closes an open wait on Stop, UserPromptSubmit and SessionStart', () => {
+    expect(foldHookLog([ups(1000, 'p1'), note(2000), stop(5000, 'p1')]).lastPermission).toEqual({
+      since: 2000,
+      end: 5000,
+      tool: null,
+    });
+    expect(foldHookLog([note(2000), ups(6000, 'p2')]).lastPermission?.end).toBe(6000);
+    expect(foldHookLog([note(2000), j({ t: 7000, e: 'SessionStart', s: 'clear' })]).lastPermission?.end).toBe(
+      7000,
+    );
+  });
+
+  it('changes nothing on PermissionDenied without an open wait', () => {
+    const base = [ups(1000, 'p1')];
+    const { lastEventAt: _a, ...before } = foldHookLog(base);
+    const { lastEventAt: _b, ...after } = foldHookLog([...base, denied(9000)]);
+    expect(after).toEqual(before);
+    expect(after.lastPermission).toBeNull();
+  });
+
+  it('sets nothing on idle_prompt', () => {
+    const s = foldHookLog([note(2000, 'idle_prompt'), stop(5000)]);
+    expect(s.pendingPermission).toBeNull();
+    expect(s.lastPermission).toBeNull();
+  });
+
+  it('logs only the tool name for PermissionDenied', () => {
+    const l = hookLine(
+      'PermissionDenied',
+      { tool_name: 'Bash', tool_input: { command: 'SECRET' }, reason: 'SECRET', tool_use_id: 'x' },
+      5,
+    );
+    expect(l).toEqual({ v: 1, t: 5, e: 'PermissionDenied', tn: 'Bash' });
+  });
+});
+
 describe('foldHookLog hostile input', () => {
   it('skips malformed lines without throwing', () => {
     const lines = [
@@ -241,6 +292,17 @@ describe('readHookState', () => {
       JSON.stringify({ ...cache, state: { turns: [['p1', 'x', {}]], agents: 5 } }),
     );
     expect(() => readHookState(SID, env)).not.toThrow();
+  });
+
+  it('refolds a cache from the previous fold version', () => {
+    writeLog(
+      `${j({ t: 2000, e: 'Notification', n: 'permission_prompt' })}\n${j({ t: 9000, e: 'PermissionDenied', tn: 'Bash' })}\n`,
+    );
+    expect(readHookState(SID, env)?.lastPermission).toEqual({ since: 2000, end: 9000, tool: 'Bash' });
+    const cache = JSON.parse(fs.readFileSync(foldFile(), 'utf8'));
+    fs.writeFileSync(foldFile(), JSON.stringify({ ...cache, v: cache.v - 1, state: {} }));
+    expect(readHookState(SID, env)?.lastPermission).toEqual({ since: 2000, end: 9000, tool: 'Bash' });
+    expect(JSON.parse(fs.readFileSync(foldFile(), 'utf8')).v).toBe(3);
   });
 
   it('never writes the fold cache with persist false', () => {

@@ -9,6 +9,7 @@ export const HOOK_EVENTS = [
   'SubagentStart',
   'SubagentStop',
   'Notification',
+  'PermissionDenied',
   'PermissionRequest',
 ] as const;
 
@@ -47,6 +48,7 @@ const FIELDS: Record<HookEvent, Array<[StrKey, string, number]>> = {
     ['tp', 'agent_transcript_path', 1024],
   ],
   Notification: [['n', 'notification_type', 256]],
+  PermissionDenied: [['tn', 'tool_name', 256]],
   PermissionRequest: [['tn', 'tool_name', 256]],
 };
 

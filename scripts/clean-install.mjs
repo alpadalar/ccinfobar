@@ -517,6 +517,7 @@ function workerProof(ctx) {
 
 const HOOK_EVENTS = [
   'Notification',
+  'PermissionDenied',
   'SessionStart',
   'Stop',
   'SubagentStart',

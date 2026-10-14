@@ -26,6 +26,7 @@ export const DEFAULT_EVENTS: readonly HookEvent[] = [
   'SubagentStart',
   'SubagentStop',
   'Notification',
+  'PermissionDenied',
 ];
 export const OPTIONAL_EVENTS: readonly HookEvent[] = ['PermissionRequest'];
 // per-tool, per-batch or blocking: never registered
@@ -37,13 +38,17 @@ export const NEVER_EVENTS = [
   'SessionEnd',
 ] as const;
 
-export type HookFloor = Record<'core' | 'async' | 'notificationMatcher' | 'PermissionRequest', string>;
+export type HookFloor = Record<
+  'core' | 'async' | 'notificationMatcher' | 'PermissionRequest' | 'PermissionDenied',
+  string
+>;
 
 export const HOOK_FLOOR: HookFloor = {
   core: '2.1.101',
   async: '2.1.101',
   notificationMatcher: '2.1.101',
   PermissionRequest: '2.1.101',
+  PermissionDenied: '2.1.89',
 };
 
 export interface HookHandler {
@@ -183,8 +188,9 @@ function groupsOf(settings: Record<string, unknown>, event: string): unknown[] {
 
 const handlersOf = (g: unknown): unknown[] => (isObj(g) && Array.isArray(g.hooks) ? g.hooks : []);
 
-function eventFloor(event: HookEvent, floor: HookFloor): string | null {
+export function eventFloor(event: HookEvent, floor: HookFloor = HOOK_FLOOR): string | null {
   if (event === 'PermissionRequest') return floor.PermissionRequest;
+  if (event === 'PermissionDenied') return floor.PermissionDenied;
   if (event === 'Notification') return floor.notificationMatcher;
   return null;
 }
