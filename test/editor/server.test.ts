@@ -91,6 +91,16 @@ describe('editor server', () => {
     expect(good.status).toBe(200);
   });
 
+  it('upgrades a legacy usable switch on load', async () => {
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ lines: [[{ id: 'c', type: 'context-bar', options: { usable: 'true' } }]] }),
+    );
+    const s = (await request('GET', '/api/state')).json();
+    expect(s.config.lines[0][0].options).toEqual({ basis: 'usable' });
+    expect(s.savedConfig).toEqual(s.config);
+  });
+
   it('returns the state shape', async () => {
     const res = await request('GET', '/api/state');
     expect(res.status).toBe(200);

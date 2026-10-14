@@ -148,7 +148,7 @@ With `charset: "text"` every bar becomes `=====-----`.
 | `usable` | the point where Claude Code compacts: the window minus the output reserve and the compaction buffer, so a 1M window counts against about 967K. It follows `CLAUDE_CODE_AUTO_COMPACT_WINDOW` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` |
 | `reserve` | the window minus `reserveTokens` (default `20000`), an approximate output reserve you set yourself |
 
-`usable` and `reserve` fall back to `raw` until the window size and token count are known. The old `usable: true` option still works; the editors save it as `basis: "usable"`.
+`usable` and `reserve` fall back to `raw` until the window size and token count are known. The old `usable: true` option still works; the editor and TUI show and save it as `basis: "usable"`.
 
 ## Budget
 

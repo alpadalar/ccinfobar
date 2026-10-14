@@ -381,3 +381,16 @@ describe('theme picker', () => {
     expect(s.mode).toMatchObject({ kind: 'themes', naming: { text: 'mine' } });
   });
 });
+
+describe('legacy options', () => {
+  it('shows a legacy usable switch as basis usable without marking the config dirty', () => {
+    const legacy: Config = {
+      ...cfg(),
+      lines: [[{ id: 'c', type: 'context-percentage', options: { usable: true } }]],
+    };
+    const s = initialState(legacy, '/tmp/c.json');
+    expect(s.config.lines[0]![0]!.options).toEqual({ basis: 'usable' });
+    expect(s.dirty).toBe(false);
+    expect(legacy.lines[0]![0]!.options).toEqual({ usable: true });
+  });
+});

@@ -303,13 +303,14 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     switch (route) {
       case 'GET /api/state': {
         const loaded = loadForUse(opts.configPath, () => gsd);
+        const config = upgradeOptions(loaded.config);
         send(res, 200, {
           version: VERSION,
           configPath: tildify(opts.configPath),
           configError: loaded.error ?? null,
           configIssue: loaded.issue ?? null,
-          config: loaded.config,
-          savedConfig: loaded.config,
+          config,
+          savedConfig: config,
           widgets: widgetCatalog(),
           categories: CATEGORIES,
           presets: presetList(),

@@ -7,6 +7,7 @@ import {
   type Position,
   removeItem,
   removeLine,
+  upgradeOptions,
 } from '../core/edit.js';
 import { PRESETS, type Preset } from '../core/presets.js';
 import type { PreviewSource } from '../core/preview.js';
@@ -135,11 +136,12 @@ const PAGE = 8;
 const HISTORY = 100;
 
 export function initialState(
-  config: Config,
+  loaded: Config,
   path: string,
   message = '',
   opts: { presets?: Preset[]; gsd?: boolean } = {},
 ): State {
+  const config = upgradeOptions(loaded);
   return {
     presets: opts.presets ?? PRESETS,
     gsd: opts.gsd ?? true,
