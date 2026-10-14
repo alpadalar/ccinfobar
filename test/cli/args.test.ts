@@ -29,4 +29,9 @@ describe('parseArgs', () => {
     expect(parseArgs(['-v']).flags.version).toBe(true);
     expect(parseArgs(['--width=90']).flags.width).toBe('90');
   });
+
+  it('keeps every = after the first in an inline value', () => {
+    expect(parseArgs(['--command=FOO=1 ccinfobar']).flags.command).toBe('FOO=1 ccinfobar');
+    expect(parseArgs(['--payload=']).flags.payload).toBe('');
+  });
 });

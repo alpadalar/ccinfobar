@@ -48,6 +48,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - A widget that returns malformed output shows as empty instead of crashing the whole status line
 - Emoji such as ⚡ and ✅ are measured as 2 cells
 - Preview and doctor ignore a cached last payload that is not a JSON object
+- `--option=value` keeps values that contain `=`, such as `--command=FOO=1 ccinfobar`
 
 ### Security
 

@@ -19,7 +19,10 @@ export function parseArgs(argv: string[]): Args {
     else if (a === '-y') args.flags.yes = true;
     else if (a.startsWith('--no-')) args.flags[a.slice(5)] = false;
     else if (a.startsWith('--')) {
-      const [k, inline] = a.slice(2).split('=', 2) as [string, string | undefined];
+      const body = a.slice(2);
+      const eq = body.indexOf('=');
+      const k = eq < 0 ? body : body.slice(0, eq);
+      const inline = eq < 0 ? undefined : body.slice(eq + 1);
       const next = argv[i + 1];
       if (inline !== undefined) args.flags[k] = inline;
       else if (next !== undefined && !next.startsWith('-') && VALUE_FLAGS.includes(k)) {
