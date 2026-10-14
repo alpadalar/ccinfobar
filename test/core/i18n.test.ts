@@ -61,6 +61,17 @@ describe('en table', () => {
     expect(Object.keys(en).length).toBe(sum);
   });
 
+  it('hook messages take versions as params and every hook id is used', () => {
+    const src = sources(path.resolve(dir, '..', '..'))
+      .filter((f) => !f.startsWith(dir))
+      .map((f) => fs.readFileSync(f, 'utf8'))
+      .join('\n');
+    for (const [id, text] of Object.entries(hookMessages)) {
+      expect(text, id).not.toMatch(/\d+\.\d+\.\d+/);
+      expect(src.includes(`'${id}'`), id).toBe(true);
+    }
+  });
+
   it('is browser-safe', () => {
     const files = sources(dir);
     expect(files.length).toBeGreaterThanOrEqual(6);

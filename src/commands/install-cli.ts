@@ -178,7 +178,7 @@ function reportHooks(io: InstallIo, p: HookPlan): void {
     if (events.length) io.log(t(id, { events: events.join(', ') }));
   }
   const floor = HOOK_FLOOR.core;
-  if (p.refused === 'unknown-version') io.log(`⚠ ${t('hooks.refused.unknownVersion')}`);
+  if (p.refused === 'unknown-version') io.log(`⚠ ${t('hooks.refused.unknownVersion', { floor })}`);
   if (p.refused === 'old-version')
     io.log(`⚠ ${t('hooks.refused.oldVersion', { floor, version: p.claudeCode ?? '' })}`);
   asyncNote(io, p);
