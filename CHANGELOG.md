@@ -76,6 +76,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The plugin skills pre-approve only read-only `ccinfobar` commands; `install --yes` and `uninstall` always ask for permission
 - `/ccinfobar:install --no-hooks` runs `install` without `--hooks` instead of relying on the last flag winning
 - `edit --detach` reuses a running editor only for the same config file and port, and two calls at once start one editor
+- Only `ccinfobar [--config <file>] hook <Event>` takes the silent hook path; a command such as `ccinfobar config set hook 1` prints its result again
 
 ### Fixed
 

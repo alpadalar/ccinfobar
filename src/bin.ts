@@ -3,8 +3,15 @@ import module from 'node:module';
 
 module.enableCompileCache?.();
 const argv = process.argv;
+// only `[--flags] [--config <f>] hook <Event>`
+const pre = argv.slice(2, -2);
+const isHook =
+  argv.length >= 4 &&
+  argv[argv.length - 2] === 'hook' &&
+  /^[A-Z][A-Za-z]+$/.test(argv[argv.length - 1] ?? '') &&
+  pre.every((a, i) => a.startsWith('--') || pre[i - 1] === '--config');
 
-if (argv.length >= 4 && argv[argv.length - 2] === 'hook') {
+if (isHook) {
   // silent before any import
   const noop = (() => true) as typeof process.stdout.write;
   process.stdout.write = noop;

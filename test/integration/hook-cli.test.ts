@@ -100,6 +100,16 @@ describe.skipIf(!fs.existsSync(bin))('ccinfobar hook (built cli)', () => {
     expect(s.lines().map((l) => l.e)).toEqual(['Stop']);
   });
 
+  it('does not silence a real command that ends in hook <word>', () => {
+    const s = sandbox();
+    for (const last of ['Stop', '1']) {
+      const r = s.run(['config', 'set', 'hook', last], '');
+      expect(r.status).not.toBe(0);
+      expect(r.stdout + r.stderr).not.toBe('');
+    }
+    expect(fs.existsSync(s.log())).toBe(false);
+  });
+
   it('records an oversized input from the bounded scan', () => {
     const s = sandbox();
     quiet(s.run(['hook', 'UserPromptSubmit'], ups({ prompt: 'x'.repeat(1_500_000) })));
