@@ -152,8 +152,24 @@ function dryHookLine(i: HookPlanItem): string {
   }
 }
 
+// a package runner per hook event is slow and may hit the network
+export function isRunnerCommand(command: string): boolean {
+  const m = /^\s*(?:"([^"]+)"|'([^']+)'|(\S+))(?:\s+(\S+))?/.exec(command);
+  if (!m) return false;
+  const first = path
+    .basename((m[1] ?? m[2] ?? m[3] ?? '').replace(/\\/g, '/'))
+    .toLowerCase()
+    .replace(/\.(cmd|exe|ps1)$/, '');
+  return (
+    ['npx', 'pnpx', 'bunx'].includes(first) || (['pnpm', 'yarn', 'bun'].includes(first) && m[4] === 'dlx')
+  );
+}
+
 function asyncNote(io: InstallIo, p: HookPlan): void {
   if (p.asyncOmitted) io.log(`  ${t('hooks.asyncOmitted', { version: p.claudeCode ?? '' })}`);
+  const cmd = p.items.find((i) => i.action !== 'skip-unmanaged' && i.action !== 'skip-version')?.group
+    .hooks[0]?.command;
+  if (cmd && isRunnerCommand(cmd)) io.log(`⚠ ${t('hooks.runnerCommand')}`);
 }
 
 function showDryHooks(io: InstallIo, p: HookPlan): void {

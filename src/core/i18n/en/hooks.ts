@@ -6,6 +6,8 @@ export const hookMessages = {
   'hooks.asyncOmitted':
     'Claude Code {version} runs these hooks synchronously, so each prompt waits for one Node start.',
   'hooks.badFlag': '--hooks takes no value or =permission',
+  'hooks.runnerCommand':
+    'The hooks run the status line command through a package runner (npx, bunx or dlx) on every event, which is slow and may use the network. Install ccinfobar globally and pass --command ccinfobar instead.',
   'hooks.badArg': 'Unexpected argument "{arg}"; options take a value with =, such as --hooks=permission',
   'hooks.dry.add': '  + hook {event}: {command}',
   'hooks.dry.keep': '  = hook {event} (already installed)',

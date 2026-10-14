@@ -12,6 +12,7 @@ import {
 } from '../../src/commands/install.js';
 import {
   type InstallIo,
+  isRunnerCommand,
   runInstall,
   runUninstall,
   uninstallMessage,
@@ -323,6 +324,25 @@ describe('runInstall and runUninstall', () => {
     await runUninstall(parseArgs(['uninstall', '--hooks', 'Stop']), cfg, u.io);
     expect(u.errors).toEqual([t('hooks.badArg', { arg: 'Stop' })]);
     expect(process.exitCode).toBe(1);
+  });
+
+  it('warns when the hooks would run through a package runner', async () => {
+    for (const c of ['npx -y ccinfobar', 'bunx ccinfobar', 'pnpm dlx ccinfobar', '"C:/n/npx.cmd" ccinfobar'])
+      expect(isRunnerCommand(c), c).toBe(true);
+    for (const c of ['ccinfobar', 'node "/x/npx/ccinfobar.js"', 'pnpm exec ccinfobar', '/usr/bin/ccinfobar'])
+      expect(isRunnerCommand(c), c).toBe(false);
+    const f = fake(false);
+    f.io.claudeVersion = () => '2.1.299';
+    await runInstall(
+      parseArgs(['install', '--command', 'npx -y ccinfobar', '--hooks', '--dry-run']),
+      cfg,
+      f.io,
+    );
+    expect(f.lines).toContain(`⚠ ${t('hooks.runnerCommand')}`);
+    const g = fake(false);
+    g.io.claudeVersion = () => '2.1.299';
+    await runInstall(args('--hooks', '--dry-run'), cfg, g.io);
+    expect(g.lines).not.toContain(`⚠ ${t('hooks.runnerCommand')}`);
   });
 
   it('replaces after a TTY yes and prints what it wrote', async () => {

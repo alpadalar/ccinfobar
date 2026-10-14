@@ -78,6 +78,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `edit --detach` reuses a running editor only for the same config file and port, and two calls at once start one editor
 - Only `ccinfobar [--config <file>] hook <Event>` takes the silent hook path; a command such as `ccinfobar config set hook 1` prints its result again
 - `install` and `uninstall` stop with an error on an unexpected argument, such as `--hooks permission` (meant as `--hooks=permission`), instead of ignoring it
+- `install --hooks` warns when the status line command runs through `npx`, `bunx` or a `dlx` runner, because every hook event would start it
 
 ### Fixed
 
