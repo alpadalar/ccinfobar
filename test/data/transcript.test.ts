@@ -138,3 +138,113 @@ describe('built-in commands', () => {
     expect(info?.lastGsdCommand).toBe('gsd-plan-phase');
   });
 });
+
+describe('transcript cache misses and response times', () => {
+  const seq = path.resolve(__dirname, '../fixtures/cache-sequence.jsonl');
+  const at = (t: string) => Date.parse(`2026-10-12T${t}Z`);
+  const line = (o: object) => JSON.stringify(o);
+  const reply = (ts: string, id: string, usage: object) =>
+    line({
+      type: 'assistant',
+      timestamp: `2026-10-12T${ts}Z`,
+      requestId: id,
+      message: { id, model: 'm', usage },
+    });
+  const prompt = (ts: string, content: unknown) =>
+    line({ type: 'user', timestamp: `2026-10-12T${ts}Z`, message: { role: 'user', content } });
+  const usage = (input: number, read: number, write: number) => ({
+    input_tokens: input,
+    output_tokens: 5,
+    cache_read_input_tokens: read,
+    cache_creation_input_tokens: write,
+  });
+
+  it('counts one miss and treats the request after a compaction as expected', () => {
+    const t = parseTranscriptText(fs.readFileSync(seq, 'utf8'));
+    expect(t.cacheMisses).toBe(1);
+    expect(t.lastMissAt).toBe(at('10:01:02.600'));
+    expect(t.messageCount).toBe(6);
+  });
+
+  it('times prompts to the first reply and skips wrappers, tool results and slow gaps', () => {
+    const t = parseTranscriptText(fs.readFileSync(seq, 'utf8'));
+    expect(t.responseCount).toBe(3);
+    expect(t.responseMs).toBe(3200);
+  });
+
+  it('recomputes the outcome when a streamed line changes its usage', () => {
+    const base = [
+      reply('10:00:00.000', 'a', usage(50, 0, 20000)),
+      reply('10:00:10.000', 'b', usage(100, 20000, 0)),
+    ];
+    const hitFirst = parseTranscriptText(
+      [...base, reply('10:00:20.000', 'c', usage(100, 20000, 0))].join('\n'),
+    );
+    expect(hitFirst.cacheMisses).toBe(0);
+    const updated = parseTranscriptText(
+      [
+        ...base,
+        reply('10:00:20.000', 'c', usage(100, 20000, 0)),
+        reply('10:00:21.000', 'c', usage(3200, 16900, 0)),
+      ].join('\n'),
+    );
+    expect(updated.cacheMisses).toBe(1);
+    expect(updated.lastMissAt).toBe(at('10:00:20.000'));
+    const back = parseTranscriptText(
+      [
+        ...base,
+        reply('10:00:20.000', 'c', usage(3200, 16900, 0)),
+        reply('10:00:21.000', 'c', usage(100, 20000, 0)),
+      ].join('\n'),
+    );
+    expect(back.cacheMisses).toBe(0);
+    expect(back.lastMissAt).toBeNull();
+  });
+
+  it('leaves an older request alone when its key reappears', () => {
+    const t = parseTranscriptText(
+      [
+        reply('10:00:00.000', 'a', usage(50, 0, 20000)),
+        reply('10:00:10.000', 'b', usage(100, 20000, 0)),
+        reply('10:00:20.000', 'a', usage(9000, 0, 0)),
+      ].join('\n'),
+    );
+    expect(t.cacheMisses).toBe(0);
+  });
+
+  it('keeps the last 20 response times and skips zero gaps', () => {
+    const lines: string[] = [];
+    for (let i = 0; i < 25; i++) {
+      const m = String(i).padStart(2, '0');
+      lines.push(
+        prompt(`10:${m}:00.000`, 'go'),
+        reply(`10:${m}:0${i < 5 ? 9 : 2}.000`, `r${i}`, usage(1, 0, 0)),
+      );
+    }
+    lines.push(prompt('11:00:00.000', 'same'), reply('11:00:00.000', 'z', usage(1, 0, 0)));
+    const t = parseTranscriptText(lines.join('\n'));
+    expect(t.responseCount).toBe(20);
+    expect(t.responseMs).toBe(2000);
+  });
+
+  it('has no response time without prompts', () => {
+    const t = parseTranscriptText(reply('10:00:00.000', 'a', usage(1, 0, 0)));
+    expect(t.responseMs).toBeNull();
+    expect(t.responseCount).toBe(0);
+    expect(t.cacheMisses).toBe(0);
+  });
+
+  it('re-reads a cache from the previous version from offset 0', () => {
+    const file = path.join(dir, 's.jsonl');
+    fs.copyFileSync(seq, file);
+    expect(readTranscript(file, env)?.cacheMisses).toBe(1);
+    const cdir = path.join(dir, 'cache');
+    const [name] = fs.readdirSync(cdir);
+    const f = path.join(cdir, name!);
+    const st = JSON.parse(fs.readFileSync(f, 'utf8'));
+    fs.writeFileSync(f, JSON.stringify({ ...st, v: st.v - 1, cacheMisses: undefined, responses: undefined }));
+    const again = readTranscript(file, env);
+    expect(again?.cacheMisses).toBe(1);
+    expect(again?.responseMs).toBe(3200);
+  });
+});
