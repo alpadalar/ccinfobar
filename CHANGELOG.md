@@ -36,6 +36,18 @@ All notable changes to this project are documented here. The format follows [Kee
 - `cache-timer` `showTtl` option
 - `ccinfobar explain` says whether a limits value came from this session, another session or the usage API, and when a window has just reset
 - `ccinfobar explain` shows the cost ledger age and says when no cost has been recorded yet
+- A Claude Code plugin in this repo: `claude plugin marketplace add alpadalar/ccinfobar`, then `claude plugin install ccinfobar@ccinfobar`, gives `/ccinfobar:install`, `/ccinfobar:edit`, `/ccinfobar:doctor`, `/ccinfobar:theme` and `/ccinfobar:uninstall`. It calls the installed `ccinfobar`, has no status line or hooks of its own and never writes settings itself; `alpadalar/ccinfobar#v<version>` pins it to a release
+- `ccinfobar install --hooks` adds optional Claude Code hooks (SessionStart, UserPromptSubmit, Stop, SubagentStart, SubagentStop, and Notification for permission prompts) to user settings, recorded in the manifest and checked against the Claude Code version (2.1.101+); `--hooks=permission` also adds PermissionRequest; `--dry-run` lists every hook change
+- `ccinfobar uninstall --hooks` removes only ccinfobar's hooks
+- `ccinfobar hook <Event>` records Claude Code hook events in a per-session log, prints nothing and always exits 0 (used by the optional hooks); prompt text, replies and tool input are never stored
+- With hooks on, a new session (SessionStart `startup`) runs the daily update check and removes hook logs older than 7 days; resume, clear and compact never do, and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` or `update: off` still turn the check off
+- The web editor's Settings has a Hooks switch and an opt-in Permission requests checkbox; it is off unless ccinfobar is the active status line and Claude Code is 2.1.101 or newer
+- `ccinfobar doctor` reports ccinfobar's hooks, hooks edited outside ccinfobar, hook commands whose binary is gone, `disableAllHooks` and `allowManagedHooksOnly`, and the age of the last hook event
+- `ccinfobar edit --detach` starts the editor in the background, prints its URL and exits; a running one is reused and it stops after 30 minutes idle
+- `ccinfobar themes --list` prints theme ids and names only
+- INSTALL.md, a pinned runbook Claude can follow to install ccinfobar, pick a preset and check it with `ccinfobar preview`
+- `ccinfobar bench` has a `hook UserPromptSubmit` row and prints the hook overhead
+- CI validates the plugin with `claude plugin validate --strict` and checks its version against package.json, and the clean-install check also installs hooks, runs a hook in every shell and checks that uninstall restores the settings file byte for byte
 
 ### Changed
 
@@ -57,6 +69,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - CI also tests on Node 26
 - Plan limits are shared across sessions of the same account, so an idle session shows the newest 5h and weekly usage and an expired window never comes back; chart history in idle sessions follows the shared value. Logging in to another account drops the shared values, even after a logout in between; a token refresh does not
 - `cache-miss-cause` shows the cause only while the latest request missed; set `show: always` for the old behaviour
+- Re-running `install` with a new command also updates ccinfobar's own hooks
+- `ccinfobar uninstall` also removes ccinfobar's hooks and still restores the settings file byte for byte when nothing else changed it
 
 ### Fixed
 

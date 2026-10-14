@@ -319,7 +319,17 @@ Phase 3 (shared limits, cost ledger, projections), 2026-10-14, same machine and 
 
 The machine was busier than for the baseline, so the absolute numbers are higher. Run back to back under the same load, the build before Phase 3 gave warm medians of 138.7 and 133.5 ms and the Phase 3 build 135.1 and 132.2 ms: no measurable change. Layouts without limits or cost widgets do no limits or ledger I/O.
 
-Phase 4 (hooks and plugin): numbers to follow.
+Phase 4 (hooks and plugin), 2026-10-14, same machine and method, load average about 1.6, default layout, N = 20:
+
+| Row | median (ms) | p95 (ms) | min (ms) | max (ms) |
+|-----|------------:|---------:|---------:|---------:|
+| `node -e 0` | 67.5 | 70.7 | 64.9 | 73.3 |
+| cold | 141.1 | 146.1 | 138.0 | 147.6 |
+| warm | 130.1 | 136.7 | 127.5 | 137.8 |
+| warm, compile cache off | 135.1 | 144.6 | 133.3 | 144.9 |
+| hook UserPromptSubmit | 94.1 | 103.0 | 92.0 | 106.6 |
+
+ccinfobar overhead 62.7 ms; hook overhead 26.6 ms. A second run right after gave warm 131.6 ms and hook 98.5 ms (hook overhead 31.2 ms). The render path is unchanged: the warm median matches the baseline. The hook overhead is above the 20 ms target. A minimal ESM script that reads the same stdin and appends one line costs about 18 ms over the control on this machine, so ccinfobar's own code adds about 10 ms. The hook runs async, so Claude Code never waits for it.
 
 ## Releasing
 
