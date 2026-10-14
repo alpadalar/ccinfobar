@@ -1,14 +1,12 @@
 import fs from 'node:fs';
-import { stripAnsi } from '../core/ansi.js';
-import { createContext } from '../core/context.js';
+import type { LoadResult } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
-import { emptyReason, lineReport, sessionNotes } from '../core/inspect.js';
+import { type InspectRow, inspectRows, lineReport, sessionNotes } from '../core/inspect.js';
 import { loadForUse } from '../core/load.js';
 import { cacheDir, claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { readLastPayload } from '../core/preview.js';
-import { renderPart, renderValue } from '../core/renderer.js';
 import { sanitizeText } from '../core/sanitize.js';
-import type { Config, OptionSpec, RenderContext, StatusPayload, WidgetItem } from '../core/types.js';
+import type { Config, OptionSpec, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { pruneTmp } from '../data/store.js';
 import { terminalWidth } from '../data/terminal.js';
@@ -20,20 +18,14 @@ import {
   selfCommand,
   updatesDisabled,
 } from '../data/update-state.js';
-import { mergeUsage, readUsageCache, usageApiDisabled } from '../data/usage.js';
+import { type UsageCache, usageApiDisabled } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
+import { loadInspectInput } from './explain.js';
 import { currentStatusLine, projectOverride } from './install.js';
 import { classifyOwner, manifestFile, owns, readManifest } from './manifest.js';
 import { backupsDir } from './settings-file.js';
 
 export { hasReplies } from '../core/payload.js';
-
-export interface WidgetReport {
-  line: number;
-  item: WidgetItem;
-  value: string | null;
-  reason: string | null;
-}
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === 'object' && !Array.isArray(v);
@@ -87,29 +79,10 @@ export function commandWarnings(command: string, platform: NodeJS.Platform = pro
   return command.includes('\\') || first === '"' || first === "'" ? [t('doctor.winCommand')] : [];
 }
 
-export function widgetReport(ctx: RenderContext): WidgetReport[] {
-  const out: WidgetReport[] = [];
-  ctx.config.lines.forEach((items, line) => {
-    for (const item of items) {
-      if (item.type === 'flex') continue;
-      const def = getWidget(item.type);
-      const value = def ? renderValue(ctx, def, item) : null;
-      const part = value ? renderPart(ctx, item) : null;
-      out.push({
-        line,
-        item,
-        value: part ? stripAnsi(part.text) : null,
-        reason: part ? null : emptyReason(ctx, item).text,
-      });
-    }
-  });
-  return out;
-}
-
 export function usageLine(
   config: Config,
   payload: StatusPayload,
-  usage: ReturnType<typeof readUsageCache>,
+  usage: UsageCache | null,
   now = Date.now(),
 ): string {
   if (payload.rate_limits?.five_hour && payload.rate_limits.seven_day)
@@ -121,37 +94,60 @@ export function usageLine(
   return `Usage limits: ${data}${usage.error ? ` (last error: ${safe(usage.error)})` : ''}`;
 }
 
-export function printWidgetReport(config: Config, payload: StatusPayload | null = readLastPayload()): void {
+function widgetRow(r: InspectRow): string | null {
+  const name = safe(`${r.type}${r.id !== r.type ? ` (${r.id})` : ''}`);
+  const at = `L${r.line + 1} ${name}`;
+  const why = safe(r.empty?.text ?? '');
+  switch (r.status) {
+    case 'shown':
+    case 'loading':
+      return `  ✓ ${at}: ${safe(r.value ?? '')}`;
+    case 'hidden':
+      return `  ✗ ${at}: hidden (hideEmpty), ${why}`;
+    case 'error':
+      return `  ✗ ${at}: error, ${safe(r.error ?? '')}`;
+    case 'skipped':
+      return null;
+    default:
+      return `  – ${at}: shows —, ${why}`;
+  }
+}
+
+export function printWidgetReport(cfgFile: string, loaded?: LoadResult): void {
   console.log('\nWidgets');
-  if (!payload) {
-    console.log('  No payload yet. Use Claude Code once with ccinfobar installed, then run doctor again.');
+  const data = loadInspectInput({ cfgFile, fallback: 'none', ...(loaded ? { loaded } : {}) });
+  if (!data) {
+    console.log(t('doctor.noPayload'));
     return;
   }
-  const keys = Object.keys(payload).filter((k) => (payload as Record<string, unknown>)[k] !== undefined);
-  console.log(
-    `  Last payload: Claude Code ${safe(payload.version ?? 'unknown version')}, fields: ${safe(keys.sort().join(', '))}`,
-  );
-  for (const n of sessionNotes(payload)) console.log(`  ℹ ${n}`);
-  const usage = usageApiDisabled(config) ? null : readUsageCache();
-  console.log(`  ${usageLine(config, payload, usage)}`);
-  const shown = usage ? mergeUsage(payload, usage) : payload;
-  const width = terminalWidth(payload.session_id, payload.terminal_width ?? payload.columns);
-  const ctx = createContext({ payload: shown, config: { ...config, colorLevel: 0 }, terminalWidth: width });
-  for (const r of widgetReport(ctx)) {
-    const name = safe(`${r.item.type}${r.item.id !== r.item.type ? ` (${r.item.id})` : ''}`);
-    if (r.value !== null) console.log(`  ✓ L${r.line + 1} ${name}: ${r.value}`);
-    else if (r.item.hideEmpty) console.log(`  ✗ L${r.line + 1} ${name}: hidden (hideEmpty), ${r.reason}`);
-    else console.log(`  – L${r.line + 1} ${name}: shows —, ${r.reason}`);
-  }
-  const lines = lineReport(ctx);
-  const cut = lines.filter((l) => l.cut);
-  console.log(
-    `\n  Width: ${width ?? 'unknown'} columns detected, ${lines[0]?.max ?? 'no'} usable after widthOffset`,
-  );
-  for (const l of cut) {
+  try {
+    const payload = data.raw;
+    const keys = Object.keys(payload).filter((k) => (payload as Record<string, unknown>)[k] !== undefined);
     console.log(
-      `  ⚠ Line ${l.line + 1} needs ${l.width} columns and is cut with "…". Lower widthOffset, set autoWrap, or move widgets to another line.`,
+      `  Last payload: Claude Code ${safe(payload.version ?? 'unknown version')}, fields: ${safe(keys.sort().join(', '))}`,
     );
+    for (const n of sessionNotes(payload)) console.log(`  ℹ ${n}`);
+    console.log(`  ${usageLine(data.config, payload, data.usage)}`);
+    const rows = inspectRows(data.ctx, {
+      meta: data.meta,
+      ...(data.commandEnv ? { commandEnv: data.commandEnv } : {}),
+    });
+    for (const r of rows) {
+      const l = widgetRow(r);
+      if (l !== null) console.log(l);
+    }
+    const lines = lineReport(data.commandEnv ? { ...data.ctx, env: data.commandEnv } : data.ctx);
+    console.log(
+      `\n  Width: ${data.width ?? 'unknown'} columns detected, ${lines[0]?.max ?? 'no'} usable after widthOffset`,
+    );
+    for (const l of lines.filter((x) => x.cut)) {
+      console.log(
+        `  ⚠ Line ${l.line + 1} needs ${l.width} columns and is cut with "…". Lower widthOffset, set autoWrap, or move widgets to another line.`,
+      );
+    }
+    console.log(t('doctor.explainPointer'));
+  } finally {
+    data.cleanup();
   }
 }
 
@@ -218,6 +214,6 @@ export function runDoctor(cfgFile: string): void {
     console.log(`✓ Up to date (${loaded.config.update} mode, ${installKind()} install, ${when})`);
   }
   if (upd?.error) console.log(`  Last update check failed: ${safe(upd.error)}`);
-  printWidgetReport(loaded.config);
+  printWidgetReport(cfgFile, loaded);
   if (!usesUs) console.log(`\nRun \`${selfCommand()} install\` to enable it in Claude Code.`);
 }

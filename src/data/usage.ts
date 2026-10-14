@@ -73,6 +73,23 @@ export function mergeUsage(
   return { ...payload, rate_limits: { ...cache.rate_limits, ...payload.rate_limits } };
 }
 
+export interface EffectiveUsage {
+  usageOn: boolean;
+  usage: UsageCache | null;
+  payload: StatusPayload;
+}
+
+// render, explain and doctor share this rule
+export function effectiveUsage(
+  config: Config,
+  payload: StatusPayload,
+  env: NodeJS.ProcessEnv = process.env,
+): EffectiveUsage {
+  const usageOn = !usageApiDisabled(config, env) && needsUsage(config, payload, env);
+  const usage = usageOn ? readUsageCache(env) : null;
+  return { usageOn, usage, payload: usage ? mergeUsage(payload, usage) : payload };
+}
+
 type Bucket = { utilization?: number | null; resets_at?: string | null } | null | undefined;
 type Limit = {
   kind?: string | null;

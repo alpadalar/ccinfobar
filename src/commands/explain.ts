@@ -33,7 +33,7 @@ import { agentsCacheName, readAgents } from '../data/agents.js';
 import { cacheFile } from '../data/cache.js';
 import { loadHistory } from '../data/history.js';
 import { readTranscript, type TranscriptInfo, transcriptCacheName } from '../data/transcript.js';
-import { mergeUsage, needsUsage, readUsageCache, type UsageCache, usageApiDisabled } from '../data/usage.js';
+import { effectiveUsage, type UsageCache } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
 
 export type InputKind = 'payload' | 'scenario' | 'last' | 'sample';
@@ -42,6 +42,7 @@ export interface InspectInput {
   loaded: LoadResult;
   config: Config;
   input: { kind: InputKind; name?: string; ageMs?: number; claudeCode?: string };
+  raw: StatusPayload;
   payload: StatusPayload;
   usage: UsageCache | null;
   width: number | null;
@@ -225,9 +226,7 @@ export function loadInspectInput(opts: InspectOptions): InspectInput | null {
     data = sampleData(now.getTime());
   }
   const live = input.kind === 'payload' || input.kind === 'last';
-  const usage =
-    live && !usageApiDisabled(config, env) && needsUsage(config, payload, env) ? readUsageCache(env) : null;
-  const shown = usage ? mergeUsage(payload, usage) : payload;
+  const { usage, payload: shown } = live ? effectiveUsage(config, payload, env) : { usage: null, payload };
   const width = probeFreeWidth(opts, payload, env);
   const ctx = createContext({
     payload: shown,
@@ -246,6 +245,7 @@ export function loadInspectInput(opts: InspectOptions): InspectInput | null {
     loaded,
     config,
     input,
+    raw: payload,
     payload: shown,
     usage,
     width,

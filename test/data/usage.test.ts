@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import {
+  effectiveUsage,
   fetchUsage,
   mergeUsage,
   needsUsage,
@@ -11,6 +12,7 @@ import {
   readUsageCache,
   scheduleUsage,
   usageDue,
+  usageFile,
 } from '../../src/data/usage.js';
 
 const NOW = Date.parse('2026-10-12T12:00:00Z');
@@ -134,5 +136,38 @@ describe('usage api', () => {
     const c = await fetchUsage(env, reply(200, {}));
     expect(c.error).toMatch(/no Claude login/);
     expect(usageDue(c)).toBe(false);
+  });
+});
+
+describe('effectiveUsage', () => {
+  const both = {
+    rate_limits: {
+      five_hour: { used_percentage: 1, resets_at: null },
+      seven_day: { used_percentage: 2, resets_at: null },
+    },
+  };
+
+  it('skips the cache when Claude Code sent both windows', () => {
+    const p = { ...both };
+    expect(effectiveUsage(defaultConfig(), p, {})).toEqual({ usageOn: false, usage: null, payload: p });
+  });
+
+  it('merges a fresh cache when limit widgets lack data', () => {
+    const env = { CCINFOBAR_CACHE_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-eff-')) };
+    try {
+      const cache = {
+        fetchedAt: Date.now(),
+        rate_limits: { five_hour: { used_percentage: 44, resets_at: null } },
+      };
+      fs.writeFileSync(usageFile(env), JSON.stringify(cache));
+      const r = effectiveUsage(defaultConfig(), {}, env);
+      expect(r.usageOn).toBe(true);
+      expect(r.usage?.fetchedAt).toBe(cache.fetchedAt);
+      expect(r.payload.rate_limits?.five_hour?.used_percentage).toBe(44);
+      const off = effectiveUsage(defaultConfig(), {}, { ...env, CCINFOBAR_NO_USAGE_API: '1' });
+      expect(off).toEqual({ usageOn: false, usage: null, payload: {} });
+    } finally {
+      fs.rmSync(env.CCINFOBAR_CACHE_DIR, { recursive: true, force: true });
+    }
   });
 });

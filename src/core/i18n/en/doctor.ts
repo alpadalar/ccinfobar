@@ -12,4 +12,7 @@ export const doctorMessages = {
   'doctor.winCommand':
     '⚠ The statusLine command has a backslash or a quoted first token; Git Bash may not run it. Run ccinfobar install again.',
   'doctor.tmpPruned': '  Removed {count} stale temp file(s)',
+  'doctor.noPayload':
+    '  No payload yet. Use Claude Code once with ccinfobar installed, or try `ccinfobar explain --scenario <name>`.',
+  'doctor.explainPointer': '  Details: `ccinfobar explain` (or `ccinfobar explain <widget-id>`)',
 } as const;

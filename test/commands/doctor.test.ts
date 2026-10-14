@@ -1,13 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { commandWarnings, configWarnings, runDoctor } from '../../src/commands/doctor.js';
+import { commandWarnings, configWarnings, printWidgetReport, runDoctor } from '../../src/commands/doctor.js';
 import { applyInstall, planInstall } from '../../src/commands/install.js';
 import { manifestFile, readManifest } from '../../src/commands/manifest.js';
 import { backupsDir } from '../../src/commands/settings-file.js';
 import { inspectConfigText } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
-import { cacheDir, claudeSettingsPath, configDir, tildify } from '../../src/core/paths.js';
+import { cacheDir, claudeSettingsPath, configDir, lastPayloadPath, tildify } from '../../src/core/paths.js';
+import type { StatusPayload } from '../../src/core/types.js';
+import { usageFile } from '../../src/data/usage.js';
 
 const cfgFile = (name: string, text: string) => {
   const dir = configDir();
@@ -209,5 +211,116 @@ describe('runDoctor install report', () => {
     expect(fs.existsSync(other)).toBe(true);
     fs.rmSync(fresh);
     expect(capture(() => runDoctor(plain())).some((l) => l.includes('stale temp'))).toBe(false);
+  });
+});
+
+describe('printWidgetReport', () => {
+  const ws = () => fs.mkdtempSync(path.join(process.env.CCIB_TEST_ROOT!, 'doctor-ws-'));
+
+  const save = (extra: StatusPayload = {}): StatusPayload => {
+    const dir = ws();
+    const transcript = path.join(dir, 'session.jsonl');
+    fs.writeFileSync(
+      transcript,
+      `${JSON.stringify({ type: 'user', timestamp: '2026-10-12T11:59:00Z', message: { content: 'hi' } })}\n`,
+    );
+    const p: StatusPayload = {
+      session_id: 'doctor-test',
+      version: '2.1.401',
+      cwd: dir,
+      workspace: { current_dir: dir },
+      model: { id: 'claude-opus-5-5', display_name: 'Opus 5.5' },
+      transcript_path: transcript,
+      ...extra,
+    };
+    fs.mkdirSync(path.dirname(lastPayloadPath()), { recursive: true });
+    fs.writeFileSync(lastPayloadPath(), JSON.stringify(p));
+    return p;
+  };
+
+  afterEach(() => {
+    fs.rmSync(lastPayloadPath(), { force: true });
+  });
+
+  const LAYOUT = JSON.stringify({
+    lines: [
+      [
+        { id: 'model', type: 'model' },
+        { id: 'branch', type: 'git-branch' },
+        { id: 'flex', type: 'flex' },
+      ],
+      [{ id: 'hid', type: 'session-name', hideEmpty: true }],
+    ],
+  });
+
+  it('prints compact rows from inspect and ends with the explain pointer', () => {
+    save();
+    const out = capture(() => printWidgetReport(cfgFile('rows.json', LAYOUT)));
+    expect(out[0]).toBe('\nWidgets');
+    expect(out).toContain('  ✓ L1 model: Opus 5.5');
+    expect(out.find((l) => l.startsWith('  – L1 git-branch (branch): shows —, '))).toBe(
+      `  – L1 git-branch (branch): shows —, ${t('explain.reason.no-git')}`,
+    );
+    expect(out.some((l) => /^ {2}✗ L2 session-name \(hid\): hidden \(hideEmpty\), \S/.test(l))).toBe(true);
+    expect(out.some((l) => l.includes('flex'))).toBe(false);
+    expect(out.at(-1)).toBe(t('doctor.explainPointer'));
+  });
+
+  it('points to explain --scenario without a payload', () => {
+    const out = capture(() => printWidgetReport(cfgFile('rows.json', LAYOUT)));
+    expect(out).toEqual(['\nWidgets', t('doctor.noPayload')]);
+    expect(t('doctor.noPayload')).toContain('ccinfobar explain --scenario');
+  });
+
+  it('merges the usage cache only when the status line would', () => {
+    const prev = process.env.CCINFOBAR_NO_USAGE_API;
+    delete process.env.CCINFOBAR_NO_USAGE_API;
+    try {
+      save({
+        rate_limits: {
+          five_hour: { used_percentage: 20, resets_at: null },
+          seven_day: { used_percentage: 30, resets_at: null },
+        },
+      });
+      fs.mkdirSync(path.dirname(usageFile()), { recursive: true });
+      fs.writeFileSync(
+        usageFile(),
+        JSON.stringify({
+          fetchedAt: Date.now(),
+          rate_limits: {
+            five_hour: { used_percentage: 99, resets_at: null },
+            spend_limit: { used_usd: 5, limit_usd: 50, used_percentage: 10 },
+          },
+        }),
+      );
+      const cfg = JSON.stringify({
+        lines: [
+          [
+            { id: 'five-hour-usage', type: 'five-hour-usage' },
+            { id: 'spend-limit', type: 'spend-limit' },
+          ],
+        ],
+      });
+      const out = capture(() => printWidgetReport(cfgFile('usage.json', cfg)));
+      expect(out.some((l) => l.startsWith('  ✓ L1 five-hour-usage: ') && l.includes('20'))).toBe(true);
+      expect(out.some((l) => l.startsWith('  – L1 spend-limit: shows —, '))).toBe(true);
+      expect(out.join('\n')).not.toContain('99');
+    } finally {
+      if (prev === undefined) delete process.env.CCINFOBAR_NO_USAGE_API;
+      else process.env.CCINFOBAR_NO_USAGE_API = prev;
+      fs.rmSync(usageFile(), { force: true });
+    }
+  });
+
+  it('writes nothing under the cache dir', () => {
+    save();
+    const list = () =>
+      fs.existsSync(cacheDir()) ? fs.readdirSync(cacheDir(), { recursive: true }).map(String).sort() : [];
+    const before = list();
+    const cfg = JSON.stringify({
+      lines: [[{ type: 'message-count' }, { type: 'subagents' }, { type: 'model' }]],
+    });
+    capture(() => printWidgetReport(cfgFile('ro.json', cfg)));
+    expect(list()).toEqual(before);
   });
 });

@@ -11,14 +11,7 @@ import { VERSION } from '../core/version.js';
 import { writeAtomic } from '../data/store.js';
 import { terminalWidth } from '../data/terminal.js';
 import { scheduleCheck, updateNotice } from '../data/update-state.js';
-import {
-  mergeUsage,
-  needsUsage,
-  readUsageCache,
-  scheduleUsage,
-  usageApiDisabled,
-  usageDue,
-} from '../data/usage.js';
+import { effectiveUsage, scheduleUsage, usageDue } from '../data/usage.js';
 import type { Args } from './args.js';
 
 export function readStdin(timeoutMs = 3000): Promise<string> {
@@ -82,9 +75,8 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
   }
   if (config.savePayload && typeof args.flags.payload !== 'string') savePayload(payload);
   const width = typeof args.flags.width === 'string' ? Number(args.flags.width) : undefined;
-  const usageOn = !usageApiDisabled(config) && needsUsage(config, payload);
-  const usage = usageOn ? readUsageCache() : null;
-  const lines = renderStatus(config, usage ? mergeUsage(payload, usage) : payload, width);
+  const { usageOn, usage, payload: shown } = effectiveUsage(config, payload);
+  const lines = renderStatus(config, shown, width);
   let notice: string | null = null;
   try {
     notice = updateNotice(config, VERSION);
