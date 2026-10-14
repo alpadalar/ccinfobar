@@ -136,6 +136,89 @@ describe('editor server', () => {
     expect(res.status).toBe(200);
   });
 
+  it('lists scenarios in the state', async () => {
+    const { scenarios } = (await request('GET', '/api/state')).json();
+    expect(scenarios).toHaveLength(7);
+    for (const s of scenarios) {
+      expect(Object.keys(s).sort()).toEqual(['description', 'id', 'label']);
+      expect(typeof s.id).toBe('string');
+      expect(typeof s.label).toBe('string');
+      expect(typeof s.description).toBe('string');
+    }
+    expect(scenarios.map((s: { id: string }) => s.id)).toContain('context-full');
+  });
+
+  it('renders scenario previews on the server', async () => {
+    const lines = async (extra: Record<string, unknown>) =>
+      (
+        await request('POST', '/api/preview', {
+          body: JSON.stringify({ config: defaultConfig(), width: 140, ...extra }),
+        })
+      ).json().lines as string[];
+    const full = await request('POST', '/api/preview', {
+      body: JSON.stringify({
+        config: defaultConfig(),
+        source: 'scenario',
+        scenario: 'context-full',
+        width: 140,
+      }),
+    });
+    expect(full.status).toBe(200);
+    expect(full.json().lines).not.toEqual(await lines({ source: 'sample' }));
+    expect(await lines({ source: 'scenario', scenario: 'context-full' })).toEqual(full.json().lines);
+  });
+
+  it('falls back to sample for unknown scenarios', async () => {
+    const config = {
+      ...defaultConfig(),
+      lines: [
+        [
+          { id: 'model-1', type: 'model' },
+          { id: 'context-percentage-1', type: 'context-percentage' },
+        ],
+      ],
+    };
+    const lines = async (extra: Record<string, unknown>) => {
+      const res = await request('POST', '/api/preview', {
+        body: JSON.stringify({ config, width: 140, ...extra }),
+      });
+      expect(res.status).toBe(200);
+      return res.json().lines as string[];
+    };
+    const sample = await lines({ source: 'sample' });
+    expect(sample.join('')).not.toBe('');
+    for (const scenario of ['nope', 42, '../x', null]) {
+      expect(await lines({ source: 'scenario', scenario })).toEqual(sample);
+    }
+    expect(await lines({ source: 'scenario' })).toEqual(sample);
+    expect(await lines({ source: 'context-full' })).toEqual(sample);
+  });
+
+  it('renders theme previews for a scenario', async () => {
+    const res = await request('POST', '/api/theme-previews', {
+      body: JSON.stringify({
+        config: defaultConfig(),
+        source: 'scenario',
+        scenario: 'api-key-user',
+        width: 100,
+      }),
+    });
+    expect(res.status).toBe(200);
+    const { previews } = res.json();
+    const ids = (await request('GET', '/api/state')).json().themes.map((t: { id: string }) => t.id);
+    expect(Object.keys(previews).sort()).toEqual([...ids].sort());
+    for (const id of ids) expect(previews[id].length).toBeGreaterThan(0);
+  });
+
+  it('keeps the token check on scenario previews', async () => {
+    const body = JSON.stringify({ config: defaultConfig(), source: 'scenario', scenario: 'context-full' });
+    expect((await request('POST', '/api/preview', { body, token: false })).status).toBe(401);
+    expect((await request('POST', '/api/theme-previews', { body, token: false })).status).toBe(401);
+    expect(
+      (await request('POST', '/api/preview', { body, headers: { origin: 'http://evil.example' } })).status,
+    ).toBe(403);
+  });
+
   it('writes the config file', async () => {
     const config = { ...defaultConfig(), separator: ' :: ' };
     const res = await request('PUT', '/api/config', { body: JSON.stringify({ config }) });

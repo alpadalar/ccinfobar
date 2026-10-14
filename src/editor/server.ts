@@ -31,8 +31,9 @@ import { t } from '../core/i18n/index.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { deleteUserPreset, listPresets, presetsDir, saveUserPreset } from '../core/presets.js';
-import { renderPreview } from '../core/preview.js';
+import { type PreviewSource, renderPreview } from '../core/preview.js';
 import { resolveAppearance } from '../core/renderer.js';
+import { getScenario, scenarioList } from '../core/scenarios.js';
 import {
   deleteUserTheme,
   listThemes,
@@ -195,6 +196,14 @@ function asObject(v: unknown): Record<string, unknown> {
   return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {};
 }
 
+function previewSourceOf(body: Record<string, unknown>): PreviewSource {
+  if (body.source === 'last') return 'last';
+  if (body.source === 'scenario' && typeof body.scenario === 'string' && getScenario(body.scenario)) {
+    return { scenario: body.scenario };
+  }
+  return 'sample';
+}
+
 export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const host = opts.host ?? '127.0.0.1';
   const token = crypto.randomBytes(16).toString('hex');
@@ -312,6 +321,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           themesDir: tildify(themesDir()),
           claude: claudeInfo(command),
           hasLastPayload: fs.existsSync(lastPayloadPath()),
+          scenarios: scenarioList(),
           terminal: opts.terminal ?? null,
         });
         return;
@@ -320,7 +330,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const body = asObject(await readBody(req));
         const config = normalizeConfig(body.config);
         if (config.colorLevel === 'auto') config.colorLevel = 3;
-        const source = body.source === 'last' ? 'last' : 'sample';
+        const source = previewSourceOf(body);
         const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 130));
         const draft = body.theme === undefined ? undefined : parseThemeInput(body.theme);
         if (draft?.extends !== undefined && !ID_RE.test(draft.extends)) {
@@ -340,7 +350,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const body = asObject(await readBody(req));
         const config = normalizeConfig(body.config);
         if (config.colorLevel === 'auto') config.colorLevel = 3;
-        const source = body.source === 'last' ? 'last' : 'sample';
+        const source = previewSourceOf(body);
         const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 100));
         const own = config.lines.find((l) => l.length > 0);
         const plain = own
