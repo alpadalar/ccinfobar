@@ -11,6 +11,11 @@ export const installMessages = {
   'install.replaced': 'Replaced: {command}',
   'install.dryRun': 'Dry run: nothing was written.',
   'install.dryRunGlobal': 'Would install ccinfobar {version} with npm first.',
+  'install.dryRunFile': 'Would set statusLine in {file}',
+  'install.dryRunProjects': "Would also replace GSD's status line in {count} project(s):",
+  'install.unset': 'unset',
+  'install.stale':
+    'The statusLine in {file} changed while installing; nothing was written. Run install again.',
   'install.unchanged': 'statusLine already runs ccinfobar; nothing to change.',
   'install.backup': '  Backup: {file}',
   'install.legacyPrompt':

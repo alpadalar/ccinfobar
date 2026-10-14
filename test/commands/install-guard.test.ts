@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { parseArgs } from '../../src/cli/args.js';
 import {
   applyInstall,
   InstallNeedsConfirmError,
@@ -10,7 +11,19 @@ import {
   projectSettingsPath,
   takeOverProjects,
 } from '../../src/commands/install.js';
+import {
+  type InstallIo,
+  runInstall,
+  runUninstall,
+  uninstallMessage,
+} from '../../src/commands/install-cli.js';
 import { findStatusLineEntry, manifestFile, readManifest } from '../../src/commands/manifest.js';
+import { runUpdate } from '../../src/commands/update.js';
+import { loadConfig, saveConfig } from '../../src/core/config.js';
+import { t } from '../../src/core/i18n/index.js';
+import { tildify } from '../../src/core/paths.js';
+import { starterConfig } from '../../src/core/presets.js';
+import { VERSION } from '../../src/core/version.js';
 
 const tmpEnv = () => {
   const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-guard-')));
@@ -211,5 +224,245 @@ describe('takeOverProjects', () => {
       });
       expect(entry?.restore).toEqual({ absent: true });
     }
+  });
+});
+
+describe('runInstall and runUninstall', () => {
+  let saved: NodeJS.ProcessEnv;
+  let argv1: string | undefined;
+  let dir: string;
+  let settings: string;
+  let cfg: string;
+
+  beforeEach(() => {
+    saved = { ...process.env };
+    argv1 = process.argv[1];
+    dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-cli-')));
+    process.env.CLAUDE_CONFIG_DIR = path.join(dir, 'claude');
+    process.env.CCINFOBAR_CONFIG_DIR = path.join(dir, 'config');
+    process.env.CCINFOBAR_CACHE_DIR = path.join(dir, 'cache');
+    settings = path.join(dir, 'claude', 'settings.json');
+    cfg = path.join(dir, 'config', 'config.json');
+  });
+
+  afterEach(() => {
+    process.env = saved;
+    process.argv[1] = argv1 as string;
+    process.exitCode = undefined;
+    vi.unstubAllGlobals();
+  });
+
+  const fake = (tty: boolean, answer = false) => {
+    const lines: string[] = [];
+    const errors: string[] = [];
+    const asked: string[] = [];
+    const setup = vi.fn(() => {
+      throw new Error('setup must not run');
+    });
+    const io: InstallIo = {
+      tty,
+      ask: async (q) => {
+        asked.push(q);
+        return answer;
+      },
+      log: (l) => lines.push(l),
+      error: (l) => errors.push(l),
+      setup: setup as unknown as InstallIo['setup'],
+    };
+    return { io, lines, errors, asked, setup };
+  };
+  const args = (...a: string[]) => parseArgs(['install', '--command', '/bin/ccinfobar', ...a]);
+  const proposed = t('install.proposed', { command: '/bin/ccinfobar' });
+
+  it('keeps a foreign statusLine when the TTY user says no', async () => {
+    writeJson(settings, { statusLine: foreign });
+    const before = snapshot(dir);
+    const f = fake(true, false);
+    await runInstall(args(), cfg, f.io);
+    expect(f.lines[0]).toBe(t('install.installing', { version: VERSION }));
+    expect(f.lines).toContain(t('install.foreignHeader', { file: tildify(settings) }));
+    expect(f.lines).toContain(t('install.current', { command: foreign.command }));
+    expect(f.lines).toContain(proposed);
+    expect(f.lines).toContain(t('install.refreshDiff', { current: 3, proposed: t('install.unset') }));
+    expect(f.lines).toContain(t('install.paddingDiff', { current: t('install.unset'), proposed: 0 }));
+    expect(f.lines.at(-1)).toBe(t('install.kept'));
+    expect(f.asked).toEqual([t('install.replacePrompt')]);
+    expect(snapshot(dir)).toEqual(before);
+    expect(process.exitCode ?? 0).toBe(0);
+  });
+
+  it('replaces after a TTY yes and prints what it wrote', async () => {
+    writeJson(settings, { statusLine: foreign });
+    const f = fake(true, true);
+    await runInstall(args(), cfg, f.io);
+    expect(read(settings).statusLine.command).toBe('/bin/ccinfobar');
+    const wrote = f.lines.indexOf(t('install.wrote', { command: '/bin/ccinfobar', file: tildify(settings) }));
+    expect(wrote).toBeGreaterThan(0);
+    expect(f.lines.slice(wrote).some((l) => l.startsWith(t('install.backup', { file: '' })))).toBe(true);
+    expect(fs.existsSync(cfg)).toBe(true);
+  });
+
+  it('replaces without a TTY and says what it replaced', async () => {
+    writeJson(settings, { statusLine: foreign });
+    const f = fake(false);
+    await runInstall(args(), cfg, f.io);
+    expect(f.asked).toEqual([]);
+    expect(f.lines).toContain(t('install.replaced', { command: foreign.command }));
+    expect(f.lines).not.toContain(t('install.foreignHeader', { file: tildify(settings) }));
+    expect(read(settings).statusLine.command).toBe('/bin/ccinfobar');
+  });
+
+  it('replaces with --yes without asking', async () => {
+    writeJson(settings, { statusLine: foreign });
+    const f = fake(true, false);
+    await runInstall(args('--yes'), cfg, f.io);
+    expect(f.asked).toEqual([]);
+    expect(read(settings).statusLine.command).toBe('/bin/ccinfobar');
+    const g = fake(true, false);
+    writeJson(settings, { statusLine: foreign });
+    await runInstall(args('-y'), cfg, g.io);
+    expect(g.asked).toEqual([]);
+  });
+
+  it('prints only the diffs that differ', async () => {
+    writeJson(settings, { statusLine: { ...foreign, padding: 0 } });
+    const f = fake(true, false);
+    await runInstall(args('--refresh', '3'), cfg, f.io);
+    expect(f.lines.some((l) => l.includes('refreshInterval:'))).toBe(false);
+    expect(f.lines.some((l) => l.includes('padding:'))).toBe(false);
+  });
+
+  it('sanitizes the foreign command it prints', async () => {
+    writeJson(settings, { statusLine: { type: 'command', command: 'evil\u001b]0;x\u0007\u202eline' } });
+    const f = fake(false);
+    await runInstall(args(), cfg, f.io);
+    expect(f.lines).toContain(t('install.replaced', { command: 'evilline' }));
+  });
+
+  it('writes nothing on --dry-run and never runs setup', async () => {
+    writeJson(settings, { statusLine: foreign });
+    const before = snapshot(dir);
+    const f = fake(true, true);
+    await runInstall(args('--dry-run'), cfg, f.io);
+    expect(f.lines).toContain(t('install.current', { command: foreign.command }));
+    expect(f.lines).toContain(proposed);
+    expect(f.lines.at(-1)).toBe(t('install.dryRun'));
+    expect(f.asked).toEqual([]);
+    expect(snapshot(dir)).toEqual(before);
+
+    const g = fake(false);
+    await runInstall(parseArgs(['install', '--dry-run']), cfg, g.io);
+    expect(g.setup).not.toHaveBeenCalled();
+    expect(snapshot(dir)).toEqual(before);
+  });
+
+  it('says it would install with npm on a dry run from npx', async () => {
+    process.argv[1] = path.join(dir, '_npx', 'abc', 'node_modules', 'ccinfobar', 'dist', 'ccinfobar.js');
+    process.env.PATH = '';
+    const f = fake(false);
+    await runInstall(parseArgs(['install', '--dry-run']), cfg, f.io);
+    expect(f.setup).not.toHaveBeenCalled();
+    expect(f.lines).toContain(t('install.dryRunGlobal', { version: VERSION }));
+    expect(f.lines.at(-1)).toBe(t('install.dryRun'));
+    expect(fs.existsSync(path.join(dir, 'config'))).toBe(false);
+  });
+
+  it('persists the GSD line migration on install', async () => {
+    fs.mkdirSync(path.join(dir, 'claude', 'get-shit-done'), { recursive: true });
+    saveConfig(starterConfig(false), cfg);
+    expect(read(cfg).gsdAutoLine).toBe(true);
+    await runInstall(args(), cfg, fake(false).io);
+    expect(read(cfg).gsdAutoLine).toBeUndefined();
+    expect(loadConfig(cfg).exists).toBe(true);
+  });
+
+  const legacy = { type: 'command' as const, command: 'ccinfobar --x | tee /tmp/y' };
+
+  it('asks once on uninstall for a legacy-looking statusLine', async () => {
+    writeJson(settings, { model: 'opus', statusLine: legacy });
+    const no = fake(true, false);
+    await runUninstall(parseArgs(['uninstall']), cfg, no.io);
+    expect(no.asked).toEqual([t('install.legacyPrompt', { command: legacy.command })]);
+    expect(read(settings).statusLine).toEqual(legacy);
+    expect(no.lines).toContain(t('uninstall.foreign', { file: tildify(settings), command: legacy.command }));
+
+    const quiet = fake(false, true);
+    await runUninstall(parseArgs(['uninstall']), cfg, quiet.io);
+    expect(quiet.asked).toEqual([]);
+    expect(read(settings).statusLine).toEqual(legacy);
+
+    const yes = fake(true, true);
+    await runUninstall(parseArgs(['uninstall']), cfg, yes.io);
+    expect(yes.asked).toHaveLength(1);
+    expect(read(settings)).toEqual({ model: 'opus' });
+    expect(yes.lines).toContain(t('uninstall.removed', { file: tildify(settings) }));
+  });
+
+  it('asks once on install for a legacy-looking statusLine and adopts it', async () => {
+    writeJson(settings, { statusLine: legacy });
+    const f = fake(true, true);
+    await runInstall(args(), cfg, f.io);
+    expect(f.asked).toEqual([t('install.legacyPrompt', { command: legacy.command })]);
+    expect(f.lines).not.toContain(t('install.replaced', { command: legacy.command }));
+    expect(findStatusLineEntry(readManifest(), settings)?.previous).toBeNull();
+  });
+
+  it('round-trips install and uninstall through the CLI', async () => {
+    writeJson(settings, { model: 'opus', statusLine: foreign });
+    const before = fs.readFileSync(settings);
+    await runInstall(args(), cfg, fake(false).io);
+    const f = fake(false);
+    await runUninstall(parseArgs(['uninstall']), cfg, f.io);
+    expect(f.lines).toContain(t('uninstall.restoredExact', { file: tildify(settings) }));
+    expect(fs.readFileSync(settings).equals(before)).toBe(true);
+  });
+
+  it('has a message for every uninstall status', () => {
+    const file = settings;
+    const s = (command: string) => ({ type: 'command' as const, command });
+    const cases = [
+      ['restored-exact', t('uninstall.restoredExact', { file: tildify(file) }), null],
+      ['restored-previous', t('uninstall.restoredPrevious', { command: 'prev' }), s('prev')],
+      ['removed', t('uninstall.removed', { file: tildify(file) }), null],
+      ['deleted-file', t('uninstall.deletedFile', { file: tildify(file) }), null],
+      ['gone-restored', t('uninstall.goneRestored', { file: tildify(file), command: 'prev' }), s('prev')],
+      ['gone-nothing', t('uninstall.goneNothing', { file: tildify(file) }), null],
+      ['not-installed', t('uninstall.notInstalled', { file: tildify(file) }), null],
+    ] as const;
+    for (const [status, text, restored] of cases) {
+      expect(uninstallMessage({ status, file, removed: false, restored })).toBe(text);
+    }
+    expect(
+      uninstallMessage({ status: 'foreign', file, removed: false, restored: null, current: s('other') }),
+    ).toBe(t('uninstall.foreign', { file: tildify(file), command: 'other' }));
+  });
+
+  const gsdProject = () => {
+    const root = path.join(dir, 'proj');
+    writeJson(projectSettingsPath(root, false), {
+      statusLine: { type: 'command', command: 'node .claude/hooks/gsd-statusline.js' },
+    });
+    writeJson(path.join(dir, 'claude', '.claude.json'), { projects: { [root]: {} } });
+    return root;
+  };
+
+  it('takes over GSD projects in the background only when the user statusLine is ours', async () => {
+    vi.stubGlobal('fetch', async () => {
+      throw new Error('offline');
+    });
+    const root = gsdProject();
+    writeJson(settings, { statusLine: { type: 'command', command: 'wrap-ccinfobar --fancy' } });
+    await runUpdate(parseArgs(['update', '--background']), cfg);
+    expect(fs.existsSync(projectSettingsPath(root))).toBe(false);
+
+    install('/bin/ccinfobar', 9, settings);
+    await runUpdate(parseArgs(['update', '--background']), cfg);
+    expect(read(projectSettingsPath(root)).statusLine).toEqual({
+      type: 'command',
+      command: '/bin/ccinfobar',
+      padding: 0,
+      refreshInterval: 9,
+    });
+    expect(findStatusLineEntry(readManifest(), projectSettingsPath(root))).not.toBeNull();
   });
 });

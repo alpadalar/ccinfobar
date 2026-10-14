@@ -52,7 +52,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     }
     case 'uninstall': {
       const { runUninstall } = await import('../commands/install-cli.js');
-      runUninstall(args, cfgFile);
+      await runUninstall(args, cfgFile);
       return;
     }
     case 'init': {

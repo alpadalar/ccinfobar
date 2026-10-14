@@ -139,6 +139,14 @@ function legacyPrevious(file: string, command: string | null): StatusLineSetting
   }
 }
 
+export function statusLineOwner(
+  file = claudeSettingsPath(),
+  command: string | null = null,
+): { current: StatusLineSetting | null; owner: Owner } {
+  const current = currentStatusLine(file);
+  return { current, owner: classify(readManifest(), file, current, command) };
+}
+
 export interface InstallDiff {
   key: 'refreshInterval' | 'padding';
   current: number | null;

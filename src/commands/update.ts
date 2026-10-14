@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import { loadForUse } from '../core/load.js';
+import { claudeSettingsPath } from '../core/paths.js';
 import type { Config } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import {
@@ -15,6 +16,7 @@ import {
   writeUpdateState,
 } from '../data/update-state.js';
 import { currentStatusLine, takeOverProjects } from './install.js';
+import { classifyOwner, owns, readManifest } from './manifest.js';
 
 export {
   availableUpdate,
@@ -177,8 +179,11 @@ export async function runUpdate(args: Args, cfgFile: string): Promise<void> {
   if (args.flags.background) {
     await backgroundUpdate(loadForUse(cfgFile).config, VERSION);
     try {
-      const sl = currentStatusLine();
-      if (sl?.command?.includes('ccinfobar')) takeOverProjects(sl.command, sl.refreshInterval);
+      const file = claudeSettingsPath();
+      const sl = currentStatusLine(file);
+      const m = readManifest();
+      const ours = owns(m, file, sl) || classifyOwner(m, file, sl, null) === 'legacy-ours';
+      if (sl && ours && typeof sl.command === 'string') takeOverProjects(sl.command, sl.refreshInterval);
     } catch {}
     return;
   }
