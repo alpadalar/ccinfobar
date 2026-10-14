@@ -6,7 +6,14 @@ import { cacheDir, claudeDir } from '../core/paths.js';
 import { deepSanitize } from '../core/sanitize.js';
 import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
-import { captureTime, type LimitsView, limitsOn, readLimitsStore, resolveLimits } from './limits.js';
+import {
+  accountKey,
+  captureTime,
+  type LimitsView,
+  limitsOn,
+  readLimitsStore,
+  resolveLimits,
+} from './limits.js';
 import { detectProvider } from './provider.js';
 import { acquireLock, writeAtomic } from './store.js';
 import type { TranscriptInfo } from './transcript.js';
@@ -30,13 +37,33 @@ export interface UsageCache {
 }
 
 export function usageFile(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(cacheDir(env), `usage-${accountKey(env)}.json`);
+}
+
+// read-only fallback, shared by every config dir
+export function legacyUsageFile(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(cacheDir(env), 'usage.json');
+}
+
+function readUsageText(env: NodeJS.ProcessEnv): string | null {
+  try {
+    return fs.readFileSync(usageFile(env), 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT' || env.CLAUDE_CONFIG_DIR) return null;
+  }
+  try {
+    return fs.readFileSync(legacyUsageFile(env), 'utf8');
+  } catch {
+    return null;
+  }
 }
 
 // cached API text reaches widgets after payload ingest
 export function readUsageCache(env: NodeJS.ProcessEnv = process.env): UsageCache | null {
   try {
-    const v = JSON.parse(fs.readFileSync(usageFile(env), 'utf8')) as unknown;
+    const text = readUsageText(env);
+    if (text === null) return null;
+    const v = JSON.parse(text) as unknown;
     return v && typeof v === 'object' && !Array.isArray(v) ? deepSanitize(v as UsageCache) : null;
   } catch {
     return null;

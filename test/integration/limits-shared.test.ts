@@ -115,6 +115,35 @@ describe.skipIf(!fs.existsSync(bin))('shared limits', () => {
     expect(fs.existsSync(path.join(dir, 'cache', 'limits'))).toBe(false);
   });
 
+  it('keeps two config dirs sharing a cache dir apart', () => {
+    const now = Date.now();
+    for (const d of ['claude-a', 'claude-b', 'claude-c']) fs.mkdirSync(path.join(dir, d));
+    fs.mkdirSync(path.join(dir, 'cache'));
+    const legacy = { fetchedAt: now, rate_limits: { five_hour: { used_percentage: 55, resets_at: null } } };
+    fs.writeFileSync(path.join(dir, 'cache', 'usage.json'), JSON.stringify(legacy));
+    const as = (d: string) => ({
+      CLAUDE_CONFIG_DIR: path.join(dir, d),
+      CLAUDE_SECURESTORAGE_CONFIG_DIR: path.join(dir, d),
+      CCINFOBAR_NO_USAGE_API: '',
+    });
+    const a = transcript('a', 1000);
+    const b = transcript('b', 1000);
+    const week = { used_percentage: 1, resets_at: sec(now + 3 * 86_400_000) };
+    const five = (pct: number) => ({ used_percentage: pct, resets_at: sec(now + 7_200_000) });
+    expect(render('sess-a', a, { five_hour: five(71), seven_day: week }, as('claude-a'))).toContain('71%');
+    const outB = render('sess-b', b, { five_hour: five(32), seven_day: week }, as('claude-b'));
+    expect(outB).toContain('32%');
+    expect(outB).not.toContain('71%');
+    const idleA = render('sess-a', a, {}, as('claude-a'));
+    expect(idleA).toContain('71%');
+    expect(idleA).not.toMatch(/32%|55%/);
+    const idleB = render('sess-b', b, {}, as('claude-b'));
+    expect(idleB).toContain('32%');
+    expect(idleB).not.toMatch(/71%|55%/);
+    expect(render('sess-c', b, {}, as('claude-c'))).not.toMatch(/71%|32%|55%/);
+    expect(fs.readFileSync(path.join(dir, 'cache', 'usage.json'), 'utf8')).toBe(JSON.stringify(legacy));
+  });
+
   it('writes the store for a first-party session', () => {
     const now = Date.now();
     const a = transcript('a', 1000);

@@ -7,6 +7,7 @@ import { limitsOn, resolveLimits } from '../../src/data/limits.js';
 import {
   effectiveUsage,
   fetchUsage,
+  legacyUsageFile,
   needsUsage,
   parseUsageResponse,
   readUsageCache,
@@ -114,7 +115,7 @@ describe('usage api', () => {
     const env = sandbox(null);
     fs.mkdirSync(env.CCINFOBAR_CACHE_DIR, { recursive: true });
     fs.writeFileSync(
-      path.join(env.CCINFOBAR_CACHE_DIR, 'usage.json'),
+      usageFile(env),
       JSON.stringify({
         fetchedAt: 1,
         error: 'x\u001b]0;t\u0007y',
@@ -124,13 +125,43 @@ describe('usage api', () => {
     const c = readUsageCache(env);
     expect(c?.error).toBe('xy');
     expect(c?.rate_limits?.seven_day_models?.[0]?.model).toBe('Opus');
-    fs.writeFileSync(path.join(env.CCINFOBAR_CACHE_DIR, 'usage.json'), '[1]');
+    fs.writeFileSync(usageFile(env), '[1]');
     expect(readUsageCache(env)).toBeNull();
+  });
+
+  it('keeps one usage cache per config dir', async () => {
+    const a = sandbox('tok-a');
+    const b = { ...sandbox('tok-b'), CCINFOBAR_CACHE_DIR: a.CCINFOBAR_CACHE_DIR };
+    await fetchUsage(a, reply(200, { five_hour: { utilization: 11 }, seven_day: { utilization: 1 } }));
+    await fetchUsage(b, reply(200, { five_hour: { utilization: 22 }, seven_day: { utilization: 2 } }));
+    expect(usageFile(a)).not.toBe(usageFile(b));
+    expect(path.basename(usageFile(a))).toMatch(/^usage-[0-9a-f]{16}\.json$/);
+    expect(fs.existsSync(usageFile(a)) && fs.existsSync(usageFile(b))).toBe(true);
+    expect(readUsageCache(a)?.rate_limits?.five_hour?.used_percentage).toBe(11);
+    expect(readUsageCache(b)?.rate_limits?.five_hour?.used_percentage).toBe(22);
+  });
+
+  it('reads the legacy cache only without CLAUDE_CONFIG_DIR and never writes it', async () => {
+    const env = sandbox('tok');
+    const { CLAUDE_CONFIG_DIR: _, ...bare } = env;
+    fs.mkdirSync(env.CCINFOBAR_CACHE_DIR, { recursive: true });
+    const legacy = legacyUsageFile(env);
+    expect(path.basename(legacy)).toBe('usage.json');
+    const text = JSON.stringify({ fetchedAt: 5, rate_limits: { five_hour: { used_percentage: 33 } } });
+    fs.writeFileSync(legacy, text);
+    fs.utimesSync(legacy, 1000, 1000);
+    expect(readUsageCache(bare)?.rate_limits?.five_hour?.used_percentage).toBe(33);
+    expect(readUsageCache(env)).toBeNull();
+    await fetchUsage(env, reply(200, { five_hour: { utilization: 9 }, seven_day: { utilization: 9 } }));
+    expect(fs.readFileSync(legacy, 'utf8')).toBe(text);
+    expect(fs.statSync(legacy).mtimeMs).toBe(1_000_000);
+    expect(readUsageCache(env)?.rate_limits?.five_hour?.used_percentage).toBe(9);
   });
 
   it('schedules no usage fetch when nonessential traffic is off', () => {
     const env = sandbox(null);
-    const lock = path.join(env.CCINFOBAR_CACHE_DIR, 'usage.json.lock');
+    const lock = `${usageFile(env)}.lock`;
+    expect(path.basename(lock)).toMatch(/^usage-[0-9a-f]{16}\.json\.lock$/);
     scheduleUsage({ ...env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' });
     expect(fs.existsSync(lock)).toBe(false);
     scheduleUsage({ ...env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '' });
