@@ -219,14 +219,16 @@ function observations(r: RateLimits | undefined, at: number | null, src: ObsSrc)
   return out;
 }
 
-// thinned ring: a point too close to the last one replaces it
+// thinned ring: a flat point once per gap; the newest point moves forward within its gap
 export function addSample(ring: Sample[], p: Sample, gap: number): Sample[] {
   const last = ring[ring.length - 1];
-  if (last && (p.pct === last.pct || p.t < last.t)) return ring;
-  const out = ring.slice();
-  if (last && p.t - last.t < gap) out[out.length - 1] = { t: last.t, pct: p.pct };
-  else out.push(p);
-  return out.slice(-MAX_SAMPLES);
+  if (!last) return [p];
+  if (p.t < last.t) return ring;
+  const near = p.t - last.t < gap;
+  if (near && p.pct === last.pct) return ring;
+  const prev = ring[ring.length - 2];
+  const live = p.t === last.t || (near && !!prev && last.t - prev.t < gap);
+  return (live ? [...ring.slice(0, -1), p] : [...ring, p]).slice(-MAX_SAMPLES);
 }
 
 export function mergeObservation(

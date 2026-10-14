@@ -29,20 +29,16 @@ interface Point {
   pct: number;
 }
 
-// pct per ms, null below the fit minimum
+const STEPS = 30;
+
+// least-squares pct per ms
 function slope(points: Point[]): number | null {
-  if (points.length < MIN_POINTS) return null;
-  let lo = Number.POSITIVE_INFINITY;
-  let hi = Number.NEGATIVE_INFINITY;
   let st = 0;
   let sp = 0;
   for (const p of points) {
-    lo = Math.min(lo, p.t);
-    hi = Math.max(hi, p.t);
     st += p.t;
     sp += p.pct;
   }
-  if (hi - lo < MIN_SPAN) return null;
   const mt = st / points.length;
   const mp = sp / points.length;
   let num = 0;
@@ -52,6 +48,23 @@ function slope(points: Point[]): number | null {
     den += (p.t - mt) ** 2;
   }
   return den > 0 ? num / den : null;
+}
+
+// fills gaps linearly so a flat stretch counts for its length
+function dense(points: Point[], step: number): Point[] {
+  const out: Point[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i]!;
+    const b = points[i + 1];
+    out.push(a);
+    if (!b) break;
+    const n = Math.floor((b.t - a.t) / step);
+    for (let j = 1; j < n; j++) {
+      const t = a.t + j * step;
+      out.push({ t, pct: a.pct + ((b.pct - a.pct) * (t - a.t)) / (b.t - a.t) });
+    }
+  }
+  return out;
 }
 
 export function projectWindow(
@@ -69,10 +82,14 @@ export function projectWindow(
   let idle = false;
   if (opts.pace === 'recent') {
     const from = Math.max(start, now - opts.lookback);
-    const pts = (opts.samples ?? []).filter(
-      (s) => Number.isFinite(s.t) && Number.isFinite(s.pct) && s.t >= from && s.t <= now,
-    );
-    const k = slope(pts);
+    const pts = (opts.samples ?? [])
+      .filter((s) => Number.isFinite(s.t) && Number.isFinite(s.pct) && s.t >= from && s.t <= now)
+      .sort((a, b) => a.t - b.t);
+    const span = pts.length ? pts[pts.length - 1]!.t - pts[0]!.t : 0;
+    const k =
+      pts.length >= MIN_POINTS && span >= MIN_SPAN
+        ? slope(dense([...pts, { t: now, pct: u }], Math.max(1000, opts.lookback / STEPS)))
+        : null;
     if (k !== null) {
       idle = k <= 0;
       rate = idle ? 0 : k;

@@ -208,14 +208,17 @@ describe('mergeObservation', () => {
   it('thins the sample ring and clears it on rollover', () => {
     let s = base;
     s = mergeObservation(s, 'five_hour', obs(71, NOW + 2 * H, NOW - 30_000), NOW);
-    expect(s.windows.five_hour?.samples).toEqual([{ t: NOW - MIN, pct: 71 }]);
-    s = mergeObservation(s, 'five_hour', obs(72, NOW + 2 * H, NOW + MIN), NOW);
     expect(s.windows.five_hour?.samples).toEqual([
-      { t: NOW - MIN, pct: 71 },
-      { t: NOW + MIN, pct: 72 },
+      { t: NOW - MIN, pct: 70 },
+      { t: NOW - 30_000, pct: 71 },
+    ]);
+    s = mergeObservation(s, 'five_hour', obs(72, NOW + 2 * H, NOW), NOW);
+    expect(s.windows.five_hour?.samples).toEqual([
+      { t: NOW - MIN, pct: 70 },
+      { t: NOW, pct: 72 },
     ]);
     s = mergeObservation(s, 'five_hour', obs(72, NOW + 2 * H, NOW + 5 * MIN), NOW);
-    expect(s.windows.five_hour?.samples).toHaveLength(2);
+    expect(s.windows.five_hour?.samples).toHaveLength(3);
     s = mergeObservation(s, 'five_hour', obs(2, NOW + 4 * H, NOW + 6 * MIN), NOW);
     expect(s.windows.five_hour?.samples).toEqual([{ t: NOW + 6 * MIN, pct: 2 }]);
   });
@@ -225,11 +228,22 @@ describe('mergeObservation', () => {
     for (let i = 0; i < 40; i++) ring = addSample(ring, { t: NOW + i * 20 * MIN, pct: i }, 20 * MIN);
     expect(ring).toHaveLength(32);
     expect(ring[0]?.pct).toBe(8);
-    expect(addSample(ring, { t: NOW + 39 * 20 * MIN + MIN, pct: 99 }, 20 * MIN).at(-1)).toEqual({
-      t: NOW + 39 * 20 * MIN,
-      pct: 99,
-    });
+    const next = addSample(ring, { t: NOW + 39 * 20 * MIN + MIN, pct: 99 }, 20 * MIN);
+    expect(next).toHaveLength(32);
+    expect(next.at(-1)).toEqual({ t: NOW + 39 * 20 * MIN + MIN, pct: 99 });
     expect(addSample(ring, { t: NOW, pct: 100 }, 20 * MIN)).toBe(ring);
+  });
+
+  it('keeps time moving for an unchanged pct and the newer time on merge', () => {
+    const ring = [{ t: NOW, pct: 10 }];
+    expect(addSample(ring, { t: NOW + 30_000, pct: 10 }, MIN)).toBe(ring);
+    expect(addSample(ring, { t: NOW + MIN, pct: 10 }, MIN)).toEqual([...ring, { t: NOW + MIN, pct: 10 }]);
+    const two = [...ring, { t: NOW + 20_000, pct: 11 }];
+    expect(addSample(two, { t: NOW + 45_000, pct: 12 }, MIN)).toEqual([
+      ...ring,
+      { t: NOW + 45_000, pct: 12 },
+    ]);
+    expect(addSample(two, { t: NOW + 20_000, pct: 13 }, MIN).at(-1)).toEqual({ t: NOW + 20_000, pct: 13 });
   });
 });
 

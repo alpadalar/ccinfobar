@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { t } from '../../src/core/i18n/index.js';
 import type { RateWindow, StatusPayload, WidgetItem } from '../../src/core/types.js';
-import type { LimitsView } from '../../src/data/limits.js';
+import { addSample, type LimitsView } from '../../src/data/limits.js';
 import { getWidget } from '../../src/widgets/index.js';
 import {
   firstWindow,
@@ -105,6 +105,19 @@ describe('projectWindow', () => {
     const samples = [0, 1, 2, 3].map((i) => ({ t: now - (20 - 5 * i) * MIN, pct: 50 }));
     const p = ok(projectWindow(50, now + 2 * H, FIVE, now, { ...win, pace: 'recent', samples }));
     expect(p).toMatchObject({ proj: 50, eta: Number.POSITIVE_INFINITY, safe: true, idle: true });
+  });
+
+  it('does not project an overrun after a burst and an idle pause', () => {
+    let samples: { t: number; pct: number }[] = [];
+    for (let i = 0; i <= 20; i++)
+      samples = addSample(samples, { t: now - 30 * MIN + i * 30_000, pct: 10 + i }, MIN);
+    const p = ok(projectWindow(30, now + 2 * H, FIVE, now, { ...win, pace: 'recent', samples }));
+    expect(p.proj).toBeLessThan(100);
+    expect(p.safe).toBe(true);
+    const burst = ok(
+      projectWindow(30, now + 2 * H, FIVE, now - 20 * MIN, { ...win, pace: 'recent', samples }),
+    );
+    expect(burst.safe).toBe(false);
   });
 
   it('handles zero, full and rolled windows', () => {
