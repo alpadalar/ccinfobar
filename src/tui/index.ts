@@ -1,10 +1,17 @@
-import { applyInstall, type InstallPlan, planInstall, setupCommand } from '../commands/install.js';
+import {
+  applyInstall,
+  globalBinary,
+  type InstallPlan,
+  planInstall,
+  setupCommand,
+} from '../commands/install.js';
 import { backupsDir } from '../commands/settings-file.js';
 import { ConfigBrokenError, type LoadResult, saveConfig } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { saveUserTheme } from '../core/themes.js';
 import { gsdInstalled } from '../data/gsd.js';
+import { installKind } from '../data/update-state.js';
 import type { Hit } from './hits.js';
 import { keyToAction, mouseToAction, parseInput, splitPending } from './keys.js';
 import { type Action, type Effect, initialState, reduce, type State, type TuiInstallPlan } from './state.js';
@@ -36,6 +43,14 @@ function installCommand(deps: EffectDeps): string {
   const command = deps.command ? deps.command() : setupCommand(VERSION).command;
   if (!command) throw new Error('could not install ccinfobar; run npm install -g ccinfobar');
   return command;
+}
+
+const PENDING = 'ccinfobar (installed after you confirm)';
+
+// planning must not run npm
+function planCommand(deps: EffectDeps): string {
+  if (deps.command || installKind() !== 'npx' || globalBinary()) return installCommand(deps);
+  return PENDING;
 }
 
 const commandOf = (sl: InstallPlan['current']): string | null =>
@@ -72,10 +87,11 @@ export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): 
     }
     const file = deps.settingsFile;
     if (effect.kind === 'planInstall') {
-      return { type: 'installPlanned', plan: tuiPlan(planInstall({ file, command: installCommand(deps) })) };
+      return { type: 'installPlanned', plan: tuiPlan(planInstall({ file, command: planCommand(deps) })) };
     }
     saveConfig(state.config, state.path);
-    const command = effect.plan?.proposed ?? installCommand(deps);
+    const proposed = effect.plan?.proposed;
+    const command = proposed && proposed !== PENDING ? proposed : installCommand(deps);
     const plan = planInstall({ file, command });
     if (effect.plan && commandOf(plan.current) !== effect.plan.current)
       return { type: 'effectDone', ok: false, message: t('install.stale', { file: plan.file }) };
