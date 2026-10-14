@@ -225,6 +225,7 @@ export function normalizeConfig(raw: unknown): Config {
   if (raw.update === 'notify' || raw.update === 'auto' || raw.update === 'off') cfg.update = raw.update;
   if (typeof raw.usageApi === 'boolean') cfg.usageApi = raw.usageApi;
   if (raw.gsdAutoLine === true) cfg.gsdAutoLine = true;
+  if (raw.gitHardening === false) cfg.gitHardening = false;
   const tui = normalizeTui(raw.tui);
   if (tui) cfg.tui = tui;
   if (typeof raw.style === 'string' && STYLE_IDS.includes(raw.style)) cfg.style = raw.style as ThemeStyle;

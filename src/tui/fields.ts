@@ -466,6 +466,14 @@ function baseGlobalFields(): Field[] {
       { help: 'Fill usage limit widgets from your Claude login when Claude Code sends none' },
     ),
     globalField(
+      'gitHardening',
+      'Git hardening',
+      'bool',
+      (c) => c.gitHardening !== false,
+      (c, v) => ({ ...c, gitHardening: v ? undefined : false }),
+      { help: 'Stop repos from running their own git hooks and filters through the status line' },
+    ),
+    globalField(
       'autoWrap',
       'Auto wrap',
       'bool',

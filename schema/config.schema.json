@@ -263,6 +263,11 @@
       "default": true,
       "description": "Fill usage limit widgets from Claude when Claude Code does not send rate_limits"
     },
+    "gitHardening": {
+      "type": "boolean",
+      "default": true,
+      "description": "Ignore repo-local core.fsmonitor and filter drivers when ccinfobar runs git"
+    },
     "tui": {
       "type": "object",
       "description": "Settings for the tui (panel) style",

@@ -283,6 +283,11 @@ function schema(): object {
         default: true,
         description: 'Fill usage limit widgets from Claude when Claude Code does not send rate_limits',
       },
+      gitHardening: {
+        type: 'boolean',
+        default: true,
+        description: 'Ignore repo-local core.fsmonitor and filter drivers when ccinfobar runs git',
+      },
       tui: tuiSchema,
       colorLevel: { enum: ['auto', 0, 1, 2, 3], default: 'auto' },
       icons: { enum: ['nerd', 'emoji', 'text', 'none'], default: 'text' },

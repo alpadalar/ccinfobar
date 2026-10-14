@@ -139,6 +139,12 @@ export async function openSettings(): Promise<void> {
           true,
         ),
         field(
+          'Git hardening',
+          toggle(c.gitHardening !== false, (v) => set({ gitHardening: v ? undefined : false })),
+          'Stop repos from running their own git hooks and filters through the status line.',
+          true,
+        ),
+        field(
           'Save last payload',
           toggle(c.savePayload, (v) => set({ savePayload: v })),
           'Lets the preview use your real last session.',
