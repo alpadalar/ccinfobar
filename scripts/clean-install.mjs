@@ -142,6 +142,8 @@ function childEnv(d) {
     TMP: d.tmp,
     npm_config_prefix: d.prefix,
     npm_config_cache: d.npmCache,
+    npm_config_logs_dir: path.join(d.npmCache, '_logs'),
+    npm_config_userconfig: path.join(d.home, '.npmrc'),
     npm_config_update_notifier: 'false',
     COLUMNS: '200',
   });
@@ -149,8 +151,8 @@ function childEnv(d) {
   return env;
 }
 
-function makeRoot() {
-  const root = fs.realpathSync.native(fs.mkdtempSync(path.join(base, 'ccib-ci-')));
+function makeRoot(prefix = 'ccib-ci-') {
+  const root = fs.realpathSync.native(fs.mkdtempSync(path.join(base, prefix)));
   if (inside(root, base)) owned.add(root);
   const d = {
     root,
@@ -169,10 +171,27 @@ function makeRoot() {
   return d;
 }
 
+const CONTAINED = [
+  'HOME',
+  'USERPROFILE',
+  'APPDATA',
+  'LOCALAPPDATA',
+  'XDG_CONFIG_HOME',
+  'XDG_CACHE_HOME',
+  'XDG_DATA_HOME',
+  'TMPDIR',
+  'TEMP',
+  'TMP',
+  'npm_config_prefix',
+  'npm_config_cache',
+  'npm_config_logs_dir',
+  'npm_config_userconfig',
+];
+
 function assertSafe(d, env) {
-  const home = os.homedir();
+  const home = path.resolve(os.homedir());
   for (const key of ['HOME', 'USERPROFILE']) {
-    if (samePath(path.resolve(env[key]), path.resolve(home))) {
+    if (samePath(path.resolve(env[key]), home)) {
       console.error(`refusing to run: child ${key} is the real home ${home}`);
       process.exit(2);
     }
@@ -180,6 +199,12 @@ function assertSafe(d, env) {
   if (!inside(d.root, base)) {
     console.error(`refusing to run: ${d.root} is not inside ${base}`);
     process.exit(2);
+  }
+  for (const key of CONTAINED) {
+    if (typeof env[key] !== 'string' || !inside(path.resolve(env[key]), d.root)) {
+      console.error(`refusing to run: child ${key}=${env[key]} is not inside ${d.root}`);
+      process.exit(2);
+    }
   }
 }
 
@@ -481,17 +506,22 @@ function runCase(spec, tgz, npm) {
   return ctx;
 }
 
-function build() {
+function build(env) {
   if (skipBuild) return;
-  const r = run(process.execPath, [path.join(repo, 'scripts', 'build.mjs')], { cwd: repo, timeout: 120_000 });
+  const r = run(process.execPath, [path.join(repo, 'scripts', 'build.mjs')], {
+    env,
+    cwd: repo,
+    timeout: 120_000,
+  });
   if (r.status !== 0) {
     console.error(`build failed (exit ${r.status})\n${trim(r.stdout)}\n${trim(r.stderr)}`);
     process.exit(1);
   }
 }
 
-function pack(npm, packDir) {
+function pack(npm, packDir, env) {
   const r = run(process.execPath, [npm, 'pack', '--pack-destination', packDir], {
+    env,
     cwd: repo,
     timeout: 60_000,
   });
@@ -511,12 +541,15 @@ function main() {
   }
   console.log(`ccinfobar ${pkg.version} clean install on ${process.platform}, node ${process.version}`);
   console.log(`temp base ${base}`);
-  build();
   const npm = npmCli();
-  const packDir = fs.realpathSync.native(fs.mkdtempSync(path.join(base, 'ccib-pack-')));
-  owned.add(packDir);
+  const packRoot = makeRoot('ccib-pack-');
+  const packEnv = childEnv(packRoot);
+  assertSafe(packRoot, packEnv);
+  const packDir = path.join(packRoot.root, 'pack');
+  fs.mkdirSync(packDir);
   try {
-    const tgz = pack(npm, packDir);
+    build(packEnv);
+    const tgz = pack(npm, packDir, packEnv);
     for (const spec of cases) {
       if (spec.posixOnly && win) {
         console.log(`SKIP case ${spec.name} (${spec.label}): POSIX only`);
@@ -527,7 +560,7 @@ function main() {
       console.log(`${ctx.failed ? 'FAIL' : 'PASS'} case ${spec.name} (${spec.label})`);
     }
   } finally {
-    remove(packDir);
+    remove(packRoot.root);
   }
   const failed = results.filter((c) => c.failed).length;
   console.log(`${results.length - failed}/${results.length} cases passed, ${failures.length} failure(s)`);
