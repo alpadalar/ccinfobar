@@ -9,7 +9,7 @@ export const benchMessages = {
   'bench.gitRepo': '  cwd       a git repo',
   'bench.notGitRepo': '  cwd       not a git repo',
   'bench.niceWarning':
-    '⚠ Priority is above 0, so results are slower than normal. Run at nice 0, e.g. `nice -n -10 ccinfobar bench`.',
+    '⚠ Priority is above 0, so results are slower than normal. Run bench at normal priority (nice 0), for example after `renice -n 0 -p $$` in your shell.',
   'bench.windowsNote': 'Note: process spawn is slower on Windows; numbers are not comparable to POSIX.',
   'bench.col.row': 'row',
   'bench.col.n': 'n',
