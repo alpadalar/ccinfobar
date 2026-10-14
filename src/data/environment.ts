@@ -1,11 +1,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { claudeDir, managedDirs, managedFilesIn, projectSettingsPath } from '../core/paths.js';
+import {
+  claudeDir,
+  claudeJsonPath,
+  managedDirs,
+  managedFilesIn,
+  projectSettingsPath,
+} from '../core/paths.js';
+import { sanitizeText } from '../core/sanitize.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
 
-const VERSION = 1;
+const VERSION = 2;
 const MAX_UP = 20;
 const MAX_JSON = 1024 * 1024;
+const MAX_CLAUDE_JSON = 50 * 1024 * 1024;
+const MAX_NAMES = 1000;
+const MAX_NAME = 256;
 const RULE_DEPTH = 5;
 const RULE_FILES = 500;
 const RULE_DIRS = 200;
@@ -19,8 +29,10 @@ export interface EnvCounts {
   claudeMd: number;
   agentsMd: number;
   rules: number;
+  mcp: number;
   hooks: number;
   hooksDisabled: boolean;
+  mcpHealth?: { ok: number; total: number };
   files: string[];
 }
 
@@ -32,12 +44,19 @@ export interface EnvOptions {
   stopAt?: string;
 }
 
-// h: handlers, d: disableAllHooks, m: allowManagedHooksOnly, i: instructionFiles
+// h: handlers, d: disableAllHooks, m: allowManagedHooksOnly, i: instructionFiles,
+// a/e/x: project mcp approvals, s: servers, p: project entry servers, k: project key
 interface Facts {
   h: number;
   d: boolean | null;
   m: boolean;
   i: string | null;
+  a?: boolean;
+  e?: string[];
+  x?: string[];
+  s?: string[];
+  p?: string[];
+  k?: string;
 }
 type Sig = [string, number, number, Facts | null];
 interface RuleScan {
@@ -74,12 +93,12 @@ export function launchAncestors(start: string, stopAt?: string, p: path.Platform
 }
 
 // nonblocking open, so a FIFO never hangs the render
-function readJson(file: string): Record<string, unknown> | null {
+function readJson(file: string, max: number): Record<string, unknown> | null {
   let fd: number | undefined;
   try {
     fd = fs.openSync(file, RD);
     const st = fs.fstatSync(fd);
-    if (!st.isFile() || st.size > MAX_JSON) return null;
+    if (!st.isFile() || st.size > max) return null;
     const buf = Buffer.alloc(st.size);
     const n = fs.readSync(fd, buf, 0, st.size, 0);
     const text = buf.toString('utf8', 0, n);
@@ -122,9 +141,78 @@ function factsOf(v: Record<string, unknown>): Facts {
   };
 }
 
+function cleanNames(list: unknown[]): string[] {
+  const out = new Set<string>();
+  for (const n of list) {
+    if (out.size >= MAX_NAMES) break;
+    if (typeof n !== 'string') continue;
+    const c = sanitizeText(n).slice(0, MAX_NAME);
+    if (c) out.add(c);
+  }
+  return [...out];
+}
+
+const serverNames = (v: unknown): string[] => (isObj(v) ? cleanNames(Object.keys(v)) : []);
+const nameList = (v: unknown): string[] => (Array.isArray(v) ? cleanNames(v) : []);
+
+// managedMcpServers: an object like mcpServers, or a list of names
+const managedNames = (v: unknown): string[] =>
+  Array.isArray(v)
+    ? cleanNames(v.map((x) => (isObj(x) && typeof x.name === 'string' ? x.name : x)))
+    : serverNames(v);
+
+const NONE: Facts = { h: 0, d: null, m: false, i: null };
+
+function withLists(f: Facts, lists: Partial<Record<'e' | 'x' | 's' | 'p', string[]>>, all: boolean): Facts {
+  const out: Facts = { ...f };
+  if (all) out.a = true;
+  for (const [k, v] of Object.entries(lists) as ['e' | 'x' | 's' | 'p', string[]][]) if (v.length) out[k] = v;
+  return out;
+}
+
+function approvals(v: Record<string, unknown>) {
+  return { e: nameList(v.enabledMcpjsonServers), x: nameList(v.disabledMcpjsonServers) };
+}
+
+const settingsFacts = (v: Record<string, unknown>): Facts =>
+  withLists(
+    factsOf(v),
+    { ...approvals(v), s: managedNames(v.managedMcpServers) },
+    v.enableAllProjectMcpServers === true,
+  );
+
+const mcpFacts = (v: Record<string, unknown>): Facts =>
+  withLists(NONE, { s: serverNames(v.mcpServers) }, false);
+
+function claudeJsonFacts(v: Record<string, unknown>, key: string): Facts {
+  const projects = v.projects;
+  const entry = isObj(projects) && Object.hasOwn(projects, key) ? projects[key] : null;
+  const p: Record<string, unknown> = isObj(entry) ? entry : {};
+  return {
+    ...withLists(
+      NONE,
+      { ...approvals(p), s: serverNames(v.mcpServers), p: serverNames(p.mcpServers) },
+      p.enableAllProjectMcpServers === true,
+    ),
+    k: key,
+  };
+}
+
+const isNames = (v: unknown): boolean =>
+  v === undefined ||
+  (Array.isArray(v) &&
+    v.length <= MAX_NAMES &&
+    v.every((n) => typeof n === 'string' && n.length > 0 && n.length <= MAX_NAME));
+
 function isFacts(v: unknown): v is Facts {
   if (!isObj(v)) return false;
   return (
+    (v.a === undefined || v.a === true) &&
+    isNames(v.e) &&
+    isNames(v.x) &&
+    isNames(v.s) &&
+    isNames(v.p) &&
+    (v.k === undefined || typeof v.k === 'string') &&
     Number.isInteger(v.h) &&
     (v.h as number) >= 0 &&
     (v.h as number) <= MAX_HOOKS &&
@@ -206,6 +294,15 @@ function scanRules(roots: string[], now: number): RuleScan {
   return { at: now, dirs, count };
 }
 
+export function mcpProjectKey(dir: string, platform: NodeJS.Platform): string {
+  return platform === 'win32' ? dir.replace(/\\/g, '/') : dir;
+}
+
+function gitRoot(launch: string, stopAt?: string): string {
+  for (const d of launchAncestors(launch, stopAt)) if (stat(path.join(d, '.git'))) return d;
+  return launch;
+}
+
 function projectRoot(launch: string, stopAt?: string): string {
   for (const d of launchAncestors(launch, stopAt)) {
     if (stat(path.join(d, '.git')) || stat(path.join(d, '.claude'))?.isDirectory()) return d;
@@ -246,18 +343,23 @@ export function readEnvironment(
     const sigs: Sig[] = [];
     const files: string[] = [];
 
-    const json = (file: string): Facts | null => {
+    const json = (
+      file: string,
+      parse: (v: Record<string, unknown>) => Facts = settingsFacts,
+      max = MAX_JSON,
+      fits: (f: Facts | null) => boolean = () => true,
+    ): Facts | null => {
       const st = stat(file);
-      if (!st?.isFile() || st.size > MAX_JSON) {
+      if (!st?.isFile() || st.size > max) {
         if (prev.has(file)) changed = true;
         return null;
       }
       const old = prev.get(file);
       let facts: Facts | null;
-      if (old && old[1] === st.mtimeMs && old[2] === st.size) facts = old[3];
+      if (old && old[1] === st.mtimeMs && old[2] === st.size && fits(old[3])) facts = old[3];
       else {
-        const v = readJson(file);
-        facts = v ? factsOf(v) : null;
+        const v = readJson(file, max);
+        facts = v ? parse(v) : null;
         changed = true;
       }
       sigs.push([file, st.mtimeMs, st.size, facts]);
@@ -277,10 +379,38 @@ export function readEnvironment(
 
     const cdir = claudeDir(env);
     const bases = opts.managedDir ? [opts.managedDir] : managedDirs(platform, env);
-    const managed = bases.flatMap((b) => managedFilesIn(b, listManaged)).map(json);
+    const managed = bases.flatMap((b) => managedFilesIn(b, listManaged)).map((f) => json(f));
     const user = json(path.join(cdir, 'settings.json'));
     const project = json(projectSettingsPath(launch, false));
     const local = json(projectSettingsPath(launch, true));
+    const dirs = launchAncestors(launch, opts.stopAt);
+
+    const key = mcpProjectKey(gitRoot(launch, opts.stopAt), platform);
+    const cj = json(
+      claudeJsonPath(env),
+      (v) => claudeJsonFacts(v, key),
+      MAX_CLAUDE_JSON,
+      (f) => !f || f.k === key,
+    );
+    const projectMcp = dirs
+      .filter((d) => path.dirname(d) !== d)
+      .map((d) => json(path.join(d, '.mcp.json'), mcpFacts));
+    const exclusive = bases
+      .map((b) => json(path.join(b, 'managed-mcp.json'), mcpFacts))
+      .filter((f) => f !== null);
+    const added = managed.flatMap((f) => f?.s ?? []);
+    const servers = new Set<string>(added);
+    if (exclusive.length) for (const f of exclusive) for (const n of f.s ?? []) servers.add(n);
+    else {
+      const layers = [...managed, user, project, local, cj];
+      const all = layers.some((f) => f?.a === true);
+      const enabled = new Set(layers.flatMap((f) => f?.e ?? []));
+      const disabled = new Set(layers.flatMap((f) => f?.x ?? []));
+      for (const n of [...(cj?.s ?? []), ...(cj?.p ?? [])]) servers.add(n);
+      for (const f of projectMcp) {
+        for (const n of f?.s ?? []) if ((all || enabled.has(n)) && !disabled.has(n)) servers.add(n);
+      }
+    }
 
     let mHooks = 0;
     let mDisable: boolean | null = null;
@@ -310,7 +440,6 @@ export function readEnvironment(
     let scan = cached?.rules ?? null;
     if (mode !== 'managed-only') {
       if (md(path.join(cdir, 'CLAUDE.md'))) claudeMd++;
-      const dirs = launchAncestors(launch, opts.stopAt);
       let projectMd = 0;
       for (const d of dirs) for (const n of MD_CLAUDE) if (md(path.join(d, n))) projectMd++;
       claudeMd += projectMd;
@@ -336,7 +465,7 @@ export function readEnvironment(
 
     if (sigs.length !== prev.size) changed = true;
     if (changed && opts.persist !== false) writeCache(name, { v: VERSION, files: sigs, rules: scan }, env);
-    return { claudeMd, agentsMd, rules, hooks, hooksDisabled, files };
+    return { claudeMd, agentsMd, rules, mcp: servers.size, hooks, hooksDisabled, files };
   } catch {
     return null;
   }

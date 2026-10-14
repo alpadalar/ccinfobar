@@ -500,7 +500,7 @@ export function uninstall(
   return done('foreign', null, sl, hooksOnly());
 }
 
-export { projectSettingsPath };
+export { claudeJsonPath, projectSettingsPath };
 
 function projectRoots(dir: string): string[] {
   const roots = [path.resolve(dir)];

@@ -4,7 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { managedDir, managedSettingsFiles, projectSettingsPath } from '../../src/core/paths.js';
-import { type EnvCounts, launchAncestors, readEnvironment } from '../../src/data/environment.js';
+import {
+  type EnvCounts,
+  launchAncestors,
+  mcpProjectKey,
+  readEnvironment,
+} from '../../src/data/environment.js';
 
 const NOW = Date.UTC(2026, 9, 15, 12, 0, 0);
 let root: string;
@@ -240,5 +245,98 @@ describe('readEnvironment', () => {
     expect(launchAncestors('C:\\a\\b', undefined, path.win32)).toEqual(['C:\\a\\b', 'C:\\a', 'C:\\']);
     expect(launchAncestors('/a/b/c', '/a/b', path.posix)).toEqual(['/a/b/c', '/a/b']);
     expect(launchAncestors(`/${'d/'.repeat(30)}x`, undefined, path.posix)).toHaveLength(20);
+  });
+});
+
+describe('readEnvironment mcp', () => {
+  const cj = () => path.join(claude, '.claude.json');
+  const servers = (...names: string[]) => ({ mcpServers: Object.fromEntries(names.map((n) => [n, {}])) });
+
+  it('unions user, local and approved project servers by name', () => {
+    json(cj(), { ...servers('github', 'linear'), projects: { [proj]: servers('db') } });
+    json(path.join(proj, '.mcp.json'), servers('web', 'db'));
+    json(path.join(proj, '.claude', 'settings.local.json'), { enabledMcpjsonServers: ['web'] });
+    const r = read();
+    expect(r.mcp).toBe(4);
+    expect(r.mcpHealth).toBeUndefined();
+    expect(r.files).toContain(cj());
+    expect(r.files).toContain(path.join(proj, '.mcp.json'));
+  });
+
+  it('counts project servers only when approved and not disabled', () => {
+    json(path.join(proj, '.mcp.json'), servers('a', 'b'));
+    expect(read().mcp).toBe(0);
+    json(path.join(proj, '.claude', 'settings.json'), { enableAllProjectMcpServers: true });
+    expect(read().mcp).toBe(2);
+    json(path.join(claude, 'settings.json'), { disabledMcpjsonServers: ['b'] });
+    expect(read().mcp).toBe(1);
+  });
+
+  it('reads legacy approvals from the project entry', () => {
+    json(path.join(proj, '.mcp.json'), servers('a', 'b'));
+    json(cj(), {
+      projects: { [proj]: { enabledMcpjsonServers: ['a', 'b'], disabledMcpjsonServers: ['a'] } },
+    });
+    expect(read().mcp).toBe(1);
+  });
+
+  it('reads .mcp.json from every ancestor, once per name', () => {
+    json(path.join(root, 'work', '.mcp.json'), servers('up', 'web'));
+    json(path.join(proj, '.mcp.json'), servers('web'));
+    json(path.join(claude, 'settings.json'), { enableAllProjectMcpServers: true });
+    expect(read().mcp).toBe(2);
+  });
+
+  it('managed-mcp.json is exclusive; managedMcpServers adds', () => {
+    json(cj(), servers('github', 'linear'));
+    json(path.join(managed, 'managed-settings.json'), { managedMcpServers: { extra: {} } });
+    expect(read().mcp).toBe(3);
+    json(path.join(managed, 'managed-mcp.json'), servers('corp'));
+    expect(read().mcp).toBe(2);
+    json(path.join(managed, 'managed-settings.json'), {});
+    expect(read().mcp).toBe(1);
+  });
+
+  it('keys the project entry by the git root', () => {
+    const sub = path.join(proj, 'sub');
+    fs.mkdirSync(sub);
+    json(cj(), { projects: { [proj]: servers('db'), [sub]: servers('x', 'y') } });
+    expect(read({}, sub).mcp).toBe(1);
+    fs.rmSync(path.join(proj, '.git'), { recursive: true });
+    expect(read({}, sub).mcp).toBe(2);
+    expect(mcpProjectKey('C:\\a\\b', 'win32')).toBe('C:/a/b');
+    expect(mcpProjectKey('/a/b', 'linux')).toBe('/a/b');
+  });
+
+  it('skips an oversized or invalid .claude.json', () => {
+    json(path.join(proj, '.mcp.json'), servers('web'));
+    json(path.join(proj, '.claude', 'settings.local.json'), { enabledMcpjsonServers: ['web'] });
+    put(cj(), '{not json');
+    expect(read().mcp).toBe(1);
+    json(cj(), servers('github'));
+    expect(read().mcp).toBe(2);
+    fs.truncateSync(cj(), 51 * 1024 * 1024);
+    expect(read().mcp).toBe(1);
+  });
+
+  it('ignores odd shapes and sanitizes names', () => {
+    json(cj(), { mcpServers: ['a'], projects: { [proj]: { mcpServers: 'x' } } });
+    expect(read().mcp).toBe(0);
+    json(cj(), { mcpServers: { 'a\u001b[31m': {}, a: {}, ['__proto__']: {} } });
+    expect(read().mcp).toBe(2);
+  });
+
+  it('parses .claude.json only when its signature changes', () => {
+    json(cj(), servers('github'));
+    expect(read().mcp).toBe(1);
+    const cache = env.CCINFOBAR_CACHE_DIR!;
+    const open = vi.spyOn(fs, 'openSync');
+    const opened = () => open.mock.calls.map((c) => String(c[0])).filter((p) => !p.startsWith(cache));
+    expect(read({ now: NOW + 1_000 }).mcp).toBe(1);
+    expect(opened()).toEqual([]);
+    json(cj(), servers('github', 'linear'));
+    fs.utimesSync(cj(), new Date(NOW + 5_000), new Date(NOW + 5_000));
+    expect(read({ now: NOW + 2_000 }).mcp).toBe(2);
+    expect(opened()).toEqual([cj()]);
   });
 });

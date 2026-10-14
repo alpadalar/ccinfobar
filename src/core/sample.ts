@@ -325,12 +325,15 @@ export function sampleEnvironment(): EnvCounts {
     claudeMd: 2,
     agentsMd: 0,
     rules: 3,
+    mcp: 4,
     hooks: 5,
     hooksDisabled: false,
     files: [
       '/home/dev/.claude/CLAUDE.md',
       '/home/dev/projects/acme-app/CLAUDE.md',
       '/home/dev/.claude/settings.json',
+      '/home/dev/.claude.json',
+      '/home/dev/projects/acme-app/.mcp.json',
     ],
   };
 }
