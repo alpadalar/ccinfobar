@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import {
   type BenchIo,
+  benchBaseEnv,
   benchEnv,
   benchPayload,
   clampRuns,
@@ -100,6 +101,27 @@ describe('benchPayload', () => {
     const expected = getScenario('context-full')!.build(SCENARIO_NOW).payload;
     expect(p.context_window).toEqual(expected.context_window);
     expect(p.cwd).toBe('/w');
+  });
+});
+
+describe('benchBaseEnv', () => {
+  it('applies the scenario env without provider keys from the real env', () => {
+    const base = { PATH: '/bin', CLAUDE_CODE_USE_BEDROCK: '1', ANTHROPIC_BASE_URL: 'https://gw' };
+    const env = benchBaseEnv(base, 'api-key-user');
+    expect(env.ANTHROPIC_API_KEY).toBe(
+      getScenario('api-key-user')!.build(SCENARIO_NOW).env.ANTHROPIC_API_KEY,
+    );
+    expect(env.CLAUDE_CODE_USE_BEDROCK).toBeUndefined();
+    expect(env.ANTHROPIC_BASE_URL).toBeUndefined();
+    expect(env.PATH).toBe('/bin');
+    expect(benchEnv(env, { cache: 'c', config: 'g', claude: 'l', compile: 'p' }).ANTHROPIC_API_KEY).toBe(
+      env.ANTHROPIC_API_KEY,
+    );
+  });
+
+  it('keeps the real env without a scenario', () => {
+    const base = { CLAUDE_CODE_USE_BEDROCK: '1' };
+    expect(benchBaseEnv(base, undefined)).toBe(base);
   });
 });
 

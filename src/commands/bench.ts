@@ -9,7 +9,7 @@ import { configDir, tildify } from '../core/paths.js';
 import { scenarioFlag, scenarioListLines } from '../core/preview.js';
 import { samplePayload } from '../core/sample.js';
 import { sanitizeText } from '../core/sanitize.js';
-import { getScenario, SCENARIO_NOW } from '../core/scenarios.js';
+import { getScenario, SCENARIO_NOW, scenarioEnv } from '../core/scenarios.js';
 import type { StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { writeAtomic } from '../data/store.js';
@@ -77,6 +77,12 @@ export function benchPayload(
   p.workspace = { ...p.workspace, current_dir: cwd, project_dir: cwd };
   p.transcript_path = transcriptPath;
   return p;
+}
+
+// payload and env only; data injectors cannot reach the child
+export function benchBaseEnv(base: NodeJS.ProcessEnv, scenarioId: string | undefined): NodeJS.ProcessEnv {
+  const scenario = scenarioId ? getScenario(scenarioId) : undefined;
+  return scenario ? scenarioEnv(base, scenario.build(SCENARIO_NOW).env) : base;
 }
 
 const TOOLS = ['Read', 'Grep', 'Edit', 'Bash', 'Glob'];
@@ -282,20 +288,21 @@ export function runBench(opts: BenchOptions, io: BenchIo = benchIo()): number {
     };
     const repeat = (fn: () => number) => Array.from({ length: runs }, fn);
 
+    const baseEnv = benchBaseEnv(process.env, scenario);
     const shared = prepareDirs(path.join(root, 'shared'), opts.cfgFile);
-    const control = repeat(() => time('control', ['-e', '0'], benchEnv(process.env, shared)));
+    const control = repeat(() => time('control', ['-e', '0'], benchEnv(baseEnv, shared)));
     let i = 0;
     const cold = repeat(() => {
       const base = path.join(root, `cold-${i++}`);
-      const env = benchEnv(process.env, prepareDirs(base, opts.cfgFile));
+      const env = benchEnv(baseEnv, prepareDirs(base, opts.cfgFile));
       const ms = time('cold', [entry], env);
       rm(base);
       return ms;
     });
-    const warmEnv = benchEnv(process.env, shared);
+    const warmEnv = benchEnv(baseEnv, shared);
     for (let w = 0; w < 2; w++) time('warm', [entry], warmEnv);
     const warm = repeat(() => time('warm', [entry], warmEnv));
-    const noCacheEnv = benchEnv(process.env, shared, { compileCache: false });
+    const noCacheEnv = benchEnv(baseEnv, shared, { compileCache: false });
     const noCache = repeat(() => time('warm-no-compile-cache', [entry], noCacheEnv));
 
     const rows: [RowName, Stats][] = [

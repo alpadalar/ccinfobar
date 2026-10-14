@@ -39,7 +39,8 @@ Options
   --config <file>                Use a specific config file
   --payload <file>               Render using a JSON payload file
   --width <n>                    Override the detected terminal width
-  --scenario <name>              preview/explain/bench: use a named scenario (bare flag lists them)
+  --scenario <name>              preview/explain/bench: use a named scenario (bare flag lists them;
+                                 bench uses its payload and env only)
   --runs <n>                     bench: number of runs (default 20, max 1000)
   --json                         explain, bench: print one JSON object
   --show-values                  explain: in a terminal, show env and command values and text options

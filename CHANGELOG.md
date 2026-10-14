@@ -22,7 +22,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `explain` also redacts `env` and `command` values in its text output, and `explain <widget-id>` prints text options (such as a `command` string or a `link` URL) as `<N chars>`; `--show-values` shows them, only in a terminal and never in `--json`
 - `ccinfobar preview --scenario <name>` renders seven named situations (fresh session, context nearly full, near 5h limit, many subagents, GSD project, no git repo, API key user); a bare `--scenario` lists them
 - The web editor's preview has a Scenario picker next to Sample data / Last session
-- `ccinfobar bench` measures cold and warm render time (median, p95) against a `node -e 0` control (`--runs <n>`, `--scenario <name>`, `--json`); the method and a baseline are in docs/DEVELOPMENT.md
+- `ccinfobar bench` measures cold and warm render time (median, p95) against a `node -e 0` control (`--runs <n>`, `--scenario <name>` for a scenario's payload and env, `--json`); the method and a baseline are in docs/DEVELOPMENT.md
 - CI installs the packed package into an empty profile on Linux, macOS and Windows, renders through the exact settings command in every shell, and checks that uninstall restores the settings file byte for byte and leaves no process behind
 
 ### Changed
