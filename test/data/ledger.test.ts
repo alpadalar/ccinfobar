@@ -64,6 +64,14 @@ describe('credit (segmented high-water)', () => {
     expect(chain([10, 8.1, 10.2, 8.3])).toEqual([0, 0, 0.2, 0.2]);
   });
 
+  it('undercounts two streams that keep crossing on one id', () => {
+    const feed = [5, 5];
+    for (let i = 1; i <= 10; i++) feed.push(5 + 0.1 * i, 5 + 0.12 * i);
+    const credited = chain(feed).reduce((a, b) => a + b, 0);
+    expect(close(credited)).toBe(1.5);
+    expect(credited).toBeLessThan(2.2);
+  });
+
   it('counts from zero after a /login reset', () => {
     expect(chain([0, 2, 0, 0.4])).toEqual([0, 2, 0, 0.4]);
   });
