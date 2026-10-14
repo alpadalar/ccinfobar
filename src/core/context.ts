@@ -29,7 +29,6 @@ export interface ContextOptions {
   terminalWidth?: number | null;
   data?: Partial<DataSources>;
   theme?: import('./themes.js').Theme;
-  trace?: { wrap(ctx: RenderContext): RenderContext };
 }
 
 export function resolveCwd(payload: StatusPayload): string {
@@ -41,7 +40,7 @@ export function createContext(opts: ContextOptions): RenderContext {
   const env = opts.env ?? process.env;
   const now = opts.now ?? new Date();
   const transcript = opts.data?.transcript ?? lazy(() => readTranscript(opts.payload.transcript_path));
-  const ctx: RenderContext = {
+  return {
     payload: opts.payload,
     config: opts.config,
     cwd,
@@ -60,5 +59,4 @@ export function createContext(opts: ContextOptions): RenderContext {
         lazy(() => readAgents(opts.payload.transcript_path, transcript(), now.getTime(), env)),
     },
   };
-  return opts.trace ? opts.trace.wrap(ctx) : ctx;
 }

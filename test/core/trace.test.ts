@@ -9,7 +9,7 @@ import { ctxWith, NOW } from '../helpers.js';
 
 function traced(payload: StatusPayload = samplePayload(NOW.getTime()), withHistory = true) {
   const trace = createTrace();
-  const ctx = createContext({
+  const base = createContext({
     payload,
     config: { ...defaultConfig(), colorLevel: 0 },
     env: { HOME: '/home/x', SECRET: 'hunter2' },
@@ -22,8 +22,8 @@ function traced(payload: StatusPayload = samplePayload(NOW.getTime()), withHisto
       agents: () => [],
       ...(withHistory ? { history: () => [] } : {}),
     },
-    trace,
   });
+  const ctx = trace.wrap(base);
   const reads = (fn: (c: RenderContext) => unknown, c: RenderContext = trace.forWidget(ctx)): TraceRead[] => {
     trace.begin();
     fn(c);
