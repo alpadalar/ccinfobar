@@ -1,10 +1,30 @@
-import { describe, expect, it } from 'vitest';
+import cp from 'node:child_process';
+import fs from 'node:fs';
+import module from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
+import { stripAnsi } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
+import { createContext } from '../../src/core/context.js';
+import { render } from '../../src/core/renderer.js';
 import { samplePayload, sampleTranscript } from '../../src/core/sample.js';
 import type { StatusPayload, WidgetItem, WidgetOutput } from '../../src/core/types.js';
+import { dirtyFile } from '../../src/data/repos.js';
 import type { TranscriptInfo } from '../../src/data/transcript.js';
 import { getWidget } from '../../src/widgets/index.js';
-import { ctxWith, NOW, renderWidget } from '../helpers.js';
+import { ctxWith, NOW, renderWidget, withoutSideEffects } from '../helpers.js';
+
+const fx = vi.hoisted(() => ({ managedDir: '', stopAt: '' }));
+
+vi.mock('../../src/data/environment.js', async (orig) => {
+  const m = await orig<typeof import('../../src/data/environment.js')>();
+  return {
+    ...m,
+    readEnvironment: (...a: Parameters<typeof m.readEnvironment>) =>
+      m.readEnvironment(a[0], a[1], a[2], { ...a[3], managedDir: fx.managedDir, stopAt: fx.stopAt }),
+  };
+});
 
 const base = (): StatusPayload => samplePayload(NOW.getTime());
 const tr = (o: Record<string, unknown> = {}) =>
@@ -135,5 +155,111 @@ describe('performance', () => {
   it('is opt-in in the tokens category', () => {
     expect(getWidget('performance')?.category).toBe('tokens');
     expect(JSON.stringify(defaultConfig())).not.toContain('"performance"');
+  });
+});
+
+const SPAWNS = ['execFileSync', 'execSync', 'spawn', 'spawnSync', 'execFile', 'exec', 'fork'] as const;
+
+describe.skipIf(fs.existsSync(path.join(os.tmpdir(), '.git')))('live widgets through real readers', () => {
+  it('render workspace-repos, env-counts, turn-timer, tool-activity and permission-wait without spawning', () => {
+    const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-live-perf-')));
+    fx.managedDir = path.join(root, 'managed');
+    fx.stopAt = root;
+    const put = (file: string, text = 'x') => {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, text);
+    };
+    const j = (o: object) => JSON.stringify(o);
+    const at = (s: number) => NOW.getTime() - s * 1000;
+    const env = {
+      CLAUDE_CONFIG_DIR: path.join(root, 'claude'),
+      CCINFOBAR_CACHE_DIR: path.join(root, 'cache'),
+    };
+    const ws = path.join(root, 'ws');
+    for (const [name, branch] of [
+      ['api', 'main'],
+      ['web', 'dev'],
+    ]) {
+      put(path.join(ws, name!, '.git', 'HEAD'), `ref: refs/heads/${branch}\n`);
+    }
+    put(dirtyFile(ws, env), j({ v: 1, at: at(10), dirty: { api: true, web: false } }));
+    put(path.join(env.CLAUDE_CONFIG_DIR, 'CLAUDE.md'));
+    put(path.join(env.CLAUDE_CONFIG_DIR, 'rules', 'a.md'));
+    put(
+      path.join(env.CLAUDE_CONFIG_DIR, 'settings.json'),
+      j({ hooks: { Stop: [{ hooks: [{ type: 'command' }] }] } }),
+    );
+    const transcript = path.join(root, 'session.jsonl');
+    put(
+      transcript,
+      [
+        j({
+          type: 'user',
+          timestamp: new Date(at(60)).toISOString(),
+          promptId: 'p1',
+          message: { content: 'go' },
+        }),
+        j({
+          type: 'assistant',
+          timestamp: new Date(at(8)).toISOString(),
+          message: {
+            id: 'm1',
+            model: 'claude-sonnet-5-5',
+            content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: 'a.ts' } }],
+            usage: { input_tokens: 10, output_tokens: 5 },
+          },
+        }),
+      ]
+        .map((l) => `${l}\n`)
+        .join(''),
+    );
+    put(
+      path.join(env.CCINFOBAR_CACHE_DIR, 'hooks', 'live-perf.jsonl'),
+      `${[
+        j({ v: 1, t: at(60), e: 'UserPromptSubmit', p: 'p1' }),
+        j({ v: 1, t: at(52), e: 'Notification', n: 'permission_prompt' }),
+        j({ v: 1, t: at(10), e: 'PermissionDenied', tn: 'Bash' }),
+      ].join('\n')}\n`,
+    );
+    const ctx = createContext({
+      payload: {
+        session_id: 'live-perf',
+        transcript_path: transcript,
+        cwd: ws,
+        workspace: { current_dir: ws, project_dir: ws },
+      },
+      config: {
+        ...defaultConfig(),
+        colorLevel: 0,
+        lines: [
+          [
+            { id: 'r', type: 'workspace-repos', options: { dirty: true } },
+            { id: 'e', type: 'env-counts' },
+            { id: 't', type: 'turn-timer' },
+            { id: 'a', type: 'tool-activity' },
+            { id: 'w', type: 'permission-wait' },
+          ],
+        ],
+      },
+      env,
+      now: NOW,
+      preview: false,
+    });
+    const spies = SPAWNS.map((name) => vi.spyOn(cp, name));
+    module.syncBuiltinESMExports();
+    try {
+      const lines = withoutSideEffects(() => render(ctx)).map(stripAnsi);
+      expect(spies.map((s) => s.mock.calls.length)).toEqual(SPAWNS.map(() => 0));
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain('api (main*)');
+      expect(lines[0]).toContain('CLAUDE.md 1');
+      expect(lines[0]).toContain('Read a.ts');
+      expect(lines[0]).toContain('Turn 1m00s');
+      expect(lines[0]).toContain('Wait Bash 42s');
+    } finally {
+      vi.restoreAllMocks();
+      module.syncBuiltinESMExports();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });

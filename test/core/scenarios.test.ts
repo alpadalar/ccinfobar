@@ -6,6 +6,7 @@ import { createContext } from '../../src/core/context.js';
 import { t } from '../../src/core/i18n/index.js';
 import { lastPayloadPath } from '../../src/core/paths.js';
 import { isFreshSession } from '../../src/core/payload.js';
+import { PRESETS, starterConfig } from '../../src/core/presets.js';
 import { renderPreview } from '../../src/core/preview.js';
 import { sampleHooks, sampleLimits, samplePayload } from '../../src/core/sample.js';
 import {
@@ -243,7 +244,31 @@ const NEW_WIDGETS = [
 const raw = (id: string, type: string) =>
   withoutSideEffects(() => getWidget(type)!.render(ctxFor(id), { id: type, type }));
 
+const PHASE5 = ['workspace-repos', 'tool-activity', 'turn-timer', 'permission-wait', 'env-counts'];
+
 describe('new widgets across scenarios', () => {
+  it('cover every live session widget', () => {
+    expect(NEW_WIDGETS).toEqual(expect.arrayContaining(PHASE5));
+    expect(NEW_WIDGETS).toContain('usage-projection');
+    expect(NEW_WIDGETS).toContain('budget');
+  });
+
+  it('are in no preset and no default layout', () => {
+    const configs = [
+      defaultConfig(),
+      starterConfig(true),
+      starterConfig(false),
+      ...PRESETS.map((p) => p.build()),
+    ];
+    for (const c of configs) {
+      const text = JSON.stringify(c);
+      for (const type of PHASE5) {
+        expect(text, type).not.toContain(`"${type}"`);
+        expect(text, type).not.toContain(`{${type}}`);
+      }
+    }
+  });
+
   it('render a string, an object or null under every scenario', () => {
     for (const id of IDS) {
       for (const type of NEW_WIDGETS) {
