@@ -50,7 +50,7 @@ export function createContext(opts: ContextOptions): RenderContext {
     terminalWidth: opts.terminalWidth ?? null,
     ...(opts.theme ? { theme: opts.theme } : {}),
     data: {
-      git: opts.data?.git ?? lazy(() => readGit(cwd)),
+      git: opts.data?.git ?? lazy(() => readGit(cwd, { harden: opts.config.gitHardening !== false })),
       transcript,
       gsd: opts.data?.gsd ?? lazy(() => readGsd(cwd)),
       ...(opts.data?.history ? { history: opts.data.history } : {}),

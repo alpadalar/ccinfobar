@@ -26,16 +26,20 @@ export interface GitInfo {
 // spawning git is slow on Windows
 const TIMEOUT = Number(process.env.CCINFOBAR_GIT_TIMEOUT) || (process.platform === 'win32' ? 1500 : 400);
 
-function git(cwd: string, args: string[]): string | null {
+export const HARDEN = ['-c', 'core.fsmonitor=false', '--no-optional-locks'] as const;
+
+const EMPTY_VAR = 'CCINFOBAR_GIT_EMPTY';
+
+function git(cwd: string, args: string[], pre: readonly string[] = []): string | null {
   try {
-    return execFileSync('git', args, {
+    return execFileSync('git', [...pre, ...args], {
       cwd,
       encoding: 'utf8',
       timeout: TIMEOUT,
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'ignore'],
       maxBuffer: 16 * 1024 * 1024,
-      env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' },
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', [EMPTY_VAR]: '' },
     });
   } catch {
     return null;
@@ -106,22 +110,81 @@ export function finishGit(info: GitInfo): GitInfo {
   return deepSanitize(info);
 }
 
-export function readGit(cwd: string): GitInfo | null {
-  const revs = git(cwd, ['rev-parse', '--show-toplevel', '--git-dir', '--git-common-dir']);
+export interface ScopedEntry {
+  scope: string;
+  key: string;
+  value: string;
+}
+
+export function parseScopedConfig(out: string): ScopedEntry[] {
+  const entries: ScopedEntry[] = [];
+  for (const line of out.split('\n')) {
+    const tab = line.indexOf('\t');
+    if (tab < 1) continue;
+    const rest = line.slice(tab + 1);
+    const sp = rest.indexOf(' ');
+    const key = sp < 0 ? rest : rest.slice(0, sp);
+    if (!key) continue;
+    entries.push({ scope: line.slice(0, tab), key, value: sp < 0 ? '' : rest.slice(sp + 1) });
+  }
+  return entries;
+}
+
+const FILTER_KEY = /^filter\.(.+)\.(clean|smudge|process)$/;
+
+export function localFilterOverrides(entries: ScopedEntry[]): string[] {
+  const names = new Set<string>();
+  for (const e of entries) {
+    if (e.scope !== 'local' && e.scope !== 'worktree') continue;
+    const m = FILTER_KEY.exec(e.key);
+    if (m) names.add(m[1]!);
+  }
+  const out: string[] = [];
+  for (const name of names) {
+    for (const kind of ['clean', 'smudge', 'process']) {
+      const key = `filter.${name}.${kind}`;
+      // -c splits at the first '='
+      if (name.includes('=')) out.push(`--config-env=${key}=${EMPTY_VAR}`);
+      else out.push('-c', `${key}=`);
+    }
+  }
+  return out;
+}
+
+const SCOPED_RE = '^(remote\\.origin\\.url|filter\\..+\\.(clean|smudge|process))$';
+
+export function readGit(cwd: string, opts: { harden?: boolean } = {}): GitInfo | null {
+  const harden = opts.harden !== false;
+  const pre: readonly string[] = harden ? HARDEN : [];
+  const revs = git(cwd, ['rev-parse', '--show-toplevel', '--git-dir', '--git-common-dir'], pre);
   if (revs === null) return null;
   const [top, gitDirRaw, commonRaw] = revs.split('\n').map((l) => l.trim());
   if (!top || !gitDirRaw) return null;
   const gitDir = path.resolve(cwd, gitDirRaw);
   const common = commonRaw ? path.resolve(cwd, commonRaw) : gitDir;
 
+  let remote: string | null = null;
+  let safe: readonly string[] = [];
+  if (harden) {
+    // exits 1 when nothing matches
+    const entries = parseScopedConfig(
+      git(cwd, ['config', '--show-scope', '--get-regexp', SCOPED_RE], HARDEN) ?? '',
+    );
+    remote = entries.find((e) => e.key === 'remote.origin.url')?.value.trim() || null;
+    safe = [...HARDEN, ...localFilterOverrides(entries)];
+  }
+
   const base = ['status', '--porcelain=v2', '--branch'];
-  const status = git(cwd, [...base, '--show-stash']) ?? git(cwd, base);
+  const status = git(cwd, [...base, '--show-stash'], safe) ?? git(cwd, base, safe);
   if (status === null) return null;
   const s = parseStatus(status);
 
-  const diff = git(cwd, ['diff', 'HEAD', '--shortstat']);
+  const diffArgs = harden
+    ? ['diff', 'HEAD', '--shortstat', '--no-ext-diff', '--no-textconv']
+    : ['diff', 'HEAD', '--shortstat'];
+  const diff = git(cwd, diffArgs, safe);
   const stat = diff ? parseShortstat(diff) : { insertions: 0, deletions: 0 };
-  const remote = git(cwd, ['config', '--get', 'remote.origin.url'])?.trim() || null;
+  if (!harden) remote = git(cwd, ['config', '--get', 'remote.origin.url'])?.trim() || null;
 
   return finishGit({
     root: path.resolve(top),

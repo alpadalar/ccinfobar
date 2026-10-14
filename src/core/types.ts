@@ -188,6 +188,7 @@ export interface Config {
   update: 'notify' | 'auto' | 'off';
   usageApi: boolean;
   gsdAutoLine?: boolean;
+  gitHardening?: boolean;
   tui?: TuiConfig;
   colorLevel: ColorLevel;
   icons: IconMode;
