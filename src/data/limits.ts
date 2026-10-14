@@ -372,14 +372,23 @@ export function captureTime(payload: StatusPayload, transcript?: () => Transcrip
   }
 }
 
+// no lock: a writer that got in first is re-read and merged into
 function writeStore(env: NodeJS.ProcessEnv, seen: Seen[], now: number, clear: boolean): void {
   const file = limitsFile(env);
-  const text = readText(file);
-  let store: LimitsStore | null = clear ? { v: 1, windows: Object.create(null) } : parseLimitsStore(text);
-  for (const o of seen) store = mergeObservation(store, o.key, o.obs, now);
-  if (!store || (text === null && !Object.keys(store.windows).length)) return;
-  const next = JSON.stringify(store);
-  if (next !== text) writeAtomic(file, next, { mode: 0o600 });
+  let text = readText(file);
+  for (let i = 0; i < 3; i++) {
+    let store: LimitsStore | null = clear ? { v: 1, windows: Object.create(null) } : parseLimitsStore(text);
+    for (const o of seen) store = mergeObservation(store, o.key, o.obs, now);
+    if (!store || (text === null && !Object.keys(store.windows).length)) return;
+    const next = JSON.stringify(store);
+    if (next === text) return;
+    const again = clear ? text : readText(file);
+    if (again === text) {
+      writeAtomic(file, next, { mode: 0o600 });
+      return;
+    }
+    text = again;
+  }
 }
 
 export function recordLimits(

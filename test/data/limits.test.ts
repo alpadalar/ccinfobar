@@ -321,6 +321,33 @@ describe('limits file', () => {
 
   const p = { rate_limits: { five_hour: { used_percentage: 70, resets_at: sec(Date.now() + 2 * H) } } };
 
+  it('merges a store another writer replaced after the first read', () => {
+    const now = Date.now();
+    const file = limitsFile(env);
+    const week = { rate_limits: { seven_day: { used_percentage: 20, resets_at: sec(now + 3 * D) } } };
+    const orig = fs.readFileSync;
+    let reads = 0;
+    const fsMod = fs as unknown as { readFileSync: typeof orig };
+    // another session writes between this read and the rename
+    fsMod.readFileSync = ((f: fs.PathOrFileDescriptor, o?: unknown) => {
+      if (f !== file || reads++ > 0) return orig(f, o as BufferEncoding);
+      fsMod.readFileSync = orig;
+      try {
+        return orig(f, o as BufferEncoding);
+      } finally {
+        recordLimits(env, week, now - MIN, now);
+      }
+    }) as typeof orig;
+    try {
+      recordLimits(env, p, now - MIN, now);
+    } finally {
+      fsMod.readFileSync = orig;
+    }
+    const w = readLimitsStore(env)?.windows;
+    expect(w?.five_hour?.pct).toBe(70);
+    expect(w?.seven_day?.pct).toBe(20);
+  });
+
   it('writes only when the merged result changes', () => {
     const now = Date.now();
     recordLimits(env, p, now - MIN, now);
