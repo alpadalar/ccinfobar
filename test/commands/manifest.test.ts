@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { install, uninstall } from '../../src/commands/install.js';
+import { applyInstall, planInstall, uninstall } from '../../src/commands/install.js';
 import {
   classifyOwner,
   dropEntry,
@@ -157,7 +157,7 @@ describe('uninstall through the manifest', () => {
   it('restores the pre-install bytes exactly when the file is untouched', () => {
     const fx = settingsFixture({ data: { model: 'opus', statusLine: foreign }, indent: '    ', eol: '\r\n' });
     const before = bytes(fx.file);
-    install('/bin/ccinfobar', 5, fx.file);
+    applyInstall(planInstall({ file: fx.file, command: '/bin/ccinfobar', refresh: 5 }), { confirmed: true });
     expect(uninstall(fx.file)).toMatchObject({ status: 'restored-exact', removed: true, restored: foreign });
     expect(bytes(fx.file).equals(before)).toBe(true);
     expect(findStatusLineEntry(readManifest(), fx.file)).toBeNull();
@@ -165,7 +165,7 @@ describe('uninstall through the manifest', () => {
 
   it('goes key-level after a reformat and keeps the other edits', () => {
     const fx = settingsFixture({ data: { model: 'opus', statusLine: foreign }, indent: '\t' });
-    install('/bin/ccinfobar', undefined, fx.file);
+    applyInstall(planInstall({ file: fx.file, command: '/bin/ccinfobar' }), { confirmed: true });
     const now = json(fx.file);
     fs.writeFileSync(fx.file, `${JSON.stringify({ ...now, theme: 'dark' }, null, 2)}\n`);
     expect(uninstall(fx.file)).toMatchObject({ status: 'restored-previous', restored: foreign });
@@ -175,9 +175,9 @@ describe('uninstall through the manifest', () => {
   it('restores the first foreign value after several reinstalls', () => {
     const fx = settingsFixture({ data: { statusLine: foreign } });
     const before = bytes(fx.file);
-    install('/bin/ccinfobar', undefined, fx.file);
-    install('/bin/ccinfobar', undefined, fx.file);
-    install('/opt/ccinfobar', 3, fx.file);
+    applyInstall(planInstall({ file: fx.file, command: '/bin/ccinfobar' }), { confirmed: true });
+    applyInstall(planInstall({ file: fx.file, command: '/bin/ccinfobar' }), { confirmed: true });
+    applyInstall(planInstall({ file: fx.file, command: '/opt/ccinfobar', refresh: 3 }), { confirmed: true });
     expect(findStatusLineEntry(readManifest(), fx.file)?.previous).toEqual(foreign);
     expect(uninstall(fx.file)).toMatchObject({ status: 'restored-exact', restored: foreign });
     expect(bytes(fx.file).equals(before)).toBe(true);
@@ -185,9 +185,9 @@ describe('uninstall through the manifest', () => {
 
   it('keeps the chain but drops byte restore when someone edited between installs', () => {
     const fx = settingsFixture({ data: { statusLine: foreign } });
-    install('/bin/ccinfobar', undefined, fx.file);
+    applyInstall(planInstall({ file: fx.file, command: '/bin/ccinfobar' }), { confirmed: true });
     fs.writeFileSync(fx.file, JSON.stringify({ ...json(fx.file), model: 'opus' }));
-    install('/opt/ccinfobar', undefined, fx.file);
+    applyInstall(planInstall({ file: fx.file, command: '/opt/ccinfobar' }), { confirmed: true });
     expect(findStatusLineEntry(readManifest(), fx.file)?.restore).toBeNull();
     expect(uninstall(fx.file)).toMatchObject({ status: 'restored-previous', restored: foreign });
     expect(json(fx.file)).toEqual({ statusLine: foreign, model: 'opus' });
@@ -195,7 +195,7 @@ describe('uninstall through the manifest', () => {
 
   it('deletes a file that ccinfobar created', () => {
     const fx = settingsFixture();
-    install('/bin/ccinfobar', undefined, fx.file);
+    applyInstall(planInstall({ file: fx.file, command: '/bin/ccinfobar' }), { confirmed: true });
     expect(findStatusLineEntry(readManifest(), fx.file)).toMatchObject({
       fileExisted: false,
       previous: null,
@@ -207,7 +207,7 @@ describe('uninstall through the manifest', () => {
 
   it('leaves a status line another tool wrote after install', () => {
     const fx = settingsFixture({ data: { statusLine: foreign } });
-    install('/bin/ccinfobar', undefined, fx.file);
+    applyInstall(planInstall({ file: fx.file, command: '/bin/ccinfobar' }), { confirmed: true });
     const other = { type: 'command', command: 'bash -c "ccinfobar | tee /tmp/x"' };
     fs.writeFileSync(fx.file, JSON.stringify({ statusLine: other }));
     expect(uninstall(fx.file)).toMatchObject({ status: 'foreign', removed: false, current: other });
@@ -217,13 +217,13 @@ describe('uninstall through the manifest', () => {
 
   it('handles a status line Claude Code already removed', () => {
     const a = settingsFixture({ data: { model: 'opus', statusLine: foreign } });
-    install('/bin/ccinfobar', undefined, a.file);
+    applyInstall(planInstall({ file: a.file, command: '/bin/ccinfobar' }), { confirmed: true });
     fs.writeFileSync(a.file, JSON.stringify({ model: 'opus' }));
     expect(uninstall(a.file)).toMatchObject({ status: 'gone-restored', removed: true, restored: foreign });
     expect(json(a.file)).toEqual({ model: 'opus', statusLine: foreign });
 
     const b = settingsFixture({ data: { model: 'opus' } });
-    install('/bin/ccinfobar', undefined, b.file);
+    applyInstall(planInstall({ file: b.file, command: '/bin/ccinfobar' }), { confirmed: true });
     fs.writeFileSync(b.file, JSON.stringify({ model: 'sonnet' }));
     const before = bytes(b.file);
     expect(uninstall(b.file)).toMatchObject({ status: 'gone-nothing', removed: false, restored: null });
@@ -256,7 +256,7 @@ describe('uninstall through the manifest', () => {
     };
     const fx = settingsFixture({ data: { statusLine: legacyLine } });
     fs.writeFileSync(`${fx.file}.ccinfobar-backup`, JSON.stringify({ statusLine: foreign }));
-    install('/bin/ccinfobar', undefined, fx.file);
+    applyInstall(planInstall({ file: fx.file, command: '/bin/ccinfobar' }), { confirmed: true });
     expect(json(fx.file).statusLine.refreshInterval).toBe(7);
     expect(findStatusLineEntry(readManifest(), fx.file)).toMatchObject({ previous: foreign, restore: null });
     expect(uninstall(fx.file)).toMatchObject({ status: 'restored-previous', restored: foreign });
@@ -264,7 +264,7 @@ describe('uninstall through the manifest', () => {
 
   it('does not inherit the refresh of a foreign status line', () => {
     const fx = settingsFixture({ data: { statusLine: { ...foreign, refreshInterval: 9 } } });
-    install('/bin/ccinfobar', undefined, fx.file);
+    applyInstall(planInstall({ file: fx.file, command: '/bin/ccinfobar' }), { confirmed: true });
     expect(json(fx.file).statusLine.refreshInterval).toBeUndefined();
   });
 
@@ -276,7 +276,10 @@ describe('uninstall through the manifest', () => {
     fs.writeFileSync(file, '{"version":2,"entries":[]}');
     try {
       const before = bytes(fx.file);
-      expect(() => install('/bin/ccinfobar', undefined, fx.file)).toThrow(/newer ccinfobar/);
+      expect(
+        () =>
+          applyInstall(planInstall({ file: fx.file, command: '/bin/ccinfobar' }), { confirmed: true }).backup,
+      ).toThrow(/newer ccinfobar/);
       expect(() => uninstall(fx.file)).toThrow(/newer ccinfobar/);
       expect(bytes(fx.file).equals(before)).toBe(true);
     } finally {

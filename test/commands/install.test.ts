@@ -6,10 +6,11 @@ import { describe, expect, it } from 'vitest';
 import { buildCommand } from '../../src/commands/command.js';
 import {
   acceptCommand,
+  applyInstall,
   defaultCommand,
   ignoreLocally,
-  install,
   isTransientBin,
+  planInstall,
   projectLocalFile,
   projectOverride,
   projectSettingsPath,
@@ -37,18 +38,23 @@ describe('install and uninstall', () => {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, JSON.stringify({ model: 'opus', statusLine: previous }));
     try {
-      const backup = install('/bin/ccinfobar', 10, file);
+      const backup = applyInstall(planInstall({ file, command: '/bin/ccinfobar', refresh: 10 }), {
+        confirmed: true,
+      }).backup;
       expect(path.dirname(backup ?? '')).toBe(backupsDir());
       expect(backup).toMatch(/settings-\d{8}T\d{6}Z(-\d+)?\.json$/);
       expect(read(backup ?? '').statusLine).toEqual(previous);
       expect(read(path.join(backupsDir(), 'settings-original.json')).statusLine).toEqual(previous);
-      expect(install('/bin/ccinfobar', 10, file)).toBeNull();
+      expect(
+        applyInstall(planInstall({ file, command: '/bin/ccinfobar', refresh: 10 }), { confirmed: true })
+          .backup,
+      ).toBeNull();
       expect(fs.existsSync(`${file}.ccinfobar-backup`)).toBe(false);
       expect(read(file)).toEqual({
         model: 'opus',
         statusLine: { type: 'command', command: '/bin/ccinfobar', padding: 0, refreshInterval: 10 },
       });
-      install('/bin/ccinfobar', undefined, file);
+      applyInstall(planInstall({ file, command: '/bin/ccinfobar' }), { confirmed: true });
       expect(read(file).statusLine.refreshInterval).toBe(10);
     } finally {
       fs.rmSync(file, { force: true });
@@ -68,7 +74,9 @@ describe('install and uninstall', () => {
 
   it('names project backups by a path hash', () => {
     const file = settingsFile({ model: 'opus' });
-    expect(install('ccinfobar', undefined, file)).toMatch(/project-[0-9a-f]{8}-\d{8}T\d{6}Z(-\d+)?\.json$/);
+    expect(applyInstall(planInstall({ file, command: 'ccinfobar' }), { confirmed: true }).backup).toMatch(
+      /project-[0-9a-f]{8}-\d{8}T\d{6}Z(-\d+)?\.json$/,
+    );
     expect(fs.existsSync(`${file}.ccinfobar-backup`)).toBe(false);
     expect(uninstall(file)).toMatchObject({ status: 'restored-exact', removed: true, restored: null });
     expect(read(file)).toEqual({ model: 'opus' });
@@ -77,14 +85,16 @@ describe('install and uninstall', () => {
   it('refuses to touch a settings file that does not parse', () => {
     const file = settingsFile(null);
     fs.writeFileSync(file, '{"model": ');
-    expect(() => install('ccinfobar', undefined, file)).toThrow(/Cannot parse/);
+    expect(
+      () => applyInstall(planInstall({ file, command: 'ccinfobar' }), { confirmed: true }).backup,
+    ).toThrow(/Cannot parse/);
     expect(() => uninstall(file)).toThrow(/Cannot parse/);
     expect(fs.readFileSync(file, 'utf8')).toBe('{"model": ');
   });
 
   it('removes the file it created when nothing else is left', () => {
     const file = settingsFile(null);
-    expect(install('ccinfobar', undefined, file)).toBeNull();
+    expect(applyInstall(planInstall({ file, command: 'ccinfobar' }), { confirmed: true }).backup).toBeNull();
     expect(uninstall(file)).toMatchObject({ status: 'deleted-file', removed: true, restored: null });
     expect(fs.existsSync(file)).toBe(false);
     expect(uninstall(file)).toMatchObject({ status: 'not-installed', removed: false });
@@ -97,7 +107,7 @@ describe('install and uninstall', () => {
     fs.writeFileSync(shared, JSON.stringify({ statusLine: { type: 'command', command: 'node gsd.js' } }));
     expect(projectOverride(root)).toEqual({ file: shared, command: 'node gsd.js' });
     const local = projectSettingsPath(root);
-    install('ccinfobar', undefined, local);
+    applyInstall(planInstall({ file: local, command: 'ccinfobar' }), { confirmed: true });
     expect(projectOverride(root)).toBeNull();
     expect(projectLocalFile(root)).toBe(local);
     expect(uninstall(local)).toMatchObject({ status: 'deleted-file', removed: true });
@@ -116,7 +126,7 @@ describe('install and uninstall', () => {
     Object.assign(process.env, env);
     try {
       const local = projectSettingsPath(root);
-      install('ccinfobar', undefined, local);
+      applyInstall(planInstall({ file: local, command: 'ccinfobar' }), { confirmed: true });
       expect(ignoreLocally(local)).toBe(true);
       expect(ignoreLocally(local)).toBe(false);
       const excludeFile = path.join(root, '.git', 'info', 'exclude');
@@ -169,7 +179,7 @@ describe('install and uninstall', () => {
   it('records every install in the manifest', () => {
     const previous = { type: 'command', command: 'npx ccstatusline' };
     const file = settingsFile({ statusLine: previous });
-    install('/bin/ccinfobar', 4, file);
+    applyInstall(planInstall({ file, command: '/bin/ccinfobar', refresh: 4 }), { confirmed: true });
     const entry = findStatusLineEntry(readManifest(), file);
     expect(entry).toMatchObject({
       kind: 'statusLine',
@@ -186,14 +196,14 @@ describe('install and uninstall', () => {
 
   it('writes the original copy only before the first recorded install', () => {
     const file = settingsFile({ model: 'opus' });
-    install('/bin/ccinfobar', undefined, file);
+    applyInstall(planInstall({ file, command: '/bin/ccinfobar' }), { confirmed: true });
     const original = fs
       .readdirSync(backupsDir())
       .map((n) => path.join(backupsDir(), n))
       .find((f) => f.endsWith('-original.json') && read(f).model === 'opus' && !read(f).statusLine);
     expect(original).toBeDefined();
     fs.rmSync(original ?? '');
-    install('/opt/ccinfobar', undefined, file);
+    applyInstall(planInstall({ file, command: '/opt/ccinfobar' }), { confirmed: true });
     expect(fs.existsSync(original ?? '')).toBe(false);
   });
 
@@ -212,7 +222,7 @@ describe('install and uninstall', () => {
     expect(read(local).statusLine).toEqual(wrapper);
     expect(projectOverride(root)).toEqual({ file: local, command: wrapper.command });
     expect(projectLocalFile(root)).toBe(local);
-    install('/bin/ccinfobar', undefined, local);
+    applyInstall(planInstall({ file: local, command: '/bin/ccinfobar' }), { confirmed: true });
     expect(projectOverride(root)).toBeNull();
     expect(releaseProjects(env)).toEqual([root]);
     expect(read(local).statusLine).toEqual(wrapper);

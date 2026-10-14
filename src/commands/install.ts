@@ -278,14 +278,6 @@ export function applyInstall(
   return { backup: res.backup, written: proposed, replaced: current, changed: res.changed };
 }
 
-export function install(
-  command: string,
-  refreshInterval?: number,
-  file = claudeSettingsPath(),
-): string | null {
-  return applyInstall(planInstall({ file, command, refresh: refreshInterval }), { confirmed: true }).backup;
-}
-
 export type UninstallStatus =
   | 'restored-exact'
   | 'restored-previous'

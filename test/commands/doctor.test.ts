@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { commandWarnings, configWarnings, runDoctor } from '../../src/commands/doctor.js';
-import { install } from '../../src/commands/install.js';
+import { applyInstall, planInstall } from '../../src/commands/install.js';
 import { manifestFile, readManifest } from '../../src/commands/manifest.js';
 import { backupsDir } from '../../src/commands/settings-file.js';
 import { inspectConfigText } from '../../src/core/config.js';
@@ -126,7 +126,9 @@ describe('runDoctor install report', () => {
   });
 
   it('reports the manifest, backups and manifest ownership', () => {
-    install('/opt/bin/ccinfobar', undefined, claudeSettingsPath());
+    applyInstall(planInstall({ file: claudeSettingsPath(), command: '/opt/bin/ccinfobar' }), {
+      confirmed: true,
+    });
     const m = readManifest();
     expect(m.entries).toHaveLength(1);
     const out = capture(() => runDoctor(plain()));

@@ -6,7 +6,6 @@ import { parseArgs } from '../../src/cli/args.js';
 import {
   applyInstall,
   InstallNeedsConfirmError,
-  install,
   planInstall,
   projectSettingsPath,
   takeOverProjects,
@@ -190,12 +189,9 @@ describe('applyInstall', () => {
     expect(findStatusLineEntry(readManifest(other.env), other.file)?.previous).toEqual(legacy);
   });
 
-  it('keeps install() as a confirmed wrapper', () => {
-    const { file } = tmpEnv();
-    writeJson(file, { statusLine: foreign });
-    expect(install('/bin/ccinfobar', undefined, file)).not.toBeNull();
-    expect(read(file).statusLine.command).toBe('/bin/ccinfobar');
-    expect(install('/bin/ccinfobar', undefined, file)).toBeNull();
+  it('has no unguarded install() export', async () => {
+    const mod: Record<string, unknown> = await import('../../src/commands/install.js');
+    expect(mod.install).toBeUndefined();
   });
 });
 
@@ -455,7 +451,7 @@ describe('runInstall and runUninstall', () => {
     await runUpdate(parseArgs(['update', '--background']), cfg);
     expect(fs.existsSync(projectSettingsPath(root))).toBe(false);
 
-    install('/bin/ccinfobar', 9, settings);
+    applyInstall(planInstall({ file: settings, command: '/bin/ccinfobar', refresh: 9 }), { confirmed: true });
     await runUpdate(parseArgs(['update', '--background']), cfg);
     expect(read(projectSettingsPath(root)).statusLine).toEqual({
       type: 'command',
