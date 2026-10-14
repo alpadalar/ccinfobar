@@ -1,14 +1,17 @@
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import { loadConfig, saveConfig } from '../core/config.js';
+import { needsRefresh } from '../core/edit.js';
 import { type MessageId, t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
+import { titleWidgets } from '../core/panel.js';
 import { claudeSettingsPath, tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { VERSION } from '../core/version.js';
 import type { HookEvent } from '../data/hooks.js';
 import { selfCommand } from '../data/update-state.js';
 import { type DetectedTool, detectTool, type ImportSource } from '../importers/index.js';
+import { getWidget } from '../widgets/index.js';
 import {
   detectClaudeCode,
   eventFloor,
@@ -205,6 +208,19 @@ function persistConfig(cfgFile: string): void {
   else loadForUse(cfgFile, undefined, { persist: true });
 }
 
+// D-25: suggest only, never write refreshInterval
+function refreshNotes(io: InstallIo, cfgFile: string, refresh: number | undefined, plan: InstallPlan): void {
+  if (refresh === 1) io.log(t('install.refreshOne'));
+  if (refresh !== undefined || plan.proposed.refreshInterval !== undefined) return;
+  let timed: string[] = [];
+  try {
+    const { config } = loadForUse(cfgFile);
+    const extra = config.tui ? titleWidgets(config.tui) : [];
+    timed = needsRefresh(config, (type) => getWidget(type)?.timeBased === true, extra);
+  } catch {}
+  if (timed.length) io.log(t('install.refreshHint', { widgets: timed.join(', ') }));
+}
+
 function userRefresh(): number | undefined {
   try {
     return currentStatusLine()?.refreshInterval;
@@ -282,6 +298,7 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
       if (gsd.length) io.log(t('install.dryRunProjects', { count: gsd.length }));
       for (const p of gsd) io.log(`  ${tildify(p)}`);
     }
+    refreshNotes(io, cfgFile, refresh, plan);
     io.log(t('install.dryRun'));
     return;
   }
@@ -320,6 +337,7 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     io.log(t('install.replaced', { command: show(plan.current.command) }));
   if (res.hooks) reportHooks(io, res.hooks);
   if (res.backup) io.log(t('install.backup', { file: tildify(res.backup) }));
+  refreshNotes(io, cfgFile, refresh, plan);
 
   if (project) {
     if (shadowed) io.log(`  It now wins over "${show(shadowed.command)}" from ${tildify(shadowed.file)}.`);

@@ -110,6 +110,27 @@ describe('runDoctor config report', () => {
   });
 });
 
+describe('runDoctor refresh hint', () => {
+  const timed = () => cfgFile('timed.json', JSON.stringify({ lines: [[{ type: 'turn-timer' }]] }));
+  const hint = t('doctor.refreshHint', { widgets: 'turn-timer' });
+
+  it('suggests --refresh 5 for time-based widgets without a refreshInterval', () => {
+    applyInstall(planInstall({ file: claudeSettingsPath(), command: '/opt/bin/ccinfobar' }), {
+      confirmed: true,
+    });
+    expect(capture(() => runDoctor(timed()))).toContain(hint);
+    const plain = cfgFile('plain-r.json', JSON.stringify({ lines: [[{ type: 'model' }]] }));
+    expect(capture(() => runDoctor(plain)).some((l) => l.includes('--refresh 5'))).toBe(false);
+  });
+
+  it('stays quiet when refreshInterval is set', () => {
+    applyInstall(planInstall({ file: claudeSettingsPath(), command: '/opt/bin/ccinfobar', refresh: 5 }), {
+      confirmed: true,
+    });
+    expect(capture(() => runDoctor(timed()))).not.toContain(hint);
+  });
+});
+
 describe('commandWarnings', () => {
   it('warns on win32 about backslashes and a quoted first token', () => {
     expect(commandWarnings('C:\\Users\\a\\npm\\ccinfobar.cmd', 'win32')).toEqual([t('doctor.winCommand')]);

@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import type { LoadResult } from '../core/config.js';
+import { needsRefresh } from '../core/edit.js';
 import { t } from '../core/i18n/index.js';
 import { type InspectRow, inspectRows, lineReport, sessionNotes } from '../core/inspect.js';
 import { loadForUse } from '../core/load.js';
+import { titleWidgets } from '../core/panel.js';
 import { cacheDir, claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { readLastPayload } from '../core/preview.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -249,6 +251,12 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
     `${ok(usesUs)} Claude Code statusLine in ${tildify(settingsFile)}: ${sl?.command !== undefined ? safe(sl.command) : 'not set'}`,
   );
   if (typeof sl?.command === 'string') for (const w of commandWarnings(sl.command)) console.log(w);
+  if (sl?.refreshInterval === undefined) {
+    const cfg = loaded.config;
+    const extra = cfg.tui ? titleWidgets(cfg.tui) : [];
+    const timed = needsRefresh(cfg, (type) => getWidget(type)?.timeBased === true, extra);
+    if (timed.length) console.log(t('doctor.refreshHint', { widgets: timed.join(', ') }));
+  }
   if (manifest.readOnly) console.log(`⚠ ${t('install.manifestReadOnly', { file: tildify(manifestFile()) })}`);
   else {
     console.log(t('doctor.manifest', { file: tildify(manifestFile()), count: manifest.entries.length }));
