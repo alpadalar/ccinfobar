@@ -43,6 +43,7 @@ export interface ClaudeInfo {
   statusLine: { command?: string; refreshInterval?: number } | null;
   installed: boolean;
   defaultCommand: string;
+  settingsFile: string;
 }
 
 export interface ConfigIssueInfo {

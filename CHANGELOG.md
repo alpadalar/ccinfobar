@@ -59,6 +59,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Windows: updates and the pinned-copy install no longer fail when npm is only available as `npm.cmd` and the config folder path contains spaces; npm's own `npm-cli.js` is used without a shell when it can be found
 - Update checks order prerelease versions correctly, so `1.0.0-beta.1` counts as older than `1.0.0`
 - `install --project` escapes `*`, `?`, `[` and `\` in the path it adds to `.git/info/exclude`, so it no longer hides other files, and works when the project is opened through a symlink
+- The editor's install dialog shows the settings file it will write, including a `CLAUDE_CONFIG_DIR` location, instead of always `~/.claude/settings.json`
 - Saving a symlinked `config.json` (for example from a dotfiles repo) writes through the link instead of replacing it with a plain file; the same holds for themes, presets and cache files
 
 ### Security

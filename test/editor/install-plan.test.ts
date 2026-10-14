@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
+import { tildify } from '../../src/core/paths.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
 
 const FOREIGN = { type: 'command', command: 'npx ccstatusline', padding: 0 };
@@ -188,6 +189,12 @@ describe('editor install plan', () => {
     expect(res.status).toBe(200);
     expect(JSON.parse(fs.readFileSync(settings, 'utf8')).statusLine.command).toBe('ccinfobar');
     expect(manifest().entries).toHaveLength(1);
+  });
+
+  it('reports the settings file Claude Code uses', async () => {
+    await start();
+    const info = (await request('GET', '/api/state')).json().claude;
+    expect(info.settingsFile).toBe(tildify(settings));
   });
 
   it('does not report a foreign wrapper as installed', async () => {

@@ -56,7 +56,7 @@ export async function installDialog(): Promise<void> {
         h('label', { class: 'field-label' }, 'Refresh interval (seconds, optional)'),
         refresh,
       ),
-      h('div', { class: 'field-label' }, 'Will be written to ~/.claude/settings.json'),
+      h('div', { class: 'field-label' }, `Will be written to ${claude.settingsFile}`),
       preview,
       planBox,
       isDirty()

@@ -184,6 +184,7 @@ function claudeInfo(command: string | null) {
     statusLine,
     installed: isInstalled(statusLine, command),
     defaultCommand: command ?? placeholder(),
+    settingsFile: tildify(claudeSettingsPath()),
   };
 }
 
