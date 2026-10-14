@@ -149,7 +149,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `git-repo` | Repository owner/name | `acme/acme-app` | `nameOnly` boolean, default `false` |
 | `git-worktree` | Linked worktree name | `wt feature-x` |  |
 | `pr` | Pull request number and review state | `#128 pending` | `link` boolean, default `false` |
-| `workspace-repos` | Child folders that are git repos, when the folder itself is not a repo | `repos: api (main) · web (dev) · infra (main)` | `maxRepos` number, default `5`<br>`showBranch` boolean, default `true`<br>`sort` select, default `"name"` (`name`, `recent`)<br>`includeHidden` boolean, default `false`<br>`hideGitPlaceholders` boolean, default `true` |
+| `workspace-repos` | Child folders that are git repos, when the folder itself is not a repo | `repos: api (main) · web (dev) · infra (main)` | `maxRepos` number, default `5`<br>`showBranch` boolean, default `true`<br>`sort` select, default `"name"` (`name`, `recent`)<br>`includeHidden` boolean, default `false`<br>`hideGitPlaceholders` boolean, default `true`<br>`dirty` boolean, default `false` |
 
 ## Workspace
 

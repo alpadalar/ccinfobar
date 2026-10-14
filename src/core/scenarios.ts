@@ -175,7 +175,7 @@ function noGit(now: number): ScenarioBundle {
 
 function workspaceFolder(now: number): ScenarioBundle {
   const b = noGit(now);
-  const ws = sampleRepos(now);
+  const ws = { ...sampleRepos(now), dirty: { api: true } };
   b.data.repos = () => ws;
   b.payload.cwd = ws.root;
   if (b.payload.workspace) {

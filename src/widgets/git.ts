@@ -259,6 +259,12 @@ export const widgets: WidgetDef[] = [
         kind: 'boolean',
         default: true,
       },
+      {
+        key: 'dirty',
+        label: 'Mark repos with uncommitted changes (background check)',
+        kind: 'boolean',
+        default: false,
+      },
     ],
     render(ctx, item) {
       const ws = ctx.data.repos?.();
@@ -271,7 +277,11 @@ export const widgets: WidgetDef[] = [
       }
       const max = Math.max(1, Math.floor(opt(item, 'maxRepos', 5)));
       const branch = opt(item, 'showBranch', true);
-      const parts = list.slice(0, max).map((r) => (branch && r.branch ? `${r.name} (${r.branch})` : r.name));
+      const mark = opt(item, 'dirty', false);
+      const parts = list.slice(0, max).map((r) => {
+        const star = mark && ws.dirty?.[r.name] === true ? '*' : '';
+        return branch && r.branch ? `${r.name} (${r.branch}${star})` : `${r.name}${star}`;
+      });
       const text = parts.join(ctx.config.charset === 'text' ? ' | ' : ' · ');
       const more = list.length - parts.length;
       return more > 0 ? `${text} +${more}` : text;

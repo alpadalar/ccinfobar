@@ -6,6 +6,7 @@ import { stripAnsi } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { createContext } from '../../src/core/context.js';
 import { render } from '../../src/core/renderer.js';
+import { getScenario, SCENARIO_NOW } from '../../src/core/scenarios.js';
 import type { StatusPayload, WidgetItem } from '../../src/core/types.js';
 import type { RepoEntry, WorkspaceRepos } from '../../src/data/repos.js';
 import { ctxWith, renderWidget, withoutSideEffects } from '../helpers.js';
@@ -57,6 +58,15 @@ describe.skipIf(tmpRepo)('workspace-repos on a real folder', () => {
   it('never spawns', () => {
     const w = workspace();
     expect(() => withoutSideEffects(() => render(ctxAt(w)))).not.toThrow();
+  });
+
+  it('never spawns with dirty on', () => {
+    const w = workspace();
+    const lines = withoutSideEffects(() => render(ctxAt(w, { options: { dirty: true } }))).map(stripAnsi);
+    expect(lines[0]).toContain('repos: api (main) · web (dev)');
+    expect(
+      fs.existsSync(env.CCINFOBAR_CACHE_DIR!) ? fs.readdirSync(env.CCINFOBAR_CACHE_DIR!) : [],
+    ).not.toContainEqual(expect.stringMatching(/^repos-dirty-/));
   });
 
   it('is null inside a repo', () => {
@@ -139,5 +149,32 @@ describe('workspace-repos options', () => {
     expect(renderWidget('workspace-repos', ctxWith())).toBeNull();
     const only = { ...fixture, repos: [fixture.repos[0]!] };
     expect(renderWidget('workspace-repos', ctxWith({ repos: () => only }))).toBeNull();
+  });
+});
+
+describe('workspace-repos dirty marker', () => {
+  const marked: WorkspaceRepos = {
+    ...fixture,
+    repos: fixture.repos.slice(1),
+    total: 3,
+    dirty: { api: true, web: false },
+  };
+  const d = (options: WidgetItem['options'] = {}) =>
+    renderWidget('workspace-repos', ctxWith({ repos: () => marked }), { options });
+
+  it('marks dirty repos when on', () =>
+    expect(d({ dirty: true })).toBe('api (main*) · infra (main) · web (dev)'));
+  it('is off by default', () => expect(d()).toBe('api (main) · infra (main) · web (dev)'));
+  it('marks a repo without a branch', () =>
+    expect(d({ dirty: true, showBranch: false })).toBe('api* · infra · web'));
+
+  it('shows one marker in the workspace-folder scenario without spawning', () => {
+    const b = getScenario('workspace-folder')!.build(SCENARIO_NOW);
+    const ctx = ctxWith({ repos: b.data.repos ?? (() => null) });
+    const out = withoutSideEffects(() =>
+      renderWidget('workspace-repos', ctx, { options: { dirty: true, maxRepos: 10 } }),
+    );
+    expect(out?.match(/\*/g)).toHaveLength(1);
+    expect(out).toContain('api (main*)');
   });
 });
