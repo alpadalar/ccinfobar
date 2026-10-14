@@ -100,6 +100,11 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       runDoctor(cfgFile);
       return;
     }
+    case 'explain': {
+      const { runExplain } = await import('../commands/explain.js');
+      runExplain(args, cfgFile);
+      return;
+    }
     default:
       console.error(`Unknown command "${args.command}". Run ccinfobar --help.`);
       process.exitCode = 1;

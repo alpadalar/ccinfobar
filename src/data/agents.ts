@@ -105,12 +105,16 @@ function summarize(file: string, size: number): Summary {
   return s;
 }
 
-function cached(file: string, size: number, env: NodeJS.ProcessEnv): Summary {
-  const name = `agent2-${cacheKey(file)}.json`;
+export function agentsCacheName(file: string): string {
+  return `agent2-${cacheKey(file)}.json`;
+}
+
+function cached(file: string, size: number, env: NodeJS.ProcessEnv, persist: boolean): Summary {
+  const name = agentsCacheName(file);
   const hit = readCache<Summary>(name, env);
   if (hit && hit.size === size) return hit;
   const s = summarize(file, size);
-  writeCache(name, s, env);
+  if (persist) writeCache(name, s, env);
   return s;
 }
 
@@ -120,6 +124,7 @@ export function readAgents(
   info: TranscriptInfo | null,
   now: number,
   env: NodeJS.ProcessEnv = process.env,
+  opts: { persist?: boolean } = {},
 ): AgentInfo[] {
   if (!transcriptPath) return [];
   const dir = path.join(transcriptPath.replace(/\.jsonl$/, ''), 'subagents');
@@ -148,7 +153,7 @@ export function readAgents(
     const turn = info?.turnStart ?? null;
     const recent = turn !== null ? stat.mtimeMs >= turn : now - stat.mtimeMs < 10 * 60_000;
     if (!running && !recent) continue;
-    const s = cached(jsonl, stat.size, env);
+    const s = cached(jsonl, stat.size, env, opts.persist !== false);
     out.push({
       id: id.replace(/^agent-/, ''),
       type: typeof meta.agentType === 'string' ? sanitizeText(meta.agentType) || 'agent' : 'agent',

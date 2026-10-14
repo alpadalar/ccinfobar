@@ -25,6 +25,10 @@ Usage
   ccinfobar usage                Fetch your plan usage from Claude now
   ccinfobar widgets              List all widgets
   ccinfobar doctor               Check the setup
+  ccinfobar explain [widget-id]  Show each widget's value, source and why it is empty
+  ccinfobar explain --scenario <name>
+                                 Explain the widgets for a named situation
+                                 (put options after the widget id)
   ccinfobar config get <path>    Print a config value (e.g. theme, lines.0.2.type)
   ccinfobar config set <path> <value>
                                  Set a value (JSON, else a string); invalid values are refused
@@ -34,7 +38,7 @@ Options
   --config <file>                Use a specific config file
   --payload <file>               Render using a JSON payload file
   --width <n>                    Override the detected terminal width
-  --scenario <name>              preview: render a named scenario (bare flag lists them)
+  --scenario <name>              preview/explain: use a named scenario (bare flag lists them)
   --refresh <seconds>            install: also set statusLine.refreshInterval
   --project                      install/uninstall: use .claude/settings.local.json here
   --import / --no-import         install: import the previous status line's layout without asking

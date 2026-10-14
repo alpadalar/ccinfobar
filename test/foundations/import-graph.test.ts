@@ -42,6 +42,8 @@ const EXCLUDED_FILES = [
   'src/commands/manifest.ts',
   'src/commands/config-cmd.ts',
   'src/core/scenarios.ts',
+  'src/commands/explain.ts',
+  'src/core/inspect.ts',
 ];
 const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/'];
 
@@ -76,7 +78,7 @@ describe('import graph', () => {
 
   it('loads every command lazily from main', () => {
     const text = fs.readFileSync(path.join(src, 'cli/main.ts'), 'utf8');
-    for (const mod of ['install-cli', 'manage', 'update', 'doctor', 'config-cmd']) {
+    for (const mod of ['install-cli', 'manage', 'update', 'doctor', 'config-cmd', 'explain']) {
       expect(text).toContain(`await import('../commands/${mod}.js')`);
     }
   });
@@ -91,5 +93,10 @@ describe('import graph', () => {
       const text = fs.readFileSync(f, 'utf8');
       expect(text, path.relative(root, f)).not.toMatch(/['"]node:|require\(/);
     }
+  });
+
+  it('keeps src/core/inspect.ts free of node: imports', () => {
+    const text = fs.readFileSync(path.join(root, 'src/core/inspect.ts'), 'utf8');
+    expect(text).not.toMatch(/from ['"]node:|require\(/);
   });
 });

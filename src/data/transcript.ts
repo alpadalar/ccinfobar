@@ -367,22 +367,27 @@ export function parseTranscriptText(text: string): TranscriptInfo {
   return toInfo(s);
 }
 
+export function transcriptCacheName(file: string): string {
+  return `transcript-${cacheKey(file)}.json`;
+}
+
 export function readTranscript(
   file: string | undefined,
   env: NodeJS.ProcessEnv = process.env,
+  opts: { persist?: boolean } = {},
 ): TranscriptInfo | null {
   if (!file) return null;
   let fd: number | null = null;
   try {
     const size = fs.statSync(file).size;
-    const name = `transcript-${cacheKey(file)}.json`;
+    const name = transcriptCacheName(file);
     let state = readCache<State>(name, env);
     if (!state || state.v !== VERSION || state.offset > size) state = emptyState();
     if (state.offset < size) {
       fd = fs.openSync(file, 'r');
       const before = state.offset;
       advance(state, fd, size);
-      if (state.offset !== before) writeCache(name, state, env);
+      if (state.offset !== before && opts.persist !== false) writeCache(name, state, env);
     }
     return toInfo(state);
   } catch {
