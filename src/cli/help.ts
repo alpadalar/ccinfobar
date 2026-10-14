@@ -28,7 +28,7 @@ Usage
   ccinfobar explain [widget-id]  Show each widget's value, source and why it is empty
   ccinfobar explain --scenario <name>
                                  Explain the widgets for a named situation
-                                 (put options after the widget id)
+                                 (a bare --scenario lists the scenarios)
   ccinfobar bench                Measure render time: cold, warm, median and p95
   ccinfobar config get <path>    Print a config value (e.g. theme, lines.0.2.type)
   ccinfobar config set <path> <value>
