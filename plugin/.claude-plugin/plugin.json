@@ -1,0 +1,10 @@
+{
+  "name": "ccinfobar",
+  "version": "0.6.2",
+  "description": "Edit, theme, check and install the ccinfobar status line from inside Claude Code",
+  "author": { "name": "Alperen Adalar" },
+  "homepage": "https://github.com/alpadalar/ccinfobar",
+  "repository": "https://github.com/alpadalar/ccinfobar",
+  "license": "MIT",
+  "keywords": ["statusline", "status-line", "ccinfobar"]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "ccinfobar",
+  "owner": { "name": "Alperen Adalar" },
+  "description": "ccinfobar status line controls for Claude Code",
+  "plugins": [
+    {
+      "name": "ccinfobar",
+      "source": "./plugin",
+      "description": "Edit, theme, check and install the ccinfobar status line from inside Claude Code"
+    }
+  ]
+}
