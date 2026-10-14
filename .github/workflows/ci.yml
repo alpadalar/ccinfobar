@@ -66,3 +66,27 @@ jobs:
         continue-on-error: true
         shell: bash
         run: npm run build >/dev/null && node dist/ccinfobar.js bench --runs 10 --json
+
+  plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Validate marketplace and plugin
+        shell: bash
+        env:
+          DISABLE_AUTOUPDATER: '1'
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+        run: |
+          export HOME="$RUNNER_TEMP/home" CLAUDE_CONFIG_DIR="$RUNNER_TEMP/claude"
+          mkdir -p "$HOME" "$CLAUDE_CONFIG_DIR"
+          npm install --prefix "$RUNNER_TEMP/cc" --no-audit --no-fund @anthropic-ai/claude-code@2.1.299
+          CC="$RUNNER_TEMP/cc/node_modules/.bin/claude"
+          "$CC" --version
+          "$CC" plugin validate --strict .
+          "$CC" plugin validate --strict ./plugin
+          "$CC" --plugin-dir ./plugin plugin details ccinfobar | tee "$RUNNER_TEMP/details.txt"
+          grep -F 'Skills (5)' "$RUNNER_TEMP/details.txt"
+          grep -F 'Hooks (0)' "$RUNNER_TEMP/details.txt"
