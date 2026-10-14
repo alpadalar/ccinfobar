@@ -4,6 +4,58 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `install` shows the current and new status line and asks `Replace? [y/N]` before replacing another tool's; `--yes` (`-y`) replaces without asking and `--dry-run` shows the plan and writes nothing (no backup, no npm install)
+- `install` prints `Installing ccinfobar <version>`, and `Replaced: <command>` when it replaced another status line without a terminal
+- `ccinfobar config get|set|unset <path> [value]` reads or changes one config value by dotted path (`lines.0.2.type`, `gitHardening`); values are parsed as JSON, else taken as a string, and a value that would not pass validation is refused without writing
+- A config that does not parse shows `ccinfobar: config error at line N, run ccinfobar doctor` and is never overwritten
+- An unexpected render error shows `ccinfobar: render error, run ccinfobar doctor` instead of a blank status line
+- Context and token widgets show `loading…` before the first reply instead of `0%`; `loadingText` sets the text, an empty string turns it off, and the editor (Settings, Appearance) and TUI have a Loading text setting
+- Plan-limit widgets show `loading…` until Claude Code sends usage limits, only in Claude subscription sessions
+- `ccinfobar doctor` shows the line and column of a broken config and warns about unknown widgets and unsupported option values
+- `ccinfobar doctor` lists the install manifest, where backups are kept and whether git hardening is off, warns on Windows about a backslash or quoted first token in the statusLine command, and removes stale temp files
+- `-y` as a short form of `--yes`, and `--` to end option parsing (for example `-- -1`)
+
+### Changed
+
+- Settings backups are timestamped under the config dir (`backups/settings-<UTC stamp>.json`, last 10 kept, plus a `settings-original.json` that is never deleted); no new `.ccinfobar-backup` file is created, but an existing one is still used on uninstall
+- `uninstall` restores exactly what ccinfobar replaced, using `<configDir>/manifest.json`, and after several reinstalls brings back the status line you had before ccinfobar; other tools' status lines are never removed, even when they mention ccinfobar
+- `uninstall` asks once before removing a status line that mentions ccinfobar but was not set by it; without a terminal it is left alone
+- The editor and TUI show the current and new status line and ask before replacing another tool's; the editor's Install toast says where backups are kept
+- The editor, doctor and the background GSD takeover decide whether the status line is ccinfobar's from the manifest instead of looking for "ccinfobar" in the command; each GSD takeover can be undone by uninstall
+- The editor and TUI refuse to overwrite a broken config.json: `ccinfobar edit` shows a banner with the line, column and message, and `ccinfobar tui` prints it and exits 1
+- `theme` refuses to run on a broken config and points to the error; `init --force` keeps a `.bak` copy of the previous config
+- Rendering no longer writes config.json; the GSD line migration is applied in memory and saved by install, the editor or the TUI
+- API-key, Bedrock, Vertex, Foundry, Mantle, Anthropic AWS and gateway (custom `ANTHROPIC_BASE_URL`) sessions no longer try the OAuth usage fetch; their plan-limit widgets stay empty unless Claude Code sends `rate_limits`
+- Faster start-up: install, update, doctor, import, editor and TUI code load only when their command runs
+- The stdin payload is sanitized before any widget sees it, and a non-object JSON payload is reported as invalid
+- On macOS and Linux, a path with spaces or quotes is single-quoted in the statusLine command
+- `ccinfobar import` config backups are created with mode 0600
+
+### Fixed
+
+- Install and uninstall keep the settings file's permissions (such as 0600), symlinks, BOM, CRLF line endings, indentation and trailing newline
+- A settings file that does not parse is never overwritten, and a concurrent write by Claude Code is merged instead of lost
+- Uninstall after Claude Code reformatted settings.json keeps your other edits and only restores the statusLine key; if Claude Code already removed the statusLine, uninstall restores the previous one and says so
+- Editor and TUI installs are recorded in the manifest, so `ccinfobar uninstall` brings back the previous status line
+- Windows: `install` writes `ccinfobar` (when on PATH) or `node "<path with forward slashes>"` instead of backslash or `.cmd` paths that Git Bash cannot run, which left the status line blank
+- Windows: `install` refuses a path containing `"`, `` ` ``, `$` or `%` and explains why, instead of writing a command the shell would expand
+- Cache, update state, last payload, terminal width, theme, preset, styles and config files are written atomically (temp file and rename), so a cancelled render or crash cannot leave a half-written file
+- Windows: renames briefly blocked by antivirus or indexers (EPERM/EACCES/EBUSY) are retried instead of failing
+- A config.json saved with a UTF-8 BOM (common on Windows) loads instead of falling back to the default layout
+- `cache-miss-cause` no longer blanks the status line when Claude Code sends the object form of `prompt_cache.last_miss_cause`; it shows, for example, `tools changed (+2/-0)`
+- A widget that returns malformed output shows as empty instead of crashing the whole status line
+- Emoji such as ⚡ and ✅ are measured as 2 cells
+- Preview and doctor ignore a cached last payload that is not a JSON object
+
+### Security
+
+- Terminal escape sequences, 8-bit control characters and bidi overrides are stripped from payload, git, transcript, subagent and GSD text, so a hostile branch name, session name or planning file cannot write the clipboard, retitle the terminal or overwrite the status line
+- The `command` widget with `preserveColors` keeps only colors and safe links; clipboard writes, title changes and other terminal sequences are removed
+- PR links are only clickable for `http(s)` URLs without control characters, the `link` widget rejects `javascript:` and `data:` URLs, and environment variable values are shown as plain text
+- Git calls, including the ones `install` makes, ignore repo-local `core.fsmonitor` and filter drivers (`gitHardening`, on by default)
+
 ## [0.6.2] - 2026-10-12
 
 ### Added
