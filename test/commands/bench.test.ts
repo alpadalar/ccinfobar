@@ -264,8 +264,50 @@ describe('runBench', () => {
   });
 });
 
+describe('runBench hook row', () => {
+  const fake = (body: string) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-benchhook-'));
+    const entry = path.join(dir, 'fake.mjs');
+    fs.writeFileSync(entry, body);
+    return { dir, entry };
+  };
+
+  it('times hook UserPromptSubmit with a hook payload', () => {
+    const { dir, entry } = fake(
+      "import fs from 'node:fs';\n" +
+        "if (process.argv.includes('hook')) {\n" +
+        "  const i = JSON.parse(fs.readFileSync(0, 'utf8'));\n" +
+        "  if (process.argv.slice(2).join(' ') !== 'hook UserPromptSubmit' || i.hook_event_name !== 'UserPromptSubmit' || i.session_id !== 'bench-hook') process.exit(5);\n" +
+        '}\n',
+    );
+    try {
+      const c = capture();
+      expect(runBench({ entry, runs: 2, json: true, cfgFile: cfg() }, c.io)).toBe(0);
+      const o = JSON.parse(c.out[0]!);
+      expect(o.rows).toHaveLength(5);
+      expect(o.rows[2].name).toBe('warm');
+      expect(o.rows[4]).toMatchObject({ name: 'hook', n: 2 });
+      expect(typeof o.hookOverheadMs).toBe('number');
+      expect(Number.isFinite(o.hookOverheadMs)).toBe(true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('names the hook row when a hook run fails', () => {
+    const { dir, entry } = fake("if (process.argv.includes('hook')) process.exit(6);\n");
+    try {
+      const c = capture();
+      expect(runBench({ entry, runs: 1, json: false, cfgFile: cfg() }, c.io)).toBe(1);
+      expect(c.err[0]).toBe(t('bench.failed', { row: t('bench.row.hook'), code: 6 }));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe.skipIf(!fs.existsSync(bin))('runBench with the built cli', () => {
-  it('prints one JSON object with four rows and leaves no temp dirs', { timeout: 60_000 }, () => {
+  it('prints one JSON object with five rows and leaves no temp dirs', { timeout: 60_000 }, () => {
     const before = benchDirs();
     const cache = listFiles(cacheDir());
     const c = capture();
@@ -289,12 +331,14 @@ describe.skipIf(!fs.existsSync(bin))('runBench with the built cli', () => {
       'cold',
       'warm',
       'warm-no-compile-cache',
+      'hook',
     ]);
     for (const r of o.rows) {
       expect(r.n).toBe(2);
       for (const k of ['median', 'p95', 'min', 'max']) expect(r[k]).toBeGreaterThan(0);
     }
     expect(o.overheadMs).toBeCloseTo(o.rows[2].median - o.rows[0].median, 1);
+    expect(o.hookOverheadMs).toBeCloseTo(o.rows[4].median - o.rows[0].median, 1);
     expect(benchDirs()).toEqual(before);
     expect(listFiles(cacheDir())).toEqual(cache);
   });
@@ -308,6 +352,8 @@ describe.skipIf(!fs.existsSync(bin))('runBench with the built cli', () => {
     expect(text).not.toContain(ESC);
     expect(text).toContain('ccinfobar overhead = warm median');
     expect(text).toContain(t('bench.row.warmNoCache'));
+    expect(text).toContain(t('bench.row.hook'));
+    expect(text).toContain('hook overhead = hook median');
     expect(text).toContain('context-full');
   });
 

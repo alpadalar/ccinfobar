@@ -229,6 +229,7 @@ Rows:
 - `cold`: every run gets fresh ccinfobar cache, config copy and Node compile-cache dirs. The OS file cache stays warm, so "cold" means ccinfobar's and Node's caches, not the disk.
 - `warm`: shared dirs after 2 discarded warm-up runs. This is what Claude Code sees on most refreshes.
 - `warm, compile cache off`: the warm dirs with `NODE_DISABLE_COMPILE_CACHE=1`.
+- `hook UserPromptSubmit`: `ccinfobar hook UserPromptSubmit` with a small hook payload in the warm dirs, after 2 warm-up runs. This is what one optional hook costs per event.
 
 Method:
 
@@ -239,7 +240,7 @@ Method:
 
 Measure at nice 0, for example after `renice -n 0 -p $$` in your shell (lowering the nice value may need privileges). On a machine that starts tools at nice 10, `nice -n -10 ccinfobar bench` also reaches 0; the header shows the priority and warns when it is above 0. Measure when the machine is idle and note the load average, because the numbers move with machine state.
 
-`ccinfobar overhead = warm median − control median` is the cost ccinfobar adds on top of Node boot. Phase 10 (F2, a single binary) compares this number, taken the same way, to decide whether a compiled binary is worth it. The clean-install CI job also prints `bench --runs 10 --json` for each OS; that step never fails the job.
+`ccinfobar overhead = warm median − control median` is the cost ccinfobar adds on top of Node boot. Phase 10 (F2, a single binary) compares this number, taken the same way, to decide whether a compiled binary is worth it. `hook overhead = hook median − control median` is the same figure for one hook event. The clean-install CI job also prints `bench --runs 10 --json` for each OS; that step never fails the job.
 
 Baseline, 2026-10-14, `nice -n -10` (priority 0), Node v22.23.1, Intel i7-1165G7 (8 threads), Linux 7.2.9 (Fedora 44), load average 2.10 → 1.85, cwd this git repo, default layout, N = 20:
 

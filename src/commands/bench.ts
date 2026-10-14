@@ -166,14 +166,21 @@ export interface BenchOptions {
   cwd?: string;
 }
 
-type RowName = 'control' | 'cold' | 'warm' | 'warm-no-compile-cache';
+type RowName = 'control' | 'cold' | 'warm' | 'warm-no-compile-cache' | 'hook';
 
 const LABELS = {
   control: 'bench.row.control',
   cold: 'bench.row.cold',
   warm: 'bench.row.warm',
   'warm-no-compile-cache': 'bench.row.warmNoCache',
+  hook: 'bench.row.hook',
 } as const;
+
+const HOOK_INPUT = JSON.stringify({
+  session_id: 'bench-hook',
+  hook_event_name: 'UserPromptSubmit',
+  prompt_id: 'bench',
+});
 
 class RunFailed extends Error {
   constructor(
@@ -253,10 +260,10 @@ export function runBench(opts: BenchOptions, io: CliIo = cliIo()): number {
       throw new Error(`cannot write ${transcript}`);
     const input = JSON.stringify(benchPayload(scenario, cwd, transcript));
 
-    const time = (row: RowName, args: string[], env: NodeJS.ProcessEnv): number => {
+    const time = (row: RowName, args: string[], env: NodeJS.ProcessEnv, stdin = input): number => {
       const t0 = process.hrtime.bigint();
       const r = spawnSync(process.execPath, args, {
-        input,
+        input: stdin,
         env,
         cwd,
         stdio: ['pipe', 'ignore', 'pipe'],
@@ -289,12 +296,16 @@ export function runBench(opts: BenchOptions, io: CliIo = cliIo()): number {
     const warm = repeat(() => time('warm', [entry], warmEnv));
     const noCacheEnv = benchEnv(baseEnv, shared, { compileCache: false });
     const noCache = repeat(() => time('warm-no-compile-cache', [entry], noCacheEnv));
+    const hookArgs = [entry, 'hook', 'UserPromptSubmit'];
+    for (let w = 0; w < 2; w++) time('hook', hookArgs, warmEnv, HOOK_INPUT);
+    const hook = repeat(() => time('hook', hookArgs, warmEnv, HOOK_INPUT));
 
     const rows: [RowName, Stats][] = [
       ['control', stats(control)],
       ['cold', stats(cold)],
       ['warm', stats(warm)],
       ['warm-no-compile-cache', stats(noCache)],
+      ['hook', stats(hook)],
     ];
     report(io, {
       scenario: scenario ?? 'sample',
@@ -302,6 +313,7 @@ export function runBench(opts: BenchOptions, io: CliIo = cliIo()): number {
       gitRepo: inGitRepo(cwd),
       rows,
       overheadMs: overhead(rows[2]![1], rows[0]![1]),
+      hookOverheadMs: overhead(rows[4]![1], rows[0]![1]),
       json: opts.json,
     });
     return 0;
@@ -324,6 +336,7 @@ function report(
     gitRepo: boolean;
     rows: [RowName, Stats][];
     overheadMs: number;
+    hookOverheadMs: number;
     json: boolean;
   },
 ): void {
@@ -352,6 +365,7 @@ function report(
           max: round(s.max),
         })),
         overheadMs: round(r.overheadMs),
+        hookOverheadMs: round(r.hookOverheadMs),
       }),
     );
     return;
@@ -399,6 +413,7 @@ function report(
   for (let k = 0; k < r.rows.length; k++) io.log(line(labels[k]!, cols[k]!));
   io.log('');
   io.log(t('bench.overhead', { ms: r.overheadMs.toFixed(1) }));
+  io.log(t('bench.hookOverhead', { ms: r.hookOverheadMs.toFixed(1) }));
 }
 
 export function runBenchCommand(args: Args, cfgFile: string, io: CliIo = cliIo()): void {
