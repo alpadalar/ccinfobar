@@ -201,7 +201,7 @@ Tests: `test/cli/hook.test.ts`, `test/data/hooks.test.ts`, `test/commands/hooks-
 
 `claude plugin validate --strict` checks the schema but not these rules, so `test/plugin/structure.test.ts` pins them: the manifest shape, the five skill dirs, no forbidden paths, no `"statusLine"` key or `CLAUDE_PLUGIN_ROOT`, the exact frontmatter, the preflight and each skill's commands in order.
 
-`plugin.json`'s `version` and the pins in `INSTALL.md` (`ccinfobar@<v>`, `/blob/v<v>/`) follow `package.json`. The npm `version` lifecycle script runs `scripts/sync-plugin-version.mjs` and stages both files, so `npm version` keeps them in step; `test/plugin/version-sync.test.ts` fails on drift. CI's `plugin` job installs a pinned `@anthropic-ai/claude-code` into a temp prefix, with HOME and `CLAUDE_CONFIG_DIR` in `$RUNNER_TEMP`, runs `plugin validate --strict` on `.` and `./plugin`, and checks that `plugin details` shows `Skills (5)` and `Hooks (0)`. Never run `claude plugin install` against your own config to test; use `--plugin-dir ./plugin`.
+`plugin.json`'s `version`, the pins in `INSTALL.md` (`ccinfobar@<v>`, `/blob/v<v>/`) and the README's `alpadalar/ccinfobar#v<v>` follow `package.json`. The npm `version` lifecycle script runs `scripts/sync-plugin-version.mjs` and stages the three files, so `npm version` keeps them in step; `test/plugin/version-sync.test.ts` fails on drift. CI's `plugin` job installs a pinned `@anthropic-ai/claude-code` into a temp prefix, with HOME and `CLAUDE_CONFIG_DIR` in `$RUNNER_TEMP`, runs `plugin validate --strict` on `.` and `./plugin`, and checks that `plugin details` shows `Skills (5)` and `Hooks (0)`. Never run `claude plugin install` against your own config to test; use `--plugin-dir ./plugin`.
 
 `edit --detach` (`editor/detach.ts`) pings the editor recorded in `<cacheDir>/editor.json` (`{ url, pid, startedAt }`, 0600) with its token and reuses it. Otherwise it spawns `edit --serve-detached` as a detached session leader and waits up to 5 s for that file. The detached server stops after 30 minutes without requests, on `POST /api/shutdown` or on SIGTERM, and removes `editor.json` only if it still holds its own pid.
 
@@ -334,7 +334,7 @@ ccinfobar overhead 62.7 ms; hook overhead 26.6 ms. A second run right after gave
 ## Releasing
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` under a new version heading.
-2. `npm version <patch|minor|major>` (its `version` script also updates `plugin/.claude-plugin/plugin.json` and the pins in `INSTALL.md`)
+2. `npm version <patch|minor|major>` (its `version` script also updates `plugin/.claude-plugin/plugin.json` and the pins in `INSTALL.md` and the README)
 3. `git push --follow-tags`
 
 The `Release` workflow runs the checks, creates a GitHub release from the changelog section with the packed `ccinfobar.tgz` attached (the README install command points at it), and publishes to npm with provenance when an `NPM_TOKEN` repository secret exists.

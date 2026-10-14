@@ -14,6 +14,8 @@ const SEMVER = String.raw`\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?`;
 
 const installPath = path.join(root, 'INSTALL.md');
 const readInstall = () => fs.readFileSync(installPath, 'utf8');
+const readmePath = path.join(root, 'README.md');
+const README_PIN = 'alpadalar/ccinfobar#v';
 
 function pins(text: string, re: RegExp): string[] {
   return [...text.matchAll(re)].map((m) => m[1]!);
@@ -36,6 +38,7 @@ function tempCopy(pkgVersion: string): string {
   );
   fs.copyFileSync(path.join(root, pluginRel), path.join(dir, pluginRel));
   fs.copyFileSync(installPath, path.join(dir, 'INSTALL.md'));
+  fs.copyFileSync(readmePath, path.join(dir, 'README.md'));
   return dir;
 }
 
@@ -61,11 +64,20 @@ describe('INSTALL.md', () => {
   });
 });
 
+describe('README.md', () => {
+  it('pins the plugin marketplace tag to the package.json version', () => {
+    const tags = pins(fs.readFileSync(readmePath, 'utf8'), new RegExp(`${README_PIN}(${SEMVER})`, 'g'));
+    expect(tags.length).toBeGreaterThan(0);
+    for (const v of tags) expect(v).toBe(version);
+  });
+});
+
 describe('scripts/sync-plugin-version.mjs', () => {
   it('rewrites plugin.json and INSTALL.md on a temp copy, then is a no-op', () => {
     const dir = tempCopy('9.9.9');
     const pluginBefore = fs.readFileSync(path.join(dir, pluginRel), 'utf8');
     const installBefore = fs.readFileSync(path.join(dir, 'INSTALL.md'), 'utf8');
+    const readmeBefore = fs.readFileSync(path.join(dir, 'README.md'), 'utf8');
 
     expect(run(['--root', dir, '--check']).status).toBe(1);
     expect(fs.readFileSync(path.join(dir, pluginRel), 'utf8')).toBe(pluginBefore);
@@ -83,12 +95,16 @@ describe('scripts/sync-plugin-version.mjs', () => {
         .replaceAll(`#v${version}`, '#v9.9.9'),
     );
     expect(installAfter).not.toContain(version);
+    const readmeAfter = fs.readFileSync(path.join(dir, 'README.md'), 'utf8');
+    expect(readmeAfter).toBe(readmeBefore.replaceAll(`${README_PIN}${version}`, `${README_PIN}9.9.9`));
+    expect(first.stdout).toContain('README.md');
     expect(first.stdout).toContain('INSTALL.md');
 
     const second = run(['--root', dir]);
     expect(second.status).toBe(0);
     expect(fs.readFileSync(path.join(dir, pluginRel), 'utf8')).toBe(pluginAfter);
     expect(fs.readFileSync(path.join(dir, 'INSTALL.md'), 'utf8')).toBe(installAfter);
+    expect(fs.readFileSync(path.join(dir, 'README.md'), 'utf8')).toBe(readmeAfter);
 
     expect(run(['--root', dir, '--check']).status).toBe(0);
   });
@@ -110,6 +126,7 @@ describe('scripts/sync-plugin-version.mjs', () => {
 describe('package.json', () => {
   it('runs the sync from the npm version lifecycle and never depends on claude-code', () => {
     expect(pkg.scripts.version).toContain('sync-plugin-version');
+    expect(pkg.scripts.version).toContain('README.md');
     expect(pkgText).not.toContain('@anthropic-ai/claude-code');
   });
 });

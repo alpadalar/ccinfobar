@@ -1,4 +1,4 @@
-// Runs from `npm version`: copies the package.json version into plugin.json and INSTALL.md.
+// Runs from `npm version`: copies the package.json version into plugin.json, INSTALL.md and the README plugin pin.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,7 @@ const SEMVER = String.raw`\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?`;
 const pkgFile = path.join(root, 'package.json');
 const pluginFile = path.join(root, 'plugin', '.claude-plugin', 'plugin.json');
 const installFile = path.join(root, 'INSTALL.md');
+const readmeFile = path.join(root, 'README.md');
 
 function read(file) {
   try {
@@ -47,10 +48,15 @@ function syncInstall(text) {
     .replace(new RegExp(`#v${SEMVER}`, 'g'), `#v${version}`);
 }
 
+function syncReadme(text) {
+  return text.replace(new RegExp(`alpadalar/ccinfobar#v${SEMVER}`, 'g'), `alpadalar/ccinfobar#v${version}`);
+}
+
 const changed = [];
 for (const [file, sync] of [
   [pluginFile, syncPlugin],
   [installFile, syncInstall],
+  [readmeFile, syncReadme],
 ]) {
   const before = read(file);
   const after = sync(before);

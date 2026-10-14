@@ -47,7 +47,7 @@
     "lint:fix": "biome check --write .",
     "check": "npm run typecheck && npm run lint && npm test",
     "prepublishOnly": "npm run build && npm run check",
-    "version": "node scripts/sync-plugin-version.mjs && git add plugin/.claude-plugin/plugin.json INSTALL.md"
+    "version": "node scripts/sync-plugin-version.mjs && git add plugin/.claude-plugin/plugin.json INSTALL.md README.md"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
