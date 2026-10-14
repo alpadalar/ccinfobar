@@ -84,7 +84,7 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
   const width = typeof args.flags.width === 'string' ? Number(args.flags.width) : undefined;
   const transcript = lazy(() => readTranscript(payload.transcript_path));
   const eff = effectiveUsage(config, payload, process.env, { transcript });
-  const lines = renderStatus(config, eff.payload, width, { transcript });
+  const lines = renderStatus(config, eff.payload, width, { transcript, limits: () => eff.limits });
   let notice: string | null = null;
   try {
     notice = updateNotice(config, VERSION);

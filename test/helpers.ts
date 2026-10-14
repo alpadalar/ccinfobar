@@ -5,6 +5,7 @@ import {
   sampleGit,
   sampleGsd,
   sampleHistory,
+  sampleLimits,
   samplePayload,
   sampleTranscript,
 } from '../src/core/sample.js';
@@ -21,6 +22,7 @@ export function ctxWith(
     gsd?: RenderContext['data']['gsd'];
     transcript?: RenderContext['data']['transcript'];
     history?: RenderContext['data']['history'];
+    limits?: RenderContext['data']['limits'];
     agents?: RenderContext['data']['agents'];
     width?: number | null;
     env?: NodeJS.ProcessEnv;
@@ -38,6 +40,7 @@ export function ctxWith(
       transcript: overrides.transcript ?? (() => sampleTranscript(NOW.getTime())),
       history: overrides.history ?? (() => sampleHistory(NOW.getTime())),
       agents: overrides.agents ?? (() => sampleAgents(NOW.getTime())),
+      limits: overrides.limits ?? (() => sampleLimits(NOW.getTime())),
     },
   });
 }

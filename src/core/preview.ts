@@ -1,5 +1,7 @@
 import fs from 'node:fs';
-import { createContext } from './context.js';
+import { readTranscript } from '../data/transcript.js';
+import { effectiveUsage } from '../data/usage.js';
+import { createContext, lazy } from './context.js';
 import { t } from './i18n/index.js';
 import { lastPayloadPath } from './paths.js';
 import { ingestPayload } from './payload.js';
@@ -9,6 +11,7 @@ import {
   sampleGit,
   sampleGsd,
   sampleHistory,
+  sampleLimits,
   samplePayload,
   sampleTranscript,
 } from './sample.js';
@@ -72,21 +75,25 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
   const last = source === 'last' ? readLastPayload() : null;
   const env = { ...process.env, NO_COLOR: undefined, FORCE_COLOR: undefined };
   if (last) {
+    const transcript = lazy(() => readTranscript(last.transcript_path));
+    const eff = effectiveUsage(config, last, env, { transcript });
     return render(
       createContext({
-        payload: last,
+        payload: eff.payload,
         config,
         env,
         preview: true,
         terminalWidth: width,
         ...(theme ? { theme } : {}),
+        data: { transcript, limits: () => eff.limits },
       }),
     );
   }
   const now = Date.now();
+  const payload = samplePayload(now);
   return render(
     createContext({
-      payload: samplePayload(now),
+      payload,
       config,
       env,
       preview: true,
@@ -98,6 +105,7 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
         transcript: () => sampleTranscript(now),
         history: () => sampleHistory(now),
         agents: () => sampleAgents(now),
+        limits: () => sampleLimits(now, payload.rate_limits ?? null),
       },
     }),
   );

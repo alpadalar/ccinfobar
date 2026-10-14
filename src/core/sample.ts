@@ -2,7 +2,9 @@ import type { AgentInfo } from '../data/agents.js';
 import type { GitInfo } from '../data/git.js';
 import type { GsdInfo } from '../data/gsd.js';
 import type { HistorySample } from '../data/history.js';
+import type { LimitsView, ResolvedWindow } from '../data/limits.js';
 import type { TranscriptInfo } from '../data/transcript.js';
+import { toEpochMs } from './time.js';
 import type { StatusPayload } from './types.js';
 
 export function samplePayload(now = Date.now()): StatusPayload {
@@ -219,6 +221,31 @@ export function sampleHistory(now = Date.now()): HistorySample[] {
     cost -= step * 0.0000035;
   }
   return out;
+}
+
+const LIMIT_LEN = { five_hour: 5 * 3_600_000, seven_day: 7 * 86_400_000 } as const;
+const SAMPLE_POINTS = 10;
+
+// even climb from the window start to each payload window
+export function sampleLimits(
+  now = Date.now(),
+  rateLimits: StatusPayload['rate_limits'] | null = samplePayload(now).rate_limits,
+): LimitsView {
+  const windows: Record<string, ResolvedWindow> = {};
+  const at = now - 5_000;
+  for (const key of ['five_hour', 'seven_day'] as const) {
+    const w = rateLimits?.[key];
+    const pct = w?.used_percentage;
+    const resetsAt = toEpochMs(w?.resets_at);
+    if (typeof pct !== 'number' || !Number.isFinite(pct) || resetsAt === null) continue;
+    const start = Math.min(at, resetsAt - LIMIT_LEN[key]);
+    const samples = Array.from({ length: SAMPLE_POINTS }, (_, i) => {
+      const f = i / (SAMPLE_POINTS - 1);
+      return { t: Math.round(start + (at - start) * f), pct: Math.min(pct, Math.round(pct * f * 10) / 10) };
+    });
+    windows[key] = { pct, resetsAt, at, source: 'payload', samples };
+  }
+  return { windows, expired: [], storeAt: null };
 }
 
 export function sampleGsd(): GsdInfo {

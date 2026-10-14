@@ -5,6 +5,7 @@ import {
   sampleGit,
   sampleGsd,
   sampleHistory,
+  sampleLimits,
   samplePayload,
   sampleTranscript,
 } from './sample.js';
@@ -26,7 +27,7 @@ export interface Scenario {
 }
 
 function base(now: number): ScenarioBundle {
-  return {
+  const b: ScenarioBundle = {
     payload: samplePayload(now),
     data: {
       git: sampleGit,
@@ -34,9 +35,12 @@ function base(now: number): ScenarioBundle {
       gsd: () => null,
       history: () => sampleHistory(now),
       agents: () => sampleAgents(now),
+      // follows the bundle's rate_limits
+      limits: () => sampleLimits(now, b.payload.rate_limits ?? null),
     },
     env: {},
   };
+  return b;
 }
 
 function freshSession(now: number): ScenarioBundle {

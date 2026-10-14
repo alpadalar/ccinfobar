@@ -54,6 +54,7 @@ export function createContext(opts: ContextOptions): RenderContext {
       transcript,
       gsd: opts.data?.gsd ?? lazy(() => readGsd(cwd)),
       ...(opts.data?.history ? { history: opts.data.history } : {}),
+      ...(opts.data?.limits ? { limits: opts.data.limits } : {}),
       agents:
         opts.data?.agents ??
         lazy(() => readAgents(opts.payload.transcript_path, transcript(), now.getTime(), env)),
