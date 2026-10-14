@@ -19,17 +19,19 @@ The rest of this file is written for Claude.
 
 1. Run `node --version`. It must be 20 or newer. If it is older or missing, stop and tell the user to install Node.js 20 or newer first.
 
-2. Run `npx ccinfobar@0.6.2 install --dry-run`. It writes nothing. Explain the plan in plain words: what the status line will be, and any line saying that another tool's status line or a GSD project's status line will be replaced.
+2. Run `npx ccinfobar@0.6.2 --version`. If it prints 0.6.2 or lower, or fails, stop and tell the user: "This runbook needs a ccinfobar release newer than 0.6.2." Run nothing else. Releases up to 0.6.2 have no dry run and replace the status line without asking.
 
-3. If the plan replaces another status line, name it and ask the user whether to replace it. Stop if they say no. Then run `npx ccinfobar@0.6.2 install --yes`. Always do the dry run first: without a terminal, `install` replaces another status line without asking.
+3. Run `npx ccinfobar@0.6.2 install --dry-run`. It writes nothing. Explain the plan in plain words: what the status line will be, and any line saying that another tool's status line or a GSD project's status line will be replaced.
 
-4. Read the preset ids from the `init [preset]` line of `ccinfobar --help`. Ask the user which preset they want, then run `ccinfobar init <preset>`. `install` already wrote a default config, so `init` will usually say the config exists. Ask the user before running it again with `--force` (a backup is kept).
+4. If the plan replaces another status line, name it and ask the user whether to replace it. Stop if they say no. Then run `npx ccinfobar@0.6.2 install --yes`. Always do the dry run first: without a terminal, `install` replaces another status line without asking.
 
-5. Run `ccinfobar preview` and show the user the output.
+5. Read the preset ids from the `init [preset]` line of `ccinfobar --help`. Ask the user which preset they want, then run `ccinfobar init <preset>`. `install` already wrote a default config, so `init` will usually say the config exists. Ask the user before running it again with `--force` (a backup is kept).
 
-6. Tell the user the status line appears on Claude Code's next refresh, usually after their next message.
+6. Run `ccinfobar preview` and show the user the output.
 
-If `ccinfobar` is not found after step 3, use `npx ccinfobar@0.6.2` in its place in steps 4 and 5.
+7. Tell the user the status line appears on Claude Code's next refresh, usually after their next message.
+
+If `ccinfobar` is not found after step 4, use `npx ccinfobar@0.6.2` in its place in steps 5 and 6.
 
 ## Optional
 

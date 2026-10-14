@@ -16,6 +16,8 @@ const installPath = path.join(root, 'INSTALL.md');
 const readInstall = () => fs.readFileSync(installPath, 'utf8');
 const readmePath = path.join(root, 'README.md');
 const README_PIN = 'alpadalar/ccinfobar#v';
+const FLOOR = '0.6.2';
+const GATE = `needs a ccinfobar release newer than ${FLOOR}`;
 
 function pins(text: string, re: RegExp): string[] {
   return [...text.matchAll(re)].map((m) => m[1]!);
@@ -62,6 +64,15 @@ describe('INSTALL.md', () => {
     expect(text).toMatch(/sudo/);
     expect(text).toMatch(/curl/);
   });
+
+  it('gates on the version before the first install command', () => {
+    const text = readInstall();
+    const gate = text.indexOf(`ccinfobar@${version} --version`);
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(text.indexOf('install --dry-run'));
+    expect(text).toContain(`${FLOOR} or lower`);
+    expect(text).toContain(GATE);
+  });
 });
 
 describe('README.md', () => {
@@ -94,7 +105,8 @@ describe('scripts/sync-plugin-version.mjs', () => {
         .replaceAll(`/blob/v${version}/`, '/blob/v9.9.9/')
         .replaceAll(`#v${version}`, '#v9.9.9'),
     );
-    expect(installAfter).not.toContain(version);
+    expect(installAfter.replaceAll(FLOOR, '')).not.toContain(version);
+    expect(installAfter).toContain(GATE);
     const readmeAfter = fs.readFileSync(path.join(dir, 'README.md'), 'utf8');
     expect(readmeAfter).toBe(readmeBefore.replaceAll(`${README_PIN}${version}`, `${README_PIN}9.9.9`));
     expect(first.stdout).toContain('README.md');
@@ -115,6 +127,34 @@ describe('scripts/sync-plugin-version.mjs', () => {
     const r = run(['--root', dir, '--check']);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('INSTALL.md');
+  });
+
+  it('--check on a release tag fails when the tag lacks the pinned files', () => {
+    const dir = tempCopy('9.9.9');
+    expect(run(['--root', dir]).status).toBe(0);
+    const git = (...a: string[]) =>
+      spawnSync(
+        'git',
+        ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a],
+        {
+          encoding: 'utf8',
+        },
+      );
+    expect(git('init', '-q').status).toBe(0);
+    git('add', '.');
+    git('commit', '-qm', 'a');
+    expect(run(['--root', dir, '--check']).status).toBe(0);
+    git('tag', 'v9.9.9');
+    const r = run(['--root', dir, '--check']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('.claude-plugin/marketplace.json');
+    fs.mkdirSync(path.join(dir, '.claude-plugin'));
+    fs.writeFileSync(path.join(dir, '.claude-plugin', 'marketplace.json'), '{}\n');
+    git('add', '.');
+    git('commit', '-qm', 'b');
+    git('tag', '-f', 'v9.9.9');
+    const ok = run(['--root', dir, '--check']);
+    expect(ok.status, ok.stderr).toBe(0);
   });
 
   it('--check passes on the repo', () => {

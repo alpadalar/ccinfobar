@@ -71,6 +71,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `cache-miss-cause` shows the cause only while the latest request missed; set `show: always` for the old behaviour
 - Re-running `install` with a new command also updates ccinfobar's own hooks
 - `ccinfobar uninstall` also removes ccinfobar's hooks and still restores the settings file byte for byte when nothing else changed it
+- INSTALL.md first checks `ccinfobar --version` and stops on 0.6.2 or older, which have no dry run and replace the status line without asking; a release tag that lacks INSTALL.md or the plugin marketplace fails the release check
 
 ### Fixed
 

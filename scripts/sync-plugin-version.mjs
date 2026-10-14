@@ -1,4 +1,5 @@
 // Runs from `npm version`: copies the package.json version into plugin.json, INSTALL.md and the README plugin pin.
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,9 +66,26 @@ for (const [file, sync] of [
   if (!check) fs.writeFileSync(file, after);
 }
 
+// on a release tag, the pinned files must exist in it
+function tagMissing() {
+  const tag = `v${version}`;
+  const git = (...a) =>
+    spawnSync('git', ['-C', root, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const at = git('tag', '--points-at', 'HEAD');
+  if (at.status !== 0 || !at.stdout.split(/\r?\n/).includes(tag)) return [];
+  return ['INSTALL.md', '.claude-plugin/marketplace.json'].filter(
+    (f) => git('cat-file', '-e', `${tag}:${f}`).status !== 0,
+  );
+}
+
 if (check) {
   if (changed.length) {
     console.error(`sync-plugin-version: not at ${version}: ${changed.join(', ')}`);
+    process.exit(1);
+  }
+  const missing = tagMissing();
+  if (missing.length) {
+    console.error(`sync-plugin-version: tag v${version} lacks ${missing.join(', ')}`);
     process.exit(1);
   }
 } else if (changed.length) {
