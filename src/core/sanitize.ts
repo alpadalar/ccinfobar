@@ -3,10 +3,10 @@ const SEQ =
   /\x1b\[[0-?]*[ -/]*[@-~]|\x1b[\]PX^_][\s\S]*?(?:\x07|\x1b\\|\x9c|$)|\x9b[0-?]*[ -/]*[@-~]|[\x9d\x90\x98\x9e\x9f][\s\S]*?(?:\x07|\x1b\\|\x9c|$)|\x1b[ -/]*[0-~]?/g;
 const WS = /[\t\r\n]+/g;
 const CTRL = /[\x00-\x1f\x7f-\x9f]/g;
-const BIDI = /[‪-‮⁦-⁩]/g;
+const BIDI = /[\u202a-\u202e\u2066-\u2069]/g;
 const SGR = /^\x1b\[[0-9;:]*m$/;
 const OSC8 = /^\x1b\]8;[^;]*;([\s\S]*?)(?:\x07|\x1b\\)$/;
-const URL_BAD = /[\x00-\x20\x7f-\x9f‪-‮⁦-⁩]/;
+const URL_BAD = /[\x00-\x20\x7f-\x9f\u202a-\u202e\u2066-\u2069]/;
 const LINK_CLOSE = '\x1b]8;;\x1b\\';
 
 function cleanText(s: string): string {

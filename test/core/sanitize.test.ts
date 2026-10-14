@@ -34,8 +34,8 @@ const ALPHABET = [
   '\x9b',
   '\x9c',
   '\x85',
-  '‮',
-  '⁦',
+  '\u202e',
+  '\u2066',
   '\r',
   '\n',
   '\t',
@@ -50,7 +50,7 @@ describe('sanitizeText', () => {
   });
 
   it('removes bidi controls and folds CR/LF/tab', () => {
-    expect(sanitizeText('name‮evil\nline')).toBe('nameevil line');
+    expect(sanitizeText('name\u202eevil\nline')).toBe('nameevil line');
     expect(sanitizeText('a\r\n\tb')).toBe('a b');
   });
 
@@ -61,12 +61,12 @@ describe('sanitizeText', () => {
 
   it('removes C0, DEL and C1 but keeps LRM/RLM', () => {
     expect(sanitizeText('a\x00b\x7fc\x85d')).toBe('abcd');
-    expect(sanitizeText('a‎b‏c')).toBe('a‎b‏c');
+    expect(sanitizeText('a\u200eb\u200fc')).toBe('a\u200eb\u200fc');
   });
 
   it('is safe and idempotent on random input', () => {
     const rand = mulberry32(0xc0ffee);
-    const bad = /[\x00-\x1f\x7f-\x9f‪-‮⁦-⁩]/;
+    const bad = /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/;
     for (let i = 0; i < 2000; i++) {
       const len = Math.floor(rand() * 40);
       let s = '';
@@ -101,7 +101,7 @@ describe('keepSgrAndLinks', () => {
   });
 
   it('cleans text between sequences', () => {
-    expect(keepSgrAndLinks('\x1b[32ma‮\nb\x85\x1b[0m')).toBe('\x1b[32ma b\x1b[0m');
+    expect(keepSgrAndLinks('\x1b[32ma\u202e\nb\x85\x1b[0m')).toBe('\x1b[32ma b\x1b[0m');
   });
 });
 
@@ -116,7 +116,7 @@ describe('safeUrl', () => {
   it('rejects control characters and spaces', () => {
     expect(safeUrl('http://x/\x07')).toBeNull();
     expect(safeUrl('https://a b')).toBeNull();
-    expect(safeUrl('https://a/‮')).toBeNull();
+    expect(safeUrl('https://a/\u202e')).toBeNull();
   });
 
   it('percent-encodes non-ASCII', () => {
@@ -137,7 +137,7 @@ describe('safeConfigUrl', () => {
 
 describe('deepSanitize', () => {
   it('sanitizes string leaves except skipped keys', () => {
-    const input = { a: 'x\x1b[2Jy', b: ['‮'], c: 5, transcript_path: '/t\x1b' };
+    const input = { a: 'x\x1b[2Jy', b: ['\u202e'], c: 5, transcript_path: '/t\x1b' };
     const out = deepSanitize(input, new Set(['transcript_path']));
     expect(out).toEqual({ a: 'xy', b: [''], c: 5, transcript_path: '/t\x1b' });
     expect(input.a).toBe('x\x1b[2Jy');

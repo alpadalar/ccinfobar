@@ -11,7 +11,7 @@ describe('command output', () => {
   });
 
   it('strips everything without preserveColors', () => {
-    expect(formatCommandOutput('\x1b[32mok\x1b[0m ‮x', false)).toBe('ok x');
+    expect(formatCommandOutput('\x1b[32mok\x1b[0m \u202ex', false)).toBe('ok x');
     expect(formatCommandOutput('a\x1b]0;title\x07b', false)).toBe('ab');
   });
 });
