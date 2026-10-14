@@ -317,6 +317,19 @@ describe('ledger files', () => {
     expect(v.month).toBe(0);
   });
 
+  it('reads every month since the last fold after a month without renders', () => {
+    const april = path.join(dir, 'ledger', '2026-04.jsonl');
+    const aprilT = local(2026, 4, 20);
+    fs.mkdirSync(path.dirname(april), { recursive: true });
+    fs.writeFileSync(april, line('s1', 0, aprilT) + line('s1', 1, aprilT));
+    readLedger(env, aprilT, { persist: true });
+    fs.appendFileSync(april, line('s1', 3, aprilT + 3_600_000));
+    const june = local(2026, 6, 2);
+    const s = readLedger(env, june).summary;
+    expect(close(s.days[A]?.['2026-04-20'])).toBe(3);
+    expect(s.files['2026-04']).toBe(fs.statSync(april).size);
+  });
+
   it('rebuilds when the file shrank, without double counting', () => {
     fs.mkdirSync(path.dirname(month()), { recursive: true });
     fs.writeFileSync(month(), line('s1', 0) + line('s1', 1) + line('s1', 2));

@@ -220,6 +220,23 @@ function prevMonth(ms: number): number {
   return new Date(d.getFullYear(), d.getMonth() - 1, 1, 12).getTime();
 }
 
+// warm: from the newest folded month (at least last month) to this one
+function warmKeys(s: Summary, now: number): string[] {
+  const cur = monthKey(now);
+  const prev = monthKey(prevMonth(now));
+  let last = '';
+  for (const k in s.files) if (k <= cur && k > last) last = k;
+  const from = last && last < prev ? last : prev;
+  const d = new Date(now);
+  const out: string[] = [];
+  for (let i = 0; i < KEEP_MONTHS; i++) {
+    const k = monthKey(new Date(d.getFullYear(), d.getMonth() - i, 1, 12).getTime());
+    if (k < from) break;
+    out.unshift(k);
+  }
+  return out;
+}
+
 interface Step {
   moved: boolean;
   shrank: boolean;
@@ -295,7 +312,7 @@ function foldFiles(env: NodeJS.ProcessEnv, start: Summary, now: number, total: n
   for (let pass = 0; pass < 2; pass++) {
     const cold = !summary.built;
     // cold: every month file, oldest first, so a session crossing months keeps its highs
-    const keys = cold ? monthFiles(dir) : [monthKey(prevMonth(now)), monthKey(now)];
+    const keys = cold ? monthFiles(dir) : warmKeys(summary, now);
     let budget = total;
     let shrank = false;
     more = false;
