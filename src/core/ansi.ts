@@ -184,8 +184,55 @@ export function stripAnsi(text: string): string {
   return text.replace(ANSI_RE, '');
 }
 
+// emoji-presentation symbols in the BMP
+const WIDE_SYMBOLS: [number, number][] = [
+  [0x231a, 0x231b],
+  [0x23e9, 0x23ec],
+  [0x23f0, 0x23f0],
+  [0x23f3, 0x23f3],
+  [0x25fd, 0x25fe],
+  [0x2614, 0x2615],
+  [0x2648, 0x2653],
+  [0x267f, 0x267f],
+  [0x2693, 0x2693],
+  [0x26a1, 0x26a1],
+  [0x26aa, 0x26ab],
+  [0x26bd, 0x26be],
+  [0x26c4, 0x26c5],
+  [0x26ce, 0x26ce],
+  [0x26d4, 0x26d4],
+  [0x26ea, 0x26ea],
+  [0x26f2, 0x26f3],
+  [0x26f5, 0x26f5],
+  [0x26fa, 0x26fa],
+  [0x26fd, 0x26fd],
+  [0x2705, 0x2705],
+  [0x270a, 0x270b],
+  [0x2728, 0x2728],
+  [0x274c, 0x274c],
+  [0x274e, 0x274e],
+  [0x2753, 0x2755],
+  [0x2757, 0x2757],
+  [0x2795, 0x2797],
+  [0x27b0, 0x27b0],
+  [0x27bf, 0x27bf],
+  [0x2b1b, 0x2b1c],
+  [0x2b50, 0x2b50],
+  [0x2b55, 0x2b55],
+];
+
+function isWideSymbol(cp: number): boolean {
+  if (cp < 0x231a || cp > 0x2b55) return false;
+  for (const [lo, hi] of WIDE_SYMBOLS) {
+    if (cp < lo) return false;
+    if (cp <= hi) return true;
+  }
+  return false;
+}
+
 function isWide(cp: number): boolean {
   return (
+    isWideSymbol(cp) ||
     (cp >= 0x1100 && cp <= 0x115f) ||
     (cp >= 0x2e80 && cp <= 0x303e) ||
     (cp >= 0x3041 && cp <= 0x33ff) ||
@@ -200,6 +247,8 @@ function isWide(cp: number): boolean {
     (cp >= 0x1f300 && cp <= 0x1f64f) ||
     (cp >= 0x1f900 && cp <= 0x1f9ff) ||
     (cp >= 0x1f680 && cp <= 0x1f6ff) ||
+    (cp >= 0x1fa70 && cp <= 0x1faff) ||
+    (cp >= 0x1f1e6 && cp <= 0x1f1ff) ||
     (cp >= 0x20000 && cp <= 0x3fffd)
   );
 }
@@ -260,7 +309,7 @@ export function hyperlink(text: string, url: string): string {
 }
 
 export function sanitize(text: string): string {
-  return text.replace(/[\x00-\x08\x0b-\x1a\x1c-\x1f\x7f]/g, '');
+  return text.replace(/[\x00-\x08\x0b-\x1a\x1c-\x1f\x7f\x80-\x9f\u202a-\u202e\u2066-\u2069]/g, '');
 }
 
 // colors carry over to each new line

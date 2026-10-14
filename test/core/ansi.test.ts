@@ -3,6 +3,7 @@ import {
   contrastRatio,
   detectLevel,
   parseColor,
+  sanitize,
   stripAnsi,
   style,
   truncate,
@@ -10,6 +11,22 @@ import {
 } from '../../src/core/ansi.js';
 
 describe('ansi', () => {
+  it('sanitize keeps SGR but strips C1 and bidi', () => {
+    expect(sanitize('\x1b[31mx\x1b[0m')).toBe('\x1b[31mx\x1b[0m');
+    expect(sanitize('a\x85b\x9bc')).toBe('abc');
+    expect(sanitize('a\u202eb\u2066c')).toBe('abc');
+  });
+
+  it('measures emoji-presentation symbols as 2 cells', () => {
+    expect(visibleWidth('⚡')).toBe(2);
+    expect(visibleWidth('✅')).toBe(2);
+    expect(visibleWidth('🪐')).toBe(2);
+    expect(visibleWidth('🇹🇷')).toBe(4);
+    expect(visibleWidth('☐')).toBe(1);
+    expect(visibleWidth('✓')).toBe(1);
+    expect(visibleWidth('★')).toBe(1);
+  });
+
   it('parses named, 256 and hex colors', () => {
     expect(parseColor('red')).toEqual({ kind: 'basic', index: 1 });
     expect(parseColor('ansi256:208')).toEqual({ kind: '256', index: 208 });
