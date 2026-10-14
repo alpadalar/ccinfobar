@@ -15,6 +15,16 @@ const MAX_OUT = 4000;
 const base = fs.realpathSync.native(process.env.RUNNER_TEMP ?? os.tmpdir());
 const failures = [];
 const results = [];
+const owned = new Set();
+
+function remove(dir) {
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  owned.delete(dir);
+}
+
+process.on('exit', () => {
+  for (const dir of owned) remove(dir);
+});
 
 const SETTINGS = { model: 'opus', permissions: { allow: ['Bash(ls:*)'] } };
 const FOREIGN = { ...SETTINGS, statusLine: { type: 'command', command: 'echo foreign' } };
@@ -61,6 +71,7 @@ function run(file, args, o = {}) {
     stdout: r.stdout ?? '',
     stderr: `${r.stderr ?? ''}${r.error ? `\n${r.error.message}` : ''}`,
     command: [file, ...args].join(' '),
+    pid: r.pid,
   };
 }
 
@@ -140,6 +151,7 @@ function childEnv(d) {
 
 function makeRoot() {
   const root = fs.realpathSync.native(fs.mkdtempSync(path.join(base, 'ccib-ci-')));
+  if (inside(root, base)) owned.add(root);
   const d = {
     root,
     home: path.join(root, 'home'),
@@ -280,7 +292,169 @@ function uninstallCcinfobar(ctx, seeded) {
   }
 }
 
-function renderCase(_ctx, _command) {}
+const GIT_BASH = process.env.CLAUDE_CODE_GIT_BASH_PATH || 'C:\\Program Files\\Git\\bin\\bash.exe';
+const PS_ARGS = ['-NoProfile', '-NonInteractive'];
+const UNICODE_DIR = 'work dir \u00fc';
+let unicodeDone = false;
+
+function shells() {
+  if (!win) {
+    return [
+      { name: 'sh', file: '/bin/sh', args: (c) => ['-c', c] },
+      { name: 'bash', file: 'bash', args: (c) => ['-c', c] },
+    ];
+  }
+  const out = [
+    { name: 'git bash', file: GIT_BASH, args: (c) => ['-c', c] },
+    { name: 'powershell', file: 'powershell.exe', args: (c) => [...PS_ARGS, '-Command', c], soft: true },
+  ];
+  if (spawnSync('where', ['pwsh'], { windowsHide: true }).status === 0)
+    out.push({ name: 'pwsh', file: 'pwsh', args: (c) => [...PS_ARGS, '-Command', c] });
+  out.push({ name: 'cmd', file: 'cmd.exe', args: (c) => ['/d', '/s', '/c', `"${c}"`], verbatim: true });
+  return out;
+}
+
+function payload(dir) {
+  const p = JSON.parse(fs.readFileSync(path.join(repo, 'test', 'fixtures', 'payload.json'), 'utf8'));
+  delete p.rate_limits;
+  p.cwd = dir;
+  p.workspace = { ...p.workspace, current_dir: dir, project_dir: dir };
+  p.transcript_path = '';
+  return JSON.stringify(p);
+}
+
+function plain(s) {
+  return s
+    .replace(/\u001b\[[0-9;?]*[A-Za-z]|\u001b\][^\u0007\u001b]*(\u0007|\u001b\\)/g, '')
+    .replace(/\u00a0/g, ' ');
+}
+
+function renderProblems(r, expect) {
+  const out = plain(r.stdout);
+  const problems = [];
+  if (r.status !== 0) problems.push(`exit ${r.status}`);
+  if (!out.split(/\r?\n/).some((l) => l.trim())) problems.push('no output line');
+  if (!out.includes('Opus 5.5')) problems.push('missing "Opus 5.5"');
+  if (out.includes('ccinfobar:') || out.includes('invalid JSON')) problems.push('error text in output');
+  if (expect && !out.includes(expect)) problems.push(`missing "${expect}"`);
+  return problems;
+}
+
+function render(ctx, shell, command, dir, o = {}) {
+  const r = run(shell.file, (o.args ?? shell.args)(command), {
+    env: ctx.env,
+    cwd: dir,
+    input: payload(dir),
+    timeout: 20_000,
+    verbatim: shell.verbatim,
+  });
+  return { r, problems: renderProblems(r, o.expect) };
+}
+
+function renderCase(ctx, command) {
+  ctx.rendered = true;
+  for (const shell of shells()) {
+    const { r, problems } = render(ctx, shell, command, ctx.d.work);
+    if (problems.length) failRun(ctx, 'render', r, problems.join('; '), shell.name);
+    else console.log(`  render ${shell.name}: ok`);
+  }
+  if (unicodeDone) return;
+  unicodeDone = true;
+  const dir = path.join(ctx.d.root, UNICODE_DIR);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const shell of shells()) {
+    const { r, problems } = render(ctx, shell, command, dir, { expect: UNICODE_DIR });
+    if (!problems.length) console.log(`  render ${shell.name} non-ASCII cwd: ok`);
+    else if (shell.soft) console.log(`WARN ${shell.name} non-ASCII cwd: ${problems.join('; ')}`);
+    else failRun(ctx, 'render non-ASCII cwd', r, problems.join('; '), shell.name);
+  }
+  if (win) {
+    const restricted = (c) => [...PS_ARGS, '-ExecutionPolicy', 'Restricted', '-Command', c];
+    const ps = { name: 'powershell', file: 'powershell.exe' };
+    const { r, problems } = render(ctx, ps, command, ctx.d.work, { args: restricted });
+    console.log(
+      `REPORT powershell restricted: exit ${r.status}, output ${problems.length ? 'missing' : 'ok'}`,
+    );
+  }
+}
+
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function norm(s) {
+  return win ? s.replace(/\\/g, '/').toLowerCase() : s;
+}
+
+function rootForms(root) {
+  const forms = new Set([root]);
+  try {
+    forms.add(fs.realpathSync.native(root));
+    forms.add(fs.realpathSync(root));
+  } catch {}
+  if (process.platform === 'darwin') {
+    for (const f of [...forms])
+      forms.add(f.startsWith('/private/') ? f.slice('/private'.length) : `/private${f}`);
+  }
+  return [...forms].map(norm);
+}
+
+function processList() {
+  const r = win
+    ? run(
+        'powershell.exe',
+        [
+          ...PS_ARGS,
+          '-Command',
+          'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId)`t$($_.CommandLine)" }',
+        ],
+        { timeout: 20_000 },
+      )
+    : run('ps', ['-A', '-o', 'pid=,command='], { timeout: 20_000 });
+  if (r.status !== 0) throw new Error(`process list failed: ${r.command}\n${trim(r.stderr)}`);
+  const list = [];
+  for (const line of r.stdout.split(/\r?\n/)) {
+    const m = /^\s*(\d+)\s+(.*)$/.exec(line);
+    if (m && Number(m[1]) !== process.pid && Number(m[1]) !== r.pid) list.push({ pid: m[1], cmd: m[2] });
+  }
+  return list;
+}
+
+function pollLeftovers(ctx) {
+  const forms = rootForms(ctx.d.root);
+  const start = Date.now();
+  for (;;) {
+    const left = processList().filter((p) => forms.some((f) => norm(p.cmd).includes(f)));
+    if (!left.length) return console.log(`  no leftover process after ${Date.now() - start} ms`);
+    if (Date.now() - start >= 30_000) {
+      return fail(ctx, 'leftover processes', {
+        detail: `still running after 30 s:\n${left.map((p) => `  ${p.pid} ${p.cmd}`).join('\n')}`,
+      });
+    }
+    sleep(500);
+  }
+}
+
+function cacheDir(d) {
+  if (win) return path.join(d.localappdata, 'ccinfobar', 'cache');
+  if (process.platform === 'darwin') return path.join(d.home, 'Library', 'Caches', 'ccinfobar');
+  return path.join(d.xdgCache, 'ccinfobar');
+}
+
+function workerProof(ctx) {
+  const dir = cacheDir(ctx.d);
+  const missing = ['update.json', 'usage.json'].filter((f) => !fs.existsSync(path.join(dir, f)));
+  if (missing.length) {
+    const found = fs.existsSync(dir) ? fs.readdirSync(dir).join(', ') : '(no cache dir)';
+    fail(ctx, 'workers', { detail: `missing ${missing.join(', ')} in ${dir}; found: ${found}` });
+  } else console.log('  update and usage workers ran');
+}
+
+function versionCheck(ctx) {
+  const r = ccinfobar(ctx, ['--version']);
+  if (r.status !== 0 || r.stdout.trim() !== pkg.version)
+    failRun(ctx, 'version', r, `expected ${pkg.version}, got "${r.stdout.trim()}" (exit ${r.status})`);
+}
 
 function runCase(spec, tgz, npm) {
   const d = makeRoot();
@@ -295,10 +469,15 @@ function runCase(spec, tgz, npm) {
     const command = readCommand(ctx);
     if (command) renderCase(ctx, command);
     uninstallCcinfobar(ctx, seeded);
+    if (ctx.rendered) {
+      pollLeftovers(ctx);
+      workerProof(ctx);
+    }
+    versionCheck(ctx);
   } catch (e) {
     fail(ctx, 'driver', { detail: e.stack ?? String(e) });
   } finally {
-    fs.rmSync(d.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    remove(d.root);
   }
   return ctx;
 }
@@ -336,6 +515,7 @@ function main() {
   build();
   const npm = npmCli();
   const packDir = fs.realpathSync.native(fs.mkdtempSync(path.join(base, 'ccib-pack-')));
+  owned.add(packDir);
   try {
     const tgz = pack(npm, packDir);
     for (const spec of cases) {
@@ -348,7 +528,7 @@ function main() {
       console.log(`${ctx.failed ? 'FAIL' : 'PASS'} case ${spec.name} (${spec.label})`);
     }
   } finally {
-    fs.rmSync(packDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    remove(packDir);
   }
   const failed = results.filter((c) => c.failed).length;
   console.log(`${results.length - failed}/${results.length} cases passed, ${failures.length} failure(s)`);
