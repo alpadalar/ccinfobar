@@ -62,10 +62,15 @@ src/
 │   ├── inspect.ts       per-widget value, source and empty reason
 │   ├── trace.ts         records what a widget read during render
 │   ├── scenarios.ts     named payload and data situations
+│   ├── cache-rule.ts    Claude Code's cache miss rule and the latest-miss check (pure)
+│   ├── time.ts          epoch seconds, milliseconds and ISO to ms (pure)
 │   ├── edit.ts          pure edit operations shared by both editors
 │   ├── presets.ts, sample.ts, preview.ts, paths.ts
 ├── data/                git, transcript, GSD and terminal readers; store.ts, provider.ts
+│   ├── limits.ts        shared plan limits store, keyed per account
+│   └── ledger.ts        cross-session cost ledger
 ├── widgets/             one file per category, registered in index.ts
+│   └── projection.ts    usage projection, ETA and risk math (pure)
 ├── editor/              web editor: HTTP server + browser app (web/)
 └── tui/                 terminal editor: state, view, keys, IO loop
 scripts/
@@ -114,6 +119,39 @@ Text from outside is sanitized where it enters, not in each widget: the stdin pa
 
 `core/scenarios.ts` is a pure module (it is in the import-graph test's PURE list). Each scenario is a payload, an env and a `Required<DataSources>` set of injectors, built against the fixed clock `SCENARIO_NOW`, so its output never depends on the machine or the date. Because the type is `Required<DataSources>`, every new `DataSources` member must ship with an injector in every scenario, or `npm run typecheck` fails. `preview --scenario`, `explain --scenario`, `bench --scenario` and the editor's Scenario picker all use it.
 
+### Cache rule
+
+`src/core/cache-rule.ts` is pure and holds Claude Code's miss rule. `classify` calls a request a miss when its cache reads fall below 95% of the smaller of the previous and the current input and the shortfall is at least 2,000 tokens; the request after a compaction is `expected`. `latestMiss` says whether the latest request missed (`last_miss_at` within 2 s of `expires_at − ttl`), or `unknown`. When the payload has `prompt_cache` it is the only source; the transcript reader applies `classify` only when it is missing.
+
+### Limits store
+
+`src/data/limits.ts` shares plan limits between sessions. `accountKey(env)` hashes the provider kind, the resolved Claude config dir (lowercased on win32 only) and `CLAUDE_SECURESTORAGE_CONFIG_DIR` into 16 hex chars. The store is `<cacheDir>/limits/<accountKey>.json`; the OAuth usage cache is `<cacheDir>/usage-<accountKey>.json` (a legacy `usage.json` is only read, when `CLAUDE_CONFIG_DIR` is unset).
+
+- Capture time is the transcript's last assistant message (`lastAssistantAt`), else the transcript mtime, else unknown. The usage worker stamps its result with `fetchedAt`.
+- Merge (`pick`): only plausible windows (pct in range, reset in the future and no further than one window length plus 10 minutes ahead). The latest reset wins, then the newest capture, then the payload over the API, then the higher pct. Expired windows are dropped and never stored. With nothing plausible, this session's own unexpired payload window, then an API `resets_at: null` bucket, is shown but not stored.
+- Each window keeps a ring of up to 32 samples for the projection widgets; a point closer than 60 s (5h) or 20 min (7d) to the last one replaces it, and a new window clears the ring.
+- Two gates in `effectiveUsage`: `limitsOn` (the provider has plan limits and a limits widget is configured) controls the store read; `usageOn` (`limitsOn`, `usageApi` not disabled, and data missing) controls the usage cache read and the worker.
+- `recordLimits` runs after stdout with the unmerged payload, writes 0600 and only on change, and never throws. `recordUsageApi` does the same for the worker and empties the store when the token hash changes; the hash never enters the limits file.
+- `explain`, `doctor`, `preview` and the editor read the store and never write it.
+
+### Cost ledger
+
+`src/data/ledger.ts` keeps estimated cost across sessions. `recordLedger` runs after stdout, only when `ledgerOn(config)` (a `cost-today`, `cost-week`, `cost-project` or daily `budget` widget), and appends one line through `appendLine` in `store.ts` (flag `a`, mode 0600) to `<cacheDir>/ledger/YYYY-MM.jsonl`:
+
+```json
+{"v":1,"t":1760400000000,"a":"<accountKey>","s":"<session id>","p":"<project root>","tp":"<transcript hash>","c":4.12}
+```
+
+`c` is the raw `cost.total_cost_usd`, so the summary can be rebuilt from the files (Phase 9 `report`). A line is written only when the session is new or `c` matches none of its segment highs.
+
+- Fold (`credit`): per session up to 4 segments, each with its high-water total. The first sighting is a baseline and credits nothing. A total at or above a segment high credits the difference to the closest high below it and raises that high. A total below every high starts a new segment and credits nothing (only a reset to about 0, such as `/login`, credits its few cents), so two processes interleaving or a restored older total never count twice.
+- `summary.json` holds per-file byte offsets, per-session segments, and per-day and per-project totals by account. `readLedger` folds only the bytes after the stored offsets, up to the last newline, skips invalid lines, and rebuilds when a file shrank. A cold rebuild reads at most 16 MB per render (`BYTE_BUDGET`) and marks the view `partial`.
+- Widgets get `ledgerView`: today, ISO week, month and project totals for the current account, plus this render's pending delta.
+- Retention (`pruneLedger`, when an append creates a new month file): month files older than 13 months, day and project rows older than 400 days, and sessions not seen for 30 days.
+- `explain` and `preview` read with `persist: false` and never call `recordLedger`. `test/data/ledger-concurrency.test.ts` checks that 8 processes appending at once never tear a line.
+
+Every new `DataSources` member (`limits`, `ledger`) has a sample injector in `core/sample.ts` and one in every scenario, and `ctxWith()` in tests defaults to the sample.
+
 ### Messages and providers
 
 User-facing messages go through `t(id, params)` from `core/i18n/`. Each area has its own table in `src/core/i18n/en/` (`install.ts`, `config.ts`, `doctor.ts`, `widgets.ts`, `explain.ts`, `preview.ts`, `bench.ts`). `data/provider.ts` detects API-key, Bedrock, Vertex, Foundry, Mantle, Anthropic AWS and gateway sessions from the environment (presence only), so plan-limit widgets and the OAuth usage fetch only run for Claude subscriptions.
@@ -157,7 +195,7 @@ Both editors pick up new widgets and their options automatically.
 - `test/tui`: TUI reducer, key parsing and view
 - `test/commands`: install, settings file, manifest, doctor, explain, preview, bench and `config`
 - `test/foundations`: test isolation, atomic writes, import graph and config round trips
-- `test/integration`: the built CLI end to end (safe mode, install prompts)
+- `test/integration`: the built CLI end to end (safe mode, install prompts, shared limits, the cost ledger)
 
 `test/setup.ts` runs before every test file. It points HOME, the config, cache and Claude dirs at a per-run temp folder and throws on any write outside temp dirs, so a test can never touch your real `~/.claude/settings.json`. Wrap code in `withoutSideEffects()` from `test/helpers.ts` to also fail on config saves, spawns or `fetch` (used for the render path).
 

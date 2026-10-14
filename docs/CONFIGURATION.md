@@ -79,6 +79,7 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
 | `update` | `auto` \| `notify` \| `off` | `"auto"` | Background update behaviour, see [Updates](../README.md#updates) |
 | `gsdAutoLine` | boolean | unset | Set by ccinfobar when it left GSD out because GSD was not installed; once GSD is installed the default GSD line is added as the second line and this is removed |
 | `usageApi` | boolean | `true` | Fill usage limit widgets from Claude when Claude Code sends no `rate_limits`, see [Usage limits](../README.md#usage-limits) |
+| `budget` | object | | Daily and per-session spend budget for the `budget` widget, see [Budget](#budget) |
 | `gitHardening` | boolean | `true` | Ignore repo-local `core.fsmonitor` and `filter.<name>` drivers when ccinfobar runs git, so a cloned repo cannot run commands through the status line. Set `false` only if you need them |
 | `loadingText` | string | `loading…` | Shown by context, token and plan-limit widgets until Claude's first reply, instead of `0%`. Up to 40 characters; `""` turns it off. Items with `hideEmpty` stay hidden |
 | `savePayload` | boolean | `true` | Store the latest Claude Code payload so the editors can preview with your real session data. `ccinfobar explain` reads it too; with no saved payload (for example when this was always off), explain falls back to sample data and says so |
@@ -136,6 +137,51 @@ Widgets that draw a bar (`context-bar`, `five-hour-usage` and `weekly-usage` wit
 With `charset: "text"` every bar becomes `=====-----`.
 
 `five-hour-usage` and `weekly-usage` also take `showPace`: the text becomes `60%/40%` (actual and even-burn usage), and bars get a `◆` (ahead of pace) or `◇` (under pace) marker where even burn would be.
+
+## Context basis
+
+`context-percentage` and `context-bar` take a `basis` option that sets what 100% means:
+
+| `basis` | 100% is |
+| --- | --- |
+| `raw` (default) | the full context window, as Claude Code reports it |
+| `usable` | the point where Claude Code compacts: the window minus the output reserve and the compaction buffer, so a 1M window counts against about 967K. It follows `CLAUDE_CODE_AUTO_COMPACT_WINDOW` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` |
+| `reserve` | the window minus `reserveTokens` (default `20000`), an approximate output reserve you set yourself |
+
+`usable` and `reserve` fall back to `raw` until the window size and token count are known. The old `usable: true` option still works; the editors save it as `basis: "usable"`.
+
+## Budget
+
+```json
+{ "budget": { "daily": 10, "session": 2.5, "warnAt": 0.8 } }
+```
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `daily` | number | | Budget in USD for today's estimated spend across all sessions |
+| `session` | number | | Budget in USD for this session's cost |
+| `warnAt` | number | `0.8` | Fraction of the budget where the widget turns yellow, clamped to 0.05..1 |
+
+Amounts must be positive; anything else is dropped. Set them with `ccinfobar config set budget.daily 10` (remove with `ccinfobar config unset budget.daily`), in the web editor's Settings (Budget) or in the TUI's settings.
+
+The `budget` widget shows spend against one of them: `period` is `daily` (default, from the [cost ledger](#estimated-cost)) or `session` (this session's cost), and `display` is `amount` (`~$4.10/$10`), `percent` or `bar`. It is green below `warnAt`, yellow from `warnAt` and red at 100% or more, and it shows `—` while that budget is not set (`ccinfobar explain` says so). It is separate from `spend-limit`, which shows the spend limit Claude reports for your plan.
+
+## Shared limits
+
+Plan limits (5-hour, weekly and per-model weekly) are kept in one file per account under the cache dir (`limits/<account key>.json`, mode 0600). The account key is a hash of the Claude config dir and the provider, so two `CLAUDE_CONFIG_DIR`s never share limits. Every session writes the values Claude Code sent it, stamped with the time of its last reply, and reads the newest one back:
+
+- The latest window wins, then the newest capture, so an idle session shows the active session's numbers.
+- An expired window is dropped and never comes back.
+- The usage API only replaces a payload value when its fetch is newer.
+- With `usageApi: false` sessions still share the values Claude Code sends; only the fetch is off.
+
+The file holds percentages, reset times and a few samples for the projection widgets, never a token. `ccinfobar explain` says whether a value came from this session, another session or the usage API.
+
+## Estimated cost
+
+`cost-today`, `cost-week`, `cost-project` and a daily `budget` widget read a local cost ledger. Counting starts when the first of them is on your status line; earlier sessions are not included, and a session that is already running counts from that point on. Totals are Claude Code's own cost estimates (`cost.total_cost_usd`) and will differ from your bill.
+
+Resuming or forking a session, `/clear`, compaction, `/login` and two terminals on one session are each counted once. The ledger is `ledger/YYYY-MM.jsonl` under the cache dir (mode 0600): one line per change with the time, an account key, the session id, the project path and the session's running total. It never contains a token. Month files older than 13 months are deleted. Layouts without these widgets do not read or write it.
 
 ## Layout tips
 

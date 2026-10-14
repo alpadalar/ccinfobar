@@ -29,6 +29,7 @@
 - [Configuration](#configuration)
 - [Updates](#updates)
 - [Usage limits](#usage-limits)
+- [Estimated cost and budgets](#estimated-cost-and-budgets)
 - [Platform notes](#platform-notes)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
@@ -40,7 +41,7 @@
 - **24 themes, or your own.** Colored text, colored blocks, powerline arrows, rounded capsules or a bordered panel with a responsive grid, from classic to Nord, Dracula, Rosé Pine, Tokyo Night and Catppuccin. ASCII mode for terminals without a Nerd Font. Preview them all with `ccinfobar themes` and write your own in a few lines of JSON.
 - **Terminal editor too.** `ccinfobar tui` does the same from the keyboard (or mouse) when you are on SSH or prefer to stay in the terminal.
 - **First-class GSD support.** Milestone progress, the current phase, plan completion inside the phase, the next command to run, blockers, requirements and more, as separate widgets you can arrange freely. See [docs/GSD.md](docs/GSD.md).
-- **83 widgets** covering model and session, context window, tokens and prompt cache, cost, 5-hour and weekly limits with pace tracking, git, workspace, system and custom commands.
+- **99 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, git, workspace, system and custom commands.
 - **Uses the current Claude Code payload.** Rate limits, prompt cache statistics, PR status and repository info come straight from the status line JSON, without extra API calls.
 - **Fast, dependency-free, self-updating.** Zero runtime dependencies, lazy data loading, an incremental transcript cache and background updates.
 - **Cross-platform.** Linux, macOS and Windows, tested in CI on all three with Node 20, 22 and 24.
@@ -150,9 +151,9 @@ Mouse works too: click to select, drag a chip to move it.
 | --- | --- |
 | Session & model | model, effort, thinking, fast mode, output style, session name and id, Claude Code version, vim mode, agent name, skills |
 | Context window | used or remaining percent (optionally relative to the auto-compact limit), bar, length, window size, compaction count |
-| Tokens & cache | input, output, cached, total, cache hit rate, cache expiry countdown, last cache miss cause, output speed |
-| Cost & time | session cost, cost per hour, session and API duration, lines changed, message count |
-| Usage limits | 5-hour and weekly usage (percent or 13 bar styles, with an even-pace marker), reset countdowns, per-model weekly limits such as Fable, spend limit, usage pace |
+| Tokens & cache | input, output, cached, total, cache hit rate, cache expiry countdown, last cache miss cause, output speed, performance (`performance`: hit rate and average response time) |
+| Cost & time | session cost, cost per hour, estimated cost today, this week and per project across sessions (`cost-today`, `cost-week`, `cost-project`), budget, session and API duration, lines changed, message count |
+| Usage limits | 5-hour and weekly usage (percent or 13 bar styles, with an even-pace marker), reset countdowns, per-model weekly limits such as Fable, spend limit, usage pace, projected usage at the reset (`usage-projection`), time until 100% (`limit-eta`), an at-risk chip (`limit-risk`) |
 | Charts | moving sparklines of tokens per minute, context fill, 5-hour or weekly usage and dollars per hour over the session |
 | Agents & tasks | Claude's task list, a table of the turn's subagents (type, job, last tool, tokens per minute, share, tokens, time, model), subagent count |
 | GSD | milestone, milestone progress, phase, status, plans, plan progress, next step, workstream, blockers, todos, requirements, last command, update notice, current task, summary |
@@ -242,7 +243,7 @@ Widgets without an equivalent are listed as warnings instead of being dropped si
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`) |
 | `ccinfobar init [preset]` | Write a preset: `default`, `cockpit`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
-| `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`; a bare `--scenario` lists them) |
+| `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `near-7d-limit`, `over-budget`; a bare `--scenario` lists them) |
 | `ccinfobar update` | Update to the latest release now (`--check` to only look) |
 | `ccinfobar widgets` | List all widgets |
 | `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off; points to `ccinfobar explain` for details |
@@ -263,7 +264,7 @@ The config lives in `~/.config/ccinfobar/config.json` (`%APPDATA%\ccinfobar\conf
       { "id": "m", "type": "model", "bold": true },
       { "id": "d", "type": "cwd", "options": { "style": "short" } },
       { "id": "f", "type": "flex" },
-      { "id": "c", "type": "context-bar", "options": { "width": 12, "usable": true } }
+      { "id": "c", "type": "context-bar", "options": { "width": 12, "basis": "usable" } }
     ]
   ],
   "theme": "tokyo-night"
@@ -286,6 +287,12 @@ ccinfobar keeps itself up to date: each time Claude Code starts a session (and a
 
 Claude Code sends your 5-hour and weekly usage only in some sessions, and never the per-model weekly limits (such as Fable) that some plans have. When they are missing, ccinfobar asks Claude for them with your existing login, the same way ccstatusline does, in the background and at most every 3 minutes. Data from Claude Code always wins. `ccinfobar usage` fetches it now; `usageApi: false` turns this off, and so does `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`. See [SECURITY.md](SECURITY.md) for what is sent where.
 
+All sessions of one account share the same limits: the newest value wins, so an idle session shows what the active one sees, an expired window never comes back, and two accounts (two `CLAUDE_CONFIG_DIR`s) never mix. `usage-projection`, `limit-eta` and `limit-risk` project the current pace to the end of the window; `ccinfobar explain` says which session or source a value came from.
+
+## Estimated cost and budgets
+
+`cost-today`, `cost-week` and `cost-project` add up the cost of all your sessions from a small local ledger. Counting starts when the first of these widgets (or a daily `budget` widget) is on your status line, so earlier sessions are not included. The numbers are Claude Code's own estimates and will differ from your bill. Set a budget with `ccinfobar config set budget.daily 10` (or in the editor or TUI) and add the `budget` widget; it turns yellow at 80% and red when you are over. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#budget) for details.
+
 ## Platform notes
 
 - **Fonts.** Powerline arrows, capsule caps and the `nerd` icon set need a [Nerd Font](https://www.nerdfonts.com/). With the default `charset: "auto"`, ccinfobar avoids them in Apple Terminal (whose default fonts lack them) and draws plain colored blocks and half-block caps instead. Set `charset` to `nerd` once your terminal uses a Nerd Font, or to `text` for pure ASCII.
@@ -304,6 +311,8 @@ Claude Code sends your 5-hour and weekly usage only in some sessions, and never 
 | Odd boxes instead of arrows or icons | Install a Nerd Font, or set `charset` to `unicode` or `text`. |
 | GSD widgets show `—` | You are outside a GSD project, or `.planning/STATE.md` / `ROADMAP.md` doesn't exist yet. Set `hideEmpty` on them to hide the line elsewhere. |
 | Context, cache or token widgets show `—` | Claude Code sends these only after Claude's first reply in the session. If your usage limit is at 100%, Claude cannot reply, so they stay empty; `ccinfobar doctor` tells you which case you are in. |
+| `cost-today`, `cost-week` or `cost-project` show `—` | Nothing has been recorded yet. They count only from when one of them was added, and a session that was already running counts from that point on. `ccinfobar explain` shows the ledger age. |
+| `usage-projection`, `limit-eta` or `limit-risk` show nothing | They wait until 15 minutes into the 5-hour window (about 8 hours into the week), so an early burst does not look like a runaway. `limit-risk` only appears when a limit is projected to run out before it resets. |
 | Usage limit widgets show `—` | Usage needs a Claude Pro or Max login. ccinfobar fills it from Claude when Claude Code sends none; run `ccinfobar usage` to see the reply or the error. |
 | Preview in the editor doesn't match | Use **Last session** in the preview, after Claude Code has rendered the status line at least once. |
 
