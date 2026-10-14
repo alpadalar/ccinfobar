@@ -15,15 +15,15 @@ Rules:
 
 Arguments: $ARGUMENTS
 
-Pass on only `--no-hooks` from the arguments above and ignore anything else. `--no-hooks` skips the hooks; it overrides `--hooks`.
+Look only for `--no-hooks` in the arguments above and ignore anything else. If it is there, skip the hooks: use the commands without `--hooks` below (`ccinfobar install --dry-run`, then `ccinfobar install --yes`). Never pass `--no-hooks` itself.
 
 Steps:
-1. Always run `ccinfobar install --hooks --dry-run` first (add `--no-hooks` if given). Never run install without this dry run: without a terminal, install replaces another tool's status line without asking.
+1. Always run `ccinfobar install --hooks --dry-run` first (`ccinfobar install --dry-run` with `--no-hooks`). Never run install without this dry run: without a terminal, install replaces another tool's status line without asking.
 2. Explain the plan in plain words:
    - the status line change and the settings file it goes to
    - a line saying the file already has a status line from another tool, with its current and proposed commands, which means that status line will be replaced
    - lines about replacing GSD's status line in projects
    - each `+ hook` line: the hook events ccinfobar will add
 3. Ask the user to confirm. If another tool's status line would be replaced, ask about that explicitly and name the current command.
-4. Only after a yes, run `ccinfobar install --hooks --yes` (add `--no-hooks` if given) and report the result.
+4. Only after a yes, run `ccinfobar install --hooks --yes` (`ccinfobar install --yes` with `--no-hooks`) and report the result.
 5. If the user says no, change nothing.

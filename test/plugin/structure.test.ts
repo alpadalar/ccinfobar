@@ -161,6 +161,10 @@ describe('skills', () => {
     expect(yes).toBeGreaterThan(dry);
     expect(body).toMatch(/another tool's status line/i);
     expect(body).toMatch(/\bask\b/i);
+    expect(body).not.toMatch(/add `--no-hooks`/);
+    const plainDry = body.indexOf('`ccinfobar install --dry-run`');
+    expect(plainDry).toBeGreaterThan(-1);
+    expect(body.indexOf('`ccinfobar install --yes`')).toBeGreaterThan(plainDry);
   });
 
   it('uninstall, edit, theme and doctor call the binary', () => {
