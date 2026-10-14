@@ -77,7 +77,7 @@ describe('scenarios', () => {
     expect(view('near-5h-limit')?.windows.seven_day?.pct).toBe(61);
     expect(view('context-full')?.windows.five_hour?.pct).toBe(42);
     for (const id of ['api-key-user', 'fresh-session']) {
-      expect(view(id), id).toEqual({ windows: {}, expired: [], storeAt: null });
+      expect(view(id), id).toEqual({ windows: {}, expired: [] });
     }
   });
 
@@ -323,7 +323,6 @@ describe('sampleLimits', () => {
     const r = samplePayload(now).rate_limits!;
     const v = sampleLimits(now);
     expect(v.expired).toEqual([]);
-    expect(v.storeAt).toBeNull();
     for (const key of ['five_hour', 'seven_day'] as const) {
       const w = v.windows[key]!;
       expect(w.pct).toBe(r[key]!.used_percentage);
@@ -345,8 +344,8 @@ describe('sampleLimits', () => {
   });
 
   it('is empty without rate limits', () => {
-    expect(sampleLimits(SCENARIO_NOW, null)).toEqual({ windows: {}, expired: [], storeAt: null });
-    expect(sampleLimits(SCENARIO_NOW, {})).toEqual({ windows: {}, expired: [], storeAt: null });
+    expect(sampleLimits(SCENARIO_NOW, null)).toEqual({ windows: {}, expired: [] });
+    expect(sampleLimits(SCENARIO_NOW, {})).toEqual({ windows: {}, expired: [] });
   });
 });
 

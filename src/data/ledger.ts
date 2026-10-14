@@ -12,6 +12,7 @@ export interface LedgerLine {
   a: string;
   s: string;
   p: string;
+  // Phase 9 rebuild input
   tp: string;
   c: number;
 }
@@ -100,17 +101,6 @@ export function dayKey(ms: number): string {
 export function monthKey(ms: number): string {
   const d = new Date(ms);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
-}
-
-export function isoWeekKey(ms: number): string {
-  const d = new Date(ms);
-  const dow = (d.getDay() + 6) % 7;
-  const thu = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow + 3);
-  const y = thu.getFullYear();
-  const jan4 = new Date(y, 0, 4);
-  const w =
-    1 + Math.round(((thu.getTime() - jan4.getTime()) / 86_400_000 - 3 + ((jan4.getDay() + 6) % 7)) / 7);
-  return `${y}-W${pad(w)}`;
 }
 
 export function projectRoot(payload: StatusPayload, platform: NodeJS.Platform = process.platform): string {

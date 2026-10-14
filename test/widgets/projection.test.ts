@@ -44,7 +44,6 @@ const view = (key: string, w: RateWindow, samples: { t: number; pct: number }[])
     },
   },
   expired: [],
-  storeAt: now - 60_000,
 });
 
 const item = (options: Record<string, string> = {}): WidgetItem => ({

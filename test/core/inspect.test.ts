@@ -369,7 +369,7 @@ describe('emptyReason', () => {
   it('says limits-expired for a window that rolled over', () => {
     const now = NOW.getTime();
     const payload = { rate_limits: { seven_day: { used_percentage: 10, resets_at: now / 1000 + 86400 } } };
-    const limits = () => ({ windows: {}, expired: ['five_hour'], storeAt: now - 60_000 });
+    const limits = () => ({ windows: {}, expired: ['five_hour'] });
     const row = withoutSideEffects(
       () =>
         inspectRows(
@@ -388,7 +388,7 @@ describe('emptyReason', () => {
           ctxWith({
             env: {},
             payload,
-            limits: () => ({ windows: {}, expired: [], storeAt: null }),
+            limits: () => ({ windows: {}, expired: [] }),
             config: { lines: [[item('five-hour-usage')]] },
           }),
         )[0]!,

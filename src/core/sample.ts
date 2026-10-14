@@ -250,7 +250,7 @@ export function sampleLimits(
     });
     windows[key] = { pct, resetsAt, at, source: 'payload', samples };
   }
-  return { windows, expired: [], storeAt: null };
+  return { windows, expired: [] };
 }
 
 export function sampleLedger(now = Date.now()): LedgerView {

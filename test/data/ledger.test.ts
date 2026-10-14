@@ -8,7 +8,6 @@ import {
   dayKey,
   emptySummary,
   foldText,
-  isoWeekKey,
   ledgerOn,
   ledgerView,
   monthKey,
@@ -110,13 +109,24 @@ describe('day and week keys', () => {
     expect(monthKey(local(2027, 1, 1, 0, 0, 1))).toBe('2027-01');
   });
 
-  it('gives ISO weeks across year ends', () => {
-    expect(isoWeekKey(local(2026, 12, 31))).toBe('2026-W53');
-    expect(isoWeekKey(local(2027, 1, 1))).toBe('2026-W53');
-    expect(isoWeekKey(local(2027, 1, 4))).toBe('2027-W01');
-    expect(isoWeekKey(local(2020, 12, 31))).toBe('2020-W53');
-    expect(isoWeekKey(local(2025, 1, 1))).toBe('2025-W01');
-    expect(isoWeekKey(local(2024, 12, 30))).toBe('2025-W01');
+  const weekOf = (now: number, days: [number, number, number][]) => {
+    const lines = days.flatMap(([y, m, d], i) => [
+      line(`w${i}`, 0, local(y, m, d)),
+      line(`w${i}`, 1, local(y, m, d)),
+    ]);
+    return ledgerView(fold(...lines), A, P, now)?.week;
+  };
+
+  it('sums Monday to Sunday weeks across year ends', () => {
+    const days: [number, number, number][] = [
+      [2026, 12, 27],
+      [2026, 12, 28],
+      [2027, 1, 3],
+      [2027, 1, 4],
+    ];
+    expect(weekOf(local(2026, 12, 31), days)).toBe(2);
+    expect(weekOf(local(2027, 1, 1), days)).toBe(2);
+    expect(weekOf(local(2027, 1, 4), days)).toBe(1);
   });
 
   it('keeps day and week right on DST change days', () => {
@@ -132,9 +142,19 @@ describe('day and week keys', () => {
         );
       }
     }
-    expect(isoWeekKey(local(2026, 3, 29, 23, 30))).toBe('2026-W13');
-    expect(isoWeekKey(local(2026, 3, 30, 0, 30))).toBe('2026-W14');
-    expect(isoWeekKey(local(2026, 10, 25, 23, 30))).toBe('2026-W43');
+    const days: [number, number, number][] = [
+      [2026, 3, 23],
+      [2026, 3, 29],
+      [2026, 3, 30],
+    ];
+    expect(weekOf(local(2026, 3, 29, 23, 30), days)).toBe(2);
+    expect(weekOf(local(2026, 3, 30, 0, 30), days)).toBe(1);
+    expect(
+      weekOf(local(2026, 10, 25, 23, 30), [
+        [2026, 10, 19],
+        [2026, 10, 26],
+      ]),
+    ).toBe(1);
   });
 });
 

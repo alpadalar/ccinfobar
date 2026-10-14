@@ -119,3 +119,12 @@ describe('ledger widget descriptions', () => {
       expect(getWidget(type)?.description, type).toMatch(/^Estimated/);
   });
 });
+
+describe('ledger still being built', () => {
+  it('marks the totals with an ellipsis', () => {
+    const ledger = () => ({ ...sampleLedger(NOW.getTime()), partial: true });
+    expect(renderWidget('cost-today', ctxWith({ ledger }))).toBe('$4.12…');
+    expect(renderWidget('cost-week', ctxWith({ ledger }))).toBe('$18.40…');
+    expect(renderWidget('cost-project', ctxWith({ ledger }))).toBe('$62.00…');
+  });
+});

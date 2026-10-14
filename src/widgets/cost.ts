@@ -46,6 +46,11 @@ function budget(ctx: RenderContext, item: WidgetItem): WidgetResult {
 
 const forBar = { key: 'display', values: ['bar'] };
 
+// low while the ledger is still being built
+function ledgerText(view: { partial: boolean }, n: number, item: WidgetItem): string {
+  return `${formatCurrency(n, opt(item, 'decimals', 2))}${view.partial ? '…' : ''}`;
+}
+
 export const widgets: WidgetDef[] = [
   {
     type: 'session-cost',
@@ -73,7 +78,7 @@ export const widgets: WidgetDef[] = [
     options: [decimalsOption],
     render(ctx, item) {
       const view = ctx.data.ledger?.();
-      return view ? formatCurrency(view.today, opt(item, 'decimals', 2)) : null;
+      return view ? ledgerText(view, view.today, item) : null;
     },
   },
   {
@@ -88,7 +93,7 @@ export const widgets: WidgetDef[] = [
     options: [decimalsOption],
     render(ctx, item) {
       const view = ctx.data.ledger?.();
-      return view ? formatCurrency(view.week, opt(item, 'decimals', 2)) : null;
+      return view ? ledgerText(view, view.week, item) : null;
     },
   },
   {
@@ -121,7 +126,7 @@ export const widgets: WidgetDef[] = [
       if (!view) return null;
       const p = opt<string>(item, 'period', 'all');
       const key = p === 'today' || p === 'week' || p === 'month' ? p : 'all';
-      return formatCurrency(view.project[key], opt(item, 'decimals', 2));
+      return ledgerText(view, view.project[key], item);
     },
   },
   {

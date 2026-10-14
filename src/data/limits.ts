@@ -53,7 +53,6 @@ export interface ResolvedWindow {
 export interface LimitsView {
   windows: Record<string, ResolvedWindow>;
   expired: string[];
-  storeAt: number | null;
 }
 
 export interface UsageLike {
@@ -305,11 +304,8 @@ export function resolveLimits(
   const own = payload.rate_limits;
   const api = usageCache?.rate_limits && now - usageCache.fetchedAt <= API_MAX_AGE ? usageCache : null;
   const out: RateLimits = { ...api?.rate_limits, ...own };
-  const view: LimitsView = { windows: Object.create(null), expired: [], storeAt: null };
+  const view: LimitsView = { windows: Object.create(null), expired: [] };
   const stored = store?.windows ?? {};
-  for (const w of Object.values(stored)) {
-    if (w.at !== null && (view.storeAt === null || w.at > view.storeAt)) view.storeAt = w.at;
-  }
   const groups = new Map<string, Cand[]>();
   const add = (key: string, c: Cand) => {
     const list = groups.get(key);

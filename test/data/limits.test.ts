@@ -124,7 +124,6 @@ describe('resolveLimits', () => {
     expect(r.payload.rate_limits?.five_hour?.used_percentage).toBe(80);
     expect(r.view.windows.five_hour).toMatchObject({ source: 'payload', at: NOW });
     expect(r.view.windows.five_hour?.samples).toEqual([{ t: NOW - MIN, pct: 70 }]);
-    expect(r.view.storeAt).toBe(NOW - MIN);
   });
 
   it('uses the store when the payload capture is older', () => {

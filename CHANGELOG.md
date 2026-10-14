@@ -29,7 +29,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `limit-eta` widget: time until a limit reaches 100% at the current pace, or `safe`
 - `limit-risk` chip that turns amber or red when a limit is projected to run out before it resets
 - `performance` widget with cache hit rate and average response time (`show`, `display: badge`, `hitWarn`, `timeWarn`, `showMisses`)
-- `cost-today`, `cost-week` and `cost-project` widgets: estimated cost of all your sessions today, this week or per project, from a local ledger shared by all sessions; counting starts when one of them is added, and resume, fork, `/clear` and `/login` are not counted twice
+- `cost-today`, `cost-week` and `cost-project` widgets: estimated cost of all your sessions today, this week or per project, from a local ledger shared by all sessions; counting starts when one of them is added, and resume, fork, `/clear` and `/login` are not counted twice; totals end in `…` while the ledger is being rebuilt
 - `budget.daily`, `budget.session` and `budget.warnAt` settings (config, editor, TUI)
 - `budget` widget: estimated spend against your daily or session budget, yellow from `warnAt` (80%) and red when over
 - `context-percentage` and `context-bar` `basis` option (`raw`, `usable`, `reserve`) with `reserveTokens`; it replaces the `usable` switch, which still works
