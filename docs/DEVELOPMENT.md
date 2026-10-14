@@ -37,8 +37,9 @@ node dist/ccinfobar.js edit --config /tmp/try.json
 ```
 src/
 ├── bin.ts               entry point
-├── cli.ts               argument parsing and commands
-├── commands/            install / uninstall
+├── cli.ts               re-exports cli/main.ts
+├── cli/                 main.ts (dispatch), args.ts, render.ts (status line), help.ts
+├── commands/            install, update, doctor, manage; loaded with import() per command
 ├── core/
 │   ├── types.ts         payload, config and widget types
 │   ├── config.ts        defaults, validation, load and save
@@ -57,7 +58,7 @@ src/
 Rendering flow:
 
 1. Claude Code pipes a JSON payload to `ccinfobar` on stdin.
-2. `cli.ts` loads the config and builds a `RenderContext`. Git, transcript and GSD data are read lazily, only if a widget asks for them.
+2. `cli/render.ts` sanitizes the payload with `ingestPayload`, loads the config and builds a `RenderContext`. Git, transcript and GSD data are read lazily, only if a widget asks for them.
 3. Each widget's `render(ctx, item)` returns a string, `{ text, color }` or `null` to hide itself.
 4. `renderer.ts` adds labels, colors and separators, fills `flex` space and truncates to the terminal width.
 5. Spaces become non-breaking spaces and every line starts with a reset code, so Claude Code's dim style and whitespace trimming don't alter the output.
