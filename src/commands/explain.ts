@@ -230,19 +230,26 @@ export function loadInspectInput(opts: InspectOptions): InspectInput | null {
   const live = input.kind === 'payload' || input.kind === 'last';
   const { usage, payload: shown } = live ? effectiveUsage(config, payload, env) : { usage: null, payload };
   const width = probeFreeWidth(opts, payload, env);
+  let tmp: string | null = null;
+  let lines = config.lines;
+  if (config.lines.some((items) => items.some((i) => i.type === 'command'))) {
+    try {
+      tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-explain-'));
+    } catch {
+      lines = config.lines.map((items) =>
+        items.map((i) => (i.type === 'command' ? { ...i, options: { ...i.options, cacheSeconds: 0 } } : i)),
+      );
+    }
+  }
   const ctx = createContext({
     payload: shown,
-    config: { ...config, colorLevel: 0 },
+    config: { ...config, colorLevel: 0, lines },
     env,
     now,
     terminalWidth: width,
     data,
   });
   const meta = sourceMeta(config, ctx, payload, usage, env, live);
-  let tmp: string | null = null;
-  if (config.lines.some((items) => items.some((i) => i.type === 'command'))) {
-    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-explain-'));
-  }
   return {
     loaded,
     config,

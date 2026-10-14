@@ -366,6 +366,38 @@ describe('explain is read-only', () => {
   });
 });
 
+describe('explain without a temp dir', () => {
+  it('still runs command widgets, without their cache', () => {
+    savedPayload();
+    const cfg = {
+      lines: [
+        [{ id: 'cmd', type: 'command', options: { command: 'echo hi', cacheSeconds: 60, timeout: 10_000 } }],
+      ],
+    };
+    const file = cfgFile(cfg);
+    vi.spyOn(fs, 'mkdtempSync').mockImplementation(() => {
+      throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' });
+    });
+    module.syncBuiltinESMExports();
+    const out: string[] = [];
+    expect(() =>
+      runExplain(parseArgs(['explain']), file, {
+        tty: false,
+        log: (l) => out.push(l),
+        error: (l) => out.push(l),
+      }),
+    ).not.toThrow();
+    expect(out.some((l) => l.startsWith(t('explain.row.shown', { name: 'cmd (command)', value: '' })))).toBe(
+      true,
+    );
+    const cached = fs.existsSync(cacheDir())
+      ? fs.readdirSync(cacheDir()).filter((f) => f.startsWith('cmd-'))
+      : [];
+    expect(cached).toEqual([]);
+    expect(process.exitCode).toBeUndefined();
+  });
+});
+
 describe('loadInspectInput', () => {
   it('returns null without a payload when the fallback is none', () => {
     expect(loadInspectInput({ cfgFile: cfgFile(), fallback: 'none' })).toBeNull();
