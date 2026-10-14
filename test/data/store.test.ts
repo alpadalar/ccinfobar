@@ -5,7 +5,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { savePayload } from '../../src/cli/render.js';
 import { lastPayloadPath } from '../../src/core/paths.js';
 import { cacheFile, writeCache } from '../../src/data/cache.js';
-import { acquireLock, pruneTmp, readJsonSafe, renameWithRetry, writeAtomic } from '../../src/data/store.js';
+import {
+  acquireLock,
+  appendLine,
+  pruneTmp,
+  readJsonSafe,
+  renameWithRetry,
+  writeAtomic,
+} from '../../src/data/store.js';
 
 let dir = '';
 beforeEach(() => {
@@ -227,5 +234,26 @@ describe('acquireLock', () => {
     const blocker = path.join(dir, 'blocker');
     fs.writeFileSync(blocker, '');
     expect(acquireLock(path.join(blocker, 'x.lock'), 1000)).toBe(false);
+  });
+});
+
+describe('appendLine', () => {
+  it('creates the dir and appends newline-terminated lines', () => {
+    const file = path.join(dir, 'ledger', '2026-10.jsonl');
+    expect(appendLine(file, '{"a":1}')).toBe(true);
+    expect(appendLine(file, '{"a":2}\n')).toBe(true);
+    expect(fs.readFileSync(file, 'utf8')).toBe('{"a":1}\n{"a":2}\n');
+  });
+
+  it('returns false on error', () => {
+    const blocker = path.join(dir, 'blocker');
+    fs.writeFileSync(blocker, '');
+    expect(appendLine(path.join(blocker, 'x.jsonl'), 'x')).toBe(false);
+  });
+
+  it.skipIf(process.platform === 'win32')('creates the file private (0600)', () => {
+    const file = path.join(dir, 'a.jsonl');
+    appendLine(file, 'x');
+    expect(fs.statSync(file).mode & 0o777).toBe(0o600);
   });
 });

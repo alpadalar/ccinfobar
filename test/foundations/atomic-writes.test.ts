@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = path.resolve(__dirname, '../..');
 const STORE = 'src/data/store.ts';
-const ALLOWLIST: Record<string, string> = {};
-const RAW = /\b(?:writeFileSync|renameSync)\(/;
+const ALLOWLIST: Record<string, string> = {
+  'src/commands/install.ts': 'appends one line to the git info/exclude file',
+};
+const RAW = /\b(?:writeFileSync|renameSync|appendFileSync)\(/;
 
 function sources(): Map<string, string> {
   const out = new Map<string, string>();
@@ -27,7 +29,7 @@ describe('atomic writes', () => {
     expect(files.size).toBeGreaterThan(20);
   });
 
-  it('only the store calls writeFileSync( or renameSync(', () => {
+  it('only the store calls writeFileSync(, renameSync( or appendFileSync(', () => {
     const offenders = [...files]
       .filter(([rel, text]) => rel !== STORE && !(rel in ALLOWLIST) && RAW.test(text))
       .map(([rel]) => rel);

@@ -125,6 +125,17 @@ export function writeTmp(
   return tmp;
 }
 
+// one small line per call, so concurrent appends do not interleave
+export function appendLine(file: string, line: string): boolean {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, line.endsWith('\n') ? line : `${line}\n`, { flag: 'a', mode: 0o600 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function readJsonSafe<T>(file: string, guard?: (v: unknown) => v is T): T | null {
   try {
     const v: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
