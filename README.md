@@ -114,7 +114,7 @@ ccinfobar edit
 | Area | What you can do |
 | --- | --- |
 | Palette (left) | Search and browse widgets by category, each with a description and sample output. Drag one into any line or click `+`. The GSD category appears once GSD is installed. |
-| Preview (top) | A terminal-style live preview. Switch between sample data and your last real session, adjust the width, and pick your terminal's colors (16 profiles such as Windows Terminal, macOS Terminal, Solarized, Dracula, or custom) so the preview matches what you will really see. When started from a terminal, `ccinfobar edit` detects its colors automatically. |
+| Preview (top) | A terminal-style live preview. Switch between sample data, your last real session and a named situation from the **Scenario** picker (context nearly full, near the 5h limit, API key user and more), adjust the width, and pick your terminal's colors (16 profiles such as Windows Terminal, macOS Terminal, Solarized, Dracula, or custom) so the preview matches what you will really see. When started from a terminal, `ccinfobar edit` detects its colors automatically. |
 | Lines (center) | Drag chips to reorder them or move them between lines, drop them on the trash to remove, drag line handles to reorder lines. `Alt` + arrow keys move the selected chip. |
 | Inspector (right) | Colors (16 named, 256 palette or hex), background, bold/dim/italic, label override, merge, and every widget option. The **Global** tab covers style, separators, glyphs, icons, color depth and width, and **Colors from** keeps your style while taking the colors of any theme. |
 | Theme gallery | Every theme rendered live with your own widgets. Apply with one click, filter by style, or open **New theme** to build your own: pick a starting theme, a style, and text and background colors per category or in a cycle, with a live preview. |
@@ -242,10 +242,12 @@ Widgets without an equivalent are listed as warnings instead of being dropped si
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`) |
 | `ccinfobar init [preset]` | Write a preset: `default`, `cockpit`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
-| `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`) |
+| `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`; a bare `--scenario` lists them) |
 | `ccinfobar update` | Update to the latest release now (`--check` to only look) |
 | `ccinfobar widgets` | List all widgets |
-| `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off |
+| `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off; points to `ccinfobar explain` for details |
+| `ccinfobar explain [widget-id]` | Show each widget's value, where it came from (payload field, cache and its age, git, GSD) and why it is empty (`--json` for bug reports, `--scenario <name>`, `--payload <file>`). Check the `env` and `command` rows before pasting the JSON anywhere |
+| `ccinfobar bench` | Measure render time: a `node -e 0` control, then cold and warm median and p95 (`--runs <n>`, `--scenario <name>`, `--json`) |
 | `ccinfobar config get\|set\|unset <path> [value]` | Read or change one config value by dotted path, e.g. `ccinfobar config set gitHardening false` or `ccinfobar config get lines.0.2.type`. Values are parsed as JSON, else taken as a string; a value that would not pass validation is refused and nothing is written |
 
 All commands accept `--config <file>`.

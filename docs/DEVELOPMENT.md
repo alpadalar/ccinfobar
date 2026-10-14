@@ -41,6 +41,8 @@ src/
 ├── cli/                 main.ts (dispatch), args.ts, render.ts (status line), help.ts
 ├── commands/            install, update, doctor, manage, config-cmd; loaded with import() per command
 │   ├── install.ts       planInstall / applyInstall / uninstall
+│   ├── explain.ts       `ccinfobar explain` and the read-only loader doctor shares
+│   ├── bench.ts         `ccinfobar bench`
 │   ├── settings-file.ts format-preserving settings.json reads, writes and backups
 │   ├── manifest.ts      what ccinfobar wrote, for uninstall and ownership
 │   └── command.ts       statusLine command quoting per platform
@@ -56,12 +58,17 @@ src/
 │   ├── themes.ts        built-in themes, user theme loading and resolution
 │   ├── ansi.ts          colors, width measurement, truncation
 │   ├── context.ts       render context with lazy data sources
+│   ├── inspect.ts       per-widget value, source and empty reason
+│   ├── trace.ts         records what a widget read during render
+│   ├── scenarios.ts     named payload and data situations
 │   ├── edit.ts          pure edit operations shared by both editors
 │   ├── presets.ts, sample.ts, preview.ts, paths.ts
 ├── data/                git, transcript, GSD and terminal readers; store.ts, provider.ts
 ├── widgets/             one file per category, registered in index.ts
 ├── editor/              web editor: HTTP server + browser app (web/)
 └── tui/                 terminal editor: state, view, keys, IO loop
+scripts/
+└── clean-install.mjs    pack, install, render and uninstall in an empty profile
 ```
 
 Rendering flow:
@@ -96,9 +103,19 @@ Text from outside is sanitized where it enters, not in each widget: the stdin pa
 
 `inspectConfigText` in `core/config.ts` reports a config that does not parse, or whose `lines` is not an array, with its line and column (from `core/json-locate.ts`). The status line then shows `config error at line N` instead of the default layout, and `saveConfig` throws `ConfigBrokenError`, so the editor, TUI, `theme`, `install` and `config set` never overwrite the file. Only `init --force` and `import` replace it, after a backup. `doctor` prints the line, column and message. Rendering never writes the config.
 
+### Explain and inspect
+
+`core/inspect.ts` turns a render context into one row per widget: its value, its sources and, when it is empty, a reason code. It has no I/O and no `node:` imports. `commands/explain.ts` holds `loadInspectInput`, the read-only loader shared by `explain` and `doctor`: it picks `--payload`, `--scenario`, the last saved payload or the sample, and reads the transcript, subagents and history without writing caches.
+
+`createContext` takes an optional trace sink. Only explain passes one; `core/trace.ts` then records the payload paths, env key names and data calls each widget makes, never their values. Widgets whose reads the trace cannot see (system info, `command`) declare `WidgetDef.sources` as a hint. Tests: `test/core/inspect.test.ts`, `test/core/trace.test.ts` and `test/commands/explain.test.ts`.
+
+### Scenarios
+
+`core/scenarios.ts` is a pure module (it is in the import-graph test's PURE list). Each scenario is a payload, an env and a `Required<DataSources>` set of injectors, built against the fixed clock `SCENARIO_NOW`, so its output never depends on the machine or the date. Because the type is `Required<DataSources>`, every new `DataSources` member must ship with an injector in every scenario, or `npm run typecheck` fails. `preview --scenario`, `explain --scenario`, `bench --scenario` and the editor's Scenario picker all use it.
+
 ### Messages and providers
 
-User-facing messages go through `t(id, params)` from `core/i18n/`. Each area has its own table in `src/core/i18n/en/` (`install.ts`, `config.ts`, `doctor.ts`, `widgets.ts`). `data/provider.ts` detects API-key, Bedrock, Vertex, Foundry, Mantle, Anthropic AWS and gateway sessions from the environment (presence only), so plan-limit widgets and the OAuth usage fetch only run for Claude subscriptions.
+User-facing messages go through `t(id, params)` from `core/i18n/`. Each area has its own table in `src/core/i18n/en/` (`install.ts`, `config.ts`, `doctor.ts`, `widgets.ts`, `explain.ts`, `preview.ts`, `bench.ts`). `data/provider.ts` detects API-key, Bedrock, Vertex, Foundry, Mantle, Anthropic AWS and gateway sessions from the environment (presence only), so plan-limit widgets and the OAuth usage fetch only run for Claude subscriptions.
 
 ## Adding a widget
 
@@ -131,19 +148,31 @@ Both editors pick up new widgets and their options automatically.
 
 ## Testing
 
-- `test/core`: renderer, colors, config, edit operations
+- `test/core`: renderer, colors, config, edit operations, inspect, trace and scenarios
 - `test/themes`: built-in themes, styles, overrides and user themes
 - `test/widgets`, `test/data`: widgets and data readers
 - `test/gsd`: GSD parser against fixture projects in `test/fixtures/gsd`
 - `test/editor`: editor HTTP API and ANSI to HTML conversion
 - `test/tui`: TUI reducer, key parsing and view
-- `test/commands`: install, settings file, manifest, doctor and `config`
+- `test/commands`: install, settings file, manifest, doctor, explain, preview, bench and `config`
 - `test/foundations`: test isolation, atomic writes, import graph and config round trips
 - `test/integration`: the built CLI end to end (safe mode, install prompts)
 
 `test/setup.ts` runs before every test file. It points HOME, the config, cache and Claude dirs at a per-run temp folder and throws on any write outside temp dirs, so a test can never touch your real `~/.claude/settings.json`. Wrap code in `withoutSideEffects()` from `test/helpers.ts` to also fail on config saves, spawns or `fetch` (used for the render path).
 
-CI runs the suite on Linux, macOS and Windows with Node 20, 22 and 24.
+CI runs the suite on Linux, macOS and Windows with Node 20, 22, 24 and 26.
+
+### Clean-install check
+
+```sh
+node scripts/clean-install.mjs [--case a..g] [--skip-build]
+```
+
+The script builds (unless `--skip-build`) and packs ccinfobar, then for each settings fixture (no file, no statusLine, another tool's statusLine, BOM, CRLF, 4-space indent with no final newline, mode 0600) installs the tarball into an empty temp profile, runs `install --yes`, renders the exact `statusLine.command` through every shell (sh and bash; on Windows Git Bash, powershell.exe, pwsh and cmd.exe), uninstalls, and checks that the settings bytes and mode match the seed, that no ccinfobar process is left, that the background workers ran and that the version did not change. `--case` runs one fixture.
+
+It only creates and removes its own `mkdtemp` roots under `RUNNER_TEMP` or the OS temp dir, and exits 2 before doing anything if the child HOME or USERPROFILE would be your real home. It is a plain script, not a Vitest test, because `test/setup.ts` patches `fs` and `child_process`.
+
+CI runs it in the `clean-install` job on Linux, macOS and Windows with Node 20 and 26.
 
 ## Benchmark
 
