@@ -75,6 +75,31 @@ export function writeAtomic(
   }
 }
 
+// dot-prefixed tmp next to file; caller renames it
+export function writeTmp(
+  file: string,
+  data: string | Uint8Array,
+  opts: { mode?: number; flush?: boolean } = {},
+): string {
+  const tmp = path.join(
+    path.dirname(file),
+    `.${path.basename(file)}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`,
+  );
+  try {
+    fs.writeFileSync(
+      tmp,
+      data,
+      opts.mode === undefined ? { flush: !!opts.flush } : { mode: opts.mode, flush: !!opts.flush },
+    );
+  } catch (e) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {}
+    throw e;
+  }
+  return tmp;
+}
+
 export function readJsonSafe<T>(file: string, guard?: (v: unknown) => v is T): T | null {
   try {
     const v: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
