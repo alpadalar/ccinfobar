@@ -23,10 +23,16 @@ export function field(label: string, control: Child, help?: string, inline = fal
   if (control instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(control.tagName) && !control.id) {
     control.id = id;
   }
+  // name switches; title stays unclickable
+  const sw =
+    control instanceof HTMLElement && control.classList.contains('switch')
+      ? control.querySelector('input')
+      : null;
+  sw?.setAttribute('aria-labelledby', `${id}-label`);
   return h(
     'div',
     { class: `field${inline ? ' inline' : ''}` },
-    h('label', { class: 'field-label', htmlFor: id }, label),
+    h('label', { class: 'field-label', htmlFor: id, id: sw ? `${id}-label` : undefined }, label),
     control,
     help ? h('div', { class: 'hint' }, help) : null,
   );
