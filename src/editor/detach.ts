@@ -1,15 +1,17 @@
+import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { t } from '../core/i18n/index.js';
 import { cacheDir } from '../core/paths.js';
-import { readJsonSafe } from '../data/store.js';
+import { acquireLock, readJsonSafe } from '../data/store.js';
 import { spawnSelfDetached } from '../data/update-state.js';
 
 export interface EditorState {
   url: string;
   pid: number;
   startedAt: number;
+  config?: string;
 }
 
 export interface DetachOptions {
@@ -36,7 +38,8 @@ function isState(v: unknown): v is EditorState {
     URL_RE.test(s.url) &&
     Number.isInteger(s.pid) &&
     (s.pid as number) > 0 &&
-    typeof s.startedAt === 'number'
+    typeof s.startedAt === 'number' &&
+    (s.config === undefined || typeof s.config === 'string')
   );
 }
 
@@ -78,6 +81,16 @@ async function openUrl(url: string): Promise<void> {
   openBrowser(url);
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// same config, and the same port when one was asked for
+async function reusable(env: NodeJS.ProcessEnv, config: string, port?: number): Promise<string | null> {
+  const live = readEditorState(env);
+  if (!live || live.config !== config) return null;
+  if (port && new URL(live.url).port !== String(port)) return null;
+  return (await pingEditor(live.url)) ? live.url : null;
+}
+
 export async function runDetach(opts: DetachOptions): Promise<number> {
   const env = opts.env ?? process.env;
   const log = opts.log ?? ((s: string) => console.log(s));
@@ -86,22 +99,43 @@ export async function runDetach(opts: DetachOptions): Promise<number> {
     if (opts.open) await openUrl(url);
     return 0;
   };
+  const config = path.resolve(opts.configPath);
+  const waitMs = opts.waitMs ?? 5000;
+  const end = Date.now() + waitMs;
 
-  const live = readEditorState(env);
-  if (live && (await pingEditor(live.url))) return ready(live.url);
+  const live = await reusable(env, config, opts.port);
+  if (live) return ready(live);
 
-  const args = ['edit', '--serve-detached', '--no-open', '--config', path.resolve(opts.configPath)];
-  if (opts.port) args.push('--port', String(opts.port));
-  // home cwd: the server runs claude --version
-  const pid = (opts.spawn ?? ((a: string[]) => spawnSelfDetached(a, env, os.homedir())))(args);
-  if (pid !== null) {
-    const end = Date.now() + (opts.waitMs ?? 5000);
-    for (;;) {
-      const state = readEditorState(env);
-      if (state?.pid === pid) return ready(state.url);
-      if (Date.now() >= end) break;
-      await new Promise((r) => setTimeout(r, 100));
+  // one spawn at a time; a waiter reuses the winner's editor
+  const lock = `${editorStateFile(env)}.lock`;
+  while (!acquireLock(lock, waitMs + 1000)) {
+    if (Date.now() >= end) {
+      console.error(t('edit.detachFailed'));
+      return 1;
     }
+    await sleep(100);
+    const url = await reusable(env, config, opts.port);
+    if (url) return ready(url);
+  }
+  try {
+    const again = await reusable(env, config, opts.port);
+    if (again) return ready(again);
+    const args = ['edit', '--serve-detached', '--no-open', '--config', config];
+    if (opts.port) args.push('--port', String(opts.port));
+    // home cwd: the server runs claude --version
+    const pid = (opts.spawn ?? ((a: string[]) => spawnSelfDetached(a, env, os.homedir())))(args);
+    if (pid !== null) {
+      for (;;) {
+        const state = readEditorState(env);
+        if (state?.pid === pid) return ready(state.url);
+        if (Date.now() >= end) break;
+        await sleep(100);
+      }
+    }
+  } finally {
+    try {
+      fs.unlinkSync(lock);
+    } catch {}
   }
   console.error(t('edit.detachFailed'));
   return 1;

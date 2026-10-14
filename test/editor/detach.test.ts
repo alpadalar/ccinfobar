@@ -143,6 +143,52 @@ describe('runDetach', () => {
     expect(lines.join('\n')).toContain(fresh);
   });
 
+  it('does not reuse an editor for another config or port', async () => {
+    handle = await start(60_000);
+    expect(readEditorState(env)?.config).toBe(path.join(dir, 'c.json'));
+    for (const o of [
+      { configPath: path.join(dir, 'other.json') },
+      { configPath: path.join(dir, 'c.json'), port: 1 },
+    ]) {
+      const spawned: string[][] = [];
+      const code = await runDetach({
+        ...o,
+        open: false,
+        env,
+        spawn: (a) => {
+          spawned.push(a);
+          return null;
+        },
+        waitMs: 200,
+        log: () => {},
+      });
+      expect(code).toBe(1);
+      expect(spawned).toHaveLength(1);
+    }
+    expect(fs.existsSync(`${stateFile}.lock`)).toBe(false);
+  });
+
+  it('two concurrent calls spawn one editor', async () => {
+    const spawned: string[][] = [];
+    const spawn = (a: string[]) => {
+      spawned.push(a);
+      void start(60_000).then((h) => {
+        handle = h;
+      });
+      return process.pid;
+    };
+    const opts = { configPath: path.join(dir, 'c.json'), open: false, env, spawn, waitMs: 3000 };
+    const urls: string[] = [];
+    const codes = await Promise.all([
+      runDetach({ ...opts, log: (s) => urls.push(s) }),
+      runDetach({ ...opts, log: (s) => urls.push(s) }),
+    ]);
+    expect(codes).toEqual([0, 0]);
+    expect(spawned).toHaveLength(1);
+    expect(urls).toHaveLength(2);
+    expect(urls[0]).toBe(urls[1]);
+  });
+
   it('fails when the child never writes its state', async () => {
     const code = await runDetach({
       configPath: '/x/c.json',

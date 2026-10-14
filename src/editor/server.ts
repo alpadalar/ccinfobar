@@ -683,7 +683,11 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
 
   function startDetached(d: NonNullable<EditorOptions['detached']>, url: string): void {
     const pid = process.pid;
-    writeAtomic(d.stateFile, JSON.stringify({ url, pid, startedAt: now() }), { mode: 0o600 });
+    writeAtomic(
+      d.stateFile,
+      JSON.stringify({ url, pid, startedAt: now(), config: path.resolve(opts.configPath) }),
+      { mode: 0o600 },
+    );
     const timer = setInterval(() => {
       if (now() - lastRequest > d.idleMs) void close();
     }, d.checkMs ?? 60_000);

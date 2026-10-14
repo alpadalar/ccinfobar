@@ -75,6 +75,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The plugin skills stop when ccinfobar is 0.6.2 or older, instead of running a dry run or `edit --detach` that those releases do not know
 - The plugin skills pre-approve only read-only `ccinfobar` commands; `install --yes` and `uninstall` always ask for permission
 - `/ccinfobar:install --no-hooks` runs `install` without `--hooks` instead of relying on the last flag winning
+- `edit --detach` reuses a running editor only for the same config file and port, and two calls at once start one editor
 
 ### Fixed
 
