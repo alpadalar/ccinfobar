@@ -52,7 +52,7 @@ export interface LedgerView {
 }
 
 const ZERO = 0.005;
-const SEGMENTS = 4;
+const SEGMENTS = 16;
 const MAX_COST = 1e6;
 const MAX_PROJECT = 1024;
 const CHUNK = 1024 * 1024;

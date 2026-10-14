@@ -80,10 +80,11 @@ describe('credit (segmented high-water)', () => {
     expect(chain([0, 7, 5, 5.5])).toEqual([0, 7, 0, 0.5]);
   });
 
-  it('keeps at most four segments', () => {
+  it('keeps at most sixteen segments', () => {
     let highs: number[] | undefined;
-    for (const c of [9, 8, 7, 6, 5, 4]) highs = credit(highs, c).highs;
-    expect(highs).toEqual([4, 5, 6, 7]);
+    for (const c of [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3])
+      highs = credit(highs, c).highs;
+    expect(highs).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
   });
 
   it('moves an updated segment to the front', () => {
@@ -99,6 +100,12 @@ describe('credit (segmented high-water)', () => {
     }
     const credited = chain(feed).reduce((a, b) => a + b, 0);
     expect(close(credited)).toBe(close(5 + 4 + 3 + 2 + 1 + 0.4));
+  });
+
+  it('keeps an idle main stream while four newer segments start', () => {
+    const feed = [0, 5, 0, 4, 0, 3, 0, 2, 0, 1, 5.1];
+    const credited = chain(feed).reduce((a, b) => a + b, 0);
+    expect(close(credited)).toBe(close(5 + 4 + 3 + 2 + 1 + 0.1));
   });
 });
 
