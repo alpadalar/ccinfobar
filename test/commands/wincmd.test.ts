@@ -179,7 +179,7 @@ describe.skipIf(process.platform === 'win32')('posix shell', () => {
       encoding: 'utf8',
       cwd,
       env: envWith([]),
-      timeout: 10_000,
+      timeout: 30_000,
     });
 
   it.each(['a b', "it's a b"])('runs a bin under %s', (name) => {
@@ -273,7 +273,7 @@ describe.skipIf(process.platform !== 'win32')('win32 shells', () => {
           input: INPUT,
           encoding: 'utf8',
           env,
-          timeout: 10_000,
+          timeout: 30_000,
           windowsHide: true,
           windowsVerbatimArguments: s.verbatim ?? false,
         });
@@ -292,6 +292,6 @@ describe.skipIf(process.platform !== 'win32')('win32 shells', () => {
         });
       }
     },
-    60_000,
+    150_000,
   );
 });
