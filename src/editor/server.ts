@@ -14,7 +14,7 @@ import {
   readUpdateState,
   writeUpdateState,
 } from '../commands/update.js';
-import { normalizeConfig, saveConfig } from '../core/config.js';
+import { ConfigBrokenError, normalizeConfig, saveConfig } from '../core/config.js';
 import { applyStyle, type StyleHistory } from '../core/edit.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { lastPayloadPath, tildify } from '../core/paths.js';
@@ -63,6 +63,7 @@ class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly extra?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -251,6 +252,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           version: VERSION,
           configPath: tildify(opts.configPath),
           configError: loaded.error ?? null,
+          configIssue: loaded.issue ?? null,
           config: loaded.config,
           savedConfig: loaded.config,
           widgets: widgetCatalog(),
@@ -382,7 +384,13 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       case 'PUT /api/config': {
         const body = asObject(await readBody(req));
         const config = normalizeConfig(body.config);
-        saveConfig(config, opts.configPath);
+        try {
+          saveConfig(config, opts.configPath);
+        } catch (err) {
+          if (!(err instanceof ConfigBrokenError)) throw err;
+          const { line, column, message } = err.issue;
+          throw new HttpError(409, err.message, { line, column, message });
+        }
         send(res, 200, { ok: true, config });
         return;
       }
@@ -452,7 +460,8 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       if (res.headersSent) return res.end();
       const status = err instanceof HttpError ? err.status : 500;
       if (status === 413) res.setHeader('connection', 'close');
-      send(res, status, { error: (err as Error).message });
+      const extra = err instanceof HttpError ? err.extra : undefined;
+      send(res, status, { ...extra, error: (err as Error).message });
     });
   });
 
