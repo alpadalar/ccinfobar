@@ -141,7 +141,7 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   const plan = planInstall({ file, command, refresh: project ? (refresh ?? userRefresh()) : refresh });
 
   if (dryRun) {
-    io.log(t('install.dryRunFile', { file: tildify(file) }));
+    if (!plan.needsConfirm) io.log(t('install.dryRunFile', { file: tildify(file) }));
     showPlan(io, plan);
     if (!plan.changes) io.log(t('install.unchanged'));
     if (!project) {
