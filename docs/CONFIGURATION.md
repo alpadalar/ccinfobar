@@ -172,7 +172,7 @@ Plan limits (5-hour, weekly and per-model weekly) are kept in one file per accou
 
 - The latest window wins, then the newest capture, so an idle session shows the active session's numbers.
 - An expired window is dropped and never comes back.
-- The usage API only replaces a payload value when its fetch is newer.
+- The usage API only replaces a payload value when its fetch is newer and the two differ by at least 1 point (the API sends whole percents, Claude Code tenths).
 - With `usageApi: false` sessions still share the values Claude Code sends; only the fetch is off.
 - When the usage fetch sees that you logged in to another account, the stored values are dropped. A token refresh does not count as a switch: the account is recognized by its id in `.claude.json` (`oauthAccount`), else by the refresh token.
 

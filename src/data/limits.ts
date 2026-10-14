@@ -173,7 +173,8 @@ export function plausible(o: LimitObs, len: number, now: number): boolean {
   return pctOk(o.pct) && o.resetsAt !== null && o.resetsAt > now && o.resetsAt <= now + len + TOL;
 }
 
-// later window, then newest capture, then payload, then higher pct; unknown capture last
+// later window, then newest capture, then payload, then higher pct; unknown capture last.
+// Payload (0.1%) beats an API integer within 1 point.
 export function pick<T extends LimitObs>(list: T[], len: number, now: number): T | null {
   const ok = list.filter((o) => plausible(o, len, now));
   if (!ok.length) return null;
@@ -182,6 +183,7 @@ export function pick<T extends LimitObs>(list: T[], len: number, now: number): T
   const known = cur.filter((o) => o.at !== null);
   const pool = known.length ? known : cur;
   return pool.reduce((a, b) => {
+    if (a.src !== b.src && Math.abs(a.pct - b.pct) < 1) return a.src === 'payload' ? a : b;
     if ((b.at ?? 0) !== (a.at ?? 0)) return (b.at ?? 0) > (a.at ?? 0) ? b : a;
     if (a.src !== b.src) return a.src === 'payload' ? a : b.src === 'payload' ? b : a;
     return b.pct > a.pct ? b : a;
@@ -253,8 +255,11 @@ export function mergeObservation(
     if (win && win !== prev) {
       const resetsAt = win.resetsAt as number;
       const same = prev && Math.abs(prev.resetsAt - resetsAt) <= TOL;
-      const t = win.at ?? now;
-      const samples = same ? addSample(prev.samples, { t, pct: win.pct }, gapOf(key)) : [{ t, pct: win.pct }];
+      const point = { t: win.at ?? now, pct: win.pct };
+      // API integers would zig-zag against payload tenths
+      const feed = win.src === 'payload';
+      const kept = same ? prev.samples : [];
+      const samples = feed ? (same ? addSample(kept, point, gapOf(key)) : [point]) : kept;
       const next: StoredWindow = { pct: win.pct, resetsAt, at: win.at, src: win.src, samples };
       windows[key] = model ? { ...next, model } : next;
     }

@@ -88,6 +88,16 @@ describe('plausible and pick', () => {
       [obs(20, NOW + H, NOW - MIN), obs(30, NOW + H, NOW, 'usage-api')],
       30,
     ],
+    [
+      'a newer API value within 1 point keeps the payload tenths',
+      [obs(42.3, NOW + H, NOW - 5 * MIN), obs(42, NOW + H, NOW, 'usage-api')],
+      42.3,
+    ],
+    [
+      'a newer API value 1 point away wins',
+      [obs(42.3, NOW + H, NOW - 5 * MIN), obs(43.3, NOW + H, NOW, 'usage-api')],
+      43.3,
+    ],
     ['then the higher value', [obs(20, NOW + H, NOW), obs(25, NOW + H, NOW)], 25],
     ['a later window wins over a newer capture', [obs(90, NOW + H, NOW), obs(5, NOW + 4 * H, NOW - H)], 5],
     [
@@ -458,7 +468,29 @@ describe('usage API in the store', () => {
     );
     const w = readLimitsStore(env)?.windows.five_hour;
     expect(w?.pct).toBe(21);
-    expect(w?.samples.map((x) => x.pct)).toEqual([20, 21]);
+    expect(w?.samples.map((x) => x.pct)).toEqual([21]);
+  });
+
+  it('feeds samples from payload observations only', () => {
+    const now = Date.parse('2026-10-14T13:00:00Z');
+    const resets = 1791996600;
+    recordLimits(
+      env,
+      { rate_limits: { five_hour: { used_percentage: 42.3, resets_at: resets } } },
+      now - 5 * MIN,
+      now,
+    );
+    recordUsageApi(env, api(now, { five_hour: { used_percentage: 42, resets_at: resets } }), false, now);
+    expect(readLimitsStore(env)?.windows.five_hour).toMatchObject({ pct: 42.3, src: 'payload' });
+    recordUsageApi(
+      env,
+      api(now + MIN, { five_hour: { used_percentage: 45, resets_at: resets } }),
+      false,
+      now,
+    );
+    const w = readLimitsStore(env)?.windows.five_hour;
+    expect(w).toMatchObject({ pct: 45, src: 'usage-api' });
+    expect(w?.samples).toEqual([{ t: now - 5 * MIN, pct: 42.3 }]);
   });
 
   it('resolves model windows from the store with display names', () => {
