@@ -1,6 +1,5 @@
-import { randomBytes } from 'node:crypto';
-import fs from 'node:fs';
 import path from 'node:path';
+import { fs, randomHex } from '../core/builtins.js';
 
 export type WriteClass = 'cache' | 'settings';
 
@@ -80,7 +79,7 @@ export function writeAtomic(
     const target = resolveReal(file);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     const mode = opts.mode ?? existingMode(target);
-    tmp = `${target}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+    tmp = `${target}.${process.pid}.${randomHex(4)}.tmp`;
     fs.writeFileSync(
       tmp,
       data,
@@ -106,10 +105,7 @@ export function writeTmp(
   data: string | Uint8Array,
   opts: { mode?: number; flush?: boolean } = {},
 ): string {
-  const tmp = path.join(
-    path.dirname(file),
-    `.${path.basename(file)}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`,
-  );
+  const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${randomHex(4)}.tmp`);
   try {
     fs.writeFileSync(
       tmp,

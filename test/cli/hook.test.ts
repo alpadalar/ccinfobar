@@ -11,6 +11,7 @@ import {
   runHook,
   scanFields,
 } from '../../src/cli/hook.js';
+import { readStdinStream } from '../../src/cli/hook-stream.js';
 import { configPath } from '../../src/core/paths.js';
 import { HOOK_EVENTS, hookLine, hookLogPath, hooksDir, isHookEvent } from '../../src/data/hooks.js';
 import { appendLine } from '../../src/data/store.js';
@@ -197,9 +198,80 @@ describe('scanFields', () => {
 });
 
 describe('readHookStdin', () => {
+  // fake fd reads: each item is one read result
+  const reader = (items: Array<string | NodeJS.ErrnoException | null>, calls: number[] = []) => {
+    return (buf: Buffer, cb: (err: NodeJS.ErrnoException | null, n: number) => void) => {
+      calls.push(1);
+      const it = items.shift();
+      if (it === undefined) return; // never answers
+      setImmediate(() => {
+        if (it === null) return cb(null, 0);
+        if (typeof it !== 'string') return cb(it, 0);
+        const n = buf.write(it);
+        cb(null, n);
+      });
+    };
+  };
+  const err = (code: string) => Object.assign(new Error(code), { code });
+
+  it('returns the text at EOF', async () => {
+    expect(await readHookStdin(1024, 1000, reader(['{"a":', '1}', null]), () => false)).toEqual({
+      text: '{"a":1}',
+      overflow: false,
+    });
+  });
+
+  it('treats EPIPE and EOF errors as the end', async () => {
+    expect(await readHookStdin(1024, 1000, reader(['x', err('EPIPE')]), () => false)).toEqual({
+      text: 'x',
+      overflow: false,
+    });
+  });
+
+  it('retries EAGAIN', async () => {
+    expect(await readHookStdin(1024, 1000, reader([err('EAGAIN'), 'ok', null]), () => false)).toEqual({
+      text: 'ok',
+      overflow: false,
+    });
+  });
+
+  it('resolves at the deadline when stdin never ends', async () => {
+    const start = Date.now();
+    expect(await readHookStdin(1024, 50, reader(['par']), () => false)).toEqual({
+      text: 'par',
+      overflow: false,
+    });
+    expect(Date.now() - start).toBeLessThan(1000);
+  });
+
+  it('caps the kept bytes and keeps draining', async () => {
+    const calls: number[] = [];
+    const r = reader(['0123456789abc', 'more', 'tail', null], calls);
+    expect(await readHookStdin(10, 1000, r, () => false)).toEqual({ text: '0123456789', overflow: true });
+    expect(calls).toHaveLength(4);
+  });
+
+  it('stops at a complete object without waiting for EOF', async () => {
+    const calls: number[] = [];
+    const r = reader(['{"session_id":', '"x"}\n'], calls);
+    expect(await readHookStdin(1024, 5000, r, () => false)).toEqual({
+      text: '{"session_id":"x"}\n',
+      overflow: false,
+    });
+    expect(calls).toHaveLength(2);
+  });
+
+  it('returns null for a TTY without reading', async () => {
+    const calls: number[] = [];
+    expect(await readHookStdin(1024, 1000, reader(['x'], calls), () => true)).toBeNull();
+    expect(calls).toEqual([]);
+  });
+});
+
+describe('readStdinStream (Windows)', () => {
   it('returns the text when the stream ends', async () => {
     const s = new PassThrough();
-    const p = readHookStdin(s, 1024, 1000);
+    const p = readStdinStream(s, 1024, 1000);
     s.write('{"a":');
     s.end('1}');
     expect(await p).toEqual({ text: '{"a":1}', overflow: false });
@@ -208,7 +280,7 @@ describe('readHookStdin', () => {
   it('resolves at the deadline when the stream never ends', async () => {
     const s = new PassThrough();
     const start = Date.now();
-    const p = readHookStdin(s, 1024, 50);
+    const p = readStdinStream(s, 1024, 50);
     s.write('par');
     expect(await p).toEqual({ text: 'par', overflow: false });
     expect(Date.now() - start).toBeLessThan(1000);
@@ -216,7 +288,7 @@ describe('readHookStdin', () => {
 
   it('caps the kept bytes and keeps draining', async () => {
     const s = new PassThrough();
-    const p = readHookStdin(s, 10, 1000);
+    const p = readStdinStream(s, 10, 1000);
     s.write('0123456789abc');
     s.write('more');
     expect(s.listenerCount('data')).toBe(1);
@@ -227,7 +299,7 @@ describe('readHookStdin', () => {
 
   it('returns null for a TTY', async () => {
     const s = Object.assign(new PassThrough(), { isTTY: true });
-    expect(await readHookStdin(s)).toBeNull();
+    expect(await readStdinStream(s)).toBeNull();
   });
 });
 

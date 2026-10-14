@@ -159,29 +159,47 @@ describe.skipIf(!fs.existsSync(bin))('ccinfobar hook (built cli)', () => {
     });
   }
 
-  it('exits 0 within 2.5 s when stdin never closes', async () => {
-    const s = sandbox();
-    const start = Date.now();
+  const open = (s: ReturnType<typeof sandbox>) => {
     const child = spawn(process.execPath, [bin, 'hook', 'Stop'], {
       cwd: s.dir,
       env: s.env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';
-    let err = '';
     child.stdout.on('data', (c) => {
       out += c;
     });
     child.stderr.on('data', (c) => {
-      err += c;
+      out += c;
     });
-    child.stdin.write('{"session_id":');
-    const code = await new Promise<number | null>((resolve) => child.on('exit', (c) => resolve(c)));
+    const exit = new Promise<number | null>((resolve) => child.on('exit', (c) => resolve(c)));
+    return { child, exit, out: () => out };
+  };
+
+  it('exits 0 within 2.5 s after a complete payload when stdin never closes', async () => {
+    const s = sandbox();
+    const start = Date.now();
+    const p = open(s);
+    p.child.stdin.write(JSON.stringify({ session_id: SID, hook_event_name: 'Stop', prompt_id: 'p9' }));
+    const code = await p.exit;
     const elapsed = Date.now() - start;
-    child.stdin.destroy();
+    p.child.stdin.destroy();
     expect(code).toBe(0);
-    expect(out).toBe('');
-    expect(err).toBe('');
+    expect(p.out()).toBe('');
     expect(elapsed).toBeLessThan(2500);
+    expect(s.lines().map((l) => l.p)).toEqual(['p9']);
+  }, 10000);
+
+  it('a partial payload writes nothing and exits 0 once the writer closes', async () => {
+    const s = sandbox();
+    const start = Date.now();
+    const p = open(s);
+    p.child.stdin.write('{"session_id":');
+    setTimeout(() => p.child.stdin.end(), 1500);
+    const code = await p.exit;
+    expect(code).toBe(0);
+    expect(p.out()).toBe('');
+    expect(Date.now() - start).toBeLessThan(2500);
+    expect(fs.existsSync(path.join(s.cache, 'hooks'))).toBe(false);
   }, 10000);
 });

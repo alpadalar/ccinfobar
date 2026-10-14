@@ -88,8 +88,9 @@ describe('import graph', () => {
     const allowed = new Set([
       'src/cli/hook.ts',
       'src/cli/args.ts',
-      'src/data/hooks.ts',
+      'src/data/hook-line.ts',
       'src/data/store.ts',
+      'src/core/builtins.ts',
       'src/core/paths.ts',
       'src/core/sanitize.ts',
     ]);
@@ -97,6 +98,40 @@ describe('import graph', () => {
     expect(files.has('src/cli/hook.ts')).toBe(true);
     expect([...files].filter((f) => !allowed.has(f))).toEqual([]);
   });
+
+  // node:crypto, a static node:fs ESM import and the stdin stream each cost ms per event
+  it('keeps crypto, static node:fs and process.stdin out of the hook path', () => {
+    for (const f of [...closure('cli/hook.ts'), 'src/cli/silence.ts']) {
+      const text = fs.readFileSync(path.join(root, f), 'utf8');
+      expect(text, f).not.toMatch(/^import\s+(?!type\b)[^;]*from\s+'node:crypto'|process\.stdin\b/m);
+      expect(text, f).not.toMatch(/^import\s+(?!type\b)[^;]*from\s+'node:fs'/m);
+    }
+    const bin = fs.readFileSync(path.join(src, 'bin.ts'), 'utf8');
+    expect(bin).toMatch(/import \{ silence \} from '\.\/cli\/silence\.js'/);
+    expect(fs.readFileSync(path.join(src, 'cli/silence.ts'), 'utf8')).not.toMatch(/^import /m);
+  });
+
+  const dist = path.join(root, 'dist');
+  it.skipIf(!fs.existsSync(path.join(dist, 'ccinfobar.js')))(
+    'built hook chunk loads no crypto or stdin',
+    () => {
+      const entry = fs.readFileSync(path.join(dist, 'ccinfobar.js'), 'utf8');
+      const hook = /import\("\.\/chunks\/(hook-[^"]+\.js)"\)/.exec(entry)?.[1];
+      expect(hook).toBeTruthy();
+      expect(entry).not.toMatch(/^import\s[^;]*from\s+"\.\/chunks\//m);
+      const seen = new Set<string>();
+      const stack = [hook!];
+      while (stack.length) {
+        const f = stack.pop()!;
+        if (seen.has(f)) continue;
+        seen.add(f);
+        const text = fs.readFileSync(path.join(dist, 'chunks', f), 'utf8');
+        expect(text, f).not.toMatch(/from "node:(?:crypto|fs)"|process\.stdin\b/);
+        for (const m of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(m[1]!);
+      }
+      expect(seen.size).toBeGreaterThan(1);
+    },
+  );
 
   it('dispatches hook mode from bin before loading cli.js', () => {
     const text = fs.readFileSync(path.join(src, 'bin.ts'), 'utf8');

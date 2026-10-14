@@ -1,8 +1,9 @@
-import fs from 'node:fs';
+import type { Dir } from 'node:fs';
 import path from 'node:path';
+import { fs } from '../core/builtins.js';
 import { configPath } from '../core/paths.js';
 import type { Config } from '../core/types.js';
-import { hookLine, hookLogPath, hooksDir, isHookEvent, SESSION_RE } from '../data/hooks.js';
+import { hookLine, hookLogPath, hooksDir, isHookEvent, SESSION_RE } from '../data/hook-line.js';
 import { appendLine } from '../data/store.js';
 import { parseArgs } from './args.js';
 
@@ -24,29 +25,36 @@ const SCAN_BYTES = 65_536;
 const SCAN_RE =
   /"(session_id|hook_event_name|prompt_id|agent_id|agent_type|source|notification_type|tool_name)"\s*:\s*"([^"\\]{1,256})"/g;
 
-let silenced = false;
+type ReadFn = (buf: Buffer, cb: (err: NodeJS.ErrnoException | null, n: number) => void) => void;
 
-export function silence(): void {
-  if (silenced) return;
-  silenced = true;
-  const noop = (() => true) as typeof process.stdout.write;
-  process.stdout.write = noop;
-  process.stderr.write = noop;
-  process.removeAllListeners('warning');
-  const bye = () => process.exit(0);
-  process.on('uncaughtException', bye);
-  process.on('unhandledRejection', bye);
-  setTimeout(bye, 2000);
+const readFd0: ReadFn = (buf, cb) => fs.read(0, buf, 0, buf.length, null, cb);
+
+function stdinIsTty(): boolean {
+  try {
+    return fs.fstatSync(0).isCharacterDevice();
+  } catch {
+    return true;
+  }
 }
 
+function endsObject(buf: Buffer, n: number): boolean {
+  let i = n - 1;
+  while (i >= 0 && (buf[i] === 0x20 || buf[i] === 0x0a || buf[i] === 0x0d || buf[i] === 0x09)) i--;
+  return i >= 0 && buf[i] === 0x7d;
+}
+
+// fs.read on fd 0, not the stdin stream; a read still pending at exit
+// holds the process until the writer closes, so a complete object ends it
 export function readHookStdin(
-  stream: NodeJS.ReadableStream & { isTTY?: boolean } = process.stdin,
   capBytes = 1_048_576,
   deadlineMs = 1000,
+  read: ReadFn = readFd0,
+  isTty: () => boolean = stdinIsTty,
 ): Promise<{ text: string; overflow: boolean } | null> {
-  if (stream.isTTY) return Promise.resolve(null);
+  if (isTty()) return Promise.resolve(null);
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
+    const buf = Buffer.allocUnsafe(65_536);
     let size = 0;
     let overflow = false;
     let done = false;
@@ -57,20 +65,27 @@ export function readHookStdin(
       resolve({ text: Buffer.concat(chunks).toString('utf8'), overflow });
     };
     const timer = setTimeout(finish, deadlineMs);
-    stream.on('data', (chunk: Buffer | string) => {
-      if (overflow) return;
-      const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
-      if (size + buf.length > capBytes) {
-        overflow = true;
-        chunks.push(buf.subarray(0, capBytes - size));
-        size = capBytes;
-        return;
-      }
-      chunks.push(buf);
-      size += buf.length;
-    });
-    stream.on('end', finish);
-    stream.on('error', finish);
+    const next = () => {
+      if (done) return;
+      read(buf, (err, n) => {
+        if (err?.code === 'EAGAIN') return void setTimeout(next, 5);
+        if (err || !n) return finish();
+        if (!overflow) {
+          const take = Math.min(n, capBytes - size);
+          chunks.push(Buffer.from(buf.subarray(0, take)));
+          size += take;
+          if (take < n) overflow = true;
+          else if (endsObject(buf, n)) {
+            try {
+              JSON.parse(Buffer.concat(chunks).toString('utf8'));
+              return finish();
+            } catch {}
+          }
+        }
+        next();
+      });
+    };
+    next();
   });
 }
 
@@ -134,7 +149,7 @@ export function pruneHookLogs(
   clock: () => number = Date.now,
 ): number {
   let removed = 0;
-  let handle: fs.Dir | undefined;
+  let handle: Dir | undefined;
   const end = clock() + budgetMs;
   try {
     handle = fs.opendirSync(dir);
@@ -216,11 +231,14 @@ export async function runHook(d: HookDeps): Promise<void> {
 }
 
 export async function hookMain(argv: string[]): Promise<void> {
-  silence();
   try {
     await runHook({
       argv,
-      readStdin: () => readHookStdin(),
+      // windows pipes may be overlapped; fs.read cannot read those
+      readStdin: () =>
+        process.platform === 'win32'
+          ? import('./hook-stream.js').then((m) => m.readStdinStream())
+          : readHookStdin(),
       env: process.env,
       now: Date.now,
       append: appendLine,

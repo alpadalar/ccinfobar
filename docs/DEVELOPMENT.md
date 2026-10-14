@@ -167,9 +167,9 @@ Every new `DataSources` member (`limits`, `ledger`) has a sample injector in `co
 
 Hooks are optional and the render path never loads hook code; the hook state is not a `DataSources` member yet.
 
-- **Entry.** `bin.ts` takes the hook path only for `[--flags] [--config <file>] hook <Event>` (the event matches `/^[A-Z][A-Za-z]+$/`), so `ccinfobar --config X hook Stop` matches but `ccinfobar config set hook 1` is a normal command. Before the first import it replaces stdout and stderr with no-ops, drops the warning listeners, exits 0 on any uncaught error and starts a 2 s self-exit timer, then imports `cli/hook.js`. `main.ts` also has a `hook` case, so a bare `ccinfobar hook` is silent too.
-- **Closure.** `cli/hook.ts` may only reach `cli/args.ts`, `data/hooks.ts`, `data/store.ts`, `core/paths.ts` and `core/sanitize.ts`; `test/foundations/import-graph.test.ts` fails on anything else, and checks that bin.ts imports `./cli/hook.js` before `./cli.js`. The update check is a dynamic `import('../data/update-state.js')`, loaded only on `SessionStart` with source `startup`, which also prunes `<sid>.jsonl` and `<sid>.fold.json` files older than 7 days (at most 200 deletions and 15 ms per run, so stale files behind many fresh ones are still reached).
-- **Input.** stdin is capped at 1 MB with a 1 s deadline; on overflow the fields come from a bounded 64 KB scan. The stdin `hook_event_name` wins over argv. The event must be on the allowlist and `session_id` must match `/^[A-Za-z0-9_-]{1,128}$/`, else nothing is written. `CCINFOBAR_DEBUG` writes fixed reason codes (never payload content) to `hooks/debug.log`, up to 256 KB.
+- **Entry.** `bin.ts` takes the hook path only for `hook …` or `[--flags] [--config <file>] hook <Event>` (the event matches `/^[A-Z][A-Za-z]+$/`), so `ccinfobar --config X hook Stop` and a bare `ccinfobar hook` match but `ccinfobar config set hook 1` is a normal command. Before the first import it calls `silence()` (`cli/silence.ts`, no imports, inlined into the entry chunk): stdout and stderr become no-op sinks through `Object.defineProperty`, so the real streams are never created; it drops the warning listeners, exits 0 on any uncaught error and starts a 2 s self-exit timer, then imports `cli/hook.js`. `main.ts` also has a `hook` case for `main()` callers; it does not silence.
+- **Closure.** `cli/hook.ts` may only reach `cli/args.ts`, `data/hook-line.ts` (the event list, line format and paths: the writer half of `data/hooks.ts`, which re-exports it), `data/store.ts`, `core/builtins.ts`, `core/paths.ts` and `core/sanitize.ts`; `test/foundations/import-graph.test.ts` fails on anything else, and checks that bin.ts imports `./cli/hook.js` before `./cli.js`. It also fails on a static `node:fs` or `node:crypto` import or `process.stdin` in that closure and, after a build, in the hook chunk and the chunks it imports: a static ESM `node:fs` import costs about 8 ms at startup, so `core/builtins.ts` loads it through `process.getBuiltinModule` (`createRequire` on older Node 20), and `store.ts` loads `node:crypto` only when it names a temp file. The update check is a dynamic `import('../data/update-state.js')`, loaded only on `SessionStart` with source `startup`, which also prunes `<sid>.jsonl` and `<sid>.fold.json` files older than 7 days (at most 200 deletions and 15 ms per run, so stale files behind many fresh ones are still reached).
+- **Input.** stdin is read with `fs.read` on fd 0 instead of the `process.stdin` stream (about 9 ms), except on Windows, where `cli/hook-stream.ts` keeps the stream because the pipe may be overlapped. It is capped at 1 MB with a 1 s deadline, and reading stops as soon as the bytes so far parse as a JSON object. Node joins its thread pool on exit, so an `fs.read` still waiting holds the process: a partial payload whose writer never closes keeps it alive until the writer closes or Claude Code's 5 s hook timeout ends it. On overflow the fields come from a bounded 64 KB scan. The stdin `hook_event_name` wins over argv. The event must be on the allowlist and `session_id` must match `/^[A-Za-z0-9_-]{1,128}$/`, else nothing is written. `CCINFOBAR_DEBUG` writes fixed reason codes (never payload content) to `hooks/debug.log`, up to 256 KB.
 - **Line format.** One `appendLine` per event to `<cacheDir>/hooks/<session_id>.jsonl` (mode 0600), with only allowlisted fields, each sanitized and capped at 256 chars (1024 for the transcript path):
 
   ```json
@@ -330,6 +330,16 @@ Phase 4 (hooks and plugin), 2026-10-14, same machine and method, load average ab
 | hook UserPromptSubmit | 94.1 | 103.0 | 92.0 | 106.6 |
 
 ccinfobar overhead 62.7 ms; hook overhead 26.6 ms. A second run right after gave warm 131.6 ms and hook 98.5 ms (hook overhead 31.2 ms). The render path is unchanged: the warm median matches the baseline. The hook overhead is above the 20 ms target. A minimal ESM script that reads the same stdin and appends one line costs about 18 ms over the control on this machine, so ccinfobar's own code adds about 10 ms. The hook runs async, so Claude Code never waits for it.
+
+Hook path after the Phase 4 review fixes, 2026-10-15, same machine and method, load average about 1.3, N = 20, run back to back with the build before the fixes:
+
+| Row | before (ms) | after (ms) |
+|-----|------------:|-----------:|
+| `node -e 0` | 68.1 | 66.4 |
+| warm | 117.6 | 116.5 |
+| hook UserPromptSubmit | 97.4 | 79.4 |
+
+Hook overhead 29.3 ms → 13.0 ms, within the 20 ms target; the render path is unchanged. Against an empty ESM file with piped stdio (40 interleaved runs of `hook Stop`) the overhead went from 26.5 to 8.2 ms. The savings: no stdout/stderr streams (silent sinks), `fs.read` instead of `process.stdin`, `node:fs` through `process.getBuiltinModule`, and no `node:crypto`. The compile cache still saves 1 to 2 ms on this path, so `bin.ts` keeps enabling it.
 
 ## Releasing
 
