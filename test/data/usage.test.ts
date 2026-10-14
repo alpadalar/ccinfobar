@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
-import { limitsOn, resolveLimits } from '../../src/data/limits.js';
+import { limitsOn, readLimitsStore, recordLimits, resolveLimits } from '../../src/data/limits.js';
 import {
   effectiveUsage,
   fetchUsage,
@@ -166,6 +166,46 @@ describe('usage api', () => {
     expect(fs.existsSync(lock)).toBe(false);
     scheduleUsage({ ...env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '' });
     expect(fs.existsSync(lock)).toBe(true);
+  });
+
+  it('feeds the shared limits store and starts it over after a login change', async () => {
+    const env = sandbox('tok-a');
+    const now = Date.now();
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const five = { used_percentage: 61, resets_at: Math.floor((now + 7_200_000) / 1000) };
+    recordLimits(env, { rate_limits: { five_hour: five } }, now - 60_000, now);
+    const ok = await fetchUsage(
+      env,
+      reply(200, {
+        five_hour: { utilization: 60, resets_at: iso(now + 7_200_000) },
+        seven_day: { utilization: 30, resets_at: iso(now + 3 * 86_400_000) },
+        limits: [
+          {
+            kind: 'weekly_scoped',
+            percent: 8,
+            resets_at: iso(now + 86_400_000),
+            scope: { model: { display_name: 'Fable' } },
+          },
+        ],
+      }),
+    );
+    const w = readLimitsStore(env)?.windows ?? {};
+    expect(w.five_hour).toMatchObject({ pct: 60, at: ok.fetchedAt, src: 'usage-api' });
+    expect(w.seven_day?.at).toBe(ok.fetchedAt);
+    expect(w['model:fable']).toMatchObject({ pct: 8, model: 'Fable' });
+    fs.writeFileSync(
+      path.join(env.CLAUDE_CONFIG_DIR, '.credentials.json'),
+      JSON.stringify({ claudeAiOauth: { accessToken: 'tok-b', expiresAt: Date.now() + 3_600_000 } }),
+    );
+    const failed = await fetchUsage(env, reply(500, {}));
+    expect(failed.rate_limits).toBeUndefined();
+    expect(readLimitsStore(env)?.windows).toEqual({});
+    await fetchUsage(
+      env,
+      reply(200, { five_hour: { utilization: 2, resets_at: iso(now + 3_600_000) }, seven_day: null }),
+    );
+    expect(Object.keys(readLimitsStore(env)?.windows ?? {})).toEqual(['five_hour']);
+    expect(readLimitsStore(env)?.windows.five_hour?.pct).toBe(2);
   });
 
   it('backs off without a login', async () => {

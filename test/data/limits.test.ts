@@ -15,6 +15,7 @@ import {
   plausible,
   readLimitsStore,
   recordLimits,
+  recordUsageApi,
   resolveLimits,
 } from '../../src/data/limits.js';
 import type { TranscriptInfo } from '../../src/data/transcript.js';
@@ -343,5 +344,161 @@ describe('limits file', () => {
       Date.now(),
     );
     expect(fs.existsSync(limitsFile(env))).toBe(false);
+  });
+});
+
+describe('usage API in the store', () => {
+  let dir: string;
+  let env: NodeJS.ProcessEnv;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-api-'));
+    env = { CCINFOBAR_CACHE_DIR: path.join(dir, 'cache'), CLAUDE_CONFIG_DIR: path.join(dir, 'a') };
+  });
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const api = (at: number, rate_limits: Record<string, unknown>) =>
+    ({ fetchedAt: at, rate_limits }) as Parameters<typeof recordUsageApi>[1];
+
+  it('stores 5h, 7d and model windows with the fetch time', () => {
+    const now = Date.now();
+    recordUsageApi(
+      env,
+      api(now - MIN, {
+        five_hour: { used_percentage: 12, resets_at: iso(now + 2 * H) },
+        seven_day: { used_percentage: 34, resets_at: iso(now + 3 * D) },
+        seven_day_models: [
+          { model: 'Fable', used_percentage: 5, resets_at: iso(now + 3 * D) },
+          { model: 'Idle', used_percentage: 0, resets_at: null },
+        ],
+        seven_day_opus: { used_percentage: 7, resets_at: iso(now + 2 * D) },
+        spend_limit: { used_usd: 1, limit_usd: 2 },
+      }),
+      false,
+      now,
+    );
+    const w = readLimitsStore(env)?.windows ?? {};
+    expect(Object.keys(w).sort()).toEqual(['five_hour', 'model:fable', 'model:opus', 'seven_day']);
+    expect(w.five_hour).toMatchObject({ pct: 12, at: now - MIN, src: 'usage-api' });
+    expect(w['model:fable']).toMatchObject({ pct: 5, model: 'Fable', src: 'usage-api' });
+    expect(w['model:opus']).toMatchObject({ pct: 7, model: 'Opus' });
+    expect(fs.readFileSync(limitsFile(env), 'utf8')).not.toMatch(/spend|account/);
+  });
+
+  it('lets an API value win only when it is strictly newer than the payload capture', () => {
+    const now = Date.now();
+    const resets = now + 2 * H;
+    const t = now - 10 * MIN;
+    recordLimits(env, five(40, resets), t, now);
+    const at = (fetched: number, pct: number) =>
+      recordUsageApi(
+        env,
+        api(fetched, { five_hour: { used_percentage: pct, resets_at: iso(resets) } }),
+        false,
+        now,
+      );
+    at(t - MIN, 50);
+    expect(readLimitsStore(env)?.windows.five_hour).toMatchObject({ pct: 40, src: 'payload' });
+    at(t, 50);
+    expect(readLimitsStore(env)?.windows.five_hour).toMatchObject({ pct: 40, src: 'payload' });
+    at(t + MIN, 55);
+    expect(readLimitsStore(env)?.windows.five_hour).toMatchObject({ pct: 55, src: 'usage-api' });
+    const r = resolveLimits({}, readLimitsStore(env), null, now, null);
+    expect(r.view.windows.five_hour).toMatchObject({ pct: 55, source: 'limits-cache' });
+  });
+
+  it('starts the file over on an account change', () => {
+    const now = Date.now();
+    recordLimits(env, five(40, now + 2 * H), now - MIN, now);
+    const week = { seven_day: { used_percentage: 3, resets_at: iso(now + 3 * D) } };
+    recordUsageApi(env, api(now - 2 * MIN, week), true, now);
+    expect(Object.keys(readLimitsStore(env)?.windows ?? {})).toEqual(['seven_day']);
+    recordUsageApi(env, { fetchedAt: now }, true, now);
+    expect(Object.keys(readLimitsStore(env)?.windows ?? {})).toEqual([]);
+  });
+
+  it('writes only on change and never for provider sessions', () => {
+    const now = Date.now();
+    const c = api(now, { five_hour: { used_percentage: 9, resets_at: iso(now + H) } });
+    recordUsageApi({ ...env, ANTHROPIC_API_KEY: 'x' }, c, true, now);
+    expect(fs.existsSync(path.join(dir, 'cache', 'limits'))).toBe(false);
+    recordUsageApi(env, c, false, now);
+    fs.utimesSync(limitsFile(env), 1000, 1000);
+    recordUsageApi(env, c, false, now);
+    expect(fs.statSync(limitsFile(env)).mtimeMs).toBe(1_000_000);
+    recordUsageApi(env, api(now, { five_hour: { used_percentage: 9, resets_at: null } }), false, now);
+    expect(fs.statSync(limitsFile(env)).mtimeMs).toBe(1_000_000);
+  });
+
+  it('groups API ISO with microseconds and payload seconds as one window', () => {
+    const now = Date.parse('2026-10-14T13:00:00Z');
+    const c = api(now - 2 * MIN, {
+      five_hour: { used_percentage: 20, resets_at: '2026-10-14T16:50:00.321782+00:00' },
+    });
+    recordUsageApi(env, c, false, now);
+    recordLimits(
+      env,
+      { rate_limits: { five_hour: { used_percentage: 21, resets_at: 1791996600 } } },
+      now,
+      now,
+    );
+    const w = readLimitsStore(env)?.windows.five_hour;
+    expect(w?.pct).toBe(21);
+    expect(w?.samples.map((x) => x.pct)).toEqual([20, 21]);
+  });
+
+  it('resolves model windows from the store with display names', () => {
+    const now = Date.now();
+    recordUsageApi(
+      env,
+      api(now - H, {
+        seven_day_models: [{ model: 'Fable', used_percentage: 23, resets_at: iso(now + 3 * D) }],
+      }),
+      false,
+      now,
+    );
+    const r = resolveLimits({}, readLimitsStore(env), null, now, null);
+    expect(r.payload.rate_limits?.seven_day_models).toEqual([
+      { model: 'Fable', used_percentage: 23, resets_at: sec(now + 3 * D) },
+    ]);
+    expect(r.view.windows['model:fable']).toMatchObject({ source: 'limits-cache', model: 'Fable' });
+    const legacy = resolveLimits(
+      { rate_limits: { seven_day_opus: { used_percentage: 4, resets_at: sec(now + 2 * D) } } },
+      readLimitsStore(env),
+      null,
+      now,
+      now,
+    ).payload.rate_limits;
+    expect(legacy?.seven_day_opus).toBeUndefined();
+    expect(legacy?.seven_day_models?.map((m) => `${m.model} ${m.used_percentage}`)).toEqual([
+      'Opus 4',
+      'Fable 23',
+    ]);
+  });
+
+  it('sanitizes model names and ignores hostile keys', () => {
+    const now = Date.now();
+    const resets = iso(now + 3 * D);
+    recordUsageApi(
+      env,
+      api(now, {
+        seven_day_models: [
+          { model: 'Fa\u001b[2Jble', used_percentage: 5, resets_at: resets },
+          { model: '__proto__', used_percentage: 6, resets_at: resets },
+          { model: 'x'.repeat(100), used_percentage: 7, resets_at: resets },
+        ],
+      }),
+      false,
+      now,
+    );
+    const w = readLimitsStore(env)?.windows ?? {};
+    expect(w['model:fable']?.model).toBe('Fable');
+    expect(Object.keys(w)).toHaveLength(2);
+    expect(Object.values(w).every((x) => (x.model?.length ?? 0) <= 64)).toBe(true);
+    const ok = { pct: 1, resetsAt: now + D, at: now, src: 'usage-api', samples: [] };
+    const text = `{"v":1,"windows":{"__proto__":${JSON.stringify(ok)},"model:x":${JSON.stringify({ ...ok, model: 'Y' })},"model:constructor":${JSON.stringify({ ...ok, model: 'constructor' })},"model:y":${JSON.stringify({ ...ok, model: 'Y' })}}}`;
+    const parsed = parseLimitsStore(text);
+    expect(Object.keys(parsed?.windows ?? {})).toEqual(['model:y']);
+    expect(({} as Record<string, unknown>).pct).toBeUndefined();
   });
 });

@@ -12,6 +12,7 @@ import {
   type LimitsView,
   limitsOn,
   readLimitsStore,
+  recordUsageApi,
   resolveLimits,
 } from './limits.js';
 import { detectProvider } from './provider.js';
@@ -236,11 +237,12 @@ export async function fetchUsage(
     ...extra,
   });
   const token = readToken(env);
+  let account: string | undefined;
   let cache: UsageCache;
   if (!token) {
     cache = { fetchedAt: now, error: 'no Claude login found', blockedUntil: now + NO_TOKEN_MS };
   } else {
-    const account = createHash('sha256').update(token).digest('hex').slice(0, 16);
+    account = createHash('sha256').update(token).digest('hex').slice(0, 16);
     try {
       const res = await fetcher(USAGE_URL, {
         headers: {
@@ -269,6 +271,8 @@ export async function fetchUsage(
   }
   cache = deepSanitize(cache);
   writeUsageCache(cache, env);
+  const changed = !!account && !!prev?.account && prev.account !== account;
+  if (account && (cache.rate_limits || changed)) recordUsageApi(env, cache, changed, now);
   return cache;
 }
 
