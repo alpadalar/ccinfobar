@@ -184,6 +184,50 @@ The file holds percentages, reset times and a few samples for the projection wid
 
 Resuming or forking a session, `/clear`, compaction, `/login` and two terminals on one session are each counted once. When two terminals keep working on the same resumed session, the ledger cannot tell them apart (Claude Code sends no per-process id), so their spend is undercounted, by up to about a third when both totals stay close. While the ledger is being rebuilt (for example after `ledger/summary.json` was deleted), totals end in `…` and may be low for a few refreshes. The ledger is `ledger/YYYY-MM.jsonl` under the cache dir (mode 0600): one line per change with the time, an account key, the session id, the project path and the session's running total. It never contains a token. Month files older than 13 months are deleted. Layouts without these widgets do not read or write it.
 
+## Live session widgets
+
+`tool-activity`, `turn-timer`, `permission-wait`, `env-counts` and `workspace-repos` are opt-in; no preset or default layout uses them. Their options are in [WIDGETS.md](WIDGETS.md).
+
+### Refresh interval
+
+Claude Code runs the status line on a new assistant message, on token, permission mode, model, effort or vim changes, and on its `refreshInterval` timer (`statusLine.refreshInterval` in Claude Code's settings, not in this config). It does not run it on hook events or tool results, and not while a permission dialog is open, so time-based widgets only move on those triggers.
+
+The time-based widgets are `turn-timer`, `permission-wait`, `tool-activity`, `usage-projection`, `limit-eta`, `limit-risk`, `cache-timer` and `clock`. When one of them is on your layout and no interval is set:
+
+- `ccinfobar install` (also with `--dry-run` and `--hooks`) and `ccinfobar doctor` print a hint to run `ccinfobar install --refresh 5`
+- the web editor's Settings (Claude Code) shows a warning with a **Use 5 s refresh** button, which installs only after you confirm
+
+Nothing is set for you. 5 s is a good balance; `--refresh 1` works but runs ccinfobar every second, and `install` says so.
+
+### tool-activity and turn-timer
+
+Both read the transcript and need no hooks. With hooks, `turn-timer` uses the exact prompt and stop times, unless the transcript shows a missed prompt, a missed stop or another prompt id; then it falls back to the transcript. A tool running longer than 10 minutes is no longer shown as running. `tool-activity` cuts the command or file name at 32 characters; set `showArgs: false` to hide it.
+
+### permission-wait
+
+Needs `ccinfobar install --hooks`. The wait starts at the `Notification` hook for a permission prompt, about 6 s after the dialog appears (each keystroke in the terminal delays it), and ends at the next tool result, `PermissionDenied`, `Stop` or prompt. Because Claude Code hides the status line during the dialog, the widget only shows closed waits of the current turn; waits longer than `maxAgeMin` (default 30) are ignored.
+
+### env-counts
+
+Counts come from config files and a stat-only cache; nothing is spawned and no server is probed.
+
+- **CLAUDE.md**: managed, user (`$CLAUDE_CONFIG_DIR/CLAUDE.md`), and `CLAUDE.md`, `CLAUDE.local.md` and `.claude/CLAUDE.md` in the launch folder and its parents. Files in subfolders load lazily and are not counted.
+- **AGENTS.md**: counted only when it is in effect, which by default means the project has no CLAUDE.md.
+- **rules**: `*.md` under the user and project `.claude/rules` folders.
+- **MCP**: servers in `.claude.json` (user and this project), approved `.mcp.json` servers in the launch folder and its parents, and managed servers.
+- **hooks**: handlers in user, project, local and managed settings, or `hooks off` when `disableAllHooks` applies.
+
+Not covered:
+
+- plugin MCP servers and claude.ai connectors, which are not in config files
+- plugin hooks and settings passed with `--settings`
+- `claudeMdExcludes` (excluded files are still counted) and an inline managed `claudeMd`
+- MCP health: `mcpHealth` is reserved because Claude Code does not expose MCP status to the status line, so it does nothing today and `ccinfobar explain` says so
+
+### workspace-repos
+
+Lists git repos directly inside the current folder when that folder is not inside a repo. It reads `.git/HEAD` files, never runs git while rendering, and rescans at most every 10 seconds. Inside-repo detection walks up to the filesystem root looking for `.git`, so a dotfiles repo at `~/.git` makes every folder under your home count as inside a repo and the widget stays hidden there. `GIT_DIR` and `GIT_WORK_TREE` are ignored. With `dirty: true` a background job runs a hardened `git status` in up to 50 repos about once a minute; the status line only reads its cache.
+
 ## Layout tips
 
 - Put a `flex` widget between two groups to push the second group to the right edge.

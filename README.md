@@ -42,7 +42,7 @@
 - **24 themes, or your own.** Colored text, colored blocks, powerline arrows, rounded capsules or a bordered panel with a responsive grid, from classic to Nord, Dracula, Rosé Pine, Tokyo Night and Catppuccin. ASCII mode for terminals without a Nerd Font. Preview them all with `ccinfobar themes` and write your own in a few lines of JSON.
 - **Terminal editor too.** `ccinfobar tui` does the same from the keyboard (or mouse) when you are on SSH or prefer to stay in the terminal.
 - **First-class GSD support.** Milestone progress, the current phase, plan completion inside the phase, the next command to run, blockers, requirements and more, as separate widgets you can arrange freely. See [docs/GSD.md](docs/GSD.md).
-- **102 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, git, workspace, system and custom commands.
+- **104 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, the running tool and turn time, git, workspace, system and custom commands.
 - **Uses the current Claude Code payload.** Rate limits, prompt cache statistics, PR status and repository info come straight from the status line JSON, without extra API calls.
 - **Fast, dependency-free, self-updating.** Zero runtime dependencies, lazy data loading, an incremental transcript cache and background updates.
 - **Cross-platform.** Linux, macOS and Windows, tested in CI on all three with Node 20, 22, 24 and 26.
@@ -99,7 +99,7 @@ Install it with `npm install -g ccinfobar`, then add this to `~/.claude/settings
 }
 ```
 
-Add `"refreshInterval": 10` to refresh the status line every 10 seconds even while Claude is idle, so clocks and countdowns stay current.
+Add `"refreshInterval": 5` to refresh the status line every 5 seconds even while Claude is idle, so clocks, timers and countdowns stay current.
 
 Avoid `npx -y ccinfobar@latest` as the command: it would download and run whatever npm serves on every refresh.
 
@@ -150,7 +150,7 @@ Mouse works too: click to select, drag a chip to move it.
 
 | Category | Widgets |
 | --- | --- |
-| Session & model | model, effort, thinking, fast mode, output style, session name and id, Claude Code version, vim mode, agent name, skills, how long the turn has run (`turn-timer`) |
+| Session & model | model, effort, thinking, fast mode, output style, session name and id, Claude Code version, vim mode, agent name, skills, how long the turn has run (`turn-timer`), how long the last permission prompt waited (`permission-wait`) |
 | Context window | used or remaining percent (optionally relative to the auto-compact limit), bar, length, window size, compaction count |
 | Tokens & cache | input, output, cached, total, cache hit rate, cache expiry countdown, last cache miss cause, output speed, performance (`performance`: hit rate and average response time) |
 | Cost & time | session cost, cost per hour, estimated cost today, this week and per project across sessions (`cost-today`, `cost-week`, `cost-project`), budget, session and API duration, lines changed, message count |
@@ -160,17 +160,33 @@ Mouse works too: click to select, drag a chip to move it.
 | GSD | milestone, milestone progress, phase, status, plans, plan progress, next step, workstream, blockers, todos, requirements, last command, update notice, current task, summary |
 | Git | branch, sha, changes, status, staged, unstaged, untracked, ahead/behind, conflicts, stash, in-progress operation, repo, worktree, pull request, child repos of a workspace folder (`workspace-repos`) |
 | Workspace | current directory (5 styles), project directory |
-| System | clock, date, hostname, username, memory, load average, terminal width, platform |
+| System | clock, date, hostname, username, memory, load average, terminal width, platform, CLAUDE.md files, rules, MCP servers and hooks in effect (`env-counts`) |
 | Custom | shell command output, clickable link, environment variable |
 | Layout | text, separator, flex space |
 
 A widget without data (a new chat, a folder that is not a git repo or GSD project) shows its label and `—`, so every line you add is always visible. Turn on **Hide when no data** (`hideEmpty`) for any widget you would rather hide. The full list with options and examples is in [docs/WIDGETS.md](docs/WIDGETS.md), or run `ccinfobar widgets`.
 
+### Live session widgets
+
+These show what Claude is doing right now. They are opt-in: no preset or default layout uses them, so add them in the editor.
+
+- `tool-activity`: the running tool and this turn's tool counts, `Bash npm test · Read 4, Edit 2, Bash 1`
+- `turn-timer`: how long the turn has run, or the last one took, `Turn 2m14s`
+- `permission-wait`: how long the last permission prompt in this turn waited, `Wait Bash 42s` (needs [hooks](#hooks))
+- `env-counts`: CLAUDE.md files, rules, MCP servers and hooks in effect, `CLAUDE.md 2 · rules 3 · MCP 4 · hooks 5`
+- `workspace-repos`: the git repos inside a folder that is not a repo itself, `repos: api (main*) · web (dev)`. Handy when you start Claude Code in a folder that holds several projects
+
 `workspace-repos` lists the git repos directly inside the current folder with their branches, such as `repos: api (main) · web (dev)`, when the folder itself is not a repo. It reads `.git/HEAD` files, never runs git while rendering and rescans at most every 10 seconds. It shows nothing anywhere below a folder that holds `.git`, so a dotfiles repo at `~/.git` hides it in your whole home folder. `GIT_DIR` and `GIT_WORK_TREE` are ignored. While it shows repos, the other git widgets hide instead of showing `—`; set `hideGitPlaceholders: false` to keep them, and `ccinfobar explain` names the reason. Turn on `dirty` to mark repos with uncommitted changes, such as `api (main*)`: a background job runs a hardened `git status` in at most 50 repos about once a minute, and the status line only reads its cache.
 
-`tool-activity` shows the tool Claude is running and what it used this turn, such as `Bash npm test · Read 4, Edit 2, Bash 1`, from the transcript alone (no hooks needed). Set `scope: session` for session totals, `mode` to show only one part, and `showArgs: false` to hide the command or file name. Claude Code redraws the status line on each new assistant message, so a finished tool clears at the next message unless `refreshInterval` is set.
+`tool-activity` shows the tool Claude is running and what it used this turn, such as `Bash npm test · Read 4, Edit 2, Bash 1`, from the transcript alone (no hooks needed). Set `scope: session` for session totals, `mode` to show only one part, and `showArgs: false` to hide the command or file name (it is cut at 32 characters). Claude Code redraws the status line on each new assistant message, so a finished tool clears at the next message unless `refreshInterval` is set.
 
 `turn-timer` shows how long the current turn has run (`2m14s`) and, once it ends, how long it took (`last 3m02s`; set `afterStop: hide` to hide it instead). With `ccinfobar install --hooks` the time runs exactly from your prompt to Claude's stop; without hooks it comes from the transcript and is close. The time includes any wait for a permission prompt. Set `refreshInterval` to see it tick while Claude works.
+
+`permission-wait` needs `ccinfobar install --hooks`. Claude Code hides the status line while a permission dialog is open, so the widget cannot show a live wait. Once the dialog closes it shows the last closed wait of the turn, such as `Wait Bash 42s`. The wait starts at Claude Code's permission `Notification`, which comes about 6 s after the dialog appears, so a prompt answered within about 6 s is not counted. It never shows an open wait or a stale timer.
+
+`env-counts` counts what Claude Code loads for this folder, read from config files only: CLAUDE.md files (managed, user, and the project folder and its parents), AGENTS.md when it is in effect, rules files, MCP servers and hook handlers, or `hooks off` when hooks are disabled. It never runs `claude mcp list` or starts a server. Plugin MCP servers, claude.ai connectors and plugin hooks are not counted, `claudeMdExcludes` is not applied, and MCP health is not shown because Claude Code does not expose it to the status line. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#live-session-widgets).
+
+**Refresh.** Claude Code runs the status line again on a new assistant message, on token, mode or model changes and on the `refreshInterval` timer. It does not run it on hook events or tool results, and not at all while a permission dialog is open. Timers and tool activity therefore move only when one of those happens. For `turn-timer`, `tool-activity`, `permission-wait` and other time-based widgets, use `ccinfobar install --refresh 5`; `install`, `doctor` and the editor's Settings suggest it, but nothing is set for you. A 1 s refresh is not recommended: it runs ccinfobar every second.
 
 ## Themes
 
@@ -265,13 +281,15 @@ The plugin has no status line, no renderer, no hooks of its own and never writes
 
 ### Hooks
 
-Hooks are optional. They let Claude Code tell ccinfobar exactly when a turn starts and ends, when a permission prompt is waiting and when a subagent starts or stops, instead of guessing from the transcript. Every widget works without them.
+Hooks are optional. They let Claude Code tell ccinfobar exactly when a turn starts and ends, when a permission prompt is waiting and when a subagent starts or stops, instead of guessing from the transcript. Only `permission-wait` needs them; every other widget works without them, and `turn-timer`, `agents` and `agent-count` become exact with them.
 
 ```sh
 ccinfobar install --hooks              # add them (also: Settings, Claude Code, Hooks in the editor)
 ccinfobar install --hooks=permission   # also add PermissionRequest
 ccinfobar uninstall --hooks            # remove only ccinfobar's hooks
 ```
+
+`install --hooks` registers seven events; `--hooks=permission` adds an eighth, `PermissionRequest`.
 
 | Event | What is recorded |
 | --- | --- |
@@ -280,6 +298,7 @@ ccinfobar uninstall --hooks            # remove only ccinfobar's hooks
 | `Stop` | the prompt id |
 | `SubagentStart`, `SubagentStop` | the agent id and type, and on stop its transcript path |
 | `Notification` | only permission prompts (matcher `permission_prompt`) |
+| `PermissionDenied` | the tool name, when auto mode denies a tool call (Claude Code 2.1.89+, cannot block) |
 | `PermissionRequest` (opt-in) | the tool name |
 
 Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl` (`~/.cache/ccinfobar/hooks/`, `~/Library/Caches/ccinfobar/hooks/` on macOS, `%LOCALAPPDATA%\ccinfobar\cache\hooks\` on Windows); logs older than 7 days are removed when a new session starts. Prompt text, Claude's replies and tool input are never stored. The hook command prints nothing and always exits 0, and every hook runs in the background (`async`), so it never slows a prompt down.
@@ -307,7 +326,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`) |
 | `ccinfobar init [preset]` | Write a preset: `default`, `cockpit`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
-| `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `near-7d-limit`, `over-budget`, `workspace-folder`; a bare `--scenario` lists them) |
+| `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `near-7d-limit`, `over-budget`, `workspace-folder`, `waiting-permission`; a bare `--scenario` lists them) |
 | `ccinfobar update` | Update to the latest release now (`--check` to only look) |
 | `ccinfobar widgets` | List all widgets |
 | `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off; points to `ccinfobar explain` for details |

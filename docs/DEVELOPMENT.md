@@ -46,6 +46,7 @@ src/
 │   ├── hooks-doctor.ts  doctor's Hooks block: entry state, missing binaries, hook gates
 │   ├── explain.ts       `ccinfobar explain` and the read-only loader doctor shares
 │   ├── bench.ts         `ccinfobar bench`
+│   ├── repos.ts         `repos --background`: the workspace-repos dirty job
 │   ├── io.ts            CliIo and the config-issue printer shared by explain, preview and bench
 │   ├── settings-file.ts format-preserving settings.json reads, writes and backups
 │   ├── manifest.ts      what ccinfobar wrote, for uninstall and ownership
@@ -72,8 +73,12 @@ src/
 ├── data/                git, transcript, GSD and terminal readers; store.ts, provider.ts
 │   ├── limits.ts        shared plan limits store, keyed per account
 │   ├── ledger.ts        cross-session cost ledger
+│   ├── live.ts          trusted turn, permission wait and running tools (pure)
+│   ├── environment.ts   CLAUDE.md, rules, MCP and hook counts from config files
+│   ├── repos.ts         child repos of a workspace folder and the dirty cache
 │   └── hooks.ts         hook log line format, fold and reader
 ├── widgets/             one file per category, registered in index.ts
+│   ├── live.ts          tool-activity, turn-timer, permission-wait
 │   └── projection.ts    usage projection, ETA and risk math (pure)
 ├── editor/              web editor: HTTP server + browser app (web/)
 │   └── detach.ts        `edit --detach`: reuse or spawn a background editor
@@ -165,7 +170,7 @@ Every new `DataSources` member (`limits`, `ledger`) has a sample injector in `co
 
 ### Hooks
 
-Hooks are optional and the render path never loads hook code; the hook state is not a `DataSources` member yet.
+Hooks are optional. The render path never loads the hook writer; it reads the folded state through `DataSources.hooks` (see [Live session data](#live-session-data)).
 
 - **Entry.** `bin.ts` takes the hook path only for `hook …` or `[--flags] [--config <file>] hook <Event>` (the event matches `/^[A-Z][A-Za-z]+$/`), so `ccinfobar --config X hook Stop` and a bare `ccinfobar hook` match but `ccinfobar config set hook 1` is a normal command. Before the first import it calls `silence()` (`cli/silence.ts`, no imports, inlined into the entry chunk): stdout and stderr become no-op sinks through `Object.defineProperty`, so the real streams are never created; it drops the warning listeners, exits 0 on any uncaught error and starts a 2 s self-exit timer, then imports `cli/hook.js`. `main.ts` also has a `hook` case for `main()` callers; it does not silence.
 - **Closure.** `cli/hook.ts` may only reach `cli/args.ts`, `data/hook-line.ts` (the event list, line format and paths: the writer half of `data/hooks.ts`, which re-exports it), `data/store.ts`, `core/builtins.ts`, `core/paths.ts` and `core/sanitize.ts`; `test/foundations/import-graph.test.ts` fails on anything else, and checks that bin.ts imports `./cli/hook.js` before `./cli.js`. It also fails on a static `node:fs` or `node:crypto` import or `process.stdin` in that closure and, after a build, in the hook chunk and the chunks it imports: a static ESM `node:fs` import costs about 8 ms at startup, so `core/builtins.ts` loads it through `process.getBuiltinModule` (`createRequire` on older Node 20), and `store.ts` loads `node:crypto` only when it names a temp file. The update check is a dynamic `import('../data/update-state.js')`, loaded only on `SessionStart` with source `startup`, which also prunes `<sid>.jsonl` and `<sid>.fold.json` files older than 7 days (at most 200 deletions and 15 ms per run, so stale files behind many fresh ones are still reached).
@@ -195,6 +200,21 @@ Hooks are optional and the render path never loads hook code; the hook state is 
 - **Doctor.** `hooks-doctor.ts` lists the entries and their state, hook commands whose first token no longer resolves (no spawn), and `disableAllHooks` / `allowManagedHooksOnly` in user, project, local and file-based managed settings, plus the last event age from `readHookState(…, { persist: false })`.
 
 Tests: `test/cli/hook.test.ts`, `test/data/hooks.test.ts`, `test/commands/hooks-*.test.ts`, `test/editor/hooks-route.test.ts` and `test/integration/hook-*.test.ts` and `install-hooks-cli.test.ts` (built CLI, parallel appends, SessionStart).
+
+### Live session data
+
+Phase 5 added three optional `DataSources` members, `hooks`, `repos` and `environment`. They are lazy and never spawn in the render path. Each has a sample injector in `core/sample.ts` and one in every scenario (`waiting-permission` and `workspace-folder` exercise them), and `ctxWith()` defaults to the samples.
+
+- **Transcript fields.** `TranscriptInfo` gained `runningTools` (id, name, a 32-char arg, start; at most 8), `turnToolCounts`, `sessionToolCounts`, `lastToolResultAt`, `promptId`, `promptStart` and `turnEnd`. The cache `VERSION` is 8; bump it once if a field changes shape. Sidechain lines are skipped, a tool result removes its running tool, and an interrupt clears them.
+- **Trusted turn.** `trustedTurn(hooks, transcript, promptId, now)` in `src/data/live.ts` uses the hook turn when it has a start, its prompt id matches, the transcript shows no prompt more than 5 s after it (missed UserPromptSubmit), and it is not still open while the transcript turn ended more than 60 s ago (missed Stop). Otherwise it uses the transcript's `promptStart`/`turnEnd`. `turn-timer`, `tool-activity` and the agent scoping all go through it. `activeTools` drops a tool once the turn ended at or after its start, or after 10 minutes.
+- **Hook fold.** `PermissionDenied` is on the allowlist and in the default install set (floor 2.1.89). Closing a wait writes `lastPermission { since, end, tool }`; `lastWait` also closes a pending wait with a later transcript tool result. Waits longer than `maxAgeMin` or older than the turn are ignored, and an open wait is never shown. `FOLD_VERSION` is 3. SubagentStart/Stop give `agents` and `agent-count` exact start, stop and type.
+- **Environment.** `readEnvironment(projectDir, cwd, env, opts)` in `src/data/environment.ts` only stats memory and rules files and reads settings, `.claude.json`, `.mcp.json` and `managed-mcp.json` through a nonblocking, fstat-checked reader with size caps. The cache `env-<key>.json` (VERSION 2) stores per-file `[path, mtimeMs, size, facts]`, where facts are counts, flags and sanitized server names, never configs; a file is reparsed only when its mtime or size changes, and rules are rescanned when a scanned dir changes or after 60 s. Tests inject `managedDir` and `stopAt` so `/etc/claude-code` and the filesystem root are never read.
+- **Repos.** `readRepos` in `src/data/repos.ts` returns null inside a repo (an lstat walk for `.git`, no git), else scans child folders' `.git/HEAD` into `repos-<key>.json` (10 s TTL plus the folder mtime). The dirty marker comes from `repos-dirty-<key>.json`.
+- **Dirty job.** `src/commands/repos.ts` (`repos --background <root>`, not in help) runs a hardened `git status` in at most 50 repos, 2 s each and 15 s in total, and writes the dirty cache atomically. `cli/render.ts` schedules it after stdout through `scheduleRepoDirty` (60 s TTL, a lock, `spawnSelf`), which is the only spawn on the render side.
+- **Workspace mode.** Before rendering, `workspaceMode(ctx)` in `core/renderer.ts` renders each `workspace-repos` item once; when one shows repos, the other git widgets hide instead of showing `—` (`hideGitPlaceholders: false` opts out).
+- **Time-based widgets.** `WidgetDef.timeBased` marks widgets that need a refresh interval; `needsRefresh` in `core/edit.ts` (pure) drives the `install`, `doctor` and editor hints.
+
+`test/widgets/performance.test.ts` renders all five live widgets through the real readers on temp fixtures with `child_process` spies and asserts no call; `test/core/scenarios.test.ts` renders them under every scenario and checks that no preset or default layout uses them.
 
 ### Plugin
 
