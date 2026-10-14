@@ -2,12 +2,12 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSelf } from '../commands/update.js';
 import { cacheDir, claudeDir } from '../core/paths.js';
 import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
 import { detectProvider } from './provider.js';
 import { acquireLock, writeAtomic } from './store.js';
+import { spawnSelf } from './update-state.js';
 
 type RateLimits = NonNullable<StatusPayload['rate_limits']>;
 

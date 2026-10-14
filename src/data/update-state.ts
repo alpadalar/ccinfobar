@@ -1,0 +1,120 @@
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { cacheDir, configDir } from '../core/paths.js';
+import type { Config } from '../core/types.js';
+import { acquireLock, writeAtomic } from './store.js';
+
+const DAY = 86_400_000;
+const LOCK_MS = 10 * 60_000;
+const SESSION_GAP = 60_000;
+
+export interface UpdateState {
+  checkedAt: number;
+  latest: string | null;
+  installed?: string;
+  error?: string;
+  session?: string;
+}
+
+export function updateFile(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(cacheDir(env), 'update.json');
+}
+
+export function readUpdateState(env: NodeJS.ProcessEnv = process.env): UpdateState | null {
+  try {
+    return JSON.parse(fs.readFileSync(updateFile(env), 'utf8')) as UpdateState;
+  } catch {
+    return null;
+  }
+}
+
+export function writeUpdateState(state: UpdateState, env: NodeJS.ProcessEnv = process.env): void {
+  writeAtomic(updateFile(env), JSON.stringify(state));
+}
+
+export function compareVersions(a: string, b: string): number {
+  const pa = a
+    .replace(/^v/, '')
+    .split(/[.-]/)
+    .map((x) => Number.parseInt(x, 10) || 0);
+  const pb = b
+    .replace(/^v/, '')
+    .split(/[.-]/)
+    .map((x) => Number.parseInt(x, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+export function updatesDisabled(config: Config, env: NodeJS.ProcessEnv = process.env): boolean {
+  return config.update === 'off' || !!env.CI || !!env.CCINFOBAR_NO_UPDATE;
+}
+
+export function availableUpdate(current: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const s = readUpdateState(env);
+  return s?.latest && compareVersions(s.latest, current) > 0 ? s.latest : null;
+}
+
+export function updateNotice(
+  config: Config,
+  current: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  if (config.update !== 'notify' || updatesDisabled(config, env) || installKind() === 'npx') return null;
+  const latest = availableUpdate(current, env);
+  return latest ? `⬆ ccinfobar ${latest} · ccinfobar update` : null;
+}
+
+export type InstallKind = 'npm-global' | 'local' | 'npx' | 'source' | 'unknown';
+
+// pinned copy when global install is not possible
+export function localPrefix(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(configDir(env), 'app');
+}
+
+export function installKind(entry = process.argv[1] ?? ''): InstallKind {
+  let real = entry;
+  try {
+    real = fs.realpathSync(entry);
+  } catch {}
+  const p = real.replace(/\\/g, '/');
+  if (/\/_npx\//.test(p)) return 'npx';
+  if (p.startsWith(`${localPrefix().replace(/\\/g, '/')}/`)) return 'local';
+  if (/\/node_modules\/ccinfobar\/dist\//.test(p)) return 'npm-global';
+  if (fs.existsSync(path.join(path.dirname(path.dirname(real)), '.git'))) return 'source';
+  return 'unknown';
+}
+
+export function selfCommand(kind: InstallKind = installKind()): string {
+  return kind === 'npx' || kind === 'local' ? 'npx ccinfobar@latest' : 'ccinfobar';
+}
+
+// on every new Claude Code session, else daily
+export function scheduleCheck(config: Config, session?: string, env: NodeJS.ProcessEnv = process.env): void {
+  if (updatesDisabled(config, env)) return;
+  const state = readUpdateState(env);
+  const now = Date.now();
+  const age = state ? now - state.checkedAt : Number.POSITIVE_INFINITY;
+  const newSession = !!session && session !== state?.session && age >= SESSION_GAP;
+  if (age < DAY && !newSession) return;
+  if (!acquireLock(`${updateFile(env)}.lock`, LOCK_MS, now)) return;
+  try {
+    if (state && session) writeUpdateState({ ...state, session }, env);
+    spawnSelf(['update', '--background'], env);
+  } catch {}
+}
+
+export function spawnSelf(args: string[], env: NodeJS.ProcessEnv = process.env): void {
+  const entry = process.argv[1];
+  if (!entry || !/ccinfobar(\.js)?$/.test(entry)) return;
+  const child = spawn(process.execPath, [entry, ...args], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+    env,
+  });
+  child.unref();
+}

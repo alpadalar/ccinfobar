@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { type Args, parseArgs } from './cli/args.js';
 import { printWidgetReport } from './commands/doctor.js';
 import {
   currentStatusLine,
@@ -13,17 +14,7 @@ import {
   takeOverProjects,
   uninstall,
 } from './commands/install.js';
-import {
-  availableUpdate,
-  backgroundUpdate,
-  installKind,
-  manualUpdate,
-  readUpdateState,
-  scheduleCheck,
-  selfCommand,
-  updateNotice,
-  updatesDisabled,
-} from './commands/update.js';
+import { runUpdate } from './commands/update.js';
 import { detectLevel, style, visibleWidth } from './core/ansi.js';
 import { loadConfig, saveConfig } from './core/config.js';
 import { createContext } from './core/context.js';
@@ -34,9 +25,19 @@ import { readLastPayload, renderPreview } from './core/preview.js';
 import { finalizeLine, render } from './core/renderer.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from './core/themes.js';
 import type { Config, StatusPayload } from './core/types.js';
+import { VERSION } from './core/version.js';
 import { gsdInstalled } from './data/gsd.js';
 import { writeAtomic } from './data/store.js';
 import { terminalWidth } from './data/terminal.js';
+import {
+  availableUpdate,
+  installKind,
+  readUpdateState,
+  scheduleCheck,
+  selfCommand,
+  updateNotice,
+  updatesDisabled,
+} from './data/update-state.js';
 import {
   fetchUsage,
   mergeUsage,
@@ -49,7 +50,6 @@ import {
 import { type DetectedTool, detectTool, type ImportSource, importFrom, toConfig } from './importers/index.js';
 import { ALL_WIDGETS, CATEGORIES } from './widgets/index.js';
 
-declare const __VERSION__: string;
 const DEMO_LINE = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gsd-plans', 'session-cost'].map(
   (type) => ({
     id: type,
@@ -57,7 +57,7 @@ const DEMO_LINE = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gs
   }),
 );
 
-export const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
+export { VERSION };
 
 const HELP = `ccinfobar ${VERSION}
 A customizable, GSD-aware status line for Claude Code
@@ -96,37 +96,6 @@ Options
   -v, --version                  Print the version
   -h, --help                     Show this help
 `;
-
-interface Args {
-  command: string | null;
-  positional: string[];
-  flags: Record<string, string | boolean>;
-}
-
-function parseArgs(argv: string[]): Args {
-  const args: Args = { command: null, positional: [], flags: {} };
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i]!;
-    if (a === '-h') args.flags.help = true;
-    else if (a === '-v') args.flags.version = true;
-    else if (a.startsWith('--no-')) args.flags[a.slice(5)] = false;
-    else if (a.startsWith('--')) {
-      const [k, inline] = a.slice(2).split('=', 2) as [string, string | undefined];
-      const next = argv[i + 1];
-      if (inline !== undefined) args.flags[k] = inline;
-      else if (
-        next !== undefined &&
-        !next.startsWith('-') &&
-        ['config', 'payload', 'width', 'refresh', 'command', 'port', 'from', 'file'].includes(k)
-      ) {
-        args.flags[k] = next;
-        i++;
-      } else args.flags[k] = true;
-    } else if (!args.command) args.command = a;
-    else args.positional.push(a);
-  }
-  return args;
-}
 
 function readStdin(timeoutMs = 3000): Promise<string> {
   return new Promise((resolve) => {
@@ -540,18 +509,9 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       }
       return;
     }
-    case 'update': {
-      if (args.flags.background) {
-        await backgroundUpdate(loadForUse(cfgFile).config, VERSION);
-        try {
-          const sl = currentStatusLine();
-          if (sl?.command?.includes('ccinfobar')) takeOverProjects(sl.command, sl.refreshInterval);
-        } catch {}
-        return;
-      }
-      process.exitCode = await manualUpdate(VERSION, args.flags.check === true);
+    case 'update':
+      await runUpdate(args, cfgFile);
       return;
-    }
     case 'usage': {
       const cache = await fetchUsage();
       if (args.flags.background) return;
