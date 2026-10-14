@@ -2,6 +2,7 @@ import type { AgentInfo } from '../data/agents.js';
 import type { GitInfo } from '../data/git.js';
 import type { GsdInfo } from '../data/gsd.js';
 import type { HistorySample } from '../data/history.js';
+import type { LedgerView } from '../data/ledger.js';
 import type { LimitsView, ResolvedWindow } from '../data/limits.js';
 import type { TranscriptInfo } from '../data/transcript.js';
 import { toEpochMs } from './time.js';
@@ -250,6 +251,17 @@ export function sampleLimits(
     windows[key] = { pct, resetsAt, at, source: 'payload', samples };
   }
   return { windows, expired: [], storeAt: null };
+}
+
+export function sampleLedger(now = Date.now()): LedgerView {
+  return {
+    today: 4.12,
+    week: 18.4,
+    month: 62,
+    project: { today: 4.12, week: 18.4, month: 62, all: 62 },
+    since: now - 40 * 86_400_000,
+    at: now - 5_000,
+  };
 }
 
 export function sampleGsd(): GsdInfo {

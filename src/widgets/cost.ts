@@ -12,6 +12,8 @@ const durationOption: OptionSpec = {
   ],
 };
 
+const decimalsOption: OptionSpec = { key: 'decimals', label: 'Decimals', kind: 'number', default: 2 };
+
 export const widgets: WidgetDef[] = [
   {
     type: 'session-cost',
@@ -21,10 +23,25 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰈸', emoji: '💰' },
     color: 'yellow',
     sample: '$1.87',
-    options: [{ key: 'decimals', label: 'Decimals', kind: 'number', default: 2 }],
+    options: [decimalsOption],
     render(ctx, item) {
       const c = ctx.payload.cost?.total_cost_usd;
       return typeof c === 'number' ? formatCurrency(c, opt(item, 'decimals', 2)) : null;
+    },
+  },
+  {
+    type: 'cost-today',
+    name: 'Cost today',
+    category: 'cost',
+    description: 'Estimated cost of all sessions today (from the local ledger)',
+    label: 'Today ~',
+    icon: { nerd: '󰈸', emoji: '💰' },
+    color: 'yellow',
+    sample: '$4.12',
+    options: [decimalsOption],
+    render(ctx, item) {
+      const view = ctx.data.ledger?.();
+      return view ? formatCurrency(view.today, opt(item, 'decimals', 2)) : null;
     },
   },
   {
@@ -35,7 +52,7 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰓅', emoji: '🔥' },
     color: 'yellow',
     sample: '$2.47/h',
-    options: [{ key: 'decimals', label: 'Decimals', kind: 'number', default: 2 }],
+    options: [decimalsOption],
     render(ctx, item) {
       const cost = ctx.payload.cost?.total_cost_usd;
       const ms = ctx.payload.cost?.total_duration_ms;

@@ -55,6 +55,7 @@ export function createContext(opts: ContextOptions): RenderContext {
       gsd: opts.data?.gsd ?? lazy(() => readGsd(cwd)),
       ...(opts.data?.history ? { history: opts.data.history } : {}),
       ...(opts.data?.limits ? { limits: opts.data.limits } : {}),
+      ...(opts.data?.ledger ? { ledger: opts.data.ledger } : {}),
       agents:
         opts.data?.agents ??
         lazy(() => readAgents(opts.payload.transcript_path, transcript(), now.getTime(), env)),

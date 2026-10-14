@@ -57,7 +57,7 @@ describe('scenarios', () => {
   it('supplies every data source', () => {
     for (const s of SCENARIOS) {
       const { data } = s.build(SCENARIO_NOW);
-      for (const k of ['git', 'transcript', 'gsd', 'history', 'agents', 'limits'] as const) {
+      for (const k of ['git', 'transcript', 'gsd', 'history', 'agents', 'limits', 'ledger'] as const) {
         expect(typeof data[k], `${s.id}.${k}`).toBe('function');
       }
     }

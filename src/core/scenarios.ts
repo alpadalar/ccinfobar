@@ -5,6 +5,7 @@ import {
   sampleGit,
   sampleGsd,
   sampleHistory,
+  sampleLedger,
   sampleLimits,
   samplePayload,
   sampleTranscript,
@@ -37,6 +38,7 @@ function base(now: number): ScenarioBundle {
       agents: () => sampleAgents(now),
       // follows the bundle's rate_limits
       limits: () => sampleLimits(now, b.payload.rate_limits ?? null),
+      ledger: () => sampleLedger(now),
     },
     env: {},
   };
@@ -65,6 +67,7 @@ function freshSession(now: number): ScenarioBundle {
   b.data.transcript = () => null;
   b.data.agents = () => [];
   b.data.history = () => [];
+  b.data.ledger = () => null;
   return b;
 }
 
@@ -171,6 +174,7 @@ function apiKeyUser(now: number): ScenarioBundle {
   const b = base(now);
   delete b.payload.rate_limits;
   b.env = { ANTHROPIC_API_KEY: 'sk-ant-scenario' };
+  b.data.ledger = () => null;
   return b;
 }
 

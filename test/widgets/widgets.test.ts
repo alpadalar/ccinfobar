@@ -19,6 +19,7 @@ const noData = (config?: Partial<Config>) =>
     transcript: () => null,
     history: () => [],
     agents: () => [],
+    ledger: () => null,
     config,
   });
 

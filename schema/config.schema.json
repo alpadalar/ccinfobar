@@ -51,6 +51,7 @@
                 "performance",
                 "output-speed",
                 "session-cost",
+                "cost-today",
                 "cost-rate",
                 "session-duration",
                 "api-duration",

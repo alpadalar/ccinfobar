@@ -271,5 +271,6 @@ export interface DataSources {
   gsd(): import('../data/gsd.js').GsdInfo | null;
   history?(): import('../data/history.js').HistorySample[];
   limits?(): import('../data/limits.js').LimitsView | null;
+  ledger?(): import('../data/ledger.js').LedgerView | null;
   agents(): import('../data/agents.js').AgentInfo[];
 }

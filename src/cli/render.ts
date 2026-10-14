@@ -8,7 +8,8 @@ import { ingestPayload } from '../core/payload.js';
 import { finalizeLine, render } from '../core/renderer.js';
 import type { Config, DataSources, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
-import { recordLimits } from '../data/limits.js';
+import { ledgerOn, ledgerView, projectRoot, readLedger, recordLedger } from '../data/ledger.js';
+import { accountKey, recordLimits } from '../data/limits.js';
 import { writeAtomic } from '../data/store.js';
 import { terminalWidth } from '../data/terminal.js';
 import { readTranscript } from '../data/transcript.js';
@@ -84,7 +85,21 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
   const width = typeof args.flags.width === 'string' ? Number(args.flags.width) : undefined;
   const transcript = lazy(() => readTranscript(payload.transcript_path));
   const eff = effectiveUsage(config, payload, process.env, { transcript });
-  const lines = renderStatus(config, eff.payload, width, { transcript, limits: () => eff.limits });
+  const data: Partial<DataSources> = { transcript, limits: () => eff.limits };
+  const ledgerUsed = ledgerOn(config);
+  const ledger = lazy(() => readLedger(process.env, Date.now()));
+  if (ledgerUsed) {
+    data.ledger = lazy(() => {
+      const read = ledger();
+      return read
+        ? ledgerView(read.summary, accountKey(process.env), projectRoot(payload), Date.now(), {
+            session: payload.session_id,
+            c: payload.cost?.total_cost_usd,
+          })
+        : null;
+    });
+  }
+  const lines = renderStatus(config, eff.payload, width, data);
   let notice: string | null = null;
   try {
     notice = updateNotice(config, VERSION);
@@ -96,6 +111,10 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
   process.stdout.write(lines.map(finalizeLine).join('\n') + (lines.length ? '\n' : ''));
   try {
     if (eff.limitsOn) recordLimits(process.env, payload, eff.captureAt, Date.now());
+    if (ledgerUsed) {
+      const read = ledger();
+      if (read) recordLedger(process.env, payload, read, Date.now());
+    }
     scheduleCheck(config, payload.session_id);
     if (eff.usageOn && usageDue(eff.usage)) scheduleUsage();
   } catch {}
