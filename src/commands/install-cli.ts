@@ -201,7 +201,17 @@ function userRefresh(): number | undefined {
   }
 }
 
+// `--hooks permission` would otherwise drop the value silently
+function badPositional(args: Args, io: InstallIo): boolean {
+  const arg = args.positional[0];
+  if (arg === undefined) return false;
+  io.error(t('hooks.badArg', { arg: sanitizeText(arg).slice(0, 64) }));
+  process.exitCode = 1;
+  return true;
+}
+
 export async function runInstall(args: Args, cfgFile: string, io: InstallIo = defaultIo()): Promise<void> {
+  if (badPositional(args, io)) return;
   const dryRun = args.flags['dry-run'] === true;
   const project = !!args.flags.project;
   let events = hookEventsFor(args.flags.hooks);
@@ -358,6 +368,7 @@ function hooksRemoved(io: InstallIo, hooks: { removed: string[]; kept: string[] 
 }
 
 export async function runUninstall(args: Args, _cfgFile: string, io: InstallIo = defaultIo()): Promise<void> {
+  if (badPositional(args, io)) return;
   const hooksOnly = args.flags.hooks !== undefined && args.flags.hooks !== false;
   if (args.flags.project) {
     if (hooksOnly) io.log(t('hooks.uninstallProject'));

@@ -6,6 +6,7 @@ export const hookMessages = {
   'hooks.asyncOmitted':
     'Claude Code {version} runs these hooks synchronously, so each prompt waits for one Node start.',
   'hooks.badFlag': '--hooks takes no value or =permission',
+  'hooks.badArg': 'Unexpected argument "{arg}"; options take a value with =, such as --hooks=permission',
   'hooks.dry.add': '  + hook {event}: {command}',
   'hooks.dry.keep': '  = hook {event} (already installed)',
   'hooks.dry.rewrite': '  ~ hook {event}: {from} → {command}',

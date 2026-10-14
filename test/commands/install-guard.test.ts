@@ -309,6 +309,22 @@ describe('runInstall and runUninstall', () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it('a value after a space (--hooks permission) exits 1 before writing', async () => {
+    const f = fake(false);
+    const detect = vi.fn(() => '2.1.299');
+    f.io.claudeVersion = detect;
+    await runInstall(args('--hooks', 'permission'), cfg, f.io);
+    expect(f.errors).toEqual([t('hooks.badArg', { arg: 'permission' })]);
+    expect(detect).not.toHaveBeenCalled();
+    expect(fs.existsSync(settings)).toBe(false);
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined;
+    const u = fake(false);
+    await runUninstall(parseArgs(['uninstall', '--hooks', 'Stop']), cfg, u.io);
+    expect(u.errors).toEqual([t('hooks.badArg', { arg: 'Stop' })]);
+    expect(process.exitCode).toBe(1);
+  });
+
   it('replaces after a TTY yes and prints what it wrote', async () => {
     writeJson(settings, { statusLine: foreign });
     const f = fake(true, true);
