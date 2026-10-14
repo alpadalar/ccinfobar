@@ -7,3 +7,5 @@ coverage/
 !.vscode/extensions.json
 .idea/
 .claude/*.lock
+.planning/
+graphify-out/
