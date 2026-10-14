@@ -19,7 +19,7 @@ import {
   sampleTranscript,
 } from './sample.js';
 import { sanitizeText } from './sanitize.js';
-import { getScenario, SCENARIO_NOW, scenarioEnv, scenarioList } from './scenarios.js';
+import { getScenario, SCENARIO_NOW, scenarioConfig, scenarioEnv, scenarioList } from './scenarios.js';
 import type { Theme } from './themes.js';
 import type { Config, StatusPayload } from './types.js';
 
@@ -65,7 +65,7 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
     return render(
       createContext({
         payload: bundle.payload,
-        config,
+        config: scenarioConfig(config, bundle),
         env: scenarioEnv(process.env, bundle.env),
         now: new Date(SCENARIO_NOW),
         preview: true,

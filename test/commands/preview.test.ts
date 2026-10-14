@@ -141,3 +141,28 @@ describe('renderPreview ledger widgets', () => {
     expect(stripAnsi(out[0] ?? '')).toContain('Today ~$4.12');
   });
 });
+
+describe('renderPreview with a scenario config', () => {
+  const cfg = () => ({
+    ...defaultConfig(),
+    colorLevel: 1 as const,
+    lines: [[{ id: 'b', type: 'budget' }]],
+  });
+
+  it('over-budget shows the exceeded budget in red without changing the config', () => {
+    const config = cfg();
+    const before = JSON.stringify(config);
+    const out = withoutSideEffects(() => renderPreview(config, { scenario: 'over-budget' }, 200));
+    expect(stripAnsi(out[0] ?? '')).toContain('~$4.12/$3');
+    expect(out[0]).toContain(`${ESC}[31m`);
+    expect(JSON.stringify(config)).toBe(before);
+    expect(config.budget).toBeUndefined();
+  });
+
+  it('applies the override only to its scenario', () => {
+    for (const source of ['sample', { scenario: 'context-full' }] as const) {
+      const out = withoutSideEffects(() => renderPreview(cfg(), source, 200));
+      expect(stripAnsi(out.join('\n'))).not.toContain('$3');
+    }
+  });
+});

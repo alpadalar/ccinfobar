@@ -25,6 +25,7 @@ import { monthKey } from '../../src/data/ledger.js';
 import { accountKey, limitsFile, recordLimits, recordUsageApi } from '../../src/data/limits.js';
 import { readTranscript, transcriptCacheName } from '../../src/data/transcript.js';
 import { usageFile } from '../../src/data/usage.js';
+import { getWidget } from '../../src/widgets/index.js';
 
 const ESC = '\u001b';
 const root = () => process.env.CCIB_TEST_ROOT!;
@@ -135,6 +136,28 @@ describe('runExplain input', () => {
     expect(out[1]).toBe(t('explain.input.scenario', { name: 'context-full' }));
     const row = out.find((l) => l.includes('ctx (context-percentage)'))!;
     expect(row).toContain('94');
+  });
+
+  it('applies the scenario config without saving it', () => {
+    const budget = { lines: [[{ id: 'b', type: 'budget' }]] };
+    const { out } = run(['--scenario', 'over-budget'], budget);
+    const shown = t('explain.row.shown', { name: 'b (budget)', value: '~$4.12/$3' });
+    expect(
+      out.some((l) => l.startsWith(shown)),
+      out.join('\n'),
+    ).toBe(true);
+    const file = cfgFile(budget);
+    const data = loadInspectInput({ cfgFile: file, scenario: 'over-budget', fallback: 'sample' })!;
+    try {
+      expect(data.config.budget?.daily).toBe(3);
+      expect(data.loaded.config.budget).toBeUndefined();
+      expect(getWidget('budget')!.render(data.ctx, { id: 'b', type: 'budget' })).toMatchObject({
+        color: 'red',
+      });
+      expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual(budget);
+    } finally {
+      data.cleanup();
+    }
   });
 
   it('lists scenarios for a bare flag and rejects unknown names', () => {

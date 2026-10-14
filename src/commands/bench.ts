@@ -9,8 +9,8 @@ import { configDir } from '../core/paths.js';
 import { scenarioFlag, scenarioListLines } from '../core/preview.js';
 import { samplePayload } from '../core/sample.js';
 import { sanitizeText } from '../core/sanitize.js';
-import { getScenario, SCENARIO_NOW, scenarioEnv } from '../core/scenarios.js';
-import type { StatusPayload } from '../core/types.js';
+import { getScenario, SCENARIO_NOW, scenarioConfig, scenarioEnv } from '../core/scenarios.js';
+import type { Config, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { writeAtomic } from '../data/store.js';
 import { type CliIo, cliIo, reportConfigIssue } from './io.js';
@@ -86,6 +86,12 @@ export function benchPayload(
 export function benchBaseEnv(base: NodeJS.ProcessEnv, scenarioId: string | undefined): NodeJS.ProcessEnv {
   const scenario = scenarioId ? getScenario(scenarioId) : undefined;
   return scenario ? scenarioEnv(base, scenario.build(SCENARIO_NOW).env) : base;
+}
+
+// null when the scenario keeps the user's config
+export function benchConfig(scenarioId: string | undefined, config: Config): Config | null {
+  const bundle = scenarioId ? getScenario(scenarioId)?.build(SCENARIO_NOW) : undefined;
+  return bundle?.config ? scenarioConfig(config, bundle) : null;
 }
 
 const TOOLS = ['Read', 'Grep', 'Edit', 'Bash', 'Glob'];
@@ -197,7 +203,7 @@ function priority(): number | null {
   }
 }
 
-function prepareDirs(base: string, cfgFile: string): BenchDirs {
+function prepareDirs(base: string, cfgFile: string, config: Config | null): BenchDirs {
   const dirs: BenchDirs = {
     cache: path.join(base, 'cache'),
     config: path.join(base, 'config'),
@@ -205,11 +211,11 @@ function prepareDirs(base: string, cfgFile: string): BenchDirs {
     compile: path.join(base, 'compile'),
   };
   for (const d of Object.values(dirs)) fs.mkdirSync(d, { recursive: true });
-  if (fs.existsSync(cfgFile)) {
-    const copy = path.join(dirs.config, 'config.json');
-    fs.copyFileSync(cfgFile, copy);
-    if (process.platform !== 'win32') fs.chmodSync(copy, 0o444);
-  }
+  const copy = path.join(dirs.config, 'config.json');
+  if (config) {
+    if (!writeAtomic(copy, `${JSON.stringify(config, null, 2)}\n`)) throw new Error(`cannot write ${copy}`);
+  } else if (fs.existsSync(cfgFile)) fs.copyFileSync(cfgFile, copy);
+  if (fs.existsSync(copy) && process.platform !== 'win32') fs.chmodSync(copy, 0o444);
   const themes = path.join(configDir(), 'themes');
   if (fs.existsSync(themes)) fs.cpSync(themes, path.join(dirs.config, 'themes'), { recursive: true });
   return dirs;
@@ -267,12 +273,13 @@ export function runBench(opts: BenchOptions, io: CliIo = cliIo()): number {
     const repeat = (fn: () => number) => Array.from({ length: runs }, fn);
 
     const baseEnv = benchBaseEnv(process.env, scenario);
-    const shared = prepareDirs(path.join(root, 'shared'), opts.cfgFile);
+    const config = benchConfig(scenario, loaded.config);
+    const shared = prepareDirs(path.join(root, 'shared'), opts.cfgFile, config);
     const control = repeat(() => time('control', ['-e', '0'], benchEnv(baseEnv, shared)));
     let i = 0;
     const cold = repeat(() => {
       const base = path.join(root, `cold-${i++}`);
-      const env = benchEnv(baseEnv, prepareDirs(base, opts.cfgFile));
+      const env = benchEnv(baseEnv, prepareDirs(base, opts.cfgFile, config));
       const ms = time('cold', [entry], env);
       rm(base);
       return ms;

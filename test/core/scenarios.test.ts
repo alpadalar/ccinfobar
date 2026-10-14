@@ -8,7 +8,14 @@ import { lastPayloadPath } from '../../src/core/paths.js';
 import { isFreshSession } from '../../src/core/payload.js';
 import { renderPreview } from '../../src/core/preview.js';
 import { sampleLimits, samplePayload } from '../../src/core/sample.js';
-import { getScenario, SCENARIO_NOW, SCENARIOS, scenarioEnv, scenarioList } from '../../src/core/scenarios.js';
+import {
+  getScenario,
+  SCENARIO_NOW,
+  SCENARIOS,
+  scenarioConfig,
+  scenarioEnv,
+  scenarioList,
+} from '../../src/core/scenarios.js';
 import type { RenderContext } from '../../src/core/types.js';
 import { limitsFile, recordLimits } from '../../src/data/limits.js';
 import { getWidget } from '../../src/widgets/index.js';
@@ -23,6 +30,7 @@ const IDS = [
   'gsd-project',
   'no-git',
   'api-key-user',
+  'over-budget',
 ];
 
 function ctxFor(id: string): RenderContext {
@@ -45,7 +53,7 @@ afterEach(() => {
 });
 
 describe('scenarios', () => {
-  it('has the seven ids in order with text', () => {
+  it('has the ids in order with text', () => {
     expect(SCENARIOS.map((s) => s.id)).toEqual(IDS);
     for (const s of SCENARIOS) {
       expect(s.label.length).toBeGreaterThan(0);
@@ -170,6 +178,26 @@ describe('scenarios', () => {
     expect(b.env.ANTHROPIC_API_KEY).toBeTruthy();
     expect(b.payload.rate_limits).toBeUndefined();
     expect(widget('api-key-user', 'five-hour-usage')).toBeNull();
+  });
+
+  it('over-budget sets a $3 daily budget and $4.12 spent today', () => {
+    const b = getScenario('over-budget')!.build(SCENARIO_NOW);
+    expect(b.config?.budget).toEqual({ daily: 3, warnAt: 0.8 });
+    expect(b.data.ledger()?.today).toBe(4.12);
+    for (const s of SCENARIOS.filter((x) => x.id !== 'over-budget')) {
+      expect(s.build(SCENARIO_NOW).config, s.id).toBeUndefined();
+    }
+  });
+
+  it('scenarioConfig merges a copy and keeps the user config', () => {
+    const user = { ...defaultConfig(), budget: { daily: 50, session: 5 } };
+    const b = getScenario('over-budget')!.build(SCENARIO_NOW);
+    const merged = scenarioConfig(user, b);
+    expect(merged.budget).toEqual({ daily: 3, warnAt: 0.8 });
+    expect(merged.lines).toBe(user.lines);
+    expect(user.budget).toEqual({ daily: 50, session: 5 });
+    const plain = getScenario('no-git')!.build(SCENARIO_NOW);
+    expect(scenarioConfig(user, plain)).toBe(user);
   });
 
   it('builders never share state', () => {

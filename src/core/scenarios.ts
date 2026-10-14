@@ -10,7 +10,7 @@ import {
   samplePayload,
   sampleTranscript,
 } from './sample.js';
-import type { DataSources, StatusPayload } from './types.js';
+import type { Config, DataSources, StatusPayload } from './types.js';
 
 export const SCENARIO_NOW = Date.UTC(2026, 9, 12, 12, 0, 0);
 
@@ -18,6 +18,7 @@ export interface ScenarioBundle {
   payload: StatusPayload;
   data: Required<DataSources>;
   env: Record<string, string>;
+  config?: Partial<Config>;
 }
 
 export interface Scenario {
@@ -178,6 +179,13 @@ function apiKeyUser(now: number): ScenarioBundle {
   return b;
 }
 
+function overBudget(now: number): ScenarioBundle {
+  const b = base(now);
+  b.config = { budget: { daily: 3, warnAt: 0.8 } };
+  b.data.ledger = () => ({ ...sampleLedger(now), today: 4.12 });
+  return b;
+}
+
 export const SCENARIOS: readonly Scenario[] = [
   {
     id: 'fresh-session',
@@ -227,6 +235,12 @@ export const SCENARIOS: readonly Scenario[] = [
     description: 'Billed by API key, so there are no plan limits',
     build: apiKeyUser,
   },
+  {
+    id: 'over-budget',
+    label: 'Over budget',
+    description: 'Daily budget of $3 exceeded',
+    build: overBudget,
+  },
 ];
 
 export function getScenario(id: string): Scenario | null {
@@ -235,6 +249,11 @@ export function getScenario(id: string): Scenario | null {
 
 export function scenarioList(): { id: string; label: string; description: string }[] {
   return SCENARIOS.map(({ id, label, description }) => ({ id, label, description }));
+}
+
+// shallow: a scenario key replaces the user's
+export function scenarioConfig(config: Config, bundle: ScenarioBundle): Config {
+  return bundle.config ? { ...config, ...bundle.config } : config;
 }
 
 const DROP = [/^CLAUDE_CODE_USE_/, /^ANTHROPIC_/];

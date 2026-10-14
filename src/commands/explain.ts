@@ -29,7 +29,7 @@ import {
   sampleTranscript,
 } from '../core/sample.js';
 import { sanitizeText } from '../core/sanitize.js';
-import { getScenario, SCENARIO_NOW, scenarioEnv } from '../core/scenarios.js';
+import { getScenario, SCENARIO_NOW, scenarioConfig, scenarioEnv } from '../core/scenarios.js';
 import type { Config, DataSources, RenderContext, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { agentsCacheName, readAgents } from '../data/agents.js';
@@ -232,7 +232,7 @@ function sourceMeta(
 export function loadInspectInput(opts: LoadOptions): InspectInput | null {
   const baseEnv = opts.env ?? process.env;
   const loaded = opts.loaded ?? loadForUse(opts.cfgFile);
-  const config = loaded.config;
+  let config = loaded.config;
   let env = baseEnv;
   let now = new Date();
   let input: InspectInput['input'];
@@ -246,6 +246,7 @@ export function loadInspectInput(opts: LoadOptions): InspectInput | null {
     data = readOnlyData(config, payload, env, now.getTime());
   } else if (scenario) {
     const bundle = scenario.build(SCENARIO_NOW);
+    config = scenarioConfig(config, bundle);
     payload = bundle.payload;
     env = scenarioEnv(baseEnv, bundle.env);
     now = new Date(SCENARIO_NOW);

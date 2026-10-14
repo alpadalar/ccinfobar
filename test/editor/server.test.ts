@@ -138,7 +138,7 @@ describe('editor server', () => {
 
   it('lists scenarios in the state', async () => {
     const { scenarios } = (await request('GET', '/api/state')).json();
-    expect(scenarios).toHaveLength(8);
+    expect(scenarios).toHaveLength(9);
     for (const s of scenarios) {
       expect(Object.keys(s).sort()).toEqual(['description', 'id', 'label']);
       expect(typeof s.id).toBe('string');
@@ -166,6 +166,15 @@ describe('editor server', () => {
     expect(full.status).toBe(200);
     expect(full.json().lines).not.toEqual(await lines({ source: 'sample' }));
     expect(await lines({ source: 'scenario', scenario: 'context-full' })).toEqual(full.json().lines);
+  });
+
+  it('applies the over-budget scenario config to the preview', async () => {
+    const config = { ...defaultConfig(), colorLevel: 0, lines: [[{ id: 'b', type: 'budget' }]] };
+    const res = await request('POST', '/api/preview', {
+      body: JSON.stringify({ config, source: 'scenario', scenario: 'over-budget', width: 140 }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.json().lines.join('')).toContain('~$4.12/$3');
   });
 
   it('falls back to sample for unknown scenarios', async () => {

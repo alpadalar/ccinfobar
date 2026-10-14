@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import {
   benchBaseEnv,
+  benchConfig,
   benchEnv,
   benchPayload,
   overhead,
@@ -15,6 +16,7 @@ import {
   syntheticTranscript,
 } from '../../src/commands/bench.js';
 import type { CliIo } from '../../src/commands/io.js';
+import { defaultConfig } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
 import { cacheDir, configDir } from '../../src/core/paths.js';
 import { samplePayload } from '../../src/core/sample.js';
@@ -140,6 +142,16 @@ describe('benchBaseEnv', () => {
   });
 });
 
+describe('benchConfig', () => {
+  it('merges the scenario config over a copy', () => {
+    const user = { ...defaultConfig(), budget: { daily: 50 } };
+    expect(benchConfig('over-budget', user)?.budget).toEqual({ daily: 3, warnAt: 0.8 });
+    expect(user.budget).toEqual({ daily: 50 });
+    expect(benchConfig('context-full', user)).toBeNull();
+    expect(benchConfig(undefined, user)).toBeNull();
+  });
+});
+
 describe('syntheticTranscript', () => {
   it('writes about 200 entries the parser counts', () => {
     const text = syntheticTranscript(SCENARIO_NOW);
@@ -212,6 +224,28 @@ describe('runBench', () => {
     expect(c.out).toEqual([]);
   });
 
+  it('gives the child the scenario config in its own config dir', () => {
+    const before = benchDirs();
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-benchcfg-'));
+    try {
+      const entry = path.join(dir, 'show.mjs');
+      fs.writeFileSync(
+        entry,
+        "import fs from 'node:fs'; import path from 'node:path';\n" +
+          "const f = path.join(process.env.CCINFOBAR_CONFIG_DIR, 'config.json');\n" +
+          "process.stderr.write(JSON.stringify(JSON.parse(fs.readFileSync(f, 'utf8')).budget)); process.exit(4);\n",
+      );
+      const c = capture();
+      const file = cfg('{"budget":{"daily":50}}');
+      expect(runBench({ entry, runs: 1, scenario: 'over-budget', json: false, cfgFile: file }, c.io)).toBe(1);
+      expect(c.err[1]).toBe('  {"daily":3,"warnAt":0.8}');
+      expect(fs.readFileSync(file, 'utf8')).toBe('{"budget":{"daily":50}}');
+      expect(benchDirs()).toEqual(before);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('stops on a failing run and prints its stderr', () => {
     const before = benchDirs();
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-benchfail-'));
@@ -275,5 +309,14 @@ describe.skipIf(!fs.existsSync(bin))('runBench with the built cli', () => {
     expect(text).toContain('ccinfobar overhead = warm median');
     expect(text).toContain(t('bench.row.warmNoCache'));
     expect(text).toContain('context-full');
+  });
+
+  it('runs the over-budget scenario', { timeout: 60_000 }, () => {
+    const c = capture();
+    expect(runBench({ entry: bin, runs: 2, scenario: 'over-budget', json: true, cfgFile: cfg() }, c.io)).toBe(
+      0,
+    );
+    expect(c.err).toEqual([]);
+    expect(JSON.parse(c.out[0]!).scenario).toBe('over-budget');
   });
 });
