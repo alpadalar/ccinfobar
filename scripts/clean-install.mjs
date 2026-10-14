@@ -124,7 +124,11 @@ function childEnv(d) {
   let basePath = '';
   for (const [k, v] of Object.entries(process.env)) {
     if (/^path$/i.test(k)) basePath = v ?? '';
-    if (/^(path|ci|claude_config_dir|home|userprofile|appdata|localappdata|tmp|temp|tmpdir)$/i.test(k))
+    if (
+      /^(path|ci|claude_config_dir|claude_securestorage_config_dir|home|userprofile|appdata|localappdata|tmp|temp|tmpdir)$/i.test(
+        k,
+      )
+    )
       continue;
     if (/^(ccinfobar_|npm_|claude_code_|anthropic_|xdg_)/i.test(k)) continue;
     env[k] = v;
@@ -145,6 +149,9 @@ function childEnv(d) {
     npm_config_logs_dir: path.join(d.npmCache, '_logs'),
     npm_config_userconfig: path.join(d.home, '.npmrc'),
     npm_config_update_notifier: 'false',
+    // a hashed keychain service, so macOS never finds the real token
+    CLAUDE_CONFIG_DIR: path.join(d.home, '.claude'),
+    CLAUDE_SECURESTORAGE_CONFIG_DIR: path.join(d.home, '.claude'),
     COLUMNS: '200',
   });
   env.PATH = [win ? d.prefix : path.join(d.prefix, 'bin'), basePath].join(path.delimiter);
@@ -186,6 +193,8 @@ const CONTAINED = [
   'npm_config_cache',
   'npm_config_logs_dir',
   'npm_config_userconfig',
+  'CLAUDE_CONFIG_DIR',
+  'CLAUDE_SECURESTORAGE_CONFIG_DIR',
 ];
 
 function assertSafe(d, env) {
