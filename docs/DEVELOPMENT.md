@@ -36,11 +36,14 @@ node dist/ccinfobar.js edit --config /tmp/try.json
 
 ```
 src/
-├── bin.ts               entry point
+├── bin.ts               entry point; sends `… hook <Event>` to cli/hook.ts before anything else loads
 ├── cli.ts               re-exports cli/main.ts
 ├── cli/                 main.ts (dispatch), args.ts, render.ts (status line), help.ts
+│   └── hook.ts          `ccinfobar hook <Event>`: silent, append one line, exit 0
 ├── commands/            install, update, doctor, manage, config-cmd; loaded with import() per command
 │   ├── install.ts       planInstall / applyInstall / uninstall
+│   ├── hooks-install.ts hook planner, version floor, applyHooks / uninstallHooks
+│   ├── hooks-doctor.ts  doctor's Hooks block: entry state, missing binaries, hook gates
 │   ├── explain.ts       `ccinfobar explain` and the read-only loader doctor shares
 │   ├── bench.ts         `ccinfobar bench`
 │   ├── io.ts            CliIo and the config-issue printer shared by explain, preview and bench
@@ -68,13 +71,21 @@ src/
 │   ├── presets.ts, sample.ts, preview.ts, paths.ts
 ├── data/                git, transcript, GSD and terminal readers; store.ts, provider.ts
 │   ├── limits.ts        shared plan limits store, keyed per account
-│   └── ledger.ts        cross-session cost ledger
+│   ├── ledger.ts        cross-session cost ledger
+│   └── hooks.ts         hook log line format, fold and reader
 ├── widgets/             one file per category, registered in index.ts
 │   └── projection.ts    usage projection, ETA and risk math (pure)
 ├── editor/              web editor: HTTP server + browser app (web/)
+│   └── detach.ts        `edit --detach`: reuse or spawn a background editor
 └── tui/                 terminal editor: state, view, keys, IO loop
+.claude-plugin/
+└── marketplace.json     this repo as a Claude Code marketplace
+plugin/                  the ccinfobar plugin
+├── .claude-plugin/plugin.json
+└── skills/              edit, doctor, theme, install, uninstall (one SKILL.md each)
 scripts/
-└── clean-install.mjs    pack, install, render and uninstall in an empty profile
+├── clean-install.mjs    pack, install, render and uninstall in an empty profile
+└── sync-plugin-version.mjs  copy the package version into plugin.json and INSTALL.md
 ```
 
 Rendering flow:
@@ -152,6 +163,48 @@ Text from outside is sanitized where it enters, not in each widget: the stdin pa
 
 Every new `DataSources` member (`limits`, `ledger`) has a sample injector in `core/sample.ts` and one in every scenario, and `ctxWith()` in tests defaults to the sample.
 
+### Hooks
+
+Hooks are optional and the render path never loads hook code; the hook state is not a `DataSources` member yet.
+
+- **Entry.** `bin.ts` checks the argv tail (`argv[argv.length - 2] === 'hook'`), so `ccinfobar --config X hook Stop` and a `--command` with extra words also match. Before the first import it replaces stdout and stderr with no-ops, drops the warning listeners, exits 0 on any uncaught error and starts a 2 s self-exit timer, then imports `cli/hook.js`. `main.ts` also has a `hook` case, so a bare `ccinfobar hook` is silent too.
+- **Closure.** `cli/hook.ts` may only reach `cli/args.ts`, `data/hooks.ts`, `data/store.ts`, `core/paths.ts` and `core/sanitize.ts`; `test/foundations/import-graph.test.ts` fails on anything else, and checks that bin.ts imports `./cli/hook.js` before `./cli.js`. The update check is a dynamic `import('../data/update-state.js')`, loaded only on `SessionStart` with source `startup`, which also prunes `<sid>.jsonl` and `<sid>.fold.json` files older than 7 days (at most 500 entries scanned).
+- **Input.** stdin is capped at 1 MB with a 1 s deadline; on overflow the fields come from a bounded 64 KB scan. The stdin `hook_event_name` wins over argv. The event must be on the allowlist and `session_id` must match `/^[A-Za-z0-9_-]{1,128}$/`, else nothing is written. `CCINFOBAR_DEBUG` writes fixed reason codes (never payload content) to `hooks/debug.log`, up to 256 KB.
+- **Line format.** One `appendLine` per event to `<cacheDir>/hooks/<session_id>.jsonl` (mode 0600), with only allowlisted fields, each sanitized and capped at 256 chars (1024 for the transcript path):
+
+  ```json
+  {"v":1,"t":1760400000000,"e":"Stop","p":"<prompt id>","sa":false}
+  ```
+
+  `s` (SessionStart source), `p` (prompt id), `sa` (`stop_hook_active`), `a`/`at`/`tp` (agent id, type, transcript path), `n` (notification type), `tn` (PermissionRequest tool name). Prompt text, `last_assistant_message` and tool input are never stored.
+- **Fold.** `foldHookLog(lines)` is pure. It skips lines that are not objects, have `v !== 1`, an unknown event, a non-finite `t` or a wrong-typed field. A line whose `e|p|a|tn|n` key was seen within 2 s (`DUP_WINDOW_MS`) is a duplicate and ignored; the window map is pruned as it goes, capped at 512 and saved with the fold, so a duplicate split across two reads is still caught. Turns pair by `prompt_id` (earliest UserPromptSubmit, latest Stop), because async hooks can write Stop first; a Stop without `p` pairs with the latest unkeyed prompt. Agents are keyed by `agent_id`. A pending permission is set by `Notification(permission_prompt)` or `PermissionRequest` and cleared by Stop, UserPromptSubmit or SessionStart. It keeps the newest 50 keyed and 50 unkeyed turns and 100 agents.
+- **Reader.** `readHookState(sid, env, { persist })` advances by byte offset like `transcript.ts`, consumes only up to the last newline, skips lines over 64 KB and caches `{ v, offset, ino, state }` in `<sid>.fold.json`. A damaged cache, another version, an offset past the end or a new inode refolds from 0. It returns null on any error; `persist: false` (doctor) never writes the cache.
+- **Install.** `planHooks` is pure: per requested event it returns `add`, `keep`, `rewrite`, `skip-unmanaged` or `skip-version`. `NEVER_EVENTS` (PreToolUse, PostToolUse, PostToolBatch, PreModelSwitch, SessionEnd) are filtered out before planning. Every group is `{ "type": "command", "command": "<statusLine command> hook <Event>", "async": true, "timeout": 5 }`; Notification has the `permission_prompt` matcher.
+
+  | `HOOK_FLOOR` key | Claude Code |
+  | --- | --- |
+  | `core` (any hook) | 2.1.101 |
+  | `async` | 2.1.101 |
+  | `notificationMatcher` | 2.1.101 |
+  | `PermissionRequest` | 2.1.101 |
+
+  Before 2.1.101 Claude Code ignored the whole settings file when it held an event name it did not know, so an unknown or older version refuses hooks (`detectClaudeCode` runs `claude --version`, on Windows `claude.exe` then `cmd.exe /d /s /c`, with a 2 s timeout, and falls back to the last payload's `version`). `applyInstall` writes the statusLine and the hook groups in one `patchSettings` call, user settings only. When the statusLine command changes, owned groups are rewritten to the new command, so hooks never point at an old binary. `applyHooks` is the hooks-only write the editor uses (`POST /api/hooks`).
+- **Manifest.** Each group is a `kind: 'hook'` entry (`file`, `event`, `matcher`, `value`, `claudeCode`, `writtenHash`). Ownership is deep equality with `value`. After every write `refreshWrittenHash` stores the new file hash for all entries of the file; `noteWrite` first voids the statusLine's byte restore when the file changed outside ccinfobar since its last write.
+- **Uninstall.** `removeOwnedHooks` removes the first group per event that deep-equals the record and keeps edited ones (reported). A file that still hashes to ccinfobar's last write is restored byte for byte; a file ccinfobar created is deleted only when nothing but owned content is left; otherwise the statusLine and owned groups go in one patch. The foreign, gone and not-installed statusLine paths still remove the hooks. `uninstall --hooks` (`uninstallHooks`, with an optional event filter) keeps the statusLine.
+- **Doctor.** `hooks-doctor.ts` lists the entries and their state, hook commands whose first token no longer resolves (no spawn), and `disableAllHooks` / `allowManagedHooksOnly` in user, project, local and file-based managed settings, plus the last event age from `readHookState(…, { persist: false })`.
+
+Tests: `test/cli/hook.test.ts`, `test/data/hooks.test.ts`, `test/commands/hooks-*.test.ts`, `test/editor/hooks-route.test.ts` and `test/integration/hook-*.test.ts` and `install-hooks-cli.test.ts` (built CLI, parallel appends, SessionStart).
+
+### Plugin
+
+`.claude-plugin/marketplace.json` lists one plugin with `source: "./plugin"`. `plugin/` holds only `.claude-plugin/plugin.json` and five `skills/<name>/SKILL.md`. Every skill has `disable-model-invocation: true`, `allowed-tools: Bash(ccinfobar *)` and a ``!`ccinfobar --version || echo ccinfobar-missing` `` preflight, and only runs `ccinfobar` commands. There are no commands, hooks, agents, bin, MCP or settings in the plugin.
+
+`claude plugin validate --strict` checks the schema but not these rules, so `test/plugin/structure.test.ts` pins them: the manifest shape, the five skill dirs, no forbidden paths, no `"statusLine"` key or `CLAUDE_PLUGIN_ROOT`, the exact frontmatter, the preflight and each skill's commands in order.
+
+`plugin.json`'s `version` and the pins in `INSTALL.md` (`ccinfobar@<v>`, `/blob/v<v>/`) follow `package.json`. The npm `version` lifecycle script runs `scripts/sync-plugin-version.mjs` and stages both files, so `npm version` keeps them in step; `test/plugin/version-sync.test.ts` fails on drift. CI's `plugin` job installs a pinned `@anthropic-ai/claude-code` into a temp prefix, with HOME and `CLAUDE_CONFIG_DIR` in `$RUNNER_TEMP`, runs `plugin validate --strict` on `.` and `./plugin`, and checks that `plugin details` shows `Skills (5)` and `Hooks (0)`. Never run `claude plugin install` against your own config to test; use `--plugin-dir ./plugin`.
+
+`edit --detach` (`editor/detach.ts`) pings the editor recorded in `<cacheDir>/editor.json` (`{ url, pid, startedAt }`, 0600) with its token and reuses it. Otherwise it spawns `edit --serve-detached` as a detached session leader and waits up to 5 s for that file. The detached server stops after 30 minutes without requests, on `POST /api/shutdown` or on SIGTERM, and removes `editor.json` only if it still holds its own pid.
+
 ### Messages and providers
 
 User-facing messages go through `t(id, params)` from `core/i18n/`. Each area has its own table in `src/core/i18n/en/` (`install.ts`, `config.ts`, `doctor.ts`, `widgets.ts`, `explain.ts`, `preview.ts`, `bench.ts`). `data/provider.ts` detects API-key, Bedrock, Vertex, Foundry, Mantle, Anthropic AWS and gateway sessions from the environment (presence only), so plan-limit widgets and the OAuth usage fetch only run for Claude subscriptions.
@@ -195,7 +248,9 @@ Both editors pick up new widgets and their options automatically.
 - `test/tui`: TUI reducer, key parsing and view
 - `test/commands`: install, settings file, manifest, doctor, explain, preview, bench and `config`
 - `test/foundations`: test isolation, atomic writes, import graph and config round trips
-- `test/integration`: the built CLI end to end (safe mode, install prompts, shared limits, the cost ledger)
+- `test/cli`: argument parsing and the hook command
+- `test/plugin`: plugin structure and version sync
+- `test/integration`: the built CLI end to end (safe mode, install prompts, shared limits, the cost ledger, hooks)
 
 `test/setup.ts` runs before every test file. It points HOME, the config, cache and Claude dirs at a per-run temp folder and throws on any write outside temp dirs, so a test can never touch your real `~/.claude/settings.json`. Wrap code in `withoutSideEffects()` from `test/helpers.ts` to also fail on config saves, spawns or `fetch` (used for the render path).
 
@@ -207,7 +262,7 @@ CI runs the suite on Linux, macOS and Windows with Node 20, 22, 24 and 26.
 node scripts/clean-install.mjs [--case a..g] [--skip-build]
 ```
 
-The script builds (unless `--skip-build`) and packs ccinfobar, then for each settings fixture (no file, no statusLine, another tool's statusLine, BOM, CRLF, 4-space indent with no final newline, mode 0600) installs the tarball into an empty temp profile, runs `install --yes`, renders the exact `statusLine.command` through every shell (sh and bash; on Windows Git Bash, powershell.exe, pwsh and cmd.exe), uninstalls, and checks that the settings bytes and mode match the seed, that no ccinfobar process is left, that the background workers ran and that the version did not change. `--case` runs one fixture.
+The script builds (unless `--skip-build`) and packs ccinfobar, then for each settings fixture (no file, no statusLine, another tool's statusLine, BOM, CRLF, 4-space indent with no final newline, mode 0600) installs the tarball into an empty temp profile, runs `install --yes`, renders the exact `statusLine.command` through every shell (sh and bash; on Windows Git Bash, powershell.exe, pwsh and cmd.exe), uninstalls, and checks that the settings bytes and mode match the seed, that no ccinfobar process is left, that the background workers ran and that the version did not change. Each case then runs a hooks cycle: `install --hooks --yes` with a fake `claude` 2.1.299 first on PATH, checks the six hook events, runs the UserPromptSubmit hook command through every shell (silent, exit 0, one new log line) and checks that `uninstall` restores the seed bytes with no `hooks` key. `--case` runs one fixture.
 
 The build, `npm pack` and every case run with HOME, USERPROFILE, APPDATA, LOCALAPPDATA, the XDG dirs, TMPDIR, the npm prefix, cache, logs and user config pointed inside the script's own `mkdtemp` roots under `RUNNER_TEMP` or the OS temp dir. `CLAUDE_CONFIG_DIR` is left unset so the default `<HOME>/.claude` path is exercised, and `CLAUDE_SECURESTORAGE_CONFIG_DIR` is set to it, so on macOS the usage worker asks the keychain for a hashed service name and can never read your real Claude token. Before the build it exits 2 if HOME or USERPROFILE would be your real home or any of those paths is outside its root. Apart from rebuilding `dist/` (skipped with `--skip-build`), it only creates and removes those roots. It is a plain script, not a Vitest test, because `test/setup.ts` patches `fs` and `child_process`.
 
@@ -264,10 +319,12 @@ Phase 3 (shared limits, cost ledger, projections), 2026-10-14, same machine and 
 
 The machine was busier than for the baseline, so the absolute numbers are higher. Run back to back under the same load, the build before Phase 3 gave warm medians of 138.7 and 133.5 ms and the Phase 3 build 135.1 and 132.2 ms: no measurable change. Layouts without limits or cost widgets do no limits or ledger I/O.
 
+Phase 4 (hooks and plugin): numbers to follow.
+
 ## Releasing
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` under a new version heading.
-2. `npm version <patch|minor|major>`
+2. `npm version <patch|minor|major>` (its `version` script also updates `plugin/.claude-plugin/plugin.json` and the pins in `INSTALL.md`)
 3. `git push --follow-tags`
 
 The `Release` workflow runs the checks, creates a GitHub release from the changelog section with the packed `ccinfobar.tgz` attached (the README install command points at it), and publishes to npm with provenance when an `NPM_TOKEN` repository secret exists.

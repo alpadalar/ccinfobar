@@ -25,6 +25,7 @@
 - [Themes](#themes)
 - [GSD integration](#gsd-integration)
 - [Coming from another status line](#coming-from-another-status-line)
+- [Plugin](#plugin)
 - [Commands](#commands)
 - [Configuration](#configuration)
 - [Updates](#updates)
@@ -228,18 +229,75 @@ Found ccstatusline as your current status line. Import its layout into ccinfobar
 
 Widgets without an equivalent are listed as warnings instead of being dropped silently. Run it later with `ccinfobar import ccstatusline` or `ccinfobar import claude-powerline --file <path>`; your current ccinfobar config is backed up first. CCometixLine, claude-hud and custom scripts are detected but not imported.
 
+## Plugin
+
+ccinfobar also ships a small Claude Code plugin, so you can install and control it without leaving Claude Code. The status line itself always comes from the npm package; the plugin only runs the `ccinfobar` command.
+
+| | npm | Plugin |
+| --- | --- | --- |
+| Install | `npx ccinfobar@latest install` | `claude plugin marketplace add alpadalar/ccinfobar`, then `claude plugin install ccinfobar@ccinfobar` and `/ccinfobar:install` |
+| Status line | Rendered by the `ccinfobar` command | The same `ccinfobar` command; the plugin has no renderer |
+| Controls | `ccinfobar edit`, `doctor`, `theme` in a terminal | `/ccinfobar:edit`, `/ccinfobar:doctor`, `/ccinfobar:theme` inside Claude Code |
+| Updates | Updates itself in the background | The plugin does not auto-update; the `ccinfobar` command still does |
+| Remove | `ccinfobar uninstall`, then `npm rm -g ccinfobar` | `/ccinfobar:uninstall`, then `claude plugin uninstall ccinfobar@ccinfobar` |
+
+Skills (you run them; Claude never starts them on its own):
+
+- `/ccinfobar:install`: shows `ccinfobar install --hooks --dry-run`, asks (by name if another tool's status line would be replaced), then installs the status line and the optional [hooks](#hooks). Pass `--no-hooks` to skip them.
+- `/ccinfobar:edit`: starts the web editor in the background with `ccinfobar edit --detach` and gives you the URL.
+- `/ccinfobar:doctor`: runs `ccinfobar doctor` and lists the problems first. It suggests fixes and runs none on its own.
+- `/ccinfobar:theme [id]`: switches theme, or lists them with `ccinfobar themes --list` and asks.
+- `/ccinfobar:uninstall`: runs `ccinfobar uninstall` (status line and hooks) and explains the next step.
+
+The plugin has no status line, no renderer, no hooks of its own and never writes a settings file; only `ccinfobar` commands change settings. If `ccinfobar` is not installed, a skill offers `npx ccinfobar@latest install` and runs it (dry run first) only after you agree.
+
+**Pinning.** `claude plugin marketplace add alpadalar/ccinfobar#v<version>` (for example `alpadalar/ccinfobar#v0.6.2`) pins the plugin to a release tag. Third-party marketplaces do not auto-update by default. That is harmless here, because the skills only call the `ccinfobar` command, which keeps itself up to date.
+
+**Removal order.** Run `/ccinfobar:uninstall` or `ccinfobar uninstall` first, then `claude plugin uninstall ccinfobar@ccinfobar` or `npm rm -g ccinfobar`. Removing the plugin leaves nothing in your settings.
+
+**No plugin?** Paste the prompt at the top of [INSTALL.md](INSTALL.md) into Claude Code and Claude installs a pinned version step by step, with a dry run first.
+
+### Hooks
+
+Hooks are optional. They let Claude Code tell ccinfobar exactly when a turn starts and ends, when a permission prompt is waiting and when a subagent starts or stops, instead of guessing from the transcript. Every widget works without them.
+
+```sh
+ccinfobar install --hooks              # add them (also: Settings, Claude Code, Hooks in the editor)
+ccinfobar install --hooks=permission   # also add PermissionRequest
+ccinfobar uninstall --hooks            # remove only ccinfobar's hooks
+```
+
+| Event | What is recorded |
+| --- | --- |
+| `SessionStart` | the source (such as `startup` or `resume`); a new session also starts the daily update check |
+| `UserPromptSubmit` | the prompt id |
+| `Stop` | the prompt id |
+| `SubagentStart`, `SubagentStop` | the agent id and type, and on stop its transcript path |
+| `Notification` | only permission prompts (matcher `permission_prompt`) |
+| `PermissionRequest` (opt-in) | the tool name |
+
+Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl` (`~/.cache/ccinfobar/hooks/`, `~/Library/Caches/ccinfobar/hooks/` on macOS, `%LOCALAPPDATA%\ccinfobar\cache\hooks\` on Windows); logs older than 7 days are removed when a new session starts. Prompt text, Claude's replies and tool input are never stored. The hook command prints nothing and always exits 0, and every hook runs in the background (`async`), so it never slows a prompt down.
+
+- Hooks need Claude Code 2.1.101 or newer; `install --hooks` checks the version and refuses otherwise (the status line still installs). `--dry-run` lists every hook change.
+- They go into `~/.claude/settings.json` only, never into a project file, and are recorded in the manifest. Hooks you edited yourself and other tools' hooks are left alone; `uninstall` restores the settings file byte for byte when nothing else changed it.
+- `PermissionRequest` is opt-in. Leave it off on Windows without Git Bash, where a failing `PermissionRequest` hook can block tool calls.
+- Hooks call the same `ccinfobar` command as the status line. Run `ccinfobar uninstall` before `npm rm -g ccinfobar`. Because the hooks are async, a removed binary shows no notice in the transcript by default, only in verbose or transcript mode, so leftovers are easy to miss. `ccinfobar doctor` warns about hook commands whose binary is gone.
+
 ## Commands
 
 | Command | Description |
 | --- | --- |
 | `ccinfobar` | Render the status line from the JSON on stdin (what Claude Code runs) |
 | `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
+| `ccinfobar edit --detach` | Start the editor in the background, print its URL and exit; a running one is reused, and it stops after 30 minutes idle |
 | `ccinfobar tui` | Open the terminal editor |
 | `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--yes` to replace another tool's without asking, `--dry-run` to only show the plan, `--import`, `--no-import`, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally, or a pinned copy with `--no-global`) |
+| `ccinfobar install --hooks` | Also add the optional [hooks](#hooks) (`--hooks=permission` adds PermissionRequest) |
 | `ccinfobar usage` | Fetch your 5-hour and weekly usage from Claude now |
 | `ccinfobar install --project` | Use ccinfobar in this project even if its `.claude/settings.json` sets another status line |
-| `ccinfobar uninstall` | Remove ccinfobar from Claude Code settings and restore the status line you had before (`--project` for the project file) |
-| `ccinfobar themes` | Preview every theme (`--width <n>`) |
+| `ccinfobar uninstall` | Remove ccinfobar and its hooks from Claude Code settings and restore the status line you had before (`--project` for the project file). Run it before `npm rm -g ccinfobar` |
+| `ccinfobar uninstall --hooks` | Remove only ccinfobar's hooks and keep the status line |
+| `ccinfobar themes` | Preview every theme (`--width <n>`; `--list` prints ids and names only) |
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`) |
 | `ccinfobar init [preset]` | Write a preset: `default`, `cockpit`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
@@ -250,6 +308,7 @@ Widgets without an equivalent are listed as warnings instead of being dropped si
 | `ccinfobar explain [widget-id]` | Show each widget's value, where it came from (payload field, cache and its age, git, GSD) and why it is empty (`--json` for bug reports, `--scenario <name>`, `--payload <file>`). `env` and `command` values are redacted; `--show-values` shows them in a terminal |
 | `ccinfobar bench` | Measure render time: a `node -e 0` control, then cold and warm median and p95 (`--runs <n>`, `--scenario <name>`, `--json`) |
 | `ccinfobar config get\|set\|unset <path> [value]` | Read or change one config value by dotted path, e.g. `ccinfobar config set gitHardening false` or `ccinfobar config get lines.0.2.type`. Values are parsed as JSON, else taken as a string; a value that would not pass validation is refused and nothing is written |
+| `ccinfobar hook <Event>` | Used by Claude Code hooks: records one event and prints nothing |
 
 All commands accept `--config <file>`.
 
