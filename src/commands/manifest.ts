@@ -274,3 +274,11 @@ export function refreshWrittenHash(m: Manifest, file: string, hash: string | nul
   );
   return { ...m, entries };
 }
+
+// D-19: an outside edit since our last write voids the byte restore
+export function noteWrite(m: Manifest, file: string, before: string | null, after: string | null): Manifest {
+  const sl = findStatusLineEntry(m, file);
+  const stale = !!sl?.restore && before !== sl.writtenHash;
+  const next = stale ? { ...m, entries: m.entries.map((e) => (e === sl ? { ...sl, restore: null } : e)) } : m;
+  return refreshWrittenHash(next, file, after);
+}

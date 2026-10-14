@@ -6,14 +6,15 @@ import { HOOK_EVENTS, type HookEvent, isHookEvent } from '../data/hooks.js';
 import { compareVersions } from '../data/update-state.js';
 import {
   deepEqual,
+  dropHookEntry,
   findHookEntries,
   type HookEntry,
   type Manifest,
   manifestFile,
+  noteWrite,
   readManifest,
   realKey,
   recordHook,
-  refreshWrittenHash,
   writeManifest,
 } from './manifest.js';
 import { patchSettings, rollbackPatch } from './settings-file.js';
@@ -297,10 +298,74 @@ export function applyHooks(
   );
   try {
     const next = recordHooks(m, res.real, state.applied, plan.claudeCode, res.afterHash);
-    writeManifest(refreshWrittenHash(next, res.real, res.afterHash), env);
+    writeManifest(res.changed ? noteWrite(next, res.real, res.beforeHash, res.afterHash) : next, env);
   } catch (err) {
     if (res.changed) rollbackPatch(file, res, env);
     throw err;
   }
   return { changed: res.changed, backup: res.backup, items: appliedItems(state.planned, state.applied) };
+}
+
+// D-19: deepEqual ownership; only arrays we emptied are dropped
+export function removeOwnedHooks(
+  draft: Record<string, unknown>,
+  entries: HookEntry[],
+): { removed: string[]; kept: string[] } {
+  const removed: string[] = [];
+  const kept: string[] = [];
+  const hooks = draft.hooks;
+  const touched = new Set<string>();
+  for (const entry of entries) {
+    const list = isObj(hooks) ? hooks[entry.event] : undefined;
+    const i = Array.isArray(list) ? list.findIndex((g) => deepEqual(g, entry.value)) : -1;
+    if (i < 0 || !Array.isArray(list)) {
+      kept.push(entry.event);
+      continue;
+    }
+    list.splice(i, 1);
+    removed.push(entry.event);
+    touched.add(entry.event);
+  }
+  if (!isObj(hooks) || !touched.size) return { removed, kept };
+  for (const event of touched) {
+    const list = hooks[event];
+    if (Array.isArray(list) && list.length === 0) delete hooks[event];
+  }
+  if (Object.keys(hooks).length === 0) delete draft.hooks;
+  return { removed, kept };
+}
+
+export interface HooksRemoval {
+  removed: string[];
+  kept: string[];
+  backup: string | null;
+  changed: boolean;
+}
+
+// D-19: hooks only; the statusLine stays
+export function uninstallHooks(
+  file: string = claudeSettingsPath(),
+  env: NodeJS.ProcessEnv = process.env,
+): HooksRemoval {
+  const m = readManifest(env);
+  if (m.readOnly) throw new Error(t('install.manifestReadOnly', { file: manifestFile(env) }));
+  const entries = findHookEntries(m, file);
+  if (!entries.length) return { removed: [], kept: [], backup: null, changed: false };
+  const state = { removed: [] as string[], kept: [] as string[] };
+  const res = patchSettings(
+    file,
+    (draft) => {
+      Object.assign(state, removeOwnedHooks(draft, entries));
+    },
+    { original: false, env },
+  );
+  let next = m;
+  for (const e of entries) next = dropHookEntry(next, res.real, e.event);
+  try {
+    writeManifest(res.changed ? noteWrite(next, res.real, res.beforeHash, res.afterHash) : next, env);
+  } catch (err) {
+    if (res.changed) rollbackPatch(file, res, env);
+    throw err;
+  }
+  return { ...state, backup: res.backup, changed: res.changed };
 }

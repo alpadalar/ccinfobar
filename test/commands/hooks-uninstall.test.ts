@@ -1,0 +1,238 @@
+import fs from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import {
+  applyHooks,
+  DEFAULT_EVENTS,
+  planHooks,
+  removeOwnedHooks,
+  uninstallHooks,
+} from '../../src/commands/hooks-install.js';
+import { applyInstall, planInstall, uninstall } from '../../src/commands/install.js';
+import {
+  dropEntry,
+  dropHookEntry,
+  findHookEntries,
+  findStatusLineEntry,
+  readManifest,
+  writeManifest,
+} from '../../src/commands/manifest.js';
+import { hashBytes } from '../../src/commands/settings-file.js';
+import { formatJson, type SettingsFixture, settingsFixture } from './fixtures.js';
+
+const SIX = [...DEFAULT_EVENTS];
+const CMD = '/bin/ccinfobar';
+const HOOKS = { events: DEFAULT_EVENTS, claudeCode: '2.1.299' };
+const userStop = { hooks: [{ type: 'command', command: 'afplay done.wav' }] };
+const other = { type: 'command', command: '/usr/bin/ccstatusline', padding: 0 };
+const read = (f: string) => JSON.parse(fs.readFileSync(f, 'utf8').replace(/^﻿/, ''));
+const write = (fx: SettingsFixture, data: unknown) => fs.writeFileSync(fx.file, formatJson(data));
+
+function install(fx: SettingsFixture, hooks = true) {
+  return applyInstall(planInstall({ file: fx.file, command: CMD, env: fx.env }), {
+    confirmed: true,
+    env: fx.env,
+    ...(hooks ? { hooks: HOOKS } : {}),
+  });
+}
+
+const full = (fx: SettingsFixture) => uninstall(fx.file, { env: fx.env });
+const manifest = (fx: SettingsFixture) => readManifest(fx.env);
+
+function expectClean(fx: SettingsFixture) {
+  const m = manifest(fx);
+  expect(findStatusLineEntry(m, fx.file)).toBeNull();
+  expect(findHookEntries(m, fx.file)).toEqual([]);
+}
+
+describe('full uninstall with hooks', () => {
+  it('deletes a settings file it created, hooks and all', () => {
+    const fx = settingsFixture();
+    install(fx);
+    expect(Object.keys(read(fx.file).hooks)).toEqual(SIX);
+    const res = full(fx);
+    expect(res).toMatchObject({ status: 'deleted-file', removed: true });
+    expect(res.hooks).toEqual({ removed: SIX, kept: [] });
+    expect(fs.existsSync(fx.file)).toBe(false);
+    expectClean(fx);
+  });
+
+  it('deletes a created file that only holds owned content after a reformat', () => {
+    const fx = settingsFixture();
+    install(fx);
+    fs.writeFileSync(fx.file, formatJson(read(fx.file), { indent: '\t' }));
+    const res = full(fx);
+    expect(res.status).toBe('deleted-file');
+    expect(res.hooks.removed).toEqual(SIX);
+    expect(fs.existsSync(fx.file)).toBe(false);
+    expectClean(fx);
+  });
+
+  it('restores BOM, CRLF and 4-space bytes exactly', () => {
+    const fx = settingsFixture({
+      data: { model: 'opus', hooks: { Stop: [userStop] } },
+      bom: true,
+      eol: '\r\n',
+      indent: '    ',
+    });
+    const before = fs.readFileSync(fx.file);
+    install(fx);
+    expect(read(fx.file).hooks.Stop).toHaveLength(2);
+    const res = full(fx);
+    expect(res).toMatchObject({ status: 'restored-exact', hooks: { removed: SIX, kept: [] } });
+    expect(fs.readFileSync(fx.file).equals(before)).toBe(true);
+    expectClean(fx);
+  });
+
+  it('still restores exactly after uninstall --hooks and a second hooks write', () => {
+    const fx = settingsFixture({ data: { model: 'opus' }, indent: '    ' });
+    const before = fs.readFileSync(fx.file);
+    install(fx);
+    expect(uninstallHooks(fx.file, fx.env).changed).toBe(true);
+    const p = planHooks({
+      settings: read(fx.file),
+      manifest: manifest(fx),
+      file: fx.file,
+      command: CMD,
+      claudeCode: '2.1.299',
+      events: DEFAULT_EVENTS,
+    });
+    expect(applyHooks(fx.file, p, fx.env).changed).toBe(true);
+    expect(full(fx).status).toBe('restored-exact');
+    expect(fs.readFileSync(fx.file).equals(before)).toBe(true);
+    expectClean(fx);
+  });
+
+  it('removes only owned keys and groups after a user edit', () => {
+    const fx = settingsFixture({ data: { model: 'opus', hooks: { Stop: [userStop] } } });
+    install(fx);
+    write(fx, { ...read(fx.file), theme: 'x' });
+    const res = full(fx);
+    expect(res).toMatchObject({ status: 'removed', hooks: { removed: SIX, kept: [] } });
+    expect(read(fx.file)).toEqual({ model: 'opus', hooks: { Stop: [userStop] }, theme: 'x' });
+    expectClean(fx);
+  });
+
+  it('leaves a foreign statusLine and still removes owned hooks', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx);
+    write(fx, { ...read(fx.file), statusLine: other });
+    const res = full(fx);
+    expect(res).toMatchObject({ status: 'foreign', removed: false, current: other });
+    expect(res.hooks.removed).toEqual(SIX);
+    expect(read(fx.file)).toEqual({ model: 'opus', statusLine: other });
+    expectClean(fx);
+  });
+
+  it('removes owned hooks when the statusLine is gone', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx);
+    const { statusLine: _, ...rest } = read(fx.file);
+    write(fx, rest);
+    const res = full(fx);
+    expect(res).toMatchObject({ status: 'gone-nothing', hooks: { removed: SIX, kept: [] } });
+    expect(read(fx.file)).toEqual({ model: 'opus' });
+    expectClean(fx);
+  });
+
+  it('removes owned hooks when no statusLine entry is recorded', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx);
+    writeManifest(dropEntry(manifest(fx), fx.file, 'statusLine'), fx.env);
+    const { statusLine: _, ...rest } = read(fx.file);
+    write(fx, rest);
+    const res = full(fx);
+    expect(res).toMatchObject({ status: 'not-installed', hooks: { removed: SIX, kept: [] } });
+    expect(read(fx.file)).toEqual({ model: 'opus' });
+    expectClean(fx);
+  });
+
+  it('keeps an edited owned group, reports it and forgets it', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx);
+    const data = read(fx.file);
+    data.hooks.Stop[0].hooks[0].timeout = 9;
+    write(fx, data);
+    const res = full(fx);
+    expect(res.status).toBe('removed');
+    expect(res.hooks).toEqual({ removed: SIX.filter((e) => e !== 'Stop'), kept: ['Stop'] });
+    expect(read(fx.file)).toEqual({ model: 'opus', hooks: { Stop: data.hooks.Stop } });
+    expectClean(fx);
+  });
+});
+
+describe('uninstall --hooks', () => {
+  it('keeps the statusLine and the user group and refreshes the hash', () => {
+    const fx = settingsFixture({ data: { model: 'opus', hooks: { Stop: [userStop] } } });
+    install(fx);
+    const sl = read(fx.file).statusLine;
+    const res = uninstallHooks(fx.file, fx.env);
+    expect(res).toMatchObject({ removed: SIX, kept: [], changed: true });
+    expect(read(fx.file)).toEqual({ model: 'opus', hooks: { Stop: [userStop] }, statusLine: sl });
+    const m = manifest(fx);
+    expect(findHookEntries(m, fx.file)).toEqual([]);
+    expect(findStatusLineEntry(m, fx.file)?.writtenHash).toBe(hashBytes(fs.readFileSync(fx.file)));
+  });
+
+  it('drops an emptied hooks object', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx);
+    uninstallHooks(fx.file, fx.env);
+    expect(read(fx.file).hooks).toBeUndefined();
+    expect(read(fx.file).statusLine.command).toBe(CMD);
+  });
+
+  it('leaves an edited owned group in place and reports it', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx);
+    const data = read(fx.file);
+    data.hooks.Stop[0].hooks[0].timeout = 9;
+    write(fx, data);
+    const res = uninstallHooks(fx.file, fx.env);
+    expect(res.removed).toEqual(SIX.filter((e) => e !== 'Stop'));
+    expect(res.kept).toEqual(['Stop']);
+    expect(read(fx.file).hooks).toEqual({ Stop: data.hooks.Stop });
+    expect(findHookEntries(manifest(fx), fx.file)).toEqual([]);
+  });
+
+  it('writes nothing without hook entries', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx, false);
+    const bytes = fs.readFileSync(fx.file);
+    const m = fs.readFileSync(`${fx.env.CCINFOBAR_CONFIG_DIR}/manifest.json`);
+    expect(uninstallHooks(fx.file, fx.env)).toEqual({ removed: [], kept: [], backup: null, changed: false });
+    expect(fs.readFileSync(fx.file).equals(bytes)).toBe(true);
+    expect(fs.readFileSync(`${fx.env.CCINFOBAR_CONFIG_DIR}/manifest.json`).equals(m)).toBe(true);
+  });
+
+  it('an outside edit before it voids the byte restore', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx);
+    write(fx, { ...read(fx.file), theme: 'x' });
+    uninstallHooks(fx.file, fx.env);
+    expect(findStatusLineEntry(manifest(fx), fx.file)?.restore).toBeNull();
+    expect(full(fx).status).toBe('removed');
+    expect(read(fx.file)).toEqual({ model: 'opus', theme: 'x' });
+  });
+});
+
+describe('hook entries and groups', () => {
+  it('drops hook entries per event', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx);
+    const left = findHookEntries(dropHookEntry(manifest(fx), fx.file, 'Stop'), fx.file);
+    expect(left.map((e) => e.event)).toEqual(SIX.filter((e) => e !== 'Stop'));
+  });
+
+  it('removeOwnedHooks leaves user arrays, empty ones and odd values alone', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx);
+    const entries = findHookEntries(manifest(fx), fx.file);
+    const draft = read(fx.file);
+    draft.hooks.PreToolUse = [];
+    draft.hooks.Stop.unshift(userStop);
+    draft.hooks.Notification = 'odd';
+    const res = removeOwnedHooks(draft, entries);
+    expect(res).toEqual({ removed: SIX.filter((e) => e !== 'Notification'), kept: ['Notification'] });
+    expect(draft.hooks).toEqual({ PreToolUse: [], Stop: [userStop], Notification: 'odd' });
+  });
+});

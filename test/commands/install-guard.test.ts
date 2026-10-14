@@ -438,6 +438,7 @@ describe('runInstall and runUninstall', () => {
   it('has a message for every uninstall status', () => {
     const file = settings;
     const s = (command: string) => ({ type: 'command' as const, command });
+    const NO_HOOKS = { removed: [], kept: [] };
     const cases = [
       ['restored-exact', t('uninstall.restoredExact', { file: tildify(file) }), null],
       ['restored-previous', t('uninstall.restoredPrevious', { command: 'prev' }), s('prev')],
@@ -448,10 +449,17 @@ describe('runInstall and runUninstall', () => {
       ['not-installed', t('uninstall.notInstalled', { file: tildify(file) }), null],
     ] as const;
     for (const [status, text, restored] of cases) {
-      expect(uninstallMessage({ status, file, removed: false, restored })).toBe(text);
+      expect(uninstallMessage({ status, file, removed: false, restored, hooks: NO_HOOKS })).toBe(text);
     }
     expect(
-      uninstallMessage({ status: 'foreign', file, removed: false, restored: null, current: s('other') }),
+      uninstallMessage({
+        status: 'foreign',
+        file,
+        removed: false,
+        restored: null,
+        current: s('other'),
+        hooks: NO_HOOKS,
+      }),
     ).toBe(t('uninstall.foreign', { file: tildify(file), command: 'other' }));
   });
 

@@ -15,12 +15,16 @@ import {
   planHookRewrites,
   planHooks,
   recordHooks,
+  removeOwnedHooks,
 } from './hooks-install.js';
 import {
   classifyOwner,
   deepEqual,
   dropEntry,
+  dropHookEntry,
+  findHookEntries,
   findStatusLineEntry,
+  type HookEntry,
   type Manifest,
   manifestFile,
   type Owner,
@@ -120,7 +124,7 @@ export function currentStatusLine(file = claudeSettingsPath()): StatusLineSettin
 }
 
 const EMPTY: Manifest = { version: 1, entries: [] };
-const NO_ORIGINAL = { original: false };
+const noOriginal = (env: NodeJS.ProcessEnv) => ({ original: false, env });
 
 function openManifest(env: NodeJS.ProcessEnv = process.env): Manifest {
   const m = readManifest(env);
@@ -345,7 +349,10 @@ export interface UninstallResult {
   removed: boolean;
   restored: StatusLineSetting | null;
   current?: StatusLineSetting | null;
+  hooks: { removed: string[]; kept: string[] };
 }
+
+type HooksOut = UninstallResult['hooks'];
 
 const REMOVED = new Set<UninstallStatus>([
   'restored-exact',
@@ -355,9 +362,9 @@ const REMOVED = new Set<UninstallStatus>([
   'gone-restored',
 ]);
 
-function backupBytes(restore: { backup: string; hash: string }): Buffer | null {
+function backupBytes(restore: { backup: string; hash: string }, env: NodeJS.ProcessEnv): Buffer | null {
   try {
-    const bytes = fs.readFileSync(path.resolve(configDir(), restore.backup));
+    const bytes = fs.readFileSync(path.resolve(configDir(env), restore.backup));
     return hashBytes(bytes) === restore.hash ? bytes : null;
   } catch {
     return null;
@@ -365,17 +372,23 @@ function backupBytes(restore: { backup: string; hash: string }): Buffer | null {
 }
 
 // only while the file is byte-identical to our last write
-function restoreExact(file: string, entry: StatusLineEntry, hash: string | null): UninstallStatus | null {
+function restoreExact(
+  file: string,
+  entry: StatusLineEntry,
+  hash: string | null,
+  env: NodeJS.ProcessEnv,
+): UninstallStatus | null {
   const r = entry.restore;
+  const opts = noOriginal(env);
   if (!r || !hash || hash !== entry.writtenHash) return null;
-  if ('absent' in r)
-    return deleteSettingsFile(file, { ...NO_ORIGINAL, ifHash: hash }) ? 'deleted-file' : null;
-  const bytes = backupBytes(r);
+  if ('absent' in r) return deleteSettingsFile(file, { ...opts, ifHash: hash }) ? 'deleted-file' : null;
+  const bytes = backupBytes(r, env);
   if (!bytes) return null;
-  writeSettingsBytes(file, bytes, NO_ORIGINAL);
+  writeSettingsBytes(file, bytes, opts);
   return 'restored-exact';
 }
 
+// D-41: one write for statusLine and owned hooks
 function restoreKey(
   file: string,
   data: Record<string, unknown>,
@@ -383,68 +396,102 @@ function restoreKey(
   previous: StatusLineSetting | null,
   fileExisted: boolean,
   hash: string | null,
-): [UninstallStatus, StatusLineSetting | null] {
-  const { statusLine: _, ...rest } = data;
+  hookEntries: HookEntry[],
+  env: NodeJS.ProcessEnv,
+): [UninstallStatus, StatusLineSetting | null, undefined, HooksOut] {
+  const opts = noOriginal(env);
+  const { statusLine: _, ...rest } = structuredClone(data);
+  const left = removeOwnedHooks(rest, hookEntries);
   const empty = !previous && !fileExisted && Object.keys(rest).length === 0;
-  if (empty && deleteSettingsFile(file, { ...NO_ORIGINAL, ifHash: hash })) return ['deleted-file', null];
-  const state = { raced: false };
+  if (empty && deleteSettingsFile(file, { ...opts, ifHash: hash }))
+    return ['deleted-file', null, undefined, left];
+  const state = { raced: false, hooks: left };
   patchSettings(
     file,
     (d) => {
+      state.hooks = removeOwnedHooks(d, hookEntries);
       state.raced = !deepEqual(d.statusLine, ours);
       if (state.raced) return;
       if (previous) d.statusLine = previous;
       else delete d.statusLine;
     },
-    NO_ORIGINAL,
+    opts,
   );
-  if (state.raced) return ['foreign', null];
-  return previous ? ['restored-previous', previous] : ['removed', null];
+  if (state.raced) return ['foreign', null, undefined, state.hooks];
+  return [previous ? 'restored-previous' : 'removed', previous, undefined, state.hooks];
 }
 
 export function uninstall(
-  file = claudeSettingsPath(),
-  opts: { adoptLegacy?: boolean } = {},
+  file?: string,
+  opts: { adoptLegacy?: boolean; env?: NodeJS.ProcessEnv } = {},
 ): UninstallResult {
-  const m = openManifest();
-  const cur = readSettings(file);
+  const env = opts.env ?? process.env;
+  const target = file ?? claudeSettingsPath(env);
+  const m = openManifest(env);
+  const cur = readSettings(target);
   const sl = statusLineOf(cur.data);
-  const entry = findStatusLineEntry(m, file);
+  const entry = findStatusLineEntry(m, target);
+  const hookEntries = findHookEntries(m, target);
+  const none: HooksOut = { removed: [], kept: [] };
+  const patchOpts = noOriginal(env);
+  // D-41: owned hooks go on every branch
+  const hooksOnly = (): HooksOut => {
+    if (!hookEntries.length) return none;
+    let out = none;
+    patchSettings(
+      target,
+      (d) => {
+        out = removeOwnedHooks(d, hookEntries);
+      },
+      patchOpts,
+    );
+    return out;
+  };
   const done = (
     status: UninstallStatus,
     restored: StatusLineSetting | null = null,
     current?: StatusLineSetting | null,
+    hooks: HooksOut = none,
   ): UninstallResult => {
-    if (entry) writeManifest(dropEntry(m, file, 'statusLine'));
-    const res: UninstallResult = { status, file, removed: REMOVED.has(status), restored };
+    let next = entry ? dropEntry(m, target, 'statusLine') : m;
+    for (const h of hookEntries) next = dropHookEntry(next, target, h.event);
+    if (next !== m) writeManifest(next, env);
+    const res: UninstallResult = { status, file: target, removed: REMOVED.has(status), restored, hooks };
     if (current !== undefined) res.current = current;
     return res;
   };
   if (entry) {
     if (!sl) {
       const prev = entry.previous;
-      if (!prev) return done('gone-nothing', null, null);
+      if (!prev) return done('gone-nothing', null, null, hooksOnly());
+      let out = none;
       patchSettings(
-        file,
+        target,
         (d) => {
+          out = removeOwnedHooks(d, hookEntries);
           if (!statusLineOf(d)) d.statusLine = prev;
         },
-        NO_ORIGINAL,
+        patchOpts,
       );
-      return done('gone-restored', prev, null);
+      return done('gone-restored', prev, null, out);
     }
-    if (!deepEqual(sl, entry.value)) return done('foreign', null, sl);
-    const exact = restoreExact(file, entry, cur.hash);
-    if (exact) return done(exact, exact === 'restored-exact' ? entry.previous : null);
-    return done(...restoreKey(file, cur.data, sl, entry.previous, entry.fileExisted, cur.hash));
+    if (!deepEqual(sl, entry.value)) return done('foreign', null, sl, hooksOnly());
+    const exact = restoreExact(target, entry, cur.hash, env);
+    // the restore point predates every owned hook
+    const all = { removed: hookEntries.map((h) => h.event), kept: [] };
+    if (exact) return done(exact, exact === 'restored-exact' ? entry.previous : null, undefined, all);
+    return done(
+      ...restoreKey(target, cur.data, sl, entry.previous, entry.fileExisted, cur.hash, hookEntries, env),
+    );
   }
-  if (!sl) return done('not-installed', null, null);
-  const owner = classify(m, file, sl, null);
+  if (!sl) return done('not-installed', null, null, hooksOnly());
+  const owner = classify(m, target, sl, null);
   if (owner === 'legacy-ours' || (owner === 'legacy-ask' && opts.adoptLegacy)) {
-    const previous = legacyPrevious(file, null);
-    return done(...restoreKey(file, cur.data, sl, previous, legacyBackup(file) !== null, cur.hash));
+    const previous = legacyPrevious(target, null);
+    const existed = legacyBackup(target) !== null;
+    return done(...restoreKey(target, cur.data, sl, previous, existed, cur.hash, hookEntries, env));
   }
-  return done('foreign', null, sl);
+  return done('foreign', null, sl, hooksOnly());
 }
 
 export function projectSettingsPath(dir: string, local = true): string {
