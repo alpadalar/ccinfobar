@@ -495,9 +495,11 @@ export function ignoreLocally(file: string): boolean {
     return false;
   } catch {}
   try {
-    const top = git(['rev-parse', '--show-toplevel']);
+    const top = resolveReal(git(['rev-parse', '--show-toplevel']));
     const exclude = path.resolve(dir, git(['rev-parse', '--git-path', 'info/exclude']));
-    const rel = `/${path.relative(top, file).split(path.sep).join('/')}`;
+    const inRepo = path.relative(top, resolveReal(file));
+    if (!inRepo || inRepo.startsWith('..') || path.isAbsolute(inRepo) || /[\r\n]/.test(inRepo)) return false;
+    const rel = `/${inRepo.split(path.sep).join('/')}`.replace(/[\\*?[\]]| (?= *$)/g, '\\$&');
     fs.mkdirSync(path.dirname(exclude), { recursive: true });
     const prev = fs.existsSync(exclude) ? fs.readFileSync(exclude, 'utf8') : '';
     fs.appendFileSync(exclude, `${prev && !prev.endsWith('\n') ? '\n' : ''}${rel}\n`);

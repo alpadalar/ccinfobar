@@ -114,6 +114,39 @@ describe('install and uninstall', () => {
     expect(projectOverride(root)?.command).toBe('node gsd.js');
   });
 
+  it.skipIf(process.platform === 'win32')('escapes gitignore metacharacters and resolves links', () => {
+    const real = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-git-')));
+    const env = { ...process.env, GIT_CONFIG_GLOBAL: os.devNull, XDG_CONFIG_HOME: real };
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: real, env });
+    } catch {
+      return;
+    }
+    const link = `${real}-link`;
+    fs.symlinkSync(real, link);
+    const sub = path.join(link, 'a [b]*?');
+    fs.mkdirSync(sub);
+    fs.mkdirSync(path.join(real, 'a bxy'));
+    const saved = { ...process.env };
+    Object.assign(process.env, env);
+    try {
+      const local = projectSettingsPath(sub);
+      applyInstall(planInstall({ file: local, command: 'ccinfobar' }), { confirmed: true });
+      expect(ignoreLocally(local)).toBe(true);
+      expect(ignoreLocally(local)).toBe(false);
+      const exclude = fs.readFileSync(path.join(real, '.git', 'info', 'exclude'), 'utf8');
+      expect(exclude).toContain('/a \\[b\\]\\*\\?/.claude/settings.local.json\n');
+      const other = path.join(real, 'a bxy', '.claude', 'settings.local.json');
+      expect(() =>
+        execFileSync('git', ['check-ignore', '-q', other], { cwd: real, env, stdio: 'ignore' }),
+      ).toThrow();
+    } finally {
+      process.env = saved;
+      fs.rmSync(link, { force: true });
+      fs.rmSync(real, { recursive: true, force: true });
+    }
+  });
+
   it('adds settings.local.json to the repo exclude file once', () => {
     const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-git-')));
     const env = { ...process.env, GIT_CONFIG_GLOBAL: os.devNull, XDG_CONFIG_HOME: root };
