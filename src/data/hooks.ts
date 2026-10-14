@@ -95,12 +95,13 @@ export interface HookState {
   lastEventAt: number | null;
   lastSource: string | null;
   turn: HookTurn | null;
+  // a prompt was shown at since; any later activity clears it
   pendingPermission: { since: number; tool: string | null } | null;
   agents: Record<string, HookAgent>;
 }
 
 export const DUP_WINDOW_MS = 2000;
-const FOLD_VERSION = 1;
+const FOLD_VERSION = 2;
 const MAX_TURNS = 50;
 const MAX_AGENTS = 100;
 const MAX_SEEN = 512;
@@ -278,10 +279,12 @@ function step(f: Fold, x: any) {
         if (v.tp) a.transcript = v.tp;
       }
       trim(f.agents, MAX_AGENTS);
+      clearPending(f, t);
       break;
     }
     case 'Notification':
       if (v.n === 'permission_prompt') setPending(f, t, null);
+      else clearPending(f, t);
       break;
     case 'PermissionRequest':
       setPending(f, t, v.tn ?? null);
