@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import { visibleWidth } from '../core/ansi.js';
-import { saveConfig } from '../core/config.js';
+import { type LoadResult, saveConfig } from '../core/config.js';
+import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { tildify } from '../core/paths.js';
 import { forGsd, listPresets } from '../core/presets.js';
@@ -51,7 +52,7 @@ export function runImport(
       opts.file ? { file: opts.file, command: opts.command } : { command: opts.command },
     );
     const backup = backupConfig(cfgFile);
-    saveConfig(toConfig(result), cfgFile);
+    saveConfig(toConfig(result), cfgFile, { overwriteBroken: true });
     const count = (result.config.lines ?? []).reduce((n, l) => n + l.length, 0);
     console.log(
       `✓ Imported ${count} widgets from ${source}${result.file ? ` (${tildify(result.file)})` : ''}`,
@@ -99,8 +100,12 @@ export function runInit(args: Args, cfgFile: string): void {
     return;
   }
   const keepGsd = id === 'gsd' || preset.source === 'user';
-  saveConfig(keepGsd ? preset.build() : forGsd(preset.build(), gsdInstalled()), cfgFile);
+  const backup = backupConfig(cfgFile);
+  saveConfig(keepGsd ? preset.build() : forGsd(preset.build(), gsdInstalled()), cfgFile, {
+    overwriteBroken: true,
+  });
   console.log(`✓ Wrote "${preset.name}" preset to ${tildify(cfgFile)}`);
+  if (backup) console.log(`  Previous config: ${tildify(backup)}`);
 }
 
 export function runPreview(args: Args, cfgFile: string): void {
@@ -135,8 +140,17 @@ export function runThemes(args: Args, cfgFile: string): void {
   console.log(`\nSwitch with \`ccinfobar theme <id>\`. Your themes live in ${tildify(themesDir())}`);
 }
 
+export function reportIssue(loaded: LoadResult): boolean {
+  if (!loaded.issue) return false;
+  const { line, column, message } = loaded.issue;
+  console.error(t('config.issue', { file: tildify(loaded.path), line, column, message }));
+  process.exitCode = 1;
+  return true;
+}
+
 export function runTheme(args: Args, cfgFile: string): void {
   const loaded = loadForUse(cfgFile);
+  if (reportIssue(loaded)) return;
   if (args.positional[0] === 'new' || args.positional[0] === 'create') {
     const id = args.positional[1];
     if (!id) {

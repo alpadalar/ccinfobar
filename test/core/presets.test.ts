@@ -44,10 +44,10 @@ describe('gsd-aware layouts', () => {
     expect(applyGsdAutoLine(c, true)).toEqual(defaultConfig());
   });
 
-  it('saves the new line once through loadForUse', () => {
+  it('saves the new line once through loadForUse with persist', () => {
     const file = path.join(tmp(), 'config.json');
     saveConfig(starterConfig(false), file);
-    const loaded = loadForUse(file, () => true);
+    const loaded = loadForUse(file, () => true, { persist: true });
     expect(hasGsd(loaded.config)).toBe(true);
     expect(JSON.parse(fs.readFileSync(file, 'utf8')).gsdAutoLine).toBeUndefined();
     expect(hasGsd(loadForUse(path.join(tmp(), 'none.json'), () => false).config)).toBe(false);

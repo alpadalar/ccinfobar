@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import { writeAtomic } from '../data/store.js';
+import { t } from './i18n/index.js';
+import { locateJsonError, locateKey } from './json-locate.js';
 import { configPath } from './paths.js';
 import type {
   Align,
@@ -246,17 +248,61 @@ export function normalizeConfig(raw: unknown): Config {
   return cfg;
 }
 
+export interface ConfigIssue {
+  kind: 'parse' | 'structure';
+  line: number;
+  column: number;
+  message: string;
+}
+
 export interface LoadResult {
   config: Config;
   path: string;
   exists: boolean;
   error?: string;
+  issue?: ConfigIssue;
+}
+
+export class ConfigBrokenError extends Error {
+  constructor(
+    readonly file: string,
+    readonly issue: ConfigIssue,
+  ) {
+    super(t('config.refuseBroken', { file }));
+    this.name = 'ConfigBrokenError';
+  }
+}
+
+export function inspectConfigText(text: string): { raw: unknown; issue: ConfigIssue | null } {
+  const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(body);
+  } catch {
+    const at = locateJsonError(body);
+    const issue: ConfigIssue = at
+      ? { kind: 'parse', line: at.line, column: at.column, message: at.message }
+      : { kind: 'parse', line: 1, column: 1, message: t('json.unexpectedEnd') };
+    return { raw: undefined, issue };
+  }
+  if (!isObject(raw)) {
+    return { raw, issue: { kind: 'structure', line: 1, column: 1, message: t('config.notObject') } };
+  }
+  if (raw.lines !== undefined && !Array.isArray(raw.lines)) {
+    const at = locateKey(body, 'lines') ?? { line: 1, column: 1 };
+    return {
+      raw,
+      issue: { kind: 'structure', line: at.line, column: at.column, message: t('config.linesNotArray') },
+    };
+  }
+  return { raw, issue: null };
 }
 
 export function loadConfig(file = configPath(), fallback: () => Config = defaultConfig): LoadResult {
   try {
-    const text = fs.readFileSync(file, 'utf8');
-    return { config: normalizeConfig(JSON.parse(text)), path: file, exists: true };
+    const { raw, issue } = inspectConfigText(fs.readFileSync(file, 'utf8'));
+    if (issue) return { config: defaultConfig(), path: file, exists: true, error: issue.message, issue };
+    return { config: normalizeConfig(raw), path: file, exists: true };
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
     if (e.code === 'ENOENT') return { config: fallback(), path: file, exists: false };
@@ -264,7 +310,19 @@ export function loadConfig(file = configPath(), fallback: () => Config = default
   }
 }
 
-export function saveConfig(config: Config, file = configPath()): void {
+export function saveConfig(
+  config: Config,
+  file = configPath(),
+  opts: { overwriteBroken?: boolean } = {},
+): void {
+  if (!opts.overwriteBroken) {
+    let existing: string | null = null;
+    try {
+      existing = fs.readFileSync(file, 'utf8');
+    } catch {}
+    const issue = existing === null ? null : inspectConfigText(existing).issue;
+    if (issue) throw new ConfigBrokenError(file, issue);
+  }
   const data = { $schema: SCHEMA_URL, ...normalizeConfig(config) };
   writeAtomic(file, `${JSON.stringify(data, null, 2)}\n`, { class: 'settings' });
 }
