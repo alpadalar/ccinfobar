@@ -37,6 +37,7 @@ const EXCLUDED_FILES = [
   'src/commands/manage.ts',
   'src/commands/doctor.ts',
   'src/commands/update.ts',
+  'src/commands/repos.ts',
   'src/commands/command.ts',
   'src/commands/settings-file.ts',
   'src/commands/manifest.ts',
@@ -144,7 +145,16 @@ describe('import graph', () => {
 
   it('loads every command lazily from main', () => {
     const text = fs.readFileSync(path.join(src, 'cli/main.ts'), 'utf8');
-    for (const mod of ['install-cli', 'manage', 'update', 'doctor', 'config-cmd', 'explain', 'bench']) {
+    for (const mod of [
+      'install-cli',
+      'manage',
+      'update',
+      'repos',
+      'doctor',
+      'config-cmd',
+      'explain',
+      'bench',
+    ]) {
       expect(text).toContain(`await import('../commands/${mod}.js')`);
     }
   });

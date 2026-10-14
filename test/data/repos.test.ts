@@ -3,15 +3,22 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { defaultConfig } from '../../src/core/config.js';
+import type { Config, WidgetItem } from '../../src/core/types.js';
 import {
   ancestors,
+  dirtyFile,
   gitdirOf,
   insideRepo,
   parseHead,
+  readDirty,
   readHead,
   readRepos,
+  repoDirtyWanted,
   reposCacheName,
   scanRepos,
+  scheduleRepoDirty,
+  type WorkspaceRepos,
 } from '../../src/data/repos.js';
 
 const posix = process.platform !== 'win32';
@@ -255,5 +262,84 @@ describe.skipIf(tmpRepo)('readRepos cache', () => {
     raw.repos[0].name = 'ev\u001b[2Jil';
     fs.writeFileSync(file, JSON.stringify(raw));
     expect(names(w, T + 1_000)).toEqual(['evil']);
+  });
+});
+
+describe('dirty cache', () => {
+  const T = Date.now();
+  const ws = (total = 1): WorkspaceRepos => ({
+    root: '/ws',
+    repos: total ? [{ name: 'api', branch: 'main', detached: false, activity: null, hidden: false }] : [],
+    total,
+  });
+  const write = (cwd: string, v: unknown) => {
+    fs.mkdirSync(env.CCINFOBAR_CACHE_DIR!, { recursive: true });
+    fs.writeFileSync(dirtyFile(cwd, env), JSON.stringify(v));
+  };
+  const lock = (cwd: string) => fs.existsSync(`${dirtyFile(cwd, env)}.lock`);
+
+  it('keeps only boolean entries and skips prototype keys', () => {
+    write('/ws', JSON.parse('{"v":1,"at":1,"dirty":{"__proto__":true,"api":true,"web":"yes"}}'));
+    const d = readDirty('/ws', env);
+    expect(d?.at).toBe(1);
+    expect(Object.getPrototypeOf(d?.dirty)).toBeNull();
+    expect({ ...d?.dirty }).toEqual({ api: true });
+    expect(({} as Record<string, unknown>).api).toBeUndefined();
+  });
+
+  it('is null for a missing or malformed file', () => {
+    expect(readDirty('/ws', env)).toBeNull();
+    write('/ws', { v: 1, at: 'x', dirty: {} });
+    expect(readDirty('/ws', env)).toBeNull();
+    write('/ws', { v: 1, at: 1, dirty: [] });
+    expect(readDirty('/ws', env)).toBeNull();
+  });
+
+  it('repoDirtyWanted needs a workspace-repos item with dirty on', () => {
+    const cfg = (options: WidgetItem['options']) =>
+      ({ ...defaultConfig(), lines: [[{ id: 'r', type: 'workspace-repos', options }]] }) as Config;
+    expect(repoDirtyWanted(cfg({ dirty: true }))).toBe(true);
+    expect(repoDirtyWanted(cfg({}))).toBe(false);
+    expect(
+      repoDirtyWanted({
+        ...cfg({ dirty: true }),
+        lines: [[{ id: 'd', type: 'git-branch', options: { dirty: true } }]],
+      }),
+    ).toBe(false);
+  });
+
+  it('skips scheduling while the cache is fresh', () => {
+    write('/ws', { v: 1, at: T - 1_000, dirty: {} });
+    scheduleRepoDirty('/ws', ws(), env, T);
+    expect(lock('/ws')).toBe(false);
+  });
+
+  it('takes the lock once when the cache is missing or stale', () => {
+    scheduleRepoDirty('/ws', ws(), env, T);
+    expect(lock('/ws')).toBe(true);
+    const at = fs.statSync(`${dirtyFile('/ws', env)}.lock`).mtimeMs;
+    scheduleRepoDirty('/ws', ws(), env, T + 1_000);
+    expect(fs.statSync(`${dirtyFile('/ws', env)}.lock`).mtimeMs).toBe(at);
+    fs.rmSync(`${dirtyFile('/ws', env)}.lock`);
+    write('/ws', { v: 1, at: T - 61_000, dirty: {} });
+    scheduleRepoDirty('/ws', ws(), env, T);
+    expect(lock('/ws')).toBe(true);
+  });
+
+  it('does nothing without repos', () => {
+    scheduleRepoDirty('/ws', null, env, T);
+    scheduleRepoDirty('/ws', ws(0), env, T);
+    expect(lock('/ws')).toBe(false);
+  });
+});
+
+describe.skipIf(tmpRepo)('readRepos dirty merge', () => {
+  it('adds the dirty map from the cache', () => {
+    const w = path.join(dir, 'w');
+    repo(w, 'api');
+    fs.mkdirSync(env.CCINFOBAR_CACHE_DIR!, { recursive: true });
+    fs.writeFileSync(dirtyFile(w, env), JSON.stringify({ v: 1, at: 1, dirty: { api: true } }));
+    expect(readRepos(w, env)?.dirty?.api).toBe(true);
+    expect(readRepos(w, env)?.dirty?.api).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { detectLevel, style } from '../core/ansi.js';
-import { createContext, lazy } from '../core/context.js';
+import { createContext, lazy, resolveCwd } from '../core/context.js';
 import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { lastPayloadPath } from '../core/paths.js';
@@ -17,6 +17,7 @@ import {
   recordLedger,
 } from '../data/ledger.js';
 import { accountKey, recordLimits } from '../data/limits.js';
+import { readRepos, repoDirtyWanted, scheduleRepoDirty } from '../data/repos.js';
 import { writeAtomic } from '../data/store.js';
 import { terminalWidth } from '../data/terminal.js';
 import { readTranscript } from '../data/transcript.js';
@@ -92,7 +93,9 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
   const width = typeof args.flags.width === 'string' ? Number(args.flags.width) : undefined;
   const transcript = lazy(() => readTranscript(payload.transcript_path));
   const eff = effectiveUsage(config, payload, process.env, { transcript });
-  const data: Partial<DataSources> = { transcript, limits: () => eff.limits };
+  const cwd = resolveCwd(eff.payload);
+  const repos = lazy(() => readRepos(cwd, process.env));
+  const data: Partial<DataSources> = { transcript, limits: () => eff.limits, repos };
   const ledgerUsed = ledgerOn(config);
   const ledger = lazy(() => readLedger(process.env, Date.now(), { budget: RENDER_BUDGET }));
   if (ledgerUsed) {
@@ -124,5 +127,6 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
     }
     scheduleCheck(config, payload.session_id);
     if (eff.usageOn && usageDue(eff.usage)) scheduleUsage();
+    if (repoDirtyWanted(config)) scheduleRepoDirty(cwd, repos(), process.env, Date.now());
   } catch {}
 }

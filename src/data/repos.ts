@@ -1,12 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { deepSanitize, sanitizeText } from '../core/sanitize.js';
-import { cacheKey, readCache, writeCache } from './cache.js';
+import type { Config } from '../core/types.js';
+import { cacheFile, cacheKey, readCache, writeCache } from './cache.js';
+import { acquireLock, readJsonSafe } from './store.js';
+import { spawnSelf } from './update-state.js';
 
 const VERSION = 1;
 const TTL = 10_000;
 const MAX_ENTRIES = 1000;
 const MAX_FILE = 4096;
+const DIRTY_TTL = 60_000;
+export const DIRTY_VERSION = 1;
 const RD = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0);
 
 export interface RepoEntry {
@@ -205,11 +210,66 @@ export function readRepos(
     const now = opts.now ?? Date.now();
     const name = reposCacheName(root);
     const hit = fromCache(readCache<unknown>(name, env), now, st.mtimeMs);
-    if (hit) return { root, ...hit };
-    const scan = scanRepos(root);
-    if (opts.persist !== false) writeCache(name, { v: VERSION, at: now, dirMtime: st.mtimeMs, ...scan }, env);
-    return { root, ...scan };
+    const scan = hit ?? scanRepos(root);
+    if (!hit && opts.persist !== false) {
+      writeCache(name, { v: VERSION, at: now, dirMtime: st.mtimeMs, ...scan }, env);
+    }
+    const dirty = scan.total ? readDirty(root, env)?.dirty : undefined;
+    return dirty ? { root, ...scan, dirty } : { root, ...scan };
   } catch {
     return { root, repos: [], total: 0 };
   }
+}
+
+export function dirtyFile(cwd: string, env: NodeJS.ProcessEnv = process.env): string {
+  return cacheFile(`repos-dirty-${cacheKey(path.resolve(cwd))}.json`, env);
+}
+
+const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+export function readDirty(
+  cwd: string,
+  env: NodeJS.ProcessEnv = process.env,
+): { at: number; dirty: Record<string, boolean> } | null {
+  const raw = readJsonSafe<Record<string, unknown>>(dirtyFile(cwd, env));
+  if (!raw || typeof raw !== 'object' || raw.v !== DIRTY_VERSION) return null;
+  const at = raw.at;
+  const src = raw.dirty;
+  if (
+    typeof at !== 'number' ||
+    !Number.isFinite(at) ||
+    !src ||
+    typeof src !== 'object' ||
+    Array.isArray(src)
+  ) {
+    return null;
+  }
+  const dirty = Object.create(null) as Record<string, boolean>;
+  for (const [k, v] of Object.entries(src)) {
+    const name = sanitizeText(k);
+    if (typeof v === 'boolean' && name && !BAD_KEYS.has(name)) dirty[name] = v;
+  }
+  return { at, dirty };
+}
+
+export function repoDirtyWanted(config: Config): boolean {
+  return config.lines.some((line) =>
+    line.some((it) => it.type === 'workspace-repos' && it.options?.dirty === true),
+  );
+}
+
+export function scheduleRepoDirty(
+  cwd: string,
+  repos: WorkspaceRepos | null,
+  env: NodeJS.ProcessEnv = process.env,
+  now = Date.now(),
+): void {
+  try {
+    if (!repos || repos.total === 0) return;
+    const root = path.resolve(cwd);
+    const at = readDirty(root, env)?.at;
+    if (at !== undefined && now >= at && now - at < DIRTY_TTL) return;
+    if (!acquireLock(`${dirtyFile(root, env)}.lock`, DIRTY_TTL, now)) return;
+    spawnSelf(['repos', '--background', root], env);
+  } catch {}
 }

@@ -30,20 +30,52 @@ export const HARDEN = ['-c', 'core.fsmonitor=false', '--no-optional-locks'] as c
 
 const EMPTY_VAR = 'CCINFOBAR_GIT_EMPTY';
 
-function git(cwd: string, args: string[], pre: readonly string[] = []): string | null {
+// exit 1 reads as '' when okExit1
+function exec(
+  cwd: string,
+  args: string[],
+  timeout: number,
+  env: NodeJS.ProcessEnv,
+  okExit1 = false,
+): string | null {
   try {
-    return execFileSync('git', [...pre, ...args], {
+    return execFileSync('git', args, {
       cwd,
       encoding: 'utf8',
-      timeout: TIMEOUT,
+      timeout,
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'ignore'],
       maxBuffer: 16 * 1024 * 1024,
-      env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', [EMPTY_VAR]: '' },
+      env,
     });
-  } catch {
-    return null;
+  } catch (e) {
+    return okExit1 && (e as { status?: number | null }).status === 1 ? '' : null;
   }
+}
+
+function git(cwd: string, args: string[], pre: readonly string[] = []): string | null {
+  return exec(cwd, [...pre, ...args], TIMEOUT, {
+    ...process.env,
+    GIT_OPTIONAL_LOCKS: '0',
+    LC_ALL: 'C',
+    [EMPTY_VAR]: '',
+  });
+}
+
+const SCRUB = new Set([
+  'GIT_DIR',
+  'GIT_WORK_TREE',
+  'GIT_INDEX_FILE',
+  'GIT_OBJECT_DIRECTORY',
+  'GIT_COMMON_DIR',
+  'GIT_NAMESPACE',
+]);
+
+export function scrubGitEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {};
+  // env keys are case-insensitive on Windows
+  for (const [k, v] of Object.entries(env)) if (!SCRUB.has(k.toUpperCase())) out[k] = v;
+  return { ...out, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', [EMPTY_VAR]: '' };
 }
 
 function detectOperation(gitDir: string): string | null {
@@ -152,6 +184,31 @@ export function localFilterOverrides(entries: ScopedEntry[]): string[] {
 }
 
 const SCOPED_RE = '^(remote\\.origin\\.url|filter\\..+\\.(clean|smudge|process))$';
+
+export function hardenedGit(
+  cwd: string,
+  args: string[],
+  opts: { harden: boolean; timeout: number; env?: NodeJS.ProcessEnv },
+): string | null {
+  const env = scrubGitEnv(opts.env ?? process.env);
+  const start = Date.now();
+  let pre: string[] = [];
+  if (opts.harden) {
+    // no overrides known, so no status
+    const cfg = exec(
+      cwd,
+      [...HARDEN, 'config', '--show-scope', '--get-regexp', SCOPED_RE],
+      opts.timeout,
+      env,
+      true,
+    );
+    if (cfg === null) return null;
+    pre = [...HARDEN, ...localFilterOverrides(parseScopedConfig(cfg))];
+  }
+  const left = opts.timeout - (Date.now() - start);
+  if (left <= 0) return null;
+  return exec(cwd, [...pre, ...args], left, env);
+}
 
 export function readGit(cwd: string, opts: { harden?: boolean } = {}): GitInfo | null {
   const harden = opts.harden !== false;
