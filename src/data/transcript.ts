@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { deepSanitize, sanitizeText } from '../core/sanitize.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
 
 export interface Todo {
@@ -308,6 +309,10 @@ function outputSpeed(s: State): number | null {
   return secs > 0 ? tokens / secs : null;
 }
 
+function clean(v: string | null): string | null {
+  return v === null ? null : sanitizeText(v) || null;
+}
+
 function toInfo(s: State): TranscriptInfo {
   return {
     inputTokens: s.inputTokens,
@@ -319,16 +324,16 @@ function toInfo(s: State): TranscriptInfo {
     messageCount: s.messageCount,
     userMessageCount: s.userMessageCount,
     compactions: s.compactions,
-    lastCommand: s.lastCommand,
-    lastGsdCommand: s.lastGsdCommand,
-    skills: s.skills,
-    sessionName: s.title,
+    lastCommand: clean(s.lastCommand),
+    lastGsdCommand: clean(s.lastGsdCommand),
+    skills: s.skills.map(sanitizeText),
+    sessionName: clean(s.title),
     firstTimestamp: s.firstTimestamp,
     lastTimestamp: s.lastTimestamp,
-    currentTask: s.currentTask,
+    currentTask: clean(s.currentTask),
     outputSpeed: outputSpeed(s),
-    todos: s.todos,
-    agentCalls: s.agentCalls,
+    todos: deepSanitize(s.todos),
+    agentCalls: deepSanitize(s.agentCalls),
     turnStart: s.turnStart,
   };
 }

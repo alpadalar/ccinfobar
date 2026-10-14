@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { claudeDir } from '../core/paths.js';
+import { deepSanitize } from '../core/sanitize.js';
 
 // global or project install
 export function gsdInstalled(env: NodeJS.ProcessEnv = process.env, cwd = process.cwd()): boolean {
@@ -607,7 +608,7 @@ function buildInfo(cwd: string, env: NodeJS.ProcessEnv): GsdInfo | null {
 
 export function readGsd(cwd: string, env: NodeJS.ProcessEnv = process.env): GsdInfo | null {
   try {
-    return buildInfo(cwd, env);
+    return deepSanitize(buildInfo(cwd, env));
   } catch {
     return null;
   }

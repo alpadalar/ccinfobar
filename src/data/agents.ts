@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { sanitizeText } from '../core/sanitize.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
 import type { TranscriptInfo } from './transcript.js';
 
@@ -150,16 +151,16 @@ export function readAgents(
     const s = cached(jsonl, stat.size, env);
     out.push({
       id: id.replace(/^agent-/, ''),
-      type: typeof meta.agentType === 'string' ? meta.agentType : 'agent',
-      description: typeof meta.description === 'string' ? meta.description : '',
-      model: s.model,
+      type: typeof meta.agentType === 'string' ? sanitizeText(meta.agentType) || 'agent' : 'agent',
+      description: typeof meta.description === 'string' ? sanitizeText(meta.description) : '',
+      model: s.model === null ? null : sanitizeText(s.model),
       input: s.input,
       output: s.output,
       total: s.total,
       fresh: s.fresh,
       start: s.first,
       last: running ? now : s.last,
-      tool: s.tool,
+      tool: s.tool === null ? null : sanitizeText(s.tool),
       running,
     });
   }

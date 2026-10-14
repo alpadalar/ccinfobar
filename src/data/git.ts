@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { deepSanitize } from '../core/sanitize.js';
 
 export interface GitInfo {
   root: string;
@@ -101,6 +102,10 @@ export function parseShortstat(out: string): { insertions: number; deletions: nu
   return { insertions: ins ? Number(ins[1]) : 0, deletions: del ? Number(del[1]) : 0 };
 }
 
+export function finishGit(info: GitInfo): GitInfo {
+  return deepSanitize(info);
+}
+
 export function readGit(cwd: string): GitInfo | null {
   const revs = git(cwd, ['rev-parse', '--show-toplevel', '--git-dir', '--git-common-dir']);
   if (revs === null) return null;
@@ -118,12 +123,12 @@ export function readGit(cwd: string): GitInfo | null {
   const stat = diff ? parseShortstat(diff) : { insertions: 0, deletions: 0 };
   const remote = git(cwd, ['config', '--get', 'remote.origin.url'])?.trim() || null;
 
-  return {
+  return finishGit({
     root: path.resolve(top),
     ...s,
     ...stat,
     operation: detectOperation(gitDir),
     remoteUrl: remote,
     isWorktree: gitDir !== common,
-  };
+  });
 }
