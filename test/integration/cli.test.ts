@@ -92,6 +92,14 @@ describe.skipIf(!fs.existsSync(bin))('built cli', () => {
     expect(bad.out).toContain('invalid JSON');
   });
 
+  it('prints explain --json as one object', () => {
+    const res = run(['explain', '--json']);
+    expect(res.status).toBe(0);
+    const obj = JSON.parse(res.stdout);
+    expect(obj.schema).toBe(1);
+    expect(Array.isArray(obj.widgets)).toBe(true);
+  });
+
   it('explains hidden widgets in doctor', () => {
     const res = run(['doctor']);
     expect(res.status).toBe(0);

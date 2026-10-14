@@ -5,7 +5,14 @@ import type { Args } from '../cli/args.js';
 import type { LoadResult } from '../core/config.js';
 import { createContext } from '../core/context.js';
 import { t } from '../core/i18n/index.js';
-import { type InspectMeta, type InspectRow, inspectRows, lineReport, type Source } from '../core/inspect.js';
+import {
+  type InspectMeta,
+  type InspectRow,
+  inspectRows,
+  type LineRow,
+  lineReport,
+  type Source,
+} from '../core/inspect.js';
 import { loadForUse } from '../core/load.js';
 import { lastPayloadPath, tildify } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
@@ -51,6 +58,7 @@ export interface InspectOptions {
   width?: number;
   fallback: 'sample' | 'none';
   env?: NodeJS.ProcessEnv;
+  loaded?: LoadResult;
 }
 
 export class PayloadFileError extends Error {}
@@ -181,7 +189,7 @@ function sourceMeta(
 
 export function loadInspectInput(opts: InspectOptions): InspectInput | null {
   const baseEnv = opts.env ?? process.env;
-  const loaded = loadForUse(opts.cfgFile);
+  const loaded = opts.loaded ?? loadForUse(opts.cfgFile);
   const config = loaded.config;
   let env = baseEnv;
   let now = new Date();
@@ -358,6 +366,74 @@ function statusLine(r: InspectRow): string {
   }
 }
 
+function clean<T>(v: T): T {
+  if (typeof v === 'string') return sanitizeText(v) as T;
+  if (Array.isArray(v)) return v.map(clean) as T;
+  if (v && typeof v === 'object')
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [sanitizeText(k), clean(x)])) as T;
+  return v;
+}
+
+export interface ExplainJson {
+  schema: 1;
+  version: string;
+  input: { kind: InputKind; name?: string; ageMs?: number; claudeCode?: string };
+  width: number | null;
+  widgets: InspectRow[];
+  lines: LineRow[];
+}
+
+export function explainJson(
+  input: InspectInput['input'],
+  rows: InspectRow[],
+  lines: LineRow[],
+  width: number | null,
+): ExplainJson {
+  return clean({
+    schema: 1,
+    version: VERSION,
+    input: {
+      kind: input.kind,
+      ...(input.kind === 'scenario' && input.name ? { name: input.name } : {}),
+      ...(input.ageMs !== undefined ? { ageMs: Math.round(input.ageMs) } : {}),
+      ...(input.claudeCode !== undefined ? { claudeCode: input.claudeCode } : {}),
+    },
+    width,
+    widgets: rows.map((r) => ({
+      line: r.line,
+      index: r.index,
+      id: r.id,
+      type: r.type,
+      status: r.status,
+      value: r.value,
+      sources: r.sources.map((s) => ({
+        kind: s.kind,
+        ...(s.path !== undefined ? { path: s.path } : {}),
+        ...(s.age !== undefined ? { age: Math.round(s.age) } : {}),
+      })),
+      empty: r.empty ? { code: r.empty.code, text: r.empty.text } : null,
+      error: r.error,
+    })),
+    lines: lines.map((l) => ({ line: l.line, width: l.width, max: l.max, cut: l.cut })),
+  });
+}
+
+function reportConfigIssue(loaded: LoadResult, io: ExplainIo): boolean {
+  if (!loaded.issue) return false;
+  const { line, column, message } = loaded.issue;
+  io.error(
+    t('config.issue', {
+      file: sanitizeText(tildify(loaded.path)),
+      line,
+      column,
+      message: sanitizeText(message),
+    }),
+  );
+  io.error(t('explain.runDoctor'));
+  process.exitCode = 1;
+  return true;
+}
+
 export function runExplain(args: Args, cfgFile: string, io: ExplainIo = explainIo()): void {
   const flag = scenarioFlag(args.flags.scenario);
   if (flag.kind === 'list') {
@@ -370,11 +446,14 @@ export function runExplain(args: Args, cfgFile: string, io: ExplainIo = explainI
     process.exitCode = 1;
     return;
   }
+  const loaded = loadForUse(cfgFile);
+  if (reportConfigIssue(loaded, io)) return;
   const widthFlag = typeof args.flags.width === 'string' ? Number(args.flags.width) : undefined;
   let data: InspectInput | null;
   try {
     data = loadInspectInput({
       cfgFile,
+      loaded,
       ...(typeof args.flags.payload === 'string' ? { payloadFile: args.flags.payload } : {}),
       ...(flag.kind === 'scenario' ? { scenario: flag.id } : {}),
       ...(widthFlag && Number.isFinite(widthFlag) ? { width: widthFlag } : {}),
@@ -388,21 +467,68 @@ export function runExplain(args: Args, cfgFile: string, io: ExplainIo = explainI
   }
   if (!data) return;
   try {
-    printExplain(data, io);
+    printExplain(data, io, args.positional[0], args.flags.json === true);
   } finally {
     data.cleanup();
   }
 }
 
-function printExplain(data: InspectInput, io: ExplainIo): void {
-  io.log(t('explain.header', { version: VERSION }));
-  io.log(inputLine(data.input));
-  io.log(data.width === null ? t('explain.widthUnknown') : t('explain.width', { width: data.width }));
+function pick(rows: InspectRow[], id: string): InspectRow[] {
+  const byId = rows.filter((r) => r.id === id);
+  return byId.length ? byId : rows.filter((r) => r.type === id);
+}
+
+function detailLines(data: InspectInput, r: InspectRow): string[] {
+  const none = t('explain.detail.none');
+  const s = (v: string) => sanitizeText(v);
+  const id = s(r.id);
+  const type = s(r.type);
+  const options = data.config.lines[r.line]?.[r.index]?.options;
+  const sources = [...new Set(r.sources.map(sourceText))].join(', ');
+  const out = [
+    t('explain.detail.header', { name: id === type ? type : `${id} (${type})` }),
+    t('explain.detail.line', { line: r.line + 1 }),
+    t('explain.detail.index', { index: r.index }),
+    t('explain.detail.id', { id }),
+    t('explain.detail.type', { type }),
+    t('explain.detail.status', { status: r.status }),
+    t('explain.detail.value', { value: r.value === null ? none : s(r.value) }),
+    t('explain.detail.sources', { sources: sources || none }),
+  ];
+  if (r.error !== null) out.push(t('explain.detail.error', { error: s(r.error) }));
+  else if (r.empty) out.push(t('explain.detail.reason', { reason: s(r.empty.text) }));
+  const opts = options && Object.keys(options).length ? JSON.stringify(clean(options)) : none;
+  out.push(t('explain.detail.options', { options: opts }));
+  return out;
+}
+
+function printExplain(data: InspectInput, io: ExplainIo, id: string | undefined, json: boolean): void {
   const rows = inspectRows(data.ctx, {
     meta: data.meta,
     ...(data.commandEnv ? { commandEnv: data.commandEnv } : {}),
   });
   const lines = lineReport(data.commandEnv ? { ...data.ctx, env: data.commandEnv } : data.ctx);
+  const picked = id === undefined ? rows : pick(rows, id);
+  if (id !== undefined && !picked.length) {
+    io.error(t('explain.noMatch', { id: sanitizeText(id) }));
+    io.error(t('explain.idList', { ids: rows.map((r) => sanitizeText(r.id)).join(', ') }));
+    process.exitCode = 1;
+    return;
+  }
+  if (json) {
+    io.log(JSON.stringify(explainJson(data.input, picked, lines, data.width), null, 2));
+    return;
+  }
+  io.log(t('explain.header', { version: VERSION }));
+  io.log(inputLine(data.input));
+  io.log(data.width === null ? t('explain.widthUnknown') : t('explain.width', { width: data.width }));
+  if (id !== undefined) {
+    for (const r of picked) {
+      io.log('');
+      for (const l of detailLines(data, r)) io.log(l);
+    }
+    return;
+  }
   data.config.lines.forEach((_, line) => {
     io.log('');
     io.log(t('explain.lineHeader', { line: line + 1 }));

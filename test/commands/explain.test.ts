@@ -6,15 +6,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import {
   type ExplainIo,
+  explainJson,
   formatAge,
   loadInspectInput,
   runExplain,
   shortAge,
 } from '../../src/commands/explain.js';
 import { t } from '../../src/core/i18n/index.js';
+import type { InspectRow } from '../../src/core/inspect.js';
 import { cacheDir, configDir, lastPayloadPath } from '../../src/core/paths.js';
 import { scenarioListLines } from '../../src/core/preview.js';
 import type { StatusPayload } from '../../src/core/types.js';
+import { VERSION } from '../../src/core/version.js';
 import { agentsCacheName, readAgents } from '../../src/data/agents.js';
 import { cacheFile } from '../../src/data/cache.js';
 import { readTranscript, transcriptCacheName } from '../../src/data/transcript.js';
@@ -410,5 +413,159 @@ describe('read-only readers', () => {
     const rw = readAgents(transcript, null, now, env);
     expect(fs.existsSync(cacheFile(agentsCacheName(jsonl), env))).toBe(true);
     expect(ro).toEqual(rw);
+  });
+});
+
+const WIDGET_KEYS = ['empty', 'error', 'id', 'index', 'line', 'sources', 'status', 'type', 'value'];
+
+function json(argv: string[], cfg: object = LAYOUT) {
+  const { out, err } = run(['--json', ...argv], cfg);
+  expect(out).toHaveLength(1);
+  return { obj: JSON.parse(out[0]!), text: out[0]!, err };
+}
+
+describe('explain --json', () => {
+  it('prints one stable object for the sample', () => {
+    const { obj, err } = json([]);
+    expect(err).toEqual([]);
+    expect(obj.schema).toBe(1);
+    expect(obj.version).toBe(VERSION);
+    expect(obj.input).toEqual({ kind: 'sample' });
+    expect(Object.keys(obj).sort()).toEqual(['input', 'lines', 'schema', 'version', 'widgets', 'width']);
+    expect(obj.widgets).toHaveLength(7);
+    for (const w of obj.widgets) expect(Object.keys(w).sort()).toEqual(WIDGET_KEYS);
+    for (const l of obj.lines) expect(Object.keys(l).sort()).toEqual(['cut', 'line', 'max', 'width']);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('describes last, scenario and payload inputs', () => {
+    savedPayload({ version: '2.1.300' });
+    const last = json([]).obj.input;
+    expect(last.kind).toBe('last');
+    expect(typeof last.ageMs).toBe('number');
+    expect(last.claudeCode).toBe('2.1.300');
+    expect(json(['--scenario', 'context-full']).obj.input).toEqual({
+      kind: 'scenario',
+      name: 'context-full',
+    });
+    const file = path.join(dir, 'p.json');
+    fs.writeFileSync(file, JSON.stringify({ model: { display_name: 'X' } }));
+    expect(json(['--payload', file]).obj.input).toEqual({ kind: 'payload' });
+  });
+
+  it('never dumps payload values that are not rendered', () => {
+    const file = path.join(dir, 'p.json');
+    fs.writeFileSync(file, JSON.stringify({ session_name: 'SECRET-NAME', model: { display_name: 'Opus' } }));
+    const { text } = json(['--payload', file]);
+    expect(text).not.toContain('SECRET-NAME');
+    expect(text).toContain('Opus');
+  });
+
+  it('sanitizes every string', () => {
+    const row: InspectRow = {
+      line: 0,
+      index: 0,
+      id: `a${ESC}[31mb`,
+      type: 'model',
+      status: 'empty',
+      value: `v${ESC}[31m1`,
+      sources: [{ kind: 'payload', path: `x${ESC}[0m` }],
+      empty: { code: 'no-data', text: `r${ESC}[31mz` },
+      error: null,
+    };
+    const obj = explainJson({ kind: 'sample' }, [row], [], null);
+    const text = JSON.stringify(obj);
+    expect(text).not.toContain('\\u001b');
+    expect(text).not.toContain(ESC);
+    expect(obj.widgets[0]).toMatchObject({ id: 'ab', value: 'v1', empty: { text: 'rz' } });
+  });
+
+  it('prints only the matched widgets with an id', () => {
+    const { obj } = json(['ctx']);
+    expect(obj.widgets.map((w: InspectRow) => w.id)).toEqual(['ctx']);
+    expect(obj.lines.length).toBe(2);
+  });
+});
+
+describe('explain <widget-id>', () => {
+  const block = (out: string[]) => out.slice(out.findIndex((l) => l.startsWith('Widget ')));
+
+  it('prints a detail block for an id', () => {
+    const cfg = {
+      lines: [[{ id: 'context-percentage', type: 'context-percentage', options: { mode: 'remaining' } }]],
+    };
+    const { out, err } = run(['context-percentage'], cfg);
+    expect(err).toEqual([]);
+    const b = block(out);
+    expect(b[0]).toBe(t('explain.detail.header', { name: 'context-percentage' }));
+    expect(b).toContain(t('explain.detail.line', { line: 1 }));
+    expect(b).toContain(t('explain.detail.index', { index: 0 }));
+    expect(b).toContain(t('explain.detail.id', { id: 'context-percentage' }));
+    expect(b).toContain(t('explain.detail.type', { type: 'context-percentage' }));
+    expect(b).toContain(t('explain.detail.status', { status: 'shown' }));
+    expect(b.some((l) => l.startsWith('  value: '))).toBe(true);
+    expect(b.some((l) => l.startsWith('  sources: ') && l.includes('payload: context_window'))).toBe(true);
+    expect(b).toContain(t('explain.detail.options', { options: '{"mode":"remaining"}' }));
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('prints the reason and no options for an empty widget', () => {
+    const { out } = run(['branch', '--scenario', 'no-git'], LAYOUT);
+    const b = block(out);
+    expect(b).toContain(t('explain.detail.reason', { reason: t('explain.reason.no-git') }));
+    expect(b).toContain(t('explain.detail.options', { options: t('explain.detail.none') }));
+  });
+
+  it('matches the id first, then every item of the type', () => {
+    const cfg = {
+      lines: [
+        [
+          { id: 'git-branch', type: 'git-branch' },
+          { id: 'git-branch-2', type: 'git-branch' },
+          { id: 'here', type: 'cwd' },
+          { id: 'there', type: 'cwd' },
+        ],
+      ],
+    };
+    const headers = (out: string[]) => out.filter((l) => l.startsWith('Widget '));
+    expect(headers(run(['git-branch'], cfg).out)).toEqual([
+      t('explain.detail.header', { name: 'git-branch' }),
+    ]);
+    expect(headers(run(['cwd'], cfg).out)).toEqual([
+      t('explain.detail.header', { name: 'here (cwd)' }),
+      t('explain.detail.header', { name: 'there (cwd)' }),
+    ]);
+  });
+
+  it('exits 1 and lists the ids when nothing matches', () => {
+    const { out, err } = run(['nope-widget']);
+    expect(out).toEqual([]);
+    expect(err).toEqual([
+      t('explain.noMatch', { id: 'nope-widget' }),
+      t('explain.idList', { ids: 'model, ctx, flex, branch, messages, graph, nope' }),
+    ]);
+    expect(process.exitCode).toBe(1);
+  });
+});
+
+describe('explain with a broken config', () => {
+  it('prints the location, points to doctor and exits 1', () => {
+    fs.mkdirSync(configDir(), { recursive: true });
+    const file = path.join(configDir(), 'broken.json');
+    fs.writeFileSync(file, '{\n  "lines": [\n    [}\n');
+    for (const argv of [[], ['--json']]) {
+      process.exitCode = undefined;
+      const out: string[] = [];
+      const err: string[] = [];
+      runExplain(parseArgs(['explain', ...argv]), file, {
+        tty: false,
+        log: (l) => out.push(l),
+        error: (l) => err.push(l),
+      });
+      expect(out).toEqual([]);
+      expect(err[0]).toMatch(/has an error at line 3, column \d+: /);
+      expect(err[1]).toBe(t('explain.runDoctor'));
+      expect(process.exitCode).toBe(1);
+    }
   });
 });
