@@ -216,7 +216,7 @@ describe('install and uninstall', () => {
     const entry = findStatusLineEntry(readManifest(), file);
     expect(entry).toMatchObject({
       kind: 'statusLine',
-      file,
+      file: fs.realpathSync(file),
       key: ['statusLine'],
       value: { type: 'command', command: '/bin/ccinfobar', padding: 0, refreshInterval: 4 },
       previous,
