@@ -1,11 +1,10 @@
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { t } from '../core/i18n/index.js';
 import { cacheDir } from '../core/paths.js';
 import { acquireLock, readJsonSafe } from '../data/store.js';
-import { spawnSelfDetached } from '../data/update-state.js';
+import { safeCwd, spawnSelfDetached } from '../data/update-state.js';
 
 export interface EditorState {
   url: string;
@@ -123,7 +122,7 @@ export async function runDetach(opts: DetachOptions): Promise<number> {
     const args = ['edit', '--serve-detached', '--no-open', '--config', config];
     if (opts.port) args.push('--port', String(opts.port));
     // home cwd: the server runs claude --version
-    const pid = (opts.spawn ?? ((a: string[]) => spawnSelfDetached(a, env, os.homedir())))(args);
+    const pid = (opts.spawn ?? ((a: string[]) => spawnSelfDetached(a, env, safeCwd())))(args);
     if (pid !== null) {
       for (;;) {
         const state = readEditorState(env);

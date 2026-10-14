@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { cacheDir, configDir } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -149,6 +150,16 @@ export function scheduleCheck(config: Config, session?: string, env: NodeJS.Proc
 
 export function spawnSelf(args: string[], env: NodeJS.ProcessEnv = process.env): void {
   spawnSelfDetached(args, env);
+}
+
+// home, else temp: never a cwd that may hold a planted binary
+export function safeCwd(): string | undefined {
+  for (const d of [os.homedir(), os.tmpdir()]) {
+    try {
+      if (fs.statSync(d).isDirectory()) return d;
+    } catch {}
+  }
+  return undefined;
 }
 
 export function spawnSelfDetached(

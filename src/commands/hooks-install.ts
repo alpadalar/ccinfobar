@@ -1,10 +1,9 @@
 import { type ExecFileSyncOptionsWithStringEncoding, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import { t } from '../core/i18n/index.js';
 import { claudeSettingsPath, lastPayloadPath } from '../core/paths.js';
 import { HOOK_EVENTS, type HookEvent, isHookEvent } from '../data/hooks.js';
-import { compareVersions } from '../data/update-state.js';
+import { compareVersions, safeCwd } from '../data/update-state.js';
 import {
   deepEqual,
   dropHookEntry,
@@ -104,7 +103,7 @@ export const claudeExecOptions = (): ExecFileSyncOptionsWithStringEncoding & { e
   encoding: 'utf8',
   timeout: 2000,
   windowsHide: true,
-  cwd: os.homedir(),
+  cwd: safeCwd(),
   env: { ...process.env, NoDefaultCurrentDirectoryInExePath: '1' },
   stdio: ['ignore', 'pipe', 'ignore'],
 });

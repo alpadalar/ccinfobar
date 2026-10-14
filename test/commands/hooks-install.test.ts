@@ -224,7 +224,8 @@ describe('detectClaudeCode', () => {
 
   it('runs claude from the home dir and never from the current dir', () => {
     const o = claudeExecOptions();
-    expect(o.cwd).toBe(os.homedir());
+    expect(o.cwd).toBe(fs.existsSync(os.homedir()) ? os.homedir() : os.tmpdir());
+    expect(o.cwd).not.toBe(process.cwd());
     expect(o.env.NoDefaultCurrentDirectoryInExePath).toBe('1');
     expect(o.stdio).toEqual(['ignore', 'pipe', 'ignore']);
   });
