@@ -48,6 +48,7 @@
                 "cache-hit-rate",
                 "cache-timer",
                 "cache-miss-cause",
+                "performance",
                 "output-speed",
                 "session-cost",
                 "cost-rate",
