@@ -255,6 +255,7 @@ export interface WidgetDef {
   sample?: string;
   hidden?: boolean;
   fill?: boolean;
+  timeBased?: true;
   sources?: string[];
   render(ctx: RenderContext, item: WidgetItem): WidgetResult;
 }

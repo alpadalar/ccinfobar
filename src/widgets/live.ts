@@ -10,6 +10,7 @@ const turnOf = (ctx: RenderContext) =>
 export const widgets: WidgetDef[] = [
   {
     type: 'tool-activity',
+    timeBased: true,
     name: 'Tool activity',
     category: 'agents',
     description: 'The running tool and recent tool counts, from the transcript',
@@ -75,6 +76,7 @@ export const widgets: WidgetDef[] = [
   },
   {
     type: 'turn-timer',
+    timeBased: true,
     name: 'Turn timer',
     category: 'session',
     description:
@@ -106,6 +108,7 @@ export const widgets: WidgetDef[] = [
   },
   {
     type: 'permission-wait',
+    timeBased: true,
     name: 'Permission wait',
     category: 'session',
     description:

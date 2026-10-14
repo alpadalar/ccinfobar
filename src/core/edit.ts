@@ -282,6 +282,19 @@ export function recordStyles(history: StyleHistory, before: Config, after: Confi
 }
 
 // drops invalid or default values; removes an empty budget
+export const REFRESH_SUGGEST = 5;
+
+export function needsRefresh(
+  config: Config,
+  isTimeBased: (type: string) => boolean,
+  extra: Iterable<string> = [],
+): string[] {
+  const out = new Set<string>();
+  for (const line of config.lines) for (const it of line) if (isTimeBased(it.type)) out.add(it.type);
+  for (const t of extra) if (isTimeBased(t)) out.add(t);
+  return [...out].sort();
+}
+
 export function setBudget(config: Config, key: keyof BudgetConfig, value: number | undefined): Config {
   const budget: BudgetConfig = { ...config.budget };
   const ok = typeof value === 'number' && Number.isFinite(value) && (key === 'warnAt' || value > 0);

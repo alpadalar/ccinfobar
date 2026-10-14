@@ -11,6 +11,7 @@ const PLATFORMS: Record<string, string> = { darwin: 'macOS', win32: 'Windows', l
 export const widgets: WidgetDef[] = [
   {
     type: 'clock',
+    timeBased: true,
     name: 'Clock',
     category: 'system',
     description: 'Current local time',

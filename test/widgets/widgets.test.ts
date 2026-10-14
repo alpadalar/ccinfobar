@@ -371,3 +371,22 @@ describe('git real world fixes', () => {
     expect(renderWidget('git-worktree', ctxWith({ payload: {} }))).toBeNull();
   });
 });
+
+describe('timeBased flag', () => {
+  it('marks exactly the widgets that change with time alone', () => {
+    expect(
+      ALL_WIDGETS.filter((w) => w.timeBased)
+        .map((w) => w.type)
+        .sort(),
+    ).toEqual([
+      'cache-timer',
+      'clock',
+      'limit-eta',
+      'limit-risk',
+      'permission-wait',
+      'tool-activity',
+      'turn-timer',
+      'usage-projection',
+    ]);
+  });
+});

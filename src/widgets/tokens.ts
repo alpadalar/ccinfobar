@@ -150,6 +150,7 @@ export const widgets: WidgetDef[] = [
   },
   {
     type: 'cache-timer',
+    timeBased: true,
     name: 'Cache timer',
     category: 'tokens',
     description: 'Time left before the prompt cache expires',

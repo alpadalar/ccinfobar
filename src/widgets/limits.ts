@@ -370,6 +370,7 @@ export const widgets: WidgetDef[] = [
   },
   {
     type: 'usage-projection',
+    timeBased: true,
     name: 'Usage projection',
     category: 'limits',
     description: 'Expected usage at the end of the window at the current pace',
@@ -389,6 +390,7 @@ export const widgets: WidgetDef[] = [
   },
   {
     type: 'limit-eta',
+    timeBased: true,
     name: 'Limit ETA',
     category: 'limits',
     description: 'Time until a usage limit reaches 100% at the current pace',
@@ -414,6 +416,7 @@ export const widgets: WidgetDef[] = [
   },
   {
     type: 'limit-risk',
+    timeBased: true,
     name: 'Limit risk',
     category: 'limits',
     description: 'Warning chip when a usage limit is projected to run out before it resets',

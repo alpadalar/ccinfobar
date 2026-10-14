@@ -8,6 +8,8 @@ import {
   insertItem,
   moveItem,
   moveLine,
+  needsRefresh,
+  REFRESH_SUGGEST,
   recordStyles,
   removeItem,
   removeLine,
@@ -209,5 +211,30 @@ describe('setBudget', () => {
     const c = setBudget(setBudget(base, 'daily', 5), 'daily', undefined);
     expect('budget' in c).toBe(false);
     expect('budget' in setBudget(base, 'warnAt', 0.8)).toBe(false);
+  });
+});
+
+describe('needsRefresh', () => {
+  const timed = new Set(['turn-timer', 'clock', 'cache-timer']);
+  const isTimed = (t: string) => timed.has(t);
+  const cfg = (lines: string[][]): Config => ({
+    ...defaultConfig(),
+    lines: lines.map((l) => l.map((type, i) => ({ id: `${type}-${i}`, type }))),
+  });
+
+  it('lists the flagged types on the layout, sorted and once', () => {
+    const c = cfg([
+      ['model', 'turn-timer'],
+      ['clock', 'turn-timer'],
+    ]);
+    expect(needsRefresh(c, isTimed)).toEqual(['clock', 'turn-timer']);
+    expect(needsRefresh(c, isTimed, ['cache-timer', 'model'])).toEqual([
+      'cache-timer',
+      'clock',
+      'turn-timer',
+    ]);
+    expect(needsRefresh(cfg([]), isTimed)).toEqual([]);
+    expect(needsRefresh(cfg([['model']]), isTimed, new Set(['git-branch']))).toEqual([]);
+    expect(REFRESH_SUGGEST).toBe(5);
   });
 });
