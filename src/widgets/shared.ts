@@ -1,4 +1,6 @@
-import type { OptionSpec, OptionValue, RenderContext, WidgetItem } from '../core/types.js';
+import { t } from '../core/i18n/index.js';
+import { isFreshSession } from '../core/payload.js';
+import type { OptionSpec, OptionValue, RenderContext, WidgetItem, WidgetOutput } from '../core/types.js';
 
 export function opt<T extends OptionValue>(item: WidgetItem, key: string, fallback: T): T {
   const v = item.options?.[key];
@@ -9,6 +11,15 @@ export function opt<T extends OptionValue>(item: WidgetItem, key: string, fallba
   }
   if (typeof fallback === 'boolean') return (typeof v === 'boolean' ? v : v === 'true') as T;
   return String(v) as T;
+}
+
+export function loading(ctx: RenderContext, item: WidgetItem): WidgetOutput | null {
+  if (item.hideEmpty || ctx.config.loadingText === '') return null;
+  if (!isFreshSession(ctx.payload, ctx.data.transcript())) return null;
+  return {
+    text: ctx.config.loadingText ?? t('loading.default'),
+    color: ctx.theme?.colors.muted ?? 'brightBlack',
+  };
 }
 
 export interface BarStyle {

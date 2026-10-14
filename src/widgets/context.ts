@@ -1,5 +1,5 @@
 import type { OptionSpec, RenderContext, WidgetDef, WidgetItem, WidgetResult } from '../core/types.js';
-import { barFor, barOptions, formatTokens, opt, thresholdColor, thresholdOption } from './shared.js';
+import { barFor, barOptions, formatTokens, loading, opt, thresholdColor, thresholdOption } from './shared.js';
 
 export const AUTOCOMPACT_BUFFER = 0.165;
 
@@ -86,6 +86,8 @@ export const widgets: WidgetDef[] = [
       thresholdOption,
     ],
     render(ctx, item) {
+      const l = loading(ctx, item);
+      if (l) return l;
       const pct = contextPercent(ctx, opt(item, 'usable', false));
       if (pct === null) return null;
       const shown = opt<string>(item, 'mode', 'used') === 'remaining' ? 100 - pct : pct;
@@ -103,6 +105,8 @@ export const widgets: WidgetDef[] = [
     sample: '███░░░░░░░ 34%',
     options: [...barOptions, usableOption, thresholdOption],
     render(ctx, item) {
+      const l = loading(ctx, item);
+      if (l) return l;
       const pct = contextPercent(ctx, opt(item, 'usable', false));
       if (pct === null) return null;
       const b = barFor(ctx, item, pct);
@@ -121,6 +125,8 @@ export const widgets: WidgetDef[] = [
     sample: '340k',
     options: [{ key: 'showMax', label: 'Show window size', kind: 'boolean', default: false }],
     render(ctx, item) {
+      const l = loading(ctx, item);
+      if (l) return l;
       const used = contextTokens(ctx);
       if (used === null) return null;
       const size = windowSize(ctx);

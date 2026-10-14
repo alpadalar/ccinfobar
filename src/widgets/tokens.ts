@@ -1,6 +1,6 @@
 import type { MissCause, WidgetDef } from '../core/types.js';
 import { tok } from './context.js';
-import { formatDuration, toEpochMs } from './shared.js';
+import { formatDuration, loading, toEpochMs } from './shared.js';
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
@@ -28,7 +28,9 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰁅', emoji: '📥' },
     color: 'cyan',
     sample: '412k',
-    render(ctx) {
+    render(ctx, item) {
+      const l = loading(ctx, item);
+      if (l) return l;
       const n = ctx.payload.context_window?.total_input_tokens ?? ctx.data.transcript()?.inputTokens;
       return typeof n === 'number' ? tok(n) : null;
     },
@@ -42,7 +44,9 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰁝', emoji: '📤' },
     color: 'cyan',
     sample: '38k',
-    render(ctx) {
+    render(ctx, item) {
+      const l = loading(ctx, item);
+      if (l) return l;
       const n = ctx.payload.context_window?.total_output_tokens ?? ctx.data.transcript()?.outputTokens;
       return typeof n === 'number' ? tok(n) : null;
     },
@@ -56,7 +60,9 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰆼', emoji: '💾' },
     color: 'cyan',
     sample: '3.2M',
-    render(ctx) {
+    render(ctx, item) {
+      const l = loading(ctx, item);
+      if (l) return l;
       const t = ctx.data.transcript();
       if (t) return tok(t.cacheReadTokens + t.cacheWriteTokens);
       const u = ctx.payload.context_window?.current_usage;
@@ -73,7 +79,9 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰊤', emoji: '🔢' },
     color: 'cyan',
     sample: '450k',
-    render(ctx) {
+    render(ctx, item) {
+      const l = loading(ctx, item);
+      if (l) return l;
       const cw = ctx.payload.context_window;
       if (typeof cw?.total_input_tokens === 'number' || typeof cw?.total_output_tokens === 'number') {
         return tok((cw.total_input_tokens ?? 0) + (cw.total_output_tokens ?? 0));
@@ -91,7 +99,9 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰓾', emoji: '🎯' },
     color: 'green',
     sample: '94%',
-    render(ctx) {
+    render(ctx, item) {
+      const l = loading(ctx, item);
+      if (l) return l;
       const r = ctx.payload.prompt_cache?.hit_ratio;
       if (typeof r === 'number') return `${Math.round(r <= 1 ? r * 100 : r)}%`;
       const t = ctx.data.transcript();

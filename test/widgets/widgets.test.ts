@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { sampleGit, samplePayload } from '../../src/core/sample.js';
-import type { StatusPayload } from '../../src/core/types.js';
+import type { Config, StatusPayload } from '../../src/core/types.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
 import { ctxWith, NOW, renderWidget } from '../helpers.js';
 
@@ -10,8 +10,15 @@ const r = (type: string, opts: Record<string, string | number | boolean> = {}, p
   renderWidget(type, ctxWith(payload ? { payload } : {}), { options: opts });
 
 const empty = (): StatusPayload => ({});
-const noData = () =>
-  ctxWith({ payload: empty(), git: () => null, transcript: () => null, history: () => [], agents: () => [] });
+const noData = (config?: Partial<Config>) =>
+  ctxWith({
+    payload: empty(),
+    git: () => null,
+    transcript: () => null,
+    history: () => [],
+    agents: () => [],
+    config,
+  });
 
 describe('sample rendering', () => {
   const expected: Record<string, string> = {
@@ -111,7 +118,8 @@ describe('missing data', () => {
   ]);
   for (const def of ALL_WIDGETS.filter((w) => !skip.has(w.type) && w.category !== 'gsd')) {
     it(`${def.type} hides without data`, () => {
-      expect(renderWidget(def.type, noData())).toBeNull();
+      // loading placeholder off; test/widgets/loading.test.ts covers it
+      expect(renderWidget(def.type, noData({ loadingText: '' }))).toBeNull();
     });
   }
 });
