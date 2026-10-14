@@ -346,10 +346,11 @@ export interface HooksRemoval {
 export function uninstallHooks(
   file: string = claudeSettingsPath(),
   env: NodeJS.ProcessEnv = process.env,
+  only?: readonly string[],
 ): HooksRemoval {
   const m = readManifest(env);
   if (m.readOnly) throw new Error(t('install.manifestReadOnly', { file: manifestFile(env) }));
-  const entries = findHookEntries(m, file);
+  const entries = findHookEntries(m, file).filter((e) => !only || only.includes(e.event));
   if (!entries.length) return { removed: [], kept: [], backup: null, changed: false };
   const state = { removed: [] as string[], kept: [] as string[] };
   const res = patchSettings(

@@ -25,5 +25,10 @@ export const hookMessages = {
   'hooks.removed': '✓ Removed ccinfobar hooks: {events}',
   'hooks.leftEdited': '  Left hooks changed outside ccinfobar: {events}',
   'hooks.none': 'No ccinfobar hooks in {file}',
+  'hooks.reason.notActive': 'Turn on ccinfobar as the status line first (Install above).',
+  'hooks.reason.unknownVersion':
+    'Hooks need Claude Code {floor} or newer, and its version could not be detected. Open Claude Code once, then restart the editor.',
+  'hooks.reason.oldVersion': 'Hooks need Claude Code {floor} or newer (found {version}).',
+  'hooks.badBody': 'enabled must be true or false; permission must be true, false or left out',
   'hooks.uninstallProject': '⚠ Hooks live in user settings only; `--project` ignores --hooks.',
 } as const;

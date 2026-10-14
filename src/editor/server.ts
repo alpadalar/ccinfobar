@@ -4,6 +4,17 @@ import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
+import { hookEntryState } from '../commands/hooks-doctor.js';
+import {
+  applyHooks,
+  DEFAULT_EVENTS,
+  detectClaudeCode,
+  HOOK_FLOOR,
+  type HookRefusal,
+  OPTIONAL_EVENTS,
+  planHooks,
+  uninstallHooks,
+} from '../commands/hooks-install.js';
 import {
   applyInstall,
   currentStatusLine,
@@ -14,8 +25,8 @@ import {
   type StatusLineSetting,
   setupCommandAsync,
 } from '../commands/install.js';
-import { classifyOwner, deepEqual, owns, readManifest } from '../commands/manifest.js';
-import { backupsDir } from '../commands/settings-file.js';
+import { classifyOwner, deepEqual, findHookEntries, owns, readManifest } from '../commands/manifest.js';
+import { backupsDir, readSettings } from '../commands/settings-file.js';
 import {
   compareVersions,
   fetchLatest,
@@ -65,6 +76,16 @@ export interface EditorOptions {
   host?: string;
   terminal?: TerminalColors | null;
   setup?: (version: string) => Promise<Setup>;
+  claudeVersion?: () => string | null;
+}
+
+export interface HooksInfo {
+  installed: string[];
+  available: boolean;
+  reason?: string;
+  claudeCode?: string;
+  events: string[];
+  optional: string[];
 }
 
 export interface EditorHandle {
@@ -189,6 +210,39 @@ function claudeInfo(command: string | null) {
   };
 }
 
+// statusLine command when ccinfobar owns it
+function activeCommand(command: string | null): string | null {
+  try {
+    const sl = currentStatusLine();
+    return isInstalled(sl, command) && typeof sl?.command === 'string' && sl.command.trim()
+      ? sl.command
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+const ORDER: readonly string[] = [...DEFAULT_EVENTS, ...OPTIONAL_EVENTS];
+
+function installedHooks(): string[] {
+  try {
+    const file = claudeSettingsPath();
+    const data = readSettings(file).data as Record<string, unknown>;
+    return findHookEntries(readManifest(), file)
+      .filter((e) => hookEntryState(e, data) === 'ok')
+      .map((e) => e.event)
+      .sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
+  } catch {
+    return [];
+  }
+}
+
+function refusalText(refused: HookRefusal, version: string | null): string {
+  return refused === 'unknown-version'
+    ? t('hooks.reason.unknownVersion', { floor: HOOK_FLOOR.core })
+    : t('hooks.reason.oldVersion', { floor: HOOK_FLOOR.core, version: version ?? '' });
+}
+
 const PLACEHOLDER_PREFIX = 'ccinfobar (';
 const placeholder = () => `${PLACEHOLDER_PREFIX}installed on first Install)`;
 
@@ -209,6 +263,36 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const token = crypto.randomBytes(16).toString('hex');
   let command = defaultCommand();
   const setup = opts.setup ?? ((v: string) => setupCommandAsync(v));
+  let detected: string | null | undefined;
+  const claudeVersion = (): string | null => {
+    if (detected === undefined) {
+      try {
+        detected = (opts.claudeVersion ?? (() => detectClaudeCode()))();
+      } catch {
+        detected = null;
+      }
+    }
+    return detected;
+  };
+  const refusalOf = (version: string | null): HookRefusal | null =>
+    planHooks({
+      settings: {},
+      manifest: { version: 1, entries: [] },
+      file: '',
+      command: '',
+      claudeCode: version,
+      events: [],
+    }).refused;
+
+  function hooksInfo(cmd: string | null): HooksInfo {
+    const base = { installed: installedHooks(), events: [...DEFAULT_EVENTS], optional: [...OPTIONAL_EVENTS] };
+    if (!activeCommand(cmd)) return { ...base, available: false, reason: t('hooks.reason.notActive') };
+    const version = claudeVersion();
+    const refused = refusalOf(version);
+    const claudeCode = version ? { claudeCode: version } : {};
+    if (refused) return { ...base, available: false, reason: refusalText(refused, version), ...claudeCode };
+    return { ...base, available: true, ...claudeCode };
+  }
   const stylesFile = path.join(path.dirname(opts.configPath), 'styles.json');
   const readStyles = (): StyleHistory => {
     try {
@@ -321,6 +405,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           styles: STYLES,
           themesDir: tildify(themesDir()),
           claude: claudeInfo(command),
+          hooks: hooksInfo(command),
           hasLastPayload: fs.existsSync(lastPayloadPath()),
           scenarios: scenarioList(),
           terminal: opts.terminal ?? null,
@@ -483,12 +568,43 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         send(res, 200, { ok: true, backup, backupsDir: backupsDir(), claude: claudeInfo(command) });
         return;
       }
+      case 'POST /api/hooks': {
+        const body = asObject(await readBody(req));
+        const { enabled, permission } = body;
+        if (typeof enabled !== 'boolean' || (permission !== undefined && typeof permission !== 'boolean'))
+          throw new HttpError(400, t('hooks.badBody'));
+        const file = claudeSettingsPath();
+        let backup: string | null = null;
+        if (enabled) {
+          const active = activeCommand(command);
+          if (!active) throw new HttpError(409, t('hooks.reason.notActive'), { hooks: hooksInfo(command) });
+          const claudeCode = claudeVersion();
+          const plan = planHooks({
+            settings: readSettings(file).data as Record<string, unknown>,
+            manifest: readManifest(),
+            file,
+            command: active,
+            claudeCode,
+            events: permission ? [...DEFAULT_EVENTS, ...OPTIONAL_EVENTS] : DEFAULT_EVENTS,
+          });
+          if (plan.refused)
+            throw new HttpError(409, refusalText(plan.refused, claudeCode), { hooks: hooksInfo(command) });
+          backup = applyHooks(file, plan).backup;
+          if (permission === false)
+            backup = uninstallHooks(file, process.env, OPTIONAL_EVENTS).backup ?? backup;
+        } else {
+          backup = uninstallHooks(file).backup;
+        }
+        send(res, 200, { ok: true, hooks: hooksInfo(command), backup });
+        return;
+      }
       case 'GET /api/system': {
         send(res, 200, {
           version: VERSION,
           kind: installKind(),
           update: readUpdateState(),
           claude: claudeInfo(command),
+          hooks: hooksInfo(command),
         });
         return;
       }
