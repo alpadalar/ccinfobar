@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { hyperlink } from '../core/ansi.js';
+import { safeUrl } from '../core/sanitize.js';
 import type { OptionSpec, WidgetDef } from '../core/types.js';
 import { opt } from './shared.js';
 
@@ -225,7 +226,8 @@ export const widgets: WidgetDef[] = [
       const pr = ctx.payload.pr;
       if (!pr || pr.number === undefined) return null;
       const text = `#${pr.number}${pr.review_state ? ` ${pr.review_state}` : ''}`;
-      return opt(item, 'link', false) && pr.url ? hyperlink(text, pr.url) : text;
+      const href = pr.url ? safeUrl(pr.url) : null;
+      return opt(item, 'link', false) && href ? hyperlink(text, href) : text;
     },
   },
 ];

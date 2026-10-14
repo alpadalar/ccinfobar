@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
 import { hyperlink, stripAnsi } from '../core/ansi.js';
+import { keepSgrAndLinks, safeConfigUrl, sanitizeText } from '../core/sanitize.js';
 import type { WidgetDef } from '../core/types.js';
 import { cacheKey, readCache, writeCache } from '../data/cache.js';
 import { opt } from './shared.js';
@@ -7,6 +8,10 @@ import { opt } from './shared.js';
 interface Cached {
   at: number;
   out: string;
+}
+
+export function formatCommandOutput(line: string, preserveColors: boolean): string {
+  return preserveColors ? keepSgrAndLinks(line) : sanitizeText(stripAnsi(line));
 }
 
 export const widgets: WidgetDef[] = [
@@ -60,7 +65,8 @@ export const widgets: WidgetDef[] = [
         .find((l) => l.trim() !== '')
         ?.trim();
       if (!line) return null;
-      return opt(item, 'preserveColors', false) ? line : stripAnsi(line);
+      const shown = formatCommandOutput(line, opt(item, 'preserveColors', false));
+      return stripAnsi(shown).trim() ? shown : null;
     },
   },
   {
@@ -79,7 +85,8 @@ export const widgets: WidgetDef[] = [
       const url = opt(item, 'url', '');
       const text = opt(item, 'text', 'link');
       if (!text) return null;
-      return url ? hyperlink(text, url) : text;
+      const href = url ? safeConfigUrl(url) : null;
+      return href ? hyperlink(text, href) : text;
     },
   },
   {
@@ -93,7 +100,8 @@ export const widgets: WidgetDef[] = [
     options: [{ key: 'name', label: 'Variable name', kind: 'text', default: '' }],
     render(ctx, item) {
       const name = opt(item, 'name', '');
-      return (name && ctx.env[name]) || null;
+      const value = name ? ctx.env[name] : undefined;
+      return (value && sanitizeText(value)) || null;
     },
   },
 ];

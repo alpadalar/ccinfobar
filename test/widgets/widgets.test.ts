@@ -313,7 +313,7 @@ describe('custom', () => {
   });
   it('link and env', () => {
     expect(r('link', { text: 'docs', url: 'https://x.dev' })).toBe(
-      '\x1b]8;;https://x.dev\x1b\\docs\x1b]8;;\x1b\\',
+      '\x1b]8;;https://x.dev/\x1b\\docs\x1b]8;;\x1b\\',
     );
     const ctx = ctxWith();
     ctx.env = { FOO: 'bar' };
