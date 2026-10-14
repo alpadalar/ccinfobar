@@ -182,6 +182,20 @@ describe('runHook', () => {
     expect(calls).toHaveLength(1);
     expect(JSON.parse(calls[0]![1])).toEqual({ v: 1, t: 1000, e: 'UserPromptSubmit', p: 'p9' });
   });
+
+  it('takes prompt_id from the tail when it follows a huge prompt', async () => {
+    const head = `{"session_id":"${SID}","hook_event_name":"UserPromptSubmit","prompt":"${'x'.repeat(100)}`;
+    const { d, calls } = deps(head, ['hook', 'UserPromptSubmit'], true);
+    d.readStdin = async () => ({
+      text: head,
+      overflow: true,
+      tail: `xxxx","prompt_id":"p7","session_id":"tail-loses"}`,
+    });
+    await runHook(d);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![0]).toContain(SID);
+    expect(JSON.parse(calls[0]![1])).toMatchObject({ e: 'UserPromptSubmit', p: 'p7' });
+  });
 });
 
 describe('scanFields', () => {
@@ -247,7 +261,11 @@ describe('readHookStdin', () => {
   it('caps the kept bytes and keeps draining', async () => {
     const calls: number[] = [];
     const r = reader(['0123456789abc', 'more', 'tail', null], calls);
-    expect(await readHookStdin(10, 1000, r, () => false)).toEqual({ text: '0123456789', overflow: true });
+    expect(await readHookStdin(10, 1000, r, () => false)).toEqual({
+      text: '0123456789',
+      overflow: true,
+      tail: 'abcmoretail',
+    });
     expect(calls).toHaveLength(4);
   });
 
@@ -293,7 +311,7 @@ describe('readStdinStream (Windows)', () => {
     s.write('more');
     expect(s.listenerCount('data')).toBe(1);
     s.end('tail');
-    expect(await p).toEqual({ text: '0123456789', overflow: true });
+    expect(await p).toEqual({ text: '0123456789', overflow: true, tail: 'abcmoretail' });
     expect(s.listenerCount('data')).toBe(1);
   });
 

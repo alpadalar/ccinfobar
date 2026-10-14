@@ -7,9 +7,16 @@ import { hookLine, hookLogPath, hooksDir, isHookEvent, SESSION_RE } from '../dat
 import { appendLine } from '../data/store.js';
 import { parseArgs } from './args.js';
 
+// tail: the last 64 KB after an overflow
+export interface StdinText {
+  text: string;
+  overflow: boolean;
+  tail?: string;
+}
+
 export interface HookDeps {
   argv: string[];
-  readStdin: () => Promise<{ text: string; overflow: boolean } | null>;
+  readStdin: () => Promise<StdinText | null>;
   env: NodeJS.ProcessEnv;
   now: () => number;
   append: (file: string, line: string) => boolean;
@@ -50,7 +57,7 @@ export function readHookStdin(
   deadlineMs = 1000,
   read: ReadFn = readFd0,
   isTty: () => boolean = stdinIsTty,
-): Promise<{ text: string; overflow: boolean } | null> {
+): Promise<StdinText | null> {
   if (isTty()) return Promise.resolve(null);
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
@@ -58,11 +65,17 @@ export function readHookStdin(
     let size = 0;
     let overflow = false;
     let done = false;
+    let tail: Buffer | null = null;
+    const keepTail = (b: Buffer) => {
+      const all = tail ? Buffer.concat([tail, b]) : b;
+      tail = Buffer.from(all.subarray(Math.max(0, all.length - SCAN_BYTES)));
+    };
     const finish = () => {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      resolve({ text: Buffer.concat(chunks).toString('utf8'), overflow });
+      const text = Buffer.concat(chunks).toString('utf8');
+      resolve(tail ? { text, overflow, tail: tail.toString('utf8') } : { text, overflow });
     };
     const timer = setTimeout(finish, deadlineMs);
     const next = () => {
@@ -74,14 +87,16 @@ export function readHookStdin(
           const take = Math.min(n, capBytes - size);
           chunks.push(Buffer.from(buf.subarray(0, take)));
           size += take;
-          if (take < n) overflow = true;
-          else if (endsObject(buf, n)) {
+          if (take < n) {
+            overflow = true;
+            keepTail(buf.subarray(take, n));
+          } else if (endsObject(buf, n)) {
             try {
               JSON.parse(Buffer.concat(chunks).toString('utf8'));
               return finish();
             } catch {}
           }
-        }
+        } else keepTail(buf.subarray(0, n));
         next();
       });
     };
@@ -89,7 +104,7 @@ export function readHookStdin(
   });
 }
 
-// top-level scalars only; escaped keys inside strings cannot match
+// first match wins; nested keys can match, escaped ones inside strings cannot
 export function scanFields(head: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const m of head.slice(0, SCAN_BYTES).matchAll(SCAN_RE)) {
@@ -198,7 +213,10 @@ export async function runHook(d: HookDeps): Promise<void> {
     if (!raw) return debug('tty');
     if (!raw.text) return debug('no-input');
     if (raw.overflow) debug('overflow');
-    const input = raw.overflow ? scanFields(raw.text) : parseInput(raw.text);
+    // prompt_id may follow a huge prompt; the head wins
+    const input = raw.overflow
+      ? { ...scanFields(raw.tail ?? ''), ...scanFields(raw.text) }
+      : parseInput(raw.text);
     if (!input) return debug('bad-json');
     const at = d.argv.lastIndexOf('hook');
     const fromArgv = at < 0 ? undefined : d.argv[at + 1];
