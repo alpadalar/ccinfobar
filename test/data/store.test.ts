@@ -256,4 +256,11 @@ describe('appendLine', () => {
     appendLine(file, 'x');
     expect(fs.statSync(file).mode & 0o777).toBe(0o600);
   });
+
+  it.skipIf(process.platform === 'win32')('creates missing dirs private (0700)', () => {
+    const file = path.join(dir, 'cache', 'hooks', 's.jsonl');
+    expect(appendLine(file, 'x')).toBe(true);
+    for (const d of [path.join(dir, 'cache'), path.join(dir, 'cache', 'hooks')])
+      expect(fs.statSync(d).mode & 0o777).toBe(0o700);
+  });
 });

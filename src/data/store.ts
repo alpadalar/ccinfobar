@@ -124,7 +124,7 @@ export function writeTmp(
 // one small line per call, so concurrent appends do not interleave
 export function appendLine(file: string, line: string): boolean {
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
     fs.appendFileSync(file, line.endsWith('\n') ? line : `${line}\n`, { flag: 'a', mode: 0o600 });
     return true;
   } catch {
