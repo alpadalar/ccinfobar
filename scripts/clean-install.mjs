@@ -160,7 +160,8 @@ function childEnv(d) {
     CLAUDE_SECURESTORAGE_CONFIG_DIR: path.join(d.home, '.claude'),
     COLUMNS: '200',
   });
-  env.PATH = [win ? d.prefix : path.join(d.prefix, 'bin'), basePath].join(path.delimiter);
+  // fake claude shadows any real one
+  env.PATH = [d.fakeBin, win ? d.prefix : path.join(d.prefix, 'bin'), basePath].join(path.delimiter);
   return env;
 }
 
@@ -179,6 +180,7 @@ function makeRoot(prefix = 'ccib-ci-') {
     prefix: path.join(root, 'pre fix'),
     npmCache: path.join(root, 'npm-cache'),
     work: path.join(root, 'work dir'),
+    fakeBin: path.join(root, 'fake bin'),
   };
   for (const [k, v] of Object.entries(d)) if (k !== 'root') fs.mkdirSync(v, { recursive: true });
   return d;
@@ -220,6 +222,20 @@ function assertSafe(d, env) {
       process.exit(2);
     }
   }
+  const first = env.PATH.split(path.delimiter)[0];
+  if (!samePath(first, d.fakeBin) || !inside(path.resolve(first), d.root)) {
+    console.error(`refusing to run: child PATH does not start with ${d.fakeBin}`);
+    process.exit(2);
+  }
+}
+
+const FAKE_VERSION = '2.1.299 (Claude Code)';
+
+function fakeClaude(d) {
+  if (win) return fs.writeFileSync(path.join(d.fakeBin, 'claude.cmd'), `@echo ${FAKE_VERSION}\r\n`);
+  const file = path.join(d.fakeBin, 'claude');
+  fs.writeFileSync(file, `#!/bin/sh\necho '${FAKE_VERSION}'\n`);
+  fs.chmodSync(file, 0o755);
 }
 
 function settingsFile(d) {
@@ -313,22 +329,23 @@ function installCcinfobar(ctx) {
   return problems.length === 0;
 }
 
-function uninstallCcinfobar(ctx, seeded) {
+function uninstallCcinfobar(ctx, seeded, step = 'uninstall') {
   const r = ccinfobar(ctx, ['uninstall']);
-  if (r.status !== 0) return failRun(ctx, 'uninstall', r, `exit ${r.status}`);
+  if (r.status !== 0) return failRun(ctx, step, r, `exit ${r.status}`);
   const file = settingsFile(ctx.d);
   if (!seeded) {
-    if (fs.existsSync(file)) failRun(ctx, 'uninstall', r, `${file} still exists`);
-    return;
+    if (fs.existsSync(file)) failRun(ctx, step, r, `${file} still exists`);
+    return r;
   }
-  if (!fs.existsSync(file)) return failRun(ctx, 'uninstall', r, `${file} is gone`);
+  if (!fs.existsSync(file)) return failRun(ctx, step, r, `${file} is gone`);
   const got = fs.readFileSync(file);
-  if (!got.equals(seeded.bytes)) failRun(ctx, 'uninstall', r, byteMismatch(seeded.bytes, got));
+  if (!got.equals(seeded.bytes)) failRun(ctx, step, r, byteMismatch(seeded.bytes, got));
   if (!win) {
     const mode = fs.statSync(file).mode & 0o777;
     if (mode !== seeded.mode)
-      failRun(ctx, 'uninstall', r, `mode ${mode.toString(8)} != seed ${seeded.mode.toString(8)}`);
+      failRun(ctx, step, r, `mode ${mode.toString(8)} != seed ${seeded.mode.toString(8)}`);
   }
+  return r;
 }
 
 const GIT_BASH = process.env.CLAUDE_CODE_GIT_BASH_PATH || 'C:\\Program Files\\Git\\bin\\bash.exe';
@@ -498,6 +515,106 @@ function workerProof(ctx) {
   } else console.log('  update and usage workers ran');
 }
 
+const HOOK_EVENTS = [
+  'Notification',
+  'SessionStart',
+  'Stop',
+  'SubagentStart',
+  'SubagentStop',
+  'UserPromptSubmit',
+];
+const NEVER_EVENTS = ['PreToolUse', 'PostToolUse', 'PostToolBatch', 'PreModelSwitch', 'SessionEnd'];
+
+function readSettings(ctx) {
+  return JSON.parse(fs.readFileSync(settingsFile(ctx.d), 'utf8').replace(/^\uFEFF/, ''));
+}
+
+function hookSettingsProblems(hooks) {
+  if (!hooks || typeof hooks !== 'object') return ['no hooks object'];
+  const problems = [];
+  const keys = Object.keys(hooks).sort();
+  if (keys.join() !== HOOK_EVENTS.join()) problems.push(`hook events ${keys.join(', ')}`);
+  const never = NEVER_EVENTS.filter((e) => e in hooks);
+  if (never.length) problems.push(`never-registered events present: ${never.join(', ')}`);
+  const notif = hooks.Notification;
+  if (!Array.isArray(notif) || !notif.some((g) => g?.matcher === 'permission_prompt'))
+    problems.push('Notification has no permission_prompt matcher');
+  return problems;
+}
+
+function logLines(file) {
+  try {
+    return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function hookRun(ctx, shell, command, log) {
+  const before = logLines(log).length;
+  const input = JSON.stringify({
+    session_id: `ci-${ctx.name}`,
+    hook_event_name: 'UserPromptSubmit',
+    prompt_id: `p-${shell.name}`,
+  });
+  const r = run(shell.file, shell.args(command), {
+    env: ctx.env,
+    cwd: ctx.d.work,
+    input,
+    timeout: 20_000,
+    verbatim: shell.verbatim,
+  });
+  const problems = [];
+  if (r.status !== 0) problems.push(`exit ${r.status}`);
+  if (r.stdout) problems.push('stdout not empty');
+  if (r.stderr) problems.push('stderr not empty');
+  const lines = logLines(log);
+  if (lines.length !== before + 1) problems.push(`log lines ${before} -> ${lines.length}, expected +1`);
+  else {
+    let last = null;
+    try {
+      last = JSON.parse(lines.at(-1));
+    } catch {}
+    if (last?.e !== 'UserPromptSubmit' || last?.p !== `p-${shell.name}`)
+      problems.push(`unexpected log line ${lines.at(-1)}`);
+  }
+  if (problems.length) failRun(ctx, 'hooks', r, problems.join('; '), shell.name);
+  else console.log(`  hook ${shell.name}: ok`);
+}
+
+function hooksCycle(ctx) {
+  const seeded = seed(ctx);
+  const r = ccinfobar(ctx, ['install', '--hooks', '--yes']);
+  if (r.status !== 0) return failRun(ctx, 'hooks', r, `install --hooks exit ${r.status}`);
+  let hooks;
+  try {
+    hooks = readSettings(ctx).hooks;
+  } catch (e) {
+    return failRun(ctx, 'hooks', r, `cannot read ${settingsFile(ctx.d)}: ${e.message}`);
+  }
+  const problems = hookSettingsProblems(hooks);
+  if (problems.length) return failRun(ctx, 'hooks', r, problems.join('; '));
+  const group = hooks.UserPromptSubmit.find((g) =>
+    / hook UserPromptSubmit$/.test(g?.hooks?.[0]?.command ?? ''),
+  );
+  const command = group?.hooks[0].command;
+  if (!command) return failRun(ctx, 'hooks', r, 'no ccinfobar UserPromptSubmit hook');
+  console.log('  install --hooks: ok');
+  const log = path.join(cacheDir(ctx.d), 'hooks', `ci-${ctx.name}.jsonl`);
+  for (const shell of shells()) hookRun(ctx, shell, command, log);
+  const u = uninstallCcinfobar(ctx, seeded, 'hooks uninstall');
+  if (!u) return;
+  const file = settingsFile(ctx.d);
+  if (fs.existsSync(file)) {
+    try {
+      if ('hooks' in readSettings(ctx)) return failRun(ctx, 'hooks uninstall', u, 'hooks key left');
+    } catch (e) {
+      return failRun(ctx, 'hooks uninstall', u, `cannot read ${file}: ${e.message}`);
+    }
+  }
+  if (!ctx.failed) console.log('  uninstall with hooks: settings restored');
+}
+
 function versionCheck(ctx) {
   const r = ccinfobar(ctx, ['--version']);
   if (r.status !== 0 || r.stdout.trim() !== pkg.version)
@@ -509,6 +626,7 @@ function runCase(spec, tgz, npm) {
   const env = childEnv(d);
   assertSafe(d, env);
   const ctx = { name: spec.name, spec, d, env, npm, failed: false };
+  fakeClaude(d);
   console.log(`case ${spec.name} (${spec.label}): root ${d.root}`);
   try {
     if (!installStep(ctx, tgz)) return ctx;
@@ -521,6 +639,7 @@ function runCase(spec, tgz, npm) {
       pollLeftovers(ctx);
       workerProof(ctx);
     }
+    hooksCycle(ctx);
     versionCheck(ctx);
   } catch (e) {
     fail(ctx, 'driver', { detail: e.stack ?? String(e) });
