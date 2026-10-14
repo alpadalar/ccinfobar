@@ -297,6 +297,26 @@ function schema(): object {
         default: 'loading…',
         description: 'Shown by context and token widgets before the first reply; empty string turns it off',
       },
+      budget: {
+        type: 'object',
+        description: 'Soft spending limits in USD for the budget widget',
+        properties: {
+          daily: {
+            type: 'number',
+            exclusiveMinimum: 0,
+            description: 'Estimated spend per day across sessions',
+          },
+          session: { type: 'number', exclusiveMinimum: 0, description: 'Estimated spend per session' },
+          warnAt: {
+            type: 'number',
+            minimum: 0.05,
+            maximum: 1,
+            default: 0.8,
+            description: 'Fraction of the budget where the widget turns yellow',
+          },
+        },
+        additionalProperties: false,
+      },
       gsdAutoLine: {
         type: 'boolean',
         description: 'Set by ccinfobar when it left the GSD line out because GSD was not installed',

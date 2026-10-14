@@ -181,6 +181,18 @@ export function normalizeTui(raw: unknown): TuiConfig | undefined {
   return t;
 }
 
+const usd = (v: unknown): number | undefined =>
+  typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined;
+
+export function normalizeBudget(raw: unknown): Config['budget'] | undefined {
+  if (!isObject(raw)) return undefined;
+  const warnAt =
+    typeof raw.warnAt === 'number' && Number.isFinite(raw.warnAt)
+      ? Math.min(1, Math.max(0.05, raw.warnAt))
+      : undefined;
+  return compact({ daily: usd(raw.daily), session: usd(raw.session), warnAt });
+}
+
 const isAlign = (v: unknown): v is Align => v === 'left' || v === 'center' || v === 'right';
 
 export function normalizeConfig(raw: unknown): Config {
@@ -230,6 +242,8 @@ export function normalizeConfig(raw: unknown): Config {
   if (raw.gsdAutoLine === true) cfg.gsdAutoLine = true;
   if (raw.gitHardening === false) cfg.gitHardening = false;
   if (typeof raw.loadingText === 'string') cfg.loadingText = sanitizeText(raw.loadingText).slice(0, 40);
+  const budget = normalizeBudget(raw.budget);
+  if (budget) cfg.budget = budget;
   const tui = normalizeTui(raw.tui);
   if (tui) cfg.tui = tui;
   if (typeof raw.style === 'string' && STYLE_IDS.includes(raw.style)) cfg.style = raw.style as ThemeStyle;

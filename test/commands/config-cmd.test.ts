@@ -186,6 +186,43 @@ describe('config unset', () => {
   });
 });
 
+describe('config budget', () => {
+  it('sets, gets and unsets budget amounts', () => {
+    const file = withFile();
+    expect(run(['set', 'budget.daily', '10'], file)).toEqual({
+      out: [t('cfg.set', { path: 'budget.daily' })],
+      err: [],
+      code: 0,
+    });
+    expect(read(file).budget).toEqual({ daily: 10 });
+    run(['set', 'budget.warnAt', '0.9'], file);
+    expect(read(file).budget).toEqual({ daily: 10, warnAt: 0.9 });
+    expect(run(['get', 'budget.daily'], file).out).toEqual(['10']);
+    expect(run(['unset', 'budget.daily'], file).out).toEqual([t('cfg.unset', { path: 'budget.daily' })]);
+    expect(read(file).budget).toEqual({ warnAt: 0.9 });
+    run(['unset', 'budget.warnAt'], file);
+    expect(read(file).budget).toBeUndefined();
+  });
+
+  it('rejects invalid budget values without writing', () => {
+    const file = withFile();
+    const bytes = fs.readFileSync(file, 'utf8');
+    for (const argv of [
+      ['set', 'budget.daily', '--', '-3'],
+      ['set', 'budget.daily', '0'],
+      ['set', 'budget.session', '"ten"'],
+      ['set', 'budget.warnAt', '2'],
+      ['set', 'budget.weekly', '50'],
+    ]) {
+      const r = run(argv, file);
+      expect(r.err).toEqual([t('cfg.rejected', { path: argv[1]! })]);
+      expect(r.code).toBe(1);
+      process.exitCode = undefined;
+    }
+    expect(fs.readFileSync(file, 'utf8')).toBe(bytes);
+  });
+});
+
 describe('broken config', () => {
   for (const argv of [
     ['get', 'theme'],

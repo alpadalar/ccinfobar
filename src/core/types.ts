@@ -171,6 +171,12 @@ export interface GlyphOverrides {
 
 export type Align = 'left' | 'center' | 'right';
 
+export interface BudgetConfig {
+  daily?: number;
+  session?: number;
+  warnAt?: number;
+}
+
 export interface Config {
   $schema?: string;
   version: 1;
@@ -190,6 +196,7 @@ export interface Config {
   gsdAutoLine?: boolean;
   gitHardening?: boolean;
   loadingText?: string;
+  budget?: BudgetConfig;
   tui?: TuiConfig;
   colorLevel: ColorLevel;
   icons: IconMode;
