@@ -42,6 +42,55 @@ describe('transcript parser', () => {
     expect(t.outputSpeed).toBeGreaterThan(0);
   });
 
+  it('records the newest real assistant message time', () => {
+    const t = parseTranscriptText(fs.readFileSync(fixture, 'utf8'));
+    expect(t.lastAssistantAt).toBe(Date.parse('2026-10-12T10:00:17.000Z'));
+    const line = (o: object) => JSON.stringify(o);
+    const usage = { input_tokens: 1, output_tokens: 1 };
+    const text = [
+      line({
+        type: 'assistant',
+        timestamp: '2026-10-12T11:00:00.000Z',
+        message: { id: 'a', model: 'm', usage },
+      }),
+      line({
+        type: 'assistant',
+        timestamp: '2026-10-12T12:00:00.000Z',
+        message: { id: 'b', model: '<synthetic>', usage },
+      }),
+      line({
+        type: 'assistant',
+        isSidechain: true,
+        timestamp: '2026-10-12T13:00:00.000Z',
+        message: { id: 'c', model: 'm', usage },
+      }),
+    ].join('\n');
+    expect(parseTranscriptText(text).lastAssistantAt).toBe(Date.parse('2026-10-12T11:00:00.000Z'));
+    expect(parseTranscriptText('').lastAssistantAt).toBeNull();
+  });
+
+  it('re-reads caches written by an older version', () => {
+    const file = path.join(dir, 't.jsonl');
+    fs.copyFileSync(fixture, file);
+    expect(readTranscript(file, env)?.lastAssistantAt).toBe(Date.parse('2026-10-12T10:00:17.000Z'));
+    const cdir = path.join(dir, 'cache');
+    let old = 0;
+    for (const name of fs.readdirSync(cdir)) {
+      const f = path.join(cdir, name);
+      const st = JSON.parse(fs.readFileSync(f, 'utf8'));
+      if (!st || typeof st !== 'object' || typeof st.v !== 'number') continue;
+      fs.writeFileSync(
+        f,
+        JSON.stringify({ ...st, v: st.v - 1, messageCount: 99, lastAssistantAt: undefined }),
+      );
+      old++;
+    }
+    expect(old).toBe(1);
+    const again = readTranscript(file, env);
+    expect(again?.messageCount).toBe(2);
+    expect(again?.lastAssistantAt).toBe(Date.parse('2026-10-12T10:00:17.000Z'));
+  });
+
   it('returns null for missing files', () => {
     expect(readTranscript(undefined, env)).toBeNull();
     expect(readTranscript(path.join(dir, 'nope.jsonl'), env)).toBeNull();

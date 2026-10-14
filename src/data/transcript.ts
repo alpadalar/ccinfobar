@@ -36,6 +36,7 @@ export interface TranscriptInfo {
   todos: Todo[];
   agentCalls: AgentCall[];
   turnStart: number | null;
+  lastAssistantAt: number | null;
 }
 
 interface Recent {
@@ -73,9 +74,10 @@ interface State {
   todos: Todo[];
   agentCalls: AgentCall[];
   turnStart: number | null;
+  lastAssistantAt: number | null;
 }
 
-const VERSION = 5;
+const VERSION = 6;
 const RECENT = 64;
 const SPEED_WINDOW = 10;
 const CHUNK = 8 * 1024 * 1024;
@@ -106,6 +108,7 @@ export function emptyState(): State {
     todos: [],
     agentCalls: [],
     turnStart: null,
+    lastAssistantAt: null,
   };
 }
 
@@ -201,6 +204,7 @@ function applyAssistant(s: State, e: Json, ts: number | null, prevTs: number | n
   for (const b of content) if (b?.type === 'tool_use') handleToolUse(s, b, ts);
   const u = msg.usage as Json | undefined;
   if (!u || msg.model === '<synthetic>') return;
+  if (ts !== null && (s.lastAssistantAt === null || ts > s.lastAssistantAt)) s.lastAssistantAt = ts;
   const input = num(u.input_tokens);
   const output = num(u.output_tokens);
   const read = num(u.cache_read_input_tokens);
@@ -335,6 +339,7 @@ function toInfo(s: State): TranscriptInfo {
     todos: deepSanitize(s.todos),
     agentCalls: deepSanitize(s.agentCalls),
     turnStart: s.turnStart,
+    lastAssistantAt: s.lastAssistantAt,
   };
 }
 

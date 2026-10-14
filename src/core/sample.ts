@@ -131,6 +131,7 @@ export function sampleTranscript(now = Date.now()): TranscriptInfo {
       { id: 'toolu_fix', start: now - 200_000, done: now - 30_000 },
     ],
     turnStart: now - 240_000,
+    lastAssistantAt: now - 4_000,
   };
 }
 

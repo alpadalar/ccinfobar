@@ -63,6 +63,8 @@ const MAX_PCT = 1000;
 export const LIMIT_KEYS = ['five_hour', 'seven_day'] as const;
 type Key = (typeof LIMIT_KEYS)[number];
 const LEN: Record<Key, number> = { five_hour: 5 * 3_600_000, seven_day: 7 * 86_400_000 };
+const GAP: Record<Key, number> = { five_hour: 60_000, seven_day: 1_200_000 };
+const MAX_SAMPLES = 32;
 
 export function accountKey(env: NodeJS.ProcessEnv = process.env): string {
   let dir = path.resolve(claudeDir(env)).normalize('NFC');
@@ -92,7 +94,7 @@ function parseWindow(v: unknown): StoredWindow | null {
   if (w.src !== 'payload' && w.src !== 'usage-api') return null;
   const samples: Sample[] = [];
   if (Array.isArray(w.samples)) {
-    for (const s of w.samples.slice(-32)) {
+    for (const s of w.samples.slice(-MAX_SAMPLES)) {
       const p = s as Record<string, unknown> | null;
       if (p && num(p.t) && pctOk(p.pct)) samples.push({ t: p.t, pct: p.pct });
     }
@@ -158,6 +160,16 @@ function obsOf(w: RateWindow | null | undefined, at: number | null, src: ObsSrc)
   return { pct: w.used_percentage, resetsAt: toEpochMs(w.resets_at), at, src };
 }
 
+// thinned ring: a point too close to the last one replaces it
+export function addSample(ring: Sample[], p: Sample, gap: number): Sample[] {
+  const last = ring[ring.length - 1];
+  if (last && (p.pct === last.pct || p.t < last.t)) return ring;
+  const out = ring.slice();
+  if (last && p.t - last.t < gap) out[out.length - 1] = { t: last.t, pct: p.pct };
+  else out.push(p);
+  return out.slice(-MAX_SAMPLES);
+}
+
 const isKey = (k: string): k is Key => (LIMIT_KEYS as readonly string[]).includes(k);
 
 export function mergeObservation(
@@ -175,13 +187,11 @@ export function mergeObservation(
     const prev = windows[key];
     const win = pick<LimitObs>(prev ? [prev, obs] : [obs], LEN[key], now);
     if (win && win !== prev) {
-      windows[key] = {
-        pct: win.pct,
-        resetsAt: win.resetsAt as number,
-        at: win.at,
-        src: win.src,
-        samples: [],
-      };
+      const resetsAt = win.resetsAt as number;
+      const same = prev && Math.abs(prev.resetsAt - resetsAt) <= TOL;
+      const t = win.at ?? now;
+      const samples = same ? addSample(prev.samples, { t, pct: win.pct }, GAP[key]) : [{ t, pct: win.pct }];
+      windows[key] = { pct: win.pct, resetsAt, at: win.at, src: win.src, samples };
     }
   }
   return { v: 1, windows };
@@ -243,11 +253,13 @@ export function resolveLimits(
 const hasWindows = (payload: StatusPayload) =>
   LIMIT_KEYS.some((k) => num(payload.rate_limits?.[k]?.used_percentage));
 
-export function captureTime(
-  payload: StatusPayload,
-  _transcript?: () => TranscriptInfo | null,
-): number | null {
-  if (!hasWindows(payload) || !payload.transcript_path) return null;
+export function captureTime(payload: StatusPayload, transcript?: () => TranscriptInfo | null): number | null {
+  if (!hasWindows(payload)) return null;
+  try {
+    const at = transcript?.()?.lastAssistantAt;
+    if (num(at)) return at;
+  } catch {}
+  if (!payload.transcript_path) return null;
   try {
     return fs.statSync(payload.transcript_path).mtimeMs;
   } catch {
@@ -262,7 +274,7 @@ export function recordLimits(
   now: number,
 ): void {
   try {
-    if (!hasWindows(payload)) return;
+    if (!hasWindows(payload) || !detectProvider(env).planLimits) return;
     const file = limitsFile(env);
     const text = readText(file);
     let store = parseLimitsStore(text);
