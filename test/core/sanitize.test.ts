@@ -100,6 +100,13 @@ describe('keepSgrAndLinks', () => {
     expect(out).toBe('click');
   });
 
+  it('resets colors the output leaves open', () => {
+    expect(keepSgrAndLinks('\u001b[31mred')).toBe('\u001b[31mred\u001b[0m');
+    expect(keepSgrAndLinks('\u001b[0;1mbold')).toBe('\u001b[0;1mbold\u001b[0m');
+    expect(keepSgrAndLinks('\u001b[31mred\u001b[m')).toBe('\u001b[31mred\u001b[m');
+    expect(keepSgrAndLinks('plain')).toBe('plain');
+  });
+
   it('cleans text between sequences', () => {
     expect(keepSgrAndLinks('\x1b[32ma\u202e\nb\x85\x1b[0m')).toBe('\x1b[32ma b\x1b[0m');
   });

@@ -54,6 +54,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `uninstall` no longer deletes a settings file that Claude Code changed after ccinfobar read it; it removes only the statusLine key instead
 - If `manifest.json` cannot be written, `install` puts the settings file back as it was instead of leaving an unrecorded statusLine
 - A link cut off by truncation is closed, so the rest of the terminal line no longer belongs to it
+- `command` output with `preserveColors` that leaves a color on is reset at its end, so the color no longer bleeds into the next widgets
 
 ### Security
 

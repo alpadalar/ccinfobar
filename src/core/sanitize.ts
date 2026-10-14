@@ -21,12 +21,14 @@ export function keepSgrAndLinks(s: string): string {
   let out = '';
   let last = 0;
   let open = false;
+  let styled = false;
   for (const m of s.matchAll(SEQ)) {
     const seq = m[0];
     out += cleanText(s.slice(last, m.index));
     last = m.index + seq.length;
     if (SGR.test(seq)) {
       out += seq;
+      styled = !/(?:^|[;:])0*$/.test(seq.slice(2, -1));
       continue;
     }
     const link = OSC8.exec(seq);
@@ -44,7 +46,7 @@ export function keepSgrAndLinks(s: string): string {
     }
   }
   out += cleanText(s.slice(last));
-  return open ? out + LINK_CLOSE : out;
+  return out + (open ? LINK_CLOSE : '') + (styled ? '\u001b[0m' : '');
 }
 
 function parseUrl(u: string): URL | null {
