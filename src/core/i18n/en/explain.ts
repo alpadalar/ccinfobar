@@ -9,6 +9,8 @@ export const explainMessages = {
   'explain.reason.limits-expired': 'the window reset and no new usage has come in yet',
   'explain.reason.projection-warming':
     'too early in the window to project; shown after 15 minutes (5h) or about 8 hours (7d)',
+  'explain.reason.belowRisk': 'projection is below the warn threshold',
+  'explain.reason.limitSafe': 'the limit is safe at the current pace and hideWhenSafe is on',
   'explain.reason.provider-no-plan-limits': '{provider} sessions have no plan limits',
   'explain.reason.no-context-window':
     'Claude Code sent no context_window and the transcript has no usage yet (update Claude Code or send a message)',

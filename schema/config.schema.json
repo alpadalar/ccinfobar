@@ -68,6 +68,7 @@
                 "usage-pace",
                 "usage-projection",
                 "limit-eta",
+                "limit-risk",
                 "token-rate-graph",
                 "output-speed-graph",
                 "context-graph",

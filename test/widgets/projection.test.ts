@@ -11,6 +11,7 @@ import {
   projectionState,
   projectWindow,
   riskColor,
+  riskOn,
   WINDOW_LEN,
 } from '../../src/widgets/projection.js';
 import { ctxWith, NOW, renderWidget } from '../helpers.js';
@@ -265,5 +266,90 @@ describe('limit-eta', () => {
     expect(def().category).toBe('limits');
     expect(def().options?.map((o) => o.key)).toEqual(['window', 'pace', 'hideWhenSafe']);
     expect(def().options?.[0]?.default).toBe('first');
+  });
+});
+
+describe('limit-risk', () => {
+  const def = () => getWidget('limit-risk')!;
+  const risk = (options: Record<string, string | number> = {}): WidgetItem => ({
+    id: 'r',
+    type: 'limit-risk',
+    options,
+  });
+  const near = { used_percentage: 92, resets_at: at(25 * MIN) };
+  const week = { used_percentage: 80, resets_at: at(86_400_000) };
+  const base5 = { used_percentage: 42, resets_at: at(2 * H + 14 * MIN) };
+
+  it('is red near the 5h limit and amber near the weekly one', () => {
+    expect(def().render(ctxWith({ payload: pay(near) }), risk())).toEqual({ text: '5h 100%', color: 'red' });
+    const c = ctxWith({ payload: pay(base5, week) });
+    expect(def().render(c, risk())).toEqual({ text: '7d 93%', color: 'yellow' });
+    expect(def().render(c, risk({ window: '7d' }))).toEqual({ text: '93%', color: 'yellow' });
+    expect(def().render(c, risk({ window: '5h' }))).toBeNull();
+  });
+
+  it('is empty on the sample', () => {
+    expect(renderWidget('limit-risk', ctxWith())).toBeNull();
+    expect(riskOn(ctxWith(), 'five_hour', 90, 'window')).toMatchObject({ on: false });
+  });
+
+  it('shows the window with the highest projection', () => {
+    const both = ctxWith({ payload: pay(near, week) });
+    expect(renderWidget('limit-risk', both)).toBe('5h 100%');
+    expect(def().render(ctxWith(), risk({ warnAt: 70 }))).toEqual({ text: '5h 76%', color: 'yellow' });
+  });
+
+  it('keeps the chip on within 5 points when the previous sample was at risk', () => {
+    // 3h elapsed: proj = used * 5/3; prev at 2.5h elapsed: proj = pct * 2
+    const reset = at(2 * H);
+    const ctx = (used: number, prev: number) => {
+      const w = { used_percentage: used, resets_at: reset };
+      const samples = [
+        { t: now - 60 * MIN, pct: 40 },
+        { t: now - 30 * MIN, pct: prev },
+        { t: now + MIN, pct: 99 },
+      ];
+      return ctxWith({ payload: pay(w), limits: () => view('five_hour', w, samples) });
+    };
+    expect(def().render(ctx(52.2, 45.5), risk({ window: '5h' }))).toEqual({ text: '87%', color: 'yellow' });
+    expect(riskOn(ctx(52.2, 45.5), 'five_hour', 90, 'window')?.proj).toBeCloseTo(87, 6);
+    expect(def().render(ctx(52.2, 42.5), risk({ window: '5h' }))).toBeNull();
+    expect(def().render(ctx(50.4, 45.5), risk({ window: '5h' }))).toBeNull();
+    expect(renderWidget('limit-risk', ctx(52.2, 45.5))).toBe('5h 87%');
+  });
+
+  it('ignores samples from before the window', () => {
+    const w = { used_percentage: 52.2, resets_at: at(2 * H) };
+    const old = [{ t: now - 4 * H, pct: 95 }];
+    const c = ctxWith({ payload: pay(w), limits: () => view('five_hour', w, old) });
+    expect(renderWidget('limit-risk', c, { options: { window: '5h' } })).toBeNull();
+  });
+
+  it('clamps warnAt', () => {
+    expect(renderWidget('limit-risk', ctxWith(), { options: { warnAt: 0 } })).toBe('5h 76%');
+    expect(renderWidget('limit-risk', ctxWith(), { options: { warnAt: 'x' } })).toBeNull();
+    const hot = ctxWith({ payload: pay({ used_percentage: 90, resets_at: at(4 * H) }) });
+    expect(renderWidget('limit-risk', hot, { options: { warnAt: 5000 } })).toBeNull();
+    expect(renderWidget('limit-risk', hot)).toBe('5h >200%');
+  });
+
+  it('is empty while warming or without plan limits', () => {
+    const warm = ctxWith({ payload: pay({ used_percentage: 30, resets_at: at(FIVE - 10 * MIN) }) });
+    expect(renderWidget('limit-risk', warm)).toBeNull();
+    const apiKey = ctxWith({ env: { ANTHROPIC_API_KEY: 'x' }, payload: {} });
+    expect(renderWidget('limit-risk', apiKey)).toBeNull();
+    const broken = ctxWith({
+      payload: pay({ used_percentage: 52.2, resets_at: at(2 * H) }),
+      limits: () => {
+        throw new Error('x');
+      },
+    });
+    expect(renderWidget('limit-risk', broken)).toBeNull();
+  });
+
+  it('is opt-in and documented', () => {
+    expect(def().category).toBe('limits');
+    expect(def().options?.map((o) => o.key)).toEqual(['window', 'warnAt', 'pace']);
+    expect(def().icon?.text).toBe('!');
   });
 });

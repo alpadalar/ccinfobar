@@ -18,7 +18,9 @@ import {
   projectionFor,
   projectionState,
   riskColor,
+  riskOn,
   WINDOW_LABEL,
+  warnLevel,
 } from './projection.js';
 import {
   barFor,
@@ -110,6 +112,23 @@ function pickWindow(
   const p = projectionFor(ctx, w, pace);
   if (!p) return null;
   return p.state === 'warming' ? 'warming' : { prefix: '', p };
+}
+
+function riskChip(ctx: RenderContext, item: WidgetItem): WidgetResult {
+  const warnAt = warnLevel(opt(item, 'warnAt', 90));
+  const pace = itemPace(item);
+  const w = itemWindow(item);
+  const keys = w === 'first' ? (['five_hour', 'seven_day'] as const) : [w];
+  let best: { key: (typeof keys)[number]; proj: number } | null = null;
+  let known = false;
+  for (const key of keys) {
+    const r = riskOn(ctx, key, warnAt, pace);
+    if (r) known = true;
+    if (r?.on && (!best || r.proj > best.proj)) best = { key, proj: r.proj };
+  }
+  if (!best) return known || projectionState(ctx, item) === 'warming' ? null : limitsLoading(ctx, item);
+  const prefix = w === 'first' ? `${WINDOW_LABEL[best.key]} ` : '';
+  return { text: `${prefix}${formatProjection(best.proj)}`, color: best.proj >= 100 ? 'red' : 'yellow' };
 }
 
 function etaText(ms: number): string {
@@ -392,5 +411,27 @@ export const widgets: WidgetDef[] = [
         return opt(item, 'hideWhenSafe', false) ? null : { text: t('widget.limit.safe'), color: 'green' };
       return { text: `${prefix}100% in ${etaText(p.eta)}`, color: 'yellow' };
     },
+  },
+  {
+    type: 'limit-risk',
+    name: 'Limit risk',
+    category: 'limits',
+    description: 'Warning chip when a usage limit is projected to run out before it resets',
+    label: '',
+    icon: { nerd: '\uf071', emoji: '\u26a0\ufe0f', text: '!' },
+    color: 'yellow',
+    sample: '5h 112%',
+    options: [
+      limitWindowOption,
+      {
+        key: 'warnAt',
+        label: 'Warn at (%)',
+        kind: 'number',
+        default: 90,
+        help: 'Show the chip from this projected percentage',
+      },
+      projectionPaceOption,
+    ],
+    render: riskChip,
   },
 ];

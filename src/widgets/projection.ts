@@ -139,6 +139,36 @@ export function firstWindow(ctx: RenderContext, pace: Pace): { key: ProjKey; p: 
   return best;
 }
 
+export function warnLevel(v: number): number {
+  return Number.isFinite(v) ? Math.min(1000, Math.max(1, v)) : 90;
+}
+
+// D-15: stays on down to warnAt - 5 when the newest earlier sample was at risk
+export function riskOn(
+  ctx: RenderContext,
+  key: ProjKey,
+  warnAt: number,
+  pace: Pace,
+): { on: boolean; proj: number } | null {
+  const p = projectionFor(ctx, key, pace);
+  if (p?.state !== 'ok') return null;
+  const warn = warnLevel(warnAt);
+  if (p.proj >= warn) return { on: true, proj: p.proj };
+  if (p.proj < warn - 5) return { on: false, proj: p.proj };
+  const now = ctx.now.getTime();
+  const len = WINDOW_LEN[key];
+  const start = p.resetsAt - len;
+  const samples = samplesOf(ctx, key);
+  let prev: Point | null = null;
+  for (const s of samples) {
+    if (!Number.isFinite(s.t) || !Number.isFinite(s.pct) || s.t >= now || s.t < start) continue;
+    if (!prev || s.t > prev.t) prev = s;
+  }
+  if (!prev) return { on: false, proj: p.proj };
+  const q = projectWindow(prev.pct, p.resetsAt, len, prev.t, { pace, samples, lookback: LOOKBACK[key] });
+  return { on: q.state === 'ok' && q.proj >= warn, proj: p.proj };
+}
+
 export function projectionState(ctx: RenderContext, item: WidgetItem): 'warming' | 'ok' | 'none' {
   try {
     const w = item.type === 'usage-projection' ? itemKey(item) : itemWindow(item);

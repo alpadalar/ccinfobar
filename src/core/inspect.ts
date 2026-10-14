@@ -114,7 +114,8 @@ function expiredWindow(ctx: RenderContext, reads: TraceRead[] | undefined): bool
   });
 }
 
-const PROJECTION_TYPES = new Set(['usage-projection', 'limit-eta']);
+const PROJECTION_TYPES = new Set(['usage-projection', 'limit-eta', 'limit-risk']);
+const BELOW = { 'limit-risk': 'explain.reason.belowRisk', 'limit-eta': 'explain.reason.limitSafe' } as const;
 
 export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceRead[]): EmptyReason {
   const def = getWidget(item.type);
@@ -128,8 +129,11 @@ export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceR
     return ctx.data.gsd() ? reason('no-data', t('explain.reason.gsdNothing')) : reason('no-gsd');
   }
   if (def.category === 'limits') {
-    if (PROJECTION_TYPES.has(item.type) && projectionState(ctx, item) === 'warming') {
-      return reason('projection-warming');
+    if (PROJECTION_TYPES.has(item.type)) {
+      const s = projectionState(ctx, item);
+      if (s === 'warming') return reason('projection-warming');
+      const below = BELOW[item.type as keyof typeof BELOW];
+      if (s === 'ok' && below) return reason('no-data', t(below));
     }
     if (expiredWindow(ctx, reads)) return reason('limits-expired');
     const provider = detectProvider(ctx.env);

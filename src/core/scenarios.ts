@@ -96,6 +96,15 @@ function near5hLimit(now: number): ScenarioBundle {
   return b;
 }
 
+function near7dLimit(now: number): ScenarioBundle {
+  const b = base(now);
+  const sec = Math.floor(now / 1000);
+  const r = b.payload.rate_limits ?? {};
+  // base limits() follows the payload
+  b.payload.rate_limits = { ...r, seven_day: { used_percentage: 80, resets_at: sec + 86_400 } };
+  return b;
+}
+
 const SUBAGENTS: [string, string, string, number, boolean][] = [
   ['Explore', 'Map the billing module', 'Grep[invoice]', 140, true],
   ['Explore', 'Find the export entry points', 'Glob[src/**/*.ts]', 128, true],
@@ -183,6 +192,12 @@ export const SCENARIOS: readonly Scenario[] = [
     label: 'Near the 5h limit',
     description: '92% of the five-hour limit used, resets in 25 minutes',
     build: near5hLimit,
+  },
+  {
+    id: 'near-7d-limit',
+    label: 'Near the weekly limit',
+    description: '80% of the weekly limit used, resets in 1 day',
+    build: near7dLimit,
   },
   {
     id: 'many-subagents',

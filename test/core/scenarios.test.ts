@@ -11,12 +11,14 @@ import { sampleLimits, samplePayload } from '../../src/core/sample.js';
 import { getScenario, SCENARIO_NOW, SCENARIOS, scenarioEnv, scenarioList } from '../../src/core/scenarios.js';
 import type { RenderContext } from '../../src/core/types.js';
 import { limitsFile, recordLimits } from '../../src/data/limits.js';
+import { getWidget } from '../../src/widgets/index.js';
 import { renderWidget, withoutSideEffects } from '../helpers.js';
 
 const IDS = [
   'fresh-session',
   'context-full',
   'near-5h-limit',
+  'near-7d-limit',
   'many-subagents',
   'gsd-project',
   'no-git',
@@ -92,6 +94,50 @@ describe('scenarios', () => {
     expect(widget('near-5h-limit', 'five-hour-usage')).toContain('92');
     const b = getScenario('near-5h-limit')!.build(SCENARIO_NOW);
     expect(b.payload.rate_limits?.five_hour?.resets_at).toBe(Math.floor(SCENARIO_NOW / 1000) + 25 * 60);
+  });
+
+  it('near-5h-limit shows a red risk chip and an ETA', () => {
+    const def = getWidget('limit-risk')!;
+    const item = { id: 'r', type: 'limit-risk' };
+    expect(withoutSideEffects(() => def.render(ctxFor('near-5h-limit'), item))).toEqual({
+      text: '5h 100%',
+      color: 'red',
+    });
+    expect(widget('near-5h-limit', 'limit-eta')).toBe('5h 100% in 24m');
+  });
+
+  it('near-7d-limit is at 80% weekly and shows an amber chip', () => {
+    const b = getScenario('near-7d-limit')!.build(SCENARIO_NOW);
+    expect(b.payload.rate_limits?.seven_day?.resets_at).toBe(Math.floor(SCENARIO_NOW / 1000) + 86_400);
+    expect(b.data.limits()?.windows.seven_day?.pct).toBe(80);
+    const def = getWidget('limit-risk')!;
+    expect(
+      withoutSideEffects(() => def.render(ctxFor('near-7d-limit'), { id: 'r', type: 'limit-risk' })),
+    ).toEqual({
+      text: '7d 93%',
+      color: 'yellow',
+    });
+    const proj = getWidget('usage-projection')!;
+    const item = { id: 'p', type: 'usage-projection', options: { window: '7d' } };
+    expect(withoutSideEffects(() => proj.render(ctxFor('near-7d-limit'), item))).toEqual({
+      text: '7d →93%',
+      color: 'yellow',
+    });
+  });
+
+  it('base-derived scenarios show no risk chip', () => {
+    for (const id of ['context-full', 'gsd-project', 'no-git', 'many-subagents', 'api-key-user']) {
+      expect(widget(id, 'limit-risk'), id).toBeNull();
+    }
+    expect(widget('fresh-session', 'limit-risk')).toBe(t('loading.default'));
+  });
+
+  it('renders the projection widgets under every scenario', () => {
+    for (const id of IDS) {
+      for (const type of ['usage-projection', 'limit-eta', 'limit-risk']) {
+        expect(() => widget(id, type), `${id} ${type}`).not.toThrow();
+      }
+    }
   });
 
   it('many-subagents has eight agents, running and done', () => {

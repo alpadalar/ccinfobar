@@ -417,6 +417,16 @@ describe('emptyReason', () => {
     expect(emptyReason(ctxWith({ env: {}, payload }), week).code).toBe('no-data');
     const shown = withoutSideEffects(() => inspectRows(ctxWith({ config: { lines } }))[0]!);
     expect(shown.status).toBe('shown');
+    expect(emptyReason(ctxWith({ env: {}, payload }), item('limit-eta')).code).toBe('projection-warming');
+  });
+
+  it('explains a limit-risk chip below the threshold', () => {
+    const row = withoutSideEffects(
+      () => inspectRows(ctxWith({ config: { lines: [[item('limit-risk')]] } }))[0]!,
+    );
+    expect(row.empty).toEqual({ code: 'no-data', text: t('explain.reason.belowRisk') });
+    const safe = { ...item('limit-eta'), options: { hideWhenSafe: true } };
+    expect(emptyReason(ctxWith(), safe).text).toBe(t('explain.reason.limitSafe'));
   });
 
   it('says when no rate limits arrived', () => {
