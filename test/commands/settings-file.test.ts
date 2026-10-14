@@ -2,11 +2,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  backupSettings,
+  backupsDir,
+  deleteSettingsFile,
   detectFormat,
+  ensureOriginal,
   hashBytes,
   patchSettings,
   readSettings,
   SettingsParseError,
+  writeSettingsBytes,
 } from '../../src/commands/settings-file.js';
 import { formatJson, settingsFixture } from './fixtures.js';
 
@@ -124,5 +129,93 @@ describe('settings file format', () => {
   it('hashes bytes with a sha256 prefix', () => {
     expect(hashBytes(Buffer.from('x'))).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(hashBytes('x')).toBe(hashBytes(Buffer.from('x')));
+  });
+});
+
+describe('settings backups', () => {
+  const now = new Date('2026-10-14T15:30:12.345Z');
+  const at = (sec: number) => new Date(now.getTime() + sec * 1000);
+  const list = (env: NodeJS.ProcessEnv) => fs.readdirSync(backupsDir(env)).sort();
+
+  it('writes a private timestamped backup with a collision suffix', () => {
+    const fx = settingsFixture({ data: base });
+    const bytes = fs.readFileSync(fx.real);
+    const first = backupSettings(fx.real, bytes, { env: fx.env, now });
+    expect(first).toBe(path.join(fx.dir, 'config', 'backups', 'settings-20261014T153012Z.json'));
+    expect(fs.readFileSync(first).equals(bytes)).toBe(true);
+    if (posix) expect(fs.statSync(first).mode & 0o777).toBe(0o600);
+    const second = backupSettings(fx.real, bytes, { env: fx.env, now });
+    expect(path.basename(second)).toBe('settings-20261014T153012Z-2.json');
+  });
+
+  it('uses a hashed prefix for project files', () => {
+    const fx = settingsFixture({ data: base });
+    const other = path.join(fx.dir, 'proj', '.claude', 'settings.local.json');
+    const name = path.basename(backupSettings(other, Buffer.from('{}'), { env: fx.env, now }));
+    expect(name).toMatch(/^project-[0-9a-f]{8}-20261014T153012Z\.json$/);
+  });
+
+  it('keeps the newest 10 per prefix and never rotates the original', () => {
+    const fx = settingsFixture({ data: base });
+    const other = path.join(fx.dir, 'proj', 'settings.json');
+    ensureOriginal(fx.real, Buffer.from('{}'), { env: fx.env });
+    const project = backupSettings(other, Buffer.from('{}'), { env: fx.env, now: at(-100) });
+    for (let i = 0; i < 11; i++) backupSettings(fx.real, Buffer.from(`${i}`), { env: fx.env, now: at(i) });
+    const last = backupSettings(fx.real, Buffer.from('dup'), { env: fx.env, now: at(10) });
+    expect(path.basename(last)).toBe('settings-20261014T153022Z-2.json');
+    const names = list(fx.env);
+    const stamped = names.filter((n) => /^settings-\d{8}T/.test(n));
+    expect(stamped).toHaveLength(10);
+    expect(stamped).not.toContain('settings-20261014T153012Z.json');
+    expect(stamped).not.toContain('settings-20261014T153013Z.json');
+    expect(stamped).toContain('settings-20261014T153022Z.json');
+    expect(stamped).toContain('settings-20261014T153022Z-2.json');
+    expect(names).toContain('settings-original.json');
+    expect(names).toContain(path.basename(project));
+  });
+
+  it('writes the original once and prefers the legacy backup', () => {
+    const fx = settingsFixture({ data: base });
+    const legacy = `${fx.file}.ccinfobar-backup`;
+    fs.writeFileSync(legacy, '{"legacy":true}');
+    const orig = ensureOriginal(fx.real, Buffer.from('{"now":1}'), { env: fx.env, legacyFile: legacy });
+    expect(orig).toBe(path.join(backupsDir(fx.env), 'settings-original.json'));
+    expect(fs.readFileSync(orig ?? '', 'utf8')).toBe('{"legacy":true}');
+    if (posix) expect(fs.statSync(orig ?? '').mode & 0o777).toBe(0o600);
+    expect(ensureOriginal(fx.real, Buffer.from('{"later":1}'), { env: fx.env })).toBeNull();
+    expect(fs.readFileSync(orig ?? '', 'utf8')).toBe('{"legacy":true}');
+    expect(fs.existsSync(legacy)).toBe(true);
+  });
+
+  it('backs up once per changing patch and never for a no-op', () => {
+    const fx = settingsFixture({ data: base });
+    const before = fs.readFileSync(fx.real);
+    const res = patchSettings(fx.file, setLine, { env: fx.env });
+    expect(res.backup).not.toBeNull();
+    expect(fs.readFileSync(res.backup ?? '').equals(before)).toBe(true);
+    expect(list(fx.env).filter((n) => n !== 'settings-original.json')).toEqual([
+      path.basename(res.backup ?? ''),
+    ]);
+    expect(fs.readFileSync(path.join(backupsDir(fx.env), 'settings-original.json')).equals(before)).toBe(
+      true,
+    );
+    expect(patchSettings(fx.file, setLine, { env: fx.env }).backup).toBeNull();
+    expect(list(fx.env)).toHaveLength(2);
+    expect(patchSettings(fx.file, (d) => ({ ...d, x: 1 }), { env: fx.env, backup: false }).backup).toBeNull();
+    expect(list(fx.env)).toHaveLength(2);
+  });
+
+  it('restores bytes and deletes with a backup first', () => {
+    const fx = settingsFixture({ data: base, mode: 0o600 });
+    const old = fs.readFileSync(fx.real);
+    const res = writeSettingsBytes(fx.file, Buffer.from('{"x":1}'), { env: fx.env });
+    expect(res.changed).toBe(true);
+    expect(fs.readFileSync(res.backup ?? '').equals(old)).toBe(true);
+    expect(fs.readFileSync(fx.file, 'utf8')).toBe('{"x":1}');
+    if (posix) expect(fs.statSync(fx.file).mode & 0o777).toBe(0o600);
+    expect(writeSettingsBytes(fx.file, Buffer.from('{"x":1}'), { env: fx.env }).changed).toBe(false);
+    const del = deleteSettingsFile(fx.file, { env: fx.env });
+    expect(fs.readFileSync(del.backup ?? '', 'utf8')).toBe('{"x":1}');
+    expect(fs.existsSync(fx.file)).toBe(false);
   });
 });

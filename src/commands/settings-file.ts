@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { renameWithRetry, writeTmp } from '../data/store.js';
+import { claudeSettingsPath, configDir } from '../core/paths.js';
+import { renameWithRetry, writeAtomic, writeTmp } from '../data/store.js';
 
 export interface SettingsFormat {
   bom: boolean;
@@ -57,6 +58,7 @@ export class SettingsParseError extends Error {
 }
 
 const MAX_ATTEMPTS = 3;
+const KEEP = 10;
 const NEW_MODE = 0o600;
 const posix = process.platform !== 'win32';
 
@@ -165,8 +167,99 @@ export function readSettings(file: string): SettingsRead {
   return { ...raw, data: data as Record<string, unknown>, format };
 }
 
+export function backupsDir(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(configDir(env), 'backups');
+}
+
+export function stamp(now: Date): string {
+  return now
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d+Z$/, 'Z');
+}
+
+const samePath = (a: string, b: string) => (posix ? a === b : a.toLowerCase() === b.toLowerCase());
+
+export function backupPrefix(real: string, env: NodeJS.ProcessEnv = process.env): string {
+  let user: string | null = null;
+  try {
+    user = resolveReal(claudeSettingsPath(env));
+  } catch {}
+  if (user && samePath(user, real)) return 'settings';
+  return `project-${createHash('sha256').update(real).digest('hex').slice(0, 8)}`;
+}
+
+const STAMPED = /^(.+)-(\d{8}T\d{6}Z)(?:-(\d+))?\.json$/;
+
+function rotate(dir: string, prefix: string): void {
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return;
+  }
+  const mine = names
+    .map((name) => ({ name, m: STAMPED.exec(name) }))
+    .filter((x) => x.m?.[1] === prefix)
+    .map(({ name, m }) => ({ name, at: m?.[2] ?? '', n: Number(m?.[3] ?? 1) }))
+    .sort((a, b) => (a.at === b.at ? a.n - b.n : a.at < b.at ? -1 : 1));
+  for (const old of mine.slice(0, Math.max(0, mine.length - KEEP))) {
+    try {
+      fs.rmSync(path.join(dir, old.name), { force: true });
+    } catch {}
+  }
+}
+
+export function backupSettings(
+  real: string,
+  bytes: Uint8Array,
+  opts: { env?: NodeJS.ProcessEnv; now?: Date } = {},
+): string {
+  const env = opts.env ?? process.env;
+  const dir = backupsDir(env);
+  const prefix = backupPrefix(real, env);
+  const name = `${prefix}-${stamp(opts.now ?? new Date())}`;
+  let target = path.join(dir, `${name}.json`);
+  for (let n = 2; fs.existsSync(target); n++) target = path.join(dir, `${name}-${n}.json`);
+  writeAtomic(target, bytes, { mode: 0o600, class: 'settings' });
+  rotate(dir, prefix);
+  return target;
+}
+
+// pre-ccinfobar copy, never rotated
+export function ensureOriginal(
+  real: string,
+  bytes: Uint8Array,
+  opts: { env?: NodeJS.ProcessEnv; legacyFile?: string } = {},
+): string | null {
+  const env = opts.env ?? process.env;
+  const target = path.join(backupsDir(env), `${backupPrefix(real, env)}-original.json`);
+  if (fs.existsSync(target)) return null;
+  let src: Uint8Array = bytes;
+  if (opts.legacyFile) {
+    try {
+      src = fs.readFileSync(opts.legacyFile);
+    } catch {}
+  }
+  writeAtomic(target, src, { mode: 0o600, class: 'settings' });
+  return target;
+}
+
+function takeBackup(raw: RawRead, opts: PatchOpts): string | null {
+  if (!raw.exists || opts.backup === false) return null;
+  ensureOriginal(raw.real, raw.bytes, { env: opts.env, legacyFile: legacyFile(raw) });
+  return backupSettings(raw.real, raw.bytes, { env: opts.env });
+}
+
+function legacyFile(raw: RawRead): string | undefined {
+  for (const f of [`${raw.file}.ccinfobar-backup`, `${raw.real}.ccinfobar-backup`]) {
+    if (fs.existsSync(f)) return f;
+  }
+  return undefined;
+}
+
 // tmp next to real, mode and owner kept; false when real changed meanwhile
-function commit(raw: RawRead, bytes: Uint8Array, beforeRename?: () => void): boolean {
+function commit(raw: RawRead, bytes: Uint8Array, opts: PatchOpts): string | null | false {
   fs.mkdirSync(path.dirname(raw.real), { recursive: true });
   const tmp = writeTmp(raw.real, bytes, { mode: raw.mode, flush: true });
   try {
@@ -176,13 +269,14 @@ function commit(raw: RawRead, bytes: Uint8Array, beforeRename?: () => void): boo
         fs.chownSync(tmp, raw.uid, raw.gid);
       } catch {}
     }
-    beforeRename?.();
+    opts.beforeRename?.();
     if (currentHash(raw.real) !== raw.hash) {
       fs.unlinkSync(tmp);
       return false;
     }
+    const backup = takeBackup(raw, opts);
     renameWithRetry(tmp, raw.real, 2000);
-    return true;
+    return backup;
   } catch (e) {
     try {
       fs.unlinkSync(tmp);
@@ -215,8 +309,9 @@ export function patchSettings(
     };
     const empty = !cur.exists && Object.keys(next).length === 0;
     if (empty || (cur.exists && after.equals(cur.bytes))) return result;
-    if (!commit(cur, after, opts.beforeRename)) continue;
-    return { ...result, changed: true, afterHash: hashBytes(after) };
+    const backup = commit(cur, after, opts);
+    if (backup === false) continue;
+    return { ...result, changed: true, afterHash: hashBytes(after), backup };
   }
   throw new Error(`${file} changed while writing; try again`);
 }
@@ -225,8 +320,9 @@ export function patchSettings(
 export function writeSettingsBytes(file: string, bytes: Uint8Array, opts: PatchOpts = {}): WriteResult {
   const cur = readRaw(file);
   if (cur.exists && cur.bytes.equals(bytes)) return { changed: false, real: cur.real, backup: null };
-  if (!commit(cur, bytes, opts.beforeRename)) throw new Error(`${file} changed while writing; try again`);
-  return { changed: true, real: cur.real, backup: null };
+  const backup = commit(cur, bytes, opts);
+  if (backup === false) throw new Error(`${file} changed while writing; try again`);
+  return { changed: true, real: cur.real, backup };
 }
 
 // a symlinked file is emptied, not unlinked
@@ -241,6 +337,7 @@ export function deleteSettingsFile(file: string, opts: PatchOpts = {}): WriteRes
     const empty = serialize({}, detectFormat(cur.bytes.toString('utf8')));
     return writeSettingsBytes(file, Buffer.from(empty, 'utf8'), opts);
   }
+  const backup = takeBackup(cur, opts);
   fs.rmSync(cur.real, { force: true });
-  return { changed: true, real: cur.real, backup: null };
+  return { changed: true, real: cur.real, backup };
 }
