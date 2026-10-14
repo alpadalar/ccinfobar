@@ -17,6 +17,12 @@ All notable changes to this project are documented here. The format follows [Kee
 - `ccinfobar doctor` lists the install manifest, where backups are kept and whether git hardening is off, warns on Windows about a backslash or quoted first token in the statusLine command, and removes stale temp files
 - `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` (when set and non-empty) stops the background update check and the background usage fetch; `ccinfobar update` and `ccinfobar usage` still work on demand, and `ccinfobar doctor` says when it is on
 - `-y` as a short form of `--yes`, and `--` to end option parsing (for example `-- -1`)
+- `ccinfobar explain [widget-id]` lists every widget with its current value, where it came from (payload field, cache and its age, git, GSD or another data source) and why it is empty, including which payload field Claude Code did not send and which Claude Code version adds it (`prompt_cache` 2.1.251+, `last_miss_cause` 2.1.260+); a widget id prints details for one widget
+- `ccinfobar explain --json` prints one sanitized JSON object for bug reports, `--scenario <name>` and `--payload <file>` pick the input, and a broken config makes it exit 1
+- `ccinfobar preview --scenario <name>` renders seven named situations (fresh session, context nearly full, near 5h limit, many subagents, GSD project, no git repo, API key user); a bare `--scenario` lists them
+- The web editor's preview has a Scenario picker next to Sample data / Last session
+- `ccinfobar bench` measures cold and warm render time (median, p95) against a `node -e 0` control (`--runs <n>`, `--scenario <name>`, `--json`); the method and a baseline are in docs/DEVELOPMENT.md
+- CI installs the packed package into an empty profile on Linux, macOS and Windows, renders through the exact settings command in every shell, and checks that uninstall restores the settings file byte for byte and leaves no process behind
 
 ### Changed
 
@@ -33,6 +39,9 @@ All notable changes to this project are documented here. The format follows [Kee
 - The stdin payload is sanitized before any widget sees it, and a non-object JSON payload is reported as invalid
 - On macOS and Linux, a path with spaces or quotes is single-quoted in the statusLine command
 - `ccinfobar import` config backups are created with mode 0600
+- `ccinfobar preview` prints plain text when its output is not a terminal
+- `ccinfobar doctor` builds its widget list from the same data as `explain` and points to it for details
+- CI also tests on Node 26
 
 ### Fixed
 
@@ -63,6 +72,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `install --project` escapes `*`, `?`, `[` and `\` in the path it adds to `.git/info/exclude`, so it no longer hides other files, and works when the project is opened through a symlink
 - The editor's install dialog shows the settings file it will write, including a `CLAUDE_CONFIG_DIR` location, instead of always `~/.claude/settings.json`
 - Saving a symlinked `config.json` (for example from a dotfiles repo) writes through the link instead of replacing it with a plain file; the same holds for themes, presets and cache files
+- `ccinfobar doctor` no longer merges the cached usage limits when the status line would not, so its widget list matches the status line
 
 ### Security
 
