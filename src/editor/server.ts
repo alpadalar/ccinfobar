@@ -4,7 +4,17 @@ import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
-import { currentStatusLine, defaultCommand, install, setupCommand } from '../commands/install.js';
+import {
+  applyInstall,
+  currentStatusLine,
+  defaultCommand,
+  InstallNeedsConfirmError,
+  planInstall,
+  type StatusLineSetting,
+  setupCommand,
+} from '../commands/install.js';
+import { classifyOwner, deepEqual, owns, readManifest } from '../commands/manifest.js';
+import { backupsDir } from '../commands/settings-file.js';
 import {
   compareVersions,
   fetchLatest,
@@ -16,8 +26,9 @@ import {
 } from '../commands/update.js';
 import { ConfigBrokenError, normalizeConfig, saveConfig } from '../core/config.js';
 import { applyStyle, type StyleHistory } from '../core/edit.js';
+import { t } from '../core/i18n/index.js';
 import { availablePresets, loadForUse } from '../core/load.js';
-import { lastPayloadPath, tildify } from '../core/paths.js';
+import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { deleteUserPreset, listPresets, presetsDir, saveUserPreset } from '../core/presets.js';
 import { renderPreview } from '../core/preview.js';
 import { resolveAppearance } from '../core/renderer.js';
@@ -150,15 +161,26 @@ function widgetCatalog() {
   }));
 }
 
+// manifest ownership, not a substring
+function isInstalled(statusLine: StatusLineSetting | null, command: string | null): boolean {
+  if (!statusLine) return false;
+  try {
+    const m = readManifest();
+    const file = claudeSettingsPath();
+    return owns(m, file, statusLine) || classifyOwner(m, file, statusLine, command) === 'legacy-ours';
+  } catch {
+    return false;
+  }
+}
+
 function claudeInfo(command: string | null) {
-  let statusLine: unknown = null;
+  let statusLine: StatusLineSetting | null = null;
   try {
     statusLine = currentStatusLine();
   } catch {}
-  const cmd = (statusLine as { command?: unknown } | null)?.command;
   return {
     statusLine,
-    installed: typeof cmd === 'string' && cmd.includes('ccinfobar'),
+    installed: isInstalled(statusLine, command),
     defaultCommand: command ?? 'ccinfobar (installed on first Install)',
   };
 }
@@ -193,6 +215,17 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
 
   const hostOk = (h: string | undefined) => h === `127.0.0.1:${port}` || h === `localhost:${port}`;
   const originOk = (o: string) => o === `http://127.0.0.1:${port}` || o === `http://localhost:${port}`;
+
+  function resolveInstall(body: Record<string, unknown>): { cmd: string; refresh: number | undefined } {
+    let cmd = typeof body.command === 'string' && body.command.trim() ? body.command.trim() : command;
+    if (!cmd || cmd.startsWith('ccinfobar (')) {
+      command = setupCommand(VERSION).command;
+      cmd = command;
+    }
+    if (!cmd) throw new HttpError(500, 'Could not install ccinfobar; run npm install -g ccinfobar');
+    const refresh = Number(body.refreshInterval);
+    return { cmd, refresh: Number.isFinite(refresh) && refresh > 0 ? refresh : undefined };
+  }
 
   async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     if (!hostOk(req.headers.host)) throw new HttpError(403, 'Forbidden host');
@@ -394,19 +427,30 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         send(res, 200, { ok: true, config });
         return;
       }
+      case 'POST /api/install/plan': {
+        const body = asObject(await readBody(req));
+        const { cmd, refresh } = resolveInstall(body);
+        send(res, 200, { plan: planInstall({ command: cmd, refresh }) });
+        return;
+      }
       case 'POST /api/install': {
         const body = asObject(await readBody(req));
-        let cmd = typeof body.command === 'string' && body.command.trim() ? body.command.trim() : command;
-        if (!cmd || cmd.startsWith('ccinfobar (')) {
-          command = setupCommand(VERSION).command;
-          cmd = command;
+        const { cmd, refresh } = resolveInstall(body);
+        const plan = planInstall({ command: cmd, refresh });
+        const confirmed = body.confirm === true;
+        if (confirmed && 'current' in body && !deepEqual(body.current ?? null, plan.current))
+          throw new HttpError(409, t('install.stale', { file: tildify(plan.file) }), { plan });
+        let backup: string | null;
+        try {
+          backup = applyInstall(plan, { confirmed, adoptLegacy: confirmed }).backup;
+        } catch (err) {
+          if (err instanceof InstallNeedsConfirmError)
+            throw new HttpError(409, t('install.needsConfirm'), { plan: err.plan });
+          throw err;
         }
-        if (!cmd) throw new HttpError(500, 'Could not install ccinfobar; run npm install -g ccinfobar');
-        const refresh = Number(body.refreshInterval);
-        const backup = install(cmd, Number.isFinite(refresh) && refresh > 0 ? refresh : undefined);
         if (!fs.existsSync(opts.configPath))
-          saveConfig(loadForUse(opts.configPath, () => gsd).config, opts.configPath);
-        send(res, 200, { ok: true, backup, claude: claudeInfo(command) });
+          saveConfig(loadForUse(opts.configPath, () => gsd, { persist: true }).config, opts.configPath);
+        send(res, 200, { ok: true, backup, backupsDir: backupsDir(), claude: claudeInfo(command) });
         return;
       }
       case 'GET /api/system': {
