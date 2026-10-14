@@ -281,5 +281,6 @@ export interface DataSources {
   limits?(): import('../data/limits.js').LimitsView | null;
   ledger?(): import('../data/ledger.js').LedgerView | null;
   repos?(): import('../data/repos.js').WorkspaceRepos | null;
+  hooks?(): import('../data/hooks.js').HookState | null;
   agents(): import('../data/agents.js').AgentInfo[];
 }

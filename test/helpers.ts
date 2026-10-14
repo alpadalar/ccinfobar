@@ -5,6 +5,7 @@ import {
   sampleGit,
   sampleGsd,
   sampleHistory,
+  sampleHooks,
   sampleLedger,
   sampleLimits,
   samplePayload,
@@ -27,6 +28,7 @@ export function ctxWith(
     ledger?: RenderContext['data']['ledger'];
     agents?: RenderContext['data']['agents'];
     repos?: RenderContext['data']['repos'];
+    hooks?: RenderContext['data']['hooks'];
     width?: number | null;
     env?: NodeJS.ProcessEnv;
   } = {},
@@ -46,6 +48,7 @@ export function ctxWith(
       limits: overrides.limits ?? (() => sampleLimits(NOW.getTime())),
       ledger: overrides.ledger ?? (() => sampleLedger(NOW.getTime())),
       repos: overrides.repos ?? (() => null),
+      hooks: overrides.hooks ?? (() => sampleHooks(NOW.getTime())),
     },
   });
 }

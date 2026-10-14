@@ -2,6 +2,7 @@ import type { AgentInfo } from '../data/agents.js';
 import type { GitInfo } from '../data/git.js';
 import type { GsdInfo } from '../data/gsd.js';
 import type { HistorySample } from '../data/history.js';
+import type { HookState } from '../data/hooks.js';
 import type { LedgerView } from '../data/ledger.js';
 import type { LimitsView, ResolvedWindow } from '../data/limits.js';
 import type { WorkspaceRepos } from '../data/repos.js';
@@ -303,6 +304,17 @@ export function sampleRepos(now = Date.now()): WorkspaceRepos {
       repo('zed', 'main', 2880),
     ],
     total: 7,
+  };
+}
+
+export function sampleHooks(now = Date.now()): HookState {
+  const start = now - 134_000;
+  return {
+    lastEventAt: start,
+    lastSource: 'startup',
+    turn: { promptId: null, start, end: null, durationMs: null },
+    pendingPermission: null,
+    agents: Object.create(null),
   };
 }
 

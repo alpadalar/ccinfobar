@@ -7,7 +7,7 @@ import { t } from '../../src/core/i18n/index.js';
 import { lastPayloadPath } from '../../src/core/paths.js';
 import { isFreshSession } from '../../src/core/payload.js';
 import { renderPreview } from '../../src/core/preview.js';
-import { sampleLimits, samplePayload } from '../../src/core/sample.js';
+import { sampleHooks, sampleLimits, samplePayload } from '../../src/core/sample.js';
 import {
   getScenario,
   SCENARIO_NOW,
@@ -97,6 +97,14 @@ describe('scenarios', () => {
     const b = getScenario('fresh-session')!.build(SCENARIO_NOW);
     expect(isFreshSession(b.payload, b.data.transcript())).toBe(true);
     expect(widget('fresh-session', 'context-bar')).toBe(t('loading.default'));
+  });
+
+  it('supplies hook state in every scenario except fresh-session', () => {
+    for (const id of IDS) {
+      const b = getScenario(id)!.build(SCENARIO_NOW);
+      expect(typeof b.data.hooks, id).toBe('function');
+      expect(b.data.hooks(), id).toEqual(id === 'fresh-session' ? null : sampleHooks(SCENARIO_NOW));
+    }
   });
 
   it('near-5h-limit is at 92% and resets in 25 minutes', () => {

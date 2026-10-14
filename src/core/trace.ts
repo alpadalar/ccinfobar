@@ -11,6 +11,7 @@ export type SourceKind =
   | 'history'
   | 'ledger'
   | 'repos'
+  | 'hooks'
   | 'env'
   | 'config'
   | 'clock'
@@ -112,6 +113,8 @@ export function createTrace(): Trace {
     if (ledger) data.ledger = via('ledger', () => ledger());
     const repos = d.repos;
     if (repos) data.repos = via('repos', () => repos());
+    const hooks = d.hooks;
+    if (hooks) data.hooks = via('hooks', () => hooks());
     return { ...ctx, payload: deep(ctx.payload, ''), env: envProxy(ctx.env), data };
   }
 

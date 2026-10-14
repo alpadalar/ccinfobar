@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { readAgents } from '../data/agents.js';
+import { readHookState } from '../data/hooks.js';
 import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
 import { accountKey } from '../data/limits.js';
 import { readRepos } from '../data/repos.js';
@@ -15,6 +16,7 @@ import {
   sampleGit,
   sampleGsd,
   sampleHistory,
+  sampleHooks,
   sampleLedger,
   sampleLimits,
   samplePayload,
@@ -97,6 +99,9 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
           ),
           limits: () => eff.limits,
           repos: lazy(() => readRepos(resolveCwd(last), env, { persist: false })),
+          hooks: lazy(() =>
+            last.session_id ? readHookState(last.session_id, env, { persist: false }) : null,
+          ),
           ...(ledgerOn(config)
             ? {
                 ledger: lazy(() => {
@@ -132,6 +137,7 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
         limits: () => sampleLimits(now, payload.rate_limits ?? null),
         ledger: () => sampleLedger(now),
         repos: () => null,
+        hooks: () => sampleHooks(now),
       },
     }),
   );

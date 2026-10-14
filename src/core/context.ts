@@ -1,6 +1,7 @@
 import { readAgents } from '../data/agents.js';
 import { readGit } from '../data/git.js';
 import { readGsd } from '../data/gsd.js';
+import { readHookState } from '../data/hooks.js';
 import { readRepos } from '../data/repos.js';
 import { readTranscript } from '../data/transcript.js';
 import type { Config, DataSources, RenderContext, StatusPayload } from './types.js';
@@ -60,6 +61,14 @@ export function createContext(opts: ContextOptions): RenderContext {
       repos:
         opts.data?.repos ??
         lazy(() => readRepos(cwd, env, { persist: !(opts.preview ?? false), now: now.getTime() })),
+      hooks:
+        opts.data?.hooks ??
+        lazy(() => {
+          const sid = opts.payload.session_id;
+          return typeof sid === 'string' && sid
+            ? readHookState(sid, env, { persist: !(opts.preview ?? false) })
+            : null;
+        }),
       agents:
         opts.data?.agents ??
         lazy(() => readAgents(opts.payload.transcript_path, transcript(), now.getTime(), env)),

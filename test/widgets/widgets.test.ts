@@ -21,6 +21,7 @@ const noData = (config?: Partial<Config>) =>
     agents: () => [],
     ledger: () => null,
     repos: () => null,
+    hooks: () => null,
     config,
   });
 

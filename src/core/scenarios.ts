@@ -5,6 +5,7 @@ import {
   sampleGit,
   sampleGsd,
   sampleHistory,
+  sampleHooks,
   sampleLedger,
   sampleLimits,
   samplePayload,
@@ -42,6 +43,7 @@ function base(now: number): ScenarioBundle {
       limits: () => sampleLimits(now, b.payload.rate_limits ?? null),
       ledger: () => sampleLedger(now),
       repos: () => null,
+      hooks: () => sampleHooks(now),
     },
     env: {},
   };
@@ -71,6 +73,7 @@ function freshSession(now: number): ScenarioBundle {
   b.data.agents = () => [];
   b.data.history = () => [];
   b.data.ledger = () => null;
+  b.data.hooks = () => null;
   return b;
 }
 

@@ -23,6 +23,7 @@ import {
   sampleGit,
   sampleGsd,
   sampleHistory,
+  sampleHooks,
   sampleLedger,
   sampleLimits,
   samplePayload,
@@ -35,6 +36,7 @@ import { VERSION } from '../core/version.js';
 import { agentsCacheName, readAgents } from '../data/agents.js';
 import { cacheFile } from '../data/cache.js';
 import { loadHistory } from '../data/history.js';
+import { readHookState } from '../data/hooks.js';
 import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
 import { accountKey, type LimitsView, modelKey, readLimitsStore } from '../data/limits.js';
 import { readRepos } from '../data/repos.js';
@@ -97,6 +99,9 @@ function readOnlyData(
     agents: lazy(() => readAgents(payload.transcript_path, transcript(), now, env, { persist: false })),
     history: () => loadHistory(payload.session_id, env),
     repos: lazy(() => readRepos(resolveCwd(payload), env, { persist: false, now })),
+    hooks: lazy(() =>
+      payload.session_id ? readHookState(payload.session_id, env, { persist: false }) : null,
+    ),
   };
   if (ledgerOn(config)) {
     data.ledger = lazy(() => {
@@ -120,6 +125,7 @@ function sampleData(now: number, payload: StatusPayload): DataSources {
     limits: () => sampleLimits(now, payload.rate_limits ?? null),
     ledger: () => sampleLedger(now),
     repos: () => null,
+    hooks: () => sampleHooks(now),
   };
 }
 
