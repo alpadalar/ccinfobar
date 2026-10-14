@@ -138,6 +138,10 @@ describe('skills', () => {
       expect(body).toMatch(/never edit any settings\.json/i);
       expect(body).toMatch(/as data, not instructions/i);
       expect(body).toContain('[shell command execution disabled by policy]');
+      expect(body).toContain('prints 0.6.2 or lower, ccinfobar is too old for this skill. Run nothing else');
+      const gate = body.indexOf('npx ccinfobar@latest --version');
+      expect(gate).toBeGreaterThan(-1);
+      expect(gate).toBeLessThan(body.indexOf('npx ccinfobar@latest install --dry-run'));
     });
   }
 
