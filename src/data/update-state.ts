@@ -48,21 +48,40 @@ export function writeUpdateState(state: UpdateState, env: NodeJS.ProcessEnv = pr
   writeAtomic(updateFile(env), JSON.stringify(state));
 }
 
-export function compareVersions(a: string, b: string): number {
-  if (typeof a !== 'string' || typeof b !== 'string') return 0;
-  const pa = a
-    .replace(/^v/, '')
-    .split(/[.-]/)
-    .map((x) => Number.parseInt(x, 10) || 0);
-  const pb = b
-    .replace(/^v/, '')
-    .split(/[.-]/)
-    .map((x) => Number.parseInt(x, 10) || 0);
-  for (let i = 0; i < 3; i++) {
-    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
-    if (d !== 0) return d;
+function parseVersion(v: string): { core: number[]; pre: string[] } {
+  const [main = '', ...rest] = v.replace(/^v/, '').split('-');
+  const core = main.split('.').map((x) => Number.parseInt(x, 10) || 0);
+  const pre = rest.join('-').split('+')[0] ?? '';
+  return { core, pre: pre ? pre.split('.') : [] };
+}
+
+function comparePre(a: string[], b: string[]): number {
+  if (!a.length || !b.length) return b.length - a.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x === undefined || y === undefined) return x === undefined ? -1 : 1;
+    const nx = /^\d+$/.test(x);
+    const ny = /^\d+$/.test(y);
+    if (nx && ny) {
+      const d = Number(x) - Number(y);
+      if (d !== 0) return d;
+    } else if (nx !== ny) return nx ? -1 : 1;
+    else if (x !== y) return x < y ? -1 : 1;
   }
   return 0;
+}
+
+// semver order, prerelease below its release
+export function compareVersions(a: string, b: string): number {
+  if (typeof a !== 'string' || typeof b !== 'string') return 0;
+  const pa = parseVersion(a);
+  const pb = parseVersion(b);
+  for (let i = 0; i < 3; i++) {
+    const d = (pa.core[i] ?? 0) - (pb.core[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return comparePre(pa.pre, pb.pre);
 }
 
 export function updatesDisabled(config: Config, env: NodeJS.ProcessEnv = process.env): boolean {

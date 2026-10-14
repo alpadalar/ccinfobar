@@ -89,6 +89,14 @@ describe('update', () => {
     expect(compareVersions('0.3.0', '0.2.9')).toBeGreaterThan(0);
     expect(compareVersions('v1.0.0', '1.0.0')).toBe(0);
     expect(compareVersions('0.2.0', '0.10.0')).toBeLessThan(0);
+    expect(compareVersions('1.0.0-beta.1', '1.0.0')).toBeLessThan(0);
+    expect(compareVersions('1.0.0', '1.0.0-rc.1')).toBeGreaterThan(0);
+    expect(compareVersions('1.0.0-beta.2', '1.0.0-beta.10')).toBeLessThan(0);
+    expect(compareVersions('1.0.0-alpha', '1.0.0-alpha.1')).toBeLessThan(0);
+    expect(compareVersions('1.0.0-1', '1.0.0-alpha')).toBeLessThan(0);
+    expect(compareVersions('1.0.0-rc.1', '1.0.0-beta.9')).toBeGreaterThan(0);
+    expect(compareVersions('1.0.0-rc.1', '1.0.0-rc.1')).toBe(0);
+    expect(compareVersions('1.0.1-beta', '1.0.0')).toBeGreaterThan(0);
   });
 
   it('shows a notice only in notify mode when a newer release is cached', () => {

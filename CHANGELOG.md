@@ -57,6 +57,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `command` output with `preserveColors` that leaves a color on is reset at its end, so the color no longer bleeds into the next widgets
 - A damaged `update.json` in the cache no longer replaces the whole status line with the render error line
 - Windows: updates and the pinned-copy install no longer fail when npm is only available as `npm.cmd` and the config folder path contains spaces; npm's own `npm-cli.js` is used without a shell when it can be found
+- Update checks order prerelease versions correctly, so `1.0.0-beta.1` counts as older than `1.0.0`
 - Saving a symlinked `config.json` (for example from a dotfiles repo) writes through the link instead of replacing it with a plain file; the same holds for themes, presets and cache files
 
 ### Security
