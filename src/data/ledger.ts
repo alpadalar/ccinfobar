@@ -56,7 +56,7 @@ const ID = /^[\w-]{1,80}$/;
 const MONTH = /^\d{4}-\d{2}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-const LEDGER_TYPES = new Set(['cost-today', 'cost-week', 'cost-project']);
+export const LEDGER_TYPES: ReadonlySet<string> = new Set(['cost-today', 'cost-week', 'cost-project']);
 
 const map = <T>(): Record<string, T> => Object.create(null) as Record<string, T>;
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);

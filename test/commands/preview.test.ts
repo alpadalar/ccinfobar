@@ -4,9 +4,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import type { CliIo } from '../../src/commands/io.js';
 import { runPreview } from '../../src/commands/manage.js';
+import { stripAnsi } from '../../src/core/ansi.js';
+import { defaultConfig } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
 import { configDir } from '../../src/core/paths.js';
-import { scenarioFlag, scenarioListLines } from '../../src/core/preview.js';
+import { renderPreview, scenarioFlag, scenarioListLines } from '../../src/core/preview.js';
 import { SCENARIOS } from '../../src/core/scenarios.js';
 import { withoutSideEffects } from '../helpers.js';
 
@@ -110,5 +112,32 @@ describe('runPreview --scenario', () => {
     expect(plain).not.toContain(ESC);
     const tty = run(['--width', '140'], true).out.join('\n');
     expect(tty).toContain(`${ESC}[`);
+  });
+});
+
+describe('renderPreview ledger widgets', () => {
+  const cfg = () => ({
+    ...defaultConfig(),
+    colorLevel: 0 as const,
+    lines: [
+      [
+        { id: 'a', type: 'cost-today' },
+        { id: 'b', type: 'cost-week' },
+        { id: 'c', type: 'cost-project' },
+      ],
+    ],
+  });
+
+  it('shows the sample ledger', () => {
+    const out = withoutSideEffects(() => renderPreview(cfg(), 'sample', 200));
+    const line = stripAnsi(out[0] ?? '');
+    expect(line).toContain('Today ~$4.12');
+    expect(line).toContain('Week ~$18.40');
+    expect(line).toContain('Project ~$62.00');
+  });
+
+  it('shows the scenario ledger', () => {
+    const out = withoutSideEffects(() => renderPreview(cfg(), { scenario: 'context-full' }, 200));
+    expect(stripAnsi(out[0] ?? '')).toContain('Today ~$4.12');
   });
 });

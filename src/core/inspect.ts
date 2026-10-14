@@ -1,3 +1,4 @@
+import { LEDGER_TYPES } from '../data/ledger.js';
 import { detectProvider, type Provider } from '../data/provider.js';
 import { getWidget } from '../widgets/index.js';
 import { projectionState } from '../widgets/projection.js';
@@ -32,6 +33,7 @@ export type EmptyCode =
   | 'no-context-window'
   | 'no-transcript'
   | 'no-git'
+  | 'no-ledger'
   | 'no-replies'
   | 'payload-field-absent'
   | 'error'
@@ -147,6 +149,7 @@ export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceR
   }
   if (def.category === 'git' && !ctx.data.git()) return reason('no-git');
   if (TRANSCRIPT_TYPES.has(item.type) && !ctx.data.transcript()) return reason('no-transcript');
+  if (LEDGER_TYPES.has(item.type) && !ctx.data.ledger?.()) return reason('no-ledger');
   if (!hasReplies(p) && /^(context|tokens|cost)$/.test(def.category)) return reason('no-replies');
   const absent = absentField(reads);
   if (absent) return absent;
@@ -167,7 +170,7 @@ export interface LimitWindowMeta {
 
 export interface InspectMeta {
   limitWindows?: Record<string, LimitWindowMeta>;
-  ages?: Partial<Record<'usage' | 'transcript' | 'agents', number>>;
+  ages?: Partial<Record<'usage' | 'transcript' | 'agents' | 'ledger', number>>;
   gsdPath?: string;
 }
 
@@ -228,7 +231,8 @@ function toSources(item: WidgetItem, reads: TraceRead[], meta: InspectMeta): Sou
         break;
       }
       case 'transcript':
-      case 'agents': {
+      case 'agents':
+      case 'ledger': {
         const age = ages[r.kind];
         out.push({ kind: r.kind, ...(age !== undefined ? { age } : {}) });
         break;

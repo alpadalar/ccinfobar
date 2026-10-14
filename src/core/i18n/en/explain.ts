@@ -17,6 +17,8 @@ export const explainMessages = {
   'explain.reason.no-transcript':
     'no transcript yet: Claude Code creates it with the first message of the session',
   'explain.reason.no-git': 'not a git repository, or git is not on PATH',
+  'explain.reason.no-ledger':
+    'no cost recorded yet; counting starts when a cost ledger widget is on the status line',
   'explain.reason.no-replies':
     'Claude has not answered in this session yet; it appears after the first reply',
   'explain.reason.payload-field-absent': 'Claude Code did not send {path}{since}',
@@ -67,6 +69,8 @@ export const explainMessages = {
   'explain.source.transcript.age': 'transcript (cache age {age})',
   'explain.source.agents': 'subagents',
   'explain.source.agents.age': 'subagents (cache age {age})',
+  'explain.source.ledger': 'cost ledger',
+  'explain.source.ledger.age': 'cost ledger, updated {age} ago',
   'explain.source.git': 'git (live)',
   'explain.source.gsd': 'GSD {path}',
   'explain.source.history': 'history',

@@ -23,6 +23,7 @@ import {
   sampleGit,
   sampleGsd,
   sampleHistory,
+  sampleLedger,
   sampleLimits,
   samplePayload,
   sampleTranscript,
@@ -34,7 +35,8 @@ import { VERSION } from '../core/version.js';
 import { agentsCacheName, readAgents } from '../data/agents.js';
 import { cacheFile } from '../data/cache.js';
 import { loadHistory } from '../data/history.js';
-import { type LimitsView, readLimitsStore } from '../data/limits.js';
+import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
+import { accountKey, type LimitsView, readLimitsStore } from '../data/limits.js';
 import { readTranscript, type TranscriptInfo, transcriptCacheName } from '../data/transcript.js';
 import { effectiveUsage, type UsageCache } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
@@ -80,15 +82,30 @@ function probeFreeWidth(opts: LoadOptions, payload: StatusPayload, env: NodeJS.P
   return null;
 }
 
-function readOnlyData(payload: StatusPayload, env: NodeJS.ProcessEnv, now: number): Partial<DataSources> {
+function readOnlyData(
+  config: Config,
+  payload: StatusPayload,
+  env: NodeJS.ProcessEnv,
+  now: number,
+): Partial<DataSources> {
   const transcript = lazy<TranscriptInfo | null>(() =>
     readTranscript(payload.transcript_path, env, { persist: false }),
   );
-  return {
+  const data: Partial<DataSources> = {
     transcript,
     agents: lazy(() => readAgents(payload.transcript_path, transcript(), now, env, { persist: false })),
     history: () => loadHistory(payload.session_id, env),
   };
+  if (ledgerOn(config)) {
+    data.ledger = lazy(() => {
+      const read = readLedger(env, now, { persist: false });
+      return ledgerView(read.summary, accountKey(env), projectRoot(payload), now, {
+        session: payload.session_id,
+        c: payload.cost?.total_cost_usd,
+      });
+    });
+  }
+  return data;
 }
 
 function sampleData(now: number, payload: StatusPayload): DataSources {
@@ -99,6 +116,7 @@ function sampleData(now: number, payload: StatusPayload): DataSources {
     history: () => sampleHistory(now),
     agents: () => sampleAgents(now),
     limits: () => sampleLimits(now, payload.rate_limits ?? null),
+    ledger: () => sampleLedger(now),
   };
 }
 
@@ -196,6 +214,10 @@ function sourceMeta(
     const aAge = agentsAge(tp, env, now);
     if (aAge !== undefined) ages.agents = aAge;
   }
+  if (ledgerOn(config)) {
+    const at = ctx.data.ledger?.()?.at;
+    if (typeof at === 'number') ages.ledger = Math.max(0, ctx.now.getTime() - at);
+  }
   if (Object.keys(ages).length) meta.ages = ages;
   if (config.lines.some((items) => items.some((i) => getWidget(i.type)?.category === 'gsd'))) {
     const g = ctx.data.gsd();
@@ -221,7 +243,7 @@ export function loadInspectInput(opts: LoadOptions): InspectInput | null {
   if (opts.payloadFile) {
     payload = readPayloadFile(opts.payloadFile);
     input = { kind: 'payload', name: opts.payloadFile };
-    data = readOnlyData(payload, env, now.getTime());
+    data = readOnlyData(config, payload, env, now.getTime());
   } else if (scenario) {
     const bundle = scenario.build(SCENARIO_NOW);
     payload = bundle.payload;
@@ -237,7 +259,7 @@ export function loadInspectInput(opts: LoadOptions): InspectInput | null {
       ...(ageMs !== undefined ? { ageMs } : {}),
       ...(typeof last.version === 'string' ? { claudeCode: last.version } : {}),
     };
-    data = readOnlyData(payload, env, now.getTime());
+    data = readOnlyData(config, payload, env, now.getTime());
   } else {
     if (opts.fallback === 'none') return null;
     payload = samplePayload(now.getTime());
@@ -327,6 +349,7 @@ export function sourceText(src: Source): string {
     case 'usage-cache':
     case 'transcript':
     case 'agents':
+    case 'ledger':
       return src.age === undefined
         ? t(`explain.source.${src.kind}`)
         : t(`explain.source.${src.kind}.age`, { age: shortAge(src.age) });

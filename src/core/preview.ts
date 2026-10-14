@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
+import { accountKey } from '../data/limits.js';
 import { readTranscript } from '../data/transcript.js';
 import { effectiveUsage } from '../data/usage.js';
 import { createContext, lazy } from './context.js';
@@ -11,6 +13,7 @@ import {
   sampleGit,
   sampleGsd,
   sampleHistory,
+  sampleLedger,
   sampleLimits,
   samplePayload,
   sampleTranscript,
@@ -85,7 +88,22 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
         preview: true,
         terminalWidth: width,
         ...(theme ? { theme } : {}),
-        data: { transcript, limits: () => eff.limits },
+        data: {
+          transcript,
+          limits: () => eff.limits,
+          ...(ledgerOn(config)
+            ? {
+                ledger: lazy(() => {
+                  const now = Date.now();
+                  const read = readLedger(env, now, { persist: false });
+                  return ledgerView(read.summary, accountKey(env), projectRoot(last), now, {
+                    session: last.session_id,
+                    c: last.cost?.total_cost_usd,
+                  });
+                }),
+              }
+            : {}),
+        },
       }),
     );
   }
@@ -106,6 +124,7 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
         history: () => sampleHistory(now),
         agents: () => sampleAgents(now),
         limits: () => sampleLimits(now, payload.rate_limits ?? null),
+        ledger: () => sampleLedger(now),
       },
     }),
   );

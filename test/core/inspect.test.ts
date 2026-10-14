@@ -494,3 +494,28 @@ describe('sessionNotes', () => {
     expect(sessionNotes(samplePayload(NOW.getTime()))).toEqual([]);
   });
 });
+
+describe('ledger widgets', () => {
+  const ledgerItem = (type: string): WidgetItem => ({ id: type, type });
+
+  it('say no-ledger before no-replies', () => {
+    const ctx = ctxWith({ ledger: () => null, payload: { session_id: 's' } });
+    for (const type of ['cost-today', 'cost-week', 'cost-project'])
+      expect(emptyReason(ctx, ledgerItem(type))).toEqual({
+        code: 'no-ledger',
+        text: t('explain.reason.no-ledger'),
+      });
+    expect(emptyReason(ctx, ledgerItem('session-cost')).code).toBe('no-replies');
+  });
+
+  it('trace ledger reads with their age', () => {
+    const row = withoutSideEffects(
+      () =>
+        inspectRows(ctxWith({ config: { lines: [[ledgerItem('cost-project')]] } }), {
+          meta: { ages: { ledger: 5_000 } },
+        })[0]!,
+    );
+    expect(row.value).toBe('$62.00');
+    expect(row.sources).toEqual([{ kind: 'ledger', age: 5_000 }]);
+  });
+});

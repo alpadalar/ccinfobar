@@ -21,7 +21,8 @@ import type { StatusPayload } from '../../src/core/types.js';
 import { VERSION } from '../../src/core/version.js';
 import { agentsCacheName, readAgents } from '../../src/data/agents.js';
 import { cacheFile } from '../../src/data/cache.js';
-import { limitsFile, recordLimits, recordUsageApi } from '../../src/data/limits.js';
+import { monthKey } from '../../src/data/ledger.js';
+import { accountKey, limitsFile, recordLimits, recordUsageApi } from '../../src/data/limits.js';
 import { readTranscript, transcriptCacheName } from '../../src/data/transcript.js';
 import { usageFile } from '../../src/data/usage.js';
 
@@ -879,5 +880,69 @@ describe('explain limits sources', () => {
     expect(detail(out, 'reason')).toBe(`  reason: ${t('explain.reason.limits-expired')}`);
     const { obj } = json(['five-hour-usage'], FIVE);
     expect(obj.widgets[0].empty.code).toBe('limits-expired');
+  });
+});
+
+describe('explain ledger sources', () => {
+  const COST = {
+    lines: [
+      [
+        { id: 'cost-today', type: 'cost-today' },
+        { id: 'week', type: 'cost-week' },
+      ],
+    ],
+  };
+  const ledgerDir = () => path.join(cacheDir(), 'ledger');
+  const monthFile = () => path.join(ledgerDir(), `${monthKey(Date.now())}.jsonl`);
+  const summary = () => path.join(ledgerDir(), 'summary.json');
+  const detail = (out: string[], key: string) => out.find((l) => l.startsWith(`  ${key}: `)) ?? '';
+
+  afterEach(() => {
+    fs.rmSync(ledgerDir(), { recursive: true, force: true });
+  });
+
+  function seed(): string {
+    const at = Date.now() - 2_000;
+    const line = (s: string, c: number, t: number) =>
+      JSON.stringify({ v: 1, t, a: accountKey(process.env), s, p: dir, tp: '', c });
+    const text = `${line('other', 0, at - 1000)}\n${line('other', 1.25, at)}\n`;
+    fs.mkdirSync(ledgerDir(), { recursive: true });
+    fs.writeFileSync(monthFile(), text);
+    return text;
+  }
+
+  it('shows the ledger total read-only and names the cost ledger', () => {
+    const text = seed();
+    savedPayload();
+    const { out } = run(['cost-today'], COST);
+    expect(detail(out, 'value')).toBe('  value: $1.25');
+    expect(detail(out, 'sources')).toMatch(/cost ledger, updated \d+s ago/);
+    expect(fs.readFileSync(monthFile(), 'utf8')).toBe(text);
+    expect(fs.existsSync(summary())).toBe(false);
+  });
+
+  it('says no-ledger when nothing has been recorded and creates nothing', () => {
+    savedPayload();
+    const { out } = run(['cost-today'], COST);
+    expect(detail(out, 'reason')).toBe(`  reason: ${t('explain.reason.no-ledger')}`);
+    const { obj } = json([], COST);
+    expect(obj.widgets.map((w: { empty: { code: string } | null }) => w.empty?.code)).toEqual([
+      'no-ledger',
+      'no-ledger',
+    ]);
+    expect(fs.existsSync(ledgerDir())).toBe(false);
+  });
+
+  it('uses the sample ledger without a payload', () => {
+    const { obj } = json([], COST);
+    expect(obj.input.kind).toBe('sample');
+    expect(obj.widgets.map((w: { value: string | null }) => w.value)).toEqual(['$4.12', '$18.40']);
+    expect(obj.widgets[0].sources).toEqual([{ kind: 'ledger', age: expect.any(Number) }]);
+    expect(fs.existsSync(ledgerDir())).toBe(false);
+  });
+
+  it('formats the ledger source', () => {
+    expect(sourceText({ kind: 'ledger' })).toBe('cost ledger');
+    expect(sourceText({ kind: 'ledger', age: 120_000 })).toBe('cost ledger, updated 2m ago');
   });
 });
