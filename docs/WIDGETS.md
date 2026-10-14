@@ -58,7 +58,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `tokens-total` | Input plus output tokens | `Tokens 450k` |  |
 | `cache-hit-rate` | Prompt cache hit ratio | `Hit 94%` |  |
 | `cache-timer` | Time left before the prompt cache expires | `Cache 41m` |  |
-| `cache-miss-cause` | Reason for the last prompt cache miss | `Miss tools_changed` |  |
+| `cache-miss-cause` | Reason for the last prompt cache miss | `Miss tools changed (+2/-0)` |  |
 | `output-speed` | Recent output tokens per second | `72 t/s` |  |
 
 ## Cost & time

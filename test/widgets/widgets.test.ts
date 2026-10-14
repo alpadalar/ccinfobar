@@ -31,7 +31,7 @@ describe('sample rendering', () => {
     'tokens-total': '450k',
     'cache-hit-rate': '94%',
     'cache-timer': '41m',
-    'cache-miss-cause': 'tools_changed',
+    'cache-miss-cause': 'tools changed (+2/-0)',
     'output-speed': '72 t/s',
     'session-cost': '$1.87',
     'cost-rate': '$2.47/h',

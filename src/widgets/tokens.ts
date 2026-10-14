@@ -1,6 +1,22 @@
-import type { WidgetDef } from '../core/types.js';
+import type { MissCause, WidgetDef } from '../core/types.js';
 import { tok } from './context.js';
 import { formatDuration, toEpochMs } from './shared.js';
+
+const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+function missPart(cause: string, c: MissCause): string {
+  const name = cause.replace(/_/g, ' ').trim();
+  if (cause === 'tools_changed') {
+    const add = num(c.tools_added);
+    const rem = num(c.tools_removed);
+    if (add !== null || rem !== null) return `${name} (+${add ?? 0}/-${rem ?? 0})`;
+  }
+  if (cause === 'system_prompt_changed') {
+    const d = num(c.system_char_delta);
+    if (d !== null) return `${name} (${d < 0 ? '-' : '+'}${Math.abs(d)} chars)`;
+  }
+  return name;
+}
 
 export const widgets: WidgetDef[] = [
   {
@@ -111,8 +127,14 @@ export const widgets: WidgetDef[] = [
     label: 'Miss ',
     icon: { nerd: '󰀦', emoji: '❄️' },
     color: 'yellow',
-    sample: 'tools_changed',
-    render: (ctx) => ctx.payload.prompt_cache?.last_miss_cause || null,
+    sample: 'tools changed (+2/-0)',
+    render(ctx) {
+      const c = ctx.payload.prompt_cache?.last_miss_cause;
+      if (typeof c === 'string') return c.replace(/_/g, ' ').trim() || null;
+      if (!c || typeof c !== 'object' || !Array.isArray(c.causes)) return null;
+      const parts = c.causes.filter((x): x is string => typeof x === 'string').map((x) => missPart(x, c));
+      return parts.filter(Boolean).join(', ') || null;
+    },
   },
   {
     type: 'output-speed',

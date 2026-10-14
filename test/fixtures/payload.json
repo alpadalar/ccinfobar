@@ -37,7 +37,14 @@
     }
   },
   "exceeds_200k_tokens": true,
-  "prompt_cache": { "warm": true, "ttl": "1h", "hit_ratio": 0.94, "requests": 48, "misses": 3 },
+  "prompt_cache": {
+    "warm": true,
+    "ttl": "1h",
+    "hit_ratio": 0.94,
+    "requests": 48,
+    "misses": 3,
+    "last_miss_cause": { "causes": ["tools_changed"], "tools_added": 2, "tools_removed": 0 }
+  },
   "rate_limits": {
     "five_hour": { "used_percentage": 42, "resets_at": 4102444800 },
     "seven_day": { "used_percentage": 61, "resets_at": 4102444800 }

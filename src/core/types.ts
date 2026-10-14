@@ -13,6 +13,13 @@ export interface SpendLimit extends RateWindow {
   period?: string | null;
 }
 
+export interface MissCause {
+  causes: string[];
+  tools_added?: number;
+  tools_removed?: number;
+  system_char_delta?: number;
+}
+
 export interface StatusPayload {
   hook_event_name?: string;
   session_id?: string;
@@ -66,7 +73,7 @@ export interface StatusPayload {
     cache_write_tokens?: number;
     miss_recache_tokens?: number;
     last_miss_at?: number | string;
-    last_miss_cause?: string;
+    last_miss_cause?: MissCause | string | null;
     miss_causes?: Record<string, number>;
     recache_tokens_if_cold?: number;
   };

@@ -55,7 +55,7 @@ export function samplePayload(now = Date.now()): StatusPayload {
       misses: 3,
       expected_rebuilds: 1,
       hit_ratio: 0.94,
-      last_miss_cause: 'tools_changed',
+      last_miss_cause: { causes: ['tools_changed'], tools_added: 2, tools_removed: 0 },
     },
     rate_limits: {
       five_hour: { used_percentage: 42, resets_at: sec + 2 * 3600 + 14 * 60 },
