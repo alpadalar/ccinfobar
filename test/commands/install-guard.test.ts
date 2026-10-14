@@ -287,6 +287,28 @@ describe('runInstall and runUninstall', () => {
     expect(process.exitCode ?? 0).toBe(0);
   });
 
+  it('a declined foreign replacement installs no hooks either (D-17)', async () => {
+    writeJson(settings, { statusLine: foreign });
+    const before = snapshot(dir);
+    const f = fake(true, false);
+    f.io.claudeVersion = () => '2.1.299';
+    await runInstall(args('--hooks'), cfg, f.io);
+    expect(f.lines.at(-1)).toBe(t('install.kept'));
+    expect(f.lines).toContain(t('hooks.detected', { version: '2.1.299' }));
+    expect(snapshot(dir)).toEqual(before);
+  });
+
+  it('--hooks with a bad value exits 1 before detecting or writing', async () => {
+    const f = fake(false);
+    const detect = vi.fn(() => '2.1.299');
+    f.io.claudeVersion = detect;
+    await runInstall(args('--hooks=all'), cfg, f.io);
+    expect(f.errors).toEqual([t('hooks.badFlag')]);
+    expect(detect).not.toHaveBeenCalled();
+    expect(fs.existsSync(settings)).toBe(false);
+    expect(process.exitCode).toBe(1);
+  });
+
   it('replaces after a TTY yes and prints what it wrote', async () => {
     writeJson(settings, { statusLine: foreign });
     const f = fake(true, true);

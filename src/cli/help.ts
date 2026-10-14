@@ -12,6 +12,7 @@ Usage
   ccinfobar install --project    Also win over this project's own statusLine (e.g. GSD's)
   ccinfobar install --no-global  With npx: do not install the ccinfobar command globally
   ccinfobar install --dry-run    Show what install would change and write nothing
+  ccinfobar install --hooks      Also add optional Claude Code hooks (exact live state)
   ccinfobar uninstall            Remove ccinfobar and restore your previous status line
   ccinfobar import <tool>        Import a ccstatusline or claude-powerline layout
   ccinfobar themes               Preview every theme
@@ -50,6 +51,7 @@ Options
   --import / --no-import         install: import the previous status line's layout without asking
   --file <path>                  import: read this settings file
   --command <cmd>                install: command to write (default: auto)
+  --hooks[=permission]           install: add hooks; =permission also adds PermissionRequest
   -y, --yes                      install: replace another tool's statusLine without asking
   --dry-run                      install: print the plan and write nothing
   --port <n>                     edit: port to listen on

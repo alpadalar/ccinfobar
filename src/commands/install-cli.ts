@@ -1,13 +1,24 @@
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import { loadConfig, saveConfig } from '../core/config.js';
-import { t } from '../core/i18n/index.js';
+import { type MessageId, t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { claudeSettingsPath, tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { VERSION } from '../core/version.js';
+import type { HookEvent } from '../data/hooks.js';
 import { selfCommand } from '../data/update-state.js';
 import { type DetectedTool, detectTool, type ImportSource } from '../importers/index.js';
+import {
+  detectClaudeCode,
+  HOOK_FLOOR,
+  type HookAction,
+  type HookPlan,
+  type HookPlanItem,
+  hookEventsFor,
+  planHookRewrites,
+  planHooks,
+} from './hooks-install.js';
 import {
   applyInstall,
   currentStatusLine,
@@ -29,6 +40,8 @@ import {
   uninstall,
 } from './install.js';
 import { runImport } from './manage.js';
+import { readManifest } from './manifest.js';
+import { readSettings } from './settings-file.js';
 import { installKind } from './update.js';
 
 export async function ask(question: string, fallback: boolean): Promise<boolean> {
@@ -51,6 +64,7 @@ export interface InstallIo {
   log(line: string): void;
   error(line: string): void;
   setup: typeof setupCommand;
+  claudeVersion?: () => string | null;
 }
 
 export function defaultIo(): InstallIo {
@@ -94,6 +108,84 @@ function showPlan(io: InstallIo, plan: InstallPlan): void {
   }
 }
 
+// mirrors applyInstall's hook step; reads only
+function previewHooks(
+  file: string,
+  command: string,
+  events: HookEvent[],
+  claudeCode: string | null,
+): HookPlan | null {
+  const settings = readSettings(file).data;
+  const manifest = readManifest();
+  const asked = events.length ? planHooks({ settings, manifest, file, command, claudeCode, events }) : null;
+  const covered = new Set(asked?.items.map((i) => i.event));
+  const rewrites = planHookRewrites(settings, manifest, file, command).filter((i) => !covered.has(i.event));
+  if (!asked && !rewrites.length) return null;
+  const base = asked ?? { claudeCode: null, refused: null, asyncOmitted: false };
+  return { ...base, items: [...(asked?.items ?? []), ...rewrites] };
+}
+
+const hookCommand = (i: HookPlanItem | undefined, from = false) =>
+  show((from ? i?.from : i?.group)?.hooks[0]?.command ?? '');
+
+const eventFloor = (i: HookPlanItem) =>
+  i.event === 'PermissionRequest'
+    ? HOOK_FLOOR.PermissionRequest
+    : i.event === 'Notification'
+      ? HOOK_FLOOR.notificationMatcher
+      : HOOK_FLOOR.core;
+
+function dryHookLine(i: HookPlanItem): string {
+  const event = i.event;
+  switch (i.action) {
+    case 'add':
+      return t('hooks.dry.add', { event, command: hookCommand(i) });
+    case 'keep':
+      return t('hooks.dry.keep', { event });
+    case 'rewrite':
+      return t('hooks.dry.rewrite', { event, from: hookCommand(i, true), command: hookCommand(i) });
+    case 'skip-unmanaged':
+      return t('hooks.dry.skipUnmanaged', { event });
+    case 'skip-version':
+      return t('hooks.dry.skipVersion', { event, floor: eventFloor(i) });
+  }
+}
+
+function asyncNote(io: InstallIo, p: HookPlan): void {
+  if (p.asyncOmitted) io.log(`  ${t('hooks.asyncOmitted', { version: p.claudeCode ?? '' })}`);
+}
+
+function showDryHooks(io: InstallIo, p: HookPlan): void {
+  const floor = HOOK_FLOOR.core;
+  if (p.refused === 'unknown-version') io.log(t('hooks.dry.unknownVersion', { floor }));
+  if (p.refused === 'old-version') io.log(t('hooks.dry.oldVersion', { floor, version: p.claudeCode ?? '' }));
+  for (const i of p.items) io.log(dryHookLine(i));
+  asyncNote(io, p);
+}
+
+const REPORT: Array<[HookAction, MessageId]> = [
+  ['add', 'hooks.added'],
+  ['rewrite', 'hooks.rewritten'],
+  ['keep', 'hooks.kept'],
+  ['skip-unmanaged', 'hooks.skippedUnmanaged'],
+  ['skip-version', 'hooks.skippedVersion'],
+];
+
+function reportHooks(io: InstallIo, p: HookPlan): void {
+  for (const [action, id] of REPORT) {
+    const events = p.items.filter((i) => i.action === action).map((i) => i.event);
+    if (events.length) io.log(t(id, { events: events.join(', ') }));
+  }
+  const floor = HOOK_FLOOR.core;
+  if (p.refused === 'unknown-version') io.log(`⚠ ${t('hooks.refused.unknownVersion')}`);
+  if (p.refused === 'old-version')
+    io.log(`⚠ ${t('hooks.refused.oldVersion', { floor, version: p.claudeCode ?? '' })}`);
+  asyncNote(io, p);
+}
+
+const hooksChanged = (p: HookPlan | null) =>
+  !!p?.items.some((i) => i.action === 'add' || i.action === 'rewrite');
+
 // D-16: install persists the GSD migration
 function persistConfig(cfgFile: string): void {
   if (!loadConfig(cfgFile).exists) saveConfig(loadForUse(cfgFile).config, cfgFile);
@@ -111,6 +203,12 @@ function userRefresh(): number | undefined {
 export async function runInstall(args: Args, cfgFile: string, io: InstallIo = defaultIo()): Promise<void> {
   const dryRun = args.flags['dry-run'] === true;
   const project = !!args.flags.project;
+  let events = hookEventsFor(args.flags.hooks);
+  if (!events) {
+    io.error(t('hooks.badFlag'));
+    process.exitCode = 1;
+    return;
+  }
   io.log(t('install.installing', { version: VERSION }));
   let command: string | null = typeof args.flags.command === 'string' ? args.flags.command : null;
   const refresh = typeof args.flags.refresh === 'string' ? Number(args.flags.refresh) : undefined;
@@ -139,11 +237,23 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     ? projectSettingsPath(shadowed ? path.dirname(path.dirname(shadowed.file)) : process.cwd())
     : claudeSettingsPath();
   const plan = planInstall({ file, command, refresh: project ? (refresh ?? userRefresh()) : refresh });
+  // D-17: hooks live in user settings only
+  if (events.length && project) {
+    io.log(t('hooks.projectIgnored'));
+    events = [];
+  }
+  let claudeCode: string | null = null;
+  if (events.length) {
+    claudeCode = (io.claudeVersion ?? detectClaudeCode)();
+    if (claudeCode) io.log(t('hooks.detected', { version: claudeCode }));
+  }
 
   if (dryRun) {
     if (!plan.needsConfirm) io.log(t('install.dryRunFile', { file: tildify(file) }));
     showPlan(io, plan);
-    if (!plan.changes) io.log(t('install.unchanged'));
+    const hookPlan = project ? null : previewHooks(file, command, events, claudeCode);
+    if (!plan.changes && !hooksChanged(hookPlan)) io.log(t('install.unchanged'));
+    if (hookPlan) showDryHooks(io, hookPlan);
     if (!project) {
       const gsd = gsdProjects();
       if (gsd.length) io.log(t('install.dryRunProjects', { count: gsd.length }));
@@ -171,7 +281,8 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   if (tool) await offerImport(tool, args, cfgFile, io);
   let res: InstallResult;
   try {
-    res = applyInstall(plan, { confirmed: true, adoptLegacy });
+    const hooks = events.length ? { events, claudeCode } : undefined;
+    res = applyInstall(plan, { confirmed: true, adoptLegacy, hooks });
   } catch (e) {
     if (!(e instanceof InstallNeedsConfirmError)) throw e;
     io.error(t('install.stale', { file: tildify(file) }));
@@ -180,13 +291,11 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   }
   if (project) ignoreLocally(file);
   persistConfig(cfgFile);
-  io.log(
-    plan.changes
-      ? t('install.wrote', { command: show(command), file: tildify(file) })
-      : t('install.unchanged'),
-  );
+  if (plan.changes) io.log(t('install.wrote', { command: show(command), file: tildify(file) }));
+  else if (!hooksChanged(res.hooks)) io.log(t('install.unchanged'));
   if (plan.needsConfirm && !adoptLegacy && plan.current)
     io.log(t('install.replaced', { command: show(plan.current.command) }));
+  if (res.hooks) reportHooks(io, res.hooks);
   if (res.backup) io.log(t('install.backup', { file: tildify(res.backup) }));
 
   if (project) {
