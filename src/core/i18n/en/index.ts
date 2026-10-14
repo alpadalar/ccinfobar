@@ -1,3 +1,4 @@
+import { benchMessages } from './bench.js';
 import { configMessages } from './config.js';
 import { doctorMessages } from './doctor.js';
 import { explainMessages } from './explain.js';
@@ -11,5 +12,6 @@ export const en = {
   ...doctorMessages,
   ...explainMessages,
   ...previewMessages,
+  ...benchMessages,
   ...widgetMessages,
 } as const;
