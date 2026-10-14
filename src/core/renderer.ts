@@ -414,7 +414,7 @@ export function render(ctx: RenderContext): string[] {
         },
         fill: (item) => item.options?.fill === true || getWidget(item.type)?.fill === true,
         contextColor: () => {
-          const pct = contextPercent(ctx, false);
+          const pct = contextPercent(ctx, 'raw');
           return pct === null ? undefined : gradientColor(pct);
         },
       },

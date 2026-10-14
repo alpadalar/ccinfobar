@@ -1,8 +1,6 @@
 import type { OptionSpec, RenderContext, WidgetDef, WidgetItem, WidgetResult } from '../core/types.js';
 import { barFor, barOptions, formatTokens, loading, opt, thresholdColor, thresholdOption } from './shared.js';
 
-export const AUTOCOMPACT_BUFFER = 0.165;
-
 export function tok(n: number): string {
   return formatTokens(n).replace(/\.0(?=[kM]$)/, '');
 }
@@ -30,32 +28,82 @@ export function contextTokens(ctx: RenderContext): number | null {
   return ctx.data.transcript()?.contextLength ?? null;
 }
 
-export function usableLimit(ctx: RenderContext, size: number): number {
-  const env = Number(ctx.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW);
-  if (Number.isFinite(env) && env > 0) return Math.min(env, size);
-  return size * (1 - AUTOCOMPACT_BUFFER);
+const OUTPUT_RESERVE_CAP = 20_000;
+const COMPACT_BUFFER = 13_000;
+const BASES = ['raw', 'usable', 'reserve'] as const;
+
+export type ContextBasis = (typeof BASES)[number];
+
+export function basisOf(item: WidgetItem): ContextBasis {
+  const b = item.options?.basis;
+  if (BASES.includes(b as ContextBasis)) return b as ContextBasis;
+  return opt(item, 'usable', false) ? 'usable' : 'raw';
 }
 
-export function contextPercent(ctx: RenderContext, usable: boolean): number | null {
+function positive(v: string | undefined): number | null {
+  const n = Number(v);
+  return v && Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function usableLimit(ctx: RenderContext, size: number): number {
+  const env = positive(ctx.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW);
+  const window = env ? Math.min(env, size) : size;
+  const out = Math.min(
+    positive(ctx.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS) ?? OUTPUT_RESERVE_CAP,
+    OUTPUT_RESERVE_CAP,
+  );
+  return window - out - COMPACT_BUFFER;
+}
+
+function limitFor(ctx: RenderContext, basis: ContextBasis, size: number, reserveTokens: number): number {
+  if (basis === 'usable') return usableLimit(ctx, size);
+  const r = Number.isFinite(reserveTokens) ? reserveTokens : OUTPUT_RESERVE_CAP;
+  return size - Math.min(Math.max(0, r), size - 1);
+}
+
+export function contextPercent(
+  ctx: RenderContext,
+  basis: ContextBasis,
+  reserveTokens = OUTPUT_RESERVE_CAP,
+): number | null {
   const cw = ctx.payload.context_window;
   const size = windowSize(ctx);
   const used = contextTokens(ctx);
   let pct: number | null = null;
-  if (usable && size && used !== null) pct = (used / usableLimit(ctx, size)) * 100;
-  else if (typeof cw?.used_percentage === 'number') pct = cw.used_percentage;
+  if (basis !== 'raw' && size && used !== null) {
+    const limit = limitFor(ctx, basis, size, reserveTokens);
+    pct = limit > 0 ? (used / limit) * 100 : 100;
+  } else if (typeof cw?.used_percentage === 'number') pct = cw.used_percentage;
   else if (typeof cw?.remaining_percentage === 'number') pct = 100 - cw.remaining_percentage;
   else if (size && used !== null) pct = (used / size) * 100;
   else if (cw && size) pct = 0;
-  return pct === null ? null : Math.max(0, Math.min(100, pct));
+  return pct === null || Number.isNaN(pct) ? null : Math.max(0, Math.min(100, pct));
 }
 
-const usableOption: OptionSpec = {
-  key: 'usable',
-  label: 'Relative to usable window',
-  kind: 'boolean',
-  default: false,
-  help: 'Accounts for the autocompact buffer (~16.5%) or CLAUDE_CODE_AUTO_COMPACT_WINDOW',
+const basisOption: OptionSpec = {
+  key: 'basis',
+  label: 'Percentage of',
+  kind: 'select',
+  default: 'raw',
+  choices: [
+    { value: 'raw', label: 'Full window' },
+    { value: 'usable', label: 'Before auto-compact' },
+    { value: 'reserve', label: 'Minus output reserve' },
+  ],
+  help: "Usable matches Claude Code's auto-compact threshold; reserve subtracts the output reserve below",
 };
+
+const reserveTokensOption: OptionSpec = {
+  key: 'reserveTokens',
+  label: 'Output reserve tokens',
+  kind: 'number',
+  default: OUTPUT_RESERVE_CAP,
+  help: 'Approximate: tokens Claude Code keeps for output (20,000 in Claude Code 2.1.299, may change)',
+};
+
+function percentFor(ctx: RenderContext, item: WidgetItem): number | null {
+  return contextPercent(ctx, basisOf(item), opt(item, 'reserveTokens', OUTPUT_RESERVE_CAP));
+}
 
 function colored(text: string, pct: number, item: WidgetItem): WidgetResult {
   return opt(item, 'thresholdColors', true) ? { text, color: thresholdColor(pct) } : text;
@@ -82,13 +130,14 @@ export const widgets: WidgetDef[] = [
           { value: 'remaining', label: 'Remaining' },
         ],
       },
-      usableOption,
+      basisOption,
+      reserveTokensOption,
       thresholdOption,
     ],
     render(ctx, item) {
       const l = loading(ctx, item);
       if (l) return l;
-      const pct = contextPercent(ctx, opt(item, 'usable', false));
+      const pct = percentFor(ctx, item);
       if (pct === null) return null;
       const shown = opt<string>(item, 'mode', 'used') === 'remaining' ? 100 - pct : pct;
       return colored(`${Math.round(shown)}%`, pct, item);
@@ -103,11 +152,11 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰍛', emoji: '🧮' },
     color: 'green',
     sample: '███░░░░░░░ 34%',
-    options: [...barOptions, usableOption, thresholdOption],
+    options: [...barOptions, basisOption, reserveTokensOption, thresholdOption],
     render(ctx, item) {
       const l = loading(ctx, item);
       if (l) return l;
-      const pct = contextPercent(ctx, opt(item, 'usable', false));
+      const pct = percentFor(ctx, item);
       if (pct === null) return null;
       const b = barFor(ctx, item, pct);
       const text = opt(item, 'showPercent', true) ? `${b} ${Math.round(pct)}%` : b;

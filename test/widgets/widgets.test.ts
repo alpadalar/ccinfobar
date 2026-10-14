@@ -144,10 +144,10 @@ describe('options', () => {
   });
   it('context remaining and usable', () => {
     expect(r('context-percentage', { mode: 'remaining' })).toBe('66%');
-    expect(r('context-percentage', { usable: true })).toBe('41%');
+    expect(r('context-percentage', { usable: true })).toBe('35%');
     const ctx = ctxWith();
     ctx.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = '500000';
-    expect(renderWidget('context-percentage', ctx, { options: { usable: true } })).toBe('68%');
+    expect(renderWidget('context-percentage', ctx, { options: { usable: true } })).toBe('73%');
   });
   it('context-length showMax', () => expect(r('context-length', { showMax: true })).toBe('340k/1M'));
   it('context falls back to transcript', () => {
