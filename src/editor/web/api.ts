@@ -2,6 +2,14 @@ import type { StyleHistory } from '../../core/edit.js';
 import type { Config } from '../../core/types.js';
 import type { ApiState, ClaudeInfo, PresetInfo, ThemeInfo } from './store.js';
 
+export interface InstallPlanInfo {
+  current: { command?: unknown; refreshInterval?: number } | null;
+  proposed: { command: string; refreshInterval?: number };
+  owner: string;
+  needsConfirm: boolean;
+  changes: boolean;
+}
+
 let token = '';
 
 export class ApiError extends Error {
@@ -42,11 +50,15 @@ export const api = {
     call<{ lines: string[] }>('POST', '/api/preview', { config, source, width, theme }),
   save: (config: Config) => call<{ ok: boolean; config: Config }>('PUT', '/api/config', { config }),
   normalize: (config: unknown) => call<{ config: Config }>('POST', '/api/normalize', { config }),
-  install: (command: string, refreshInterval?: number) =>
-    call<{ ok: boolean; backup: string | null; claude: ClaudeInfo }>('POST', '/api/install', {
-      command,
-      refreshInterval,
-    }),
+  installPlan(command: string, refreshInterval?: number) {
+    return call<{ plan: InstallPlanInfo }>('POST', '/api/install/plan', { command, refreshInterval });
+  },
+  install: (command: string, refreshInterval?: number, confirm?: boolean, current?: unknown) =>
+    call<{ ok: boolean; backup: string | null; backupsDir: string; claude: ClaudeInfo }>(
+      'POST',
+      '/api/install',
+      { command, refreshInterval, ...(confirm ? { confirm: true, current: current ?? null } : {}) },
+    ),
   themePreviews: (config: Config, source: string, width: number) =>
     call<{ previews: Record<string, string[]> }>('POST', '/api/theme-previews', { config, source, width }),
   saveTheme: (theme: Record<string, unknown>, fromConfig?: Config) =>

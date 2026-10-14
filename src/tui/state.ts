@@ -32,6 +32,12 @@ export type Sub = { kind: 'list'; cursor: number } | { kind: 'input'; text: stri
 
 export type ConfirmKind = 'quit' | 'deleteLine' | 'preset' | 'install';
 
+export interface TuiInstallPlan {
+  current: string | null;
+  proposed: string;
+  needsConfirm: boolean;
+}
+
 export type Mode =
   | { kind: 'normal' }
   | { kind: 'picker'; filter: string; cursor: number }
@@ -44,12 +50,13 @@ export type Mode =
       back: Mode;
       naming: { text: string; pos: number } | null;
     }
-  | { kind: 'confirm'; what: ConfirmKind; preset?: string }
+  | { kind: 'confirm'; what: ConfirmKind; preset?: string; plan?: TuiInstallPlan }
   | { kind: 'help' };
 
 export type Effect =
   | { kind: 'save'; thenQuit?: boolean }
-  | { kind: 'install' }
+  | { kind: 'planInstall' }
+  | { kind: 'install'; confirmed: boolean; plan?: TuiInstallPlan }
   | { kind: 'saveTheme'; id: string };
 
 export interface DragState {
@@ -121,6 +128,7 @@ export type Action =
       thenQuit?: boolean;
       applyTheme?: string;
     }
+  | { type: 'installPlanned'; plan: TuiInstallPlan }
   | { type: 'message'; text: string };
 
 const PAGE = 8;
@@ -338,7 +346,7 @@ function reduceNormal(state: State, action: Action): State {
     case 'save':
       return { ...state, effect: { kind: 'save' } };
     case 'install':
-      return { ...state, mode: { kind: 'confirm', what: 'install' } };
+      return { ...state, effect: { kind: 'planInstall' } };
     case 'quit':
       if (state.drag) return { ...state, drag: null };
       return state.dirty ? { ...state, mode: { kind: 'confirm', what: 'quit' } } : { ...state, quit: true };
@@ -646,7 +654,9 @@ function reduceConfirm(state: State, action: Action, mode: Extract<Mode, { kind:
       });
     }
     case 'install':
-      return action.answer === 'yes' ? { ...back, effect: { kind: 'install' } } : state;
+      return action.answer === 'yes'
+        ? { ...back, effect: { kind: 'install', confirmed: true, ...(mode.plan ? { plan: mode.plan } : {}) } }
+        : state;
   }
 }
 
@@ -658,6 +668,8 @@ export function reduce(prev: State, action: Action): State {
       return { ...state, message: action.text };
     case 'forceQuit':
       return { ...state, quit: true };
+    case 'installPlanned':
+      return { ...state, effect: null, mode: { kind: 'confirm', what: 'install', plan: action.plan } };
     case 'effectDone': {
       const done = { ...state, effect: null, message: action.message };
       if (!action.ok) return done;

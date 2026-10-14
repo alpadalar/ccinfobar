@@ -51,7 +51,7 @@ describe('TUI with a broken config', () => {
   it('install effect fails before touching settings', () => {
     fs.writeFileSync(file, BROKEN);
     const before = fs.readFileSync(file);
-    const out = runEffect(initialState(defaultConfig(), file), { kind: 'install' });
+    const out = runEffect(initialState(defaultConfig(), file), { kind: 'install', confirmed: true });
     expect(out).toMatchObject({ type: 'effectDone', ok: false });
     expect((out as { message: string }).message).toContain('line 2');
     expect(fs.readFileSync(file).equals(before)).toBe(true);

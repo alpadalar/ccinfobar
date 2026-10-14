@@ -1,5 +1,7 @@
 import { parseColor, stripAnsi, style, truncate, visibleWidth } from '../core/ansi.js';
+import { t } from '../core/i18n/index.js';
 import { renderPreview } from '../core/preview.js';
+import { sanitizeText } from '../core/sanitize.js';
 import { resolveTheme } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
@@ -13,6 +15,7 @@ import {
   type State,
   selectedItem,
   settingsFields,
+  type TuiInstallPlan,
   themeItems,
   withTheme,
 } from './state.js';
@@ -421,6 +424,16 @@ function centered(rows: string[], w: number, h: number, title: string): Modal {
   return { lines, hits: [] };
 }
 
+const shown = (s: string) => sanitizeText(s).replace(/\s+/g, ' ');
+
+export function installQuestion(plan?: TuiInstallPlan): string {
+  if (!plan?.needsConfirm) return "Set Claude Code's statusLine to ccinfobar?";
+  return t('tui.replaceQuestion', {
+    current: shown(plan.current ?? t('install.unset')),
+    proposed: shown(plan.proposed),
+  });
+}
+
 function confirmModal(state: State, mode: Extract<Mode, { kind: 'confirm' }>, w: number, h: number): Modal {
   const k = (t: string) => bold(fg(t, 'brightYellow'));
   switch (mode.what) {
@@ -465,7 +478,7 @@ function confirmModal(state: State, mode: Extract<Mode, { kind: 'confirm' }>, w:
     case 'install':
       return centered(
         [
-          bold("Set Claude Code's statusLine to ccinfobar?"),
+          bold(truncate(installQuestion(mode.plan), Math.max(10, w - 4))),
           dim('Unsaved changes are saved first.'),
           '',
           `${k('y')} install   ${k('n')} cancel`,

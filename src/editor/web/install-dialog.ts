@@ -1,5 +1,6 @@
-import { api } from './api.js';
-import { h } from './dom.js';
+import { t } from '../../core/i18n/index.js';
+import { ApiError, api, type InstallPlanInfo } from './api.js';
+import { clear, h } from './dom.js';
 import { emit, isDirty, S } from './store.js';
 import { modal, toast } from './ui.js';
 
@@ -29,6 +30,8 @@ export async function installDialog(): Promise<void> {
   refresh.addEventListener('input', update);
   update();
   const current = claude.statusLine?.command;
+  const planBox = h('div', { class: 'install-plan', hidden: true });
+  const refreshValue = () => (Number(refresh.value) > 0 ? Number(refresh.value) : undefined);
   await modal({
     title: 'Install in Claude Code',
     body: [
@@ -55,6 +58,7 @@ export async function installDialog(): Promise<void> {
       ),
       h('div', { class: 'field-label' }, 'Will be written to ~/.claude/settings.json'),
       preview,
+      planBox,
       isDirty()
         ? h('div', { class: 'hint warn' }, 'You have unsaved changes. Save them so Claude Code uses them.')
         : null,
@@ -67,18 +71,61 @@ export async function installDialog(): Promise<void> {
           class: 'btn primary',
           type: 'button',
           onClick: async () => {
-            try {
-              const r = await api.install(
-                cmd.value.trim(),
-                Number(refresh.value) > 0 ? Number(refresh.value) : undefined,
-              );
+            const done = (r: { backupsDir: string; claude: typeof claude }) => {
               S.api.claude = r.claude;
               emit('ui');
               emit('config');
               close();
-              toast(r.backup ? 'Installed. Settings backed up' : 'Installed in Claude Code');
-            } catch (e) {
+              toast(t('editor.installed', { dir: r.backupsDir }));
+            };
+            const failed = (e: unknown) => {
+              if (e instanceof ApiError && e.status === 409 && isPlan(e.data?.plan)) {
+                showPlan(e.data.plan);
+                return;
+              }
               toast(`Install failed: ${(e as Error).message}`, 'error');
+            };
+            const showPlan = (plan: InstallPlanInfo) => {
+              clear(planBox);
+              planBox.hidden = false;
+              planBox.append(
+                h('div', { class: 'hint warn' }, t('install.needsConfirm')),
+                h('div', { class: 'field-label' }, t('editor.planCurrent')),
+                h('pre', { class: 'code-preview' }, commandText(plan.current?.command)),
+                h('div', { class: 'field-label' }, t('editor.planProposed')),
+                h('pre', { class: 'code-preview' }, plan.proposed.command),
+                h(
+                  'div',
+                  { class: 'modal-foot' },
+                  h(
+                    'button',
+                    { class: 'btn', type: 'button', onClick: () => (planBox.hidden = true) },
+                    t('editor.planCancel'),
+                  ),
+                  h(
+                    'button',
+                    {
+                      class: 'btn primary',
+                      type: 'button',
+                      onClick: async () => {
+                        try {
+                          done(await api.install(plan.proposed.command, refreshValue(), true, plan.current));
+                        } catch (e) {
+                          failed(e);
+                        }
+                      },
+                    },
+                    t('editor.planReplace'),
+                  ),
+                ),
+              );
+            };
+            try {
+              const { plan } = await api.installPlan(cmd.value.trim(), refreshValue());
+              if (plan.needsConfirm) showPlan(plan);
+              else done(await api.install(cmd.value.trim(), refreshValue()));
+            } catch (e) {
+              failed(e);
             }
           },
         },
@@ -86,4 +133,14 @@ export async function installDialog(): Promise<void> {
       ),
     ],
   });
+}
+
+function isPlan(v: unknown): v is InstallPlanInfo {
+  const p = v as InstallPlanInfo | null;
+  return !!p && typeof p === 'object' && typeof p.proposed?.command === 'string';
+}
+
+function commandText(c: unknown): string {
+  if (typeof c === 'string') return c;
+  return c === undefined ? t('install.unset') : JSON.stringify(c);
 }

@@ -42,4 +42,5 @@ export const installMessages = {
   'editor.planCancel': 'Keep current',
   'editor.installed': 'Installed. Backups are in {dir}',
   'tui.replaceQuestion': 'Replace "{current}" with "{proposed}"?',
+  'tui.installed': 'Installed: statusLine runs "{command}". Backups are in {dir}',
 } as const;

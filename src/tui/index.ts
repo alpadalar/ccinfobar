@@ -1,4 +1,5 @@
-import { install, setupCommand } from '../commands/install.js';
+import { applyInstall, type InstallPlan, planInstall, setupCommand } from '../commands/install.js';
+import { backupsDir } from '../commands/settings-file.js';
 import { ConfigBrokenError, type LoadResult, saveConfig } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
 import { availablePresets, loadForUse } from '../core/load.js';
@@ -6,7 +7,7 @@ import { saveUserTheme } from '../core/themes.js';
 import { gsdInstalled } from '../data/gsd.js';
 import type { Hit } from './hits.js';
 import { keyToAction, mouseToAction, parseInput, splitPending } from './keys.js';
-import { type Action, type Effect, initialState, reduce, type State } from './state.js';
+import { type Action, type Effect, initialState, reduce, type State, type TuiInstallPlan } from './state.js';
 import { themeInputFromConfig } from './themeio.js';
 import { renderScreen } from './view.js';
 
@@ -26,7 +27,29 @@ export function brokenConfigMessage(loaded: Pick<LoadResult, 'issue' | 'path'>):
   return t('tui.configBroken', { file: loaded.path, line: i.line, column: i.column, message: i.message });
 }
 
-export function runEffect(state: State, effect: Effect): Action {
+export interface EffectDeps {
+  command?: () => string | null;
+  settingsFile?: string;
+}
+
+function installCommand(deps: EffectDeps): string {
+  const command = deps.command ? deps.command() : setupCommand(VERSION).command;
+  if (!command) throw new Error('could not install ccinfobar; run npm install -g ccinfobar');
+  return command;
+}
+
+const commandOf = (sl: InstallPlan['current']): string | null =>
+  typeof sl?.command === 'string' ? sl.command : null;
+
+function tuiPlan(plan: InstallPlan): TuiInstallPlan {
+  return {
+    current: commandOf(plan.current),
+    proposed: plan.proposed.command,
+    needsConfirm: plan.needsConfirm,
+  };
+}
+
+export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): Action {
   try {
     if (effect.kind === 'save') {
       saveConfig(state.config, state.path);
@@ -47,11 +70,22 @@ export function runEffect(state: State, effect: Effect): Action {
         message: `Saved theme ${effect.id} (${file})`,
       };
     }
+    const file = deps.settingsFile;
+    if (effect.kind === 'planInstall') {
+      return { type: 'installPlanned', plan: tuiPlan(planInstall({ file, command: installCommand(deps) })) };
+    }
     saveConfig(state.config, state.path);
-    const command = setupCommand(VERSION).command;
-    if (!command) throw new Error('could not install ccinfobar; run npm install -g ccinfobar');
-    install(command);
-    return { type: 'effectDone', ok: true, saved: true, message: `Installed: statusLine runs "${command}"` };
+    const command = effect.plan?.proposed ?? installCommand(deps);
+    const plan = planInstall({ file, command });
+    if (effect.plan && commandOf(plan.current) !== effect.plan.current)
+      return { type: 'effectDone', ok: false, message: t('install.stale', { file: plan.file }) };
+    applyInstall(plan, { confirmed: effect.confirmed, adoptLegacy: effect.confirmed });
+    return {
+      type: 'effectDone',
+      ok: true,
+      saved: true,
+      message: t('tui.installed', { command, dir: backupsDir() }),
+    };
   } catch (err) {
     if (err instanceof ConfigBrokenError) {
       const message = brokenConfigMessage({ issue: err.issue, path: err.file }) ?? err.message;
