@@ -2,10 +2,9 @@ import fs from 'node:fs';
 import { stripAnsi } from '../core/ansi.js';
 import { createContext } from '../core/context.js';
 import { t } from '../core/i18n/index.js';
-import { lineReport, sessionNotes } from '../core/inspect.js';
+import { emptyReason, lineReport, sessionNotes } from '../core/inspect.js';
 import { loadForUse } from '../core/load.js';
 import { cacheDir, claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
-import { hasReplies } from '../core/payload.js';
 import { readLastPayload } from '../core/preview.js';
 import { renderPart, renderValue } from '../core/renderer.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -34,44 +33,6 @@ export interface WidgetReport {
   item: WidgetItem;
   value: string | null;
   reason: string | null;
-}
-
-const TRANSCRIPT_TYPES = new Set([
-  'skills',
-  'compactions',
-  'message-count',
-  'output-speed',
-  'gsd-last-command',
-  'gsd-task',
-]);
-
-export function hiddenReason(ctx: RenderContext, item: WidgetItem): string {
-  const def = getWidget(item.type);
-  if (!def) return `unknown widget type "${item.type}"`;
-  const p = ctx.payload;
-  if (def.category === 'gsd') {
-    if (!ctx.data.gsd()) return 'not inside a GSD project (no .planning/ found above the working directory)';
-    return 'the GSD files have nothing for this widget right now';
-  }
-  if (def.category === 'limits') {
-    if (!p.rate_limits) {
-      return 'no rate_limits from Claude Code and none from the usage API yet (needs a Claude Pro/Max login; see `ccinfobar usage`)';
-    }
-    return 'this usage window is not in rate_limits';
-  }
-  if (def.category === 'context' && !p.context_window && !ctx.data.transcript()?.contextLength) {
-    return 'Claude Code sent no context_window and the transcript has no usage yet (update Claude Code or send a message)';
-  }
-  if (def.category === 'git' && !ctx.data.git()) return 'not a git repository, or git is not on PATH';
-  if (TRANSCRIPT_TYPES.has(item.type) && !ctx.data.transcript()) {
-    return 'no transcript yet: Claude Code creates it with the first message of the session';
-  }
-  if (item.type === 'command' && !item.options?.command) return 'no command set';
-  if (item.type === 'env' && !item.options?.name) return 'no variable name set';
-  if (!hasReplies(p) && /^(context|tokens|cost)$/.test(def.category)) {
-    return 'Claude has not answered in this session yet; it appears after the first reply';
-  }
-  return 'no data for this widget in the current session';
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -138,7 +99,7 @@ export function widgetReport(ctx: RenderContext): WidgetReport[] {
         line,
         item,
         value: part ? stripAnsi(part.text) : null,
-        reason: part ? null : hiddenReason(ctx, item),
+        reason: part ? null : emptyReason(ctx, item).text,
       });
     }
   });

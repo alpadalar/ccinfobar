@@ -1,6 +1,8 @@
+import { detectProvider, type Provider } from '../data/provider.js';
 import { getWidget } from '../widgets/index.js';
 import { isLoadingOutput } from '../widgets/shared.js';
 import { stripAnsi, visibleWidth } from './ansi.js';
+import { t } from './i18n/index.js';
 import { hasReplies } from './payload.js';
 import { maxLineWidth, normalizeResult, renderLine, resolveAppearance } from './renderer.js';
 import { sanitizeText } from './sanitize.js';
@@ -65,8 +67,51 @@ export interface LineRow {
   cut: boolean;
 }
 
-export function emptyReason(_ctx: RenderContext, _item: WidgetItem): EmptyReason {
-  return { code: 'no-data', text: '' };
+const TRANSCRIPT_TYPES = new Set([
+  'skills',
+  'compactions',
+  'message-count',
+  'output-speed',
+  'gsd-last-command',
+  'gsd-task',
+]);
+
+const reason = (code: EmptyCode, text?: string, params?: Record<string, string>): EmptyReason => ({
+  code,
+  text: text ?? t(`explain.reason.${code}`, params),
+});
+
+function providerName(p: Provider): string {
+  return t(`explain.provider.${p.kind}`, { host: sanitizeText(p.host ?? '') });
+}
+
+export function emptyReason(ctx: RenderContext, item: WidgetItem): EmptyReason {
+  const def = getWidget(item.type);
+  if (!def) return reason('unknown-type', undefined, { type: sanitizeText(item.type) });
+  if (item.type === 'command' && !String(item.options?.command ?? '').trim()) {
+    return reason('missing-option', undefined, { key: 'command' });
+  }
+  if (item.type === 'env' && !item.options?.name) return reason('missing-option', undefined, { key: 'name' });
+  const p = ctx.payload;
+  if (def.category === 'gsd') {
+    return ctx.data.gsd() ? reason('no-data', t('explain.reason.gsdNothing')) : reason('no-gsd');
+  }
+  if (def.category === 'limits') {
+    const provider = detectProvider(ctx.env);
+    if (!provider.planLimits && !p.rate_limits) {
+      return reason('provider-no-plan-limits', undefined, { provider: providerName(provider) });
+    }
+    return p.rate_limits ? reason('no-data', t('explain.reason.limitsWindow')) : reason('no-rate-limits');
+  }
+  if (def.category === 'context' && !p.context_window && !ctx.data.transcript()?.contextLength) {
+    return reason('no-context-window');
+  }
+  if (def.category === 'git' && !ctx.data.git()) return reason('no-git');
+  if (TRANSCRIPT_TYPES.has(item.type) && !ctx.data.transcript()) return reason('no-transcript');
+  if (!hasReplies(p) && /^(context|tokens|cost)$/.test(def.category)) return reason('no-replies');
+  // 02-05: payload-field-absent goes here
+  if (item.type === 'command') return reason('no-data', t('explain.reason.commandEmpty'));
+  return reason('no-data');
 }
 
 function firstLine(e: unknown): string {
@@ -101,7 +146,7 @@ function inspectItem(
   try {
     result = def.render(wctx, item);
   } catch (e) {
-    return { ...row, status: 'error', error: firstLine(e), empty: emptyReason(ctx, item) };
+    return { ...row, status: 'error', error: firstLine(e), empty: reason('error') };
   }
   const out = normalizeResult(def, result);
   if (out) {
