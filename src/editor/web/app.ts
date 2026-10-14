@@ -12,7 +12,7 @@ import { t } from '../../core/i18n/index.js';
 import { titleWidgets } from '../../core/panel.js';
 import type { Config } from '../../core/types.js';
 import { ansiToHtml, escapeHtml } from './ansi-html.js';
-import { ApiError, api, setToken } from './api.js';
+import { ApiError, api, previewSource, setToken } from './api.js';
 import { colorToCss } from './colors.js';
 import { type DragSpec, type DropTarget, press } from './dnd.js';
 import { clear, h, icon } from './dom.js';
@@ -371,7 +371,7 @@ function schedulePreview(): void {
 async function runPreview(): Promise<void> {
   const seq = ++previewSeq;
   try {
-    const res = await api.preview(S.config, S.source, S.width);
+    const res = await api.preview(S.config, previewSource(S), S.width);
     if (seq !== previewSeq) return;
     const term = $('term-lines');
     term.classList.remove('error');
@@ -653,8 +653,12 @@ function setupStatic(): void {
   });
   const sample = $<HTMLButtonElement>('src-sample');
   const last = $<HTMLButtonElement>('src-last');
-  const setSource = (s: 'sample' | 'last') => {
+  const scenario = $<HTMLSelectElement>('src-scenario');
+  scenario.append(...S.api.scenarios.map((s) => h('option', { value: s.id, title: s.description }, s.label)));
+  const setSource = (s: 'sample' | 'last' | 'scenario') => {
     S.source = s;
+    S.scenario = s === 'scenario' ? scenario.value : null;
+    if (s !== 'scenario') scenario.value = '';
     sample.classList.toggle('on', s === 'sample');
     last.classList.toggle('on', s === 'last');
     sample.setAttribute('aria-pressed', String(s === 'sample'));
@@ -663,6 +667,7 @@ function setupStatic(): void {
   };
   sample.addEventListener('click', () => setSource('sample'));
   last.addEventListener('click', () => setSource('last'));
+  scenario.addEventListener('change', () => setSource(scenario.value ? 'scenario' : 'sample'));
   last.disabled = !S.api.hasLastPayload;
   last.title = S.api.hasLastPayload
     ? 'Use the last payload Claude Code sent'

@@ -70,6 +70,7 @@ export interface ApiState {
   themesDir: string;
   claude: ClaudeInfo;
   hasLastPayload: boolean;
+  scenarios: { id: string; label: string; description: string }[];
   terminal: import('./terminals.js').DetectedColors | null;
 }
 
@@ -83,7 +84,8 @@ export interface Store {
   tab: 'widget' | 'global';
   search: string;
   collapsed: Set<string>;
-  source: 'sample' | 'last';
+  source: 'sample' | 'last' | 'scenario';
+  scenario: string | null;
   width: number;
   api: ApiState;
   widgetMap: Map<string, WidgetInfo>;
@@ -123,8 +125,9 @@ export function init(api: ApiState): void {
     search: '',
     collapsed: new Set(api.categories.map((c) => c.id)),
     source: 'sample',
+    scenario: null,
     width: savedWidth(),
-    api: { ...api, configIssue: api.configIssue ?? null },
+    api: { ...api, configIssue: api.configIssue ?? null, scenarios: api.scenarios ?? [] },
     widgetMap: new Map(api.widgets.map((w) => [w.type, w])),
     clip: null,
     groups: ['colors', 'text'],

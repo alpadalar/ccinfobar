@@ -787,8 +787,14 @@ body.dragging-chip .palette.hot::after {
 .preview-controls {
   margin-left: auto;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 0.875rem;
+}
+
+.preview-controls select.input {
+  width: auto;
 }
 
 .segmented {
@@ -812,6 +818,7 @@ body.dragging-chip .palette.hot::after {
   color: var(--muted);
   font-weight: 550;
   font-size: 0.75rem;
+  white-space: nowrap;
   transition-property: background-color, color, box-shadow;
   transition-duration: 0.14s;
 }

@@ -1,5 +1,5 @@
 import { ansiToHtml } from './ansi-html.js';
-import { api } from './api.js';
+import { api, previewSource } from './api.js';
 import { clear, h, icon } from './dom.js';
 import { isDirty, type PresetInfo, replaceAll, S } from './store.js';
 import { confirmDialog, modal, toast } from './ui.js';
@@ -199,7 +199,7 @@ export async function openPresets(): Promise<void> {
     await Promise.all(
       S.api.presets.map(async (p) => {
         try {
-          const r = await api.preview({ ...p.config, widthOffset: 0 }, S.source, cols);
+          const r = await api.preview({ ...p.config, widthOffset: 0 }, previewSource(S), cols);
           if (v === version) previews.set(p.id, r.lines);
         } catch {}
       }),

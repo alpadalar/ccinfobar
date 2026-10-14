@@ -1,7 +1,7 @@
 import { clearColors, hasOwnColors } from '../../core/edit.js';
 import type { Config } from '../../core/types.js';
 import { ansiToHtml } from './ansi-html.js';
-import { api } from './api.js';
+import { api, previewSource } from './api.js';
 import { clear, h, icon } from './dom.js';
 import { commit, currentTheme, S, type StyleId, type ThemeInfo } from './store.js';
 import { openThemeBuilder } from './theme-builder.js';
@@ -92,7 +92,7 @@ export async function openGallery(): Promise<void> {
   async function refreshLive() {
     const v = ++version;
     try {
-      const r = await api.preview(S.config, S.source, 110);
+      const r = await api.preview(S.config, previewSource(S), 110);
       if (v === version) {
         liveLines = r.lines;
         renderLive();
@@ -260,7 +260,7 @@ export async function openGallery(): Promise<void> {
 
   async function loadPreviews() {
     try {
-      previews = (await api.themePreviews(S.config, S.source, 96)).previews;
+      previews = (await api.themePreviews(S.config, previewSource(S), 96)).previews;
     } catch (err) {
       toast(`Previews failed: ${(err as Error).message}`, 'error');
     }

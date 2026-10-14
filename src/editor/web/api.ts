@@ -1,6 +1,14 @@
 import type { StyleHistory } from '../../core/edit.js';
 import type { Config } from '../../core/types.js';
-import type { ApiState, ClaudeInfo, PresetInfo, ThemeInfo } from './store.js';
+import type { ApiState, ClaudeInfo, PresetInfo, Store, ThemeInfo } from './store.js';
+
+export type PreviewSrc = { source: 'sample' | 'last' | 'scenario'; scenario?: string };
+
+export function previewSource(S: Pick<Store, 'source' | 'scenario'>): PreviewSrc {
+  return S.source === 'scenario' && S.scenario
+    ? { source: 'scenario', scenario: S.scenario }
+    : { source: S.source === 'last' ? 'last' : 'sample' };
+}
 
 export interface InstallPlanInfo {
   current: { command?: unknown; refreshInterval?: number } | null;
@@ -46,8 +54,8 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 
 export const api = {
   state: () => call<ApiState>('GET', '/api/state'),
-  preview: (config: Config, source: string, width: number, theme?: Record<string, unknown>) =>
-    call<{ lines: string[] }>('POST', '/api/preview', { config, source, width, theme }),
+  preview: (config: Config, src: PreviewSrc, width: number, theme?: Record<string, unknown>) =>
+    call<{ lines: string[] }>('POST', '/api/preview', { config, ...src, width, theme }),
   save: (config: Config) => call<{ ok: boolean; config: Config }>('PUT', '/api/config', { config }),
   normalize: (config: unknown) => call<{ config: Config }>('POST', '/api/normalize', { config }),
   installPlan(command: string, refreshInterval?: number) {
@@ -59,8 +67,8 @@ export const api = {
       '/api/install',
       { command, refreshInterval, ...(confirm ? { confirm: true, current: current ?? null } : {}) },
     ),
-  themePreviews: (config: Config, source: string, width: number) =>
-    call<{ previews: Record<string, string[]> }>('POST', '/api/theme-previews', { config, source, width }),
+  themePreviews: (config: Config, src: PreviewSrc, width: number) =>
+    call<{ previews: Record<string, string[]> }>('POST', '/api/theme-previews', { config, ...src, width }),
   saveTheme: (theme: Record<string, unknown>, fromConfig?: Config) =>
     call<{ ok: boolean; id: string; themes: ThemeInfo[] }>('POST', '/api/themes', { theme, fromConfig }),
   deleteTheme: (id: string) =>

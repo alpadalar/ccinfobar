@@ -1,5 +1,5 @@
 import { ansiToHtml } from './ansi-html.js';
-import { api } from './api.js';
+import { api, previewSource } from './api.js';
 import { colorToCss, isValidColor } from './colors.js';
 import { clear, h, icon } from './dom.js';
 import { field, numberInput, segmented, textInput, toggle } from './inspector.js';
@@ -178,7 +178,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
       const n = ++seq;
       try {
         const { style: _s, separator: _sep, separatorColor: _c, padding: _p, glyphs: _g, ...cfg } = S.config;
-        const r = await api.preview(cfg, S.source, 110, draft());
+        const r = await api.preview(cfg, previewSource(S), 110, draft());
         if (n !== seq) return;
         previewEl.innerHTML = r.lines
           .map((l) => `<div class="term-line">${ansiToHtml(l) || '&nbsp;'}</div>`)
