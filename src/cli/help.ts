@@ -7,6 +7,7 @@ A customizable, GSD-aware status line for Claude Code
 Usage
   ccinfobar                      Render the status line (reads Claude Code JSON from stdin)
   ccinfobar edit                 Open the drag-and-drop editor in your browser
+  ccinfobar edit --detach        Start the editor in the background, print its URL and exit
   ccinfobar tui                  Open the terminal editor
   ccinfobar install              Point Claude Code's statusLine at ccinfobar
   ccinfobar install --project    Also win over this project's own statusLine (e.g. GSD's)
@@ -58,6 +59,7 @@ Options
   -y, --yes                      install: replace another tool's statusLine without asking
   --dry-run                      install: print the plan and write nothing
   --port <n>                     edit: port to listen on
+  --detach                       edit: run in the background; stops after 30 min idle
   --no-open                      edit: do not open a browser
   --no-detect                    edit: do not ask the terminal for its colors
   -v, --version                  Print the version

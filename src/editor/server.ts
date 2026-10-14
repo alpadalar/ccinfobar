@@ -77,6 +77,7 @@ export interface EditorOptions {
   terminal?: TerminalColors | null;
   setup?: (version: string) => Promise<Setup>;
   claudeVersion?: () => string | null;
+  detached?: { idleMs: number; stateFile: string; checkMs?: number; now?: () => number };
 }
 
 export interface HooksInfo {
@@ -150,7 +151,7 @@ function readBody(req: http.IncomingMessage): Promise<unknown> {
   });
 }
 
-function openBrowser(url: string): void {
+export function openBrowser(url: string): void {
   try {
     let child: ReturnType<typeof spawn>;
     if (process.platform === 'darwin') {
@@ -385,6 +386,10 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
 
     const route = `${method} ${url.pathname}`;
     switch (route) {
+      case 'GET /api/ping': {
+        send(res, 200, { ok: true });
+        return;
+      }
       case 'GET /api/state': {
         const loaded = loadForUse(opts.configPath, () => gsd);
         const config = upgradeOptions(loaded.config);
@@ -645,7 +650,10 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     }
   }
 
+  const now = opts.detached?.now ?? Date.now;
+  let lastRequest = now();
   const server = http.createServer((req, res) => {
+    lastRequest = now();
     handle(req, res).catch((err: unknown) => {
       if (res.headersSent) return res.end();
       const status = err instanceof HttpError ? err.status : 500;
@@ -673,7 +681,27 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   });
   port = (server.address() as AddressInfo).port;
 
+  function startDetached(d: NonNullable<EditorOptions['detached']>, url: string): void {
+    const pid = process.pid;
+    writeAtomic(d.stateFile, JSON.stringify({ url, pid, startedAt: now() }), { mode: 0o600 });
+    const timer = setInterval(() => {
+      if (now() - lastRequest > d.idleMs) void close();
+    }, d.checkMs ?? 60_000);
+    timer.unref();
+    const onSigterm = () => void close();
+    process.once('SIGTERM', onSigterm);
+    server.on('close', () => {
+      clearInterval(timer);
+      process.off('SIGTERM', onSigterm);
+      try {
+        const held = JSON.parse(fs.readFileSync(d.stateFile, 'utf8')) as { pid?: unknown };
+        if (held.pid === pid) fs.unlinkSync(d.stateFile);
+      } catch {}
+    });
+  }
+
   const url = `http://127.0.0.1:${port}/?t=${token}`;
+  if (opts.detached) startDetached(opts.detached, url);
   const onSigint = () => {
     console.log('\nStopping editor');
     void close();

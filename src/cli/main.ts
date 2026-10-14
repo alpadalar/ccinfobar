@@ -28,9 +28,20 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     }
     case 'edit':
     case 'editor': {
-      const { startEditor } = await import('../editor/server.js');
-      const { queryTerminalColors } = await import('../editor/terminal-colors.js');
       const port = typeof args.flags.port === 'string' ? Number(args.flags.port) : undefined;
+      if (args.flags.detach === true) {
+        const { runDetach } = await import('../editor/detach.js');
+        process.exitCode = await runDetach({ configPath: cfgFile, port, open: args.flags.open !== false });
+        return;
+      }
+      const { startEditor } = await import('../editor/server.js');
+      if (args.flags['serve-detached'] === true) {
+        const { editorStateFile } = await import('../editor/detach.js');
+        const detached = { idleMs: 30 * 60_000, stateFile: editorStateFile() };
+        await startEditor({ configPath: cfgFile, port, open: false, terminal: null, detached });
+        return;
+      }
+      const { queryTerminalColors } = await import('../editor/terminal-colors.js');
       const terminal = args.flags.detect === false ? null : await queryTerminalColors();
       await startEditor({ configPath: cfgFile, port, open: args.flags.open !== false, terminal });
       return;

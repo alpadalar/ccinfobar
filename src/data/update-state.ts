@@ -148,13 +148,19 @@ export function scheduleCheck(config: Config, session?: string, env: NodeJS.Proc
 }
 
 export function spawnSelf(args: string[], env: NodeJS.ProcessEnv = process.env): void {
+  spawnSelfDetached(args, env);
+}
+
+export function spawnSelfDetached(args: string[], env: NodeJS.ProcessEnv = process.env): number | null {
   const entry = process.argv[1];
-  if (!entry || !/ccinfobar(\.js)?$/.test(entry)) return;
+  if (!entry || !/ccinfobar(\.js)?$/.test(entry)) return null;
   const child = spawn(process.execPath, [entry, ...args], {
     detached: true,
     stdio: 'ignore',
     windowsHide: true,
     env,
   });
+  child.on('error', () => {});
   child.unref();
+  return child.pid ?? null;
 }

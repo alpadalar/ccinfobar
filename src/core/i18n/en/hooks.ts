@@ -31,4 +31,6 @@ export const hookMessages = {
   'hooks.reason.oldVersion': 'Hooks need Claude Code {floor} or newer (found {version}).',
   'hooks.badBody': 'enabled must be true or false; permission must be true, false or left out',
   'hooks.uninstallProject': '⚠ Hooks live in user settings only; `--project` ignores --hooks.',
+  'edit.detachFailed':
+    'Could not start the editor in the background. Run `ccinfobar edit` in a terminal instead.',
 } as const;
