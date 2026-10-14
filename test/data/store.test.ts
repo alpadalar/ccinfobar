@@ -16,6 +16,22 @@ const errno = (code: string) => Object.assign(new Error(code), { code });
 const tmpFiles = (d: string) => fs.readdirSync(d).filter((n) => n.endsWith('.tmp'));
 
 describe('writeAtomic', () => {
+  it.skipIf(process.platform === 'win32')('writes through a symlink and keeps it', () => {
+    const real = path.join(dir, 'dotfiles', 'config.json');
+    fs.mkdirSync(path.dirname(real));
+    fs.writeFileSync(real, 'old');
+    const link = path.join(dir, 'config.json');
+    fs.symlinkSync(real, link);
+    expect(writeAtomic(link, 'new', { class: 'settings' })).toBe(true);
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(fs.readFileSync(real, 'utf8')).toBe('new');
+    const dangling = path.join(dir, 'dangling.json');
+    fs.symlinkSync(path.join(dir, 'dotfiles', 'later.json'), dangling);
+    expect(writeAtomic(dangling, 'x')).toBe(true);
+    expect(fs.lstatSync(dangling).isSymbolicLink()).toBe(true);
+    expect(fs.readFileSync(path.join(dir, 'dotfiles', 'later.json'), 'utf8')).toBe('x');
+  });
+
   it('replaces the file and leaves no tmp files', () => {
     const file = path.join(dir, 'a.json');
     expect(writeAtomic(file, 'a')).toBe(true);

@@ -56,6 +56,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - A link cut off by truncation is closed, so the rest of the terminal line no longer belongs to it
 - `command` output with `preserveColors` that leaves a color on is reset at its end, so the color no longer bleeds into the next widgets
 - A damaged `update.json` in the cache no longer replaces the whole status line with the render error line
+- Saving a symlinked `config.json` (for example from a dotfiles repo) writes through the link instead of replacing it with a plain file; the same holds for themes, presets and cache files
 
 ### Security
 

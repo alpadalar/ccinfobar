@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { claudeSettingsPath, configDir } from '../core/paths.js';
-import { renameWithRetry, writeAtomic, writeTmp } from '../data/store.js';
+import { renameWithRetry, resolveReal, writeAtomic, writeTmp } from '../data/store.js';
+
+export { resolveReal };
 
 export interface SettingsFormat {
   bom: boolean;
@@ -82,30 +84,6 @@ export function serialize(obj: unknown, f: SettingsFormat): string {
 }
 
 const code = (e: unknown) => (e as NodeJS.ErrnoException).code;
-
-// realpath, following dangling links by hand
-export function resolveReal(file: string): string {
-  try {
-    return fs.realpathSync(file);
-  } catch (e) {
-    if (code(e) !== 'ENOENT') throw e;
-  }
-  let cur = path.resolve(file);
-  for (let i = 0; i < 40; i++) {
-    let link: string;
-    try {
-      link = fs.readlinkSync(cur);
-    } catch {
-      break;
-    }
-    cur = path.resolve(path.dirname(cur), link);
-  }
-  try {
-    return path.join(fs.realpathSync(path.dirname(cur)), path.basename(cur));
-  } catch {
-    return cur;
-  }
-}
 
 interface RawRead {
   file: string;

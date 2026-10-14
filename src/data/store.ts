@@ -37,6 +37,30 @@ export function renameWithRetry(from: string, to: string, budgetMs: number, deps
   }
 }
 
+// realpath, following dangling links by hand
+export function resolveReal(file: string): string {
+  try {
+    return fs.realpathSync(file);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+  }
+  let cur = path.resolve(file);
+  for (let i = 0; i < 40; i++) {
+    let link: string;
+    try {
+      link = fs.readlinkSync(cur);
+    } catch {
+      break;
+    }
+    cur = path.resolve(path.dirname(cur), link);
+  }
+  try {
+    return path.join(fs.realpathSync(path.dirname(cur)), path.basename(cur));
+  } catch {
+    return cur;
+  }
+}
+
 function existingMode(file: string): number | undefined {
   try {
     return fs.statSync(file).mode & 0o7777;
@@ -53,16 +77,17 @@ export function writeAtomic(
   const cls = opts.class ?? 'cache';
   let tmp: string | null = null;
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const mode = opts.mode ?? existingMode(file);
-    tmp = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+    const target = resolveReal(file);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    const mode = opts.mode ?? existingMode(target);
+    tmp = `${target}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
     fs.writeFileSync(
       tmp,
       data,
       mode === undefined ? { flush: cls === 'settings' } : { mode, flush: cls === 'settings' },
     );
     if (mode !== undefined) fs.chmodSync(tmp, mode);
-    renameWithRetry(tmp, file, cls === 'settings' ? 2000 : 100);
+    renameWithRetry(tmp, target, cls === 'settings' ? 2000 : 100);
     return true;
   } catch (e) {
     if (tmp) {
