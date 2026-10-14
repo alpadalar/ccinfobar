@@ -189,6 +189,7 @@ export interface Config {
   usageApi: boolean;
   gsdAutoLine?: boolean;
   gitHardening?: boolean;
+  loadingText?: string;
   tui?: TuiConfig;
   colorLevel: ColorLevel;
   icons: IconMode;

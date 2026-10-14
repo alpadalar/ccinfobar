@@ -1,6 +1,7 @@
 import { parseColor } from '../core/ansi.js';
 import { normalizeTui } from '../core/config.js';
 import { setOption, updateItem } from '../core/edit.js';
+import { t } from '../core/i18n/index.js';
 import { BOX_PRESETS } from '../core/panel.js';
 import { resolveAppearance } from '../core/renderer.js';
 import { resolveTheme, STYLES } from '../core/themes.js';
@@ -432,6 +433,18 @@ function baseGlobalFields(): Field[] {
     glyphField('thin', 'Glyph: thin separator'),
     glyphField('startCap', 'Glyph: start cap'),
     glyphField('endCap', 'Glyph: end cap'),
+    globalField(
+      'loadingText',
+      'Loading text',
+      'text',
+      (c) => c.loadingText ?? t('loading.default'),
+      (c, v) => {
+        const { loadingText: _, ...rest } = c;
+        const text = String(v).slice(0, 40);
+        return text === t('loading.default') ? rest : { ...rest, loadingText: text };
+      },
+      { help: 'Shown before the first reply; empty turns it off' },
+    ),
     globalField(
       'update',
       'Updates',

@@ -3,6 +3,7 @@ import { writeAtomic } from '../data/store.js';
 import { t } from './i18n/index.js';
 import { locateJsonError, locateKey } from './json-locate.js';
 import { configPath } from './paths.js';
+import { sanitizeText } from './sanitize.js';
 import type {
   Align,
   BoxChars,
@@ -228,6 +229,7 @@ export function normalizeConfig(raw: unknown): Config {
   if (typeof raw.usageApi === 'boolean') cfg.usageApi = raw.usageApi;
   if (raw.gsdAutoLine === true) cfg.gsdAutoLine = true;
   if (raw.gitHardening === false) cfg.gitHardening = false;
+  if (typeof raw.loadingText === 'string') cfg.loadingText = sanitizeText(raw.loadingText).slice(0, 40);
   const tui = normalizeTui(raw.tui);
   if (tui) cfg.tui = tui;
   if (typeof raw.style === 'string' && STYLE_IDS.includes(raw.style)) cfg.style = raw.style as ThemeStyle;

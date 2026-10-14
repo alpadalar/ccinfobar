@@ -288,6 +288,12 @@ function schema(): object {
         default: true,
         description: 'Ignore repo-local core.fsmonitor and filter drivers when ccinfobar runs git',
       },
+      loadingText: {
+        type: 'string',
+        maxLength: 40,
+        default: 'loading…',
+        description: 'Shown by context and token widgets before the first reply; empty string turns it off',
+      },
       gsdAutoLine: {
         type: 'boolean',
         description: 'Set by ccinfobar when it left the GSD line out because GSD was not installed',

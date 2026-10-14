@@ -1,6 +1,7 @@
+import { t } from '../../core/i18n/index.js';
 import { api } from './api.js';
 import { clear, h } from './dom.js';
-import { field, segmented, toggle } from './inspector.js';
+import { field, segmented, textInput, toggle } from './inspector.js';
 import { installDialog } from './install-dialog.js';
 import { commit, S } from './store.js';
 import { modal, toast } from './ui.js';
@@ -128,6 +129,24 @@ export async function openSettings(): Promise<void> {
                 `Update to ${latest.latest}`,
               )
             : null,
+        ),
+      ),
+      section(
+        'Appearance',
+        field(
+          'Loading text',
+          textInput(
+            c.loadingText ?? t('loading.default'),
+            (v) => {
+              const { loadingText: _, ...rest } = S.config;
+              const text = v.slice(0, 40);
+              commit(text === t('loading.default') ? rest : { ...rest, loadingText: text }, {
+                coalesce: 'loadingText',
+              });
+            },
+            { maxLength: 40 },
+          ),
+          'Shown by context, token and limit widgets before the first reply. Leave empty to turn it off.',
         ),
       ),
       section(
