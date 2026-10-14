@@ -114,7 +114,7 @@ function expiredWindow(ctx: RenderContext, reads: TraceRead[] | undefined): bool
   });
 }
 
-const PROJECTION_TYPES = new Set(['usage-projection']);
+const PROJECTION_TYPES = new Set(['usage-projection', 'limit-eta']);
 
 export function emptyReason(ctx: RenderContext, item: WidgetItem, reads?: TraceRead[]): EmptyReason {
   const def = getWidget(item.type);

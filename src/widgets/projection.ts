@@ -102,6 +102,16 @@ export function projectionFor(ctx: RenderContext, key: ProjKey, pace: Pace): Pro
   return projectWindow(used, resetsAt, WINDOW_LEN[key], now, { pace, samples, lookback: LOOKBACK[key] });
 }
 
+export type WindowChoice = ProjKey | 'first';
+
+export const WINDOW_LABEL: Record<ProjKey, string> = { five_hour: '5h', seven_day: '7d' };
+
+export function itemWindow(item: WidgetItem): WindowChoice {
+  const w = opt<string>(item, 'window', 'first');
+  if (w === '7d') return 'seven_day';
+  return w === 'first' ? 'first' : 'five_hour';
+}
+
 export function itemKey(item: WidgetItem): ProjKey {
   return opt<string>(item, 'window', '5h') === '7d' ? 'seven_day' : 'five_hour';
 }
@@ -110,10 +120,32 @@ export function itemPace(item: WidgetItem): Pace {
   return opt<string>(item, 'pace', 'window') === 'recent' ? 'recent' : 'window';
 }
 
+type Ok = Projection & { state: 'ok' };
+
+// unsafe with the earliest eta, else the highest projection
+export function firstWindow(ctx: RenderContext, pace: Pace): { key: ProjKey; p: Ok } | null {
+  let best: { key: ProjKey; p: Ok } | null = null;
+  for (const key of ['five_hour', 'seven_day'] as const) {
+    const p = projectionFor(ctx, key, pace);
+    if (p?.state !== 'ok') continue;
+    if (
+      !best ||
+      (!p.safe && (best.p.safe || p.eta < best.p.eta)) ||
+      (p.safe && best.p.safe && p.proj > best.p.proj)
+    ) {
+      best = { key, p };
+    }
+  }
+  return best;
+}
+
 export function projectionState(ctx: RenderContext, item: WidgetItem): 'warming' | 'ok' | 'none' {
   try {
-    const p = projectionFor(ctx, itemKey(item), itemPace(item));
-    return p ? p.state : 'none';
+    const w = item.type === 'usage-projection' ? itemKey(item) : itemWindow(item);
+    const keys: ProjKey[] = w === 'first' ? ['five_hour', 'seven_day'] : [w];
+    const states = keys.map((k) => projectionFor(ctx, k, itemPace(item))?.state ?? 'none');
+    if (states.includes('ok')) return 'ok';
+    return states.includes('warming') ? 'warming' : 'none';
   } catch {
     return 'none';
   }

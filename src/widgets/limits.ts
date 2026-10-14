@@ -1,3 +1,4 @@
+import { t } from '../core/i18n/index.js';
 import type {
   ModelWindow,
   OptionSpec,
@@ -7,7 +8,18 @@ import type {
   WidgetItem,
   WidgetResult,
 } from '../core/types.js';
-import { formatProjection, itemKey, itemPace, projectionFor, riskColor } from './projection.js';
+import {
+  firstWindow,
+  formatProjection,
+  itemKey,
+  itemPace,
+  itemWindow,
+  type Projection,
+  projectionFor,
+  projectionState,
+  riskColor,
+  WINDOW_LABEL,
+} from './projection.js';
 import {
   barFor,
   barOptions,
@@ -70,6 +82,39 @@ export const projectionPaceOption: OptionSpec = {
   ],
   help: 'Window: average since the window started. Recent: trend of the last 30 minutes (5h) or 12 hours (7d)',
 };
+
+const limitWindowOption: OptionSpec = {
+  key: 'window',
+  label: 'Window',
+  kind: 'select',
+  default: 'first',
+  choices: [
+    { value: 'first', label: 'Whichever runs out first' },
+    { value: '5h', label: '5 hours' },
+    { value: '7d', label: '7 days' },
+  ],
+};
+
+// window prefix only for "first"
+function pickWindow(
+  ctx: RenderContext,
+  item: WidgetItem,
+): { prefix: string; p: Projection & { state: 'ok' } } | 'warming' | null {
+  const pace = itemPace(item);
+  const w = itemWindow(item);
+  if (w === 'first') {
+    const f = firstWindow(ctx, pace);
+    if (f) return { prefix: `${WINDOW_LABEL[f.key]} `, p: f.p };
+    return projectionState(ctx, item) === 'warming' ? 'warming' : null;
+  }
+  const p = projectionFor(ctx, w, pace);
+  if (!p) return null;
+  return p.state === 'warming' ? 'warming' : { prefix: '', p };
+}
+
+function etaText(ms: number): string {
+  return formatDuration(ms < 60_000 ? ms : Math.round(ms / 60_000) * 60_000);
+}
 
 function win(ctx: RenderContext, key: Key): RateWindow | null {
   return ctx.payload.rate_limits?.[key] ?? null;
@@ -321,6 +366,31 @@ export const widgets: WidgetDef[] = [
       if (p.state === 'warming') return null;
       const w = key === 'seven_day' ? '7d' : '5h';
       return { text: `${w} →${formatProjection(p.proj)}`, color: riskColor(p.proj, 90) };
+    },
+  },
+  {
+    type: 'limit-eta',
+    name: 'Limit ETA',
+    category: 'limits',
+    description: 'Time until a usage limit reaches 100% at the current pace',
+    label: 'ETA ',
+    icon: { nerd: '󰑓', emoji: '🔄' },
+    color: 'yellow',
+    sample: '100% in 1h 12m',
+    options: [
+      limitWindowOption,
+      projectionPaceOption,
+      { key: 'hideWhenSafe', label: 'Hide when safe', kind: 'boolean', default: false },
+    ],
+    render(ctx, item) {
+      const r = pickWindow(ctx, item);
+      if (r === 'warming') return null;
+      if (!r) return limitsLoading(ctx, item);
+      const { prefix, p } = r;
+      if (p.used >= 100) return { text: `${prefix}${t('widget.limit.reached')}`, color: 'red' };
+      if (p.safe)
+        return opt(item, 'hideWhenSafe', false) ? null : { text: t('widget.limit.safe'), color: 'green' };
+      return { text: `${prefix}100% in ${etaText(p.eta)}`, color: 'yellow' };
     },
   },
 ];

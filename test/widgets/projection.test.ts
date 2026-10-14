@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { t } from '../../src/core/i18n/index.js';
 import type { RateWindow, StatusPayload, WidgetItem } from '../../src/core/types.js';
 import type { LimitsView } from '../../src/data/limits.js';
 import { getWidget } from '../../src/widgets/index.js';
 import {
+  firstWindow,
   formatProjection,
   LOOKBACK,
   projectionFor,
@@ -204,5 +206,64 @@ describe('usage-projection', () => {
     expect(def.category).toBe('limits');
     expect(def.sample).toBe('5h →76%');
     expect(def.options?.map((o) => o.key)).toEqual(['window', 'pace']);
+  });
+});
+
+describe('limit-eta', () => {
+  const def = () => getWidget('limit-eta')!;
+  const eta = (options: Record<string, string | boolean> = {}): WidgetItem => ({
+    id: 'e',
+    type: 'limit-eta',
+    options,
+  });
+  const near = { used_percentage: 92, resets_at: at(25 * MIN) };
+
+  it('shows the time until 100% near the 5h limit', () => {
+    const c = ctxWith({ payload: pay(near) });
+    expect(def().render(c, eta())).toEqual({ text: '5h 100% in 24m', color: 'yellow' });
+    expect(def().render(c, eta({ window: '5h' }))).toEqual({ text: '100% in 24m', color: 'yellow' });
+  });
+
+  it('shows limit reached at 100%', () => {
+    const c = ctxWith({ payload: pay({ used_percentage: 100, resets_at: at(2 * H) }) });
+    expect(def().render(c, eta({ window: '5h' }))).toEqual({ text: t('widget.limit.reached'), color: 'red' });
+    expect(renderWidget('limit-eta', c)).toBe(`5h ${t('widget.limit.reached')}`);
+  });
+
+  it('is safe on the sample and hides when asked', () => {
+    expect(def().render(ctxWith(), eta())).toEqual({ text: t('widget.limit.safe'), color: 'green' });
+    expect(def().render(ctxWith(), eta({ hideWhenSafe: true }))).toBeNull();
+    expect(renderWidget('limit-eta', ctxWith(), { options: { window: '7d' } })).toBe(t('widget.limit.safe'));
+  });
+
+  it('picks the window that reaches 100% first', () => {
+    const five = { used_percentage: 70, resets_at: at(2 * H) };
+    const slow = ctxWith({ payload: pay(five, { used_percentage: 99, resets_at: at(86_400_000) }) });
+    expect(renderWidget('limit-eta', slow)).toBe('5h 100% in 1h 17m');
+    const fast = ctxWith({ payload: pay(five, { used_percentage: 99.5, resets_at: at(86_400_000) }) });
+    expect(renderWidget('limit-eta', fast)).toBe('7d 100% in 43m');
+    expect(firstWindow(fast, 'window')?.key).toBe('seven_day');
+    expect(firstWindow(ctxWith(), 'window')?.key).toBe('five_hour');
+  });
+
+  it('is safe when idle on the recent pace', () => {
+    const flat = [0, 1, 2, 3].map((i) => ({ t: now - (20 - 5 * i) * MIN, pct: 92 }));
+    const c = ctxWith({ payload: pay(near), limits: () => view('five_hour', near, flat) });
+    expect(renderWidget('limit-eta', c)).toBe('5h 100% in 24m');
+    expect(renderWidget('limit-eta', c, { options: { pace: 'recent' } })).toBe(t('widget.limit.safe'));
+  });
+
+  it('is empty while warming or without plan limits', () => {
+    const warm = ctxWith({ payload: pay({ used_percentage: 3, resets_at: at(FIVE - 10 * MIN) }) });
+    expect(renderWidget('limit-eta', warm)).toBeNull();
+    expect(firstWindow(warm, 'window')).toBeNull();
+    const apiKey = ctxWith({ env: { ANTHROPIC_API_KEY: 'x' }, payload: {} });
+    expect(renderWidget('limit-eta', apiKey)).toBeNull();
+  });
+
+  it('is opt-in and documented', () => {
+    expect(def().category).toBe('limits');
+    expect(def().options?.map((o) => o.key)).toEqual(['window', 'pace', 'hideWhenSafe']);
+    expect(def().options?.[0]?.default).toBe('first');
   });
 });
