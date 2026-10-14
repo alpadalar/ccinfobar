@@ -52,6 +52,8 @@
                 "output-speed",
                 "session-cost",
                 "cost-today",
+                "cost-week",
+                "cost-project",
                 "cost-rate",
                 "session-duration",
                 "api-duration",

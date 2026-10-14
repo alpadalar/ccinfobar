@@ -45,6 +45,54 @@ export const widgets: WidgetDef[] = [
     },
   },
   {
+    type: 'cost-week',
+    name: 'Cost this week',
+    category: 'cost',
+    description: 'Estimated cost of all sessions this ISO week, Monday to Sunday, local time',
+    label: 'Week ~',
+    icon: { nerd: '󰈸', emoji: '💰' },
+    color: 'yellow',
+    sample: '$18.40',
+    options: [decimalsOption],
+    render(ctx, item) {
+      const view = ctx.data.ledger?.();
+      return view ? formatCurrency(view.week, opt(item, 'decimals', 2)) : null;
+    },
+  },
+  {
+    type: 'cost-project',
+    name: 'Project cost',
+    category: 'cost',
+    description: 'Estimated cost of this project across sessions',
+    label: 'Project ~',
+    icon: { nerd: '󰈸', emoji: '💰' },
+    color: 'yellow',
+    sample: '$62',
+    options: [
+      {
+        key: 'period',
+        label: 'Period',
+        kind: 'select',
+        default: 'all',
+        choices: [
+          { value: 'today', label: 'Today' },
+          { value: 'week', label: 'This week' },
+          { value: 'month', label: 'This month' },
+          { value: 'all', label: 'All' },
+        ],
+        help: 'All: since the ledger started (rows are kept 400 days)',
+      },
+      decimalsOption,
+    ],
+    render(ctx, item) {
+      const view = ctx.data.ledger?.();
+      if (!view) return null;
+      const p = opt<string>(item, 'period', 'all');
+      const key = p === 'today' || p === 'week' || p === 'month' ? p : 'all';
+      return formatCurrency(view.project[key], opt(item, 'decimals', 2));
+    },
+  },
+  {
     type: 'cost-rate',
     name: 'Cost rate',
     category: 'cost',
