@@ -30,7 +30,14 @@ import {
   resolveReal,
   writeSettingsBytes,
 } from './settings-file.js';
-import { type InstallKind, installKind, installVersion, localPrefix, npmCommand } from './update.js';
+import {
+  type InstallKind,
+  installKind,
+  installVersion,
+  installVersionAsync,
+  localPrefix,
+  npmCommand,
+} from './update.js';
 
 export interface StatusLineSetting {
   type: 'command';
@@ -578,10 +585,39 @@ export function npmGlobalBin(): string | null {
 
 export type GlobalInstall = { ok: true; bin: string; onPath: boolean } | { ok: false; error: string };
 
-// npx runs from a cache; keep a real copy
-export function installGlobal(version: string): GlobalInstall {
+// one npm install, run by a sync or async driver
+type NpmStep = { version: string; prefix?: string };
+type Steps<T> = Generator<NpmStep, T, void>;
+
+function runSync<T>(g: Steps<T>): T {
+  for (let r = g.next(); ; ) {
+    if (r.done) return r.value;
+    let failed: unknown = null;
+    try {
+      installVersion(r.value.version, r.value.prefix);
+    } catch (err) {
+      failed = err ?? new Error('npm install failed');
+    }
+    r = failed ? g.throw(failed) : g.next();
+  }
+}
+
+async function runAsync<T>(g: Steps<T>): Promise<T> {
+  for (let r = g.next(); ; ) {
+    if (r.done) return r.value;
+    let failed: unknown = null;
+    try {
+      await installVersionAsync(r.value.version, r.value.prefix);
+    } catch (err) {
+      failed = err ?? new Error('npm install failed');
+    }
+    r = failed ? g.throw(failed) : g.next();
+  }
+}
+
+function* globalSteps(version: string): Steps<GlobalInstall> {
   try {
-    installVersion(version);
+    yield { version };
   } catch (err) {
     const msg = (err as Error).message;
     return {
@@ -597,6 +633,11 @@ export function installGlobal(version: string): GlobalInstall {
     : { ok: false, error: 'npm finished but ccinfobar was not found' };
 }
 
+// npx runs from a cache; keep a real copy
+export function installGlobal(version: string): GlobalInstall {
+  return runSync(globalSteps(version));
+}
+
 export interface Setup {
   command: string | null;
   onPath: boolean;
@@ -606,11 +647,12 @@ function setup(command: string | null, onPath: boolean): Setup {
   return { command, onPath: !!command && onPath };
 }
 
-// npx: global command, else a pinned copy under the config dir
-export function setupCommand(
-  version: string,
-  opts: { global?: boolean; log?: (line: string) => void } = {},
-): Setup {
+export interface SetupOptions {
+  global?: boolean;
+  log?: (line: string) => void;
+}
+
+function* setupSteps(version: string, opts: SetupOptions): Steps<Setup> {
   const log = opts.log ?? (() => {});
   if (installKind() !== 'npx') return setup(defaultCommand(undefined, log), !!globalBinary());
   const existing = globalBinary();
@@ -618,7 +660,7 @@ export function setupCommand(
     return setup(acceptCommand(buildCommand({ kind: 'bin', bin: existing, onPath: true }), log), true);
   if (opts.global !== false) {
     log(`Installing ccinfobar ${version} globally (skip with --no-global) ...`);
-    const g = installGlobal(version);
+    const g = yield* globalSteps(version);
     if (g.ok) {
       log(`✓ Installed ${g.bin}`);
       if (!g.onPath)
@@ -629,7 +671,7 @@ export function setupCommand(
   }
   log(`Installing a pinned copy of ccinfobar ${version} in ${localPrefix()} ...`);
   try {
-    installVersion(version, localPrefix());
+    yield { version, prefix: localPrefix() };
   } catch (err) {
     log(`✗ Could not install ccinfobar: ${(err as Error).message}`);
     return { command: null, onPath: false };
@@ -640,4 +682,13 @@ export function setupCommand(
   }
   log(`✓ Installed ${localBin()}`);
   return setup(acceptCommand(buildCommand({ kind: 'bin', bin: localBin(), onPath: false }), log), false);
+}
+
+// npx: global command, else a pinned copy under the config dir
+export function setupCommand(version: string, opts: SetupOptions = {}): Setup {
+  return runSync(setupSteps(version, opts));
+}
+
+export function setupCommandAsync(version: string, opts: SetupOptions = {}): Promise<Setup> {
+  return runAsync(setupSteps(version, opts));
 }

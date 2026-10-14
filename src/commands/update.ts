@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
@@ -82,29 +82,55 @@ export function installSources(version: string): string[] {
   return [`ccinfobar@${assertVersion(version)}`, tarballUrl(version)];
 }
 
-export function installVersion(version: string, prefix?: string): void {
+function npmInstall(version: string, prefix?: string) {
   const npm = npmCommand();
   const where = prefix ? ['--prefix', prefix, '--save-exact'] : ['-g'];
   if (prefix) fs.mkdirSync(prefix, { recursive: true });
+  const runs = installSources(version).map((spec) => [
+    ...npm.args,
+    'install',
+    ...where,
+    spec,
+    '--no-audit',
+    '--no-fund',
+    '--loglevel=error',
+  ]);
+  const opts = { timeout: 120_000, windowsHide: true, shell: npm.shell };
+  return { file: npm.file, runs, opts };
+}
+
+function npmError(err: unknown, stderr: unknown): Error {
+  const line = String(stderr ?? '')
+    .split(/\r?\n/)
+    .find((l) => /npm error (code|[A-Z])/.test(l));
+  return new Error(line?.replace(/^npm error\s*/, '') || (err as Error).message.split('\n')[0]);
+}
+
+export function installVersion(version: string, prefix?: string): void {
+  const { file, runs, opts } = npmInstall(version, prefix);
   let last: unknown;
-  for (const spec of installSources(version)) {
+  for (const args of runs) {
     try {
-      execFileSync(
-        npm.file,
-        [...npm.args, 'install', ...where, spec, '--no-audit', '--no-fund', '--loglevel=error'],
-        {
-          stdio: ['ignore', 'ignore', 'pipe'],
-          timeout: 120_000,
-          windowsHide: true,
-          shell: npm.shell,
-        },
-      );
+      execFileSync(file, args, { ...opts, stdio: ['ignore', 'ignore', 'pipe'] });
       return;
     } catch (err) {
-      const stderr = String((err as { stderr?: Buffer }).stderr ?? '');
-      const line = stderr.split(/\r?\n/).find((l) => /npm error (code|[A-Z])/.test(l)) ?? '';
-      last = new Error(line.replace(/^npm error\s*/, '') || (err as Error).message.split('\n')[0]);
+      last = npmError(err, (err as { stderr?: Buffer }).stderr);
     }
+  }
+  throw last;
+}
+
+// does not block the event loop
+export async function installVersionAsync(version: string, prefix?: string): Promise<void> {
+  const { file, runs, opts } = npmInstall(version, prefix);
+  let last: unknown;
+  for (const args of runs) {
+    const err = await new Promise<Error | null>((resolve) => {
+      const child = execFile(file, args, opts, (e, _out, stderr) => resolve(e ? npmError(e, stderr) : null));
+      child.stdin?.end();
+    });
+    if (!err) return;
+    last = err;
   }
   throw last;
 }

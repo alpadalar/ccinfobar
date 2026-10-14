@@ -26,6 +26,7 @@ export const installMessages = {
   'install.manifestReadOnly':
     '{file} was written by a newer ccinfobar or is damaged; not changing any settings. Move it aside to continue.',
   'install.needsConfirm': 'Confirm replacing the current statusLine first.',
+  'install.confirmNeedsCurrent': 'A confirmed install must send the statusLine it was shown.',
   'uninstall.restoredExact': '✓ Restored {file} exactly as it was before ccinfobar',
   'uninstall.restoredPrevious': '✓ Restored the previous statusLine: {command}',
   'uninstall.removed': '✓ Removed ccinfobar from {file}',

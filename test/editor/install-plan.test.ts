@@ -38,11 +38,18 @@ function request(
   });
 }
 
+let setups: string[] = [];
+const fakeSetup = async (version: string) => {
+  setups.push(version);
+  return { command: '/opt/ccib/bin/ccinfobar', onPath: false };
+};
+const PLACEHOLDER = 'ccinfobar (installed on first Install)';
+
 async function start(statusLine?: unknown): Promise<void> {
   if (statusLine !== undefined)
     fs.writeFileSync(settings, `${JSON.stringify({ model: 'opus', statusLine }, null, 2)}\n`);
   fs.writeFileSync(configFile, JSON.stringify(defaultConfig()));
-  handle = await startEditor({ configPath: configFile, open: false, port: 0 });
+  handle = await startEditor({ configPath: configFile, open: false, port: 0, setup: fakeSetup });
   port = Number(new URL(handle.url).port);
 }
 
@@ -51,6 +58,7 @@ function manifest(): { entries: { kind: string }[] } {
 }
 
 beforeEach(() => {
+  setups = [];
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-plan-'));
   claude = path.join(dir, 'claude');
   fs.mkdirSync(claude);
@@ -102,7 +110,11 @@ describe('editor install plan', () => {
 
   it('replaces with confirm and records the manifest', async () => {
     await start(FOREIGN);
-    const res = await request('POST', '/api/install', { command: 'ccinfobar', confirm: true });
+    const res = await request('POST', '/api/install', {
+      command: 'ccinfobar',
+      confirm: true,
+      current: FOREIGN,
+    });
     expect(res.status).toBe(200);
     const body = res.json();
     expect(body.ok).toBe(true);
@@ -127,6 +139,47 @@ describe('editor install plan', () => {
     expect(res.status).toBe(409);
     expect(res.json().plan.current.command).toBe('npx ccstatusline');
     expect(fs.readFileSync(settings).equals(before)).toBe(true);
+  });
+
+  it('refuses a confirm that does not send the statusLine it was shown', async () => {
+    await start(FOREIGN);
+    const before = fs.readFileSync(settings);
+    const res = await request('POST', '/api/install', { command: 'ccinfobar', confirm: true });
+    expect(res.status).toBe(400);
+    expect(fs.readFileSync(settings).equals(before)).toBe(true);
+  });
+
+  it('plans the placeholder command without installing anything', async () => {
+    await start(FOREIGN);
+    globalThis.__ccibRenderGuard = true;
+    let res: Awaited<ReturnType<typeof request>>;
+    try {
+      res = await request('POST', '/api/install/plan', { command: PLACEHOLDER });
+    } finally {
+      globalThis.__ccibRenderGuard = false;
+    }
+    expect(res.status).toBe(200);
+    expect(res.json().plan.proposed.command).toBe(PLACEHOLDER);
+    expect(setups).toEqual([]);
+  });
+
+  it('does not install ccinfobar before a foreign statusLine is confirmed', async () => {
+    await start(FOREIGN);
+    const res = await request('POST', '/api/install', { command: PLACEHOLDER });
+    expect(res.status).toBe(409);
+    expect(setups).toEqual([]);
+  });
+
+  it('installs ccinfobar after confirm and writes the resolved command', async () => {
+    await start(FOREIGN);
+    const res = await request('POST', '/api/install', {
+      command: PLACEHOLDER,
+      confirm: true,
+      current: FOREIGN,
+    });
+    expect(res.status).toBe(200);
+    expect(setups).toHaveLength(1);
+    expect(JSON.parse(fs.readFileSync(settings, 'utf8')).statusLine.command).toBe('/opt/ccib/bin/ccinfobar');
   });
 
   it('installs without confirm when nothing is set', async () => {

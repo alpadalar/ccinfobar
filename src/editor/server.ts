@@ -10,8 +10,9 @@ import {
   defaultCommand,
   InstallNeedsConfirmError,
   planInstall,
+  type Setup,
   type StatusLineSetting,
-  setupCommand,
+  setupCommandAsync,
 } from '../commands/install.js';
 import { classifyOwner, deepEqual, owns, readManifest } from '../commands/manifest.js';
 import { backupsDir } from '../commands/settings-file.js';
@@ -19,7 +20,7 @@ import {
   compareVersions,
   fetchLatest,
   installKind,
-  installVersion,
+  installVersionAsync,
   localPrefix,
   readUpdateState,
   writeUpdateState,
@@ -62,6 +63,7 @@ export interface EditorOptions {
   open?: boolean;
   host?: string;
   terminal?: TerminalColors | null;
+  setup?: (version: string) => Promise<Setup>;
 }
 
 export interface EditorHandle {
@@ -181,9 +183,12 @@ function claudeInfo(command: string | null) {
   return {
     statusLine,
     installed: isInstalled(statusLine, command),
-    defaultCommand: command ?? 'ccinfobar (installed on first Install)',
+    defaultCommand: command ?? placeholder(),
   };
 }
+
+const PLACEHOLDER_PREFIX = 'ccinfobar (';
+const placeholder = () => `${PLACEHOLDER_PREFIX}installed on first Install)`;
 
 function asObject(v: unknown): Record<string, unknown> {
   return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {};
@@ -193,6 +198,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const host = opts.host ?? '127.0.0.1';
   const token = crypto.randomBytes(16).toString('hex');
   let command = defaultCommand();
+  const setup = opts.setup ?? ((v: string) => setupCommandAsync(v));
   const stylesFile = path.join(path.dirname(opts.configPath), 'styles.json');
   const readStyles = (): StyleHistory => {
     try {
@@ -216,15 +222,21 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const hostOk = (h: string | undefined) => h === `127.0.0.1:${port}` || h === `localhost:${port}`;
   const originOk = (o: string) => o === `http://127.0.0.1:${port}` || o === `http://localhost:${port}`;
 
-  function resolveInstall(body: Record<string, unknown>): { cmd: string; refresh: number | undefined } {
-    let cmd = typeof body.command === 'string' && body.command.trim() ? body.command.trim() : command;
-    if (!cmd || cmd.startsWith('ccinfobar (')) {
-      command = setupCommand(VERSION).command;
-      cmd = command;
-    }
-    if (!cmd) throw new HttpError(500, 'Could not install ccinfobar; run npm install -g ccinfobar');
+  // pure: never installs; null means setup is still needed
+  function requested(body: Record<string, unknown>): { cmd: string | null; refresh: number | undefined } {
+    const asked = typeof body.command === 'string' && body.command.trim() ? body.command.trim() : command;
     const refresh = Number(body.refreshInterval);
-    return { cmd, refresh: Number.isFinite(refresh) && refresh > 0 ? refresh : undefined };
+    return {
+      cmd: !asked || asked.startsWith(PLACEHOLDER_PREFIX) ? null : asked,
+      refresh: Number.isFinite(refresh) && refresh > 0 ? refresh : undefined,
+    };
+  }
+
+  async function resolveCommand(cmd: string | null): Promise<string> {
+    if (cmd) return cmd;
+    command = (await setup(VERSION)).command;
+    if (!command) throw new HttpError(500, 'Could not install ccinfobar; run npm install -g ccinfobar');
+    return command;
   }
 
   async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -429,16 +441,22 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       }
       case 'POST /api/install/plan': {
         const body = asObject(await readBody(req));
-        const { cmd, refresh } = resolveInstall(body);
-        send(res, 200, { plan: planInstall({ command: cmd, refresh }) });
+        const { cmd, refresh } = requested(body);
+        send(res, 200, { plan: planInstall({ command: cmd ?? placeholder(), refresh }) });
         return;
       }
       case 'POST /api/install': {
         const body = asObject(await readBody(req));
-        const { cmd, refresh } = resolveInstall(body);
-        const plan = planInstall({ command: cmd, refresh });
+        const { cmd, refresh } = requested(body);
         const confirmed = body.confirm === true;
-        if (confirmed && 'current' in body && !deepEqual(body.current ?? null, plan.current))
+        if (confirmed && !('current' in body)) throw new HttpError(400, t('install.confirmNeedsCurrent'));
+        const draft = planInstall({ command: cmd ?? placeholder(), refresh });
+        if (confirmed && !deepEqual(body.current ?? null, draft.current))
+          throw new HttpError(409, t('install.stale', { file: tildify(draft.file) }), { plan: draft });
+        if (draft.needsConfirm && !confirmed)
+          throw new HttpError(409, t('install.needsConfirm'), { plan: draft });
+        const plan = cmd ? draft : planInstall({ command: await resolveCommand(cmd), refresh });
+        if (plan !== draft && confirmed && !deepEqual(body.current ?? null, plan.current))
           throw new HttpError(409, t('install.stale', { file: tildify(plan.file) }), { plan });
         let backup: string | null;
         try {
@@ -477,7 +495,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
             throw new HttpError(409, `This ${kind} copy cannot update itself; run npm install -g ccinfobar`);
           }
           try {
-            installVersion(latest, kind === 'local' ? localPrefix() : undefined);
+            await installVersionAsync(latest, kind === 'local' ? localPrefix() : undefined);
           } catch (err) {
             throw new HttpError(500, `npm install failed: ${(err as Error).message}`);
           }

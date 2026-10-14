@@ -49,6 +49,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Emoji such as ⚡ and ✅ are measured as 2 cells
 - Preview and doctor ignore a cached last payload that is not a JSON object
 - `--option=value` keeps values that contain `=`, such as `--command=FOO=1 ccinfobar`
+- The editor's install preview no longer runs `npm install` before you confirm, and installing or updating from the editor runs npm in the background instead of freezing the editor
+- An editor install confirmation must include the status line it was shown, so a stale or partial request cannot replace a different one
 
 ### Security
 
