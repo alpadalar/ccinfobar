@@ -110,6 +110,7 @@
                 "git-repo",
                 "git-worktree",
                 "pr",
+                "workspace-repos",
                 "cwd",
                 "project-dir",
                 "clock",

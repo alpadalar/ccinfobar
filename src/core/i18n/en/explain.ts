@@ -75,6 +75,7 @@ export const explainMessages = {
   'explain.source.git': 'git (live)',
   'explain.source.gsd': 'GSD {path}',
   'explain.source.history': 'history',
+  'explain.source.repos': 'workspace repos scan',
   'explain.source.env': 'env: {path}',
   'explain.source.config': 'config {path}',
   'explain.source.clock': 'clock',

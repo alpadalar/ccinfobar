@@ -26,6 +26,7 @@ export function ctxWith(
     limits?: RenderContext['data']['limits'];
     ledger?: RenderContext['data']['ledger'];
     agents?: RenderContext['data']['agents'];
+    repos?: RenderContext['data']['repos'];
     width?: number | null;
     env?: NodeJS.ProcessEnv;
   } = {},
@@ -44,6 +45,7 @@ export function ctxWith(
       agents: overrides.agents ?? (() => sampleAgents(NOW.getTime())),
       limits: overrides.limits ?? (() => sampleLimits(NOW.getTime())),
       ledger: overrides.ledger ?? (() => sampleLedger(NOW.getTime())),
+      repos: overrides.repos ?? (() => null),
     },
   });
 }

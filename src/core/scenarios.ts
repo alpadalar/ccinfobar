@@ -40,6 +40,7 @@ function base(now: number): ScenarioBundle {
       // follows the bundle's rate_limits
       limits: () => sampleLimits(now, b.payload.rate_limits ?? null),
       ledger: () => sampleLedger(now),
+      repos: () => null,
     },
     env: {},
   };

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import type { LoadResult } from '../core/config.js';
-import { createContext, lazy } from '../core/context.js';
+import { createContext, lazy, resolveCwd } from '../core/context.js';
 import { t } from '../core/i18n/index.js';
 import {
   type InspectMeta,
@@ -37,6 +37,7 @@ import { cacheFile } from '../data/cache.js';
 import { loadHistory } from '../data/history.js';
 import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
 import { accountKey, type LimitsView, modelKey, readLimitsStore } from '../data/limits.js';
+import { readRepos } from '../data/repos.js';
 import { readTranscript, type TranscriptInfo, transcriptCacheName } from '../data/transcript.js';
 import { effectiveUsage, type UsageCache } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
@@ -95,6 +96,7 @@ function readOnlyData(
     transcript,
     agents: lazy(() => readAgents(payload.transcript_path, transcript(), now, env, { persist: false })),
     history: () => loadHistory(payload.session_id, env),
+    repos: lazy(() => readRepos(resolveCwd(payload), env, { persist: false, now })),
   };
   if (ledgerOn(config)) {
     data.ledger = lazy(() => {
@@ -117,6 +119,7 @@ function sampleData(now: number, payload: StatusPayload): DataSources {
     agents: () => sampleAgents(now),
     limits: () => sampleLimits(now, payload.rate_limits ?? null),
     ledger: () => sampleLedger(now),
+    repos: () => null,
   };
 }
 

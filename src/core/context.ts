@@ -1,6 +1,7 @@
 import { readAgents } from '../data/agents.js';
 import { readGit } from '../data/git.js';
 import { readGsd } from '../data/gsd.js';
+import { readRepos } from '../data/repos.js';
 import { readTranscript } from '../data/transcript.js';
 import type { Config, DataSources, RenderContext, StatusPayload } from './types.js';
 
@@ -56,6 +57,9 @@ export function createContext(opts: ContextOptions): RenderContext {
       ...(opts.data?.history ? { history: opts.data.history } : {}),
       ...(opts.data?.limits ? { limits: opts.data.limits } : {}),
       ...(opts.data?.ledger ? { ledger: opts.data.ledger } : {}),
+      repos:
+        opts.data?.repos ??
+        lazy(() => readRepos(cwd, env, { persist: !(opts.preview ?? false), now: now.getTime() })),
       agents:
         opts.data?.agents ??
         lazy(() => readAgents(opts.payload.transcript_path, transcript(), now.getTime(), env)),

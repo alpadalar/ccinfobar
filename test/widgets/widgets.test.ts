@@ -20,6 +20,7 @@ const noData = (config?: Partial<Config>) =>
     history: () => [],
     agents: () => [],
     ledger: () => null,
+    repos: () => null,
     config,
   });
 

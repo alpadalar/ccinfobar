@@ -10,6 +10,7 @@ export type SourceKind =
   | 'gsd'
   | 'history'
   | 'ledger'
+  | 'repos'
   | 'env'
   | 'config'
   | 'clock'
@@ -109,6 +110,8 @@ export function createTrace(): Trace {
     if (limits) data.limits = via('limits-cache', () => limits());
     const ledger = d.ledger;
     if (ledger) data.ledger = via('ledger', () => ledger());
+    const repos = d.repos;
+    if (repos) data.repos = via('repos', () => repos());
     return { ...ctx, payload: deep(ctx.payload, ''), env: envProxy(ctx.env), data };
   }
 

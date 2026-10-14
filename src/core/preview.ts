@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import { readAgents } from '../data/agents.js';
 import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
 import { accountKey } from '../data/limits.js';
+import { readRepos } from '../data/repos.js';
 import { readTranscript } from '../data/transcript.js';
 import { effectiveUsage } from '../data/usage.js';
-import { createContext, lazy } from './context.js';
+import { createContext, lazy, resolveCwd } from './context.js';
 import { t } from './i18n/index.js';
 import { lastPayloadPath } from './paths.js';
 import { ingestPayload } from './payload.js';
@@ -95,6 +96,7 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
             readAgents(last.transcript_path, transcript(), Date.now(), env, { persist: false }),
           ),
           limits: () => eff.limits,
+          repos: lazy(() => readRepos(resolveCwd(last), env, { persist: false })),
           ...(ledgerOn(config)
             ? {
                 ledger: lazy(() => {
@@ -129,6 +131,7 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
         agents: () => sampleAgents(now),
         limits: () => sampleLimits(now, payload.rate_limits ?? null),
         ledger: () => sampleLedger(now),
+        repos: () => null,
       },
     }),
   );

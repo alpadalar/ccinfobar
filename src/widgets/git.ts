@@ -230,4 +230,45 @@ export const widgets: WidgetDef[] = [
       return opt(item, 'link', false) && href ? hyperlink(text, href) : text;
     },
   },
+  {
+    type: 'workspace-repos',
+    name: 'Workspace repos',
+    category: 'git',
+    description: 'Child folders that are git repos, when the folder itself is not a repo',
+    label: 'repos: ',
+    icon: { nerd: '', emoji: '📦' },
+    color: 'magenta',
+    sample: 'api (main) · web (dev) · infra (main)',
+    options: [
+      { key: 'maxRepos', label: 'Repos shown', kind: 'number', default: 5 },
+      { key: 'showBranch', label: 'Show branch', kind: 'boolean', default: true },
+      {
+        key: 'sort',
+        label: 'Sort',
+        kind: 'select',
+        default: 'name',
+        choices: [
+          { value: 'name', label: 'By name' },
+          { value: 'recent', label: 'Most recent first' },
+        ],
+      },
+      { key: 'includeHidden', label: 'Include hidden folders', kind: 'boolean', default: false },
+    ],
+    render(ctx, item) {
+      const ws = ctx.data.repos?.();
+      if (!ws) return null;
+      const hidden = opt(item, 'includeHidden', false);
+      const list = ws.repos.filter((r) => hidden || !r.hidden);
+      if (!list.length) return null;
+      if (opt<string>(item, 'sort', 'name') === 'recent') {
+        list.sort((a, b) => (b.activity ?? 0) - (a.activity ?? 0) || (a.name < b.name ? -1 : 1));
+      }
+      const max = Math.max(1, Math.floor(opt(item, 'maxRepos', 5)));
+      const branch = opt(item, 'showBranch', true);
+      const parts = list.slice(0, max).map((r) => (branch && r.branch ? `${r.name} (${r.branch})` : r.name));
+      const text = parts.join(ctx.config.charset === 'text' ? ' | ' : ' · ');
+      const more = list.length - parts.length;
+      return more > 0 ? `${text} +${more}` : text;
+    },
+  },
 ];

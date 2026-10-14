@@ -279,5 +279,6 @@ export interface DataSources {
   history?(): import('../data/history.js').HistorySample[];
   limits?(): import('../data/limits.js').LimitsView | null;
   ledger?(): import('../data/ledger.js').LedgerView | null;
+  repos?(): import('../data/repos.js').WorkspaceRepos | null;
   agents(): import('../data/agents.js').AgentInfo[];
 }
