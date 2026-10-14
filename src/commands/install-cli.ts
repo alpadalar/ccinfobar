@@ -18,6 +18,7 @@ import {
   hookEventsFor,
   planHookRewrites,
   planHooks,
+  uninstallHooks,
 } from './hooks-install.js';
 import {
   applyInstall,
@@ -351,12 +352,29 @@ async function uninstallAsking(file: string, io: InstallIo): Promise<UninstallRe
   return uninstall(file, { adoptLegacy });
 }
 
+function hooksRemoved(io: InstallIo, hooks: { removed: string[]; kept: string[] }): void {
+  if (hooks.removed.length) io.log(t('hooks.removed', { events: hooks.removed.join(', ') }));
+  if (hooks.kept.length) io.log(t('hooks.leftEdited', { events: hooks.kept.join(', ') }));
+}
+
 export async function runUninstall(args: Args, _cfgFile: string, io: InstallIo = defaultIo()): Promise<void> {
+  const hooksOnly = args.flags.hooks !== undefined && args.flags.hooks !== false;
   if (args.flags.project) {
+    if (hooksOnly) io.log(t('hooks.uninstallProject'));
     io.log(uninstallMessage(await uninstallAsking(projectLocalFile(process.cwd()), io)));
+    return;
+  }
+  if (hooksOnly) {
+    const file = claudeSettingsPath();
+    const res = uninstallHooks(file);
+    if (!res.removed.length && !res.kept.length) io.log(t('hooks.none', { file: tildify(file) }));
+    hooksRemoved(io, res);
+    if (res.backup) io.log(t('install.backup', { file: tildify(res.backup) }));
     return;
   }
   const released = releaseProjects();
   if (released.length) io.log(`✓ Gave ${released.length} project(s) their own status line back`);
-  io.log(uninstallMessage(await uninstallAsking(claudeSettingsPath(), io)));
+  const res = await uninstallAsking(claudeSettingsPath(), io);
+  io.log(uninstallMessage(res));
+  hooksRemoved(io, res.hooks);
 }

@@ -196,4 +196,40 @@ describe.skipIf(!fs.existsSync(bin))('install --hooks with the built CLI', () =>
     expect(data.hooks).toBeUndefined();
     expect(fs.existsSync(s.settings)).toBe(false);
   });
+  it('uninstall --hooks keeps the statusLine and removes the hooks key', () => {
+    const s = sandbox();
+    expect(s.run(['install', '--hooks', '--yes']).status).toBe(0);
+    const res = s.run(['uninstall', '--hooks']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain(`✓ Removed ccinfobar hooks: ${SIX.join(', ')}`);
+    const data = s.read();
+    expect(data.statusLine.command).toBe('ccinfobar-test');
+    expect(data.hooks).toBeUndefined();
+    const again = s.run(['uninstall', '--hooks']);
+    expect(again.stdout).toContain('No ccinfobar hooks in');
+  });
+
+  it('uninstall restores the pre-install bytes exactly and reports the hooks', () => {
+    const s = sandbox();
+    fs.mkdirSync(s.claude, { recursive: true });
+    const before = '{\r\n    "model": "opus",\r\n    "hooks": {\r\n        "Stop": []\r\n    }\r\n}\r\n';
+    fs.writeFileSync(s.settings, before);
+    expect(s.run(['install', '--hooks', '--yes']).status).toBe(0);
+    expect(Object.keys(s.read().hooks)).toHaveLength(6);
+    const res = s.run(['uninstall']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain(`✓ Removed ccinfobar hooks: ${SIX.join(', ')}`);
+    expect(fs.readFileSync(s.settings, 'utf8')).toBe(before);
+    const m = JSON.parse(fs.readFileSync(s.manifest, 'utf8'));
+    expect(m.entries.filter((e: { kind: string }) => e.kind === 'hook')).toEqual([]);
+  });
+
+  it('uninstall --project --hooks warns and leaves user hooks alone', () => {
+    const s = sandbox();
+    expect(s.run(['install', '--hooks', '--yes']).status).toBe(0);
+    const res = s.run(['uninstall', '--project', '--hooks']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('Hooks live in user settings only');
+    expect(Object.keys(s.read().hooks)).toHaveLength(6);
+  });
 });

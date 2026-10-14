@@ -14,6 +14,8 @@ Usage
   ccinfobar install --dry-run    Show what install would change and write nothing
   ccinfobar install --hooks      Also add optional Claude Code hooks (exact live state)
   ccinfobar uninstall            Remove ccinfobar and restore your previous status line
+                                 Run it before \`npm rm -g ccinfobar\`: hooks call the ccinfobar command
+  ccinfobar uninstall --hooks    Remove only ccinfobar's hooks
   ccinfobar import <tool>        Import a ccstatusline or claude-powerline layout
   ccinfobar themes               Preview every theme
   ccinfobar theme <id>           Switch theme
@@ -51,7 +53,8 @@ Options
   --import / --no-import         install: import the previous status line's layout without asking
   --file <path>                  import: read this settings file
   --command <cmd>                install: command to write (default: auto)
-  --hooks[=permission]           install: add hooks; =permission also adds PermissionRequest
+  --hooks[=permission]           install: add hooks (=permission adds PermissionRequest);
+                                 uninstall: remove only ccinfobar's hooks
   -y, --yes                      install: replace another tool's statusLine without asking
   --dry-run                      install: print the plan and write nothing
   --port <n>                     edit: port to listen on

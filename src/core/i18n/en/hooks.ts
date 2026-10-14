@@ -22,4 +22,8 @@ export const hookMessages = {
   'hooks.projectIgnored':
     '⚠ Hooks go to user settings only; run `ccinfobar install --hooks` without --project.',
   'hooks.detected': '  Claude Code {version}',
+  'hooks.removed': '✓ Removed ccinfobar hooks: {events}',
+  'hooks.leftEdited': '  Left hooks changed outside ccinfobar: {events}',
+  'hooks.none': 'No ccinfobar hooks in {file}',
+  'hooks.uninstallProject': '⚠ Hooks live in user settings only; `--project` ignores --hooks.',
 } as const;
