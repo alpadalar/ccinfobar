@@ -247,6 +247,7 @@ export interface WidgetDef {
   sample?: string;
   hidden?: boolean;
   fill?: boolean;
+  sources?: string[];
   render(ctx: RenderContext, item: WidgetItem): WidgetResult;
 }
 
