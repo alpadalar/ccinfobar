@@ -14,5 +14,12 @@ export const doctorMessages = {
   'doctor.tmpPruned': '  Removed {count} stale temp file(s)',
   'doctor.noPayload':
     '  No payload yet. Use Claude Code once with ccinfobar installed, or try `ccinfobar explain --scenario <name>`.',
+  'doctor.limit.five_hour': '5-hour',
+  'doctor.limit.seven_day': 'weekly',
+  'doctor.limit.both': '5-hour and weekly',
+  'doctor.note.limitFull':
+    'Your {names} usage limit is at 100%, so Claude cannot reply right now. Context, cache and token widgets fill in after the next successful reply.',
+  'doctor.note.noReplies':
+    'This session has no replies yet (cost $0, no prompt cache). Send a message and run doctor again; context, cache and speed widgets need at least one answer.',
   'doctor.explainPointer': '  Details: `ccinfobar explain` (or `ccinfobar explain <widget-id>`)',
 } as const;

@@ -275,16 +275,10 @@ export function sessionNotes(p: StatusPayload): string[] {
     (k) => (p.rate_limits?.[k]?.used_percentage ?? 0) >= 100,
   );
   if (full.length) {
-    const names = full.map((k) => (k === 'five_hour' ? '5-hour' : 'weekly')).join(' and ');
-    notes.push(
-      `Your ${names} usage limit is at 100%, so Claude cannot reply right now. Context, cache and token widgets fill in after the next successful reply.`,
-    );
+    const names = t(full.length > 1 ? 'doctor.limit.both' : `doctor.limit.${full[0]!}`);
+    notes.push(t('doctor.note.limitFull', { names }));
   }
-  if (!hasReplies(p)) {
-    notes.push(
-      'This session has no replies yet (cost $0, no prompt cache). Send a message and run doctor again; context, cache and speed widgets need at least one answer.',
-    );
-  }
+  if (!hasReplies(p)) notes.push(t('doctor.note.noReplies'));
   return notes;
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { sanitize } from '../../src/core/ansi.js';
 import { t } from '../../src/core/i18n/index.js';
-import { emptyReason, inspectRows, lineReport } from '../../src/core/inspect.js';
+import { emptyReason, inspectRows, lineReport, sessionNotes } from '../../src/core/inspect.js';
 import { normalizeResult, renderValue } from '../../src/core/renderer.js';
 import { samplePayload } from '../../src/core/sample.js';
 import { getScenario, SCENARIO_NOW } from '../../src/core/scenarios.js';
@@ -390,5 +390,22 @@ describe('emptyReason', () => {
     expect(unknown!.empty!.code).toBe('unknown-type');
     expect(git!.empty!.code).toBe('no-git');
     expect(boom!.empty).toEqual({ code: 'error', text: t('explain.reason.error') });
+  });
+});
+
+describe('sessionNotes', () => {
+  const full = { used_percentage: 100, resets_at: null };
+  it('names the full limits and a session without replies through t()', () => {
+    expect(sessionNotes({ rate_limits: { five_hour: full, seven_day: full } })).toEqual([
+      t('doctor.note.limitFull', { names: t('doctor.limit.both') }),
+      t('doctor.note.noReplies'),
+    ]);
+    expect(sessionNotes({ rate_limits: { seven_day: full } })[0]).toBe(
+      t('doctor.note.limitFull', { names: t('doctor.limit.seven_day') }),
+    );
+    expect(t('doctor.note.limitFull', { names: t('doctor.limit.five_hour') })).toMatch(
+      /^Your 5-hour usage limit/,
+    );
+    expect(sessionNotes(samplePayload(NOW.getTime()))).toEqual([]);
   });
 });
