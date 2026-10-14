@@ -13,6 +13,7 @@ import {
   ledgerView,
   monthKey,
   projectRoot,
+  pruneLedger,
   readLedger,
   recordLedger,
   type Summary,
@@ -352,5 +353,148 @@ describe('ledger files', () => {
     recordLedger(env, { ...payload, cost: { total_cost_usd: 1 } }, readLedger(env, T), T);
     expect(fs.statSync(month()).mode & 0o777).toBe(0o600);
     expect(fs.statSync(summary()).mode & 0o777).toBe(0o600);
+  });
+});
+
+describe('retention', () => {
+  let dir = '';
+  let env: NodeJS.ProcessEnv = {};
+  const DAY = 86_400_000;
+  const ledger = () => path.join(dir, 'ledger');
+  const file = (name: string) => path.join(ledger(), name);
+  const names = () => fs.readdirSync(ledger()).sort();
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-ledger-'));
+    env = { CCINFOBAR_CACHE_DIR: dir, CLAUDE_CONFIG_DIR: path.join(dir, 'claude') };
+    fs.mkdirSync(ledger(), { recursive: true });
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('drops month files older than 13 months by name, not mtime', () => {
+    for (const n of ['2025-09.jsonl', '2025-10.jsonl', '2026-10.jsonl']) fs.writeFileSync(file(n), '');
+    const old = new Date(2020, 0, 1);
+    fs.utimesSync(file('2025-10.jsonl'), old, old);
+    const s = emptySummary();
+    s.files['2025-09'] = 0;
+    s.files['2025-10'] = 0;
+    pruneLedger(env, s, T);
+    expect(names()).toEqual(['2025-10.jsonl', '2026-10.jsonl']);
+    expect(Object.keys(s.files)).toEqual(['2025-10']);
+  });
+
+  it('never deletes a file that is not YYYY-MM.jsonl', () => {
+    const odd = ['notes.txt', '2025-1.jsonl', '2020-01.jsonl.bak', 'x2020-01.jsonl', 'summary.json'];
+    for (const n of odd) fs.writeFileSync(file(n), '');
+    fs.mkdirSync(file('2019-01.jsonl'));
+    pruneLedger(env, emptySummary(), T);
+    expect(names()).toEqual([...odd, '2019-01.jsonl'].sort());
+  });
+
+  it('keeps 400 days of rows and sessions seen in the last 30 days', () => {
+    const s = fold(
+      line('old', 0, T - 402 * DAY),
+      line('old', 2, T - 401 * DAY),
+      line('kept', 0, T - 31 * DAY),
+      line('kept', 3, T - 29 * DAY),
+    );
+    pruneLedger(env, s, T);
+    expect(Object.keys(s.days[A]!)).toEqual([dayKey(T - 29 * DAY)]);
+    expect(Object.keys(s.projects[A]![P]!)).toEqual([dayKey(T - 29 * DAY)]);
+    expect(Object.keys(s.sessions)).toEqual(['kept']);
+  });
+
+  it('treats a pruned session seen again as a first sighting', () => {
+    const s = fold(line('s1', 0, T - 40 * DAY), line('s1', 5, T - 40 * DAY));
+    pruneLedger(env, s, T);
+    foldText(s, line('s1', 6));
+    expect(s.days[A]?.[dayKey(T)]).toBeUndefined();
+    const kept = fold(line('s1', 0, T - 40 * DAY), line('s1', 5, T - 40 * DAY), line('s1', 6));
+    expect(close(kept.days[A]?.[dayKey(T)])).toBe(1);
+  });
+
+  it('prunes when recordLedger creates a new month file', () => {
+    const payload = (c: number) => ({ session_id: 's1', cost: { total_cost_usd: c } }) as StatusPayload;
+    fs.writeFileSync(file('2024-01.jsonl'), line('gone', 1, local(2024, 1, 5)));
+    fs.writeFileSync(file(`${monthKey(T)}.jsonl`), '');
+    recordLedger(env, payload(0), readLedger(env, T), T);
+    expect(names()).toContain('2024-01.jsonl');
+    fs.rmSync(file(`${monthKey(T)}.jsonl`));
+    recordLedger(env, payload(1), readLedger(env, T), T);
+    expect(names()).not.toContain('2024-01.jsonl');
+    expect(names()).toContain(`${monthKey(T)}.jsonl`);
+    const saved = JSON.parse(fs.readFileSync(file('summary.json'), 'utf8')) as Summary;
+    expect(saved.sessions.gone).toBeUndefined();
+    expect(saved.files['2024-01']).toBeUndefined();
+  });
+});
+
+describe('cold fold byte budget', () => {
+  let dir = '';
+  let env: NodeJS.ProcessEnv = {};
+  const ledger = () => path.join(dir, 'ledger');
+  const months = [local(2026, 8, 10), local(2026, 9, 10), local(2026, 10, 10)];
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-ledger-'));
+    env = { CCINFOBAR_CACHE_DIR: dir, CLAUDE_CONFIG_DIR: path.join(dir, 'claude') };
+    fs.mkdirSync(ledger(), { recursive: true });
+    for (const [m, t] of months.entries()) {
+      let text = '';
+      for (let i = 0; i < 40; i++) text += line(`m${m}s${i % 4}`, i * 0.25, t + i * 60_000);
+      text += line('long', 10 + m, t + 50 * 60_000);
+      fs.writeFileSync(path.join(ledger(), `${monthKey(t)}.jsonl`), text);
+    }
+    fs.writeFileSync(path.join(ledger(), 'notes.jsonl'), line('foreign', 0) + line('foreign', 99));
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  const size = (t: number) => fs.statSync(path.join(ledger(), `${monthKey(t)}.jsonl`)).size;
+
+  it('folds newest month first, stops at the budget and finishes over later calls', () => {
+    const ref = readLedger(env, T, { persist: false }).summary;
+    expect(ledgerView(ref, A, P, T)?.partial).toBe(false);
+    expect(ref.sessions.foreign).toBeUndefined();
+    const budget = Math.floor(size(months[2]!) * 1.5);
+    const first = readLedger(env, T, { persist: true, budget });
+    expect(first.moved).toBe(true);
+    expect(ledgerView(first.summary, A, P, T)?.partial).toBe(true);
+    expect(first.summary.files['2026-10']).toBe(size(months[2]!));
+    expect(first.summary.files['2026-09']).toBeGreaterThan(0);
+    expect(first.summary.files['2026-09']).toBeLessThan(size(months[1]!));
+    expect(first.summary.files['2026-08']).toBeUndefined();
+    let calls = 1;
+    let last = first;
+    while (ledgerView(last.summary, A, P, T)?.partial && calls < 10) {
+      last = readLedger(env, T, { persist: true, budget });
+      calls++;
+    }
+    expect(calls).toBeGreaterThan(1);
+    expect(ledgerView(last.summary, A, P, T)?.partial).toBe(false);
+    expect(last.summary.days).toEqual(ref.days);
+    expect(last.summary.projects).toEqual(ref.projects);
+    expect(readLedger(env, T, { budget }).moved).toBe(false);
+  });
+
+  it('reads at most the budget per call', () => {
+    const reads: number[] = [];
+    const orig = fs.readSync;
+    const spy = (fd: number, buf: NodeJS.ArrayBufferView, off: number, len: number, pos: number | null) => {
+      reads.push(len);
+      return orig(fd, buf, off, len, pos);
+    };
+    const fsMod = fs as unknown as { readSync: typeof spy };
+    fsMod.readSync = spy;
+    try {
+      readLedger(env, T, { persist: false, budget: 1000 });
+    } finally {
+      fsMod.readSync = orig as unknown as typeof spy;
+    }
+    expect(reads.length).toBeGreaterThan(0);
+    expect(reads.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(1000);
   });
 });

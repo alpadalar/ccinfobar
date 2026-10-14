@@ -261,6 +261,7 @@ export function sampleLedger(now = Date.now()): LedgerView {
     project: { today: 4.12, week: 18.4, month: 62, all: 62 },
     since: now - 40 * 86_400_000,
     at: now - 5_000,
+    partial: false,
   };
 }
 

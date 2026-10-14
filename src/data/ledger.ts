@@ -31,6 +31,7 @@ export interface Summary {
   projects: Record<string, Record<string, DayRows>>;
   since: Record<string, number>;
   at: number;
+  built: boolean;
 }
 
 export interface LedgerRead {
@@ -45,6 +46,7 @@ export interface LedgerView {
   project: { today: number; week: number; month: number; all: number };
   since: number | null;
   at: number | null;
+  partial: boolean;
 }
 
 const ZERO = 0.005;
@@ -52,6 +54,13 @@ const SEGMENTS = 4;
 const MAX_COST = 1e6;
 const MAX_PROJECT = 1024;
 const CHUNK = 1024 * 1024;
+export const BYTE_BUDGET = 16 * 1024 * 1024;
+const MAX_LINE = 64 * 1024;
+const KEEP_MONTHS = 13;
+const KEEP_DAYS = 400;
+const KEEP_SESSION_DAYS = 30;
+const DAY_MS = 86_400_000;
+export const LEDGER_FILE = /^\d{4}-\d{2}\.jsonl$/;
 const ID = /^[\w-]{1,80}$/;
 const MONTH = /^\d{4}-\d{2}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -114,7 +123,16 @@ export function projectRoot(payload: StatusPayload, platform: NodeJS.Platform = 
 }
 
 export function emptySummary(): Summary {
-  return { v: 1, files: map(), sessions: map(), days: map(), projects: map(), since: map(), at: 0 };
+  return {
+    v: 1,
+    files: map(),
+    sessions: map(),
+    days: map(),
+    projects: map(),
+    since: map(),
+    at: 0,
+    built: false,
+  };
 }
 
 function child<T>(m: Record<string, Record<string, T>>, key: string): Record<string, T> {
@@ -190,6 +208,7 @@ function parseSummary(raw: unknown): Summary {
   }
   for (const [a, t] of obj(r.since)) if (idOk(a) && num(t)) s.since[a] = t;
   if (num(r.at)) s.at = r.at;
+  if (r.built === true) s.built = true;
   return s;
 }
 
@@ -201,33 +220,51 @@ function prevMonth(ms: number): number {
   return new Date(d.getFullYear(), d.getMonth() - 1, 1, 12).getTime();
 }
 
-// false: nothing new; null: the file shrank
-function advance(s: Summary, file: string, key: string): boolean | null {
+interface Step {
+  moved: boolean;
+  shrank: boolean;
+  cut: boolean;
+  used: number;
+}
+
+// reads at most budget bytes from the stored offset
+function advance(s: Summary, file: string, key: string, budget: number): Step {
+  const step: Step = { moved: false, shrank: false, cut: false, used: 0 };
   let fd: number | null = null;
   try {
     const size = fs.statSync(file).size;
     const from = s.files[key] ?? 0;
-    if (from > size) return null;
-    if (from === size) return false;
+    if (from > size) {
+      step.shrank = true;
+      return step;
+    }
+    if (from === size) return step;
+    const end = Math.min(size, from + Math.max(0, budget));
+    step.cut = end < size;
+    if (end === from) return step;
     fd = fs.openSync(file, 'r');
-    const buf = Buffer.allocUnsafe(Math.min(CHUNK, size - from));
+    const buf = Buffer.allocUnsafe(Math.min(CHUNK, end - from));
     let carry = Buffer.alloc(0);
     let pos = from;
     let offset = from;
-    while (pos < size) {
-      const n = fs.readSync(fd, buf, 0, Math.min(buf.length, size - pos), pos);
+    while (pos < end) {
+      const n = fs.readSync(fd, buf, 0, Math.min(buf.length, end - pos), pos);
       if (n <= 0) break;
       pos += n;
+      step.used += n;
       const data = carry.length ? Buffer.concat([carry, buf.subarray(0, n)]) : buf.subarray(0, n);
       const last = data.lastIndexOf(10);
       if (last >= 0) foldText(s, data.toString('utf8', 0, last + 1));
       carry = Buffer.from(data.subarray(last + 1));
+      // skip a junk run with no newline
+      if (carry.length > MAX_LINE) carry = Buffer.alloc(0);
       offset = pos - carry.length;
     }
     s.files[key] = offset;
-    return offset !== from;
+    step.moved = offset !== from;
+    return step;
   } catch {
-    return false;
+    return step;
   } finally {
     if (fd !== null) {
       try {
@@ -237,24 +274,53 @@ function advance(s: Summary, file: string, key: string): boolean | null {
   }
 }
 
+// month keys, newest first
+function monthFiles(dir: string): string[] {
+  try {
+    return fs
+      .readdirSync(dir)
+      .filter((f) => LEDGER_FILE.test(f))
+      .map((f) => f.slice(0, 7))
+      .sort()
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
 export function readLedger(
   env: NodeJS.ProcessEnv = process.env,
   now = Date.now(),
-  opts: { persist?: boolean } = {},
+  opts: { persist?: boolean; budget?: number } = {},
 ): LedgerRead {
   try {
     const dir = ledgerDir(env);
-    const keys = [monthKey(prevMonth(now)), monthKey(now)];
     let summary = parseSummary(readJsonSafe(summaryFile(env)));
     let moved = false;
     for (let pass = 0; pass < 2; pass++) {
+      const cold = !summary.built;
+      // cold: every month file, newest first; warm: the last two in order
+      const keys = cold ? monthFiles(dir) : [monthKey(prevMonth(now)), monthKey(now)];
+      let budget = opts.budget ?? BYTE_BUDGET;
       let shrank = false;
+      let cut = false;
       for (const key of keys) {
-        const r = advance(summary, path.join(dir, `${key}.jsonl`), key);
-        if (r === null) shrank = true;
-        else if (r) moved = true;
+        const r = advance(summary, path.join(dir, `${key}.jsonl`), key, budget);
+        budget -= r.used;
+        if (r.moved) moved = true;
+        if (r.cut) cut = true;
+        if (r.shrank) {
+          shrank = true;
+          break;
+        }
       }
-      if (!shrank) break;
+      if (!shrank) {
+        if (cold && !cut) {
+          summary.built = true;
+          moved = true;
+        }
+        break;
+      }
       // rebuild: re-reading a rewritten file on old highs would double count
       summary = emptySummary();
       moved = true;
@@ -266,6 +332,39 @@ export function readLedger(
   } catch {
     return { summary: emptySummary(), moved: false };
   }
+}
+
+function dropOld(rows: DayRows, first: string): void {
+  for (const day in rows) if (day < first) delete rows[day];
+}
+
+// D-21; month files by name only
+export function pruneLedger(env: NodeJS.ProcessEnv, summary: Summary, now = Date.now()): void {
+  try {
+    const d = new Date(now);
+    const oldest = monthKey(new Date(d.getFullYear(), d.getMonth() - (KEEP_MONTHS - 1), 1, 12).getTime());
+    const dir = ledgerDir(env);
+    for (const key of monthFiles(dir)) {
+      if (key >= oldest) continue;
+      try {
+        const file = path.join(dir, `${key}.jsonl`);
+        if (!fs.lstatSync(file).isFile()) continue;
+        fs.unlinkSync(file);
+        delete summary.files[key];
+      } catch {}
+    }
+  } catch {}
+  const first = dayKey(now - KEEP_DAYS * DAY_MS);
+  for (const a in summary.days) dropOld(summary.days[a]!, first);
+  for (const a in summary.projects) {
+    const projects = summary.projects[a]!;
+    for (const p in projects) {
+      dropOld(projects[p]!, first);
+      if (Object.keys(projects[p]!).length === 0) delete projects[p];
+    }
+  }
+  const seen = now - KEEP_SESSION_DAYS * DAY_MS;
+  for (const id in summary.sessions) if (summary.sessions[id]!.seen < seen) delete summary.sessions[id];
 }
 
 function sums(rows: DayRows | undefined, today: string, monday: string, sunday: string, month: string) {
@@ -318,6 +417,7 @@ export function ledgerView(
     project: proj,
     since: since ?? null,
     at: summary.at > 0 ? summary.at : null,
+    partial: !summary.built,
   };
 }
 
@@ -337,6 +437,7 @@ export function recordLedger(
   read: LedgerRead,
   now = Date.now(),
 ): void {
+  let pruned = false;
   try {
     const c = payload.cost?.total_cost_usd;
     const s = payload.session_id;
@@ -352,9 +453,14 @@ export function recordLedger(
           tp: transcriptHash(payload.transcript_path),
           c,
         };
-        appendLine(path.join(ledgerDir(env), `${monthKey(now)}.jsonl`), JSON.stringify(line));
+        const file = path.join(ledgerDir(env), `${monthKey(now)}.jsonl`);
+        const fresh = !fs.existsSync(file);
+        if (appendLine(file, JSON.stringify(line)) && fresh) {
+          pruneLedger(env, read.summary, now);
+          pruned = true;
+        }
       }
     }
-    if (read.moved) writeAtomic(summaryFile(env), JSON.stringify(read.summary), { mode: 0o600 });
+    if (read.moved || pruned) writeAtomic(summaryFile(env), JSON.stringify(read.summary), { mode: 0o600 });
   } catch {}
 }
