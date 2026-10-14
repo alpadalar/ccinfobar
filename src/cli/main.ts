@@ -105,6 +105,11 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       runExplain(args, cfgFile);
       return;
     }
+    case 'hook': {
+      const { hookMain } = await import('./hook.js');
+      await hookMain(argv);
+      return;
+    }
     case 'bench': {
       const { runBenchCommand } = await import('../commands/bench.js');
       runBenchCommand(args, cfgFile);

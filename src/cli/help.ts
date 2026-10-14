@@ -34,6 +34,7 @@ Usage
   ccinfobar config set <path> <value>
                                  Set a value (JSON, else a string); invalid values are refused
   ccinfobar config unset <path>  Remove a value (defaults come back)
+  ccinfobar hook <Event>         Used by Claude Code hooks (prints nothing)
 
 Options
   --config <file>                Use a specific config file

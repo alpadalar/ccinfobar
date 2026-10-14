@@ -82,6 +82,29 @@ describe('import graph', () => {
     });
   }
 
+  it('keeps cli/hook.ts minimal', () => {
+    const allowed = new Set([
+      'src/cli/hook.ts',
+      'src/cli/args.ts',
+      'src/data/hooks.ts',
+      'src/data/store.ts',
+      'src/core/paths.ts',
+      'src/core/sanitize.ts',
+    ]);
+    const files = closure('cli/hook.ts');
+    expect(files.has('src/cli/hook.ts')).toBe(true);
+    expect([...files].filter((f) => !allowed.has(f))).toEqual([]);
+  });
+
+  it('dispatches hook mode from bin before loading cli.js', () => {
+    const text = fs.readFileSync(path.join(src, 'bin.ts'), 'utf8');
+    expect(text).not.toMatch(/^\s*import\s[^(]*from\s+'\.\/cli\.js'/m);
+    const hook = text.indexOf("import('./cli/hook.js')");
+    expect(hook).toBeGreaterThan(0);
+    expect(hook).toBeLessThan(text.indexOf("import('./cli.js')"));
+    expect(fs.readFileSync(path.join(src, 'cli/main.ts'), 'utf8')).toContain("await import('./hook.js')");
+  });
+
   it('loads every command lazily from main', () => {
     const text = fs.readFileSync(path.join(src, 'cli/main.ts'), 'utf8');
     for (const mod of ['install-cli', 'manage', 'update', 'doctor', 'config-cmd', 'explain', 'bench']) {
