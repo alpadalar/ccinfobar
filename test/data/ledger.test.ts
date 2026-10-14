@@ -153,6 +153,13 @@ describe('projectRoot', () => {
     expect(projectRoot(p({ project_dir: '/' }), 'linux')).toBe('/');
   });
 
+  it('caps the key at 1024 characters for writes and lookups alike', () => {
+    const long = p({ project_dir: `/${'a'.repeat(2000)}` });
+    expect(projectRoot(long, 'linux')).toHaveLength(1024);
+    const s = fold(line('s1', 0, T, A, projectRoot(long)), line('s1', 2, T, A, projectRoot(long)));
+    expect(close(ledgerView(s, A, projectRoot(long), T)?.project.all)).toBe(2);
+  });
+
   it('lowercases on win32 only', () => {
     expect(projectRoot(p({ project_dir: 'C:\\Work\\Repo\\' }), 'win32')).toBe('c:\\work\\repo');
     expect(projectRoot(p({ project_dir: '/Work/Repo' }), 'darwin')).toBe('/Work/Repo');

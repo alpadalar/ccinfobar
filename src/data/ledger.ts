@@ -119,7 +119,7 @@ export function projectRoot(payload: StatusPayload, platform: NodeJS.Platform = 
     payload.workspace?.project_dir || payload.workspace?.current_dir || payload.cwd || process.cwd();
   let root = p.resolve(raw);
   while (root.length > 1 && /[\\/]$/.test(root) && p.dirname(root) !== root) root = root.slice(0, -1);
-  return platform === 'win32' ? root.toLowerCase() : root;
+  return (platform === 'win32' ? root.toLowerCase() : root).slice(0, MAX_PROJECT);
 }
 
 export function emptySummary(): Summary {
@@ -466,7 +466,7 @@ export function recordLedger(
           t: now,
           a: accountKey(env),
           s,
-          p: projectRoot(payload).slice(0, MAX_PROJECT),
+          p: projectRoot(payload),
           tp: transcriptHash(payload.transcript_path),
           c,
         };
