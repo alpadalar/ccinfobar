@@ -160,7 +160,7 @@ describe('deepSanitize', () => {
     const input = {
       transcript_path: '/t\u001b',
       nested: { transcript_path: 'x\u001b[2Jy' },
-      ['k\u001b[31m']: 'v',
+      'k\u001b[31m': 'v',
     };
     expect(deepSanitize(input, new Set(['transcript_path']))).toEqual({
       transcript_path: '/t\u001b',
