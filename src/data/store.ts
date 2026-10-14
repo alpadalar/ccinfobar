@@ -119,7 +119,7 @@ export function acquireLock(file: string, staleMs: number, now = Date.now()): bo
     if ((e as NodeJS.ErrnoException).code !== 'EEXIST') return false;
   }
   try {
-    if (now - fs.statSync(file).mtimeMs <= staleMs) return false;
+    if (now - fs.statSync(file).mtimeMs < staleMs) return false;
     fs.unlinkSync(file);
     return tryCreate(file);
   } catch {

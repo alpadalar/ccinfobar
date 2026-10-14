@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { cacheDir, configDir } from '../core/paths.js';
 import type { Config } from '../core/types.js';
+import { acquireLock, writeAtomic } from '../data/store.js';
 
 export const REPO = 'alpadalar/ccinfobar';
 const DAY = 86_400_000;
@@ -36,10 +37,7 @@ export function readUpdateState(env: NodeJS.ProcessEnv = process.env): UpdateSta
 }
 
 export function writeUpdateState(state: UpdateState, env: NodeJS.ProcessEnv = process.env): void {
-  try {
-    fs.mkdirSync(path.dirname(updateFile(env)), { recursive: true });
-    fs.writeFileSync(updateFile(env), JSON.stringify(state));
-  } catch {}
+  writeAtomic(updateFile(env), JSON.stringify(state));
 }
 
 export function compareVersions(a: string, b: string): number {
@@ -175,13 +173,8 @@ export function scheduleCheck(config: Config, session?: string, env: NodeJS.Proc
   const age = state ? now - state.checkedAt : Number.POSITIVE_INFINITY;
   const newSession = !!session && session !== state?.session && age >= SESSION_GAP;
   if (age < DAY && !newSession) return;
-  const lock = `${updateFile(env)}.lock`;
+  if (!acquireLock(`${updateFile(env)}.lock`, LOCK_MS, now)) return;
   try {
-    if (now - fs.statSync(lock).mtimeMs < LOCK_MS) return;
-  } catch {}
-  try {
-    fs.mkdirSync(path.dirname(lock), { recursive: true });
-    fs.writeFileSync(lock, String(now));
     if (state && session) writeUpdateState({ ...state, session }, env);
     spawnSelf(['update', '--background'], env);
   } catch {}

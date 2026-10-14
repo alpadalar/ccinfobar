@@ -7,6 +7,7 @@ import { cacheDir, claudeDir } from '../core/paths.js';
 import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
 import { detectProvider } from './provider.js';
+import { acquireLock, writeAtomic } from './store.js';
 
 type RateLimits = NonNullable<StatusPayload['rate_limits']>;
 
@@ -39,13 +40,7 @@ export function readUsageCache(env: NodeJS.ProcessEnv = process.env): UsageCache
 }
 
 function writeUsageCache(cache: UsageCache, env: NodeJS.ProcessEnv): void {
-  try {
-    fs.mkdirSync(cacheDir(env), { recursive: true });
-    const file = usageFile(env);
-    const tmp = `${file}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(cache));
-    fs.renameSync(tmp, file);
-  } catch {}
+  writeAtomic(usageFile(env), JSON.stringify(cache));
 }
 
 export function usageApiDisabled(config: Config, env: NodeJS.ProcessEnv = process.env): boolean {
@@ -232,13 +227,8 @@ export async function fetchUsage(
 const LOCK_MS = 30_000;
 
 export function scheduleUsage(env: NodeJS.ProcessEnv = process.env, now = Date.now()): void {
-  const lock = `${usageFile(env)}.lock`;
+  if (!acquireLock(`${usageFile(env)}.lock`, LOCK_MS, now)) return;
   try {
-    if (now - fs.statSync(lock).mtimeMs < LOCK_MS) return;
-  } catch {}
-  try {
-    fs.mkdirSync(cacheDir(env), { recursive: true });
-    fs.writeFileSync(lock, String(now));
     spawnSelf(['usage', '--background'], env);
   } catch {}
 }

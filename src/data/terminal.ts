@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { cacheDir } from '../core/paths.js';
+import { writeAtomic } from './store.js';
 
 const TTL_MS = 10_000;
 
@@ -57,9 +58,6 @@ export function terminalWidth(sessionId: string | undefined, hint?: number): num
     if (Date.now() - cached.at < TTL_MS) return cached.width;
   } catch {}
   const width = probe();
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify({ width, at: Date.now() }));
-  } catch {}
+  writeAtomic(file, JSON.stringify({ width, at: Date.now() }));
   return width;
 }

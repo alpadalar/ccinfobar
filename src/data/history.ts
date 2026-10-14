@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { cacheDir } from '../core/paths.js';
+import { writeAtomic } from './store.js';
 
 export interface HistorySample {
   t: number;
@@ -64,9 +65,7 @@ export function recordHistory(
       fs.mkdirSync(dir(env), { recursive: true });
       prune(env, sample.t);
     }
-    const tmp = `${file}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify({ samples: kept }));
-    fs.renameSync(tmp, file);
+    writeAtomic(file, JSON.stringify({ samples: kept }));
   } catch {}
   return kept;
 }
