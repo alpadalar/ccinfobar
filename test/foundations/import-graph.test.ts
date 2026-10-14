@@ -45,6 +45,7 @@ const EXCLUDED_FILES = [
   'src/commands/explain.ts',
   'src/core/inspect.ts',
   'src/core/trace.ts',
+  'src/commands/bench.ts',
 ];
 const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/'];
 
@@ -80,7 +81,7 @@ describe('import graph', () => {
 
   it('loads every command lazily from main', () => {
     const text = fs.readFileSync(path.join(src, 'cli/main.ts'), 'utf8');
-    for (const mod of ['install-cli', 'manage', 'update', 'doctor', 'config-cmd', 'explain']) {
+    for (const mod of ['install-cli', 'manage', 'update', 'doctor', 'config-cmd', 'explain', 'bench']) {
       expect(text).toContain(`await import('../commands/${mod}.js')`);
     }
   });

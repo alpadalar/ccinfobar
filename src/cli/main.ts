@@ -105,6 +105,11 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       runExplain(args, cfgFile);
       return;
     }
+    case 'bench': {
+      const { runBenchCommand } = await import('../commands/bench.js');
+      runBenchCommand(args, cfgFile);
+      return;
+    }
     default:
       console.error(`Unknown command "${args.command}". Run ccinfobar --help.`);
       process.exitCode = 1;

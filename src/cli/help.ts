@@ -29,6 +29,7 @@ Usage
   ccinfobar explain --scenario <name>
                                  Explain the widgets for a named situation
                                  (put options after the widget id)
+  ccinfobar bench                Measure render time: cold, warm, median and p95
   ccinfobar config get <path>    Print a config value (e.g. theme, lines.0.2.type)
   ccinfobar config set <path> <value>
                                  Set a value (JSON, else a string); invalid values are refused
@@ -38,7 +39,9 @@ Options
   --config <file>                Use a specific config file
   --payload <file>               Render using a JSON payload file
   --width <n>                    Override the detected terminal width
-  --scenario <name>              preview/explain: use a named scenario (bare flag lists them)
+  --scenario <name>              preview/explain/bench: use a named scenario (bare flag lists them)
+  --runs <n>                     bench: number of runs (default 20, max 1000)
+  --json                         explain, bench: print one JSON object
   --refresh <seconds>            install: also set statusLine.refreshInterval
   --project                      install/uninstall: use .claude/settings.local.json here
   --import / --no-import         install: import the previous status line's layout without asking

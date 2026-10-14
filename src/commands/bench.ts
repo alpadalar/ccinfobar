@@ -1,6 +1,18 @@
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import type { Args } from '../cli/args.js';
+import { t } from '../core/i18n/index.js';
+import { loadForUse } from '../core/load.js';
+import { configDir, tildify } from '../core/paths.js';
+import { scenarioFlag, scenarioListLines } from '../core/preview.js';
 import { samplePayload } from '../core/sample.js';
+import { sanitizeText } from '../core/sanitize.js';
 import { getScenario, SCENARIO_NOW } from '../core/scenarios.js';
 import type { StatusPayload } from '../core/types.js';
+import { VERSION } from '../core/version.js';
+import { writeAtomic } from '../data/store.js';
 
 export interface Stats {
   n: number;
@@ -128,4 +140,285 @@ export function syntheticTranscript(now: number): string {
     parent = asstId;
   }
   return `${lines.join('\n')}\n`;
+}
+
+export interface BenchIo {
+  tty: boolean;
+  log(line: string): void;
+  error(line: string): void;
+}
+
+export function benchIo(): BenchIo {
+  return {
+    tty: !!process.stdout.isTTY,
+    log: (l) => console.log(l),
+    error: (l) => console.error(l),
+  };
+}
+
+export interface BenchOptions {
+  entry?: string;
+  runs: number;
+  scenario?: string;
+  json: boolean;
+  cfgFile: string;
+  cwd?: string;
+}
+
+type RowName = 'control' | 'cold' | 'warm' | 'warm-no-compile-cache';
+
+const LABELS = {
+  control: 'bench.row.control',
+  cold: 'bench.row.cold',
+  warm: 'bench.row.warm',
+  'warm-no-compile-cache': 'bench.row.warmNoCache',
+} as const;
+
+class RunFailed extends Error {
+  constructor(
+    readonly row: RowName,
+    readonly code: string | number,
+    readonly stderr: string,
+  ) {
+    super(row);
+  }
+}
+
+function inGitRepo(dir: string): boolean {
+  let cur = path.resolve(dir);
+  for (;;) {
+    if (fs.existsSync(path.join(cur, '.git'))) return true;
+    const parent = path.dirname(cur);
+    if (parent === cur) return false;
+    cur = parent;
+  }
+}
+
+function priority(): number | null {
+  try {
+    return os.getPriority();
+  } catch {
+    return null;
+  }
+}
+
+function prepareDirs(base: string, cfgFile: string): BenchDirs {
+  const dirs: BenchDirs = {
+    cache: path.join(base, 'cache'),
+    config: path.join(base, 'config'),
+    claude: path.join(base, 'claude'),
+    compile: path.join(base, 'compile'),
+  };
+  for (const d of Object.values(dirs)) fs.mkdirSync(d, { recursive: true });
+  if (fs.existsSync(cfgFile)) {
+    const copy = path.join(dirs.config, 'config.json');
+    fs.copyFileSync(cfgFile, copy);
+    if (process.platform !== 'win32') fs.chmodSync(copy, 0o444);
+  }
+  const themes = path.join(configDir(), 'themes');
+  if (fs.existsSync(themes)) fs.cpSync(themes, path.join(dirs.config, 'themes'), { recursive: true });
+  return dirs;
+}
+
+const rm = (p: string) => fs.rmSync(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+
+const round = (n: number) => Math.round(n * 100) / 100;
+
+export function runBench(opts: BenchOptions, io: BenchIo = benchIo()): number {
+  const flag = scenarioFlag(opts.scenario);
+  if (flag.kind === 'list') {
+    for (const line of scenarioListLines()) io.log(line);
+    return 0;
+  }
+  if (flag.kind === 'unknown') {
+    io.error(t('preview.unknownScenario', { name: sanitizeText(flag.name) }));
+    for (const line of scenarioListLines().slice(1)) io.error(line);
+    return 1;
+  }
+  const loaded = loadForUse(opts.cfgFile);
+  if (loaded.issue) {
+    const { line, column, message } = loaded.issue;
+    io.error(
+      t('config.issue', {
+        file: sanitizeText(tildify(loaded.path)),
+        line,
+        column,
+        message: sanitizeText(message),
+      }),
+    );
+    return 1;
+  }
+  const entry = opts.entry ?? process.argv[1];
+  if (!entry) {
+    io.error(t('bench.noEntry'));
+    return 1;
+  }
+  const scenario = flag.kind === 'scenario' ? flag.id : undefined;
+  const runs = opts.runs;
+  const cwd = opts.cwd ?? process.cwd();
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-bench-'));
+  try {
+    const transcript = path.join(root, 'transcript.jsonl');
+    if (!writeAtomic(transcript, syntheticTranscript(SCENARIO_NOW)))
+      throw new Error(`cannot write ${transcript}`);
+    const input = JSON.stringify(benchPayload(scenario, cwd, transcript));
+
+    const time = (row: RowName, args: string[], env: NodeJS.ProcessEnv): number => {
+      const t0 = process.hrtime.bigint();
+      const r = spawnSync(process.execPath, args, {
+        input,
+        env,
+        cwd,
+        stdio: ['pipe', 'ignore', 'pipe'],
+        timeout: 15_000,
+        windowsHide: true,
+      });
+      const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+      if (r.error || r.signal || r.status !== 0) {
+        const code = r.status ?? r.signal ?? (r.error as NodeJS.ErrnoException | undefined)?.code ?? '?';
+        throw new RunFailed(row, code, String(r.stderr ?? '').slice(0, 4000));
+      }
+      return ms;
+    };
+    const repeat = (fn: () => number) => Array.from({ length: runs }, fn);
+
+    const shared = prepareDirs(path.join(root, 'shared'), opts.cfgFile);
+    const control = repeat(() => time('control', ['-e', '0'], benchEnv(process.env, shared)));
+    let i = 0;
+    const cold = repeat(() => {
+      const base = path.join(root, `cold-${i++}`);
+      const env = benchEnv(process.env, prepareDirs(base, opts.cfgFile));
+      const ms = time('cold', [entry], env);
+      rm(base);
+      return ms;
+    });
+    const warmEnv = benchEnv(process.env, shared);
+    for (let w = 0; w < 2; w++) time('warm', [entry], warmEnv);
+    const warm = repeat(() => time('warm', [entry], warmEnv));
+    const noCacheEnv = benchEnv(process.env, shared, { compileCache: false });
+    const noCache = repeat(() => time('warm-no-compile-cache', [entry], noCacheEnv));
+
+    const rows: [RowName, Stats][] = [
+      ['control', stats(control)],
+      ['cold', stats(cold)],
+      ['warm', stats(warm)],
+      ['warm-no-compile-cache', stats(noCache)],
+    ];
+    report(io, {
+      scenario: scenario ?? 'sample',
+      runs,
+      gitRepo: inGitRepo(cwd),
+      rows,
+      overheadMs: overhead(rows[2]![1], rows[0]![1]),
+      json: opts.json,
+    });
+    return 0;
+  } catch (err) {
+    if (!(err instanceof RunFailed)) throw err;
+    io.error(t('bench.failed', { row: t(LABELS[err.row]), code: sanitizeText(String(err.code)) }));
+    const stderr = err.stderr.trim();
+    for (const line of stderr ? stderr.split(/\r?\n/) : []) io.error(`  ${sanitizeText(line)}`);
+    return 1;
+  } finally {
+    rm(root);
+  }
+}
+
+function report(
+  io: BenchIo,
+  r: {
+    scenario: string;
+    runs: number;
+    gitRepo: boolean;
+    rows: [RowName, Stats][];
+    overheadMs: number;
+    json: boolean;
+  },
+): void {
+  const cpus = os.cpus();
+  const cpu = { model: sanitizeText(cpus[0]?.model?.trim() || 'unknown'), count: cpus.length };
+  const prio = priority();
+  const sys = { type: os.type(), platform: process.platform, arch: process.arch, release: os.release() };
+  if (r.json) {
+    io.log(
+      JSON.stringify({
+        schema: 1,
+        version: VERSION,
+        node: process.version,
+        os: sys,
+        cpu,
+        priority: prio,
+        scenario: r.scenario,
+        runs: r.runs,
+        gitRepo: r.gitRepo,
+        rows: r.rows.map(([name, s]) => ({
+          name,
+          n: s.n,
+          median: round(s.median),
+          p95: round(s.p95),
+          min: round(s.min),
+          max: round(s.max),
+        })),
+        overheadMs: round(r.overheadMs),
+      }),
+    );
+    return;
+  }
+  io.log(t('bench.title', { version: VERSION }));
+  io.log(t('bench.node', { node: process.version }));
+  io.log(
+    t('bench.os', {
+      os: sanitizeText(sys.type),
+      release: sanitizeText(sys.release),
+      platform: sys.platform,
+      arch: sys.arch,
+    }),
+  );
+  io.log(t('bench.cpu', cpu));
+  io.log(t('bench.priority', { priority: prio ?? '?' }));
+  io.log(t('bench.scenario', { scenario: r.scenario }));
+  io.log(t('bench.runs', { runs: r.runs }));
+  io.log(t(r.gitRepo ? 'bench.gitRepo' : 'bench.notGitRepo'));
+  if (prio !== null && prio > 0) io.log(t('bench.niceWarning'));
+  if (process.platform === 'win32') io.log(t('bench.windowsNote'));
+  io.log('');
+  const head = [
+    'bench.col.n',
+    'bench.col.median',
+    'bench.col.p95',
+    'bench.col.min',
+    'bench.col.max',
+  ] as const;
+  const labels = r.rows.map(([name]) => t(LABELS[name]));
+  const pad = Math.max(t('bench.col.row').length, ...labels.map((l) => l.length));
+  const cols = r.rows.map(([, s]) => [
+    String(s.n),
+    ...[s.median, s.p95, s.min, s.max].map((v) => v.toFixed(1)),
+  ]);
+  const widths = head.map((h, c) => Math.max(t(h).length, ...cols.map((row) => row[c]!.length)));
+  const line = (label: string, cells: string[]) =>
+    [label.padEnd(pad), ...cells.map((v, c) => v.padStart(widths[c]!))].join('  ');
+  io.log(
+    `${line(
+      t('bench.col.row'),
+      head.map((h) => t(h)),
+    )}  ${t('bench.unit')}`,
+  );
+  for (let k = 0; k < r.rows.length; k++) io.log(line(labels[k]!, cols[k]!));
+  io.log('');
+  io.log(t('bench.overhead', { ms: r.overheadMs.toFixed(1) }));
+}
+
+export function runBenchCommand(args: Args, cfgFile: string, io: BenchIo = benchIo()): void {
+  const scenario = args.flags.scenario;
+  const code = runBench(
+    {
+      runs: clampRuns(args.flags.runs),
+      ...(scenario === true ? { scenario: '' } : typeof scenario === 'string' ? { scenario } : {}),
+      json: args.flags.json === true,
+      cfgFile,
+    },
+    io,
+  );
+  if (code !== 0) process.exitCode = code;
 }

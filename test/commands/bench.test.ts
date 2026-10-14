@@ -1,12 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { parseArgs } from '../../src/cli/args.js';
 import {
+  type BenchIo,
   benchEnv,
   benchPayload,
   clampRuns,
   overhead,
+  runBench,
+  runBenchCommand,
   stats,
   syntheticTranscript,
 } from '../../src/commands/bench.js';
+import { t } from '../../src/core/i18n/index.js';
+import { cacheDir, configDir } from '../../src/core/paths.js';
 import { samplePayload } from '../../src/core/sample.js';
 import { getScenario, SCENARIO_NOW } from '../../src/core/scenarios.js';
 import { parseTranscriptText } from '../../src/data/transcript.js';
@@ -105,5 +114,128 @@ describe('syntheticTranscript', () => {
     expect(info.totalTokens).toBeGreaterThan(0);
     expect(info.messageCount).toBeGreaterThan(50);
     expect(info.userMessageCount).toBeGreaterThan(10);
+  });
+});
+
+const root = path.resolve(__dirname, '../..');
+const bin = path.join(root, 'dist/ccinfobar.js');
+const ESC = '\u001b';
+
+function capture(): { io: BenchIo; out: string[]; err: string[] } {
+  const out: string[] = [];
+  const err: string[] = [];
+  return { io: { tty: false, log: (l) => out.push(l), error: (l) => err.push(l) }, out, err };
+}
+
+function benchDirs(): string[] {
+  return fs
+    .readdirSync(os.tmpdir())
+    .filter((n) => n.startsWith('ccib-bench-'))
+    .sort();
+}
+
+function cfg(text = '{}'): string {
+  const dir = configDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `bench-${Math.random().toString(36).slice(2)}.json`);
+  fs.writeFileSync(file, text);
+  return file;
+}
+
+function listFiles(dir: string): string[] {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { recursive: true }).map(String).sort();
+}
+
+afterEach(() => {
+  process.exitCode = undefined;
+});
+
+describe('runBench', () => {
+  it('lists scenarios on a bare --scenario', () => {
+    const c = capture();
+    runBenchCommand(parseArgs(['bench', '--scenario']), cfg(), c.io);
+    expect(process.exitCode).toBeUndefined();
+    expect(c.out[0]).toBe(t('preview.scenariosHeader'));
+  });
+
+  it('refuses an unknown scenario with the list', () => {
+    const c = capture();
+    expect(runBench({ runs: 1, scenario: 'nope', json: false, cfgFile: cfg() }, c.io)).toBe(1);
+    expect(c.err[0]).toBe(t('preview.unknownScenario', { name: 'nope' }));
+    expect(c.err.some((l) => l.includes('context-full'))).toBe(true);
+  });
+
+  it('reports a broken config', () => {
+    const c = capture();
+    const file = cfg('{ "theme": ');
+    expect(runBench({ entry: bin, runs: 1, json: false, cfgFile: file }, c.io)).toBe(1);
+    expect(c.err.join('\n')).toContain('has an error at line');
+    expect(c.out).toEqual([]);
+  });
+
+  it('stops on a failing run and prints its stderr', () => {
+    const before = benchDirs();
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-benchfail-'));
+    try {
+      const entry = path.join(dir, 'fail.mjs');
+      fs.writeFileSync(entry, "process.stderr.write('boom\\u001b[31m red'); process.exit(3);\n");
+      const c = capture();
+      expect(runBench({ entry, runs: 2, json: false, cfgFile: cfg() }, c.io)).toBe(1);
+      expect(c.err[0]).toBe(t('bench.failed', { row: t('bench.row.cold'), code: 3 }));
+      expect(c.err.join('\n')).toContain('boom');
+      expect(c.err.join('\n')).not.toContain(ESC);
+      expect(benchDirs()).toEqual(before);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!fs.existsSync(bin))('runBench with the built cli', () => {
+  it('prints one JSON object with four rows and leaves no temp dirs', { timeout: 60_000 }, () => {
+    const before = benchDirs();
+    const cache = listFiles(cacheDir());
+    const c = capture();
+    expect(runBench({ entry: bin, runs: 2, json: true, cfgFile: cfg() }, c.io)).toBe(0);
+    expect(c.err).toEqual([]);
+    expect(c.out).toHaveLength(1);
+    const o = JSON.parse(c.out[0]!);
+    expect(o.schema).toBe(1);
+    expect(typeof o.version).toBe('string');
+    expect(o.node).toBe(process.version);
+    expect(o.os.platform).toBe(process.platform);
+    expect(typeof o.os.arch).toBe('string');
+    expect(typeof o.os.release).toBe('string');
+    expect(typeof o.cpu.model).toBe('string');
+    expect(typeof o.cpu.count).toBe('number');
+    expect(o.scenario).toBe('sample');
+    expect(o.runs).toBe(2);
+    expect(typeof o.gitRepo).toBe('boolean');
+    expect(o.rows.map((r: { name: string }) => r.name)).toEqual([
+      'control',
+      'cold',
+      'warm',
+      'warm-no-compile-cache',
+    ]);
+    for (const r of o.rows) {
+      expect(r.n).toBe(2);
+      for (const k of ['median', 'p95', 'min', 'max']) expect(r[k]).toBeGreaterThan(0);
+    }
+    expect(o.overheadMs).toBeCloseTo(o.rows[2].median - o.rows[0].median, 1);
+    expect(benchDirs()).toEqual(before);
+    expect(listFiles(cacheDir())).toEqual(cache);
+  });
+
+  it('prints plain text with the overhead line', { timeout: 60_000 }, () => {
+    const c = capture();
+    expect(
+      runBench({ entry: bin, runs: 1, scenario: 'context-full', json: false, cfgFile: cfg() }, c.io),
+    ).toBe(0);
+    const text = c.out.join('\n');
+    expect(text).not.toContain(ESC);
+    expect(text).toContain('ccinfobar overhead = warm median');
+    expect(text).toContain(t('bench.row.warmNoCache'));
+    expect(text).toContain('context-full');
   });
 });
