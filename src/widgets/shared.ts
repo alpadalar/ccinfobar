@@ -126,6 +126,14 @@ export function formatDuration(ms: number, compact = true): string {
   return `${hh}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+// 42s, 2m14s, then formatDuration
+export function span(ms: number): string {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s`;
+  return formatDuration(ms);
+}
+
 export function formatCurrency(usd: number, decimals = 2): string {
   return `$${usd.toFixed(decimals)}`;
 }

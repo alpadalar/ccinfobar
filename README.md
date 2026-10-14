@@ -42,7 +42,7 @@
 - **24 themes, or your own.** Colored text, colored blocks, powerline arrows, rounded capsules or a bordered panel with a responsive grid, from classic to Nord, Dracula, Rosé Pine, Tokyo Night and Catppuccin. ASCII mode for terminals without a Nerd Font. Preview them all with `ccinfobar themes` and write your own in a few lines of JSON.
 - **Terminal editor too.** `ccinfobar tui` does the same from the keyboard (or mouse) when you are on SSH or prefer to stay in the terminal.
 - **First-class GSD support.** Milestone progress, the current phase, plan completion inside the phase, the next command to run, blockers, requirements and more, as separate widgets you can arrange freely. See [docs/GSD.md](docs/GSD.md).
-- **101 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, git, workspace, system and custom commands.
+- **102 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, git, workspace, system and custom commands.
 - **Uses the current Claude Code payload.** Rate limits, prompt cache statistics, PR status and repository info come straight from the status line JSON, without extra API calls.
 - **Fast, dependency-free, self-updating.** Zero runtime dependencies, lazy data loading, an incremental transcript cache and background updates.
 - **Cross-platform.** Linux, macOS and Windows, tested in CI on all three with Node 20, 22, 24 and 26.
@@ -150,7 +150,7 @@ Mouse works too: click to select, drag a chip to move it.
 
 | Category | Widgets |
 | --- | --- |
-| Session & model | model, effort, thinking, fast mode, output style, session name and id, Claude Code version, vim mode, agent name, skills |
+| Session & model | model, effort, thinking, fast mode, output style, session name and id, Claude Code version, vim mode, agent name, skills, how long the turn has run (`turn-timer`) |
 | Context window | used or remaining percent (optionally relative to the auto-compact limit), bar, length, window size, compaction count |
 | Tokens & cache | input, output, cached, total, cache hit rate, cache expiry countdown, last cache miss cause, output speed, performance (`performance`: hit rate and average response time) |
 | Cost & time | session cost, cost per hour, estimated cost today, this week and per project across sessions (`cost-today`, `cost-week`, `cost-project`), budget, session and API duration, lines changed, message count |
@@ -169,6 +169,8 @@ A widget without data (a new chat, a folder that is not a git repo or GSD projec
 `workspace-repos` lists the git repos directly inside the current folder with their branches, such as `repos: api (main) · web (dev)`, when the folder itself is not a repo. It reads `.git/HEAD` files, never runs git while rendering and rescans at most every 10 seconds. It shows nothing anywhere below a folder that holds `.git`, so a dotfiles repo at `~/.git` hides it in your whole home folder. `GIT_DIR` and `GIT_WORK_TREE` are ignored. While it shows repos, the other git widgets hide instead of showing `—`; set `hideGitPlaceholders: false` to keep them, and `ccinfobar explain` names the reason. Turn on `dirty` to mark repos with uncommitted changes, such as `api (main*)`: a background job runs a hardened `git status` in at most 50 repos about once a minute, and the status line only reads its cache.
 
 `tool-activity` shows the tool Claude is running and what it used this turn, such as `Bash npm test · Read 4, Edit 2, Bash 1`, from the transcript alone (no hooks needed). Set `scope: session` for session totals, `mode` to show only one part, and `showArgs: false` to hide the command or file name. Claude Code redraws the status line on each new assistant message, so a finished tool clears at the next message unless `refreshInterval` is set.
+
+`turn-timer` shows how long the current turn has run (`2m14s`) and, once it ends, how long it took (`last 3m02s`; set `afterStop: hide` to hide it instead). With `ccinfobar install --hooks` the time runs exactly from your prompt to Claude's stop; without hooks it comes from the transcript and is close. The time includes any wait for a permission prompt. Set `refreshInterval` to see it tick while Claude works.
 
 ## Themes
 

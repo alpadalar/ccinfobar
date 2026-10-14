@@ -5,4 +5,5 @@ export const widgetMessages = {
   'widget.performance.miss': 'miss',
   'widget.limit.safe': 'safe',
   'widget.limit.reached': 'limit reached',
+  'widget.turn.last': 'last {time}',
 } as const;

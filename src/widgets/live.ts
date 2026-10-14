@@ -1,6 +1,10 @@
-import type { WidgetDef } from '../core/types.js';
-import { activeTools, groupName, mergeCounts } from '../data/live.js';
-import { opt } from './shared.js';
+import { t as tr } from '../core/i18n/index.js';
+import type { RenderContext, WidgetDef } from '../core/types.js';
+import { activeTools, groupName, mergeCounts, trustedTurn } from '../data/live.js';
+import { opt, span } from './shared.js';
+
+const turnOf = (ctx: RenderContext) =>
+  trustedTurn(ctx.data.hooks?.() ?? null, ctx.data.transcript(), ctx.payload.prompt_id, ctx.now.getTime());
 
 export const widgets: WidgetDef[] = [
   {
@@ -45,7 +49,9 @@ export const widgets: WidgetDef[] = [
       const group = opt(item, 'groupMcp', true);
       const parts: string[] = [];
       if (mode !== 'counts') {
-        const running = activeTools(t, ctx.now.getTime());
+        const turn = turnOf(ctx);
+        const stopAt = turn?.source === 'hooks' ? turn.end : null;
+        const running = activeTools(t, ctx.now.getTime(), stopAt);
         const first = running[0];
         if (first) {
           const arg = opt(item, 'showArgs', true) && first.arg ? ` ${first.arg}` : '';
@@ -64,6 +70,37 @@ export const widgets: WidgetDef[] = [
       }
       if (!parts.length) return null;
       return parts.join(ctx.config.charset === 'text' ? ' | ' : ' · ');
+    },
+  },
+  {
+    type: 'turn-timer',
+    name: 'Turn timer',
+    category: 'session',
+    description:
+      'How long the current turn has run, or the last one took; exact with hooks, from the transcript otherwise',
+    label: 'Turn ',
+    icon: { nerd: '\u{f051b}', emoji: '\u23f1\ufe0f', text: '\u23f1' },
+    color: 'cyan',
+    sample: '2m14s',
+    options: [
+      {
+        key: 'afterStop',
+        label: 'After the turn ends',
+        kind: 'select',
+        default: 'last',
+        choices: [
+          { value: 'last', label: 'Show last duration' },
+          { value: 'hide', label: 'Hide' },
+        ],
+      },
+    ],
+    // includes permission waits
+    render(ctx, item) {
+      const turn = turnOf(ctx);
+      if (!turn) return null;
+      if (turn.end === null) return span(Math.max(0, ctx.now.getTime() - turn.start));
+      if (opt<string>(item, 'afterStop', 'last') === 'hide' || turn.durationMs === null) return null;
+      return tr('widget.turn.last', { time: span(turn.durationMs) });
     },
   },
 ];

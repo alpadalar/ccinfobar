@@ -1,6 +1,44 @@
+import type { HookState } from './hooks.js';
 import type { RunningTool, TranscriptInfo } from './transcript.js';
 
 export const TOOL_MAX_MS = 600_000;
+const MISSED_UPS_MS = 5_000;
+const MISSED_STOP_MS = 60_000;
+
+export interface TrustedTurn {
+  source: 'hooks' | 'transcript';
+  start: number;
+  end: number | null;
+  durationMs: number | null;
+}
+
+// hooks unless the transcript shows a missed prompt, a missed Stop or another prompt id
+export function trustedTurn(
+  h: HookState | null,
+  t: TranscriptInfo | null,
+  promptId: string | undefined,
+  now: number,
+): TrustedTurn | null {
+  const ht = h?.turn ?? null;
+  const pStart = t?.promptStart ?? null;
+  const tEnd = t?.turnEnd ?? null;
+  if (ht && ht.start !== null) {
+    const idOk = !promptId || !ht.promptId || ht.promptId === promptId;
+    const missedUps = pStart !== null && pStart > ht.start + MISSED_UPS_MS;
+    const missedStop = ht.end === null && tEnd !== null && tEnd >= ht.start && now - tEnd > MISSED_STOP_MS;
+    if (idOk && !missedUps && !missedStop) {
+      const durationMs = ht.durationMs ?? (ht.end !== null ? Math.max(0, ht.end - ht.start) : null);
+      return { source: 'hooks', start: ht.start, end: ht.end, durationMs };
+    }
+  }
+  if (pStart === null) return null;
+  return {
+    source: 'transcript',
+    start: pStart,
+    end: tEnd,
+    durationMs: tEnd !== null ? Math.max(0, tEnd - pStart) : null,
+  };
+}
 
 // stable: ties keep the order they reached the count
 export function byCount(a: [string, number], b: [string, number]): number {

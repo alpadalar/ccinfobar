@@ -1,7 +1,7 @@
 import { visibleWidth } from '../core/ansi.js';
 import type { RenderContext, WidgetDef } from '../core/types.js';
 import type { AgentInfo } from '../data/agents.js';
-import { formatDuration, formatTokens, opt } from './shared.js';
+import { formatTokens, opt, span } from './shared.js';
 
 const text = (ctx: RenderContext) => ctx.config.charset === 'text';
 
@@ -14,13 +14,6 @@ export function shortModel(model: string | null): string {
 function mark(ctx: RenderContext, status: string): string {
   if (text(ctx)) return status === 'completed' ? '[x]' : status === 'in_progress' ? '[>]' : '[ ]';
   return status === 'completed' ? '✓' : status === 'in_progress' ? '▸' : '·';
-}
-
-function span(ms: number): string {
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s`;
-  return formatDuration(ms);
 }
 
 function padTo(s: string, w: number): string {

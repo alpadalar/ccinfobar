@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OptionValue } from '../../src/core/types.js';
+import type { HookState, HookTurn } from '../../src/data/hooks.js';
 import { parseTranscriptText, type TranscriptInfo } from '../../src/data/transcript.js';
 import { ctxWith, NOW, renderWidget } from '../helpers.js';
 
@@ -132,5 +133,69 @@ describe('tool-activity', () => {
     expect(renderWidget('tool-activity', ctxWith({ transcript: () => ended }))).toBe(
       'Read 2, Edit 1, Bash 1',
     );
+  });
+});
+
+const hookState = (turn: Partial<HookTurn>): HookState => ({
+  lastEventAt: NOW.getTime() - 1_000,
+  lastSource: 'startup',
+  turn: { promptId: null, start: null, end: null, durationMs: null, ...turn },
+  pendingPermission: null,
+  agents: Object.create(null),
+});
+const transcriptAt = (over: Partial<TranscriptInfo>): TranscriptInfo => ({
+  ...parseTranscriptText(''),
+  ...over,
+});
+const timer = (
+  h: HookState | null,
+  t: TranscriptInfo | null = null,
+  options: Record<string, OptionValue> = {},
+) => renderWidget('turn-timer', ctxWith({ hooks: () => h, transcript: () => t }), { options });
+
+describe('turn-timer', () => {
+  const now = NOW.getTime();
+
+  it('shows the running turn from hooks', () => {
+    expect(timer(hookState({ start: now - 134_000 }))).toBe('2m14s');
+  });
+
+  it('shows the last turn after Stop, or hides it', () => {
+    const ended = hookState({ start: now - 200_000, end: now - 18_000, durationMs: 182_000 });
+    expect(timer(ended)).toBe('last 3m02s');
+    expect(timer(ended, null, { afterStop: 'hide' })).toBeNull();
+  });
+
+  it('falls back to the transcript without hooks', () => {
+    expect(timer(null, transcriptAt({ promptStart: now - 75_000, turnEnd: null }))).toBe('1m15s');
+    expect(timer(null, transcriptAt({ promptStart: now - 90_000, turnEnd: now - 50_000 }))).toBe('last 40s');
+  });
+
+  it('is null without hooks and without a prompt', () => {
+    expect(timer(null, null)).toBeNull();
+    expect(timer(null, transcriptAt({ promptStart: null }))).toBeNull();
+  });
+
+  it('renders the sample data', () => {
+    expect(renderWidget('turn-timer', ctxWith())).toBe('2m14s');
+  });
+});
+
+describe('tool-activity with hooks', () => {
+  it('drops a running tool that started before a trusted hook Stop', () => {
+    const now = NOW.getTime();
+    const ctx = ctxWith({
+      transcript: () => parseTranscriptText(turn.join('\n')),
+      hooks: () => hookState({ promptId: 'p1', start: now - 60_000, end: now - 30_000, durationMs: 30_000 }),
+    });
+    expect(renderWidget('tool-activity', ctx)).toBe('Read 2, Edit 1, Bash 1');
+  });
+
+  it('keeps it while the hook turn runs', () => {
+    const ctx = ctxWith({
+      transcript: () => parseTranscriptText(turn.join('\n')),
+      hooks: () => hookState({ promptId: 'p1', start: NOW.getTime() - 60_000 }),
+    });
+    expect(renderWidget('tool-activity', ctx)).toBe('Bash npm test · Read 2, Edit 1, Bash 1');
   });
 });

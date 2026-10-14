@@ -229,6 +229,7 @@ const NEW_WIDGETS = [
   'performance',
   'workspace-repos',
   'tool-activity',
+  'turn-timer',
 ];
 
 const raw = (id: string, type: string) =>
@@ -243,6 +244,11 @@ describe('new widgets across scenarios', () => {
         expect(typeof out.text, `${id} ${type}`).toBe('string');
       }
     }
+  });
+
+  it('turn-timer shows the sample hook turn, and nothing in a fresh session', () => {
+    expect(widget('context-full', 'turn-timer')).toBe('2m14s');
+    expect(widget('fresh-session', 'turn-timer')).toBeNull();
   });
 
   it('api-key-user shows no limits or projection', () => {
