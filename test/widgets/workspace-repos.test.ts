@@ -7,7 +7,8 @@ import { defaultConfig } from '../../src/core/config.js';
 import { createContext } from '../../src/core/context.js';
 import { render } from '../../src/core/renderer.js';
 import type { StatusPayload, WidgetItem } from '../../src/core/types.js';
-import { renderWidget, withoutSideEffects } from '../helpers.js';
+import type { RepoEntry, WorkspaceRepos } from '../../src/data/repos.js';
+import { ctxWith, renderWidget, withoutSideEffects } from '../helpers.js';
 
 const tmpRepo = fs.existsSync(path.join(os.tmpdir(), '.git'));
 let dir: string;
@@ -69,5 +70,48 @@ describe.skipIf(tmpRepo)('workspace-repos on a real folder', () => {
     const e = path.join(dir, 'empty');
     fs.mkdirSync(e);
     expect(renderWidget('workspace-repos', ctxAt(e))).toBeNull();
+  });
+});
+
+describe.skipIf(tmpRepo)('workspace-repos real heads', () => {
+  it('shows a detached sha and strips escapes from branch names', () => {
+    const w = path.join(dir, 'w');
+    repo(w, 'api', 'abc1234def5678901234567890abcdef12345678\n');
+    repo(w, 'web', 'ref: refs/heads/x\u001b[31my\n');
+    expect(renderWidget('workspace-repos', ctxAt(w))).toBe('api (abc1234) · web (xy)');
+  });
+});
+
+const entry = (name: string, branch: string | null, activity: number, hidden = false): RepoEntry => ({
+  name,
+  branch,
+  detached: false,
+  activity,
+  hidden,
+});
+const fixture: WorkspaceRepos = {
+  root: '/ws',
+  repos: [
+    entry('.dot', 'main', 50, true),
+    entry('api', 'main', 10),
+    entry('infra', 'main', 30),
+    entry('web', 'dev', 20),
+  ],
+  total: 4,
+};
+const r = (options: WidgetItem['options'] = {}, config = {}) =>
+  renderWidget('workspace-repos', ctxWith({ repos: () => fixture, config }), { options });
+
+describe('workspace-repos options', () => {
+  it('defaults', () => expect(r()).toBe('api (main) · infra (main) · web (dev)'));
+  it('maxRepos overflow', () => expect(r({ maxRepos: 2 })).toBe('api (main) · infra (main) +1'));
+  it('showBranch off', () => expect(r({ showBranch: false })).toBe('api · infra · web'));
+  it('sort recent', () => expect(r({ sort: 'recent', showBranch: false })).toBe('infra · web · api'));
+  it('includeHidden', () => expect(r({ includeHidden: true, maxRepos: 1 })).toBe('.dot (main) +3'));
+  it('text charset', () => expect(r({ showBranch: false }, { charset: 'text' })).toBe('api | infra | web'));
+  it('null without data or only hidden repos', () => {
+    expect(renderWidget('workspace-repos', ctxWith())).toBeNull();
+    const only = { ...fixture, repos: [fixture.repos[0]!] };
+    expect(renderWidget('workspace-repos', ctxWith({ repos: () => only }))).toBeNull();
   });
 });

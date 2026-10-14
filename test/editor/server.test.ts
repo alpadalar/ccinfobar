@@ -148,7 +148,7 @@ describe('editor server', () => {
 
   it('lists scenarios in the state', async () => {
     const { scenarios } = (await request('GET', '/api/state')).json();
-    expect(scenarios).toHaveLength(9);
+    expect(scenarios).toHaveLength(10);
     for (const s of scenarios) {
       expect(Object.keys(s).sort()).toEqual(['description', 'id', 'label']);
       expect(typeof s.id).toBe('string');

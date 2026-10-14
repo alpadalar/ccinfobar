@@ -4,6 +4,7 @@ import type { GsdInfo } from '../data/gsd.js';
 import type { HistorySample } from '../data/history.js';
 import type { LedgerView } from '../data/ledger.js';
 import type { LimitsView, ResolvedWindow } from '../data/limits.js';
+import type { WorkspaceRepos } from '../data/repos.js';
 import type { TranscriptInfo } from '../data/transcript.js';
 import { toEpochMs } from './time.js';
 import type { StatusPayload } from './types.js';
@@ -262,6 +263,29 @@ export function sampleLedger(now = Date.now()): LedgerView {
     since: now - 40 * 86_400_000,
     at: now - 5_000,
     partial: false,
+  };
+}
+
+export function sampleRepos(now = Date.now()): WorkspaceRepos {
+  const repo = (name: string, branch: string, ago: number) => ({
+    name,
+    branch,
+    detached: false,
+    activity: now - ago * 60_000,
+    hidden: false,
+  });
+  return {
+    root: '/home/dev/workspace',
+    repos: [
+      repo('api', 'main', 3),
+      repo('docs', 'main', 240),
+      repo('infra', 'main', 45),
+      repo('mobile', 'release/2.1', 90),
+      repo('web', 'dev', 1),
+      repo('worker', 'main', 600),
+      repo('zed', 'main', 2880),
+    ],
+    total: 7,
   };
 }
 

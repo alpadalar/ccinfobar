@@ -8,6 +8,7 @@ import {
   sampleLedger,
   sampleLimits,
   samplePayload,
+  sampleRepos,
   sampleTranscript,
 } from './sample.js';
 import type { Config, DataSources, StatusPayload } from './types.js';
@@ -172,6 +173,18 @@ function noGit(now: number): ScenarioBundle {
   return b;
 }
 
+function workspaceFolder(now: number): ScenarioBundle {
+  const b = noGit(now);
+  const ws = sampleRepos(now);
+  b.data.repos = () => ws;
+  b.payload.cwd = ws.root;
+  if (b.payload.workspace) {
+    b.payload.workspace.current_dir = ws.root;
+    b.payload.workspace.project_dir = ws.root;
+  }
+  return b;
+}
+
 function apiKeyUser(now: number): ScenarioBundle {
   const b = base(now);
   delete b.payload.rate_limits;
@@ -241,6 +254,12 @@ export const SCENARIOS: readonly Scenario[] = [
     label: 'Over budget',
     description: 'Daily budget of $3 exceeded',
     build: overBudget,
+  },
+  {
+    id: 'workspace-folder',
+    label: 'Workspace folder',
+    description: 'A folder holding several repos that is not a repo itself',
+    build: workspaceFolder,
   },
 ];
 

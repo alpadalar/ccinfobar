@@ -42,7 +42,7 @@
 - **24 themes, or your own.** Colored text, colored blocks, powerline arrows, rounded capsules or a bordered panel with a responsive grid, from classic to Nord, Dracula, Rosé Pine, Tokyo Night and Catppuccin. ASCII mode for terminals without a Nerd Font. Preview them all with `ccinfobar themes` and write your own in a few lines of JSON.
 - **Terminal editor too.** `ccinfobar tui` does the same from the keyboard (or mouse) when you are on SSH or prefer to stay in the terminal.
 - **First-class GSD support.** Milestone progress, the current phase, plan completion inside the phase, the next command to run, blockers, requirements and more, as separate widgets you can arrange freely. See [docs/GSD.md](docs/GSD.md).
-- **99 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, git, workspace, system and custom commands.
+- **100 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, git, workspace, system and custom commands.
 - **Uses the current Claude Code payload.** Rate limits, prompt cache statistics, PR status and repository info come straight from the status line JSON, without extra API calls.
 - **Fast, dependency-free, self-updating.** Zero runtime dependencies, lazy data loading, an incremental transcript cache and background updates.
 - **Cross-platform.** Linux, macOS and Windows, tested in CI on all three with Node 20, 22, 24 and 26.
@@ -158,13 +158,15 @@ Mouse works too: click to select, drag a chip to move it.
 | Charts | moving sparklines of tokens per minute, context fill, 5-hour or weekly usage and dollars per hour over the session |
 | Agents & tasks | Claude's task list, a table of the turn's subagents (type, job, last tool, tokens per minute, share, tokens, time, model), subagent count |
 | GSD | milestone, milestone progress, phase, status, plans, plan progress, next step, workstream, blockers, todos, requirements, last command, update notice, current task, summary |
-| Git | branch, sha, changes, status, staged, unstaged, untracked, ahead/behind, conflicts, stash, in-progress operation, repo, worktree, pull request |
+| Git | branch, sha, changes, status, staged, unstaged, untracked, ahead/behind, conflicts, stash, in-progress operation, repo, worktree, pull request, child repos of a workspace folder (`workspace-repos`) |
 | Workspace | current directory (5 styles), project directory |
 | System | clock, date, hostname, username, memory, load average, terminal width, platform |
 | Custom | shell command output, clickable link, environment variable |
 | Layout | text, separator, flex space |
 
 A widget without data (a new chat, a folder that is not a git repo or GSD project) shows its label and `—`, so every line you add is always visible. Turn on **Hide when no data** (`hideEmpty`) for any widget you would rather hide. The full list with options and examples is in [docs/WIDGETS.md](docs/WIDGETS.md), or run `ccinfobar widgets`.
+
+`workspace-repos` lists the git repos directly inside the current folder with their branches, such as `repos: api (main) · web (dev)`, when the folder itself is not a repo. It reads `.git/HEAD` files, never runs git and rescans at most every 10 seconds. It shows nothing anywhere below a folder that holds `.git`, so a dotfiles repo at `~/.git` hides it in your whole home folder. `GIT_DIR` and `GIT_WORK_TREE` are ignored.
 
 ## Themes
 
@@ -301,7 +303,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`) |
 | `ccinfobar init [preset]` | Write a preset: `default`, `cockpit`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
-| `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `near-7d-limit`, `over-budget`; a bare `--scenario` lists them) |
+| `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `near-7d-limit`, `over-budget`, `workspace-folder`; a bare `--scenario` lists them) |
 | `ccinfobar update` | Update to the latest release now (`--check` to only look) |
 | `ccinfobar widgets` | List all widgets |
 | `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off; points to `ccinfobar explain` for details |

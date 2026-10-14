@@ -31,6 +31,7 @@ const IDS = [
   'no-git',
   'api-key-user',
   'over-budget',
+  'workspace-folder',
 ];
 
 function ctxFor(id: string): RenderContext {
@@ -218,6 +219,7 @@ const NEW_WIDGETS = [
   'cost-project',
   'budget',
   'performance',
+  'workspace-repos',
 ];
 
 const raw = (id: string, type: string) =>
@@ -404,6 +406,17 @@ describe('preview of the last payload', () => {
     } finally {
       fs.rmSync(lastPayloadPath(), { force: true });
       fs.rmSync(limitsFile(), { force: true });
+    }
+  });
+});
+
+describe('workspace-folder scenario', () => {
+  it('shows child repos there and nowhere else', () => {
+    for (const id of IDS) {
+      const out = withoutSideEffects(() => renderWidget('workspace-repos', ctxFor(id)));
+      if (id === 'workspace-folder') {
+        expect(out).toBe('api (main) · docs (main) · infra (main) · mobile (release/2.1) · web (dev) +2');
+      } else expect(out, id).toBeNull();
     }
   });
 });
