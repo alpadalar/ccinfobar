@@ -75,10 +75,10 @@ describe('detached editor server', () => {
   });
 
   it('a request postpones the idle shutdown', async () => {
-    handle = await start(300);
-    await sleep(200);
+    handle = await start(1000);
+    await sleep(600);
     expect(await ping(handle.url)).toBe(200);
-    await sleep(200);
+    await sleep(600);
     expect(fs.existsSync(stateFile)).toBe(true);
     expect(await pingEditor(handle.url)).toBe(true);
   });
