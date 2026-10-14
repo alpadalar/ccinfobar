@@ -35,6 +35,7 @@ export interface UsageCache {
   account?: string;
   error?: string;
   blockedUntil?: number;
+  legacy?: boolean;
 }
 
 export function usageFile(env: NodeJS.ProcessEnv = process.env): string {
@@ -46,14 +47,14 @@ export function legacyUsageFile(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(cacheDir(env), 'usage.json');
 }
 
-function readUsageText(env: NodeJS.ProcessEnv): string | null {
+function readUsageText(env: NodeJS.ProcessEnv): { text: string; legacy: boolean } | null {
   try {
-    return fs.readFileSync(usageFile(env), 'utf8');
+    return { text: fs.readFileSync(usageFile(env), 'utf8'), legacy: false };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT' || env.CLAUDE_CONFIG_DIR) return null;
   }
   try {
-    return fs.readFileSync(legacyUsageFile(env), 'utf8');
+    return { text: fs.readFileSync(legacyUsageFile(env), 'utf8'), legacy: true };
   } catch {
     return null;
   }
@@ -62,10 +63,13 @@ function readUsageText(env: NodeJS.ProcessEnv): string | null {
 // cached API text reaches widgets after payload ingest
 export function readUsageCache(env: NodeJS.ProcessEnv = process.env): UsageCache | null {
   try {
-    const text = readUsageText(env);
-    if (text === null) return null;
-    const v = JSON.parse(text) as unknown;
-    return v && typeof v === 'object' && !Array.isArray(v) ? deepSanitize(v as UsageCache) : null;
+    const read = readUsageText(env);
+    if (read === null) return null;
+    const v = JSON.parse(read.text) as unknown;
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+    const { legacy: _, ...cache } = deepSanitize(v as UsageCache);
+    // may come from another config dir
+    return read.legacy ? { ...cache, legacy: true } : cache;
   } catch {
     return null;
   }
@@ -269,7 +273,8 @@ export async function fetchUsage(
   fetcher: typeof fetch = fetch,
 ): Promise<UsageCache> {
   const now = Date.now();
-  const prev = readUsageCache(env);
+  const read = readUsageCache(env);
+  const prev = read?.legacy ? null : read;
   const known = prev?.account ? { account: prev.account } : {};
   const keep = (extra: Partial<UsageCache>): UsageCache => ({
     ...(prev?.rate_limits ? { rate_limits: prev.rate_limits } : {}),

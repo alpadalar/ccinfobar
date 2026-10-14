@@ -151,6 +151,7 @@ describe('usage api', () => {
     fs.writeFileSync(legacy, text);
     fs.utimesSync(legacy, 1000, 1000);
     expect(readUsageCache(bare)?.rate_limits?.five_hour?.used_percentage).toBe(33);
+    expect(readUsageCache(bare)?.legacy).toBe(true);
     expect(readUsageCache(env)).toBeNull();
     await fetchUsage(env, reply(200, { five_hour: { utilization: 9 }, seven_day: { utilization: 9 } }));
     expect(fs.readFileSync(legacy, 'utf8')).toBe(text);

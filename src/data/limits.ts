@@ -58,6 +58,7 @@ export interface LimitsView {
 export interface UsageLike {
   fetchedAt: number;
   rate_limits?: RateLimits;
+  legacy?: boolean;
 }
 
 const TOL = 10 * 60_000;
@@ -313,7 +314,8 @@ export function resolveLimits(
     else groups.set(key, [c]);
   };
   const ownObs = observations(own, captureAt, 'payload');
-  const apiObs = api ? observations(api.rate_limits, api.fetchedAt, 'usage-api') : [];
+  // a legacy capture never beats a known one
+  const apiObs = api ? observations(api.rate_limits, api.legacy ? null : api.fetchedAt, 'usage-api') : [];
   for (const o of ownObs) add(o.key, { ...o.obs, from: 'payload', raw: o.raw });
   for (const [key, w] of Object.entries(stored)) add(key, { ...w, from: 'store' });
   for (const o of apiObs) add(o.key, { ...o.obs, from: 'api', raw: o.raw });

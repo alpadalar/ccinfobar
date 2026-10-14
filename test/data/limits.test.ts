@@ -150,6 +150,16 @@ describe('resolveLimits', () => {
     expect(r.view.windows.five_hour?.samples).toEqual([]);
   });
 
+  it('never lets a legacy usage capture beat a known one', () => {
+    const resets = NOW + 2 * H;
+    const api = { fetchedAt: NOW, rate_limits: five(90, resets).rate_limits };
+    const own = resolveLimits(five(45, resets), null, { ...api, legacy: true }, NOW, NOW - 5 * MIN);
+    expect(own.view.windows.five_hour).toMatchObject({ pct: 45, source: 'payload' });
+    const fresh = resolveLimits(five(45, resets), null, api, NOW, NOW - 5 * MIN);
+    expect(fresh.view.windows.five_hour).toMatchObject({ pct: 90, source: 'usage-api' });
+    expect(resolveLimits({}, null, { ...api, legacy: true }, NOW, null).view.windows.five_hour?.pct).toBe(90);
+  });
+
   it('groups epoch seconds and ISO resets with microseconds as one window', () => {
     const resets = Date.parse('2026-10-12T14:50:00Z');
     const api = {
