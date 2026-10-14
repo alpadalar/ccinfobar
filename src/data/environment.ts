@@ -184,9 +184,10 @@ const settingsFacts = (v: Record<string, unknown>): Facts =>
 const mcpFacts = (v: Record<string, unknown>): Facts =>
   withLists(NONE, { s: serverNames(v.mcpServers) }, false);
 
-function claudeJsonFacts(v: Record<string, unknown>, key: string): Facts {
+function claudeJsonFacts(v: Record<string, unknown>, key: string, alt: string): Facts {
   const projects = v.projects;
-  const entry = isObj(projects) && Object.hasOwn(projects, key) ? projects[key] : null;
+  const k = isObj(projects) && !Object.hasOwn(projects, key) ? alt : key;
+  const entry = isObj(projects) && Object.hasOwn(projects, k) ? projects[k] : null;
   const p: Record<string, unknown> = isObj(entry) ? entry : {};
   return {
     ...withLists(
@@ -385,10 +386,11 @@ export function readEnvironment(
     const local = json(projectSettingsPath(launch, true));
     const dirs = launchAncestors(launch, opts.stopAt);
 
-    const key = mcpProjectKey(gitRoot(launch, opts.stopAt), platform);
+    const root = gitRoot(launch, opts.stopAt);
+    const key = mcpProjectKey(root, platform);
     const cj = json(
       claudeJsonPath(env),
-      (v) => claudeJsonFacts(v, key),
+      (v) => claudeJsonFacts(v, key, root),
       MAX_CLAUDE_JSON,
       (f) => !f || f.k === key,
     );
