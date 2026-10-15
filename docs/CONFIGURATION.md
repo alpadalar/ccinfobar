@@ -295,7 +295,7 @@ A gateway quota with the key in the query string:
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `url` | | `http:` or `https:` only; no `user:pass@`. `${VAR}` is allowed in query values only, never in the host or path |
+| `url` | | `http:` or `https:` only; no `user:pass@`. `${VAR}` is allowed in query values only, never in the host or path, and only over `https:` or to localhost |
 | `path` | `$` | JSON path: `$`, `.key`, `['key']`, `[0]`, `[-1]`. No filters, wildcards or `..`. The value must be a string, number, boolean or null |
 | `format` | `{value}` | Text around the value; `{value}` is the only placeholder |
 | `interval` | `300` | Seconds between fetches, at least 30 |
@@ -308,7 +308,7 @@ Rules:
 
 - **Secrets come from env vars only.** A header with a literal value (`Authorization=Bearer abc`) is dropped and `ccinfobar doctor` reports it. Values are filled in by the background process when it fetches; they are never written to the cache, argv, explain or doctor. A missing variable shows as `env RELAY_TOKEN not set` in `ccinfobar explain`, and nothing is fetched.
 - An http item sends the env vars it names to its host. Check the URL before you copy someone else's config; `ccinfobar doctor` lists every http item with its host and the env vars it sends (set or unset, never the value).
-- Headers are sent only over `https:`, or plain `http:` to `localhost`, `127.0.0.1` or `::1`. Doctor warns about any other plain `http:` URL.
+- Env values (headers and `${VAR}` query values) are sent only over `https:`, or plain `http:` to `localhost`, `127.0.0.1` or `::1`. An item that would send one to another plain `http:` host is refused: nothing is fetched, the item shows nothing, and the editor, `ccinfobar doctor` and `ccinfobar explain` say `secrets need https or localhost`. Doctor also warns about a plain `http:` URL without secrets, because the reply can be changed on the way.
 - Redirects are followed up to 3 times, only on the same origin or from `http:` to `https:` on the same host. Any other redirect is refused.
 - Replies over 256 KB are cut off and count as an error. Only the values your paths pick are stored, never the reply.
 - Items with the same `url` and `headers` share one fetch; the shortest `interval` wins.

@@ -12,7 +12,7 @@ export const doctorMessages = {
   'doctor.http.badHeader': '⚠ http on line {line}: {error} (this header is dropped)',
   'doctor.http.badPath': '⚠ http on line {line}: path: {error}; the item shows nothing',
   'doctor.http.plain':
-    '⚠ http on line {line}: {host} uses plain http, so headers are not sent and the reply can be read or changed on the way. Use https.',
+    '⚠ http on line {line}: {host} uses plain http, so the reply can be read or changed on the way. Use https.',
   'doctor.gitHardeningOff': '  Git hardening off (gitHardening: false)',
   'doctor.manifest': '  Manifest {file}: {count} recorded change(s)',
   'doctor.manifestEntry': '    {kind} in {file}',

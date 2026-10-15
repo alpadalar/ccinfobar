@@ -1,5 +1,5 @@
 import { truncate } from '../core/ansi.js';
-import { parseUrlTemplate } from '../core/http-spec.js';
+import { httpItemError } from '../core/http-spec.js';
 import type { HttpPathResult, HttpValue } from '../core/job-values.js';
 import { parsePath } from '../core/jsonpath.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -34,12 +34,13 @@ function lookup(v: HttpValue, path: string): HttpPathResult | null {
 export function httpState(ctx: RenderContext, item: WidgetItem): HttpState {
   const url = opt(item, 'url', '');
   if (!url) return { kind: 'no-url' };
-  const checked = parseUrlTemplate(url);
-  if (!checked.ok) return { kind: 'bad-url', error: checked.error };
+  const headers = opt(item, 'headers', '');
+  const refused = httpItemError(url, headers);
+  if (refused) return { kind: 'bad-url', error: refused };
   const path = pathOf(item);
   const parsed = parsePath(path);
   if (!parsed.ok) return { kind: 'bad-path', error: parsed.error };
-  const key = httpKey(url, opt(item, 'headers', ''));
+  const key = httpKey(url, headers);
   const j = jobValue(ctx.data.jobs?.()?.job<HttpValue>(key) ?? null);
   if (!j) return { kind: 'pending', key };
   const v = j.value;
@@ -95,7 +96,7 @@ export const widgets: WidgetDef[] = [
         label: 'URL',
         kind: 'text',
         default: '',
-        help: 'http or https JSON endpoint; ${VAR} is allowed only in query values, for example ?key=${API_KEY}',
+        help: 'http or https JSON endpoint; ${VAR} is allowed only in query values, for example ?key=${API_KEY}, and only over https or to localhost',
       },
       {
         key: 'path',
@@ -130,7 +131,7 @@ export const widgets: WidgetDef[] = [
         label: 'Headers',
         kind: 'text',
         default: '',
-        help: 'Name=$VAR entries, comma-separated, for example Authorization=Bearer $RELAY_TOKEN; values come only from env vars and are sent only over https or to localhost',
+        help: 'Name=$VAR entries, comma-separated, for example Authorization=Bearer $RELAY_TOKEN; values come only from env vars; the url must be https or localhost',
       },
       {
         key: 'decimals',

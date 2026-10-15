@@ -53,6 +53,7 @@ export const explainMessages = {
   'explain.reason.httpLastGood': 'the last fetch failed ({error}); showing the last good value',
   'explain.job.noJobs': ' (background jobs are off: CCINFOBAR_NO_JOBS is set)',
   'explain.job.unknownError': 'unknown error',
+  'explain.job.insecure-url': 'insecure-url: secrets need https or localhost',
   'explain.reason.error': 'the widget failed',
   'explain.reason.no-data': 'no data for this widget in the current session',
   'explain.reason.serviceOk': 'all systems operational; turn on showOk to show ✓ Claude OK',

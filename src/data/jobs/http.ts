@@ -1,9 +1,9 @@
-import { parseHeaderSpec, resolveUrl } from '../../core/http-spec.js';
+import { httpItemError, NEEDS_TLS, parseHeaderSpec, resolveUrl } from '../../core/http-spec.js';
 import type { HttpPathResult, HttpValue } from '../../core/job-values.js';
 import { evaluatePath, parsePath } from '../../core/jsonpath.js';
 import { sanitizeText } from '../../core/sanitize.js';
 import type { Config, OptionValue } from '../../core/types.js';
-import { errorCode, fetchJson, isLoopback, JobFetchError } from './fetch.js';
+import { errorCode, fetchJson, JobFetchError } from './fetch.js';
 import { httpKey } from './keys.js';
 import { defaultDue, failEnvelope, type Job, okEnvelope } from './runner.js';
 
@@ -89,7 +89,9 @@ export const httpJob: Job<HttpValue> = {
   retryMs: RETRY_MS,
   keyRe: /^http-[0-9a-f]{16}$/,
   keys({ config }) {
-    return [...httpGroups(config).values()].map((g) => ({ key: g.key, ttlMs: g.intervalS * 1000 }));
+    return [...httpGroups(config).values()]
+      .filter((g) => httpItemError(g.url, g.headers) === null)
+      .map((g) => ({ key: g.key, ttlMs: g.intervalS * 1000 }));
   },
   accepts(req, { config }) {
     return httpGroups(config).has(req.key);
@@ -102,20 +104,22 @@ export const httpJob: Job<HttpValue> = {
       failEnvelope(req.key, ctx.prev, error, ctx.now, { retryMs: RETRY_MS, retryAfterMs });
     const group = httpGroups(ctx.config).get(req.key);
     if (!group) return fail('not-configured');
+    // checked before any env value is read
+    const refused = httpItemError(group.url, group.headers);
+    if (refused) return fail(refused === NEEDS_TLS ? 'insecure-url' : 'bad-url');
+    const spec = parseHeaderSpec(group.headers);
+    if (spec.errors.length) return fail('bad-headers');
     // secrets stay in locals; only fixed codes and env names leave
     const resolved = resolveUrl(group.url, ctx.env);
     if ('missing' in resolved) return fail(`env ${resolved.missing} not set`);
     if (!resolved.ok) return fail('bad-url');
-    const spec = parseHeaderSpec(group.headers);
-    if (spec.errors.length) return fail('bad-headers');
     const url = resolved.url;
-    const send = url.protocol === 'https:' || isLoopback(url.hostname);
     const headers: Record<string, string> = {};
     for (const h of spec.headers) {
       const v = ctx.env[h.env];
       if (typeof v !== 'string' || !v) return fail(`env ${h.env} not set`);
       if (BAD_VALUE.test(v)) return fail(`env ${h.env} invalid`);
-      if (send) headers[h.name] = h.scheme ? `${h.scheme} ${v}` : v;
+      headers[h.name] = h.scheme ? `${h.scheme} ${v}` : v;
     }
     try {
       const body = await fetchJson(url, {

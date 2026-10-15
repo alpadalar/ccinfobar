@@ -1,7 +1,14 @@
 import fs from 'node:fs';
 import type { LoadResult } from '../core/config.js';
 import { needsRefresh } from '../core/edit.js';
-import { describeHeaders, parseHeaderSpec, parseUrlTemplate, redactUrl } from '../core/http-spec.js';
+import {
+  describeHeaders,
+  httpItemError,
+  isLoopback,
+  parseHeaderSpec,
+  parseUrlTemplate,
+  redactUrl,
+} from '../core/http-spec.js';
 import { t } from '../core/i18n/index.js';
 import { type InspectRow, inspectRows, lineReport, sessionNotes } from '../core/inspect.js';
 import { parsePath } from '../core/jsonpath.js';
@@ -13,7 +20,6 @@ import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionSpec, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { readHookState } from '../data/hooks.js';
-import { isLoopback } from '../data/jobs/fetch.js';
 import { httpGroups } from '../data/jobs/http.js';
 import { jobFor } from '../data/jobs/index.js';
 import {
@@ -126,8 +132,9 @@ function httpItemLines(
       env: safe(vars.join(', ')) || t('doctor.http.noEnv'),
     }),
   ];
+  const refused = url ? httpItemError(url, headers) : null;
   if (!url) out.push(t('doctor.http.noUrl', { line }));
-  else if (checked && !checked.ok) out.push(t('doctor.http.badUrl', { line, error: safe(checked.error) }));
+  else if (refused) out.push(t('doctor.http.badUrl', { line, error: safe(refused) }));
   else {
     const host = plainHost(url);
     if (host) out.push(t('doctor.http.plain', { line, host: safe(host) }));

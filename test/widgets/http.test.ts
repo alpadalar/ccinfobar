@@ -10,6 +10,7 @@ import type { RenderContext, WidgetItem } from '../../src/core/types.js';
 import { httpJob } from '../../src/data/jobs/http.js';
 import { httpKey } from '../../src/data/jobs/keys.js';
 import { createJobReader, type JobEnvelope, type JobReader, jobsDir } from '../../src/data/jobs/runner.js';
+import { httpState } from '../../src/widgets/http.js';
 import { getWidget } from '../../src/widgets/index.js';
 import { fakeFetch, json } from '../fake-fetch.js';
 import { ctxWith, NOW, withoutSideEffects } from '../helpers.js';
@@ -134,6 +135,17 @@ describe('http widget', () => {
     expect(text(ok(balance({ ok: true, v: 1 })), { url: '' })).toBeNull();
     expect(text(ok(value({ '$..x': { ok: true, v: 1 } })), { path: '$..x' })).toBeNull();
     expect(text(ok(balance({ ok: true, v: { a: 1 } as never })))).toBeNull();
+  });
+
+  it('hides an item that would send env values over plain http', () => {
+    const insecure = { url: 'http://relay.example.com/balance' };
+    const e = ok(balance({ ok: true, v: 1 }));
+    expect(text(e, insecure)).toBeNull();
+    const item: WidgetItem = { id: 'h', type: 'http', options: { ...base, ...insecure } };
+    expect(httpState(ctxWith({ jobs: () => reader(e) }), item)).toEqual({
+      kind: 'bad-url',
+      error: 'secrets need https or localhost',
+    });
   });
 
   it('defaults the path to $', () => {

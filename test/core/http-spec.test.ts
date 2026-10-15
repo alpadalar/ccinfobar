@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   describeHeaders,
   externalTargets,
+  httpItemError,
+  NEEDS_TLS,
   normalizeHeaderSpec,
   parseHeaderSpec,
   parseUrlTemplate,
@@ -95,14 +97,17 @@ describe('parseUrlTemplate', () => {
     expect(parseUrlTemplate('https://api.example.com/v1/balance?key=${API_KEY}')).toEqual({
       ok: true,
       vars: ['API_KEY'],
+      plain: false,
     });
     expect(parseUrlTemplate('http://localhost:8080/x?a=${A}&b=1&c=${B}&d=${A}#top')).toEqual({
       ok: true,
       vars: ['A', 'B'],
+      plain: false,
     });
-    expect(parseUrlTemplate('https://x.com/p?q=pre-${A}-post')).toEqual({ ok: true, vars: ['A'] });
-    expect(parseUrlTemplate('https://x.com/')).toEqual({ ok: true, vars: [] });
-    expect(parseUrlTemplate('https://x.com/?$top=5')).toEqual({ ok: true, vars: [] });
+    expect(parseUrlTemplate('https://x.com/p?q=pre-${A}-post')).toMatchObject({ ok: true, vars: ['A'] });
+    expect(parseUrlTemplate('https://x.com/')).toMatchObject({ ok: true, vars: [] });
+    expect(parseUrlTemplate('https://x.com/?$top=5')).toMatchObject({ ok: true, vars: [] });
+    expect(parseUrlTemplate('http://x.com/')).toEqual({ ok: true, vars: [], plain: true });
   });
 
   it.each([
@@ -145,6 +150,21 @@ describe('parseUrlTemplate', () => {
     const r = parseUrlTemplate('ftp://x.com/?key=SECRET123');
     expect(r.ok).toBe(false);
     expect(JSON.stringify(r)).not.toContain('SECRET123');
+  });
+});
+
+describe('httpItemError', () => {
+  it('refuses env values over plain http to a non-loopback host', () => {
+    expect(httpItemError('http://api.example.com/q?key=${API_KEY}', '')).toBe(NEEDS_TLS);
+    expect(httpItemError('http://api.example.com/q', 'Authorization=Bearer $T')).toBe(NEEDS_TLS);
+    expect(httpItemError('http://api.example.com/q', '')).toBeNull();
+    expect(httpItemError('https://api.example.com/q?key=${K}', 'Authorization=Bearer $T')).toBeNull();
+    for (const host of ['localhost:8080', '127.0.0.1', '[::1]:9'])
+      expect(httpItemError(`http://${host}/q?key=\${K}`, 'X=$T')).toBeNull();
+  });
+
+  it('passes url errors through', () => {
+    expect(httpItemError('https://${H}.x.com/', '')).toBe('placeholders are only allowed in query values');
   });
 });
 

@@ -1,5 +1,5 @@
 import { clearColors, optionShown, removeItem, setOption, updateItem } from '../../core/edit.js';
-import { parseHeaderSpec, parseUrlTemplate } from '../../core/http-spec.js';
+import { httpItemError, NEEDS_TLS, parseHeaderSpec } from '../../core/http-spec.js';
 import { parsePath } from '../../core/jsonpath.js';
 import type { Config, OptionSpec, OptionValue, WidgetItem } from '../../core/types.js';
 import { GLYPHS } from './ansi-html.js';
@@ -155,16 +155,24 @@ export function numberInput(
   return input;
 }
 
-export function httpOptionError(key: string, value: string): string | null {
-  if (key === 'url') {
-    const r = value ? parseUrlTemplate(value) : null;
-    return r && !r.ok ? r.error : null;
-  }
+export function httpOptionError(
+  key: string,
+  value: string,
+  opts: Record<string, unknown> = {},
+): string | null {
+  const other = (k: string) => (typeof opts[k] === 'string' ? (opts[k] as string) : '');
+  if (key === 'url') return value ? httpItemError(value, other('headers')) : null;
   if (key === 'path') {
     const r = parsePath(value || '$');
     return r.ok ? null : r.error;
   }
-  if (key === 'headers') return parseHeaderSpec(value).errors.join('; ') || null;
+  if (key === 'headers') {
+    const errors = parseHeaderSpec(value).errors;
+    const url = other('url');
+    if (url && httpItemError(url, value) === NEEDS_TLS && httpItemError(url, '') !== NEEDS_TLS)
+      errors.push(NEEDS_TLS);
+    return errors.join('; ') || null;
+  }
   return null;
 }
 
@@ -205,7 +213,7 @@ export function optionControl(item: WidgetItem, spec: OptionSpec): HTMLElement {
         item.type === 'http' ? h('div', { class: 'hint warn field-error', 'aria-live': 'polite' }) : null;
       const check = (v: string) => {
         if (!error) return;
-        const msg = httpOptionError(spec.key, v);
+        const msg = httpOptionError(spec.key, v, item.options ?? {});
         error.replaceChildren(msg ?? '');
         error.hidden = !msg;
       };

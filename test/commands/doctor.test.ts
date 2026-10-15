@@ -600,6 +600,17 @@ describe('runDoctor http checks', () => {
     }
   });
 
+  it('reports env values over plain http as an error', () => {
+    for (const opts of [
+      { url: 'http://api.example.com/x', headers: 'Authorization=Bearer $T' },
+      { url: 'http://api.example.com/x?key=${K}' },
+    ]) {
+      const out = all(opts);
+      expect(out).toContain(t('doctor.http.badUrl', { line: 2, error: 'secrets need https or localhost' }));
+      expect(out.some((l) => l.includes('plain http'))).toBe(false);
+    }
+  });
+
   it('lists each item with its redacted url and env var names, never values', () => {
     vi.stubEnv('RELAY_TOKEN', TOKEN);
     vi.stubEnv('API_KEY', '');

@@ -341,20 +341,26 @@ describe('httpJob.run', () => {
     expect(calls[0]?.headers.authorization).toBe(`Bearer ${TOKEN}`);
   });
 
-  it('withholds headers over plain http to a non-loopback host', async () => {
-    const env = sandbox({ RELAY_TOKEN: TOKEN });
+  it('refuses env values over plain http to a non-loopback host', async () => {
+    const env = sandbox({ RELAY_TOKEN: TOKEN, API_KEY: QUERY });
     const { fetch: f, calls } = fakeFetch([json({ a: 1 }), json({ a: 1 })]);
-    const out = await run(
-      withItems(item({ url: 'http://api.example.com/v1', headers: AUTH, path: '$.a' })),
-      env,
-      f,
-    );
-    expect(out.ok).toBe(true);
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.headers.authorization).toBeUndefined();
-    expect(calls[0]?.headers.accept).toBe('application/json');
+    const cases: Record<string, string>[] = [
+      { url: 'http://api.example.com/v1', headers: AUTH },
+      { url: 'http://api.example.com/q?key=${API_KEY}' },
+    ];
+    for (const opts of cases) {
+      const out = await run(withItems(item({ ...opts, path: '$.a' })), env, f);
+      expect(out).toMatchObject({ ok: false, error: 'insecure-url' });
+      expect(JSON.stringify(out)).not.toContain('SECRET');
+    }
+    expect(calls).toHaveLength(0);
+    const config = withItems(item({ url: 'http://api.example.com/q?key=${API_KEY}' }));
+    expect(httpJob.keys({ config, payload: {}, env, cwd: '/', now: NOW } as any)).toEqual([]);
     await run(withItems(item({ url: 'http://localhost:8080/v1', headers: AUTH, path: '$.a' })), env, f);
-    expect(calls[1]?.headers.authorization).toBe(`Bearer ${TOKEN}`);
+    expect(calls[0]?.headers.authorization).toBe(`Bearer ${TOKEN}`);
+    const plain = await run(withItems(item({ url: 'http://api.example.com/v1', path: '$.a' })), env, f);
+    expect(plain.ok).toBe(true);
+    expect(calls[1]?.headers.authorization).toBeUndefined();
   });
 
   it('fetches nothing when a header variable is unset', async () => {

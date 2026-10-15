@@ -67,10 +67,10 @@ afterAll(() => {
 
 const spec = (key: string): OptionSpec => getWidget('http')!.options!.find((o) => o.key === key)!;
 
-async function control(key: string, value: string) {
+async function control(key: string, value: string, others: Record<string, string> = {}) {
   const { optionControl } = await import('../../src/editor/web/inspector.js');
   const store = await import('../../src/editor/web/store.js');
-  const item: WidgetItem = { id: 'h', type: 'http', options: { [key]: value } };
+  const item: WidgetItem = { id: 'h', type: 'http', options: { ...others, [key]: value } };
   const config = { ...defaultConfig(), lines: [[item]] };
   store.init({ config, savedConfig: config, categories: [], widgets: [] } as any);
   const el = optionControl(item, spec(key)) as unknown as FakeEl;
@@ -111,6 +111,19 @@ describe('editor http option validation', () => {
     expect(c.error()).not.toContain('abc');
     c.type('Authorization=Bearer $RELAY_TOKEN, X-Key=${K}');
     expect(c.error()).toBe('');
+  });
+
+  it('flags env values over plain http on the url and headers fields', async () => {
+    const url = await control('url', 'http://api.x.com/v1?key=${API_KEY}');
+    expect(url.error()).toBe('secrets need https or localhost');
+    url.type('http://localhost:8080/v1?key=${API_KEY}');
+    expect(url.error()).toBe('');
+    const withHeaders = await control('url', 'http://api.x.com/v1', { headers: 'X-Key=$K' });
+    expect(withHeaders.error()).toBe('secrets need https or localhost');
+    const headers = await control('headers', 'X-Key=$K', { url: 'http://api.x.com/v1' });
+    expect(headers.error()).toBe('secrets need https or localhost');
+    headers.type('');
+    expect(headers.error()).toBe('');
   });
 
   it('shows no error for other widgets or options', async () => {

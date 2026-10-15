@@ -159,6 +159,11 @@ function expiredWindow(ctx: RenderContext, item: WidgetItem, reads: TraceRead[] 
 
 const absentValue = (v: unknown): boolean => v === null || v === undefined;
 
+const jobErrorText = (error: string | undefined): string =>
+  error === 'insecure-url'
+    ? t('explain.job.insecure-url')
+    : sanitizeText(error ?? '') || t('explain.job.unknownError');
+
 // shared by every job-backed widget
 export function jobReason(
   e: JobEnvelope<unknown> | null,
@@ -187,9 +192,7 @@ export function jobEmpty(
 ): EmptyReason | null {
   const code = jobReason(e, network, env, now, staleAfterMs);
   if (code === null) return null;
-  if (code === 'job-error') {
-    return reason(code, undefined, { error: sanitizeText(e?.error ?? '') || t('explain.job.unknownError') });
-  }
+  if (code === 'job-error') return reason(code, undefined, { error: jobErrorText(e?.error) });
   if (code === 'job-pending' && env.CCINFOBAR_NO_JOBS)
     return reason(code, t('explain.reason.job-pending') + t('explain.job.noJobs'));
   return reason(code);

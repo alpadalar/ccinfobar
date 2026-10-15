@@ -17,6 +17,12 @@ const VALUE_RE = /^(?:([A-Za-z]{1,32})[ \t]+)?\$(\{[^{}]*\}|[^\s{}]*)$/;
 const FORBIDDEN = new Set(['host', 'content-length', 'connection', 'transfer-encoding', 'cookie']);
 const URL_BAD = /[\u0000-\u0020\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
 const PLACEMENT = 'placeholders are only allowed in query values';
+export const NEEDS_TLS = 'secrets need https or localhost';
+const LOOPBACK = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+export function isLoopback(hostname: string): boolean {
+  return LOOPBACK.has(hostname.toLowerCase());
+}
 
 function parseEntry(entry: string, n: number, seen: Set<string>): HeaderRef | string {
   const eq = entry.indexOf('=');
@@ -126,7 +132,9 @@ function parse(u: string): URL | null {
 
 const hasPlaceholder = (s: string): boolean => s.includes('$') || /%7b/i.test(s);
 
-export function parseUrlTemplate(raw: string): { ok: true; vars: string[] } | { ok: false; error: string } {
+export function parseUrlTemplate(
+  raw: string,
+): { ok: true; vars: string[]; plain: boolean } | { ok: false; error: string } {
   if (typeof raw !== 'string' || !raw) return { ok: false, error: 'url is empty' };
   if (raw.length > MAX_URL) return { ok: false, error: `url longer than ${MAX_URL} characters` };
   if (URL_BAD.test(raw)) return { ok: false, error: 'url contains spaces or control characters' };
@@ -141,7 +149,15 @@ export function parseUrlTemplate(raw: string): { ok: true; vars: string[] } | { 
   if ([url.hostname, url.pathname, url.hash].some(hasPlaceholder)) return { ok: false, error: PLACEMENT };
   const vars: string[] = [];
   for (const p of s.parts) if (typeof p !== 'string' && !vars.includes(p.env)) vars.push(p.env);
-  return { ok: true, vars };
+  return { ok: true, vars, plain: url.protocol === 'http:' && !isLoopback(url.hostname) };
+}
+
+// what the worker refuses; normalize keeps it so explain can say why
+export function httpItemError(url: string, headers: string): string | null {
+  const u = parseUrlTemplate(url);
+  if (!u.ok) return u.error;
+  if (u.plain && (u.vars.length || parseHeaderSpec(headers).headers.length)) return NEEDS_TLS;
+  return null;
 }
 
 export function resolveUrl(

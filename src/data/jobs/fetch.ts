@@ -1,5 +1,7 @@
 import { retryAfterMs } from './runner.js';
 
+export { isLoopback } from '../../core/http-spec.js';
+
 export const CAP_BYTES = 256 * 1024;
 
 export class JobFetchError extends Error {
@@ -20,12 +22,6 @@ export interface FetchJsonOpts {
   capBytes?: number;
   maxRedirects?: number;
   now?: number;
-}
-
-const LOOPBACK = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
-
-export function isLoopback(hostname: string): boolean {
-  return LOOPBACK.has(hostname.toLowerCase());
 }
 
 async function discard(res: Response): Promise<void> {
