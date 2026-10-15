@@ -504,13 +504,17 @@ function cacheDir(d) {
 
 function workerProof(ctx) {
   const dir = cacheDir(ctx.d);
+  const jobs = path.join(dir, 'jobs');
   const names = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+  const jobNames = fs.existsSync(jobs) ? fs.readdirSync(jobs) : [];
   const missing = [];
-  if (!names.includes('update.json')) missing.push('update.json');
+  if (!jobNames.includes('update.json')) missing.push('jobs/update.json');
   // usage cache is keyed per account
   if (!names.some((f) => /^usage-[0-9a-f]{16}\.json$/.test(f))) missing.push('usage-<account>.json');
   if (missing.length) {
-    const found = fs.existsSync(dir) ? names.join(', ') : '(no cache dir)';
+    const found = fs.existsSync(dir)
+      ? [...names, ...jobNames.map((f) => `jobs/${f}`)].join(', ')
+      : '(no cache dir)';
     fail(ctx, 'workers', { detail: `missing ${missing.join(', ')} in ${dir}; found: ${found}` });
   } else console.log('  update and usage workers ran');
 }

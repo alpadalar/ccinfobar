@@ -6,15 +6,9 @@ import { loadForUse } from '../core/load.js';
 import { claudeSettingsPath } from '../core/paths.js';
 import type { Config } from '../core/types.js';
 import { VERSION } from '../core/version.js';
-import {
-  compareVersions,
-  installKind,
-  localPrefix,
-  readUpdateState,
-  type UpdateState,
-  updateFile,
-  writeUpdateState,
-} from '../data/update-state.js';
+import { executeJob, type JobEnvelope } from '../data/jobs/runner.js';
+import { type UpdateValue, updateJob } from '../data/jobs/update.js';
+import { compareVersions, installKind, localPrefix, writeUpdateState } from '../data/update-state.js';
 import { currentStatusLine, takeOverProjects } from './install.js';
 import { classifyOwner, owns, readManifest } from './manifest.js';
 
@@ -43,8 +37,8 @@ export function assertVersion(v: string): string {
   return v;
 }
 
-export async function fetchLatest(timeoutMs = 4000): Promise<string> {
-  const res = await fetch(`https://github.com/${REPO}/releases/latest`, {
+export async function fetchLatest(timeoutMs = 4000, fetcher: typeof fetch = fetch): Promise<string> {
+  const res = await fetcher(`https://github.com/${REPO}/releases/latest`, {
     method: 'HEAD',
     redirect: 'manual',
     signal: AbortSignal.timeout(timeoutMs),
@@ -160,32 +154,33 @@ export async function installVersionAsync(version: string, prefix?: string): Pro
   throw last;
 }
 
-export async function backgroundUpdate(
+export async function checkForUpdate(
   config: Config,
-  current: string,
+  current: string = VERSION,
   env: NodeJS.ProcessEnv = process.env,
-): Promise<void> {
-  const state: UpdateState = { checkedAt: Date.now(), latest: null };
-  const session = readUpdateState(env)?.session;
-  if (session) state.session = session;
-  try {
-    state.latest = await fetchLatest();
-    const kind = installKind();
-    if (
-      config.update === 'auto' &&
-      compareVersions(state.latest, current) > 0 &&
-      (kind === 'npm-global' || kind === 'local')
-    ) {
-      installVersion(state.latest, kind === 'local' ? localPrefix(env) : undefined);
-      state.installed = state.latest;
-    }
-  } catch (err) {
-    state.error = (err as Error).message;
-    state.latest = readUpdateState(env)?.latest ?? null;
+  deps: { fetch?: typeof fetch } = {},
+): Promise<{ latest: string; installed?: string }> {
+  const latest = await fetchLatest(undefined, deps.fetch);
+  const kind = installKind();
+  if (
+    config.update === 'auto' &&
+    compareVersions(latest, current) > 0 &&
+    (kind === 'npm-global' || kind === 'local')
+  ) {
+    await installVersionAsync(latest, kind === 'local' ? localPrefix(env) : undefined);
+    return { latest, installed: latest };
   }
-  writeUpdateState(state, env);
+  return { latest };
+}
+
+// keep project statusLines on the updated command
+export function takeOverAfterUpdate(env: NodeJS.ProcessEnv = process.env): void {
   try {
-    fs.unlinkSync(`${updateFile(env)}.lock`);
+    const file = claudeSettingsPath(env);
+    const sl = currentStatusLine(file);
+    const m = readManifest(env);
+    const ours = owns(m, file, sl) || classifyOwner(m, file, sl, null) === 'legacy-ours';
+    if (sl && ours && typeof sl.command === 'string') takeOverProjects(sl.command, sl.refreshInterval, env);
   } catch {}
 }
 
@@ -228,14 +223,18 @@ export async function manualUpdate(current: string, checkOnly: boolean): Promise
 
 export async function runUpdate(args: Args, cfgFile: string): Promise<void> {
   if (args.flags.background) {
-    await backgroundUpdate(loadForUse(cfgFile).config, VERSION);
-    try {
-      const file = claudeSettingsPath();
-      const sl = currentStatusLine(file);
-      const m = readManifest();
-      const ours = owns(m, file, sl) || classifyOwner(m, file, sl, null) === 'legacy-ours';
-      if (sl && ours && typeof sl.command === 'string') takeOverProjects(sl.command, sl.refreshInterval);
-    } catch {}
+    const env = process.env;
+    const prev: JobEnvelope<UpdateValue> | null = updateJob.readPrev!('update', env);
+    const req = prev?.param ? { key: 'update', param: prev.param } : { key: 'update' };
+    const ctx = {
+      env,
+      config: loadForUse(cfgFile).config,
+      cwd: process.cwd(),
+      prev,
+      fetch: globalThis.fetch,
+      now: Date.now(),
+    };
+    await executeJob(updateJob, req, ctx);
     return;
   }
   process.exitCode = await manualUpdate(VERSION, args.flags.check === true);

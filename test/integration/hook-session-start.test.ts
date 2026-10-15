@@ -42,8 +42,8 @@ function sandbox() {
   ]) {
     delete env[k];
   }
-  const lock = path.join(cache, 'update.json.lock');
-  const state = path.join(cache, 'update.json');
+  const lock = path.join(cache, 'jobs', 'update.lock');
+  const state = path.join(cache, 'jobs', 'update.json');
   const checked = () => fs.existsSync(lock) || fs.existsSync(state);
   const hooks = path.join(cache, 'hooks');
   const run = (source: unknown, extra: NodeJS.ProcessEnv = {}, pre: string[] = []) => {

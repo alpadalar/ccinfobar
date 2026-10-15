@@ -148,7 +148,8 @@ export async function scheduleUpdate(
   const update = readUpdateSetting(configFile);
   if (update === null) return;
   const { scheduleCheck } = await import('../data/update-state.js');
-  scheduleCheck({ update } as Config, sessionId, env);
+  const extra = configFile === configPath(env) ? [] : [`--config=${configFile}`];
+  scheduleCheck({ update } as Config, sessionId, env, extra);
 }
 
 const PRUNE_RE = /^([A-Za-z0-9_-]{1,128})(\.jsonl|\.fold\.json)$/;

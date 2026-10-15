@@ -498,7 +498,7 @@ describe('default schedule', () => {
       now: Date.now,
       append: appendLine,
     });
-    return fs.existsSync(path.join(dir, 'cache', 'update.json.lock'));
+    return fs.existsSync(path.join(dir, 'cache', 'jobs', 'update.lock'));
   };
 
   it('takes the update lock on startup', async () => {

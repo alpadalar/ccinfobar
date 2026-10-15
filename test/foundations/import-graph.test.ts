@@ -102,6 +102,24 @@ describe('import graph', () => {
     expect([...files].filter((f) => !allowed.has(f))).toEqual([]);
   });
 
+  // the hook lazy-loads update-state; it must not reach the registry, config or widgets
+  it('keeps the update-state.ts closure to the update job', () => {
+    const allowed = new Set([
+      'src/data/update-state.ts',
+      'src/data/jobs/runner.ts',
+      'src/data/jobs/update.ts',
+      'src/data/store.ts',
+      'src/core/builtins.ts',
+      'src/core/paths.ts',
+      'src/core/sanitize.ts',
+    ]);
+    const files = closure('data/update-state.ts');
+    expect(files.has('src/data/jobs/update.ts')).toBe(true);
+    expect([...files].filter((f) => !allowed.has(f))).toEqual([]);
+    const lazy = fs.readFileSync(path.join(src, 'data/jobs/update.ts'), 'utf8');
+    expect(lazy).toContain("await import('../../commands/update.js')");
+  });
+
   // node:crypto, a static node:fs ESM import and the stdin stream each cost ms per event
   it('keeps crypto, static node:fs and process.stdin out of the hook path', () => {
     for (const f of [...closure('cli/hook.ts'), 'src/cli/silence.ts']) {

@@ -19,6 +19,9 @@ const writeState = (env: NodeJS.ProcessEnv, state: object) => {
   fs.mkdirSync(path.dirname(updateFile(env)), { recursive: true });
   fs.writeFileSync(updateFile(env), JSON.stringify(state));
 };
+const lock = (env: NodeJS.ProcessEnv) =>
+  fs.existsSync(path.join(env.CCINFOBAR_CACHE_DIR!, 'jobs', 'update.lock'));
+const jobState = (env: NodeJS.ProcessEnv) => path.join(env.CCINFOBAR_CACHE_DIR!, 'jobs', 'update.json');
 
 describe('update', () => {
   it('rejects anything that is not a plain version', async () => {
@@ -139,15 +142,17 @@ describe('update', () => {
     const env = envWith();
     writeState(env, { checkedAt: Date.now(), latest: '0.2.0' });
     scheduleCheck(defaultConfig(), undefined, env);
-    expect(fs.existsSync(`${updateFile(env)}.lock`)).toBe(false);
+    expect(lock(env)).toBe(false);
     const stale = envWith();
     writeState(stale, { checkedAt: 0, latest: '0.2.0' });
     scheduleCheck(defaultConfig(), undefined, stale);
+    expect(lock(stale)).toBe(true);
     expect(fs.readFileSync(updateFile(stale), 'utf8')).toContain('"checkedAt":0');
+    expect(fs.existsSync(`${updateFile(stale)}.lock`)).toBe(false);
+    expect(fs.existsSync(jobState(stale))).toBe(false);
   });
 
   it('schedules no background check when nonessential traffic is off', () => {
-    const lock = (env: NodeJS.ProcessEnv) => fs.existsSync(`${updateFile(env)}.lock`);
     const off = { ...envWith(), CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' };
     writeState(off, { checkedAt: 0, latest: '0.2.0' });
     scheduleCheck(defaultConfig(), 'a', off);
@@ -159,14 +164,15 @@ describe('update', () => {
   });
 
   it('checks again when a new Claude Code session starts', () => {
-    const lock = (env: NodeJS.ProcessEnv) => fs.existsSync(`${updateFile(env)}.lock`);
     const env = envWith();
     writeState(env, { checkedAt: Date.now() - 120_000, latest: '0.2.0', session: 'a' });
     scheduleCheck(defaultConfig(), 'a', env);
     expect(lock(env)).toBe(false);
     scheduleCheck(defaultConfig(), 'b', env);
     expect(lock(env)).toBe(true);
-    expect(JSON.parse(fs.readFileSync(updateFile(env), 'utf8')).session).toBe('b');
+    // the worker stores the session, not the renderer
+    expect(JSON.parse(fs.readFileSync(updateFile(env), 'utf8')).session).toBe('a');
+    expect(fs.existsSync(jobState(env))).toBe(false);
     const recent = envWith();
     writeState(recent, { checkedAt: Date.now(), latest: '0.2.0', session: 'a' });
     scheduleCheck(defaultConfig(), 'b', recent);

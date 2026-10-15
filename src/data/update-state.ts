@@ -1,54 +1,42 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { cacheDir, configDir } from '../core/paths.js';
-import { sanitizeText } from '../core/sanitize.js';
-import type { Config } from '../core/types.js';
-import { nonessentialTrafficOff, spawnSelf } from './jobs/runner.js';
-import { acquireLock, writeAtomic } from './store.js';
+import { configDir } from '../core/paths.js';
+import type { Config, StatusPayload } from '../core/types.js';
+import {
+  jobsDisabled,
+  nonessentialTrafficOff,
+  readEnvelope,
+  scheduleRequests,
+  writeEnvelope,
+} from './jobs/runner.js';
+import {
+  fromUpdateState,
+  legacyUpdateFile,
+  readLegacyUpdate,
+  toUpdateState,
+  UPDATE_LOCK_MS,
+  type UpdateState,
+  type UpdateValue,
+  updateJob,
+  updatesDisabled,
+} from './jobs/update.js';
 
 export { nonessentialTrafficOff, spawnSelf, spawnSelfDetached } from './jobs/runner.js';
+export { type UpdateState, updatesDisabled } from './jobs/update.js';
 
-const DAY = 86_400_000;
-const LOCK_MS = 10 * 60_000;
-const SESSION_GAP = 60_000;
-
-export interface UpdateState {
-  checkedAt: number;
-  latest: string | null;
-  installed?: string;
-  error?: string;
-  session?: string;
-}
-
+// legacy path, read only
 export function updateFile(env: NodeJS.ProcessEnv = process.env): string {
-  return path.join(cacheDir(env), 'update.json');
+  return legacyUpdateFile(env);
 }
 
-const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/;
-const version = (v: unknown): string | null => (typeof v === 'string' && VERSION_RE.test(v) ? v : null);
-
-// a corrupt file reads as missing fields
 export function readUpdateState(env: NodeJS.ProcessEnv = process.env): UpdateState | null {
-  let o: Record<string, unknown>;
-  try {
-    const v = JSON.parse(fs.readFileSync(updateFile(env), 'utf8')) as unknown;
-    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
-    o = v as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-  const checkedAt = typeof o.checkedAt === 'number' && Number.isFinite(o.checkedAt) ? o.checkedAt : 0;
-  const state: UpdateState = { checkedAt, latest: version(o.latest) };
-  const installed = version(o.installed);
-  if (installed) state.installed = installed;
-  if (typeof o.error === 'string') state.error = sanitizeText(o.error);
-  if (typeof o.session === 'string') state.session = o.session;
-  return state;
+  const e = readEnvelope<UpdateValue>('update', env);
+  return e ? toUpdateState(e) : readLegacyUpdate(env);
 }
 
 export function writeUpdateState(state: UpdateState, env: NodeJS.ProcessEnv = process.env): void {
-  writeAtomic(updateFile(env), JSON.stringify(state));
+  writeEnvelope(fromUpdateState(state), env);
 }
 
 function parseVersion(v: string): { core: number[]; pre: string[] } {
@@ -85,10 +73,6 @@ export function compareVersions(a: string, b: string): number {
     if (d !== 0) return d;
   }
   return comparePre(pa.pre, pb.pre);
-}
-
-export function updatesDisabled(config: Config, env: NodeJS.ProcessEnv = process.env): boolean {
-  return config.update === 'off' || !!env.CI || !!env.CCINFOBAR_NO_UPDATE;
 }
 
 export function availableUpdate(current: string, env: NodeJS.ProcessEnv = process.env): string | null {
@@ -131,17 +115,19 @@ export function selfCommand(kind: InstallKind = installKind()): string {
 }
 
 // on every new Claude Code session, else daily
-export function scheduleCheck(config: Config, session?: string, env: NodeJS.ProcessEnv = process.env): void {
-  if (updatesDisabled(config, env) || nonessentialTrafficOff(env)) return;
-  const state = readUpdateState(env);
-  const now = Date.now();
-  const age = state ? now - state.checkedAt : Number.POSITIVE_INFINITY;
-  const newSession = !!session && session !== state?.session && age >= SESSION_GAP;
-  if (age < DAY && !newSession) return;
-  if (!acquireLock(`${updateFile(env)}.lock`, LOCK_MS, now)) return;
+export function scheduleCheck(
+  config: Config,
+  session?: string,
+  env: NodeJS.ProcessEnv = process.env,
+  extra: string[] = [],
+): void {
+  if (updatesDisabled(config, env) || nonessentialTrafficOff(env) || jobsDisabled(env)) return;
   try {
-    if (state && session) writeUpdateState({ ...state, session }, env);
-    spawnSelf(['update', '--background'], env);
+    const now = Date.now();
+    const payload = { session_id: session } as StatusPayload;
+    const [req] = updateJob.keys({ config, payload, env, cwd: '', now });
+    if (!req || !updateJob.due(updateJob.readPrev!('update', env), now, req)) return;
+    scheduleRequests([{ req, lockMs: UPDATE_LOCK_MS }], env, extra, { now });
   } catch {}
 }
 
