@@ -227,7 +227,7 @@ Not covered:
 
 ### workspace-repos
 
-Lists git repos directly inside the current folder when that folder is not inside a repo. It reads `.git/HEAD` files, never runs git while rendering, and rescans at most every 10 seconds. Inside-repo detection walks up to the filesystem root looking for `.git`, so a dotfiles repo at `~/.git` makes every folder under your home count as inside a repo and the widget stays hidden there. `GIT_DIR` and `GIT_WORK_TREE` are ignored. With `dirty: true` a background job runs a hardened `git status` in up to 50 repos about once a minute; the status line only reads its cache.
+Lists git repos directly inside the current folder when that folder is not inside a repo. It reads `.git/HEAD` files, never runs git while rendering, and rescans at most every 10 seconds. Inside-repo detection walks up to the filesystem root looking for `.git`, so a dotfiles repo at `~/.git` makes every folder under your home count as inside a repo and the widget stays hidden there. `GIT_DIR` and `GIT_WORK_TREE` are ignored. With `dirty: true` a background job runs a hardened `git status` in up to 50 repos, the ones on screen first, about once a minute; the status line only reads its cache.
 
 ## Layout tips
 

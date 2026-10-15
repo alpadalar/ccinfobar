@@ -4,8 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
-import { computeDirty, runRepos } from '../../src/commands/repos.js';
+import { computeDirty, dirtyOrder, runRepos } from '../../src/commands/repos.js';
+import { defaultConfig } from '../../src/core/config.js';
 import { configDir } from '../../src/core/paths.js';
+import type { Config, WidgetItem } from '../../src/core/types.js';
 import { dirtyFile, type RepoEntry, readDirty } from '../../src/data/repos.js';
 
 function hasGit(): boolean {
@@ -53,6 +55,31 @@ const entry = (name: string): RepoEntry => ({
   detached: false,
   activity: null,
   hidden: false,
+});
+
+describe('dirtyOrder', () => {
+  const repos = Array.from({ length: 60 }, (_, i) => ({
+    ...entry(`r${String(i).padStart(2, '0')}`),
+    activity: i,
+    hidden: i === 59,
+  }));
+  const cfg = (...items: WidgetItem['options'][]): Config => ({
+    ...defaultConfig(),
+    lines: [items.map((options, i) => ({ id: `w${i}`, type: 'workspace-repos', options }))],
+  });
+
+  it('checks the repos each item shows first', () => {
+    const names = (c: Config) => dirtyOrder(repos, c).map((r) => r.name);
+    expect(names(cfg({ sort: 'recent', maxRepos: 3 })).slice(0, 3)).toEqual(['r58', 'r57', 'r56']);
+    expect(names(cfg({ sort: 'recent', maxRepos: 2, includeHidden: true })).slice(0, 2)).toEqual([
+      'r59',
+      'r58',
+    ]);
+    expect(names(cfg({})).slice(0, 2)).toEqual(['r00', 'r01']);
+    const all = names(cfg({ sort: 'recent', maxRepos: 3 }));
+    expect(all).toHaveLength(60);
+    expect(all[all.length - 1]).toBe('r59');
+  });
 });
 
 describe.skipIf(!available || tmpRepo)('repos dirty job', () => {

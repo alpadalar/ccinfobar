@@ -174,6 +174,15 @@ export function scanRepos(
   return { repos, total: repos.length };
 }
 
+// the widget's order: hidden folders only on request, newest first for recent
+export function pickRepos(repos: RepoEntry[], includeHidden: boolean, sort: string): RepoEntry[] {
+  const list = repos.filter((r) => includeHidden || !r.hidden);
+  if (sort === 'recent') {
+    list.sort((a, b) => (b.activity ?? 0) - (a.activity ?? 0) || (a.name < b.name ? -1 : 1));
+  }
+  return list;
+}
+
 export const reposCacheName = (root: string): string => `repos-${cacheKey(root)}.json`;
 
 function isEntry(v: unknown): v is RepoEntry {

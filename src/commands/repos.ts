@@ -2,9 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import { loadForUse } from '../core/load.js';
+import type { Config } from '../core/types.js';
 import { hardenedGit } from '../data/git.js';
-import { DIRTY_VERSION, dirtyFile, insideRepo, type RepoEntry, scanRepos } from '../data/repos.js';
+import { DIRTY_VERSION, dirtyFile, insideRepo, pickRepos, type RepoEntry, scanRepos } from '../data/repos.js';
 import { writeAtomic } from '../data/store.js';
+import { opt } from '../widgets/shared.js';
 
 const MAX_REPOS = 50;
 const PER_REPO_MS = 2_000;
@@ -32,11 +34,19 @@ export function computeDirty(
   return out;
 }
 
-// shown repos first
-const order = (repos: RepoEntry[]): RepoEntry[] => [
-  ...repos.filter((r) => !r.hidden),
-  ...repos.filter((r) => r.hidden),
-];
+// repos each workspace-repos item shows first, then the rest
+export function dirtyOrder(repos: RepoEntry[], config: Config): RepoEntry[] {
+  const out = new Set<RepoEntry>();
+  for (const it of config.lines.flat()) {
+    if (it.type !== 'workspace-repos') continue;
+    const max = Math.max(1, Math.floor(opt(it, 'maxRepos', 5)));
+    const list = pickRepos(repos, opt(it, 'includeHidden', false), opt<string>(it, 'sort', 'name'));
+    for (const r of list.slice(0, max)) out.add(r);
+  }
+  for (const r of repos) if (!r.hidden) out.add(r);
+  for (const r of repos) out.add(r);
+  return [...out];
+}
 
 export async function runRepos(args: Args, cfgFile: string): Promise<void> {
   const cwd = args.positional[0];
@@ -49,9 +59,11 @@ export async function runRepos(args: Args, cfgFile: string): Promise<void> {
   }
   const env = process.env;
   try {
-    const harden = loadForUse(cfgFile).config.gitHardening !== false;
+    const { config } = loadForUse(cfgFile);
+    const harden = config.gitHardening !== false;
     if (insideRepo(root)) return;
-    const dirty = computeDirty(root, order(scanRepos(root, { exact: true }).repos), { harden, env });
+    const repos = dirtyOrder(scanRepos(root, { exact: true }).repos, config);
+    const dirty = computeDirty(root, repos, { harden, env });
     writeAtomic(dirtyFile(root, env), JSON.stringify({ v: DIRTY_VERSION, at: Date.now(), dirty }), {
       mode: 0o600,
     });

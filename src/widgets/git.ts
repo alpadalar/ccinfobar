@@ -2,6 +2,7 @@ import path from 'node:path';
 import { hyperlink } from '../core/ansi.js';
 import { safeUrl } from '../core/sanitize.js';
 import type { OptionSpec, WidgetDef } from '../core/types.js';
+import { pickRepos } from '../data/repos.js';
 import { opt } from './shared.js';
 
 export function parseRemote(url: string | null | undefined): string | null {
@@ -269,12 +270,8 @@ export const widgets: WidgetDef[] = [
     render(ctx, item) {
       const ws = ctx.data.repos?.();
       if (!ws) return null;
-      const hidden = opt(item, 'includeHidden', false);
-      const list = ws.repos.filter((r) => hidden || !r.hidden);
+      const list = pickRepos(ws.repos, opt(item, 'includeHidden', false), opt<string>(item, 'sort', 'name'));
       if (!list.length) return null;
-      if (opt<string>(item, 'sort', 'name') === 'recent') {
-        list.sort((a, b) => (b.activity ?? 0) - (a.activity ?? 0) || (a.name < b.name ? -1 : 1));
-      }
       const max = Math.max(1, Math.floor(opt(item, 'maxRepos', 5)));
       const branch = opt(item, 'showBranch', true);
       const mark = opt(item, 'dirty', false);
