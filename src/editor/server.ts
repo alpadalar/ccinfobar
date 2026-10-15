@@ -161,7 +161,7 @@ function readBody(req: http.IncomingMessage): Promise<unknown> {
       size += chunk.length;
       if (size > MAX_BODY) {
         failed = true;
-        reject(new HttpError(413, 'Request body too large'));
+        reject(httpError(413, 'err.server.tooLarge'));
         return;
       }
       chunks.push(chunk);
@@ -408,7 +408,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     }
 
     if (!url.pathname.startsWith('/api/')) throw new HttpError(404, 'Not found');
-    if (req.headers['x-ccinfobar-token'] !== token) throw new HttpError(401, 'Invalid token');
+    if (req.headers['x-ccinfobar-token'] !== token) throw httpError(401, 'err.server.badToken');
     if (method !== 'GET') {
       const origin = req.headers.origin;
       if (origin !== undefined && !originOk(origin)) throw new HttpError(403, 'Forbidden origin');

@@ -54,6 +54,8 @@ export const errorMessages = {
   'err.theme.badId': 'Theme id must be letters, numbers, dot, dash or underscore',
   'err.preview.unknownScenario': 'unknown scenario',
   'err.server.badJson': 'Invalid JSON',
+  'err.server.badToken': 'Invalid token',
+  'err.server.tooLarge': 'Request body too large',
   'err.server.badPresetId': 'Invalid preset id',
   'err.server.presetIdRule': 'Preset id must be letters, numbers, dot, dash or underscore',
   'err.server.notUserPreset': 'Not a user preset',

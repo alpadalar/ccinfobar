@@ -58,6 +58,8 @@ export const errorMessages = {
   'err.theme.badId': 'Tema kimliği yalnızca harf, rakam, nokta, tire veya alt çizgi içerebilir',
   'err.preview.unknownScenario': 'bilinmeyen senaryo',
   'err.server.badJson': 'Geçersiz JSON',
+  'err.server.badToken': 'Geçersiz token',
+  'err.server.tooLarge': 'İstek gövdesi çok büyük',
   'err.server.badPresetId': 'Geçersiz hazır ayar kimliği',
   'err.server.presetIdRule': 'Hazır ayar kimliği yalnızca harf, rakam, nokta, tire veya alt çizgi içerebilir',
   'err.server.notUserPreset': 'Bu bir kullanıcı hazır ayarı değil',

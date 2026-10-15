@@ -314,7 +314,11 @@ describe('editor server', () => {
   it('rejects invalid json and oversized bodies', async () => {
     expect((await request('PUT', '/api/config', { body: '{nope' })).status).toBe(400);
     const big = JSON.stringify({ config: defaultConfig(), pad: 'x'.repeat(1024 * 1024 + 10) });
-    expect((await request('PUT', '/api/config', { body: big })).status).toBe(413);
+    const res = await request('PUT', '/api/config', { body: big });
+    expect(res.status).toBe(413);
+    // the socket may close before the reply arrives
+    if (res.body)
+      expect(res.json()).toEqual({ error: 'Request body too large', errorId: 'err.server.tooLarge' });
   });
 
   it('renders a preview for every theme without overrides', async () => {
@@ -488,7 +492,10 @@ describe('editor server language', () => {
       errorId: 'err.server.badJson',
     });
     expect(await body('GET', '/api/nope')).toEqual({ error: 'Not found' });
-    expect((await request('GET', '/api/state', { token: false })).json()).toEqual({ error: 'Invalid token' });
+    expect((await request('GET', '/api/state', { token: false })).json()).toEqual({
+      error: 'Invalid token',
+      errorId: 'err.server.badToken',
+    });
     expect((await request('GET', '/api/state', { headers: { host: 'evil.example:80' } })).json()).toEqual({
       error: 'Forbidden host',
     });

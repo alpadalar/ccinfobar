@@ -246,10 +246,8 @@ const ALLOW: Record<string, string[]> = {
   ],
   'src/editor/server.ts': [
     // developer-only (D-36)
-    'Request body too large',
     'Forbidden host',
     'Not found',
-    'Invalid token',
     'Forbidden origin',
     // developer-only page when the bundle is not built
     '<!doctype html><meta charset="utf-8"><title>ccinfobar editor</title>\n<body style="font:16px system-ui;background:#111;color:#eee;padding:3rem">\n<h1>Editor bundle not built</h1><p>Run <code>npm run build</code> and start the editor again.</p></body>',
