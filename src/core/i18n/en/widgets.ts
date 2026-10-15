@@ -57,4 +57,7 @@ export const widgetMessages = {
   'widget.status.level.major': 'major',
   'widget.status.level.minor': 'minor',
   'widget.status.level.maintenance': 'maintenance',
+  'preset.label.elapsed': 'Elapsed: ',
+  'preset.label.fiveHour': '5h Limit: ',
+  'preset.label.weekly': 'Weekly Limit: ',
 } as const;

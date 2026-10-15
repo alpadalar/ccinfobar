@@ -231,8 +231,6 @@ const ALLOW: Record<string, string[]> = {
     'Catppuccin Mocha',
     'One Dark',
   ],
-  // preset widget labels are config values written to the user's config
-  'src/core/presets.ts': ['5h Limit: ', 'Weekly Limit: '],
   // macOS managed settings dir
   'src/core/paths.ts': ['/Library/Application Support/ClaudeCode'],
   // STATE.md body keys the reader parses

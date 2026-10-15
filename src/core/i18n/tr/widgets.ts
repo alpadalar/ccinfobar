@@ -60,4 +60,7 @@ export const widgetMessages = {
   'widget.status.level.major': 'büyük',
   'widget.status.level.minor': 'küçük',
   'widget.status.level.maintenance': 'bakım',
+  'preset.label.elapsed': 'Süre: ',
+  'preset.label.fiveHour': '5h limiti: ',
+  'preset.label.weekly': 'Haftalık limit: ',
 } satisfies Record<keyof typeof enWidgets, Message>;

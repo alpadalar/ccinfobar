@@ -1,4 +1,4 @@
-import { activeLanguage } from './index.js';
+import { activeLanguage, type MessageId, t, withLanguage } from './index.js';
 import type { CatalogMeta } from './types.js';
 
 type Source = { source?: string };
@@ -40,4 +40,22 @@ export function scenarioText(
 
 export function styleGroupName(group: { id: string; name: string }): string {
   return own(catalog()?.styleGroups, group.id) ?? group.name;
+}
+
+const PRESET_LABELS: readonly MessageId[] = [
+  'preset.label.elapsed',
+  'preset.label.fiveHour',
+  'preset.label.weekly',
+];
+
+// the server sends built-in presets with English labels
+export function presetLabels<C extends { lines: { label?: string }[][] }>(config: C): C {
+  const map = new Map(PRESET_LABELS.map((id) => [withLanguage('en', () => t(id)), t(id)]));
+  const lines = config.lines.map((line) =>
+    line.map((item) => {
+      const label = item.label === undefined ? undefined : map.get(item.label);
+      return label === undefined ? item : { ...item, label };
+    }),
+  );
+  return { ...config, lines };
 }

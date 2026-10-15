@@ -276,6 +276,16 @@ describe('presets gallery text', () => {
     expect(foreign(list)).toEqual([]);
   });
 
+  it('applies built-in preset labels in the UI language', async () => {
+    const store = await init();
+    const { openPresets } = await import('../../src/editor/web/presets.js');
+    await shown('tr', openPresets);
+    body.all((e) => e.getAttribute('data-preset') === 'cockpit')[0]!.dispatch('click');
+    await flush();
+    const labels = store.S.config.lines.flat().flatMap((i) => (i.label ? [i.label] : []));
+    expect(labels).toEqual(['Süre: ', '5h limiti: ', 'Haftalık limit: ']);
+  });
+
   it('save dialog is Turkish', async () => {
     await init();
     const { openPresets } = await import('../../src/editor/web/presets.js');

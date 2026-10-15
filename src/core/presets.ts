@@ -44,7 +44,7 @@ export function cockpitConfig(): Config {
       [
         w('model', 'model', { color: 'yellow', raw: true }),
         w('effort', 'effort', { color: 'magenta', raw: true }),
-        w('elapsed', 'session-duration', { color: 'white', label: 'Elapsed: ' }),
+        w('elapsed', 'session-duration', { color: 'white', label: t('preset.label.elapsed') }),
         w('skills', 'skills', { color: 'brightBlack' }),
       ],
       [
@@ -54,9 +54,9 @@ export function cockpitConfig(): Config {
         w('output-speed', 'output-speed', { color: 'brightBlack' }),
       ],
       [
-        w('session-usage', 'five-hour-usage', { color: 'green', label: '5h Limit: ' }),
+        w('session-usage', 'five-hour-usage', { color: 'green', label: t('preset.label.fiveHour') }),
         w('block-reset', 'five-hour-reset', { color: 'brightBlack' }),
-        w('weekly-usage', 'weekly-usage', { color: 'yellow', label: 'Weekly Limit: ' }),
+        w('weekly-usage', 'weekly-usage', { color: 'yellow', label: t('preset.label.weekly') }),
         w('weekly-reset', 'weekly-reset', { color: 'brightBlack' }),
       ],
     ],

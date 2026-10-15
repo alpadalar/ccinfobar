@@ -1,5 +1,5 @@
 import { keepLanguage } from '../../core/edit.js';
-import { presetText } from '../../core/i18n/catalog-text.js';
+import { presetLabels, presetText } from '../../core/i18n/catalog-text.js';
 import { t } from '../../core/i18n/index.js';
 import { ansiToHtml } from './ansi-html.js';
 import { api, previewSource } from './api.js';
@@ -115,7 +115,8 @@ export async function openPresets(): Promise<void> {
       ))
     )
       return;
-    replaceAll(keepLanguage(structuredClone(p.config), S.config));
+    const config = structuredClone(p.config);
+    replaceAll(keepLanguage(p.source === 'user' ? config : presetLabels(config), S.config));
     toast(t('presets.applied', { name: presetText(p, 'name') }), 'info');
     close();
   }

@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig, saveConfig } from '../../src/core/config.js';
+import { presetLabels } from '../../src/core/i18n/catalog-text.js';
 import { t } from '../../src/core/i18n/index.js';
 import { loadForUse } from '../../src/core/load.js';
 import {
@@ -70,5 +71,38 @@ describe('user presets', () => {
     expect(() => withLang('tr', () => saveUserPreset({ id: '../x', config: {} }, dir))).toThrow(tr);
     expect(deleteUserPreset('mine', dir)).toBe(true);
     expect(getPreset('mine', dir)).toBeUndefined();
+  });
+});
+
+describe('preset labels', () => {
+  const labels = (c: { lines: { label?: string }[][] }) =>
+    c.lines.flat().flatMap((i) => (i.label !== undefined && /\p{L}/u.test(i.label) ? [i.label] : []));
+  const builtin = () => listPresets().filter((p) => p.source !== 'user');
+
+  it('keeps the English cockpit labels', () => {
+    expect(labels(cockpitConfig())).toEqual(['Elapsed: ', '5h Limit: ', 'Weekly Limit: ']);
+  });
+
+  it('builds every built-in preset label in the display language', () => {
+    for (const p of builtin()) {
+      const en = labels(p.build());
+      const tr = withLang('tr', () => labels(p.build()));
+      expect(tr).toHaveLength(en.length);
+      for (const [i, l] of tr.entries()) expect(l, `${p.id} ${l}`).not.toBe(en[i]);
+    }
+    expect(withLang('tr', () => labels(cockpitConfig()))).toEqual([
+      'Süre: ',
+      '5h limiti: ',
+      'Haftalık limit: ',
+    ]);
+  });
+
+  it('translates English built-in labels on the wire and leaves other labels alone', () => {
+    const wire = cockpitConfig();
+    wire.lines[0]![0]!.label = 'Mine: ';
+    const out = withLang('tr', () => presetLabels(wire));
+    expect(labels(out)).toEqual(['Mine: ', 'Süre: ', '5h limiti: ', 'Haftalık limit: ']);
+    expect(labels(wire)).toEqual(['Mine: ', 'Elapsed: ', '5h Limit: ', 'Weekly Limit: ']);
+    expect(presetLabels(cockpitConfig())).toEqual(cockpitConfig());
   });
 });
