@@ -82,10 +82,17 @@ describe('moodTier', () => {
   });
 
   it('is asleep after 30 minutes without an assistant turn', () => {
-    const tr = () => ({ ...idle(), lastAssistantAt: t0 - 45 * MIN });
+    const tr = () => ({ ...idle(), turnStart: t0 - 50 * MIN, lastAssistantAt: t0 - 45 * MIN });
     expect(moodTier(ctx({ transcript: tr }))).toBe('asleep');
     const p = payload({ context_window: { context_window_size: 1_000_000, used_percentage: 95 } });
     expect(moodTier(ctx({ payload: p, transcript: tr }))).toBe('asleep');
+  });
+
+  it('wakes up for a new turn after a long idle (IN-07)', () => {
+    const woke = () => ({ ...idle(), turnStart: t0 - 3_000, lastAssistantAt: t0 - 45 * MIN });
+    expect(moodTier(ctx({ transcript: woke }))).toBe('busy');
+    const p = payload({ context_window: { context_window_size: 1_000_000, used_percentage: 95 } });
+    expect(moodTier(ctx({ payload: p, transcript: woke }))).toBe('full');
   });
 
   it('is busy while a turn runs', () => {

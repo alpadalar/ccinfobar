@@ -109,7 +109,8 @@ export function moodTier(ctx: RenderContext): Mood | null {
   if (!num(context) && !tr) return null;
   const now = ctx.now.getTime();
   const last = tr?.lastAssistantAt;
-  if (num(last) && now - last > ASLEEP_MS) return 'asleep';
+  // a new turn after a long idle is not asleep (IN-07)
+  if (num(last) && now - last > ASLEEP_MS && !running(ctx, now)) return 'asleep';
   if (num(context) && context >= 90) return 'full';
   const usage = get('usage.5h');
   if (num(usage) && usage >= 80) return 'tired';
