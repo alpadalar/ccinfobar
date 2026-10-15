@@ -1,3 +1,4 @@
+import { applyLanguage, reapplyLanguage } from '../cli/lang.js';
 import {
   applyInstall,
   globalBinary,
@@ -115,6 +116,7 @@ export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): 
 export async function runTui(opts: TuiOptions): Promise<void> {
   const gsd = gsdInstalled();
   const loaded = loadForUse(opts.configPath, () => gsd);
+  applyLanguage(loaded.issue ? undefined : loaded.config);
   const broken = brokenConfigMessage(loaded);
   if (broken) {
     console.error(broken);
@@ -194,8 +196,10 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     };
 
     const dispatch = (action: Action) => {
+      const prev = state.config;
       state = reduce(state, action);
       while (state.effect) state = reduce(state, runEffect(state, state.effect));
+      reapplyLanguage(prev, state.config);
       if (state.quit) finish();
       else draw();
     };

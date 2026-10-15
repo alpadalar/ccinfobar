@@ -3,9 +3,12 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { resetLanguageCache } from '../../src/cli/lang.js';
 import { defaultConfig } from '../../src/core/config.js';
+import { language, t } from '../../src/core/i18n/index.js';
 import { SCENARIOS } from '../../src/core/scenarios.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
+import { withLang } from '../helpers.js';
 
 let dir: string;
 let file: string;
@@ -388,5 +391,68 @@ describe('editor server', () => {
     expect(res.status).toBe(200);
     await new Promise((r) => setTimeout(r, 200));
     await expect(request('GET', '/api/state')).rejects.toThrow();
+  });
+});
+
+describe('editor server language', () => {
+  let prevLang: string | undefined;
+  const restart = async (lang: string | undefined) => {
+    await handle.close();
+    if (lang === undefined) delete process.env.CCINFOBAR_LANG;
+    else process.env.CCINFOBAR_LANG = lang;
+    resetLanguageCache();
+    handle = await startEditor({ configPath: file, open: false, port: 0 });
+    port = Number(new URL(handle.url).port);
+  };
+  const preview = async (config: object) =>
+    (
+      await request('POST', '/api/preview', {
+        body: JSON.stringify({ config, source: 'scenario', scenario: 'fresh-session', width: 120 }),
+      })
+    )
+      .json()
+      .lines.join('\n') as string;
+  const LINE = [[{ id: 'ctx', type: 'context-percentage' }]];
+  const trLoading = withLang('tr', () => t('loading.default'));
+
+  beforeEach(() => {
+    prevLang = process.env.CCINFOBAR_LANG;
+  });
+
+  afterEach(() => {
+    if (prevLang === undefined) delete process.env.CCINFOBAR_LANG;
+    else process.env.CCINFOBAR_LANG = prevLang;
+    resetLanguageCache();
+  });
+
+  it('sends the env answer in /api/state and keeps the process English', async () => {
+    expect((await request('GET', '/api/state')).json().language).toEqual({ id: 'en', source: 'LC_ALL' });
+    await restart('tr');
+    expect(language()).toBe('en');
+    const state = (await request('GET', '/api/state')).json();
+    expect(state.language).toEqual({ id: 'tr', source: 'CCINFOBAR_LANG' });
+    expect(state.widgets.find((w: { type: string }) => w.type === 'model').name).toBe('Model');
+  });
+
+  it('renders previews with the auto answer unless the config sets a language', async () => {
+    await restart('tr');
+    expect(await preview({ lines: LINE })).toContain(trLoading);
+    expect(await preview({ language: 'auto', lines: LINE })).toContain(trLoading);
+    const en = await preview({ language: 'en', lines: LINE });
+    expect(en).toContain(t('loading.default'));
+    expect(en).not.toContain(trLoading);
+    expect(language()).toBe('en');
+    await restart(undefined);
+    expect(await preview({ language: 'tr', lines: LINE })).toContain(trLoading);
+    expect(await preview({ lines: LINE })).not.toContain(trLoading);
+  });
+
+  it('keeps API errors English under a Turkish env', async () => {
+    await restart('tr');
+    const res = await request('POST', '/api/hooks', { body: JSON.stringify({ enabled: 'yes' }) });
+    expect(res.status).toBe(400);
+    expect(res.json().error).toBe(t('hooks.badBody'));
+    expect(res.json().error).not.toBe(withLang('tr', () => t('hooks.badBody')));
+    expect((await request('GET', '/api/nope')).json().error).toBe('Not found');
   });
 });

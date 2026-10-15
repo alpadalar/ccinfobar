@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
+import { envLanguage } from '../cli/lang.js';
 import { hookEntryState } from '../commands/hooks-doctor.js';
 import {
   applyHooks,
@@ -44,7 +45,7 @@ import {
   setProgress,
   upgradeOptions,
 } from '../core/edit.js';
-import { t } from '../core/i18n/index.js';
+import { setLanguage, t, withLanguage } from '../core/i18n/index.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { deleteUserPreset, listPresets, presetsDir, saveUserPreset } from '../core/presets.js';
@@ -278,6 +279,9 @@ function previewSourceOf(body: Record<string, unknown>): PreviewSource {
 }
 
 export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
+  // API text stays English; the browser picks its language from `language`
+  const auto = envLanguage();
+  setLanguage('en');
   const host = opts.host ?? '127.0.0.1';
   const token = crypto.randomBytes(16).toString('hex');
   let command = defaultCommand();
@@ -435,6 +439,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           hasLastPayload: fs.existsSync(lastPayloadPath()),
           scenarios: scenarioList(),
           terminal: opts.terminal ?? null,
+          language: auto,
         });
         return;
       }
@@ -449,7 +454,11 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           throw new HttpError(400, 'Invalid extends id');
         }
         const theme = draft ? resolveThemeInput(draft) : undefined;
-        send(res, 200, renderPreviewReport(config, source, width, theme));
+        send(
+          res,
+          200,
+          withLanguage(auto.id, () => renderPreviewReport(config, source, width, theme)),
+        );
         return;
       }
       case 'POST /api/normalize': {
@@ -486,7 +495,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
             glyphs: undefined,
             tui: undefined,
           };
-          previews[t.id] = renderPreview(cfg, source, width);
+          previews[t.id] = withLanguage(auto.id, () => renderPreview(cfg, source, width));
         }
         send(res, 200, { previews });
         return;
@@ -780,15 +789,16 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
 
   const url = `http://127.0.0.1:${port}/?t=${token}`;
   if (opts.detached) startDetached(opts.detached, url);
+  const say = (line: () => string) => console.log(withLanguage(auto.id, line));
   const onSigint = () => {
-    console.log('\nStopping editor');
+    say(() => '\nStopping editor');
     void close();
   };
   process.once('SIGINT', onSigint);
   server.on('close', () => process.off('SIGINT', onSigint));
 
-  console.log(`ccinfobar editor running at ${url}`);
-  console.log('Press Ctrl+C to stop');
+  say(() => `ccinfobar editor running at ${url}`);
+  say(() => 'Press Ctrl+C to stop');
   if (opts.open) openBrowser(url);
 
   return { url, token, close };
