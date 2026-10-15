@@ -15,6 +15,8 @@ export interface JobRequest {
   key: string;
   param?: string;
   ttlMs?: number;
+  // render side only, never in argv
+  paths?: string[];
 }
 
 export interface JobEnvelope<V> {

@@ -100,12 +100,15 @@ export const httpJob: Job<HttpValue> = {
   keys({ config }) {
     return [...httpGroups(config).values()]
       .filter((g) => httpItemError(g.url, g.headers) === null)
-      .map((g) => ({ key: g.key, ttlMs: g.intervalS * 1000 }));
+      .map((g) => ({ key: g.key, ttlMs: g.intervalS * 1000, paths: g.paths }));
   },
   accepts(req, { config }) {
     return httpGroups(config).has(req.key);
   },
   due(e, now, req) {
+    // a new path on a fresh url would wait a whole interval
+    const have = e?.ok ? e.value?.paths : null;
+    if (have && typeof have === 'object' && req.paths?.some((p) => !Object.hasOwn(have, p))) return true;
     return defaultDue(e, now, req.ttlMs ?? DEFAULT_INTERVAL * 1000);
   },
   async run(req, ctx) {

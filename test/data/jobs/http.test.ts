@@ -226,8 +226,8 @@ describe('httpJob registration', () => {
     );
     const reqs = httpJob.keys({ config, payload: {}, env: sandbox(), cwd: '/', now: NOW });
     expect(reqs).toEqual([
-      { key: httpKey('https://a.example/x', ''), ttlMs: 45_000 },
-      { key: httpKey('https://b.example/y', ''), ttlMs: 300_000 },
+      { key: httpKey('https://a.example/x', ''), ttlMs: 45_000, paths: ['$', '$.b'] },
+      { key: httpKey('https://b.example/y', ''), ttlMs: 300_000, paths: ['$'] },
     ]);
   });
 
@@ -251,6 +251,21 @@ describe('httpJob registration', () => {
     expect(httpJob.due(e(NOW - 50_000), NOW, req)).toBe(false);
     expect(httpJob.due(e(NOW - 60_000), NOW, req)).toBe(true);
     expect(httpJob.due(e(NOW - 200_000), NOW, { key: req.key })).toBe(false);
+  });
+
+  it('is due at once when a configured path is not in the envelope', () => {
+    const e = (ok: boolean): JobEnvelope<HttpValue> => ({
+      v: 1,
+      key: 'http-0000000000000000',
+      fetchedAt: NOW - 10_000,
+      ok,
+      value: ok ? { paths: { '$.a': { ok: true, v: 1 } } } : null,
+      ...(ok ? {} : { blockedUntil: NOW + 50_000 }),
+    });
+    const req = (paths: string[]) => ({ key: 'http-0000000000000000', ttlMs: 300_000, paths });
+    expect(httpJob.due(e(true), NOW, req(['$.a']))).toBe(false);
+    expect(httpJob.due(e(true), NOW, req(['$.a', '$.b']))).toBe(true);
+    expect(httpJob.due(e(false), NOW, req(['$.a', '$.b']))).toBe(false);
   });
 
   it('schedules once for two items on one url, even with nonessential traffic off', () => {

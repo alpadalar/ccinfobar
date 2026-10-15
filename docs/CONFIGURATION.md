@@ -312,7 +312,7 @@ Rules:
 - Env values (headers and `${VAR}` query values) are sent only over `https:`, or plain `http:` to `localhost`, `127.0.0.1` or `::1`. An item that would send one to another plain `http:` host is refused: nothing is fetched, the item shows nothing, and the editor, `ccinfobar doctor` and `ccinfobar explain` say `secrets need https or localhost`. Doctor also warns about a plain `http:` URL without secrets, because the reply can be changed on the way.
 - Redirects are followed up to 3 times, only on the same origin or from `http:` to `https:` on the same host. Any other redirect is refused.
 - Replies over 256 KB are cut off and count as an error. Only the values your paths pick are stored, never the reply.
-- Items with the same `url` and `headers` share one fetch; the shortest `interval` wins.
+- Items with the same `url` and `headers` share one fetch; the shortest `interval` wins. A new item or a changed `path` on a URL that is already cached is fetched on the next refresh, not after the interval.
 - When a fetch fails, the last good value stays. Once it is older than three intervals (at least 15 minutes) it gets a ` ?`, and after 24 hours without success the widget hides.
 - With `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, Claude Code removes token-like variables from the status line's environment, so those headers report "not set".
 
