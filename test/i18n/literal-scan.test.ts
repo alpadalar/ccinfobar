@@ -13,6 +13,7 @@ const SWEPT: string[] = [
   'src/importers/index.ts',
   'src/importers/ccstatusline.ts',
   'src/importers/claude-powerline.ts',
+  'src/commands/doctor.ts',
 ];
 
 // left out on purpose, with the reason; 08-25 makes SWEPT + NOT_SWEPT cover src/

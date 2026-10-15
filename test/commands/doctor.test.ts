@@ -3,11 +3,17 @@ import fs from 'node:fs';
 import module from 'node:module';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { commandWarnings, configWarnings, printWidgetReport, runDoctor } from '../../src/commands/doctor.js';
+import {
+  commandWarnings,
+  configWarnings,
+  printWidgetReport,
+  runDoctor,
+  usageLine,
+} from '../../src/commands/doctor.js';
 import { applyInstall, planInstall } from '../../src/commands/install.js';
 import { manifestFile, readManifest } from '../../src/commands/manifest.js';
 import { backupsDir } from '../../src/commands/settings-file.js';
-import { inspectConfigText } from '../../src/core/config.js';
+import { defaultConfig, inspectConfigText } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
 import { cacheDir, claudeSettingsPath, configDir, lastPayloadPath, tildify } from '../../src/core/paths.js';
 import type { StatusPayload } from '../../src/core/types.js';
@@ -275,6 +281,52 @@ describe('runDoctor language', () => {
   });
 });
 
+describe('runDoctor in Turkish', () => {
+  const run = (file: string) => withEnvLang('tr', () => capture(() => runDoctor(file)));
+
+  it('translates the report lines and keeps paths, versions and marks', () => {
+    const file = cfgFile('tr.json', JSON.stringify({ lines: [[{ type: 'model' }]] }));
+    const settings = claudeSettingsPath();
+    fs.mkdirSync(path.dirname(settings), { recursive: true });
+    fs.writeFileSync(settings, JSON.stringify({ statusLine: { type: 'command', command: 'ccinfobar' } }));
+    const out = run(file);
+    expect(out).toContain(`✓ Node.js ${process.versions.node} (20+ gerekir)`);
+    expect(out).toContain(`✓ Yapılandırma ${tildify(file)}`);
+    expect(out).toContain(`✓ ${tildify(settings)} içindeki Claude Code statusLine: ccinfobar`);
+    expect(out.some((l) => l.endsWith(` Son payload ${tildify(lastPayloadPath())}`))).toBe(true);
+    expect(out).toContain(`  Önbellek dizini ${tildify(cacheDir())}`);
+    expect(out.some((l) => /^ {2}Algılanan genişlik (bilinmiyor|\d+)$/.test(l))).toBe(true);
+    expect(out).toContain('  Güncelleme denetimleri kapalı');
+    expect(out).toContain('\nBileşenler');
+    expect(out.join('\n')).not.toMatch(/Node\.js \S+ \(needs|Config |Cache dir|Last payload|Detected width/);
+  });
+
+  it('names a missing config, an unset statusLine and the install hint', () => {
+    const missing = path.join(configDir(), 'missing-tr.json');
+    const out = run(missing);
+    expect(out).toContain(
+      `✗ Yapılandırma ${tildify(missing)} (henüz oluşturulmadı, varsayılanlar kullanılıyor)`,
+    );
+    expect(out).toContain(`✗ ${tildify(claudeSettingsPath())} içindeki Claude Code statusLine: ayarlı değil`);
+    expect(out.at(-1)).toMatch(/^\nClaude Code'da etkinleştirmek için `\S+( \S+)? install` çalıştırın\.$/);
+  });
+
+  it('translates the update mode and install kind words', () => {
+    vi.stubEnv('CCINFOBAR_NO_UPDATE', '');
+    vi.stubEnv('CI', '');
+    try {
+      const file = cfgFile('tr-notify.json', JSON.stringify({ update: 'notify', lines: [] }));
+      const out = run(file);
+      expect(out.some((l) => /^✓ Güncel \(güncelleme: yalnızca bildir, kurulum: [^,]+, /.test(l))).toBe(true);
+      expect(
+        capture(() => runDoctor(file)).some((l) => /^✓ Up to date \(notify mode, \S+ install, /.test(l)),
+      ).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
 describe('runDoctor install report', () => {
   const plain = () => cfgFile('plain.json', JSON.stringify({ lines: [[{ type: 'model' }]] }));
 
@@ -349,9 +401,12 @@ describe('runDoctor install report', () => {
     vi.stubEnv('CCINFOBAR_NO_UPDATE', '');
     vi.stubEnv('CI', '');
     try {
-      const line = () => capture(() => runDoctor(plain())).find((l) => l.startsWith('✓ Up to date')) ?? '';
-      expect(line()).toContain('last checked Oct 14, 2026, 21:07)');
-      expect(withEnvLang('tr', line)).toContain('last checked 14 Eki 2026 21:07)');
+      const line = () =>
+        capture(() => runDoctor(plain())).find((l) => /^✓ (Up to date|Güncel) /.test(l)) ?? '';
+      expect(line()).toMatch(/^✓ Up to date \(auto mode, \S+ install, last checked Oct 14, 2026, 21:07\)$/);
+      expect(withEnvLang('tr', line)).toMatch(
+        /^✓ Güncel \(güncelleme: otomatik, kurulum: .+, son denetim: 14 Eki 2026 21:07\)$/,
+      );
     } finally {
       vi.unstubAllEnvs();
       fs.rmSync(upd, { force: true });
@@ -608,6 +663,79 @@ describe('printWidgetReport', () => {
     });
     capture(() => printWidgetReport(cfgFile('ro.json', cfg)));
     expect(list()).toEqual(before);
+  });
+
+  it('prints the report words in Turkish and keeps types, ids and versions', () => {
+    save();
+    const out = withLang('tr', () => capture(() => printWidgetReport(cfgFile('rows-tr.json', LAYOUT))));
+    expect(out[0]).toBe('\nBileşenler');
+    expect(out.some((l) => l.startsWith('  Son payload: Claude Code 2.1.401, alanlar: '))).toBe(true);
+    expect(out).toContain('  ✓ L1 model: Opus 5.5');
+    expect(out.some((l) => l.startsWith('  – L1 git-branch (branch): — gösteriyor, '))).toBe(true);
+    expect(out.some((l) => l.startsWith('  ✗ L2 session-name (hid): gizli (hideEmpty), '))).toBe(true);
+    expect(out.some((l) => l.startsWith('  Kullanım limitleri: '))).toBe(true);
+    expect(out.some((l) => /^\n {2}Genişlik: /.test(l))).toBe(true);
+    expect(out.join('\n')).not.toMatch(/Last payload|Usage limits|shows —|hidden|columns detected/);
+  });
+});
+
+describe('usageLine', () => {
+  const cfg = defaultConfig();
+  const now = 1_000 * 60_000;
+  const both = {
+    rate_limits: {
+      five_hour: { used_percentage: 1, resets_at: null },
+      seven_day: { used_percentage: 2, resets_at: null },
+    },
+  };
+  const cases: [string, Parameters<typeof usageLine>, string, string][] = [
+    [
+      'from Claude Code',
+      [cfg, both, null, now],
+      'Usage limits: from Claude Code',
+      "Kullanım limitleri: Claude Code'dan",
+    ],
+    [
+      'off',
+      [{ ...cfg, usageApi: false }, {}, null, now],
+      'Usage limits: usage API off (usageApi: false)',
+      "Kullanım limitleri: kullanım API'si kapalı (usageApi: false)",
+    ],
+    [
+      'not called',
+      [cfg, {}, null, now],
+      'Usage limits: usage API not called yet',
+      "Kullanım limitleri: kullanım API'si henüz çağrılmadı",
+    ],
+    [
+      'fresh',
+      [cfg, {}, { fetchedAt: now - 3 * 60_000, rate_limits: both.rate_limits }, now],
+      'Usage limits: from the usage API, 3 min old',
+      "Kullanım limitleri: kullanım API'sinden, 3 dk önce",
+    ],
+    [
+      'fresh with an error',
+      [cfg, {}, { fetchedAt: now, rate_limits: both.rate_limits, error: 'boom' }, now],
+      'Usage limits: from the usage API, 0 min old (last error: boom)',
+      "Kullanım limitleri: kullanım API'sinden, 0 dk önce (son hata: boom)",
+    ],
+    [
+      'no data',
+      [cfg, {}, { fetchedAt: now }, now],
+      'Usage limits: no data from the usage API',
+      "Kullanım limitleri: kullanım API'sinden veri yok",
+    ],
+  ];
+
+  it.each(cases)('%s', (_name, args, english, turkish) => {
+    const prev = process.env.CCINFOBAR_NO_USAGE_API;
+    delete process.env.CCINFOBAR_NO_USAGE_API;
+    try {
+      expect(usageLine(...args)).toBe(english);
+      expect(withLang('tr', () => usageLine(...args))).toBe(turkish);
+    } finally {
+      if (prev !== undefined) process.env.CCINFOBAR_NO_USAGE_API = prev;
+    }
   });
 });
 

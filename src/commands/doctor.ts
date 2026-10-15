@@ -32,6 +32,7 @@ import { pruneTmp } from '../data/store.js';
 import { cachedTerminalWidth } from '../data/terminal.js';
 import {
   availableUpdate,
+  type InstallKind,
   installKind,
   nonessentialTrafficOff,
   readUpdateState,
@@ -145,7 +146,9 @@ function httpItemLines(
   const checked = url ? parseUrlTemplate(url) : null;
   const vars = [
     ...describeHeaders(headers, env),
-    ...(checked?.ok ? checked.vars.map((v) => `$${v} (${env[v] ? 'set' : 'unset'})`) : []),
+    ...(checked?.ok
+      ? checked.vars.map((v) => t(env[v] ? 'doctor.http.envSet' : 'doctor.http.envUnset', { name: `$${v}` }))
+      : []),
   ];
   const out = [
     t('doctor.http.item', {
@@ -207,13 +210,13 @@ export function usageLine(
   usage: UsageCache | null,
   now = Date.now(),
 ): string {
-  if (payload.rate_limits?.five_hour && payload.rate_limits.seven_day)
-    return 'Usage limits: from Claude Code';
-  if (usageApiDisabled(config)) return 'Usage limits: usage API off (usageApi: false)';
-  if (!usage) return 'Usage limits: usage API not called yet';
+  if (payload.rate_limits?.five_hour && payload.rate_limits.seven_day) return t('doctor.usage.claudeCode');
+  if (usageApiDisabled(config)) return t('doctor.usage.off');
+  if (!usage) return t('doctor.usage.notCalled');
   const age = Math.round((now - usage.fetchedAt) / 60_000);
-  const data = usage.rate_limits ? `from the usage API, ${age} min old` : 'no data from the usage API';
-  return `Usage limits: ${data}${usage.error ? ` (last error: ${safe(usage.error)})` : ''}`;
+  const error = usage.error ? safe(usage.error) : '';
+  if (usage.rate_limits) return t(error ? 'doctor.usage.freshError' : 'doctor.usage.fresh', { age, error });
+  return t(error ? 'doctor.usage.noDataError' : 'doctor.usage.noData', { error });
 }
 
 function widgetRow(r: InspectRow): string | null {
@@ -227,14 +230,14 @@ function widgetRow(r: InspectRow): string | null {
     case 'hidden':
       if (r.empty?.code === 'workspace-mode') return `  ✗ ${at}: ${t('doctor.row.workspaceHidden')}, ${why}`;
       if (r.empty?.code === 'hidden-by-rule') return `  ✗ ${at}: ${t('doctor.hiddenByRule')}, ${why}`;
-      if (getWidget(r.type)?.hideWhenEmpty) return `  ✗ ${at}: hidden, ${why}`;
-      return `  ✗ ${at}: hidden (hideEmpty), ${why}`;
+      if (getWidget(r.type)?.hideWhenEmpty) return `  ✗ ${at}: ${t('doctor.row.hidden')}, ${why}`;
+      return `  ✗ ${at}: ${t('doctor.row.hiddenEmpty')}, ${why}`;
     case 'error':
-      return `  ✗ ${at}: error, ${safe(r.error ?? '')}`;
+      return `  ✗ ${at}: ${t('doctor.row.error')}, ${safe(r.error ?? '')}`;
     case 'skipped':
       return null;
     default:
-      return `  – ${at}: shows —, ${why}`;
+      return `  – ${at}: ${t('doctor.row.empty')}, ${why}`;
   }
 }
 
@@ -242,7 +245,7 @@ const doctorWidth = (p: StatusPayload | null): number | null =>
   cachedTerminalWidth(p?.session_id, p?.terminal_width ?? p?.columns);
 
 export function printWidgetReport(cfgFile: string, loaded?: LoadResult): void {
-  console.log('\nWidgets');
+  console.log(t('doctor.widgets.heading'));
   const data = loadInspectInput({
     cfgFile,
     fallback: 'none',
@@ -257,7 +260,10 @@ export function printWidgetReport(cfgFile: string, loaded?: LoadResult): void {
     const payload = data.raw;
     const keys = Object.keys(payload).filter((k) => (payload as Record<string, unknown>)[k] !== undefined);
     console.log(
-      `  Last payload: Claude Code ${safe(payload.version ?? 'unknown version')}, fields: ${safe(keys.sort().join(', '))}`,
+      t('doctor.lastPayloadFields', {
+        version: safe(payload.version ?? t('doctor.unknownVersion')),
+        fields: safe(keys.sort().join(', ')),
+      }),
     );
     for (const n of sessionNotes(payload)) console.log(`  ℹ ${n}`);
     console.log(`  ${usageLine(data.config, payload, readUsageCache())}`);
@@ -270,8 +276,11 @@ export function printWidgetReport(cfgFile: string, loaded?: LoadResult): void {
       if (l !== null) console.log(l);
     }
     const lines = lineReport(data.commandEnv ? { ...data.ctx, env: data.commandEnv } : data.ctx);
+    const usable = lines[0]?.max ?? t('doctor.widthNone');
     console.log(
-      `\n  Width: ${data.width ?? 'unknown'} columns detected, ${lines[0]?.max ?? 'no'} usable after widthOffset`,
+      data.width == null
+        ? t('doctor.widthLineUnknown', { usable })
+        : t('doctor.widthLine', { width: data.width, usable }),
     );
     for (const l of lines.filter((x) => x.cut))
       console.log(
@@ -386,6 +395,20 @@ function printJobs(config: Config, env: NodeJS.ProcessEnv, now: number): void {
   if (env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) console.log(t('doctor.jobs.scrub'));
 }
 
+const MODES: Record<Config['update'], MessageId> = {
+  auto: 'doctor.updateMode.auto',
+  notify: 'doctor.updateMode.notify',
+  off: 'doctor.updateMode.off',
+};
+
+const KINDS: Record<InstallKind, MessageId> = {
+  'npm-global': 'doctor.installKind.npm-global',
+  local: 'doctor.installKind.local',
+  npx: 'doctor.installKind.npx',
+  source: 'doctor.installKind.source',
+  unknown: 'doctor.installKind.unknown',
+};
+
 export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {}): void {
   const ok = (b: boolean) => (b ? '✓' : '✗');
   const loaded = loadForUse(cfgFile);
@@ -403,9 +426,12 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
     owns(manifest, settingsFile, sl) || classifyOwner(manifest, settingsFile, sl, null) === 'legacy-ours';
   const nodeMajor = Number(process.versions.node.split('.')[0]);
   console.log(`ccinfobar ${VERSION}`);
-  console.log(`${ok(nodeMajor >= 20)} Node.js ${process.versions.node} (needs 20+)`);
+  console.log(t('doctor.node', { mark: ok(nodeMajor >= 20), version: process.versions.node }));
   console.log(
-    `${ok(loaded.exists && !loaded.error)} Config ${tildify(loaded.path)}${loaded.exists ? '' : ' (not created yet, defaults in use)'}`,
+    t(loaded.exists ? 'doctor.config' : 'doctor.configMissing', {
+      mark: ok(loaded.exists && !loaded.error),
+      file: tildify(loaded.path),
+    }),
   );
   if (loaded.issue) {
     console.log(t('doctor.configIssue', { ...loaded.issue }));
@@ -418,8 +444,11 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
     if (dropped) console.log(dropped);
     for (const l of httpReport(raw)) console.log(l);
   }
+  const slFile = { mark: ok(usesUs), file: tildify(settingsFile) };
   console.log(
-    `${ok(usesUs)} Claude Code statusLine in ${tildify(settingsFile)}: ${sl?.command !== undefined ? safe(sl.command) : 'not set'}`,
+    sl?.command !== undefined
+      ? t('doctor.statusLine', { ...slFile, command: safe(sl.command) })
+      : t('doctor.statusLineUnset', slFile),
   );
   if (typeof sl?.command === 'string') for (const w of commandWarnings(sl.command)) console.log(w);
   if (sl?.refreshInterval === undefined) {
@@ -458,27 +487,35 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
   for (const dir of dirs) {
     const o = projectOverride(dir);
     if (!o) continue;
-    console.log(`✗ ${tildify(o.file)} overrides it with: ${safe(o.command)}`);
-    console.log(`  Run \`${selfCommand()} install --project\` in ${tildify(dir)} to use ccinfobar there.`);
+    console.log(t('doctor.projectOverride', { file: tildify(o.file), command: safe(o.command) }));
+    console.log(t('doctor.projectOverrideFix', { command: selfCommand(), dir: tildify(dir) }));
   }
-  console.log(`${ok(fs.existsSync(lastPayloadPath()))} Last payload ${tildify(lastPayloadPath())}`);
-  console.log(`  Cache dir ${tildify(cacheDir())}`);
+  console.log(
+    t('doctor.lastPayload', { mark: ok(fs.existsSync(lastPayloadPath())), file: tildify(lastPayloadPath()) }),
+  );
+  console.log(t('doctor.cacheDir', { dir: tildify(cacheDir()) }));
   const pruned = pruneTmp(cacheDir(), 3_600_000) + pruneTmp(jobsDir(), 3_600_000);
   if (pruned > 0) console.log(t('doctor.tmpPruned', { count: pruned }));
-  console.log(`  Detected width ${doctorWidth(last) ?? 'unknown'}`);
+  const width = doctorWidth(last);
+  console.log(width == null ? t('doctor.detectedWidthUnknown') : t('doctor.detectedWidth', { width }));
   const upd = readUpdateState();
   const newer = availableUpdate(VERSION);
   if (loaded.config.gitHardening === false) console.log(t('doctor.gitHardeningOff'));
-  if (updatesDisabled(loaded.config)) console.log('  Update checks off');
-  else if (newer) console.log(`✗ Update available: ${VERSION} → ${newer} (run \`ccinfobar update\`)`);
+  if (updatesDisabled(loaded.config)) console.log(t('doctor.update.off'));
+  else if (newer) console.log(t('doctor.update.available', { current: VERSION, latest: newer }));
   else {
-    const when = upd
-      ? `last checked ${formatDateTime(new Date(upd.checkedAt), languageLocale())}`
-      : 'not checked yet';
-    console.log(`✓ Up to date (${loaded.config.update} mode, ${installKind()} install, ${when})`);
+    const kind = { mode: t(MODES[loaded.config.update]), kind: t(KINDS[installKind()]) };
+    console.log(
+      upd
+        ? t('doctor.update.upToDate', {
+            ...kind,
+            when: formatDateTime(new Date(upd.checkedAt), languageLocale()),
+          })
+        : t('doctor.update.neverChecked', kind),
+    );
   }
-  if (upd?.error) console.log(`  Last update check failed: ${safe(upd.error)}`);
+  if (upd?.error) console.log(t('doctor.update.failed', { error: safe(upd.error) }));
   printJobs(loaded.config, process.env, Date.now());
   printWidgetReport(cfgFile, loaded);
-  if (!usesUs) console.log(`\nRun \`${selfCommand()} install\` to enable it in Claude Code.`);
+  if (!usesUs) console.log(t('doctor.enableHint', { command: selfCommand() }));
 }
