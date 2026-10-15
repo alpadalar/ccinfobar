@@ -19,14 +19,14 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     return;
   }
   if (args.flags.help || args.command === 'help') {
-    process.stdout.write((await import('./help.js')).HELP);
+    process.stdout.write((await import('./help.js')).help());
     return;
   }
 
   switch (args.command) {
     case null: {
       if (process.stdin.isTTY && typeof args.flags.payload !== 'string') {
-        process.stdout.write((await import('./help.js')).HELP);
+        process.stdout.write((await import('./help.js')).help());
         return;
       }
       await runRender(args, cfgFile);

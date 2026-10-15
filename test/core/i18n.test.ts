@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { benchMessages } from '../../src/core/i18n/en/bench.js';
+import { cliMessages } from '../../src/core/i18n/en/cli.js';
 import { configMessages } from '../../src/core/i18n/en/config.js';
 import { displayMessages } from '../../src/core/i18n/en/display.js';
 import { doctorMessages } from '../../src/core/i18n/en/doctor.js';
@@ -35,6 +36,7 @@ import {
   TR,
 } from '../../src/core/i18n/languages.js';
 import { benchMessages as trBench } from '../../src/core/i18n/tr/bench.js';
+import { cliMessages as trCli } from '../../src/core/i18n/tr/cli.js';
 import { configMessages as trConfig } from '../../src/core/i18n/tr/config.js';
 import { displayMessages as trDisplay } from '../../src/core/i18n/tr/display.js';
 import { doctorMessages as trDoctor } from '../../src/core/i18n/tr/doctor.js';
@@ -222,6 +224,7 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['display', displayMessages, trDisplay],
   ['widgets', widgetMessages, trWidgets],
   ['fun', funMessages, trFun],
+  ['cli', cliMessages, trCli],
 ];
 
 function forms(m: Message): string[] {
@@ -242,7 +245,9 @@ function literals(m: Message): string[] {
     ...text.matchAll(
       /`[^`]+`|\b[a-z][\w-]*\.[a-z0-9][\w.-]*|\b[a-z]+[A-Z]\w*|--[a-z][\w-]*|\b[A-Z][A-Z0-9]*_[A-Z0-9_]+/g,
     ),
-  ].map((x) => x[0]);
+  ]
+    .map((x) => x[0])
+    .filter((x) => !/^(e\.g|i\.e)\.?$/.test(x));
 }
 
 const CONTROL = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069]/;
@@ -377,6 +382,7 @@ describe('en table', () => {
       jobsMessages,
       displayMessages,
       funMessages,
+      cliMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);

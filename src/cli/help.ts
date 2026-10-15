@@ -1,75 +1,97 @@
+import { type MessageId, t } from '../core/i18n/index.js';
 import { PRESETS } from '../core/presets.js';
 import { VERSION } from '../core/version.js';
+import { padVisible, visibleWidth } from '../core/width.js';
 
-export const HELP = `ccinfobar ${VERSION}
-A customizable, GSD-aware status line for Claude Code
+type Row = [usage: string, text: MessageId];
 
-Usage
-  ccinfobar                      Render the status line (reads Claude Code JSON from stdin)
-  ccinfobar edit                 Open the drag-and-drop editor in your browser
-  ccinfobar edit --detach        Start the editor in the background, print its URL and exit
-  ccinfobar tui                  Open the terminal editor
-  ccinfobar install              Point Claude Code's statusLine at ccinfobar
-  ccinfobar install --project    Also win over this project's own statusLine (e.g. GSD's)
-  ccinfobar install --no-global  With npx: do not install the ccinfobar command globally
-  ccinfobar install --dry-run    Show what install would change and write nothing
-  ccinfobar install --hooks      Also add optional Claude Code hooks (exact live state)
-  ccinfobar install --progress   Also show context fill as the terminal tab's progress bar
-  ccinfobar uninstall            Remove ccinfobar and restore your previous status line
-                                 Run it before \`npm rm -g ccinfobar\`: hooks call the ccinfobar command
-  ccinfobar uninstall --hooks    Remove only ccinfobar's hooks
-  ccinfobar uninstall --progress Remove only the terminal progress handlers
-  ccinfobar import <tool>        Import a ccstatusline or claude-powerline layout
-  ccinfobar themes               Preview every theme
-  ccinfobar themes --list        List theme ids and names only
-  ccinfobar theme <id>           Switch theme
-  ccinfobar theme new <id>       Create your own theme (--from <theme>)
-  ccinfobar init [preset]        Write a preset config (${PRESETS.map((p) => p.id).join(', ')})
-  ccinfobar preview              Print the status line with sample data
-  ccinfobar preview --scenario <name>
-                                 Preview a named situation (list them with --scenario)
-  ccinfobar preview --glyph-mode <mode>
-                                 Preview with a glyph mode, e.g. paste-safe for GitHub issues
-  ccinfobar update               Update to the latest release (--check to only look)
-  ccinfobar usage                Fetch your plan usage from Claude now
-  ccinfobar widgets              List all widgets
-  ccinfobar doctor               Check the setup
-  ccinfobar explain [widget-id]  Show each widget's value, source and why it is empty
-  ccinfobar explain --scenario <name>
-                                 Explain the widgets for a named situation
-                                 (a bare --scenario lists the scenarios)
-  ccinfobar bench                Measure render time: cold, warm, median and p95
-  ccinfobar config get <path>    Print a config value (e.g. theme, lines.0.2.type)
-  ccinfobar config set <path> <value>
-                                 Set a value (JSON, else a string); invalid values are refused
-  ccinfobar config unset <path>  Remove a value (defaults come back)
-  ccinfobar hook <Event>         Used by Claude Code hooks (prints nothing)
+export const USAGE: Row[] = [
+  ['ccinfobar', 'help.cmd.render'],
+  ['ccinfobar edit', 'help.cmd.edit'],
+  ['ccinfobar edit --detach', 'help.cmd.editDetach'],
+  ['ccinfobar tui', 'help.cmd.tui'],
+  ['ccinfobar install', 'help.cmd.install'],
+  ['ccinfobar install --project', 'help.cmd.installProject'],
+  ['ccinfobar install --no-global', 'help.cmd.installNoGlobal'],
+  ['ccinfobar install --dry-run', 'help.cmd.installDryRun'],
+  ['ccinfobar install --hooks', 'help.cmd.installHooks'],
+  ['ccinfobar install --progress', 'help.cmd.installProgress'],
+  ['ccinfobar uninstall', 'help.cmd.uninstall'],
+  ['ccinfobar uninstall --hooks', 'help.cmd.uninstallHooks'],
+  ['ccinfobar uninstall --progress', 'help.cmd.uninstallProgress'],
+  ['ccinfobar import <tool>', 'help.cmd.import'],
+  ['ccinfobar themes', 'help.cmd.themes'],
+  ['ccinfobar themes --list', 'help.cmd.themesList'],
+  ['ccinfobar theme <id>', 'help.cmd.theme'],
+  ['ccinfobar theme new <id>', 'help.cmd.themeNew'],
+  ['ccinfobar init [preset]', 'help.cmd.init'],
+  ['ccinfobar preview', 'help.cmd.preview'],
+  ['ccinfobar preview --scenario <name>', 'help.cmd.previewScenario'],
+  ['ccinfobar preview --glyph-mode <mode>', 'help.cmd.previewGlyphMode'],
+  ['ccinfobar update', 'help.cmd.update'],
+  ['ccinfobar usage', 'help.cmd.usage'],
+  ['ccinfobar widgets', 'help.cmd.widgets'],
+  ['ccinfobar doctor', 'help.cmd.doctor'],
+  ['ccinfobar explain [widget-id]', 'help.cmd.explain'],
+  ['ccinfobar explain --scenario <name>', 'help.cmd.explainScenario'],
+  ['ccinfobar bench', 'help.cmd.bench'],
+  ['ccinfobar config get <path>', 'help.cmd.configGet'],
+  ['ccinfobar config set <path> <value>', 'help.cmd.configSet'],
+  ['ccinfobar config unset <path>', 'help.cmd.configUnset'],
+  ['ccinfobar hook <Event>', 'help.cmd.hook'],
+];
 
-Options
-  --config <file>                Use a specific config file
-  --payload <file>               Render using a JSON payload file
-  --width <n>                    Override the detected terminal width
-  --scenario <name>              preview/explain/bench: use a named scenario (bare flag lists them;
-                                 bench uses its payload and env only)
-  --runs <n>                     bench: number of runs (default 20, max 1000)
-  --json                         explain, bench: print one JSON object
-  --show-values                  explain: in a terminal, show env, command and tool-activity values and text options
-  --refresh <seconds>            install: also set statusLine.refreshInterval
-  --project                      install/uninstall: use .claude/settings.local.json here
-  --import / --no-import         install: import the previous status line's layout without asking
-  --file <path>                  import: read this settings file
-  --command <cmd>                install: command to write (default: auto)
-  --hooks[=permission]           install: add hooks (=permission adds PermissionRequest);
-                                 uninstall: remove only ccinfobar's hooks
-  --progress                     install: add the terminal progress handlers (Claude Code 2.1.141+);
-                                 uninstall: remove only them
-  -y, --yes                      install: replace another tool's statusLine without asking
-  --dry-run                      install: print the plan and write nothing
-  --port <n>                     edit: port to listen on
-  --detach                       edit: run in the background; stops after 30 min idle
-  --no-open                      edit: do not open a browser
-  --no-detect                    edit: do not ask the terminal for its colors
-  --list                         themes: print ids and names, no previews
-  -v, --version                  Print the version
-  -h, --help                     Show this help
-`;
+export const OPTIONS: Row[] = [
+  ['--config <file>', 'help.opt.config'],
+  ['--payload <file>', 'help.opt.payload'],
+  ['--width <n>', 'help.opt.width'],
+  ['--scenario <name>', 'help.opt.scenario'],
+  ['--runs <n>', 'help.opt.runs'],
+  ['--json', 'help.opt.json'],
+  ['--show-values', 'help.opt.showValues'],
+  ['--refresh <seconds>', 'help.opt.refresh'],
+  ['--project', 'help.opt.project'],
+  ['--import / --no-import', 'help.opt.import'],
+  ['--file <path>', 'help.opt.file'],
+  ['--command <cmd>', 'help.opt.command'],
+  ['--hooks[=permission]', 'help.opt.hooks'],
+  ['--progress', 'help.opt.progress'],
+  ['-y, --yes', 'help.opt.yes'],
+  ['--dry-run', 'help.opt.dryRun'],
+  ['--port <n>', 'help.opt.port'],
+  ['--detach', 'help.opt.detach'],
+  ['--no-open', 'help.opt.noOpen'],
+  ['--no-detect', 'help.opt.noDetect'],
+  ['--list', 'help.opt.list'],
+  ['-v, --version', 'help.opt.version'],
+  ['-h, --help', 'help.opt.help'],
+];
+
+const COL = 31;
+const INDENT = ' '.repeat(COL + 2);
+
+function rows(list: Row[], presets: string): string[] {
+  const out: string[] = [];
+  for (const [usage, id] of list) {
+    const [first = '', ...rest] = t(id, { presets }).split('\n');
+    if (visibleWidth(usage) < COL) out.push(`  ${padVisible(usage, COL)}${first}`);
+    else out.push(`  ${usage}`, INDENT + first);
+    for (const line of rest) out.push(INDENT + line);
+  }
+  return out;
+}
+
+export function help(): string {
+  const presets = PRESETS.map((p) => p.id).join(', ');
+  return [
+    t('help.title', { version: VERSION }),
+    t('help.tagline'),
+    '',
+    t('help.usage'),
+    ...rows(USAGE, presets),
+    '',
+    t('help.options'),
+    ...rows(OPTIONS, presets),
+    '',
+  ].join('\n');
+}
