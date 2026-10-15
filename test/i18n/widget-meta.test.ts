@@ -11,17 +11,21 @@ import {
   widgetText,
 } from '../../src/core/i18n/widget-text.js';
 import type { OptionSpec } from '../../src/core/types.js';
+import { NORMAL_WIDTH, visibleWidthIn } from '../../src/core/width.js';
 import { ALL_WIDGETS, CATEGORIES, getWidget } from '../../src/widgets/index.js';
+import { barOptions, fillOption, thresholdOption } from '../../src/widgets/shared.js';
 import { withLang } from '../helpers.js';
 
 type Def = { type: string; name: string; label?: string; options?: OptionSpec[] };
 
 // choice labels kept as they are, with the reason
-const EXEMPT_CHOICES = new Map<string, string>([]);
+const EXEMPT_CHOICES = new Map<string, string>([['ascii', 'proper name (D-36)']]);
 
 const exemptChoice = (label: string) => !/\p{L}{2,}/u.test(label) || EXEMPT_CHOICES.has(label);
 
-const edges = (s: string) => [/^\s*/.exec(s)![0], /\s*$/.exec(s)![0]];
+const edges = (s: string) => [/^\s*/.exec(s)![0], /[\s~:]*$/.exec(s)![0]];
+
+const cols = (s: string) => visibleWidthIn(s, NORMAL_WIDTH);
 
 function cleanText(s: string): boolean {
   return s === s.normalize('NFC') && !/[\u0000-\u001f\u007f-\u009f؜‎‏‪-‮⁦-⁩]/.test(s);
@@ -71,6 +75,7 @@ function problems(defs: Def[], file: MetaFile, shared: Record<string, string> = 
     if (d.label && m.label !== undefined) {
       if (!m.label.trim()) out.push(`${d.type}: empty label`);
       if (edges(m.label).join('|') !== edges(d.label).join('|')) out.push(`${d.type}: label whitespace`);
+      if (cols(m.label) > cols(d.label) + 4) out.push(`${d.type}: label too wide`);
     }
     const specs = new Map((d.options ?? []).map((o) => [o.key, o]));
     for (const [key, o] of Object.entries(m.options ?? {})) {
@@ -97,7 +102,10 @@ function problems(defs: Def[], file: MetaFile, shared: Record<string, string> = 
     }
   }
   const used = optionTexts(defs);
-  for (const s of Object.keys(file.options ?? {})) if (!used.has(s)) out.push(`option text "${s}" is unused`);
+  for (const s of Object.keys(file.options ?? {})) {
+    if (!used.has(s)) out.push(`option text "${s}" is unused`);
+    if (Object.hasOwn(shared, s)) out.push(`option text "${s}" repeats a shared text`);
+  }
   for (const s of strings(file)) if (!s || !cleanText(s)) out.push(`bad text ${JSON.stringify(s)}`);
   return out;
 }
@@ -191,6 +199,24 @@ describe('widget-meta rule runner', () => {
     ]);
   });
 
+  it('flags labels more than 4 columns wider and changed marks', () => {
+    const file = (a: string, b?: string): MetaFile => ({
+      widgets: { a: { ...good.widgets.a!, label: a }, b: { ...good.widgets.b!, ...(b ? { label: b } : {}) } },
+      options: good.options,
+    });
+    const defs: Def[] = [fixtureDefs[0]!, { type: 'b', name: 'Beta', label: 'Today ~' }];
+    expect(problems(defs, file('Alfa ', 'Bugün ~'))).toEqual([]);
+    expect(problems(defs, file('Alfaaa ', 'Bugün'))).toEqual(['a: label too wide', 'b: label whitespace']);
+    expect(problems(defs, file('Alfa: ', 'Bu ~ '))).toEqual(['a: label whitespace', 'b: label whitespace']);
+    expect(problems(defs, file('Çğıİöü ', 'Bugün ~'))).toEqual(['a: label too wide']);
+  });
+
+  it('flags a file text that repeats a shared text', () => {
+    expect(problems(fixtureDefs, good, { Used: 'Kullanılan' })).toEqual([
+      'option text "Used" repeats a shared text',
+    ]);
+  });
+
   it('exempts example choices', () => {
     for (const s of ['1h 12m', '01:12:00', '2026-10-12', '~$4.10/$10', '41%'])
       expect(exemptChoice(s), s).toBe(true);
@@ -224,6 +250,21 @@ describe('Turkish widget metadata', () => {
         seen.set(k, v);
       }
     }
+  });
+
+  it('shared widget options have one shared translation', () => {
+    const specs = [...barOptions, fillOption, thresholdOption];
+    const missing: string[] = [];
+    for (const o of specs) {
+      for (const s of [o.label, o.help]) if (s && !Object.hasOwn(sharedOptions, s)) missing.push(s);
+      for (const c of o.choices ?? []) {
+        if (!exemptChoice(c.label) && !Object.hasOwn(sharedOptions, c.label)) missing.push(c.label);
+      }
+    }
+    expect(missing).toEqual([]);
+    for (const o of specs)
+      for (const c of o.choices ?? []) expect(sharedOptions[c.label], c.label).not.toBe(c.label);
+    expect(sharedOptions.ascii).toBeUndefined();
   });
 
   it('shared texts are used and clean', () => {

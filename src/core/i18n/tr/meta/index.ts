@@ -2,8 +2,9 @@ import type { WidgetCategory } from '../../../types.js';
 import type { MetaFile, MetaTable, WidgetMeta } from '../../types.js';
 import { catalog } from './catalog.js';
 import { categories } from './categories.js';
+import { sharedOptions } from './shared.js';
 
-export const sharedOptions: Record<string, string> = {};
+export { sharedOptions };
 
 export const byCategory: Partial<Record<WidgetCategory, MetaFile>> = {};
 
