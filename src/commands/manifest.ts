@@ -33,6 +33,8 @@ export interface HookEntry {
   kind: 'hook';
   file: string;
   event: string;
+  // progress entries: 'progress:<Event>', older readers skip them (WR-06)
+  hookEvent?: string;
   role?: 'progress';
   matcher?: string;
   value: unknown;
@@ -226,15 +228,36 @@ export function dropEntry(m: Manifest, file: string, kind: string): Manifest {
 const isHookEntry = (e: ManifestEntry): e is HookEntry =>
   e.kind === 'hook' && typeof e.file === 'string' && typeof e.event === 'string';
 
+const PREFIX = 'progress:';
+const storedEvent = (event: string, role?: 'progress') => (role ? `${PREFIX}${event}` : event);
+
+// settings event; reads the old progress shape too
+function hookEventOf(e: HookEntry): string {
+  if (e.role === 'progress' && e.event.startsWith(PREFIX))
+    return typeof e.hookEvent === 'string' ? e.hookEvent : e.event.slice(PREFIX.length);
+  return e.event;
+}
+
+// event is the settings key here, whatever the stored shape
 export function findHookEntries(m: Manifest, file: string): HookEntry[] {
   if (m.readOnly) return [];
   const key = realKey(file);
-  return m.entries.filter((e): e is HookEntry => isHookEntry(e) && sameFile(e.file, key));
+  return m.entries
+    .filter((e): e is HookEntry => isHookEntry(e) && sameFile(e.file, key))
+    .map((e) => {
+      const event = hookEventOf(e);
+      if (event === e.event) return e;
+      const { hookEvent: _, ...rest } = e;
+      return { ...rest, event };
+    });
 }
 
 // no role is the Phase 4 entry
 const isHookOf = (e: ManifestEntry, key: string, event: string, role?: 'progress') =>
-  e.kind === 'hook' && sameFile(String(e.file), key) && e.event === event && e.role === role;
+  e.kind === 'hook' &&
+  sameFile(String(e.file), key) &&
+  e.role === role &&
+  (isHookEntry(e) ? hookEventOf(e) : e.event) === event;
 
 export function recordHook(
   m: Manifest,
@@ -252,8 +275,8 @@ export function recordHook(
   const next: HookEntry = {
     kind: 'hook',
     file,
-    event: e.event,
-    ...(e.role ? { role: e.role } : {}),
+    event: storedEvent(e.event, e.role),
+    ...(e.role ? { hookEvent: e.event, role: e.role } : {}),
     ...(e.matcher !== undefined ? { matcher: e.matcher } : {}),
     value: e.value,
     claudeCode: e.claudeCode,

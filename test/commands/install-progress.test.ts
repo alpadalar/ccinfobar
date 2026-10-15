@@ -4,9 +4,10 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import { type InstallIo, runInstall, runUninstall } from '../../src/commands/install-cli.js';
-import { findHookEntries, readManifest } from '../../src/commands/manifest.js';
+import { findHookEntries, manifestFile, readManifest } from '../../src/commands/manifest.js';
 import { loadConfig } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
+import { isHookEvent } from '../../src/data/hooks.js';
 import { markSent, progressFiles, readWant } from '../../src/data/progress.js';
 import { writeSmall } from '../../src/data/store.js';
 
@@ -150,6 +151,64 @@ describe('install --progress and uninstall --progress (D-42)', () => {
     await install(again.io, '--progress', '--yes');
     expect(again.lines).not.toContain(t('progress.removed'));
     expect(read().hooks).toBeUndefined();
+  });
+
+  // WR-06: older readers must not see progress entries as Phase 4 hooks
+  const rawHooks = () =>
+    (JSON.parse(fs.readFileSync(manifestFile(), 'utf8')).entries as Record<string, unknown>[]).filter(
+      (e) => e.kind === 'hook',
+    );
+  const toOldShape = () => {
+    const m = JSON.parse(fs.readFileSync(manifestFile(), 'utf8'));
+    for (const e of m.entries)
+      if (e.role === 'progress') {
+        e.event = e.hookEvent;
+        delete e.hookEvent;
+      }
+    fs.writeFileSync(manifestFile(), JSON.stringify(m));
+  };
+
+  it('records progress entries under progress:<Event>', async () => {
+    await install(fake(false).io, '--hooks', '--progress', '--yes');
+    const progress = rawHooks().filter((e) => e.role === 'progress');
+    expect(progress.map((e) => [e.event, e.hookEvent])).toEqual(PROGRESS.map((e) => [`progress:${e}`, e]));
+    for (const e of progress) expect(isHookEvent(e.event)).toBe(false);
+    expect(
+      rawHooks()
+        .filter((e) => !e.role)
+        .every((e) => isHookEvent(e.event)),
+    ).toBe(true);
+  });
+
+  it('migrates an old-shape manifest on the next install', async () => {
+    await install(fake(false).io, '--hooks', '--progress', '--yes');
+    const before = fs.readFileSync(settings, 'utf8');
+    toOldShape();
+    expect(rawHooks().some((e) => e.event === 'Stop' && e.role === 'progress')).toBe(true);
+    await install(fake(false).io, '--hooks', '--progress', '--yes');
+    expect(fs.readFileSync(settings, 'utf8')).toBe(before);
+    const progress = rawHooks().filter((e) => e.role === 'progress');
+    expect(progress.map((e) => e.event)).toEqual(PROGRESS.map((e) => `progress:${e}`));
+    expect(rawHooks()).toHaveLength(7 + 3);
+  });
+
+  it('a full uninstall cleans an old-shape manifest completely', async () => {
+    await install(fake(false).io, '--hooks', '--progress', '--yes');
+    toOldShape();
+    await remove(fake(false).io);
+    expect(read()).toEqual({ model: 'opus', theme: 'dark' });
+    expect(rawHooks()).toEqual([]);
+  });
+
+  it('uninstall --progress cleans an old-shape manifest and keeps the regular hooks', async () => {
+    await install(fake(false).io, '--hooks', '--progress', '--yes');
+    toOldShape();
+    const f = fake(false);
+    await remove(f.io, '--progress');
+    expect(f.lines).toContain(t('progress.removed'));
+    expect(progressGroups(read().hooks)).toEqual([]);
+    expect(rawHooks().some((e) => e.role)).toBe(false);
+    expect(rawHooks()).toHaveLength(7);
   });
 
   it('--progress=x is a usage error', async () => {
