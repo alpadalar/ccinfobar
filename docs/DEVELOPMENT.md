@@ -616,6 +616,19 @@ Phase 8 (languages), 2026-10-15, same machine and method, `nice -n -10` (priorit
 
 With every table loaded statically the warm render was 6 to 8% slower, over the 5% gate, so the Turkish tables (about 160 KB of the bundle) now load with `import()` only when Turkish is shown. What is left is the larger English table, which now also holds the editor and TUI texts (the render loads about 590 KB of chunks against 530 KB before), and two more chunks. A `LANG=tr_TR.UTF-8` warm render took 152.0 to 156.7 ms.
 
+Phase 9 (reports and importers), 2026-10-16, same machine and method, `nice -n -10` (priority 0), Node v22.23.1, load average about 0.9 to 1.0, cwd this git repo, default layout, N = 20, six alternating rounds against the build before Phase 9 (3dc0f41). Medians of the rounds' medians in ms:
+
+| Row | before | after |
+|-----|-------:|------:|
+| `node -e 0` | 65.0 | 65.1 |
+| cold | 144.0 | 145.6 |
+| warm | 127.7 | 129.0 (+1.0%) |
+| warm p95 | 130.8 | 135.9 |
+| warm, compile cache off | 137.6 | 138.0 |
+| hook UserPromptSubmit | 74.4 | 74.7 |
+
+The render closure has no new module, but the warm render is about 1.3 ms slower, in five of the six rounds. The English table gained the report, import and TOML messages (the render loads 594 KB of chunks against 579 KB), and `report` imports `config.ts`, `ledger.ts` and `limits.ts` without the rest of their chunks, so esbuild splits two more chunks off the render path (20 against 18). `report` itself, over 200 synthetic transcripts (51 MB, 60 days) with the OS file cache warm: 270 ms with no index, 139 ms with one.
+
 ## Releasing
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` under a new version heading.

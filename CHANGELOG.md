@@ -88,6 +88,12 @@ All notable changes to this project are documented here. The format follows [Kee
 - `CCINFOBAR_LANG` forces the display language for one run while `language` is `auto`; `CCINFOBAR_LANG=auto` leaves it to the locale
 - A Language select in the web editor's Settings (Auto, English, Türkçe) and a Language field in the terminal editor (`ccinfobar tui`); both switch the editor at once
 - `doctor` shows the display language and where it came from, and warns about an unsupported `language` value
+- `ccinfobar report`: daily, weekly (`--period week`) or monthly (`--period month`) tokens, estimated cost and active time per project, from the cost ledger and your transcripts, as a table, `--csv` or `--json`. Requests are counted once (subagents and forked sessions included), `--since`/`--until`/`--all` and `--project` narrow it, cost is an estimate at list prices (a notional price on a subscription), and an index in the cache folder keeps the totals of transcripts Claude Code deletes later. `--rebuild` re-reads everything and repairs the cost ledger summary
+- `ccinfobar import ccometixline` (alias `ccline`): segments, icons, colors and separator from CCometixLine's `~/.claude/ccline/config.toml`, and the theme picked with `-t`/`--theme` in your status line command, including its nine built-in themes
+- `ccinfobar import cship`: lines, `$cship.*` modules, the common Starship git and directory modules, symbols and styles, from the same `cship.toml` or `starship.toml` cship would use
+- `ccinfobar import claude-hud`: the expanded or compact layout, element order, merged groups, custom line, colors and `--extra-cmd` (only after confirmation) from claude-hud's config and override files
+- The install import offer now covers CCometixLine, cship and claude-hud
+- `ccinfobar import --dry-run` prints the mapping report and a preview with sample data and writes nothing; every import prints a mapping report of what was approximated or dropped, and why
 
 ### Changed
 
@@ -124,6 +130,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Background checks (the update check, usage limits, the `workspace-repos` dirty marker and the new sources) run in one background process per refresh instead of one per check, and keep their results in `jobs/` in the cache dir; older cache files are still read. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` stops usage, update and `service-status`, while `http` items and the `pr` CI part (which you turned on) still run. Fetch and exec code loads only in that process, so the status line loads no more modules than before
 - The editors' Auto wrap switch is now an Overflow choice (Cut, Wrap, Drop by priority); it still writes `autoWrap`, so an older ccinfobar reading the same config behaves the same
 - The status line, CLI and editors follow your locale (English and Turkish): with the default `language: auto`, a Turkish locale shows Turkish. Set `"language": "en"` to keep English
+- Importing from ccstatusline lists widgets whose `hide` rule (for example `zero`) cannot be reproduced
+- `import` refuses source config files larger than 1 MB
 
 ### Fixed
 
@@ -176,6 +184,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Saving a preset or theme in the web editor under a name with accented or Turkish letters gives a readable id (`Çalışma Düzeni` becomes `calisma-duzeni`, not `al-ma-d-zeni`)
 - `ccinfobar --help` leaves at least two spaces between every command and its description (`uninstall --progress` touched its text)
 - The terminal editor's settings no longer cut long field labels at 80 columns; the label column widens when there is room, and four long option labels are shorter, with the rest moved to their help
+- `ccinfobar import` exits with status 1 when the import fails
+- Importing a ccstatusline widget whose type is `constructor`, `toString` or another built-in object name reports it as having no ccinfobar equivalent instead of counting it and dropping it silently
 
 ### Security
 
@@ -190,6 +200,9 @@ All notable changes to this project are documented here. The format follows [Kee
 - Payload, git and cache object keys are sanitized like values, only the top-level `transcript_path` is left as is, and the U+2028/U+2029 line separators become spaces
 - `install`, `update` and background updates run `npm install` with `--ignore-scripts`, so no package lifecycle script runs during an update
 - `doctor`, `themes` and `usage` strip terminal escapes from statusLine commands, project settings, theme files, cached usage data and update errors, and cached usage limits are sanitized before widgets show them
+- Imported `command` widgets and URLs (from every importer and the install import offer) are kept only after confirmation: on a terminal you are asked (default No), `--allow-commands` keeps them, and `--yes` or a non-interactive run drops them and prints the command to re-run with `--allow-commands`. Previously `install --yes` kept ccstatusline custom commands silently
+- The confirmation shows every imported command and URL in full (wrapped, long runs of spaces and invisible characters made visible); one over 2000 characters is kept only with `--allow-commands`
+- Imported labels, text and separators are cleaned of terminal escape sequences and direction controls, and `javascript:`/`data:` links are dropped
 
 ## [0.6.2] - 2026-10-12
 
