@@ -9,6 +9,7 @@ import { describeRuleError, validateRule } from '../../src/core/conditions.js';
 import { defaultConfig, inspectConfigText } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
 import { tildify } from '../../src/core/paths.js';
+import { withLang } from '../helpers.js';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-cfgcmd-'));
 
@@ -307,6 +308,51 @@ describe('config display keys', () => {
       process.exitCode = undefined;
     }
     expect(fs.readFileSync(file, 'utf8')).toBe(bytes);
+  });
+});
+
+describe('config set language', () => {
+  it('sets a language, lowercased', () => {
+    const file = withFile();
+    for (const [v, want] of [
+      ['tr', 'tr'],
+      ['TR', 'tr'],
+      ['"En"', 'en'],
+      ['auto', 'auto'],
+    ]) {
+      expect(run(['set', 'language', v!], file)).toEqual({
+        out: [t('cfg.set', { path: 'language' })],
+        err: [],
+        code: 0,
+      });
+      expect(read(file).language).toBe(want);
+    }
+    run(['set', 'language', 'tr'], file);
+    expect(run(['get', 'language'], file).out).toEqual(['tr']);
+  });
+
+  it('prints the raw value with Turkish active', () => {
+    const file = withFile({ ...SAMPLE, language: 'tr' });
+    withLang('tr', () => expect(run(['get', 'language'], file).out).toEqual(['tr']));
+  });
+
+  it('lists the valid values and leaves the file unchanged', () => {
+    const file = withFile();
+    const bytes = fs.readFileSync(file, 'utf8');
+    for (const v of ['xx', 'tr_TR', '5', '__proto__', 'İn']) {
+      const r = run(['set', 'language', v], file);
+      expect(r.err).toEqual([t('cfg.badLanguage', { values: 'auto, en, tr' })]);
+      expect(r.err[0]).toContain('auto, en, tr');
+      expect(r.code).toBe(1);
+      process.exitCode = undefined;
+    }
+    expect(fs.readFileSync(file, 'utf8')).toBe(bytes);
+  });
+
+  it('removes the key on unset', () => {
+    const file = withFile({ ...SAMPLE, language: 'tr' });
+    expect(run(['unset', 'language'], file).out).toEqual([t('cfg.unset', { path: 'language' })]);
+    expect('language' in read(file)).toBe(false);
   });
 });
 

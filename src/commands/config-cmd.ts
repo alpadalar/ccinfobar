@@ -11,6 +11,7 @@ import {
 } from '../core/config.js';
 import { getPath, PathError, type PathSegment, parsePath, setPath, unsetPath } from '../core/config-path.js';
 import { t } from '../core/i18n/index.js';
+import { asciiLower, LANGUAGE_SETTINGS } from '../core/i18n/languages.js';
 import { loadForUse } from '../core/load.js';
 import { tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -117,11 +118,17 @@ export function runConfig(args: Args, cfgFile: string, io: ConfigIo = STD_IO): v
     }
 
     if (sub === 'set') {
-      const value = parseValue(valueText!);
+      const isLanguage = path.length === 1 && path[0] === 'language';
+      const parsed = parseValue(valueText!);
+      const value = isLanguage && typeof parsed === 'string' ? asciiLower(parsed) : parsed;
       const normalized = normalizeConfig(setPath(raw, path, value));
       const got = getPath(normalized, path);
       if (!got.found || !isDeepStrictEqual(plain(got.value), plain(value))) {
-        fail(t('cfg.rejected', { path: pathText }));
+        fail(
+          isLanguage
+            ? t('cfg.badLanguage', { values: LANGUAGE_SETTINGS.join(', ') })
+            : t('cfg.rejected', { path: pathText }),
+        );
         return;
       }
       const problem = badRule(normalized, path);

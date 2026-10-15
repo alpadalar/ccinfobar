@@ -75,6 +75,7 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
 | `overflow` | `truncate` \| `wrap` \| `priority` | from `autoWrap` | What happens when a line does not fit, see [Overflow and priority](#overflow-and-priority) |
 | `glyphMode` | `normal` \| `single-width` \| `paste-safe` \| `jetbrains` \| `auto` | `"normal"` | Which characters are printed and how wide they count, see [Glyph mode](#glyph-mode) |
 | `ambiguousWidth` | 1 \| 2 | `1` | Width of East Asian ambiguous characters such as `●`, `▓` and box drawing. Set `2` only when your terminal draws them double-width, see [Glyph mode](#glyph-mode) |
+| `language` | `auto` \| `en` \| `tr` | `"auto"` | Display language; auto follows your locale, see [Language](#language) |
 | `progress` | object | | The terminal tab's progress bar (OSC 9;4), off by default, see [Terminal progress](#terminal-progress) |
 | `tui` | object | | Settings for the panel (`tui`) style, see [Panel style](THEMES.md#panel-style) |
 | `colorLevel` | `auto` \| 0 \| 1 \| 2 \| 3 | `"auto"` | 0 no color, 1 basic 16, 2 256 colors, 3 truecolor. `auto` honors `NO_COLOR`, `FORCE_COLOR` and `COLORTERM`. |
@@ -196,6 +197,18 @@ With `priority`, each widget has a `priority` from 0 to 100; higher stays longer
 `ccinfobar preview --glyph-mode paste-safe` prints one line in a mode without saving it. `ccinfobar doctor` suggests `jetbrains` in a JetBrains terminal, and `explain` shows the mode in use.
 
 `ambiguousWidth: 2` counts East Asian ambiguous characters (`●`, `▓`, `…`, box drawing) as two columns, for CJK-locale terminals that draw them wide. Claude Code itself measures them as narrow, so keep the default `1` unless your terminal really draws them double-width. Nerd Font icons always count as 1.
+
+## Language
+
+`language` sets the language of the status line, the CLI and the editors. With `auto` (or no `language` key) ccinfobar picks it from the first of these that is set:
+
+1. `CCINFOBAR_LANG=<tag>`, which forces the display language while `language` is `auto`
+2. `LC_ALL`
+3. `LC_MESSAGES`
+4. `LANG`
+5. the system locale
+
+Tags such as `tr`, `tr_TR.UTF-8` or `tr-TR` select Turkish. A language ccinfobar does not have, `C` or `POSIX` gives English. Set `"language": "en"` to keep English.
 
 ## Colors
 

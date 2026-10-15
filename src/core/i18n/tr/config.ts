@@ -27,6 +27,7 @@ export const configMessages = {
   'cfg.protoSegment': '"{segment}" yol parçasına izin verilmiyor',
   'cfg.rejected': 'Reddedildi: {path} doğrulamadan geçmezdi',
   'cfg.badRule': '{path}: {problem}',
+  'cfg.badLanguage': 'language şunlardan biri olmalı: {values}',
   'cfg.set': '✓ {path} ayarlandı',
   'cfg.unset': '✓ {path} kaldırıldı',
   'cfg.resetDefault': '✓ {path} varsayılana döndü: {value}',
