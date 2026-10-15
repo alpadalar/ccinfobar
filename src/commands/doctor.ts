@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { describeRuleError, validateRule } from '../core/conditions.js';
 import type { LoadResult } from '../core/config.js';
 import { needsRefresh } from '../core/edit.js';
 import { describeHeaders, redactUrl } from '../core/http-report.js';
@@ -76,21 +77,26 @@ export function configWarnings(raw: unknown): string[] {
   if (!isRecord(raw) || !Array.isArray(raw.lines)) return out;
   raw.lines.forEach((items: unknown, index) => {
     if (!Array.isArray(items)) return;
-    for (const item of items) {
-      if (!isRecord(item) || typeof item.type !== 'string' || !item.type) continue;
+    items.forEach((item: unknown, i) => {
+      if (!isRecord(item) || typeof item.type !== 'string' || !item.type) return;
       const type = item.type;
       const def = getWidget(type);
       if (!def) {
         out.push(t('doctor.unknownWidget', { type: safe(type), line: index + 1 }));
-        continue;
+        return;
       }
-      if (!isRecord(item.options)) continue;
+      const id = typeof item.id === 'string' && item.id ? item.id : `${type}-${i}`;
+      for (const key of ['showWhen', 'hideWhen'] as const) {
+        const e = item[key] === undefined ? null : validateRule(item[key]);
+        if (e) out.push(t('doctor.badRule', { id: safe(id), key, problem: safe(describeRuleError(e)) }));
+      }
+      if (!isRecord(item.options)) return;
       for (const [key, v] of Object.entries(item.options)) {
         const spec = def.options?.find((o) => o.key === key);
         if (spec && !validOption(spec, v))
           out.push(t('doctor.badOption', { type: safe(type), key: safe(key) }));
       }
-    }
+    });
   });
   return out;
 }
@@ -198,6 +204,7 @@ function widgetRow(r: InspectRow): string | null {
       return `  ✓ ${at}: ${safe(redactValue(r) ?? '')}`;
     case 'hidden':
       if (r.empty?.code === 'workspace-mode') return `  ✗ ${at}: ${t('doctor.row.workspaceHidden')}, ${why}`;
+      if (r.empty?.code === 'hidden-by-rule') return `  ✗ ${at}: ${t('doctor.hiddenByRule')}, ${why}`;
       if (getWidget(r.type)?.hideWhenEmpty) return `  ✗ ${at}: hidden, ${why}`;
       return `  ✗ ${at}: hidden (hideEmpty), ${why}`;
     case 'error':

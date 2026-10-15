@@ -86,6 +86,32 @@ describe('configWarnings', () => {
   });
 });
 
+describe('configWarnings rules', () => {
+  const bad = (id: string, key: string, problem: string) => t('doctor.badRule', { id, key, problem });
+
+  it('names the item id, key and problem of an ignored rule', () => {
+    const raw = { lines: [[{ id: 'ctx1', type: 'context-percentage', showWhen: 'context.pct => 70' }]] };
+    expect(configWarnings(raw)).toEqual([bad('ctx1', 'showWhen', t('rule.error.bad-operator', { at: 13 }))]);
+    expect(configWarnings(raw)[0]).toMatch(/^⚠ Widget ctx1: showWhen is ignored \(bad operator at \d+\)$/);
+  });
+
+  it('reports the bad entry of an array rule and falls back to the normalized id', () => {
+    const raw = { lines: [[{ type: 'model' }, { type: 'model', hideWhen: ['git', 'contxt.pct > 5'] }]] };
+    expect(configWarnings(raw)).toEqual([
+      bad('model-1', 'hideWhen', t('rule.error.unknown-metric', { text: 'contxt.pct', at: 1 })),
+    ]);
+  });
+
+  it('accepts valid rules and sanitizes rule text', () => {
+    const ok = { lines: [[{ id: 'a', type: 'model', showWhen: 'context.pct >= 70', hideWhen: ['!git'] }]] };
+    expect(configWarnings(ok)).toEqual([]);
+    const esc = { lines: [[{ id: 'x\u001b[31m', type: 'model', showWhen: 'co\u001b[2Jst > 1' }]] };
+    const out = configWarnings(esc);
+    expect(out).toHaveLength(1);
+    expect(out[0]).not.toContain('\u001b');
+  });
+});
+
 describe('runDoctor config report', () => {
   it('prints the exact location of a broken config', () => {
     const text = '{\n  "lines": [,]\n}';
@@ -312,6 +338,22 @@ describe('printWidgetReport', () => {
     );
     expect(out).toContain('  ✓ L1 workspace-repos (r): api (main)');
     expect(out.some((l) => l.startsWith('  ✗ L2 session-name (hid): hidden (hideEmpty), '))).toBe(true);
+  });
+
+  it('prints rule-hidden rows with the rule reason', () => {
+    save({ context_window: { context_window_size: 200_000, used_percentage: 42 } });
+    const layout = JSON.stringify({
+      lines: [[{ id: 'hot', type: 'model', hideEmpty: true, showWhen: 'context.pct >= 70' }]],
+    });
+    const out = capture(() => printWidgetReport(cfgFile('rule.json', layout)));
+    const reason = t('explain.reason.hidden-by-rule', {
+      key: 'showWhen',
+      rule: 'context.pct >= 70',
+      metric: 'context.pct',
+      value: '42',
+    });
+    expect(out).toContain(`  ✗ L1 model (hot): ${t('doctor.hiddenByRule')}, ${reason}`);
+    expect(out.some((l) => l.includes('hidden (hideEmpty)'))).toBe(false);
   });
 
   it('points to explain --scenario without a payload', () => {
