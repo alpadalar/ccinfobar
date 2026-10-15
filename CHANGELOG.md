@@ -69,6 +69,20 @@ All notable changes to this project are documented here. The format follows [Kee
 - `ccinfobar doctor` checks `http` items: literal header values (refused), env values over plain http and refused env vars (errors), plain-http URLs, bad JSON paths, and which env vars each item sends (set or unset, never the value)
 - `ccinfobar explain` names the background job behind a value (`job status, 30s old, ok`), redacts `http` values, shows `http` URLs with query values and token-like path segments hidden and headers as `Name=$VAR (set)`, names the reason an `http` item is refused, and prints a `CI:` line saying why the `pr` CI part is missing (merge request, no checks, gh missing, not logged in, host not in gh, gh too old, not fetched yet)
 - `CCINFOBAR_NO_JOBS=1` turns off every background check (used by `ccinfobar bench` and tests)
+- Per-widget `showWhen` and `hideWhen` rules show or hide any widget by context %, usage %, cost, tokens, running agents, git repo, GSD project, time of day, weekday or provider, for example `"hideWhen": "!git"` or `"showWhen": "usage.5h >= 80 || usage.7d >= 90"`; `~N` keeps a widget from flickering at its threshold. A rule that does not parse is ignored and never blanks the line, and finding a git repo or GSD project never runs git
+- `explain` and `doctor` say which rule hid a widget (`hidden, showWhen "context.pct >= 70" (context.pct = 42)`) and point at rules that are ignored because of a typo; `config set` refuses a rule that does not parse, and `install` and `doctor` suggest `--refresh 5` when a rule depends on the time of day
+- The editors have a Visibility section per widget: one-click rules (only in git repos, only in GSD projects, only while agents run, context and 5h thresholds, hide on a provider, an hours range in the web editor) and checked `showWhen`/`hideWhen` fields. The web editor marks widgets a rule hides (`hidden`) or priority overflow drops (`dropped`)
+- `overflow: "priority"` drops the least important widgets first when a line does not fit, instead of wrapping or cutting it; merged widgets drop together. `priority` (0-100) can be set per widget, and defaults come from the widget's category. `autoWrap` keeps working, and the panel style is not affected. `explain` shows each widget's priority and what was dropped, and `doctor` suggests `overflow: priority` for cut lines
+- `glyphMode`: `single-width` (emoji icons as text, fullwidth letters as ASCII), `paste-safe` (stays aligned in GitHub code blocks: no Nerd Font glyphs, links or non-breaking spaces), `jetbrains` (JetBrains terminal emoji width) and `auto`; `ambiguousWidth: 2` for CJK-locale terminals. `ccinfobar preview --glyph-mode paste-safe` prints one line without saving the mode, `explain` shows values and widths as the mode renders them, and `doctor` suggests `jetbrains` in JetBrains terminals
+- The editors have Overflow (cut, wrap, drop by priority), per-widget Priority, Glyph mode and Ambiguous width settings
+- Themes `catppuccin-latte`, `catppuccin-frappe`, `catppuccin-macchiato`, `catppuccin-mocha`, `everforest`, `kanagawa` and `one-dark`; themes can set a `gradient` color ramp, also in the web theme builder
+- Bars take `"barColor": "gradient"` (colored along the theme's `gradient` ramp, stepped with 16 colors) and two new styles: `ring` (a one-cell Braille gauge) and `matrix` (a dot-matrix bar with half-cell steps)
+- `activity-strip` widget: when any session of your account was busy, in 15-minute slots (the last 9 hours by default), from the local cost ledger; history starts when the widget is added (opt-in)
+- Fun widgets in a new Fun category: `pet` (a small creature that reacts to context, usage and idle time), `kaomoji` (a face with a personality) and `quip` (a short line about the context or 5h window). Opt-in; no network, no telemetry and no files written
+- Terminal progress (OSC 9;4): `ccinfobar install --progress` shows the context fill (or 5h usage) as the terminal tab's progress bar in Windows Terminal, Ghostty, WezTerm, ConEmu and iTerm2, through synchronous Claude Code hooks (2.1.141+). It adds about 60-110 ms before each prompt while it is on, and `uninstall --progress` removes it and clears the bar. Set Claude Code's `terminalProgressBarEnabled` to `false`, or the two bars flicker; ccinfobar never changes that setting
+- `progress.channel: "tty"` (Linux and macOS) writes the progress bar from the status line itself, with no hook and no prompt latency; inside tmux it needs `allow-passthrough` and `progress.tmuxPassthrough`
+- `doctor` checks terminal progress: Claude Code's own bar (`terminalProgressBarEnabled`), missing or leftover handlers, unsupported terminals, the Claude Code version and tmux; `explain` shows the current progress value
+- The web editor's Settings has a Terminal progress section (on/off, source, scale, warning levels, channel), and the TUI has the same options
 
 ### Changed
 
@@ -103,6 +117,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The web editor checks the Claude Code version in the background instead of freezing for up to 4 s on its first request, and turning Permission requests off writes settings.json once
 - `agents` and `agent-count` use the exact subagent start, stop and type from hooks when they are installed; without hooks nothing changes
 - Background checks (the update check, usage limits, the `workspace-repos` dirty marker and the new sources) run in one background process per refresh instead of one per check, and keep their results in `jobs/` in the cache dir; older cache files are still read. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` stops usage, update and `service-status`, while `http` items and the `pr` CI part (which you turned on) still run. Fetch and exec code loads only in that process, so the status line loads no more modules than before
+- The editors' Auto wrap switch is now an Overflow choice (Cut, Wrap, Drop by priority); it still writes `autoWrap`, so an older ccinfobar reading the same config behaves the same
 
 ### Fixed
 
@@ -141,6 +156,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - `cache-timer` shows `off` instead of `cold` when Claude Code saw no caching
 - The web editor's settings switches have accessible names for screen readers
 - For gateway providers, context widgets use the model profile's window when Claude Code reports the 200K default (or `CLAUDE_CODE_MAX_CONTEXT_TOKENS` when set), so GLM, Kimi and other 1M models show the right percentage; the `usable` and `reserve` bases keep the window Claude Code compacts at (`CLAUDE_CODE_MAX_CONTEXT_TOKENS`, else the reported size). Claude logins are unchanged and `profiles.builtIn: false` turns it off
+- Text widths match how Claude Code measures them: emoji ZWJ sequences (a family is 2 cells, not 6), flags (2, not 4), keycaps and emoji with a variation selector (2, not 1), combining marks and newer wide emoji are measured correctly, while text-style emoji without one (such as 🖥) count 1 and soft hyphens 0. Lines that contain them no longer misalign, wrap early or get cut short; ASCII lines are unchanged
+- Truncation no longer splits a flag, an emoji sequence or a letter from its accent
 
 ### Security
 

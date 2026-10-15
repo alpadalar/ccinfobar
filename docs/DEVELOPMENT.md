@@ -506,6 +506,20 @@ After the Phase 6 review fixes, 2026-10-15, same machine and method, `nice -n -1
 
 100 alternating single warm renders per build (`test/fixtures/payload.json`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` and `CCINFOBAR_NO_UPDATE` set) gave 124.5 / 126.4 / 125.1 with `CCINFOBAR_NO_JOBS` and 124.2 / 126.3 / 124.9 with jobs on and nothing due, the path a real refresh takes. The fixes took back about half of Phase 6's cost: +1.4 ms warm in `bench` and +0.6 to +0.7 ms in the alternating runs, against +2.7 and +1.9 to +2.1 before. The ~0.5 ms target is met only in the alternating runs. The render loads 15 chunks again (Phase 6: 20, before: 15). An empty-module test on this machine costs about 0.3 ms per extra ESM module, more than the bytes did, so most of the saving is the five chunks. The remaining cost is code, 441 KB against 380 KB: `core/http-spec.ts`, `core/profiles.ts`, the `http` and `service-status` widgets, and the job registry and runner (about 20 KB), which scheduling needs on every refresh. Loading the registry with `import()` only when jobs are on made `bench` faster (it sets `CCINFOBAR_NO_JOBS`) but a real refresh about 1 ms slower, so it is not done.
 
+Phase 7 (display: width engine, rules, priority overflow, glyph modes, bars, activity strip, fun widgets, terminal progress), 2026-10-15, same machine and method, `nice -n -10` (priority 0), Node v22.23.1, load average about 1.0, cwd this git repo, default layout, N = 30, three rounds against the baseline taken before Phase 7 (4f39108):
+
+| Row | before (ms) | after (ms, rounds) | after p95 (ms) |
+|-----|------------:|-------------------:|---------------:|
+| `node -e 0` | 67.2 | 66.9, 67.0, 68.0 | 71.3 |
+| cold | 137.8 | 143.3, 143.9, 143.1 | 152.6 |
+| warm | 124.7 | 127.1, 126.6, 126.6 | 133.6 |
+| warm, compile cache off | 131.3 | 136.2, 135.8, 136.1 | 142.1 |
+| hook UserPromptSubmit | 75.8 | 77.3, 76.6, 76.8 | 82.3 |
+
+The warm median is 1.5 to 1.9% above the baseline, inside the 5% gate; the per-plan runs during the phase stayed between 123.4 and 127.3 ms. A layout without rules does no metric work, overflow other than `priority` takes the old path, and ASCII text takes the width engine's first tier, so the default layout pays only for the larger render code.
+
+The progress hook (`--progress hook UserPromptSubmit`, `WT_SESSION=1`, a want file in a temp cache dir, 20 interleaved runs, two rounds) took 77.9 and 77.1 ms when it printed a sequence and 77.0 and 76.3 ms when the value was unchanged, against 66.7 and 66.9 ms for `node -e 0`: about 10 ms of ccinfobar code over Node's own start. Claude Code waits for the whole process, which is where the 60-110 ms per prompt in [CONFIGURATION.md](CONFIGURATION.md#terminal-progress) comes from.
+
 ## Releasing
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` under a new version heading.
