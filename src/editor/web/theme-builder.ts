@@ -32,6 +32,9 @@ const SLOTS = [
   'workspace',
   'system',
   'custom',
+  'charts',
+  'agents',
+  'fun',
 ];
 const BLOCKY = new Set<StyleId>(['blocks', 'powerline', 'capsule']);
 const MAX_STOPS = 8;
