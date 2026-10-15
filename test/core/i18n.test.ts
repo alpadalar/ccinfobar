@@ -8,6 +8,7 @@ import { explainMessages } from '../../src/core/i18n/en/explain.js';
 import { hookMessages } from '../../src/core/i18n/en/hooks.js';
 import { en } from '../../src/core/i18n/en/index.js';
 import { installMessages } from '../../src/core/i18n/en/install.js';
+import { jobsMessages } from '../../src/core/i18n/en/jobs.js';
 import { previewMessages } from '../../src/core/i18n/en/preview.js';
 import { widgetMessages } from '../../src/core/i18n/en/widgets.js';
 import { t } from '../../src/core/i18n/index.js';
@@ -56,6 +57,7 @@ describe('en table', () => {
       benchMessages,
       widgetMessages,
       hookMessages,
+      jobsMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);

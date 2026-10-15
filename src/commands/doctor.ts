@@ -11,6 +11,15 @@ import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionSpec, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { readHookState } from '../data/hooks.js';
+import { jobFor } from '../data/jobs/index.js';
+import {
+  blockedByTraffic,
+  type JobEnvelope,
+  jobsDir,
+  jobsDisabled,
+  readEnvelope,
+  SAFE_KEY,
+} from '../data/jobs/runner.js';
 import { pruneTmp } from '../data/store.js';
 import { cachedTerminalWidth } from '../data/terminal.js';
 import {
@@ -223,6 +232,45 @@ function printHooks(
   else if (entries.length) console.log(t('doctor.hooks.noEvents'));
 }
 
+function readJobs(env: NodeJS.ProcessEnv): JobEnvelope<unknown>[] {
+  let names: string[];
+  try {
+    names = fs.readdirSync(jobsDir(env));
+  } catch {
+    return [];
+  }
+  return names
+    .filter((n) => n.endsWith('.json'))
+    .map((n) => n.slice(0, -5))
+    .filter((k) => SAFE_KEY.test(k))
+    .sort()
+    .map((k) => readEnvelope(k, env))
+    .filter((e): e is JobEnvelope<unknown> => e !== null);
+}
+
+function jobLine(e: JobEnvelope<unknown>, env: NodeJS.ProcessEnv, now: number): string {
+  const key = safe(e.key);
+  const age = shortAge(now - e.fetchedAt);
+  let line = e.ok
+    ? t('doctor.jobs.ok', { key, age })
+    : t('doctor.jobs.error', { key, age, error: safe(e.error ?? '') || t('doctor.jobs.unknownError') });
+  if (e.blockedUntil !== undefined && e.blockedUntil > now)
+    line += t('doctor.jobs.retry', { in: shortAge(e.blockedUntil - now) });
+  const job = jobFor(e.key);
+  if (jobsDisabled(env)) line += t('doctor.jobs.offAll');
+  else if (job && blockedByTraffic(job.network, env)) line += t('doctor.jobs.offTraffic');
+  return line;
+}
+
+function printJobs(env: NodeJS.ProcessEnv, now: number): void {
+  console.log(t('doctor.jobs.heading'));
+  const jobs = readJobs(env);
+  if (!jobs.length) console.log(t('doctor.jobs.none'));
+  for (const e of jobs) console.log(jobLine(e, env, now));
+  if (jobsDisabled(env)) console.log(t('doctor.jobs.disabled'));
+  else if (nonessentialTrafficOff(env)) console.log(t('doctor.jobs.nonessential'));
+}
+
 export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {}): void {
   const ok = (b: boolean) => (b ? '✓' : '✗');
   const loaded = loadForUse(cfgFile);
@@ -285,7 +333,7 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
   }
   console.log(`${ok(fs.existsSync(lastPayloadPath()))} Last payload ${tildify(lastPayloadPath())}`);
   console.log(`  Cache dir ${tildify(cacheDir())}`);
-  const pruned = pruneTmp(cacheDir(), 3_600_000);
+  const pruned = pruneTmp(cacheDir(), 3_600_000) + pruneTmp(jobsDir(), 3_600_000);
   if (pruned > 0) console.log(t('doctor.tmpPruned', { count: pruned }));
   console.log(`  Detected width ${doctorWidth(last) ?? 'unknown'}`);
   const upd = readUpdateState();
@@ -299,6 +347,7 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
     console.log(`✓ Up to date (${loaded.config.update} mode, ${installKind()} install, ${when})`);
   }
   if (upd?.error) console.log(`  Last update check failed: ${safe(upd.error)}`);
+  printJobs(process.env, Date.now());
   printWidgetReport(cfgFile, loaded);
   if (!usesUs) console.log(`\nRun \`${selfCommand()} install\` to enable it in Claude Code.`);
 }

@@ -11,7 +11,8 @@ import { inspectConfigText } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
 import { cacheDir, claudeSettingsPath, configDir, lastPayloadPath, tildify } from '../../src/core/paths.js';
 import type { StatusPayload } from '../../src/core/types.js';
-import { usageFile } from '../../src/data/usage.js';
+import { failEnvelope, jobsDir, okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
+import { usageFile, usageKey } from '../../src/data/usage.js';
 
 const cfgFile = (name: string, text: string) => {
   const dir = configDir();
@@ -431,5 +432,115 @@ describe('printWidgetReport', () => {
     });
     capture(() => printWidgetReport(cfgFile('ro.json', cfg)));
     expect(list()).toEqual(before);
+  });
+});
+
+describe('runDoctor background jobs', () => {
+  const plain = () => cfgFile('jobs.json', JSON.stringify({ lines: [[{ type: 'model' }]] }));
+  const block = (out: string[]) => {
+    const i = out.indexOf(t('doctor.jobs.heading'));
+    expect(i).toBeGreaterThanOrEqual(0);
+    const rest = out.slice(i + 1);
+    const end = rest.findIndex((l) => !l.startsWith('  '));
+    return end < 0 ? rest : rest.slice(0, end);
+  };
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    fs.rmSync(jobsDir(), { recursive: true, force: true });
+  });
+
+  it('lists each job with its age, ok or error and retry time', () => {
+    const now = Date.now();
+    writeEnvelope(okEnvelope('update', { latest: '0.6.2' }, now - 2 * 60_000));
+    writeEnvelope(
+      failEnvelope(usageKey(), null, 'rate limited by the usage API', now - 60_000, { blockMs: 5 * 60_000 }),
+    );
+    const lines = block(capture(() => runDoctor(plain())));
+    expect(lines).toContain(t('doctor.jobs.ok', { key: 'update', age: '2m' }));
+    const usage = lines.find((l) => l.includes(usageKey())) ?? '';
+    expect(usage).toMatch(
+      /^ {2}usage-[0-9a-f]{16}: error: rate limited by the usage API, 1m ago, retry in 4m$/,
+    );
+    expect(lines.indexOf(usage)).toBeGreaterThan(lines.findIndex((l) => l.includes('update')));
+  });
+
+  it('says when nonessential traffic turns off the auto jobs', () => {
+    writeEnvelope(okEnvelope('update', { latest: '0.6.2' }, Date.now()));
+    vi.stubEnv('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', '1');
+    const lines = block(capture(() => runDoctor(plain())));
+    expect(lines).toContain(t('doctor.jobs.nonessential'));
+    expect(t('doctor.jobs.nonessential')).toMatch(/usage, update and status/);
+    expect(lines.find((l) => l.includes('update:'))).toContain(t('doctor.jobs.offTraffic'));
+    expect(lines).not.toContain(t('doctor.jobs.disabled'));
+  });
+
+  it('says when CCINFOBAR_NO_JOBS turns off every job', () => {
+    writeEnvelope(okEnvelope('update', { latest: '0.6.2' }, Date.now()));
+    vi.stubEnv('CCINFOBAR_NO_JOBS', '1');
+    const lines = block(capture(() => runDoctor(plain())));
+    expect(lines).toContain(t('doctor.jobs.disabled'));
+    expect(lines.find((l) => l.includes('update:'))).toContain(t('doctor.jobs.offAll'));
+    expect(lines).not.toContain(t('doctor.jobs.nonessential'));
+  });
+
+  it('strips terminal escapes from job errors and never prints env values', () => {
+    vi.stubEnv('CCINFOBAR_NO_JOBS', 'secret-value-123');
+    const dir = jobsDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const e = {
+      v: 1,
+      key: 'status',
+      fetchedAt: Date.now(),
+      ok: false,
+      value: null,
+      error: 'bad\u001b[31mred',
+    };
+    fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify(e));
+    const out = capture(() => runDoctor(plain()));
+    const lines = block(out);
+    expect(lines.find((l) => l.includes('status:'))).toContain('bad');
+    expect(lines.join('\n')).not.toContain('\u001b');
+    expect(out.join('\n')).not.toContain('secret-value-123');
+  });
+
+  it('skips odd file names and non-envelope JSON', () => {
+    const dir = jobsDir();
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, '..x.json'),
+      JSON.stringify({ v: 1, key: '..x', fetchedAt: 1, ok: true }),
+    );
+    fs.writeFileSync(
+      path.join(dir, 'Bad.json'),
+      JSON.stringify({ v: 1, key: 'Bad', fetchedAt: 1, ok: true }),
+    );
+    fs.writeFileSync(path.join(dir, 'junk.json'), '[1,2]');
+    fs.writeFileSync(path.join(dir, 'broken.json'), '{');
+    fs.writeFileSync(
+      path.join(dir, 'other.json'),
+      JSON.stringify({ v: 1, key: 'nope', fetchedAt: 1, ok: true }),
+    );
+    fs.mkdirSync(path.join(dir, 'folder.json'));
+    fs.writeFileSync(path.join(dir, 'update.lock'), '');
+    const lines = block(capture(() => runDoctor(plain())));
+    expect(lines).toEqual([t('doctor.jobs.none')]);
+  });
+
+  it('says no background data yet without a jobs dir', () => {
+    expect(block(capture(() => runDoctor(plain())))).toEqual([t('doctor.jobs.none')]);
+    expect(fs.existsSync(jobsDir())).toBe(false);
+  });
+
+  it('sweeps stale temp files from the jobs dir', () => {
+    const dir = jobsDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const stale = path.join(dir, 'status.json.1.abcd1234.tmp');
+    fs.writeFileSync(stale, '{}');
+    const old = new Date(Date.now() - 2 * 3_600_000);
+    fs.utimesSync(stale, old, old);
+    const out = capture(() => runDoctor(plain()));
+    expect(out).toContain(t('doctor.tmpPruned', { count: 1 }));
+    expect(fs.existsSync(stale)).toBe(false);
   });
 });
