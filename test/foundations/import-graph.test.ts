@@ -57,7 +57,9 @@ const EXCLUDED_FILES = [
   'src/commands/report.ts',
   'src/core/report-model.ts',
   'src/core/prices.ts',
+  'src/core/report-types.ts',
 ];
+const REPORT_FILES = EXCLUDED_FILES.filter((f) => /\/(report|prices)/.test(f));
 const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/'];
 // non-English tables load with import() (D-25)
 const LANG_TABLES = /^src\/core\/i18n\/(?!en\/)[a-z]{2,3}\//;
@@ -129,6 +131,12 @@ describe('import graph', () => {
     const files = closure('cli/hook.ts');
     expect(files.has('src/cli/hook.ts')).toBe(true);
     expect([...files].filter((f) => !allowed.has(f))).toEqual([]);
+  });
+
+  it('keeps report and importer code out of cli/hook.ts', () => {
+    expect(REPORT_FILES.length).toBe(6);
+    const files = [...closure('cli/hook.ts')];
+    expect(files.filter((f) => REPORT_FILES.includes(f) || f.startsWith('src/importers/'))).toEqual([]);
   });
 
   // the hook lazy-loads update-state; it must not reach the registry, config or widgets
@@ -215,6 +223,34 @@ describe('import graph', () => {
         for (const m of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(m[1]!);
       }
       expect(seen.size).toBeGreaterThan(1);
+    },
+  );
+
+  // D-33: the render and hook chunks never carry report or TOML code
+  it.skipIf(!fs.existsSync(path.join(dist, 'ccinfobar.js')))(
+    'built render and hook chunks carry no report or TOML code',
+    () => {
+      const entry = fs.readFileSync(path.join(dist, 'ccinfobar.js'), 'utf8');
+      const roots = [...entry.matchAll(/import\("\.\/chunks\/((?:cli|hook)-[^"]+\.js)"\)/g)].map(
+        (m) => m[1]!,
+      );
+      expect(roots).toHaveLength(2);
+      expect(entry).not.toMatch(/TomlError|report-index/);
+      const seen = new Set<string>();
+      const stack = [...roots];
+      while (stack.length) {
+        const f = stack.pop()!;
+        if (seen.has(f)) continue;
+        seen.add(f);
+        const text = fs.readFileSync(path.join(dist, 'chunks', f), 'utf8');
+        expect(text, f).not.toMatch(/TomlError|report-index/);
+        for (const m of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(m[1]!);
+      }
+      expect(seen.size).toBeGreaterThan(2);
+      const lazy = fs
+        .readdirSync(path.join(dist, 'chunks'))
+        .filter((f) => /TomlError|report-index/.test(fs.readFileSync(path.join(dist, 'chunks', f), 'utf8')));
+      expect(lazy.length).toBeGreaterThan(0);
     },
   );
 
