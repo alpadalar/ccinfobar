@@ -70,6 +70,7 @@ const PURE = [
   'src/core/jsonpath.ts',
   'src/core/http-spec.ts',
   'src/core/http-report.ts',
+  'src/core/eaw-table.ts',
   'src/data/live.ts',
 ];
 
