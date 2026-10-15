@@ -102,6 +102,19 @@ describe('readEnvironment', () => {
     expect(r.rules).toBe(1);
   });
 
+  it('reads the user settings once when launched in the home folder', () => {
+    const home = path.join(root, 'home');
+    const e = { CCINFOBAR_CACHE_DIR: path.join(root, 'cache') } as NodeJS.ProcessEnv;
+    e.CLAUDE_CONFIG_DIR = path.join(home, '.claude');
+    json(path.join(home, '.claude', 'settings.json'), handlers(1));
+    const renames = vi.spyOn(fs, 'renameSync');
+    expect(read({}, home, e).hooks).toBe(1);
+    const writes = renames.mock.calls.length;
+    expect(read({}, home, e).hooks).toBe(1);
+    read({}, home, e);
+    expect(renames.mock.calls.length).toBe(writes);
+  });
+
   it('counts AGENTS.md only when no project CLAUDE.md is in effect', () => {
     put(path.join(proj, 'AGENTS.md'));
     put(path.join(claude, 'CLAUDE.md'));

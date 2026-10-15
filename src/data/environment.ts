@@ -344,12 +344,18 @@ export function readEnvironment(
     const sigs: Sig[] = [];
     const files: string[] = [];
 
+    const fold = (f: string) => (platform === 'win32' ? path.resolve(f).toLowerCase() : path.resolve(f));
+    // HOME as launch dir: project settings are the user settings
+    const read = new Set<string>();
     const json = (
       file: string,
       parse: (v: Record<string, unknown>) => Facts = settingsFacts,
       max = MAX_JSON,
       fits: (f: Facts | null) => boolean = () => true,
     ): Facts | null => {
+      const k = fold(file);
+      if (read.has(k)) return null;
+      read.add(k);
       const st = stat(file);
       if (!st?.isFile() || st.size > max) {
         if (prev.has(file)) changed = true;
@@ -370,11 +376,10 @@ export function readEnvironment(
 
     const seen = new Set<string>();
     const md = (file: string): boolean => {
-      const resolved = path.resolve(file);
-      const k = platform === 'win32' ? resolved.toLowerCase() : resolved;
+      const k = fold(file);
       if (seen.has(k) || !stat(file)?.isFile()) return false;
       seen.add(k);
-      files.push(resolved);
+      files.push(path.resolve(file));
       return true;
     };
 
