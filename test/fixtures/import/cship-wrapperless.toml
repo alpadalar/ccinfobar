@@ -1,0 +1,31 @@
+# legacy wrapper-free cship.toml
+lines = [
+"""
+$cship.model $cship.context_bar \
+  $cship.usage_limits
+""",
+"$directory $git_branch $git_status$fill$cship.cost",
+]
+
+[model]
+symbol = " "
+style = "bold fg:cyan"
+format = "[$symbol$value]($style)"
+
+[context_bar]
+symbol = "ctx "
+width = 8
+style = "fg:green"
+warn_threshold = 50
+warn_style = "fg:yellow"
+critical_threshold = 80.0
+critical_style = "bold fg:red"
+
+[usage_limits]
+five_hour_format = "5h {pct}% ({reset})"
+ttl = 60
+
+[cost]
+disabled = false
+symbol = " "
+style = "fg:#e0af68"

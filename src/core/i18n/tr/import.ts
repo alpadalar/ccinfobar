@@ -24,6 +24,30 @@ export const importMessages = {
     '{tool} teması "{name}" durum satırı komutunda seçili ama bulunamadı, varsayılan tema içe aktarıldı',
   'import.note.themeUnsafe':
     'durum satırı komutundaki {tool} teması "{name}" güvenli bir tema adı değil, yok sayıldı',
+  'import.cshipNotFound': 'cship yapılandırması bulunamadı',
+  'import.cshipNoLines': 'cship yapılandırmasında satır yok ({file})',
+  'import.note.starshipConfig':
+    '{tool} yapılandırması $STARSHIP_CONFIG içinden okundu: {file} (cship bunu yalnızca Starship modülleri için kullanır)',
+  'import.note.noModule': '{tool} modülü "{name}" için ccinfobar karşılığı yok, atlandı',
+  'import.note.moduleApprox': '{tool} modülü "{name}", {widget} bileşeniyle yaklaşık olarak gösteriliyor',
+  'import.note.thresholdColors':
+    '{tool} modülü "{name}": uyarı/kritik eşikleri ve stilleri ccinfobar eşik renklerine dönüştürüldü (%50\'den itibaren sarı, %80\'den itibaren kırmızı)',
+  'import.note.noThreshold':
+    '{tool} modülü "{name}": uyarı/kritik eşikleri atlandı, {widget} bileşeninin eşik renkleri yok',
+  'import.note.moduleOptions':
+    '{tool} modülü "{name}": {options} içe aktarılmadı, bileşen kendi biçimini kullanır',
+  'import.note.unknownStyle': '{tool} "{name}" stili: {tokens} desteklenmiyor, yok sayıldı',
+  'import.note.fillChar': '{tool} dolgu karakteri "{symbol}" boşluk olarak gösterilir',
+  'import.note.starshipPrompt':
+    '{tool} $starship_prompt atlandı: ccinfobar Starship çalıştırmaz; "starship prompt" çalıştıran bir command bileşeni bunu gösterebilir (oluşturulmadı)',
+  'import.note.starshipModule':
+    'Starship modülü "{name}" için ccinfobar karşılığı yok, atlandı; "starship module {name}" çalıştıran bir command bileşeni bunu gösterebilir (oluşturulmadı)',
+  'import.note.spanLiteral':
+    '{tool} stilli metni "{text}" yazıldığı gibi gösterilir: [ ] içindeki değişkenler açılmaz',
+  'import.note.emptySpans': {
+    one: '{tool}: görünür metni olmayan {count} stilli parça (powerline geçişi) atlandı',
+    other: '{tool}: görünür metni olmayan {count} stilli parça (powerline geçişleri) atlandı',
+  },
   'import.note.hideState': '{name}: "{state}" durumunda gizleme desteklenmiyor, bileşen görünür kalır',
   'import.note.targetDropped': '{kind} "{target}" onaylanmadığı için çıkarıldı',
   'import.note.unsafeLink': 'link "{url}" güvenli olmayan bir URL içeriyor, çıkarıldı',

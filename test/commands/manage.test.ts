@@ -172,10 +172,10 @@ describe('import', () => {
     expect(tr.err[0]).toMatch(/^✗ İçe aktarma başarısız oldu: /);
     const cmd = (...argv: string[]) => runImportCommand(parseArgs(['import', ...argv]), f);
     expect((await captureAsync(() => cmd('nope'))).err).toEqual([
-      'Usage: ccinfobar import <ccstatusline|claude-powerline|ccometixline> [--file <path>] [--force] [--dry-run] [--allow-commands]',
+      'Usage: ccinfobar import <ccstatusline|claude-powerline|ccometixline|cship> [--file <path>] [--force] [--dry-run] [--allow-commands]',
     ]);
     expect((await withLangAsync('tr', () => captureAsync(() => cmd('nope')))).err).toEqual([
-      'Kullanım: ccinfobar import <ccstatusline|claude-powerline|ccometixline> [--file <path>] [--force] [--dry-run] [--allow-commands]',
+      'Kullanım: ccinfobar import <ccstatusline|claude-powerline|ccometixline|cship> [--file <path>] [--force] [--dry-run] [--allow-commands]',
     ]);
     const failed = await captureAsync(() =>
       runImportCommand(parseArgs(['import', 'ccstatusline', '--file', missing]), path.join(root, 'n.json')),

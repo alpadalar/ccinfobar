@@ -1,0 +1,12 @@
+# a Starship config with a [cship] section
+format = "$directory$git_branch$character"
+
+[git_branch]
+symbol = "\ue0a0 "
+
+[cship]
+format = "$cship.model [|](fg:#888888) $cship.cost$line_break$git_branch $cship.context_window"
+
+[cship.cost]
+symbol = "$"
+warn_threshold = 2.0

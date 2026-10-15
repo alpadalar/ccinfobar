@@ -57,6 +57,8 @@ setDir('CLAUDE_CONFIG_DIR', 'claude');
 process.env.CCINFOBAR_NO_UPDATE = '1';
 process.env.CCINFOBAR_NO_USAGE_API = '1';
 delete process.env.CCINFOBAR_CONFIG;
+delete process.env.CLAUDE_HOME;
+delete process.env.STARSHIP_CONFIG;
 process.env.LANG = 'C';
 process.env.LC_ALL = 'C';
 delete process.env.LC_MESSAGES;

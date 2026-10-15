@@ -10,9 +10,10 @@ import { CCLINE_DEFAULT, importCcometixline, parseCclineTheme } from './ccometix
 import { CCLINE_THEMES, type CclineTheme } from './ccometixline-themes.js';
 import { importCcstatusline } from './ccstatusline.js';
 import { importClaudePowerline, parsePowerlineArgs } from './claude-powerline.js';
+import { importCship, parseCshipConfigFlag } from './cship.js';
 import { parseToml, TomlError } from './toml.js';
 
-export const IMPORT_SOURCES = ['ccstatusline', 'claude-powerline', 'ccometixline'] as const;
+export const IMPORT_SOURCES = ['ccstatusline', 'claude-powerline', 'ccometixline', 'cship'] as const;
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
 
@@ -78,6 +79,7 @@ const KNOWN: {
   { re: /ccstatusline/i, tool: 'ccstatusline', name: 'ccstatusline', importable: true },
   { re: /claude-powerline/i, tool: 'claude-powerline', name: 'claude-powerline', importable: true },
   { re: /ccline|cometix/i, tool: 'ccometixline', name: 'CCometixLine', importable: true },
+  { re: /\bcship\b/i, tool: 'cship', name: 'cship', importable: true },
   { re: /claude-hud/i, tool: 'claude-hud', name: 'claude-hud', importable: false },
   { re: /ccusage/i, tool: 'ccusage', name: 'ccusage statusline', importable: false },
   { re: /gsd-statusline/i, tool: 'gsd', name: () => t('import.tool.gsd'), importable: false },
@@ -232,12 +234,80 @@ function importCcline(file: string | undefined, command: string, home = os.homed
   return { ...result, file: found.file };
 }
 
+export interface CshipFound {
+  file: string;
+  table: 'wrapper-or-root' | 'cship-only';
+  note: 'starship-config' | null;
+}
+
+const cshipTable = (file: string): CshipFound['table'] =>
+  path.basename(file) === 'cship.toml' ? 'wrapper-or-root' : 'cship-only';
+
+// cship's load_with_source, plus $STARSHIP_CONFIG last
+export function cshipDiscover(opts: {
+  command: string;
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+}): CshipFound | null {
+  const flag = parseCshipConfigFlag(opts.command);
+  if (flag) {
+    const file = path.resolve(opts.cwd, expand(flag));
+    return { file, table: cshipTable(file), note: null };
+  }
+  for (let d = path.resolve(opts.cwd); ; d = path.dirname(d)) {
+    const own = path.join(d, 'cship.toml');
+    if (isFile(own)) return { file: own, table: 'wrapper-or-root', note: null };
+    const starship = path.join(d, 'starship.toml');
+    if (isFile(starship)) return { file: starship, table: 'cship-only', note: null };
+    if (path.dirname(d) === d) break;
+  }
+  const home = [opts.env.CLAUDE_HOME, opts.env.HOME, opts.env.USERPROFILE].find((h) => h);
+  if (home) {
+    const own = path.join(home, '.config', 'cship.toml');
+    if (isFile(own)) return { file: own, table: 'wrapper-or-root', note: null };
+    const starship = path.join(home, '.config', 'starship.toml');
+    if (isFile(starship)) return { file: starship, table: 'cship-only', note: null };
+  }
+  const env = opts.env.STARSHIP_CONFIG ? expand(opts.env.STARSHIP_CONFIG) : '';
+  if (env && path.isAbsolute(env) && isFile(env)) {
+    return { file: env, table: 'cship-only', note: 'starship-config' };
+  }
+  return null;
+}
+
+const tableOf = (v: unknown): Record<string, unknown> | null =>
+  v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+
+function importCshipFrom(found: CshipFound | null): ImportResult {
+  if (!found) throw new Error(t('import.cshipNotFound'));
+  const doc = tableOf(readToml(found.file, 'cship')) ?? {};
+  const wrapped = Object.hasOwn(doc, 'cship');
+  const cfg = found.table === 'cship-only' || wrapped ? (tableOf(doc.cship) ?? {}) : doc;
+  const hasLines = Array.isArray(cfg.lines) && cfg.lines.some((l) => typeof l === 'string');
+  if (typeof cfg.format !== 'string' && !hasLines) {
+    throw new Error(t('import.cshipNoLines', { file: sanitizeText(tildify(found.file)) }));
+  }
+  const result = importCship(cfg);
+  if (found.note === 'starship-config') {
+    const file = sanitizeText(tildify(found.file));
+    result.notes.unshift({ kind: 'info', text: t('import.note.starshipConfig', { tool: 'cship', file }) });
+  }
+  return { ...result, file: found.file };
+}
+
 export function importFrom(
   source: ImportSource,
-  opts: { file?: string; command?: string; env?: NodeJS.ProcessEnv } = {},
+  opts: { file?: string; command?: string; env?: NodeJS.ProcessEnv; cwd?: string } = {},
 ): ImportResult {
   const env = opts.env ?? process.env;
   const command = opts.command ?? '';
+  if (source === 'cship') {
+    const cwd = opts.cwd ?? process.cwd();
+    const found = opts.file
+      ? { file: opts.file, table: cshipTable(opts.file), note: null }
+      : cshipDiscover({ command, cwd, env });
+    return importCshipFrom(found);
+  }
   if (source === 'ccstatusline') {
     const file = opts.file ?? ccstatuslinePath(env, command);
     const raw = readJson(file);

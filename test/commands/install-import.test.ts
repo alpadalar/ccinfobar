@@ -118,6 +118,17 @@ describe('install import offer', () => {
     expect(read(cfg).separator).toBe(' | ');
   });
 
+  it('offers the cship import too', async () => {
+    const file = path.join(dir, 'tools', 'cship.toml');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, '[cship]\nlines = ["$cship.model $git_branch"]\n');
+    const f = fake(false);
+    const tool = detectTool(`cship --config "${file}"`)!;
+    expect(tool).toMatchObject({ tool: 'cship', importable: true });
+    await offerImport(tool, parseArgs(['install', '--yes']), cfg, f.io);
+    expect(types()).toEqual(['model', 'git-branch']);
+  });
+
   it('skips everything with --no-import', async () => {
     const f = fake(true);
     await offer(f.io, '--no-import', '--allow-commands');

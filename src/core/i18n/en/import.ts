@@ -21,6 +21,30 @@ export const importMessages = {
     '{tool} theme "{name}" is set in the status line command but was not found, imported its default theme',
   'import.note.themeUnsafe':
     '{tool} theme "{name}" in the status line command is not a safe theme name and was ignored',
+  'import.cshipNotFound': 'no cship config found',
+  'import.cshipNoLines': 'cship config has no lines ({file})',
+  'import.note.starshipConfig':
+    'read the {tool} config from $STARSHIP_CONFIG: {file} (cship itself only uses it for Starship modules)',
+  'import.note.noModule': '{tool} module "{name}" has no ccinfobar equivalent and was skipped',
+  'import.note.moduleApprox': '{tool} module "{name}" is approximated by the {widget} widget',
+  'import.note.thresholdColors':
+    '{tool} module "{name}": warn/critical thresholds and styles became ccinfobar threshold colors (yellow from 50%, red from 80%)',
+  'import.note.noThreshold':
+    '{tool} module "{name}": warn/critical thresholds were dropped, the {widget} widget has no threshold colors',
+  'import.note.moduleOptions':
+    '{tool} module "{name}": {options} not imported, the widget uses its own format',
+  'import.note.unknownStyle': '{tool} style of "{name}": {tokens} not supported, ignored',
+  'import.note.fillChar': '{tool} fill character "{symbol}" is shown as spaces',
+  'import.note.starshipPrompt':
+    '{tool} $starship_prompt was dropped: ccinfobar does not run Starship; a command widget running "starship prompt" could show it (none was created)',
+  'import.note.starshipModule':
+    'Starship module "{name}" has no ccinfobar equivalent and was dropped; a command widget running "starship module {name}" could show it (none was created)',
+  'import.note.spanLiteral':
+    '{tool} styled text "{text}" is shown as written: variables inside [ ] are not expanded',
+  'import.note.emptySpans': {
+    one: '{tool}: {count} styled span without visible text (a powerline transition) was dropped',
+    other: '{tool}: {count} styled spans without visible text (powerline transitions) were dropped',
+  },
   'import.note.hideState': '{name}: hiding when "{state}" is not supported, it stays visible',
   'import.note.targetDropped': '{kind} "{target}" was dropped (not confirmed)',
   'import.note.unsafeLink': 'link "{url}" has an unsafe URL and was dropped',
