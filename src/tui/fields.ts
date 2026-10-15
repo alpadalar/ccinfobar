@@ -1,6 +1,6 @@
 import { parseColor } from '../core/ansi.js';
 import { normalizeTui } from '../core/config.js';
-import { optionShown, setBudget, setOption, updateItem } from '../core/edit.js';
+import { optionShown, setBudget, setOption, setProfilesBuiltIn, updateItem } from '../core/edit.js';
 import { t } from '../core/i18n/index.js';
 import { BOX_PRESETS } from '../core/panel.js';
 import { resolveAppearance } from '../core/renderer.js';
@@ -600,6 +600,16 @@ function baseGlobalFields(): Field[] {
       { help: 'Lets the preview use your last real session data' },
     ),
     ...budgetFields(),
+    globalField(
+      'profiles.builtIn',
+      'Built-in model profiles',
+      'bool',
+      (c) => c.profiles?.builtIn !== false,
+      (c, v) => setProfilesBuiltIn(c, Boolean(v)),
+      {
+        help: 'Use built-in names, windows and prices for third-party models; edit overrides with ccinfobar config set profiles.models',
+      },
+    ),
   ];
 }
 

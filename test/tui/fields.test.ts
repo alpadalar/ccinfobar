@@ -219,6 +219,22 @@ describe('budget fields', () => {
   });
 });
 
+describe('profiles field', () => {
+  it('toggles the built-in model profiles', () => {
+    const f = field('profiles.builtIn');
+    const c = defaultConfig();
+    expect(f.kind).toBe('bool');
+    expect(f.help).toContain('config set profiles.models');
+    expect(displayValue(f, c).text).toBe('on');
+    const off = f.set(c, cycled(f, c, 1));
+    expect(off.profiles).toEqual({ builtIn: false });
+    expect(displayValue(f, off).text).toBe('off');
+    const models = { ...off, profiles: { builtIn: false, models: [{ match: 'glm-*' }] } };
+    expect(f.set(models, true).profiles).toEqual({ models: [{ match: 'glm-*' }] });
+    expect('profiles' in f.set(off, true)).toBe(false);
+  });
+});
+
 describe('hideEmpty default per widget', () => {
   const cfg = (extra: object = {}) => ({
     ...defaultConfig(),
