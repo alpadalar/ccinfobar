@@ -122,6 +122,36 @@ describe('parentTty', () => {
     expect(parentTty(fake({ platform: 'darwin', exec: () => '../etc/x' }))).toBeNull();
   });
 
+  it('keeps the macOS device per Claude Code pid instead of running ps again (IN-06)', () => {
+    const files = new Map<string, string>();
+    const over: Partial<TtyDeps> = {
+      platform: 'darwin',
+      ppid: 4242,
+      readFile: (p) => {
+        const v = files.get(p);
+        if (v === undefined) throw new Error('ENOENT');
+        return v;
+      },
+      save: (p, v) => {
+        files.set(p, v);
+      },
+    };
+    const first = fake(over);
+    expect(parentTty(first, '/c/s.progress-tty.json')).toBe('/dev/ttys004');
+    expect(first.calls).toEqual(['exec ps -o tty= -p 4242']);
+    expect(JSON.parse(files.get('/c/s.progress-tty.json')!)).toEqual({ ppid: 4242, dev: '/dev/ttys004' });
+    const again = fake(over);
+    expect(parentTty(again, '/c/s.progress-tty.json')).toBe('/dev/ttys004');
+    expect(again.calls).toEqual([]);
+    const moved = fake({ ...over, ppid: 5000 });
+    expect(parentTty(moved, '/c/s.progress-tty.json')).toBe('/dev/ttys004');
+    expect(moved.calls).toEqual(['exec ps -o tty= -p 5000']);
+    files.set('/c/bad.json', JSON.stringify({ ppid: 4242, dev: '/etc/passwd' }));
+    const bad = fake(over);
+    expect(parentTty(bad, '/c/bad.json')).toBe('/dev/ttys004');
+    expect(bad.calls).toEqual(['exec ps -o tty= -p 4242']);
+  });
+
   it('gives null on other platforms and bad pids', () => {
     for (const platform of ['win32', 'freebsd', 'aix'] as const) {
       const d = fake({ platform });

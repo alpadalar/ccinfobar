@@ -41,12 +41,13 @@ export function progressSeq(state: ProgressState, pct: number): string {
 export function progressFiles(
   sessionId: string,
   env: NodeJS.ProcessEnv,
-): { want: string; sent: string } | null {
+): { want: string; sent: string; tty: string } | null {
   if (typeof sessionId !== 'string' || !SESSION_RE.test(sessionId)) return null;
   const dir = hooksDir(env);
   return {
     want: path.join(dir, `${sessionId}.progress.json`),
     sent: path.join(dir, `${sessionId}.progress-sent.json`),
+    tty: path.join(dir, `${sessionId}.progress-tty.json`),
   };
 }
 

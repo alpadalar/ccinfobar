@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { fs } from '../core/builtins.js';
 import { terminalAllowed } from '../data/progress.js';
+import { writeSmall } from '../data/store.js';
 
 export const TTY_RE = /^\/dev\/(pts\/\d+|tty[A-Za-z0-9]+)$/;
 
@@ -14,6 +15,7 @@ export interface TtyDeps {
   open(p: string, flags: number): number;
   write(fd: number, s: string): void;
   close(fd: number): void;
+  save?(p: string, s: string): void;
 }
 
 export const ttyDeps = (): TtyDeps => ({
@@ -34,6 +36,9 @@ export const ttyDeps = (): TtyDeps => ({
     fs.writeSync(fd, s);
   },
   close: (fd) => fs.closeSync(fd),
+  save: (p, s) => {
+    writeSmall(p, s);
+  },
 });
 
 const validPid = (n: number): boolean => Number.isInteger(n) && n > 1;
@@ -45,7 +50,18 @@ function parentOf(d: TtyDeps, pid: number): number {
   return Number(rest[1]);
 }
 
-export function parentTty(d: TtyDeps): string | null {
+// macOS: ps is slow, so the device is kept per Claude Code pid (IN-06)
+function cachedTty(d: TtyDeps, cache: string | undefined): string | null {
+  if (!cache) return null;
+  try {
+    const c = JSON.parse(d.readFile(cache)) as { ppid?: unknown; dev?: unknown };
+    return c.ppid === d.ppid && typeof c.dev === 'string' && TTY_RE.test(c.dev) ? c.dev : null;
+  } catch {
+    return null;
+  }
+}
+
+export function parentTty(d: TtyDeps, cache?: string): string | null {
   try {
     if (!validPid(d.ppid)) return null;
     if (d.platform === 'linux') {
@@ -61,8 +77,12 @@ export function parentTty(d: TtyDeps): string | null {
       return null;
     }
     if (d.platform === 'darwin') {
+      const hit = cachedTty(d, cache);
+      if (hit) return hit;
       const dev = `/dev/${d.exec('ps', ['-o', 'tty=', '-p', String(d.ppid)]).trim()}`;
-      return TTY_RE.test(dev) ? dev : null;
+      if (!TTY_RE.test(dev)) return null;
+      if (cache) d.save?.(cache, JSON.stringify({ ppid: d.ppid, dev }));
+      return dev;
     }
   } catch {}
   return null;
@@ -75,14 +95,14 @@ export function tmuxWrap(seq: string): string {
 export function writeTty(
   seq: string,
   env: NodeJS.ProcessEnv,
-  opts: { tmuxPassthrough: boolean; always: boolean },
+  opts: { tmuxPassthrough: boolean; always: boolean; cache?: string },
   d: TtyDeps = ttyDeps(),
 ): boolean {
   try {
     if (d.platform === 'win32') return false;
     if (!terminalAllowed(env, opts.always)) return false;
     if (env.TMUX && !opts.tmuxPassthrough) return false;
-    const dev = parentTty(d);
+    const dev = parentTty(d, opts.cache);
     if (!dev || !d.stat(dev).isCharacterDevice()) return false;
     const c = fs.constants;
     const fd = d.open(dev, (c.O_WRONLY ?? 0) | (c.O_NOCTTY ?? 0) | (c.O_NONBLOCK ?? 0));

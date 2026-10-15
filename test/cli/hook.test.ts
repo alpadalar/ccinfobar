@@ -359,7 +359,13 @@ describe('SessionStart trigger', () => {
     expect(w.pruned).toEqual([
       [
         hooksDir(env),
-        [`${SID}.jsonl`, `${SID}.fold.json`, `${SID}.progress.json`, `${SID}.progress-sent.json`],
+        [
+          `${SID}.jsonl`,
+          `${SID}.fold.json`,
+          `${SID}.progress.json`,
+          `${SID}.progress-sent.json`,
+          `${SID}.progress-tty.json`,
+        ],
         1000,
       ],
     ]);

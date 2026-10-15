@@ -18,7 +18,7 @@ import {
   recordLedger,
 } from '../data/ledger.js';
 import { accountKey, recordLimits } from '../data/limits.js';
-import { progressSeq } from '../data/progress.js';
+import { progressFiles, progressSeq } from '../data/progress.js';
 import { readRepos } from '../data/repos.js';
 import { writeAtomic } from '../data/store.js';
 import { terminalWidth } from '../data/terminal.js';
@@ -150,7 +150,8 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
     const p = config.progress;
     const sync = p ? syncProgress(ctx, process.env, tty?.platform) : null;
     if (p && sync?.changed && sync.want?.channel === 'tty') {
-      const opts = { tmuxPassthrough: p.tmuxPassthrough === true, always: sync.want.always };
+      const cache = progressFiles(payload.session_id ?? '', process.env)?.tty;
+      const opts = { tmuxPassthrough: p.tmuxPassthrough === true, always: sync.want.always, cache };
       writeTty(progressSeq(sync.want.state, sync.want.pct), process.env, opts, tty);
     }
   } catch {}

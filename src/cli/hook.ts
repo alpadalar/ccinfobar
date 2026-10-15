@@ -163,7 +163,8 @@ export async function scheduleUpdate(
   scheduleCheck({ update } as Config, sessionId, env, extra);
 }
 
-const PRUNE_RE = /^([A-Za-z0-9_-]{1,128})(\.jsonl|\.fold\.json|\.progress\.json|\.progress-sent\.json)$/;
+const PRUNE_RE =
+  /^([A-Za-z0-9_-]{1,128})(\.jsonl|\.fold\.json|\.progress\.json|\.progress-sent\.json|\.progress-tty\.json)$/;
 
 // bounded by deletions and time, not entries; regular files only
 export function pruneHookLogs(
@@ -279,7 +280,13 @@ export async function runHook(d: HookDeps): Promise<void> {
     if (event !== 'SessionStart' || line.s !== 'startup') return;
     const prune = d.prune ?? pruneHookLogs;
     try {
-      const keep = [`${sid}.jsonl`, `${sid}.fold.json`, `${sid}.progress.json`, `${sid}.progress-sent.json`];
+      const keep = [
+        `${sid}.jsonl`,
+        `${sid}.fold.json`,
+        `${sid}.progress.json`,
+        `${sid}.progress-sent.json`,
+        `${sid}.progress-tty.json`,
+      ];
       const n = prune(hooksDir(d.env), keep, d.now());
       if (n > 0) debug(`pruned:${n}`);
     } catch {}
