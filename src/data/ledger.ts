@@ -57,6 +57,7 @@ export interface LedgerView {
 }
 
 const ZERO = 0.005;
+export const LEDGER_ZERO = ZERO;
 const SEGMENTS = 16;
 const MAX_COST = 1e6;
 const MAX_PROJECT = 1024;
@@ -106,13 +107,17 @@ export function credit(highs: number[] | undefined, c: number): { highs: number[
 
 export const slotKey = (t: number): number => Math.floor(t / SLOT_MS);
 
-export function projectRoot(payload: StatusPayload, platform: NodeJS.Platform = process.platform): string {
+export function normalizeRoot(raw: string, platform: NodeJS.Platform = process.platform): string {
   const p = platform === 'win32' ? path.win32 : path.posix;
-  const raw =
-    payload.workspace?.project_dir || payload.workspace?.current_dir || payload.cwd || process.cwd();
   let root = p.resolve(raw);
   while (root.length > 1 && /[\\/]$/.test(root) && p.dirname(root) !== root) root = root.slice(0, -1);
   return (platform === 'win32' ? root.toLowerCase() : root).slice(0, MAX_PROJECT);
+}
+
+export function projectRoot(payload: StatusPayload, platform: NodeJS.Platform = process.platform): string {
+  const raw =
+    payload.workspace?.project_dir || payload.workspace?.current_dir || payload.cwd || process.cwd();
+  return normalizeRoot(raw, platform);
 }
 
 export function emptySummary(): Summary {
@@ -142,36 +147,68 @@ function add(rows: DayRows, day: string, delta: number): void {
   rows[day] = (rows[day] ?? 0) + delta;
 }
 
-function foldLine(s: Summary, text: string): void {
+export interface Credited {
+  t: number;
+  a: string;
+  s: string;
+  p: string;
+  c: number;
+  delta: number;
+  first: boolean;
+}
+
+// the one credit path for the summary and the report
+export function stepLine(sessions: Record<string, SessionRow>, text: string): Credited | null {
   let e: Partial<LedgerLine>;
   try {
     e = JSON.parse(text) as Partial<LedgerLine>;
   } catch {
-    return;
+    return null;
   }
-  if (!e || typeof e !== 'object' || e.v !== 1) return;
-  if (!num(e.t) || e.t <= 0 || !costOk(e.c) || !idOk(e.s) || !idOk(e.a) || !projectOk(e.p)) return;
-  const row = s.sessions[e.s];
+  if (!e || typeof e !== 'object' || e.v !== 1) return null;
+  if (!num(e.t) || e.t <= 0 || !costOk(e.c) || !idOk(e.s) || !idOk(e.a) || !projectOk(e.p)) return null;
+  const row = sessions[e.s];
   const { highs, delta } = credit(row?.h, e.c);
-  s.sessions[e.s] = { h: highs, seen: Math.max(row?.seen ?? 0, e.t) };
+  sessions[e.s] = { h: highs, seen: Math.max(row?.seen ?? 0, e.t) };
+  return { t: e.t, a: e.a, s: e.s, p: e.p, c: e.c, delta, first: !row };
+}
+
+function foldLine(s: Summary, text: string): void {
+  const e = stepLine(s.sessions, text);
+  if (!e) return;
   s.since[e.a] = Math.min(s.since[e.a] ?? e.t, e.t);
-  if (!(delta > 0)) return;
+  if (!(e.delta > 0)) return;
   const day = dayKey(e.t);
-  add(child(s.days, e.a), day, delta);
-  add(child(child(s.projects, e.a), e.p), day, delta);
+  add(child(s.days, e.a), day, e.delta);
+  add(child(child(s.projects, e.a), e.p), day, e.delta);
   const k = slotKey(e.t);
-  if (k < 1e9) add(child(s.slots, e.a), String(k), delta);
+  if (k < 1e9) add(child(s.slots, e.a), String(k), e.delta);
 }
 
 // complete lines only; a torn tail waits for its newline
-export function foldText(summary: Summary, text: string): void {
+function eachLine(text: string, fn: (line: string) => void): void {
   const end = text.lastIndexOf('\n');
   let start = 0;
   while (start <= end) {
     const nl = text.indexOf('\n', start);
-    if (nl > start) foldLine(summary, text.slice(start, nl));
+    if (nl > start) fn(text.slice(start, nl));
     start = nl + 1;
   }
+}
+
+export function foldText(summary: Summary, text: string): void {
+  eachLine(text, (line) => foldLine(summary, line));
+}
+
+export function stepText(
+  sessions: Record<string, SessionRow>,
+  text: string,
+  on: (c: Credited) => void,
+): void {
+  eachLine(text, (line) => {
+    const c = stepLine(sessions, line);
+    if (c) on(c);
+  });
 }
 
 function dayRows(v: unknown): DayRows {
@@ -214,7 +251,7 @@ function parseSummary(raw: unknown): Summary {
   return s;
 }
 
-const ledgerDir = (env: NodeJS.ProcessEnv) => path.join(cacheDir(env), 'ledger');
+export const ledgerDir = (env: NodeJS.ProcessEnv): string => path.join(cacheDir(env), 'ledger');
 const summaryFile = (env: NodeJS.ProcessEnv) => path.join(ledgerDir(env), 'summary.json');
 
 function prevMonth(ms: number): number {
@@ -294,7 +331,7 @@ function advance(s: Summary, file: string, key: string, budget: number): Step {
 }
 
 // month keys, oldest first
-function monthFiles(dir: string): string[] {
+export function monthFiles(dir: string): string[] {
   try {
     return fs
       .readdirSync(dir)
@@ -363,6 +400,19 @@ export function readLedger(
     return read;
   } catch {
     return { summary: emptySummary(), moved: false, more: false };
+  }
+}
+
+// --rebuild: refold every month file from zero; month files stay as they are
+export function rebuildSummary(env: NodeJS.ProcessEnv = process.env, now = Date.now()): Summary | null {
+  try {
+    if (!monthFiles(ledgerDir(env)).length) return null;
+    const { summary } = foldFiles(env, emptySummary(), now, Number.MAX_SAFE_INTEGER);
+    pruneLedger(env, summary, now);
+    if (!writeAtomic(summaryFile(env), JSON.stringify(summary), { mode: 0o600 })) return null;
+    return summary;
+  } catch {
+    return null;
   }
 }
 
