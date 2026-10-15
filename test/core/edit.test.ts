@@ -242,7 +242,9 @@ describe('setProgress', () => {
     const on = setProgress(base, { enabled: true });
     expect(on.progress).toEqual({ enabled: true });
     expect(base.progress).toBeUndefined();
-    expect('progress' in setProgress(on, { enabled: false })).toBe(false);
+    expect(setProgress(on, { enabled: false }).progress).toEqual({ enabled: false });
+    expect('progress' in setProgress(base, { enabled: false })).toBe(false);
+    expect('progress' in setProgress(base, { warnAt: 50 })).toBe(false);
   });
 
   it('drops default values and keeps the rest', () => {
@@ -270,10 +272,10 @@ describe('setProgress', () => {
     expect(setProgress(all, { channel: 'auto', source: 'context' }).progress?.channel).toBeUndefined();
   });
 
-  it('keeps enabled false only next to other keys', () => {
+  it('keeps enabled false once progress was configured (D-36)', () => {
     const c = setProgress(setProgress(base, { enabled: true, channel: 'tty' }), { enabled: false });
     expect(c.progress).toEqual({ enabled: false, channel: 'tty' });
-    expect('progress' in setProgress(c, { channel: 'auto' })).toBe(false);
+    expect(setProgress(c, { channel: 'auto' }).progress).toEqual({ enabled: false });
   });
 
   it('clamps levels and ignores bad values', () => {

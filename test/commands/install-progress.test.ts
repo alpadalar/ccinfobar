@@ -7,6 +7,8 @@ import { type InstallIo, runInstall, runUninstall } from '../../src/commands/ins
 import { findHookEntries, readManifest } from '../../src/commands/manifest.js';
 import { loadConfig } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
+import { markSent, progressFiles, readWant } from '../../src/data/progress.js';
+import { writeSmall } from '../../src/data/store.js';
 
 const CLEAR = '\u001b]9;4;0;\u0007';
 const PROGRESS = ['UserPromptSubmit', 'Stop', 'StopFailure'];
@@ -160,6 +162,51 @@ describe('install --progress and uninstall --progress (D-42)', () => {
     await remove(again.io, '--progress');
     expect(again.lines.some((l) => l.startsWith('No progress handlers in'))).toBe(true);
     expect(again.raw).toEqual([]);
+  });
+
+  // a bar on screen can only be cleared by the next hook event (D-36)
+  const showBar = (sid = 'live-sess') => {
+    const files = progressFiles(sid, process.env)!;
+    writeSmall(files.want, JSON.stringify({ v: 1, state: 4, pct: 72, channel: 'hook', always: false }));
+    markSent(files.sent, { state: 4, pct: 72 });
+    return files;
+  };
+
+  it('uninstall --progress holds the handlers once while a bar is showing', async () => {
+    await install(fake(false).io, '--hooks', '--progress', '--yes');
+    const files = showBar();
+    const first = fake(false);
+    await remove(first.io, '--progress');
+    expect(first.lines).toContain(t('progress.held'));
+    expect(first.lines).not.toContain(t('progress.removed'));
+    expect(enabled()).toBe(false);
+    expect(readWant(files.want)).toMatchObject({ state: 0, pct: 0 });
+    expect(progressGroups(read().hooks)).toHaveLength(3);
+    const second = fake(false);
+    await remove(second.io, '--progress');
+    expect(second.lines).toContain(t('progress.removed'));
+    expect(progressGroups(read().hooks)).toEqual([]);
+    expect(findHookEntries(readManifest(), settings).some((e) => e.role)).toBe(false);
+  });
+
+  it('uninstall --hooks --progress drops the regular hooks while holding progress', async () => {
+    await install(fake(false).io, '--hooks', '--progress', '--yes');
+    showBar();
+    const f = fake(false);
+    await remove(f.io, '--hooks', '--progress');
+    expect(f.lines).toContain(t('progress.held'));
+    expect(Object.keys(read().hooks).sort()).toEqual([...PROGRESS].sort());
+    expect(progressGroups(read().hooks)).toHaveLength(3);
+  });
+
+  it('a full uninstall never holds and flips the bars to the clear state', async () => {
+    await install(fake(false).io, '--hooks', '--progress', '--yes');
+    const files = showBar();
+    const f = fake(false);
+    await remove(f.io);
+    expect(read()).toEqual({ model: 'opus', theme: 'dark' });
+    expect(readWant(files.want)).toMatchObject({ state: 0 });
+    expect(f.lines).not.toContain(t('progress.held'));
   });
 
   it('uninstall --hooks keeps the progress handlers and progress.enabled', async () => {

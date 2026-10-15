@@ -321,7 +321,7 @@ describe('progress fields', () => {
     c = field('progress.source').set(c, 'context');
     c = field('progress.warnAt').set(c, undefined);
     c = field('progress.tmuxPassthrough').set(c, false);
-    expect('progress' in field('progress.enabled').set(c, false)).toBe(false);
+    expect(field('progress.enabled').set(c, false).progress).toEqual({ enabled: false });
   });
 
   it('shows defaults and cycles the selects', () => {

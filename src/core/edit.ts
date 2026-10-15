@@ -381,7 +381,7 @@ function progressValue(key: keyof ProgressConfig, v: unknown): unknown {
   return (PROGRESS_CHOICES[key] as readonly unknown[]).includes(v) ? v : undefined;
 }
 
-// sparse; enabled false stays only next to other keys
+// sparse; once set it stays as { enabled: false } so the bar gets cleared (D-36)
 export function setProgress(config: Config, patch: Partial<ProgressConfig>): Config {
   const merged: Record<string, unknown> = { ...config.progress, ...patch };
   const out: Record<string, unknown> = {};
@@ -390,7 +390,8 @@ export function setProgress(config: Config, patch: Partial<ProgressConfig>): Con
     if (v !== undefined && v !== PROGRESS_DEFAULTS[key]) out[key] = v;
   }
   const next: Config = { ...config };
-  if (Object.keys(out).length) next.progress = { enabled: false, ...out } as ProgressConfig;
+  if (Object.keys(out).length || config.progress)
+    next.progress = { enabled: false, ...out } as ProgressConfig;
   else delete next.progress;
   return next;
 }

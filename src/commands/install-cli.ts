@@ -10,6 +10,7 @@ import { sanitizeText } from '../core/sanitize.js';
 import { VERSION } from '../core/version.js';
 import type { HookEvent } from '../data/hooks.js';
 import { progressSeq } from '../data/progress.js';
+import { requestClear } from '../data/progress-clear.js';
 import { selfCommand } from '../data/update-state.js';
 import { type DetectedTool, detectTool, type ImportSource } from '../importers/index.js';
 import { getWidget } from '../widgets/index.js';
@@ -48,7 +49,7 @@ import {
   uninstall,
 } from './install.js';
 import { runImport } from './manage.js';
-import { readManifest } from './manifest.js';
+import { findHookEntries, readManifest } from './manifest.js';
 import { readSettings } from './settings-file.js';
 import { installKind } from './update.js';
 
@@ -470,12 +471,16 @@ function hooksRemoved(io: InstallIo, hooks: RemovedHooks): void {
     io.log(t('hooks.leftEdited', { events: p.kept.map((e) => `${e} (progress)`).join(', ') }));
 }
 
-// D-36: after the handlers are gone, turn progress off and clear the bar
-function progressOff(io: InstallIo, cfgFile: string, hooks: RemovedHooks): void {
-  const removed = !!hooks.progress?.removed.length;
+// D-36: config off, every bar wants state 0; returns hook bars only a prompt can clear
+function progressOff(io: InstallIo, cfgFile: string, handlers: boolean): number {
   const was = setProgress(io, cfgFile, false);
-  if (removed || was) clearProgress(io);
+  const pending = requestClear(process.env);
+  if (handlers || was) clearProgress(io);
+  return handlers ? pending : 0;
 }
+
+const hasProgressHandlers = (file: string) =>
+  findHookEntries(readManifest(), file).some((e) => e.role === 'progress');
 
 export async function runUninstall(args: Args, cfgFile: string, io: InstallIo = defaultIo()): Promise<void> {
   if (badPositional(args, io)) return;
@@ -489,18 +494,19 @@ export async function runUninstall(args: Args, cfgFile: string, io: InstallIo = 
   }
   if (hooksOnly || progressOnly) {
     const file = claudeSettingsPath();
-    const res = uninstallHooks(
-      file,
-      undefined,
-      undefined,
-      !progressOnly ? 'hooks' : hooksOnly ? 'all' : 'progress',
-    );
+    // the next hook event sends the clear, so the handlers wait for it once
+    const held = progressOnly && progressOff(io, cfgFile, hasProgressHandlers(file)) > 0;
+    const role = !progressOnly || held ? 'hooks' : hooksOnly ? 'all' : 'progress';
+    const res =
+      held && !hooksOnly
+        ? { removed: [], kept: [], backup: null, changed: false }
+        : uninstallHooks(file, undefined, undefined, role);
     if (hooksOnly && !res.removed.length && !res.kept.length)
       io.log(t('hooks.none', { file: tildify(file) }));
-    if (progressOnly && !res.progress) io.log(t('progress.none', { file: tildify(file) }));
+    if (progressOnly && !held && !res.progress) io.log(t('progress.none', { file: tildify(file) }));
     hooksRemoved(io, res);
+    if (held) io.log(t('progress.held'));
     if (res.backup) io.log(t('install.backup', { file: tildify(res.backup) }));
-    if (progressOnly) progressOff(io, cfgFile, res);
     return;
   }
   const released = releaseProjects();
@@ -508,5 +514,5 @@ export async function runUninstall(args: Args, cfgFile: string, io: InstallIo = 
   const res = await uninstallAsking(claudeSettingsPath(), io);
   io.log(uninstallMessage(res));
   hooksRemoved(io, res.hooks);
-  progressOff(io, cfgFile, res.hooks);
+  progressOff(io, cfgFile, !!res.hooks.progress?.removed.length);
 }
