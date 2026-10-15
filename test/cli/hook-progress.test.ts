@@ -212,7 +212,23 @@ describe('pruneHookLogs and progress files', () => {
     expect(keep).toContain(`${SID}.progress.json`);
     expect(keep).toContain(`${SID}.progress-sent.json`);
     expect(fs.readdirSync(dir).sort()).toEqual(
-      ['old.progress.json.tmp', 'old.txt', `${SID}.progress-sent.json`, `${SID}.progress.json`].sort(),
+      ['old.progress.json.tmp', 'old.txt', `${SID}.progress.json`].sort(),
     );
+  });
+
+  it('forgets the sent marker on SessionStart, so a resumed tab gets the bar (IN-05)', async () => {
+    const s = sandbox();
+    s.want();
+    await s.run(input());
+    expect(readSent(s.files.sent)).toEqual({ state: 4, pct: 72 });
+    await s.run(JSON.stringify({ session_id: SID, hook_event_name: 'SessionStart', source: 'resume' }), [
+      'hook',
+      'SessionStart',
+    ]);
+    expect(fs.existsSync(s.files.sent)).toBe(false);
+    expect(fs.existsSync(s.files.want)).toBe(true);
+    await s.run(input());
+    expect(s.out).toHaveLength(2);
+    expect(s.reasons.at(-1)).toBe('emitted');
   });
 });

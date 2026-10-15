@@ -476,7 +476,7 @@ ccinfobar uninstall --progress   # turn it off and clear the bar
 
 `install --progress` adds three synchronous hook handlers (`UserPromptSubmit`, `Stop`, `StopFailure`) to `~/.claude/settings.json`, records them in the manifest and sets `progress.enabled` to `true`. It needs Claude Code 2.1.141 or newer and refuses when the version is older or unknown; `--dry-run` shows the change. The web editor's Settings (Terminal progress) has the same switch; it writes `progress.enabled` to the config file together with the handlers, right away and outside undo, so the two never disagree. The TUI has every option below.
 
-How it works: each render writes the value it wants in a small file in the cache dir (`hooks/<session id>.progress.json`, only when the value changes), and the handler hands it to Claude Code as a `terminalSequence` when it differs from the last one sent. The bar therefore moves when you send a prompt and when a turn ends.
+How it works: each render writes the value it wants in a small file in the cache dir (`hooks/<session id>.progress.json`, only when the value changes), and the handler hands it to Claude Code as a `terminalSequence` when it differs from the last one sent. The bar therefore moves when you send a prompt and when a turn ends. With the regular hooks installed (`install --hooks`), `SessionStart` forgets the last value sent, so a session resumed in a new tab gets its bar at the next prompt.
 
 **Cost.** Claude Code waits for synchronous hooks, so this adds about 60-110 ms before each prompt while it is on. `ccinfobar explain` says so next to the current value. The `tty` channel below has no such cost.
 

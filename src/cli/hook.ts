@@ -268,6 +268,13 @@ export async function runHook(d: HookDeps): Promise<void> {
       ok = d.append(file, JSON.stringify(line));
     } catch {}
     if (!ok) debug('append-failed');
+    // a resumed session may sit in a new tab: send the bar again (IN-05)
+    if (event === 'SessionStart') {
+      const sent = progressFiles(sid, d.env)?.sent;
+      try {
+        if (sent) fs.unlinkSync(sent);
+      } catch {}
+    }
     // new sessions only (D-23)
     if (event !== 'SessionStart' || line.s !== 'startup') return;
     const prune = d.prune ?? pruneHookLogs;
