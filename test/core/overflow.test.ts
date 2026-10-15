@@ -210,6 +210,96 @@ describe('priority overflow', () => {
     expect(stripAnsi(r.text)).toContain('label');
   });
 
+  // WR-01
+  describe('separators and text next to dropped widgets', () => {
+    const sep = (id: string): WidgetItem => ({ id, type: 'separator' });
+    const txt = (id: string, text: string): WidgetItem => ({ id, type: 'text', options: { text } });
+    const a = w('a', 'aaaaaaaa', { priority: 90 });
+    const b = w('b', 'bbbbbbbb', { priority: 10 });
+    const c = w('c', 'cccccccc', { priority: 5 });
+    const plain = (items: WidgetItem[], width: number, config: Partial<Config> = {}) => {
+      const r = report(items, width, config);
+      return { ...r, text: stripAnsi(r.text) };
+    };
+    const cfg: Partial<Config> = { theme: 'classic' };
+    const sepText = stripAnsi(one([sep('x')], null, cfg)).trim();
+
+    it('drops the separator before a dropped widget at the end', () => {
+      const items = [a, sep('s1'), b, sep('s2'), c];
+      const r = plain(items, fullWidth([a, sep('s1'), b], cfg), cfg);
+      expect(r.dropped).toEqual(['c', 's2']);
+      expect(r.text).toBe(stripAnsi(one([a, sep('s1'), b], null, cfg)));
+      const two = plain(items, fullWidth([a], cfg) + 2, cfg);
+      expect(two.dropped).toEqual(['c', 'b', 's1', 's2']);
+      expect(two.text.trim()).toBe('aaaaaaaa');
+    });
+
+    it('keeps one gap of separators when a middle widget drops', () => {
+      const items = [a, sep('s1'), b, sep('s2'), w('d', 'dddddddd', { priority: 80 })];
+      const keep = [a, sep('s1'), w('d', 'dddddddd', { priority: 80 })];
+      const r = plain(items, fullWidth(keep, cfg), cfg);
+      expect(r.dropped).toEqual(['b', 's2']);
+      expect(r.text).toBe(stripAnsi(one(keep, null, cfg)));
+      expect(r.text.split(sepText)).toHaveLength(2);
+    });
+
+    it('never leaves a separator at a group start', () => {
+      const lead = w('l', 'llllllll', { priority: 1 });
+      const items = [lead, sep('s1'), a, sep('s2'), w('d', 'dddddddd', { priority: 80 })];
+      const keep = [a, sep('s2'), w('d', 'dddddddd', { priority: 80 })];
+      const r = plain(items, fullWidth(keep, cfg), cfg);
+      expect(r.dropped).toEqual(['l', 's1']);
+      expect(r.text).toBe(stripAnsi(one(keep, null, cfg)));
+    });
+
+    it('keeps separators that were already at an edge or doubled', () => {
+      const items = [sep('e1'), a, sep('s1'), sep('s2'), b, sep('s3'), c, sep('e2')];
+      const keep = [sep('e1'), a, sep('s1'), sep('s2'), b, sep('e2')];
+      const r = plain(items, fullWidth(keep, cfg), cfg);
+      expect(r.dropped).toEqual(['c', 's3']);
+      expect(r.text).toBe(stripAnsi(one(keep, null, cfg)));
+    });
+
+    it('drops a text item with the widget before it, or after it at a group start', () => {
+      const items = [
+        txt('t0', 'Label:'),
+        b,
+        a,
+        txt('t1', '!'),
+        flex('f'),
+        txt('t2', 'Cost'),
+        c,
+        w('d', 'dddd'),
+      ];
+      const r = plain(
+        items,
+        fullWidth([txt('t0', 'Label:'), b, a, txt('t1', '!'), flex('f'), w('d', 'dddd')]),
+      );
+      expect(r.dropped).toEqual(['t2', 'c']);
+      expect(r.text.startsWith('Label:')).toBe(true);
+      const tight = plain(items, fullWidth([a, txt('t1', '!'), flex('f'), w('d', 'dddd')]));
+      expect(tight.dropped).toEqual(['t2', 'c', 't0', 'b']);
+      expect(tight.text).toContain('aaaaaaaa │ !');
+    });
+
+    it('never renders wider than the width', () => {
+      const items = [
+        sep('e'),
+        a,
+        sep('s1'),
+        txt('t', 'x'),
+        b,
+        flex('f'),
+        sep('s2'),
+        c,
+        sep('s3'),
+        w('d', 'dd'),
+      ];
+      for (let width = 4; width <= fullWidth(items, cfg) + 2; width++)
+        expect(visibleWidth(report(items, width, cfg).text)).toBeLessThanOrEqual(width);
+    });
+  });
+
   it('leaves the tui style to the panel', () => {
     const items = [m, g, p, c];
     const tui = (overflow: Config['overflow']) => lines(items, 30, { style: 'tui', overflow });

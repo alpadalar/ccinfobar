@@ -427,34 +427,105 @@ interface Unit {
   priority: number;
 }
 
-function toUnits(parts: Part[]): Unit[] {
-  const chains: Part[][] = [];
+// groups between flex parts, each a list of merge chains
+function chainGroups(parts: Part[]): Part[][][] {
+  const groups: Part[][][] = [[]];
   parts.forEach((p, i) => {
-    if (p.flex) return;
     const prev = parts[i - 1];
-    if (prev && !prev.flex && prev.item.merge) chains[chains.length - 1]!.push(p);
-    else chains.push([p]);
+    const g = groups[groups.length - 1]!;
+    if (p.flex) groups.push([]);
+    else if (prev && !prev.flex && prev.item.merge) g[g.length - 1]!.push(p);
+    else g.push([p]);
   });
-  return chains.flatMap((c) => {
-    const ranked = c.filter((p) => p.def.category !== 'layout');
-    if (!ranked.length) return [];
-    return [{ parts: c, priority: Math.max(...ranked.map((p) => effectivePriority(p.item, p.def))) }];
-  });
+  return groups;
+}
+
+const isSep = (c: Part[]) => c.every((p) => p.def.type === 'separator');
+const ranked = (c: Part[]) => c.filter((p) => p.def.category !== 'layout');
+
+// other layout chains ride with the unit before them, or after them at a group start
+function toUnits(parts: Part[]): Unit[] {
+  const units: Unit[] = [];
+  for (const g of chainGroups(parts)) {
+    const out: Unit[] = [];
+    let lead: Part[] = [];
+    for (const c of g) {
+      const r = ranked(c);
+      if (r.length) {
+        const priority = Math.max(...r.map((p) => effectivePriority(p.item, p.def)));
+        out.push({ parts: [...lead, ...c], priority });
+        lead = [];
+      } else if (!isSep(c)) {
+        if (out.length) out[out.length - 1]!.parts.push(...c);
+        else lead.push(...c);
+      }
+    }
+    units.push(...out);
+  }
+  return units;
+}
+
+// WR-01: one gap's separators between kept parts, none left at an edge they were not at
+function tidy(parts: Part[], kept: Part[]): Part[] {
+  const gapOf = new Map<Part, number>();
+  const edge = new Set<Part>();
+  for (const g of chainGroups(parts)) {
+    let last = -1;
+    g.forEach((c, i) => {
+      if (!isSep(c)) last = i;
+    });
+    let prev = -1;
+    g.forEach((c, i) => {
+      if (!isSep(c)) prev = i;
+      else
+        for (const p of c) {
+          if (prev >= 0 && i < last) gapOf.set(p, prev);
+          else edge.add(p);
+        }
+    });
+  }
+  const alive = new Set(kept);
+  const out: Part[] = [];
+  let run: Part[] = [];
+  let content = false;
+  for (const p of parts) {
+    if (!alive.has(p)) continue;
+    if (p.flex) {
+      run = [];
+      content = false;
+      out.push(p);
+    } else if (gapOf.has(p)) run.push(p);
+    else if (edge.has(p)) {
+      run = [];
+      out.push(p);
+    } else {
+      if (content && run.length) out.push(...run.filter((x) => gapOf.get(x) === gapOf.get(run[0]!)));
+      run = [];
+      out.push(p);
+      content = true;
+    }
+  }
+  return out;
 }
 
 function dropByPriority(parts: Part[], a: Appearance, level: Level, max: number, dropped: Part[]): string {
   let alive = toUnits(parts);
   let kept = parts;
-  let line = compose(kept, a, level, max);
+  let shown = parts;
+  const order: Part[] = [];
+  let line = compose(shown, a, level, max);
   while (alive.length > 1 && visibleWidth(line) > max) {
     let victim = alive.length - 1;
     for (let i = victim - 1; i >= 0; i--) if (alive[i]!.priority < alive[victim]!.priority) victim = i;
     const gone = new Set(alive[victim]!.parts);
-    dropped.push(...gone);
+    order.push(...gone);
     alive = alive.filter((_, i) => i !== victim);
     kept = kept.filter((p) => !gone.has(p));
-    line = compose(kept, a, level, max);
+    shown = tidy(parts, kept);
+    line = compose(shown, a, level, max);
   }
+  const visible = new Set([...shown, ...order]);
+  dropped.push(...order, ...parts.filter((p) => !visible.has(p)));
   return visibleWidth(line) > max ? truncate(line, max) : line;
 }
 

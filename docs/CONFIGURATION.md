@@ -176,7 +176,7 @@ With `priority`, each widget has a `priority` from 0 to 100; higher stays longer
 | Everything else (GSD, Agents, Charts, System, Custom, Fun) | 30 |
 
 - The lowest one goes first; on a tie the rightmost goes first. Separators and `flex` space are worked out again after each drop.
-- Widgets joined with `merge: true` drop together and count as their highest member. Layout items (`text`, `separator`, `flex`) are never dropped on their own, but a `text` merged into a widget goes with it. Text a widget prints below the line goes with it too.
+- Widgets joined with `merge: true` drop together and count as their highest member. Layout items (`text`, `separator`, `flex`) never count for priority. A `text` item goes with the widget before it (or the one after it at the start of the line or after a `flex`). A `separator` item is kept only while widgets are left on both sides of it: when a widget drops, one gap's separators stay between the remaining neighbours, and none is left at the edge of the line or of a `flex` group (separators you placed at an edge stay). Text a widget prints below the line goes with it too.
 - The last widget left is never dropped; if it still does not fit it is cut with `…`.
 - `ccinfobar explain` shows each widget's priority and `dropped by priority at width N`, and the web editor marks dropped widgets on the canvas.
 - The panel (`tui`) style keeps its own breakpoints and cuts cells to fit; `priority` does not apply there, and `doctor` says so.
