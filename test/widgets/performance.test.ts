@@ -10,6 +10,8 @@ import { createContext } from '../../src/core/context.js';
 import { render } from '../../src/core/renderer.js';
 import { samplePayload, sampleTranscript } from '../../src/core/sample.js';
 import type { StatusPayload, WidgetItem, WidgetOutput } from '../../src/core/types.js';
+import { ghParam } from '../../src/data/jobs/gh.js';
+import { ghKey, httpKey } from '../../src/data/jobs/keys.js';
 import { envelopeFile, okEnvelope } from '../../src/data/jobs/runner.js';
 import { reposKey } from '../../src/data/repos.js';
 import type { TranscriptInfo } from '../../src/data/transcript.js';
@@ -260,6 +262,90 @@ describe.skipIf(fs.existsSync(path.join(os.tmpdir(), '.git')))('live widgets thr
       expect(lines[0]).toContain('Read a.ts');
       expect(lines[0]).toContain('Turn 1m00s');
       expect(lines[0]).toContain('Wait Bash 42s');
+    } finally {
+      vi.restoreAllMocks();
+      module.syncBuiltinESMExports();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('phase 6 widgets through real readers', () => {
+  it('render service-status, http, pr ci, provider, model, session-cost and context without side effects', () => {
+    const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-ext-perf-')));
+    const env = {
+      CLAUDE_CONFIG_DIR: path.join(root, 'claude'),
+      CCINFOBAR_CACHE_DIR: path.join(root, 'cache'),
+      ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
+      ANTHROPIC_AUTH_TOKEN: 'perf-token',
+    };
+    const at = NOW.getTime() - 20_000;
+    const put = (key: string, value: unknown) => {
+      const file = envelopeFile(key, env);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify(okEnvelope(key, value, at)));
+    };
+    const url = 'https://relay.example.com/v1/balance';
+    const headers = 'Authorization=Bearer $RELAY_TOKEN';
+    put('status', {
+      indicator: 'major',
+      description: 'Partial System Outage',
+      incidents: [
+        { name: 'Elevated errors on Opus', impact: 'major', components: ['Claude API'], updatedAt: at },
+      ],
+    });
+    put(httpKey(url, headers), { paths: { '$.data.balance': { ok: true, v: 12.5 } } });
+    const payload: StatusPayload = { ...base(), model: { id: 'glm-5.3', display_name: 'glm-5.3' } };
+    delete payload.rate_limits;
+    put(ghKey(ghParam(payload)!), {
+      pass: 9,
+      fail: 2,
+      pending: 0,
+      skipped: 0,
+      cancelled: 0,
+      total: 11,
+      names: [],
+    });
+    const ctx = createContext({
+      payload,
+      config: {
+        ...defaultConfig(),
+        colorLevel: 0,
+        lines: [
+          [
+            { id: 's', type: 'service-status' },
+            {
+              id: 'h',
+              type: 'http',
+              options: { url, path: '$.data.balance', format: '${value}', decimals: 2, headers },
+            },
+            { id: 'p', type: 'pr', options: { ci: true } },
+            { id: 'v', type: 'provider' },
+            { id: 'm', type: 'model', options: { profileLabel: true } },
+            { id: 'c', type: 'session-cost', options: { basis: 'auto' } },
+            { id: 'x', type: 'context-percentage' },
+          ],
+        ],
+      },
+      env,
+      now: NOW,
+      preview: false,
+    });
+    const spies = SPAWNS.map((name) => vi.spyOn(cp, name));
+    module.syncBuiltinESMExports();
+    try {
+      const lines = withoutSideEffects(() => render(ctx)).map(stripAnsi);
+      expect(spies.map((s) => s.mock.calls.length)).toEqual(SPAWNS.map(() => 0));
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain('major: Elevated errors on Opus');
+      expect(lines[0]).toContain('$12.50');
+      expect(lines[0]).toContain('#128');
+      expect(lines[0]).toContain('✗ 2');
+      expect(lines[0]).toContain('GLM via api.z.ai');
+      expect(lines[0]).toContain('GLM-5.3');
+      expect(
+        fs.readdirSync(path.join(env.CCINFOBAR_CACHE_DIR, 'jobs')).some((f) => f.endsWith('.lock')),
+      ).toBe(false);
     } finally {
       vi.restoreAllMocks();
       module.syncBuiltinESMExports();

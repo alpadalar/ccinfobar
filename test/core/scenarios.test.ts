@@ -18,7 +18,7 @@ import {
   scenarioEnv,
   scenarioList,
 } from '../../src/core/scenarios.js';
-import type { RenderContext } from '../../src/core/types.js';
+import type { RenderContext, WidgetItem } from '../../src/core/types.js';
 import { limitsFile, recordLimits } from '../../src/data/limits.js';
 import { importCcstatusline } from '../../src/importers/ccstatusline.js';
 import { importClaudePowerline } from '../../src/importers/claude-powerline.js';
@@ -346,6 +346,44 @@ describe('new widgets across scenarios', () => {
         withoutSideEffects(() => getWidget('http')!.render(ctxFor(id), item)),
         id,
       ).toBe('42.5');
+    }
+  });
+
+  it('phase 6 widgets and scenarios are all covered', () => {
+    expect(NEW_WIDGETS).toEqual(expect.arrayContaining(['service-status', 'http', 'provider']));
+    expect(IDS).toEqual(
+      expect.arrayContaining(['service-incident', 'bedrock-user', 'gateway-glm', 'pr-ci-failing']),
+    );
+  });
+
+  it('phase 6 options render under every scenario and are off in presets', () => {
+    const items: WidgetItem[] = [
+      { id: 'p', type: 'pr', options: { ci: true } },
+      { id: 'm', type: 'model', options: { profileLabel: true } },
+      { id: 'c', type: 'session-cost', options: { basis: 'auto' } },
+      { id: 's', type: 'service-status', options: { showOk: true, components: 'api' } },
+      { id: 'v', type: 'provider', options: { showFirstParty: true } },
+    ];
+    for (const id of IDS) {
+      for (const item of items) {
+        expect(
+          () => withoutSideEffects(() => getWidget(item.type)!.render(ctxFor(id), item)),
+          id,
+        ).not.toThrow();
+      }
+    }
+    const configs = [
+      defaultConfig(),
+      starterConfig(true),
+      starterConfig(false),
+      ...PRESETS.map((p) => p.build()),
+    ];
+    for (const c of configs) {
+      const text = JSON.stringify(c);
+      expect(text).not.toContain('"profiles"');
+      expect(text).not.toContain('"profileLabel"');
+      expect(text).not.toContain('"basis":"auto"');
+      expect(text).not.toContain('"ci":true');
     }
   });
 
