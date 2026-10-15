@@ -105,7 +105,8 @@ export function classifyGh(
   return { kind: 'error', code: 'gh-failed' };
 }
 
-const defaultHost = (host: string) => host === 'github.com' || host.endsWith('.ghe.com');
+// tenancy hosts get the github.com token from gh, so they pass the gate too
+const defaultHost = (host: string) => host === 'github.com';
 
 function hostList(v: unknown): string[] {
   if (!isObj(v)) return [];

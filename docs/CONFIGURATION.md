@@ -321,7 +321,7 @@ Rules:
 `pr` with `ci: true` adds the checks of the current pull request: `#128 approved ✗ 2` (failing, cancelled counts as failing), `● 3` (still running) or `✓` (all passed). Nothing is added when the PR has no checks. The counts come from your own `gh pr checks`, run in the background about every minute while checks run and every 5 minutes after. ccinfobar never reads a token itself.
 
 - The PR comes only from the payload Claude Code sends (`pr` and `workspace.repo`); GitLab merge requests are skipped.
-- gh runs for `github.com` and `*.ghe.com`. Any other host must be one you logged in to with `gh auth login --hostname <host>` (`gh auth status` lists them); otherwise gh is not run, so `GH_ENTERPRISE_TOKEN` never goes to an unknown host.
+- gh runs for `github.com`. Any other host, `*.ghe.com` included, must be one you logged in to with `gh auth login --hostname <host>` (`gh auth status` lists them); otherwise gh is not run, so `GH_TOKEN` and `GH_ENTERPRISE_TOKEN` never go to an unknown host.
 - Without gh, when it is not logged in, or when it is older than 2.81 (no `gh auth status --json`) for a host that needs the check, the CI part is left out and `ccinfobar explain` prints a `CI:` line with the reason.
 
 ### provider

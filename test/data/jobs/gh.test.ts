@@ -284,14 +284,24 @@ describe('gh host gate', () => {
     expect(c.opts.env.GH_ENTERPRISE_TOKEN).toBe('ent');
   });
 
-  it('never asks auth status for github.com or *.ghe.com', async () => {
-    for (const param of ['github.com/acme/api#128', 'acme.ghe.com/acme/api#128']) {
-      const gh = fakeGh([ok(MIX)]);
-      const { e } = await run(gh.exec, { env: sandbox({ GH_ENTERPRISE_TOKEN: 'ent' }), param });
-      expect(e.ok).toBe(true);
-      expect(gh.calls.map((c) => c.args[0])).toEqual(['pr']);
-      expect(gh.calls[0]?.opts.env.GH_ENTERPRISE_TOKEN).toBeUndefined();
-    }
+  it('never asks auth status for github.com', async () => {
+    const gh = fakeGh([ok(MIX)]);
+    const { e } = await run(gh.exec, { env: sandbox({ GH_ENTERPRISE_TOKEN: 'ent' }) });
+    expect(e.ok).toBe(true);
+    expect(gh.calls.map((c) => c.args[0])).toEqual(['pr']);
+    expect(gh.calls[0]?.opts.env.GH_ENTERPRISE_TOKEN).toBeUndefined();
+  });
+
+  it('checks *.ghe.com hosts against auth status too', async () => {
+    const param = 'acme.ghe.com/acme/api#128';
+    const off = fakeGh([ok(MIX)], HOSTS('github.com'));
+    const refused = await run(off.exec, { env: sandbox(), param });
+    expect(off.checks()).toHaveLength(0);
+    expect(refused.e).toMatchObject({ ok: false, error: 'gh-host' });
+    const on = fakeGh([ok(MIX)], HOSTS('acme.ghe.com'));
+    const { e } = await run(on.exec, { env: sandbox(), param });
+    expect(e.ok).toBe(true);
+    expect(on.calls.map((c) => c.args[0])).toEqual(['auth', 'pr']);
   });
 
   it('says gh-old when gh has no auth status --json', async () => {
