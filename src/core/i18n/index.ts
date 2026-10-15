@@ -5,7 +5,17 @@ import type { LanguageDef, Message, Params, Plural } from './types.js';
 export type MessageId = keyof typeof en;
 export type { LanguageId, LanguageSetting } from './languages.js';
 export type { LanguageSource, Resolved } from './resolve.js';
-export type { LanguageDef, Message, MetaTable, Params, Plural } from './types.js';
+export type {
+  CatalogMeta,
+  LanguageDef,
+  Message,
+  MetaFile,
+  MetaTable,
+  OptionMeta,
+  Params,
+  Plural,
+  WidgetMeta,
+} from './types.js';
 
 let active: LanguageDef = EN;
 const rules = new Map<string, Intl.PluralRules>();

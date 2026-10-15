@@ -1,5 +1,6 @@
 import { en } from './en/index.js';
 import { tr } from './tr/index.js';
+import { trMeta } from './tr/meta/index.js';
 import type { LanguageDef } from './types.js';
 
 export const EN = {
@@ -16,6 +17,7 @@ export const TR = {
   aliases: ['tur'],
   locale: 'tr',
   messages: tr,
+  meta: trMeta,
 } as const satisfies LanguageDef;
 
 export const LANGUAGES = [EN, TR] as const;
