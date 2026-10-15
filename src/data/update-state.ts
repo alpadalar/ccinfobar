@@ -1,11 +1,13 @@
-import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { cacheDir, configDir } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config } from '../core/types.js';
+import { nonessentialTrafficOff, spawnSelf } from './jobs/runner.js';
 import { acquireLock, writeAtomic } from './store.js';
+
+export { nonessentialTrafficOff, spawnSelf, spawnSelfDetached } from './jobs/runner.js';
 
 const DAY = 86_400_000;
 const LOCK_MS = 10 * 60_000;
@@ -85,11 +87,6 @@ export function compareVersions(a: string, b: string): number {
   return comparePre(pa.pre, pb.pre);
 }
 
-// Claude Code's opt-out of nonessential network traffic
-export function nonessentialTrafficOff(env: NodeJS.ProcessEnv = process.env): boolean {
-  return !!env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC;
-}
-
 export function updatesDisabled(config: Config, env: NodeJS.ProcessEnv = process.env): boolean {
   return config.update === 'off' || !!env.CI || !!env.CCINFOBAR_NO_UPDATE;
 }
@@ -148,10 +145,6 @@ export function scheduleCheck(config: Config, session?: string, env: NodeJS.Proc
   } catch {}
 }
 
-export function spawnSelf(args: string[], env: NodeJS.ProcessEnv = process.env): void {
-  spawnSelfDetached(args, env);
-}
-
 // home, else temp: never a cwd that may hold a planted binary
 export function safeCwd(): string | undefined {
   for (const d of [os.homedir(), os.tmpdir()]) {
@@ -160,23 +153,4 @@ export function safeCwd(): string | undefined {
     } catch {}
   }
   return undefined;
-}
-
-export function spawnSelfDetached(
-  args: string[],
-  env: NodeJS.ProcessEnv = process.env,
-  cwd?: string,
-): number | null {
-  const entry = process.argv[1];
-  if (!entry || !/ccinfobar(\.js)?$/.test(entry)) return null;
-  const child = spawn(process.execPath, [entry, ...args], {
-    detached: true,
-    stdio: 'ignore',
-    windowsHide: true,
-    env,
-    ...(cwd ? { cwd } : {}),
-  });
-  child.on('error', () => {});
-  child.unref();
-  return child.pid ?? null;
 }
