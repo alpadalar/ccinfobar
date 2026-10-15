@@ -1,8 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { walkTranscripts } from '../../src/data/report-index.js';
-import { assistantLine, scratch, writeTranscript } from '../fixtures/report/build.js';
+import type { Bucket, SessionData } from '../../src/core/report-types.js';
+import { dayKey } from '../../src/core/time.js';
+import { normalizeRoot } from '../../src/data/ledger.js';
+import { keyHash, scanTree, sessionsOf, walkTranscripts } from '../../src/data/report-index.js';
+import {
+  appendTranscript,
+  assistantLine,
+  scratch,
+  userLine,
+  writeTranscript,
+} from '../fixtures/report/build.js';
 
 const one = [assistantLine({ id: 'm1', requestId: 'r1', ts: '2026-10-12T10:00:00.000Z', in: 1, out: 1 })];
 
@@ -79,5 +88,250 @@ describe('walkTranscripts', () => {
     const root = scratch('walk-none');
     expect(walkTranscripts(root)).toEqual({ files: [], capped: false });
     expect(walkTranscripts(path.join(root, 'missing'))).toEqual({ files: [], capped: false });
+  });
+});
+
+const T0 = Date.parse('2026-10-12T10:00:00.000Z');
+const min = (n: number) => T0 + n * 60_000;
+
+function total(s: SessionData | undefined): Bucket {
+  const t: Bucket = { in: 0, out: 0, cr: 0, w5: 0, w1: 0, n: 0, usd: 0 };
+  for (const b of Object.values(s?.buckets ?? {})) {
+    for (const k of Object.keys(t) as (keyof Bucket)[]) t[k] += b[k];
+  }
+  return t;
+}
+
+const scan = (root: string, opts?: Parameters<typeof scanTree>[2]) =>
+  sessionsOf(scanTree(root, null, opts).state);
+
+function age(file: string, ms: number): void {
+  fs.utimesSync(file, new Date(ms), new Date(ms));
+}
+
+describe('scanTree requests', () => {
+  it('keeps the last line of a key', () => {
+    const root = scratch('last');
+    writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(0), in: 5, out: 10 }),
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(0), in: 6, out: 40 }),
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(0), in: 7, out: 90 }),
+      ],
+      root,
+    );
+    expect(total(scan(root).S1)).toMatchObject({ n: 1, in: 7, out: 90 });
+  });
+
+  it('moves a replaced request between buckets', () => {
+    const root = scratch('move');
+    writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(0), in: 5, out: 10 }),
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(0), in: 5, out: 20, speed: 'fast' }),
+      ],
+      root,
+    );
+    const keys = Object.keys(scan(root).S1!.buckets);
+    expect(keys).toEqual([`${dayKey(min(0))}|claude-opus-4-5|1|0|0`]);
+  });
+
+  it('counts a subagent request and its sidechain copy once', () => {
+    const root = scratch('side');
+    const copy = { id: 'm2', requestId: 'r2', ts: min(1), in: 1, out: 100 };
+    writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(0), in: 1, out: 1 }),
+        assistantLine({ ...copy, sidechain: true }),
+      ],
+      root,
+    );
+    writeTranscript('projects/-w-a/S1/subagents/agent-x.jsonl', [assistantLine(copy)], root);
+    const s = scan(root);
+    expect(Object.keys(s)).toEqual(['S1']);
+    expect(total(s.S1)).toMatchObject({ n: 2, out: 101 });
+    expect(s.S1!.files).toBe(2);
+  });
+
+  it('counts copied fork requests for the older file only', () => {
+    const root = scratch('fork');
+    const reqs = [1, 2, 3].map((i) => ({ id: `m${i}`, requestId: `r${i}`, ts: min(i), in: 1, out: 10 }));
+    age(writeTranscript('projects/-w-a/S1.jsonl', reqs.map(assistantLine), root), T0);
+    const fork = [...reqs, { id: 'm4', requestId: 'r4', ts: min(20), in: 1, out: 10 }];
+    age(writeTranscript('projects/-w-a/S9.jsonl', fork.map(assistantLine), root), T0 + 60_000);
+    const s = scan(root);
+    expect(total(s.S1).n).toBe(3);
+    expect(total(s.S9).n).toBe(1);
+  });
+
+  it('ignores tool result usage and synthetic messages', () => {
+    const root = scratch('skip');
+    writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [
+        userLine({ ts: min(0), toolUseResultUsage: { input_tokens: 500, output_tokens: 500 } }),
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(1), model: '<synthetic>', in: 9, out: 9 }),
+      ],
+      root,
+    );
+    expect(total(scan(root).S1).n).toBe(0);
+  });
+
+  it('counts every line without ids', () => {
+    const root = scratch('keyless');
+    writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [assistantLine({ ts: min(0), out: 3 }), assistantLine({ ts: min(1), out: 3 })],
+      root,
+    );
+    expect(total(scan(root).S1)).toMatchObject({ n: 2, out: 6 });
+  });
+
+  it('splits cache writes into 5m and 1h', () => {
+    const root = scratch('cache');
+    writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(0), cw: 200, w5: 100, w1: 50 }),
+        assistantLine({ id: 'm2', requestId: 'r2', ts: min(1), cw: 70 }),
+      ],
+      root,
+    );
+    expect(total(scan(root).S1)).toMatchObject({ w5: 220, w1: 50 });
+  });
+
+  it('flags fast, big and costUSD buckets', () => {
+    const root = scratch('flags');
+    writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(0), in: 1, speed: 'fast' }),
+        assistantLine({ id: 'm2', requestId: 'r2', ts: min(1), in: 50_000, cr: 40_000, cw: 10_001 }),
+        assistantLine({ id: 'm3', requestId: 'r3', ts: min(2), in: 50_000, cr: 40_000, cw: 10_000 }),
+        assistantLine({ id: 'm4', requestId: 'r4', ts: min(3), in: 1, costUSD: 0.25 }),
+        assistantLine({ id: 'm5', requestId: 'r5', ts: min(4), in: 1, costUSD: 0.5 }),
+      ],
+      root,
+    );
+    const d = dayKey(min(0));
+    const b = scan(root).S1!.buckets;
+    expect(Object.keys(b).sort()).toEqual(
+      [
+        `${d}|claude-opus-4-5|1|0|0`,
+        `${d}|claude-opus-4-5|0|1|0`,
+        `${d}|claude-opus-4-5|0|0|0`,
+        `${d}|claude-opus-4-5|0|0|1`,
+      ].sort(),
+    );
+    expect(b[`${d}|claude-opus-4-5|0|0|1`]).toMatchObject({ n: 2, usd: 0.75 });
+    expect(b[`${d}|claude-opus-4-5|0|0|0`]!.n).toBe(1);
+  });
+
+  it('puts each request on the day of its own timestamp', () => {
+    const root = scratch('days');
+    const late = new Date(2026, 9, 12, 23, 59, 30).getTime();
+    const early = new Date(2026, 9, 13, 0, 0, 30).getTime();
+    writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [
+        assistantLine({ id: 'm1', requestId: 'r1', ts: late, out: 1 }),
+        assistantLine({ id: 'm2', requestId: 'r2', ts: early, out: 1 }),
+      ],
+      root,
+    );
+    const days = Object.keys(scan(root).S1!.buckets).map((k) => k.split('|')[0]);
+    expect(days.sort()).toEqual(['2026-10-12', '2026-10-13']);
+  });
+
+  it('waits for the newline of a torn last line', () => {
+    const root = scratch('torn');
+    const full = assistantLine({ id: 'm2', requestId: 'r2', ts: min(1), out: 7 });
+    const file = writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [assistantLine({ id: 'm1', requestId: 'r1', ts: min(0), out: 1 })],
+      root,
+    );
+    fs.appendFileSync(file, full.slice(0, 40));
+    const first = scanTree(root, null);
+    expect(total(sessionsOf(first.state).S1)).toMatchObject({ n: 1, out: 1 });
+    const offset = first.state.files['projects/-w-a/S1.jsonl']!.offset;
+    expect(offset).toBe(fs.statSync(file).size - 40);
+    fs.appendFileSync(file, `${full.slice(40)}\n`);
+    const second = scanTree(root, first.state);
+    expect(second.bytesRead).toBe(fs.statSync(file).size - offset);
+    expect(total(sessionsOf(second.state).S1)).toMatchObject({ n: 2, out: 8 });
+    expect(scanTree(root, second.state).bytesRead).toBe(0);
+  });
+
+  it('skips lines over the size cap and counts them', () => {
+    const root = scratch('cap');
+    const huge = assistantLine({ id: 'm1', requestId: 'r1', ts: min(0), out: 1000, model: 'x'.repeat(1000) });
+    writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [huge, assistantLine({ id: 'm2', requestId: 'r2', ts: min(1), out: 2 })],
+      root,
+    );
+    const r = scanTree(root, null, { maxLine: 600 });
+    expect(r.notes).toEqual([{ code: 'line-skipped', count: 1 }]);
+    expect(total(sessionsOf(r.state).S1)).toMatchObject({ n: 1, out: 2 });
+  });
+
+  it('drops an oversized line that spans chunks once its newline arrives', () => {
+    const root = scratch('cap-torn');
+    const file = writeTranscript('projects/-w-a/S1.jsonl', [], root);
+    fs.appendFileSync(file, 'x'.repeat(1500));
+    const first = scanTree(root, null, { maxLine: 600 });
+    expect(first.notes).toEqual([]);
+    appendTranscript(
+      'projects/-w-a/S1.jsonl',
+      ['y'.repeat(100), assistantLine({ id: 'm', requestId: 'r', ts: min(0), out: 4 })],
+      root,
+    );
+    const second = scanTree(root, first.state, { maxLine: 600 });
+    expect(second.notes).toEqual([{ code: 'line-skipped', count: 1 }]);
+    expect(total(sessionsOf(second.state).S1)).toMatchObject({ n: 1, out: 4 });
+  });
+
+  it('keeps the first cwd of the main file and no message text', () => {
+    const root = scratch('cwd');
+    writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [
+        userLine({ ts: min(0), cwd: '/w/a/' }),
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(1), out: 1, cwd: '/w/other' }),
+      ],
+      root,
+    );
+    writeTranscript(
+      'projects/-w-a/S1/subagents/agent-x.jsonl',
+      [assistantLine({ id: 'm2', requestId: 'r2', ts: min(1), out: 1, cwd: '/w/sub' })],
+      root,
+    );
+    const { state } = scanTree(root, null);
+    expect(sessionsOf(state).S1!.cwd).toBe(normalizeRoot('/w/a/'));
+    expect(JSON.stringify(state)).not.toContain('PROMPT_MARKER');
+    expect(JSON.stringify(sessionsOf(state))).not.toContain('PROMPT_MARKER');
+  });
+
+  it('reports the file cap and progress', () => {
+    const root = scratch('progress');
+    for (const s of ['S1', 'S2', 'S3']) {
+      writeTranscript(`projects/-w-a/${s}.jsonl`, [assistantLine({ id: s, requestId: s, ts: min(0) })], root);
+    }
+    const seen: number[] = [];
+    const r = scanTree(root, null, { maxFiles: 2, onProgress: (files) => seen.push(files) });
+    expect(r.notes).toEqual([{ code: 'file-cap', count: 2 }]);
+    expect(seen).toEqual([1, 2]);
+    expect(r.bytesRead).toBeGreaterThan(0);
+  });
+
+  it('hashes keys to 53-bit integers', () => {
+    const a = keyHash('msg_1:req_1');
+    expect(Number.isSafeInteger(a)).toBe(true);
+    expect(a).toBe(keyHash('msg_1:req_1'));
+    expect(a).not.toBe(keyHash('msg_1:req_2'));
   });
 });
