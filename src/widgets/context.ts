@@ -1,18 +1,48 @@
+import { resolveProfile } from '../core/profiles.js';
 import type { OptionSpec, RenderContext, WidgetDef, WidgetItem, WidgetResult } from '../core/types.js';
+import { detectProvider } from '../data/provider.js';
 import { barFor, barOptions, formatTokens, loading, opt, thresholdColor, thresholdOption } from './shared.js';
 
 export function tok(n: number): string {
   return formatTokens(n).replace(/\.0(?=[kM]$)/, '');
 }
 
-export function windowSize(ctx: RenderContext): number | null {
+function positive(v: string | undefined): number | null {
+  const n = Number(v);
+  return v && Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function payloadSize(ctx: RenderContext): number | null {
   const n = ctx.payload.context_window?.context_window_size;
-  if (typeof n === 'number' && n > 0) return n;
+  return typeof n === 'number' && n > 0 ? n : null;
+}
+
+function guessSize(ctx: RenderContext): number | null {
   const m = ctx.payload.model;
   if (!m) return null;
   if (/\[1m\]|\b1m\b/i.test(`${m.id ?? ''} ${m.display_name ?? ''}`)) return 1_000_000;
   const len = ctx.data.transcript()?.contextLength ?? 0;
   return ctx.payload.exceeds_200k_tokens || len > 200_000 ? 1_000_000 : 200_000;
+}
+
+// env > payload > profile, non-first-party only (D-48)
+function overrideSize(ctx: RenderContext, n: number | null): number | null {
+  const provider = detectProvider(ctx.env);
+  if (provider.kind === 'firstParty') return null;
+  const env = positive(ctx.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS);
+  if (env) return env === n ? null : env;
+  if (n !== null && n !== 200_000) return null;
+  const p = resolveProfile(ctx.payload.model, provider, ctx.config)?.contextWindow ?? null;
+  return p && (n === null || p > n) ? p : null;
+}
+
+export function windowSize(ctx: RenderContext): number | null {
+  const n = payloadSize(ctx);
+  return overrideSize(ctx, n) ?? n ?? guessSize(ctx);
+}
+
+export function windowFromPayload(ctx: RenderContext): boolean {
+  return overrideSize(ctx, payloadSize(ctx)) === null;
 }
 
 export function contextTokens(ctx: RenderContext): number | null {
@@ -23,7 +53,7 @@ export function contextTokens(ctx: RenderContext): number | null {
       (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
     if (sum > 0) return sum;
   }
-  const size = windowSize(ctx);
+  const size = windowFromPayload(ctx) ? windowSize(ctx) : payloadSize(ctx);
   if (size && typeof cw?.used_percentage === 'number') return (cw.used_percentage / 100) * size;
   return ctx.data.transcript()?.contextLength ?? null;
 }
@@ -38,11 +68,6 @@ export function basisOf(item: WidgetItem): ContextBasis {
   const b = item.options?.basis;
   if (BASES.includes(b as ContextBasis)) return b as ContextBasis;
   return opt(item, 'usable', false) ? 'usable' : 'raw';
-}
-
-function positive(v: string | undefined): number | null {
-  const n = Number(v);
-  return v && Number.isFinite(n) && n > 0 ? n : null;
 }
 
 export function usableLimit(ctx: RenderContext, size: number): number {
@@ -69,12 +94,13 @@ export function contextPercent(
   const cw = ctx.payload.context_window;
   const size = windowSize(ctx);
   const used = contextTokens(ctx);
+  const own = windowFromPayload(ctx);
   let pct: number | null = null;
   if (basis !== 'raw' && size && used !== null) {
     const limit = limitFor(ctx, basis, size, reserveTokens);
     pct = limit > 0 ? (used / limit) * 100 : 100;
-  } else if (typeof cw?.used_percentage === 'number') pct = cw.used_percentage;
-  else if (typeof cw?.remaining_percentage === 'number') pct = 100 - cw.remaining_percentage;
+  } else if (own && typeof cw?.used_percentage === 'number') pct = cw.used_percentage;
+  else if (own && typeof cw?.remaining_percentage === 'number') pct = 100 - cw.remaining_percentage;
   else if (size && used !== null) pct = (used / size) * 100;
   else if (cw && size) pct = 0;
   return pct === null || Number.isNaN(pct) ? null : Math.max(0, Math.min(100, pct));
