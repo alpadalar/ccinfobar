@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterAll, beforeAll } from 'vitest';
 import { defaultConfig } from '../src/core/config.js';
 import { createContext } from '../src/core/context.js';
 import {
@@ -87,4 +91,18 @@ export async function withoutSideEffectsAsync<T>(fn: () => Promise<T>): Promise<
   } finally {
     globalThis.__ccibRenderGuard = false;
   }
+}
+
+// an empty ccinfobar.js as argv[1]: spawnSelf starts a worker that exits at once, so its locks stay
+export function useIdleEntry(): void {
+  let prev: string | undefined;
+  beforeAll(() => {
+    const dir = fs.mkdtempSync(path.join(process.env.CCIB_TEST_ROOT ?? os.tmpdir(), 'entry-'));
+    fs.writeFileSync(path.join(dir, 'ccinfobar.js'), '');
+    prev = process.argv[1];
+    process.argv[1] = path.join(dir, 'ccinfobar.js');
+  });
+  afterAll(() => {
+    if (prev !== undefined) process.argv[1] = prev;
+  });
 }

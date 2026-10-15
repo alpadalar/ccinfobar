@@ -261,10 +261,10 @@ describe('scheduleRequests', () => {
     expect(locks(env)).toEqual([false, false, false]);
   });
 
-  it('keeps the locks when spawn is a no-op', () => {
+  it('releases the locks and reports nothing when spawn starts no worker', () => {
     const env = tmpEnv();
-    scheduleRequests(items(), env, [], { now: Date.now(), spawn: () => false });
-    expect(locks(env)).toEqual([true, true, true]);
+    expect(scheduleRequests(items(), env, [], { now: Date.now(), spawn: () => false })).toEqual([]);
+    expect(locks(env)).toEqual([false, false, false]);
   });
 
   it('spawns only for the keys it locked', () => {

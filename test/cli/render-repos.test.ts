@@ -8,6 +8,7 @@ import { stripAnsi } from '../../src/core/ansi.js';
 import { cacheDir, configDir } from '../../src/core/paths.js';
 import { envelopeFile, lockFile, okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
 import { legacyDirtyFile, reposKey } from '../../src/data/repos.js';
+import { useIdleEntry } from '../helpers.js';
 
 const tmpRepo = fs.existsSync(path.join(os.tmpdir(), '.git'));
 let dir: string;
@@ -44,6 +45,7 @@ async function renderAt(ws: string, options: Record<string, unknown>): Promise<s
 }
 
 describe.skipIf(tmpRepo)('render with the dirty marker', () => {
+  useIdleEntry();
   it('reads the cache, schedules after output and never writes the cache itself', async () => {
     const ws = path.join(dir, 'ws');
     fs.mkdirSync(path.join(ws, 'api', '.git'), { recursive: true });

@@ -12,6 +12,7 @@ import {
   updatesDisabled,
 } from '../../src/commands/update.js';
 import { defaultConfig } from '../../src/core/config.js';
+import { useIdleEntry } from '../helpers.js';
 
 const envWith = () =>
   ({ CCINFOBAR_CACHE_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-upd-')) }) as NodeJS.ProcessEnv;
@@ -24,6 +25,7 @@ const lock = (env: NodeJS.ProcessEnv) =>
 const jobState = (env: NodeJS.ProcessEnv) => path.join(env.CCINFOBAR_CACHE_DIR!, 'jobs', 'update.json');
 
 describe('update', () => {
+  useIdleEntry();
   it('rejects anything that is not a plain version', async () => {
     const { assertVersion, tarballUrl } = await import('../../src/commands/update.js');
     expect(assertVersion('0.3.0')).toBe('0.3.0');
@@ -145,6 +147,11 @@ describe('update', () => {
     expect(lock(env)).toBe(false);
     const stale = envWith();
     writeState(stale, { checkedAt: 0, latest: '0.2.0' });
+    const entry = process.argv[1]!;
+    process.argv[1] = path.join(os.tmpdir(), 'not-the-cli.js');
+    scheduleCheck(defaultConfig(), undefined, stale);
+    expect(lock(stale)).toBe(false);
+    process.argv[1] = entry;
     scheduleCheck(defaultConfig(), undefined, stale);
     expect(lock(stale)).toBe(true);
     expect(fs.readFileSync(updateFile(stale), 'utf8')).toContain('"checkedAt":0');

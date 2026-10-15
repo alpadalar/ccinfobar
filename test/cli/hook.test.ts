@@ -15,6 +15,7 @@ import { readStdinStream } from '../../src/cli/hook-stream.js';
 import { configPath } from '../../src/core/paths.js';
 import { HOOK_EVENTS, hookLine, hookLogPath, hooksDir, isHookEvent } from '../../src/data/hooks.js';
 import { appendLine } from '../../src/data/store.js';
+import { useIdleEntry } from '../helpers.js';
 
 const env = { CCINFOBAR_CACHE_DIR: path.join('/tmp', 'ccib-hook-unit') } as NodeJS.ProcessEnv;
 const SID = 'abc_DEF-1';
@@ -480,6 +481,7 @@ describe('readUpdateSetting', () => {
 });
 
 describe('default schedule', () => {
+  useIdleEntry();
   const run = async (extra: NodeJS.ProcessEnv, config?: string) => {
     const dir = tmp();
     const e: NodeJS.ProcessEnv = {

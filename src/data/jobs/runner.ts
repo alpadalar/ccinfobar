@@ -362,7 +362,11 @@ export function scheduleRequests(
   };
   const keys = taken.map(formatArg);
   try {
-    (opts.spawn ?? spawnSelf)(['worker', ...keys, ...extra], env, release);
+    // false: not started from a ccinfobar entry, so nothing will run
+    if (!(opts.spawn ?? spawnSelf)(['worker', ...keys, ...extra], env, release)) {
+      release();
+      return [];
+    }
   } catch {
     release();
     return [];

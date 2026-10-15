@@ -14,6 +14,7 @@ import {
   updateJob,
 } from '../../../src/data/jobs/update.js';
 import { readUpdateState, scheduleCheck, updateFile, updateNotice } from '../../../src/data/update-state.js';
+import { useIdleEntry } from '../../helpers.js';
 
 const mocks = vi.hoisted(() => ({
   execFile: vi.fn(),
@@ -106,6 +107,7 @@ describe('update job keys', () => {
 });
 
 describe('legacy update.json fallback', () => {
+  useIdleEntry();
   it('reads the legacy file and schedules through jobs/update.lock', () => {
     const env = sandbox();
     legacy(env, { checkedAt: Date.now() - HOUR, latest: '9.9.9', session: 's1' });
