@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { stripAnsi } from '../../src/core/ansi.js';
 import type { LanguageDef, MetaFile, MetaTable } from '../../src/core/i18n/index.js';
-import { TR } from '../../src/core/i18n/languages.js';
+import { LANGUAGES, TR } from '../../src/core/i18n/languages.js';
 import { byCategory, sharedOptions, trMeta } from '../../src/core/i18n/tr/meta/index.js';
 import {
   categoryText,
@@ -284,6 +284,39 @@ describe('Turkish widget metadata', () => {
     expect(TR.meta).toBe(trMeta);
     for (const file of Object.values(byCategory)) {
       for (const type of Object.keys(file!.widgets)) expect(trMeta.widgets[type]).toBe(file!.widgets[type]);
+    }
+  });
+});
+
+describe('widget metadata completeness', () => {
+  it('has a Turkish file for every category and an entry for every widget', () => {
+    expect(Object.keys(byCategory).sort()).toEqual(CATEGORIES.map((c) => c.id as string).sort());
+    const missing = ALL_WIDGETS.filter((w) => !Object.hasOwn(byCategory[w.category].widgets, w.type));
+    expect(missing.map((w) => w.type)).toEqual([]);
+  });
+
+  it('holds for every language with metadata', () => {
+    const langs = ([...LANGUAGES] as LanguageDef[]).filter((l) => l.meta);
+    expect(langs.map((l) => l.id)).toContain('tr');
+    for (const { id, meta } of langs) {
+      const file: MetaFile = { widgets: meta!.widgets, options: meta!.options };
+      expect(problems(ALL_WIDGETS, file), id).toEqual([]);
+      expect(Object.keys(meta!.categories).sort(), id).toEqual(CATEGORIES.map((c) => c.id as string).sort());
+    }
+  });
+});
+
+describe('Turkish custom and http texts', () => {
+  it('keep env vars, JSON paths, headers and placeholders literal', () => {
+    const literal = /\$\{?[A-Z_]+\}?|\$\.[\w.[\]]+|\{value\}|\?key=|Authorization=Bearer|localhost|https?\b/g;
+    for (const type of ['http', 'command', 'env', 'link']) {
+      const def = getWidget(type)!;
+      for (const o of def.options ?? []) {
+        if (!o.help) continue;
+        const tr = withLang('tr', () => optionHelp(def, o))!;
+        expect(tr, o.key).not.toBe(o.help);
+        for (const m of o.help.match(literal) ?? []) expect(tr, `${type}.${o.key}`).toContain(m);
+      }
     }
   });
 });

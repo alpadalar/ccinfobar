@@ -52,7 +52,7 @@
       }
     },
     {
-      "includes": ["src/core/http-spec.ts", "src/widgets/http.ts"],
+      "includes": ["src/core/http-spec.ts", "src/widgets/http.ts", "src/core/i18n/tr/meta/custom.ts"],
       "linter": {
         "rules": {
           "suspicious": {
