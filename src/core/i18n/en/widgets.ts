@@ -7,4 +7,12 @@ export const widgetMessages = {
   'widget.limit.reached': 'limit reached',
   'widget.turn.last': 'last {time}',
   'widget.env.hooksOff': 'hooks off',
+  'widget.provider.bedrock': 'Bedrock',
+  'widget.provider.vertex': 'Vertex',
+  'widget.provider.foundry': 'Foundry',
+  'widget.provider.mantle': 'Mantle',
+  'widget.provider.anthropicAws': 'AWS',
+  'widget.provider.apiKey': 'API key',
+  'widget.provider.firstParty': 'Claude',
+  'widget.provider.via': '{label} via {host}',
 } as const;

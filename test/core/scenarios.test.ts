@@ -32,6 +32,8 @@ const IDS = [
   'gsd-project',
   'no-git',
   'api-key-user',
+  'bedrock-user',
+  'gateway-glm',
   'over-budget',
   'workspace-folder',
   'waiting-permission',
@@ -106,7 +108,7 @@ describe('scenarios', () => {
     expect(view('near-5h-limit')?.windows.five_hour?.pct).toBe(92);
     expect(view('near-5h-limit')?.windows.seven_day?.pct).toBe(61);
     expect(view('context-full')?.windows.five_hour?.pct).toBe(42);
-    for (const id of ['api-key-user', 'fresh-session']) {
+    for (const id of ['api-key-user', 'bedrock-user', 'gateway-glm', 'fresh-session']) {
       expect(view(id), id).toEqual({ windows: {}, expired: [] });
     }
   });
@@ -223,6 +225,24 @@ describe('scenarios', () => {
     expect(widget('api-key-user', 'five-hour-usage')).toBeNull();
   });
 
+  it('bedrock-user and gateway-glm have no plan limits and a hermetic provider env', () => {
+    const bedrock = getScenario('bedrock-user')!.build(SCENARIO_NOW);
+    expect(bedrock.env).toEqual({ CLAUDE_CODE_USE_BEDROCK: '1' });
+    expect(bedrock.payload.rate_limits).toBeUndefined();
+    const glm = getScenario('gateway-glm')!.build(SCENARIO_NOW);
+    expect(glm.env.ANTHROPIC_BASE_URL).toBe('https://api.z.ai/api/anthropic');
+    expect(glm.env.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(glm.payload.model).toEqual({ id: 'glm-5.3', display_name: 'glm-5.3' });
+    expect(glm.payload.rate_limits).toBeUndefined();
+    expect(glm.data.ledger()).toBeNull();
+    const env = scenarioEnv({ ANTHROPIC_API_KEY: 'real', CLAUDE_CODE_USE_VERTEX: '1' }, glm.env);
+    expect(env.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(env.CLAUDE_CODE_USE_VERTEX).toBeUndefined();
+    for (const id of ['bedrock-user', 'gateway-glm']) {
+      expect(widget(id, 'five-hour-usage'), id).toBeNull();
+    }
+  });
+
   it('over-budget sets a $3 daily budget and $4.12 spent today', () => {
     const b = getScenario('over-budget')!.build(SCENARIO_NOW);
     expect(b.config?.budget).toEqual({ daily: 3, warnAt: 0.8 });
@@ -266,12 +286,14 @@ const NEW_WIDGETS = [
   'turn-timer',
   'permission-wait',
   'env-counts',
+  'provider',
 ];
 
 const raw = (id: string, type: string) =>
   withoutSideEffects(() => getWidget(type)!.render(ctxFor(id), { id: type, type }));
 
 const PHASE5 = ['workspace-repos', 'tool-activity', 'turn-timer', 'permission-wait', 'env-counts'];
+const OPT_IN = [...PHASE5, 'provider'];
 
 describe('new widgets across scenarios', () => {
   it('cover every live session widget', () => {
@@ -289,7 +311,7 @@ describe('new widgets across scenarios', () => {
     ];
     for (const c of configs) {
       const text = JSON.stringify(c);
-      for (const type of PHASE5) {
+      for (const type of OPT_IN) {
         expect(text, type).not.toContain(`"${type}"`);
         expect(text, type).not.toContain(`{${type}}`);
       }

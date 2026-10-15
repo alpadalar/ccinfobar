@@ -12,6 +12,7 @@ export const explainMessages = {
   'explain.reason.belowRisk': 'projection is below the warn threshold',
   'explain.reason.limitSafe': 'the limit is safe at the current pace and hideWhenSafe is on',
   'explain.reason.provider-no-plan-limits': '{provider} sessions have no plan limits',
+  'explain.reason.providerFirstParty': 'a Claude subscription session; turn on showFirstParty to show Claude',
   'explain.reason.no-context-window':
     'Claude Code sent no context_window and the transcript has no usage yet (update Claude Code or send a message)',
   'explain.reason.no-transcript':

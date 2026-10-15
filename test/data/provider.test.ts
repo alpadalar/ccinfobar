@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import { detectProvider } from '../../src/data/provider.js';
 import { needsUsage } from '../../src/data/usage.js';
@@ -47,6 +49,30 @@ describe('detectProvider', () => {
 
   it('never returns the key', () => {
     expect(JSON.stringify(detectProvider({ ANTHROPIC_API_KEY: 'sk-secret' }))).not.toContain('sk-secret');
+  });
+});
+
+// D-36: Claude Code passes settings env to the status line, so only the process env is read
+describe('detectProvider env source', () => {
+  it('ignores a settings.json env block and reads no file', () => {
+    const dir = fs.mkdtempSync(path.join(process.env.CCIB_TEST_ROOT!, 'provider-settings-'));
+    fs.writeFileSync(
+      path.join(dir, 'settings.json'),
+      JSON.stringify({ env: { CLAUDE_CODE_USE_BEDROCK: '1', ANTHROPIC_BASE_URL: 'https://api.z.ai' } }),
+    );
+    const read = vi.spyOn(fs, 'readFileSync');
+    try {
+      expect(detectProvider({ CLAUDE_CONFIG_DIR: dir }).kind).toBe('firstParty');
+      expect(detectProvider({ CLAUDE_CONFIG_DIR: dir, CLAUDE_CODE_USE_BEDROCK: '1' }).kind).toBe('bedrock');
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  it('has no file reader in its module', () => {
+    const src = fs.readFileSync(path.resolve('src/data/provider.ts'), 'utf8');
+    expect(src).not.toMatch(/node:fs|readFileSync|settings\.json/);
   });
 });
 

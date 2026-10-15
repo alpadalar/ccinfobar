@@ -1,5 +1,29 @@
-import type { WidgetDef } from '../core/types.js';
+import { t } from '../core/i18n/index.js';
+import { resolveProfile } from '../core/profiles.js';
+import { sanitizeText } from '../core/sanitize.js';
+import type { RenderContext, WidgetDef, WidgetItem } from '../core/types.js';
+import { detectProvider, type ProviderKind } from '../data/provider.js';
 import { opt } from './shared.js';
+
+const PROVIDER_LABEL = {
+  bedrock: 'widget.provider.bedrock',
+  vertex: 'widget.provider.vertex',
+  foundry: 'widget.provider.foundry',
+  mantle: 'widget.provider.mantle',
+  anthropicAws: 'widget.provider.anthropicAws',
+  apiKey: 'widget.provider.apiKey',
+  firstParty: 'widget.provider.firstParty',
+} as const satisfies Record<Exclude<ProviderKind, 'gateway'>, string>;
+
+function providerText(ctx: RenderContext, item: WidgetItem): string | null {
+  const p = detectProvider(ctx.env);
+  if (p.kind === 'firstParty' && !opt(item, 'showFirstParty', false)) return null;
+  if (p.kind !== 'gateway') return t(PROVIDER_LABEL[p.kind]);
+  const host = sanitizeText(p.host ?? '').trim();
+  if (!host) return null;
+  const vendor = resolveProfile(ctx.payload.model, p, ctx.config)?.vendor;
+  return vendor ? t('widget.provider.via', { label: vendor, host }) : host;
+}
 
 export const widgets: WidgetDef[] = [
   {
@@ -10,13 +34,46 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰚚', emoji: '🤖' },
     color: 'cyan',
     sample: 'Opus 5.5',
-    options: [{ key: 'showId', label: 'Show model id', kind: 'boolean', default: false }],
+    options: [
+      { key: 'showId', label: 'Show model id', kind: 'boolean', default: false },
+      {
+        key: 'profileLabel',
+        label: 'Use profile model name',
+        kind: 'boolean',
+        default: false,
+        help: 'Shows a model profile name (GLM-5.3) instead of a raw gateway model id',
+      },
+    ],
     render(ctx, item) {
       const m = ctx.payload.model;
       if (!m) return null;
+      if (opt(item, 'profileLabel', false)) {
+        const label = resolveProfile(m, detectProvider(ctx.env), ctx.config)?.label;
+        if (label) return label;
+      }
       if (item.options?.showId) return m.id ?? m.display_name;
       return m.display_name ?? m.id;
     },
+  },
+  {
+    type: 'provider',
+    name: 'Provider',
+    category: 'session',
+    description: 'API provider: Bedrock, Vertex, an API key or a gateway host',
+    icon: { nerd: '󰒍', emoji: '🔌' },
+    color: 'blue',
+    sample: 'Bedrock',
+    sources: ['env:provider', 'payload:model'],
+    options: [
+      {
+        key: 'showFirstParty',
+        label: 'Show Claude for first-party sessions',
+        kind: 'boolean',
+        default: false,
+        help: 'Off: hidden for Claude subscription sessions',
+      },
+    ],
+    render: providerText,
   },
   {
     type: 'effort',

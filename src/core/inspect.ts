@@ -226,6 +226,9 @@ export function emptyReason(
   if (def.category === 'context' && !p.context_window && !ctx.data.transcript()?.contextLength) {
     return reason('no-context-window');
   }
+  if (item.type === 'provider' && detectProvider(ctx.env).kind === 'firstParty') {
+    return reason('no-data', t('explain.reason.providerFirstParty'));
+  }
   if (item.type === 'workspace-repos') return reason(ctx.data.repos?.() ? 'no-child-repos' : 'inside-repo');
   if (def.category === 'git' && !ctx.data.git()) return reason('no-git');
   if (TRANSCRIPT_TYPES.has(item.type) && !ctx.data.transcript()) return reason('no-transcript');

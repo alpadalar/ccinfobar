@@ -200,6 +200,23 @@ function apiKeyUser(now: number): ScenarioBundle {
   return b;
 }
 
+function bedrockUser(now: number): ScenarioBundle {
+  const b = base(now);
+  delete b.payload.rate_limits;
+  b.env = { CLAUDE_CODE_USE_BEDROCK: '1' };
+  b.data.ledger = () => null;
+  return b;
+}
+
+function gatewayGlm(now: number): ScenarioBundle {
+  const b = base(now);
+  delete b.payload.rate_limits;
+  b.payload.model = { id: 'glm-5.3', display_name: 'glm-5.3' };
+  b.env = { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic', ANTHROPIC_AUTH_TOKEN: 'scenario-token' };
+  b.data.ledger = () => null;
+  return b;
+}
+
 function overBudget(now: number): ScenarioBundle {
   const b = base(now);
   b.config = { budget: { daily: 3, warnAt: 0.8 } };
@@ -262,6 +279,18 @@ export const SCENARIOS: readonly Scenario[] = [
     label: 'API key user',
     description: 'Billed by API key, so there are no plan limits',
     build: apiKeyUser,
+  },
+  {
+    id: 'bedrock-user',
+    label: 'Bedrock user',
+    description: 'Claude on Amazon Bedrock, so there are no plan limits',
+    build: bedrockUser,
+  },
+  {
+    id: 'gateway-glm',
+    label: 'GLM gateway',
+    description: 'GLM-5.3 through the Z.ai Anthropic gateway, with the profile window and prices',
+    build: gatewayGlm,
   },
   {
     id: 'over-budget',

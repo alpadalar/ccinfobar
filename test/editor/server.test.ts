@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
+import { SCENARIOS } from '../../src/core/scenarios.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
 
 let dir: string;
@@ -150,7 +151,7 @@ describe('editor server', () => {
 
   it('lists scenarios in the state', async () => {
     const { scenarios } = (await request('GET', '/api/state')).json();
-    expect(scenarios).toHaveLength(11);
+    expect(scenarios).toHaveLength(SCENARIOS.length);
     for (const s of scenarios) {
       expect(Object.keys(s).sort()).toEqual(['description', 'id', 'label']);
       expect(typeof s.id).toBe('string');
