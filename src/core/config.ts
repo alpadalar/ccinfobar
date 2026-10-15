@@ -3,6 +3,7 @@ import { writeAtomic } from '../data/store.js';
 import { GLYPH_MODES, OVERFLOW_MODES } from './display-opts.js';
 import { normalizeHeaderSpec, parseHeaderSpec, parseUrlTemplate } from './http-spec.js';
 import { t } from './i18n/index.js';
+import { asciiLower, LANGUAGE_SETTINGS } from './i18n/languages.js';
 import { locateJsonError, locateKey } from './json-locate.js';
 import { configPath } from './paths.js';
 import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
@@ -327,6 +328,11 @@ export function normalizeConfig(raw: unknown): Config {
   const glyphMode = oneOf(raw.glyphMode, GLYPH_MODES);
   if (glyphMode) cfg.glyphMode = glyphMode;
   if (raw.ambiguousWidth === 1 || raw.ambiguousWidth === 2) cfg.ambiguousWidth = raw.ambiguousWidth;
+  const language = oneOf(
+    typeof raw.language === 'string' ? asciiLower(raw.language) : raw.language,
+    LANGUAGE_SETTINGS,
+  );
+  if (language) cfg.language = language;
   if (isAlign(raw.align) && raw.align !== 'left') cfg.align = raw.align;
   if (Array.isArray(raw.lineAlign)) {
     const list = raw.lineAlign.slice(0, cfg.lines.length).map((a) => (isAlign(a) ? a : null));

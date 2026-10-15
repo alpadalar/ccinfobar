@@ -15,6 +15,7 @@ import {
   overflowOf,
 } from './display-opts.js';
 import type { MessageId } from './i18n/index.js';
+import { LANGUAGE_SETTINGS, type LanguageSetting } from './i18n/languages.js';
 import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
 import type {
   Align,
@@ -421,6 +422,20 @@ export function setGlyphMode(config: Config, v: GlyphMode | undefined): Config {
   if (v === undefined || v === 'normal' || !GLYPH_MODES.includes(v)) delete next.glyphMode;
   else next.glyphMode = v;
   return next;
+}
+
+export function setLanguageSetting(config: Config, v: LanguageSetting | undefined): Config {
+  const next: Config = { ...config };
+  if (v === undefined || v === 'auto' || !LANGUAGE_SETTINGS.includes(v)) delete next.language;
+  else next.language = v;
+  return next;
+}
+
+export function keepLanguage(next: Config, current: Config): Config {
+  const out: Config = { ...next };
+  if (current.language && LANGUAGE_SETTINGS.includes(current.language)) out.language = current.language;
+  else delete out.language;
+  return out;
 }
 
 export function setAmbiguousWidth(config: Config, v: 1 | 2 | undefined): Config {

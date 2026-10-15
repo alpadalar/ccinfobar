@@ -52,6 +52,7 @@ const CONFIG_KEYS = [
   'glyphMode',
   'ambiguousWidth',
   'progress',
+  'language',
 ] as const;
 
 const TUI_KEYS = [
@@ -202,6 +203,7 @@ const FULL_CONFIG: Required<Config> = {
   glyphMode: 'paste-safe',
   ambiguousWidth: 2,
   progress: FULL_PROGRESS,
+  language: 'tr',
 };
 
 const sorted = (keys: Iterable<string>) => [...keys].sort();

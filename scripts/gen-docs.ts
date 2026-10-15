@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { LANGUAGE_SETTINGS } from '../src/core/i18n/languages.js';
 import { BOX_PRESETS } from '../src/core/panel.js';
 import {
   PROFILE_LABEL_MAX,
@@ -326,6 +327,11 @@ function schema(): object {
       ambiguousWidth: {
         enum: [1, 2],
         description: 'Width of East Asian ambiguous characters; 2 for CJK-locale terminals (default: 1)',
+      },
+      language: {
+        enum: [...LANGUAGE_SETTINGS],
+        description:
+          'Display language for the status line, CLI and editors. auto follows CCINFOBAR_LANG, LC_ALL, LC_MESSAGES, LANG, then the system locale; English is the fallback (default: auto)',
       },
       update: {
         enum: ['auto', 'notify', 'off'],

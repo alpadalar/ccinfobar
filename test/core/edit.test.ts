@@ -10,6 +10,7 @@ import {
   effectiveOverflow,
   hasOwnColors,
   insertItem,
+  keepLanguage,
   moveItem,
   moveLine,
   needsRefresh,
@@ -27,6 +28,7 @@ import {
   setBudget,
   setGlyphMode,
   setItemRule,
+  setLanguageSetting,
   setLineAlign,
   setOption,
   setOverflow,
@@ -40,6 +42,7 @@ import {
   updateProfileOverride,
   upgradeOptions,
 } from '../../src/core/edit.js';
+import type { LanguageSetting } from '../../src/core/i18n/languages.js';
 import { CATEGORY_PRIORITY } from '../../src/core/renderer.js';
 import type { Config, GlyphMode, OverflowMode, WidgetItem } from '../../src/core/types.js';
 
@@ -321,6 +324,26 @@ describe('overflow, glyph and priority edits', () => {
     expect(a.ambiguousWidth).toBe(2);
     expect('ambiguousWidth' in setAmbiguousWidth(a, 1)).toBe(false);
     expect('ambiguousWidth' in setAmbiguousWidth(a, undefined)).toBe(false);
+  });
+
+  it('sets and removes the language', () => {
+    const c = setLanguageSetting(base, 'tr');
+    expect(c.language).toBe('tr');
+    expect(setLanguageSetting(c, 'en').language).toBe('en');
+    expect('language' in setLanguageSetting(c, 'auto')).toBe(false);
+    expect('language' in setLanguageSetting(c, undefined)).toBe(false);
+    expect('language' in setLanguageSetting(c, 'xx' as LanguageSetting)).toBe(false);
+    expect(base.language).toBeUndefined();
+  });
+
+  it('keeps the current language in a replacement config', () => {
+    const next = { ...base, lines: [[{ id: 'm', type: 'model' }]] };
+    expect(keepLanguage(next, { ...base, language: 'tr' })).toEqual({ ...next, language: 'tr' });
+    expect('language' in keepLanguage({ ...base, language: 'en' }, base)).toBe(false);
+    expect(keepLanguage(base, { ...base, language: 'auto' }).language).toBe('auto');
+    const en: Config = { ...base, language: 'en' };
+    keepLanguage(en, { ...base, language: 'tr' });
+    expect(en.language).toBe('en');
   });
 
   it('clamps and removes item priority', () => {

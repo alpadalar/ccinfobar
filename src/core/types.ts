@@ -1,3 +1,5 @@
+import type { LanguageSetting } from './i18n/languages.js';
+
 export interface RateWindow {
   used_percentage?: number | null;
   resets_at?: number | string | null;
@@ -242,6 +244,7 @@ export interface Config {
   glyphMode?: GlyphMode;
   ambiguousWidth?: 1 | 2;
   progress?: ProgressConfig;
+  language?: LanguageSetting;
 }
 
 export type WidgetCategory =

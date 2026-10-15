@@ -186,6 +186,17 @@ describe('display keys', () => {
     for (const k of ['overflow', 'glyphMode', 'ambiguousWidth']) expect(k in bad).toBe(false);
   });
 
+  it('keeps only registered language settings', () => {
+    for (const v of ['tr', 'en', 'auto']) expect(normalizeConfig({ language: v }).language).toBe(v);
+    expect(normalizeConfig({ language: 'TR' }).language).toBe('tr');
+    expect(normalizeConfig({ language: 'Auto' }).language).toBe('auto');
+    for (const v of ['tr_TR', 5, '__proto__', 'constructor', '', 'İn', null]) {
+      expect('language' in normalizeConfig({ language: v })).toBe(false);
+    }
+    expect('language' in normalizeConfig({})).toBe(false);
+    expect('language' in defaultConfig()).toBe(false);
+  });
+
   it('keeps only valid progress keys', () => {
     expect(
       normalizeConfig({ progress: { enabled: true, warnAt: 200, channel: 'x', foo: 1 } }).progress,
