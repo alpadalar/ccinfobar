@@ -18,6 +18,8 @@ vi.mock('../../src/commands/install.js', async (orig) => ({
 const { defaultConfig } = await import('../../src/core/config.js');
 const { runEffect } = await import('../../src/tui/index.js');
 const { initialState } = await import('../../src/tui/state.js');
+const { installQuestion } = await import('../../src/tui/view.js');
+const { withLang } = await import('../helpers.js');
 
 let dir: string;
 let prevConfig: string | undefined;
@@ -56,6 +58,23 @@ describe('TUI install under npx', () => {
       { settingsFile: settings },
     );
     expect(done).toMatchObject({ type: 'effectDone', ok: true });
+    expect(setup).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fs.readFileSync(settings, 'utf8')).statusLine.command).toBe('ccinfobar');
+  });
+
+  it('flags the pending command instead of comparing its text', () => {
+    const settings = path.join(dir, 'settings.json');
+    const state = initialState(defaultConfig(), path.join(dir, 'config.json'));
+    const planned = withLang('tr', () =>
+      runEffect(state, { kind: 'planInstall' }, { settingsFile: settings }),
+    );
+    if (planned.type !== 'installPlanned') throw new Error('no plan');
+    expect(planned.plan.pending).toBe(true);
+    expect(installQuestion({ ...planned.plan, needsConfirm: true })).toContain(
+      'ccinfobar (installed after you confirm)',
+    );
+    // planned in Turkish, applied in English
+    runEffect(state, { kind: 'install', plan: planned.plan, confirmed: true }, { settingsFile: settings });
     expect(setup).toHaveBeenCalledTimes(1);
     expect(JSON.parse(fs.readFileSync(settings, 'utf8')).statusLine.command).toBe('ccinfobar');
   });

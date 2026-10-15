@@ -47,12 +47,10 @@ function installCommand(deps: EffectDeps): string {
   return command;
 }
 
-const pending = () => t('tui.msg.pending');
-
-// planning must not run npm
-function planCommand(deps: EffectDeps): string {
+// planning must not run npm; null: set up after the confirm
+function planCommand(deps: EffectDeps): string | null {
   if (deps.command || installKind() !== 'npx' || globalBinary()) return installCommand(deps);
-  return pending();
+  return null;
 }
 
 const commandOf = (sl: InstallPlan['current']): string | null =>
@@ -89,11 +87,13 @@ export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): 
     }
     const file = deps.settingsFile;
     if (effect.kind === 'planInstall') {
-      return { type: 'installPlanned', plan: tuiPlan(planInstall({ file, command: planCommand(deps) })) };
+      const command = planCommand(deps);
+      const plan = tuiPlan(planInstall({ file, command: command ?? t('tui.msg.pending') }));
+      return { type: 'installPlanned', plan: command === null ? { ...plan, pending: true } : plan };
     }
     saveConfig(upgradeOptions(state.config), state.path);
     const proposed = effect.plan?.proposed;
-    const command = proposed && proposed !== pending() ? proposed : installCommand(deps);
+    const command = proposed && !effect.plan?.pending ? proposed : installCommand(deps);
     const plan = planInstall({ file, command });
     if (effect.plan && commandOf(plan.current) !== effect.plan.current)
       return { type: 'effectDone', ok: false, message: t('install.stale', { file: plan.file }) };

@@ -42,6 +42,8 @@ export interface TuiInstallPlan {
   current: string | null;
   proposed: string;
   needsConfirm: boolean;
+  // the command is set up after the confirm
+  pending?: boolean;
 }
 
 export type Mode =

@@ -454,7 +454,7 @@ export function installQuestion(plan?: TuiInstallPlan): string {
   if (!plan?.needsConfirm) return t('tui.confirm.installQuestion');
   return t('tui.replaceQuestion', {
     current: shown(plan.current ?? t('install.unset')),
-    proposed: shown(plan.proposed),
+    proposed: plan.pending ? t('tui.msg.pending') : shown(plan.proposed),
   });
 }
 
