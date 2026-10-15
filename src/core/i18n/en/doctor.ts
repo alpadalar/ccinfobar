@@ -10,6 +10,7 @@ export const doctorMessages = {
   'doctor.http.noUrl': '⚠ http on line {line}: no url set; the item shows nothing',
   'doctor.http.badUrl': '⚠ http on line {line}: url: {error}; the item shows nothing',
   'doctor.http.badHeader': '⚠ http on line {line}: {error} (this header is dropped)',
+  'doctor.http.refusedHeader': '⚠ http on line {line}: headers: {error}; the item shows nothing',
   'doctor.http.badPath': '⚠ http on line {line}: path: {error}; the item shows nothing',
   'doctor.http.plain':
     '⚠ http on line {line}: {host} uses plain http, so the reply can be read or changed on the way. Use https.',

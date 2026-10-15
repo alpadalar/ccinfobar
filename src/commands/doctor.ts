@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import type { LoadResult } from '../core/config.js';
 import { needsRefresh } from '../core/edit.js';
 import { describeHeaders, redactUrl } from '../core/http-report.js';
-import { httpItemError, isLoopback, parseHeaderSpec, parseUrlTemplate } from '../core/http-spec.js';
+import { httpRefusal, isLoopback, parseHeaderSpec, parseUrlTemplate } from '../core/http-spec.js';
 import { t } from '../core/i18n/index.js';
 import { type InspectRow, inspectRows, lineReport, sessionNotes } from '../core/inspect.js';
 import { parsePath } from '../core/jsonpath.js';
@@ -126,9 +126,11 @@ function httpItemLines(
       env: safe(vars.join(', ')) || t('doctor.http.noEnv'),
     }),
   ];
-  const refused = url ? httpItemError(url, headers, ghHosts) : null;
+  const refused = url ? httpRefusal(url, headers, ghHosts) : null;
   if (!url) out.push(t('doctor.http.noUrl', { line }));
-  else if (refused) out.push(t('doctor.http.badUrl', { line, error: safe(refused) }));
+  else if (refused?.key === 'headers' && refused.code !== 'insecure-url')
+    out.push(t('doctor.http.refusedHeader', { line, error: safe(refused.message) }));
+  else if (refused) out.push(t('doctor.http.badUrl', { line, error: safe(refused.message) }));
   else {
     const host = plainHost(url);
     if (host) out.push(t('doctor.http.plain', { line, host: safe(host) }));

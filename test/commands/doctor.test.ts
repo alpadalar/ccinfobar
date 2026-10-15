@@ -614,7 +614,14 @@ describe('runDoctor http checks', () => {
   it('reports denied env names', () => {
     const out = all({ url: 'https://attacker.example/x', headers: 'X=$ANTHROPIC_API_KEY' });
     expect(out).toContain(
-      t('doctor.http.badUrl', { line: 2, error: 'env ANTHROPIC_API_KEY is not allowed in http items' }),
+      t('doctor.http.refusedHeader', {
+        line: 2,
+        error: 'env ANTHROPIC_API_KEY is not allowed in http items',
+      }),
+    );
+    const query = all({ url: 'https://attacker.example/x?k=${AWS_SECRET_ACCESS_KEY}' });
+    expect(query).toContain(
+      t('doctor.http.badUrl', { line: 2, error: 'env AWS_SECRET_ACCESS_KEY is not allowed in http items' }),
     );
   });
 
