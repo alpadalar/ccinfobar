@@ -5,13 +5,13 @@ import {
   ghTokenNames,
   httpItemError,
   httpRefusal,
-  NEEDS_TLS,
   normalizeHeaderSpec,
   parseHeaderSpec,
   parseUrlTemplate,
   resolveUrl,
 } from '../../src/core/http-spec.js';
 import type { WidgetItem } from '../../src/core/types.js';
+import { withLang } from '../helpers.js';
 
 describe('parseHeaderSpec', () => {
   it('parses env references with and without a scheme', () => {
@@ -166,8 +166,12 @@ describe('parseUrlTemplate', () => {
 
 describe('httpItemError', () => {
   it('refuses env values over plain http to a non-loopback host', () => {
-    expect(httpItemError('http://api.example.com/q?key=${API_KEY}', '')).toBe(NEEDS_TLS);
-    expect(httpItemError('http://api.example.com/q', 'Authorization=Bearer $T')).toBe(NEEDS_TLS);
+    expect(httpItemError('http://api.example.com/q?key=${API_KEY}', '')).toBe(
+      'secrets need https or localhost',
+    );
+    expect(httpItemError('http://api.example.com/q', 'Authorization=Bearer $T')).toBe(
+      'secrets need https or localhost',
+    );
     expect(httpItemError('http://api.example.com/q', '')).toBeNull();
     expect(httpItemError('https://api.example.com/q?key=${K}', 'Authorization=Bearer $T')).toBeNull();
     for (const host of ['localhost:8080', '127.0.0.1', '[::1]:9'])
@@ -332,5 +336,41 @@ describe('externalTargets', () => {
   it('tolerates malformed configs', () => {
     expect(externalTargets({ lines: undefined as any })).toEqual([]);
     expect(externalTargets({ lines: [null, [null]] as any })).toEqual([]);
+  });
+});
+
+describe('http errors in Turkish', () => {
+  it('translates messages and keeps codes, keys and names', () => {
+    withLang('tr', () => {
+      expect(parseUrlTemplate('')).toEqual({ ok: false, error: 'url boş' });
+      expect(parseUrlTemplate('ftp://x.example.com')).toEqual({
+        ok: false,
+        error: "yalnızca http ve https url'lerine izin verilir",
+      });
+      expect(parseHeaderSpec('Cookie=$C').errors).toEqual(["'Cookie' başlığına izin verilmiyor"]);
+      expect(httpRefusal('http://api.example.com/q?key=${K}', '')).toEqual({
+        code: 'insecure-url',
+        message: 'gizli değerler için https veya localhost gerekir',
+        key: 'url',
+      });
+      expect(httpRefusal('https://api.example.com/q?key=${ANTHROPIC_API_KEY}', '')).toEqual({
+        code: 'env ANTHROPIC_API_KEY denied',
+        message: 'ortam değişkeni ANTHROPIC_API_KEY http bileşenlerinde kullanılamaz',
+        key: 'url',
+      });
+      expect(describeHeaders('Authorization=Bearer $T', { T: 'x' })).toEqual(['Authorization=$T (ayarlı)']);
+      expect(redactUrl('not a url')).toBe('(geçersiz url)');
+    });
+  });
+
+  it('keeps ${NAME} literal in both languages', () => {
+    expect(parseUrlTemplate('https://x.example.com/?a=${1}')).toEqual({
+      ok: false,
+      error: 'bad placeholder; use ${NAME}',
+    });
+    expect(withLang('tr', () => parseUrlTemplate('https://x.example.com/?a=${1}'))).toEqual({
+      ok: false,
+      error: 'geçersiz yer tutucu; ${NAME} kullanın',
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { parseHeaderSpec } from './http-spec.js';
+import { t } from './i18n/index.js';
 import type { Config } from './types.js';
 
 // doctor and explain only, so the render does not load it
@@ -24,7 +25,7 @@ const pathSegment = (seg: string): string =>
 
 export function redactUrl(raw: string): string {
   const url = typeof raw === 'string' && !URL_BAD.test(raw) ? parse(raw) : null;
-  if (!url) return '(invalid url)';
+  if (!url) return t('err.http.invalidUrl');
   const base = `${url.protocol}//${url.host}${url.pathname.split('/').map(pathSegment).join('/')}`;
   const query = url.search.slice(1);
   if (!query) return base;
@@ -36,7 +37,9 @@ export function redactUrl(raw: string): string {
 }
 
 export function describeHeaders(spec: string, env: Env): string[] {
-  return parseHeaderSpec(spec).headers.map((h) => `${h.name}=$${h.env} (${env[h.env] ? 'set' : 'unset'})`);
+  return parseHeaderSpec(spec).headers.map((h) =>
+    t(env[h.env] ? 'doctor.http.envSet' : 'doctor.http.envUnset', { name: `${h.name}=$${h.env}` }),
+  );
 }
 
 export interface ExternalTarget {

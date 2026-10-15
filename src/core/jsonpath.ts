@@ -1,3 +1,5 @@
+import { t } from './i18n/index.js';
+
 export type PathSeg = { k: 'name'; v: string } | { k: 'index'; v: number };
 
 export type ParsedPath = { ok: true; segs: PathSeg[] } | { ok: false; error: string };
@@ -22,15 +24,19 @@ class Fail {
 }
 
 function show(src: string, i: number): string {
-  if (i >= src.length) return 'end';
   const cp = src.codePointAt(i)!;
   if (cp < 0x20 || (cp >= 0x7f && cp <= 0x9f) || (cp >= 0xd800 && cp <= 0xdfff))
     return `'\\u${cp.toString(16).padStart(4, '0')}'`;
   return `'${String.fromCodePoint(cp)}'`;
 }
 
-const unexpected = (src: string, i: number, hint?: string): Fail =>
-  new Fail(`unexpected ${show(src, i)} at ${i}${hint ? `; ${hint}` : ''}`);
+function unexpected(src: string, i: number, hint?: string): Fail {
+  const error =
+    i >= src.length
+      ? t('err.path.unexpectedEnd', { at: i })
+      : t('err.path.unexpected', { char: show(src, i), at: i });
+  return new Fail(hint ? t('err.path.withHint', { error, hint }) : error);
+}
 
 const isDigit = (c: number): boolean => c >= 0x30 && c <= 0x39;
 const isHigh = (c: number): boolean => c >= 0xd800 && c <= 0xdbff;
@@ -48,7 +54,7 @@ function nameFirst(src: string, i: number): number {
 const nameChar = (src: string, i: number): number => (isDigit(src.charCodeAt(i)) ? 1 : nameFirst(src, i));
 
 function checkName(name: string): string {
-  if (BLOCKED.has(name)) throw new Fail(`segment '${name}' is not allowed`);
+  if (BLOCKED.has(name)) throw new Fail(t('err.path.blocked', { name }));
   return name;
 }
 
@@ -58,11 +64,10 @@ function skipSpaces(src: string, i: number): number {
 }
 
 function shorthand(src: string, start: number): [string, number] {
-  if (src[start] === '*')
-    throw new Fail(`wildcard '*' at ${start} is not supported; the widget shows one value`);
+  if (src[start] === '*') throw new Fail(t('err.path.wildcard', { at: start }));
   let i = start;
   let n = nameFirst(src, i);
-  if (!n) throw unexpected(src, i, i >= src.length ? 'expected a name' : undefined);
+  if (!n) throw unexpected(src, i, i >= src.length ? t('err.path.hint.name') : undefined);
   while (n) {
     i += n;
     n = nameChar(src, i);
@@ -72,7 +77,7 @@ function shorthand(src: string, start: number): [string, number] {
     while (end < src.length && src[end] !== '.' && src[end] !== '[') end++;
     const word = src.slice(start, end);
     const quotable = !/['\\?@*()\u0000-\u001f\u007f-\u009f\ud800-\udfff]/.test(word);
-    throw unexpected(src, i, quotable ? `use ['${word}']` : undefined);
+    throw unexpected(src, i, quotable ? t('err.path.hint.quote', { word }) : undefined);
   }
   return [src.slice(start, i), i];
 }
@@ -82,7 +87,7 @@ function quoted(src: string, start: number): [string, number] {
   let out = '';
   let i = start + 1;
   for (;;) {
-    if (i >= src.length) throw unexpected(src, i, 'unterminated string');
+    if (i >= src.length) throw unexpected(src, i, t('err.path.hint.string'));
     const ch = src[i]!;
     const c = ch.charCodeAt(0);
     if (ch === quote) return [out, i + 1];
@@ -93,16 +98,16 @@ function quoted(src: string, start: number): [string, number] {
       continue;
     }
     const e = src[i + 1];
-    if (e === undefined) throw unexpected(src, i + 1, 'unterminated string');
+    if (e === undefined) throw unexpected(src, i + 1, t('err.path.hint.string'));
     if (e === 'u') {
       const hex = src.slice(i + 2, i + 6);
-      if (!/^[0-9A-Fa-f]{4}$/.test(hex)) throw new Fail(`bad escape '\\u' at ${i}`);
+      if (!/^[0-9A-Fa-f]{4}$/.test(hex)) throw new Fail(t('err.path.badUnicodeEscape', { at: i }));
       out += String.fromCharCode(Number.parseInt(hex, 16));
       i += 6;
       continue;
     }
     const mapped = ESCAPES[e];
-    if (mapped === undefined) throw new Fail(`bad escape at ${i}`);
+    if (mapped === undefined) throw new Fail(t('err.path.badEscape', { at: i }));
     out += mapped;
     i += 2;
   }
@@ -114,11 +119,11 @@ function index(src: string, start: number): [number, number] {
   const digits = i;
   while (isDigit(src.charCodeAt(i))) i++;
   const text = src.slice(digits, i);
-  if (!text) throw unexpected(src, i, 'expected a digit');
-  if (text.length > 1 && text[0] === '0') throw new Fail(`leading zero in index at ${digits}`);
-  if (text === '0' && digits > start) throw new Fail(`'-0' at ${start} is not a valid index`);
+  if (!text) throw unexpected(src, i, t('err.path.hint.digit'));
+  if (text.length > 1 && text[0] === '0') throw new Fail(t('err.path.leadingZero', { at: digits }));
+  if (text === '0' && digits > start) throw new Fail(t('err.path.negativeZero', { at: start }));
   const n = Number(src.slice(start, i));
-  if (!Number.isSafeInteger(n)) throw new Fail(`index at ${start} is out of range`);
+  if (!Number.isSafeInteger(n)) throw new Fail(t('err.path.indexRange', { at: start }));
   return [n, i];
 }
 
@@ -135,42 +140,47 @@ function bracket(src: string, open: number): [PathSeg, number] {
     seg = { k: 'index', v: n };
     i = next;
   } else if (ch === '*') {
-    throw new Fail(`wildcard '*' at ${i} is not supported; the widget shows one value`);
+    throw new Fail(t('err.path.wildcard', { at: i }));
   } else if (ch === '?') {
-    throw unexpected(src, i, 'filters are not supported');
+    throw unexpected(src, i, t('err.path.hint.filters'));
   } else if (ch === ':') {
-    throw unexpected(src, i, 'slices are not supported');
+    throw unexpected(src, i, t('err.path.hint.slices'));
   } else {
-    throw unexpected(src, i, i >= src.length ? `unterminated '[' at ${open}` : undefined);
+    throw unexpected(src, i, i >= src.length ? t('err.path.hint.bracket', { at: open }) : undefined);
   }
   i = skipSpaces(src, i);
   if (src[i] === ']') return [seg, i + 1];
-  if (src[i] === ':') throw unexpected(src, i, 'slices are not supported');
-  if (src[i] === ',') throw unexpected(src, i, 'only one selector per bracket');
-  throw unexpected(src, i, i >= src.length ? `unterminated '[' at ${open}` : "expected ']'");
+  if (src[i] === ':') throw unexpected(src, i, t('err.path.hint.slices'));
+  if (src[i] === ',') throw unexpected(src, i, t('err.path.hint.oneSelector'));
+  throw unexpected(
+    src,
+    i,
+    i >= src.length ? t('err.path.hint.bracket', { at: open }) : t('err.path.hint.close'),
+  );
 }
 
 export function parsePath(src: string): ParsedPath {
-  if (typeof src !== 'string') return { ok: false, error: 'path must be text' };
-  if (src.length > MAX_LENGTH) return { ok: false, error: `path longer than ${MAX_LENGTH} characters` };
+  if (typeof src !== 'string') return { ok: false, error: t('err.path.notText') };
+  if (src.length > MAX_LENGTH) return { ok: false, error: t('err.path.tooLong', { max: MAX_LENGTH }) };
   try {
-    if (src[0] !== '$') throw unexpected(src, 0, "paths start with '$'");
+    if (src[0] !== '$') throw unexpected(src, 0, t('err.path.hint.dollar'));
     const segs: PathSeg[] = [];
     let i = 1;
     while (i < src.length) {
       let seg: PathSeg;
       if (src[i] === '.') {
-        if (src[i + 1] === '.') throw new Fail(`recursive descent '..' at ${i} is not supported`);
+        if (src[i + 1] === '.') throw new Fail(t('err.path.descent', { at: i }));
         const [name, next] = shorthand(src, i + 1);
         seg = { k: 'name', v: checkName(name) };
         i = next;
       } else if (src[i] === '[') {
         [seg, i] = bracket(src, i);
       } else {
-        throw unexpected(src, i, "expected '.' or '['");
+        throw unexpected(src, i, t('err.path.hint.next'));
       }
       segs.push(seg);
-      if (segs.length > MAX_SEGMENTS) return { ok: false, error: `more than ${MAX_SEGMENTS} segments` };
+      if (segs.length > MAX_SEGMENTS)
+        return { ok: false, error: t('err.path.tooMany', { max: MAX_SEGMENTS }) };
     }
     return { ok: true, segs };
   } catch (e) {

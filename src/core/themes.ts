@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { writeAtomic } from '../data/store.js';
 import { parseColor } from './ansi.js';
+import { t } from './i18n/index.js';
 import { configDir } from './paths.js';
 import { BASE, BUILTIN } from './themes/builtin.js';
 import {
@@ -178,8 +179,7 @@ export function themeToInput(theme: Theme, id: string, extendsId?: string): Them
 }
 
 export function saveUserTheme(input: ThemeInput, dir = themesDir()): string {
-  if (!input.id || !ID_RE.test(input.id))
-    throw new Error('Theme id must be letters, numbers, dot, dash or underscore');
+  if (!input.id || !ID_RE.test(input.id)) throw new Error(t('err.theme.badId'));
   const file = path.join(dir, `${input.id}.json`);
   const { id: _id, ...body } = input;
   const data = {

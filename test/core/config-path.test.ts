@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getPath, PathError, parsePath, setPath, unsetPath } from '../../src/core/config-path.js';
+import { withLang } from '../helpers.js';
 
 const code = (fn: () => unknown): string | null => {
   try {
@@ -120,5 +121,28 @@ describe('prototype safety', () => {
     const out = setPath({}, ['a', 'b'], 1) as { a: object };
     expect(Object.getPrototypeOf(out)).toBe(Object.prototype);
     expect(Object.getPrototypeOf(out.a)).toBe(Object.prototype);
+  });
+});
+
+describe('path errors in Turkish', () => {
+  const caught = (fn: () => unknown): PathError => {
+    try {
+      fn();
+    } catch (e) {
+      return e as PathError;
+    }
+    throw new Error('expected a PathError');
+  };
+
+  it('translates the message and keeps the code and segment', () => {
+    const e = withLang('tr', () => caught(() => parsePath('a.__proto__')));
+    expect(e).toBeInstanceOf(PathError);
+    expect(e.code).toBe('protoSegment');
+    expect(e.segment).toBe('__proto__');
+    expect(e.message).toBe('"__proto__" yol parçasına izin verilmiyor');
+    expect(withLang('tr', () => caught(() => setPath({ a: [] }, ['a', 3], 1))).message).toBe(
+      '3 dizini listenin sonunu aşıyor',
+    );
+    expect(caught(() => setPath({ a: [] }, ['a', 3], 1)).message).toBe('index 3 is past the end');
   });
 });

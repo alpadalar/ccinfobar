@@ -1,3 +1,5 @@
+import { t } from './i18n/index.js';
+
 export interface HeaderRef {
   name: string;
   scheme?: string;
@@ -12,6 +14,7 @@ const MAX_URL = 2048;
 const ENV_RE = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const TOKEN_RE = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$/;
 const VALUE_RE = /^(?:([A-Za-z]{1,32})[ \t]+)?\$(\{[^{}]*\}|[^\s{}]*)$/;
+const placement = (): string => t('err.http.placement');
 // accept and user-agent are fixed by the fetch
 const FORBIDDEN = new Set([
   'host',
@@ -23,8 +26,6 @@ const FORBIDDEN = new Set([
   'user-agent',
 ]);
 const URL_BAD = /[\u0000-\u0020\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
-const PLACEMENT = 'placeholders are only allowed in query values';
-export const NEEDS_TLS = 'secrets need https or localhost';
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 export function isLoopback(hostname: string): boolean {
@@ -33,22 +34,20 @@ export function isLoopback(hostname: string): boolean {
 
 function parseEntry(entry: string, n: number, seen: Set<string>): HeaderRef | string {
   const eq = entry.indexOf('=');
-  if (eq === -1) return `header ${n}: expected Name=$VAR`;
+  if (eq === -1) return t('err.http.headerSyntax', { n });
   const name = entry.slice(0, eq).trim();
   const value = entry.slice(eq + 1).trim();
-  if (!TOKEN_RE.test(name)) return `header ${n}: invalid name`;
+  if (!TOKEN_RE.test(name)) return t('err.http.headerName', { n });
   const lower = name.toLowerCase();
-  if (FORBIDDEN.has(lower)) return `header '${name}' is not allowed`;
-  if (seen.has(lower)) return `header '${name}' is repeated`;
+  if (FORBIDDEN.has(lower)) return t('err.http.headerForbidden', { name });
+  if (seen.has(lower)) return t('err.http.headerRepeated', { name });
   const m = VALUE_RE.exec(value);
   if (!m) {
-    return value.includes('$')
-      ? `header '${name}': expected Name=$VAR or Name=<Scheme> $VAR`
-      : `header '${name}': literal values are not allowed; use Name=$VAR`;
+    return value.includes('$') ? t('err.http.headerValue', { name }) : t('err.http.headerLiteral', { name });
   }
   const ref = m[2]!;
   const env = ref.startsWith('{') ? ref.slice(1, -1) : ref;
-  if (!ENV_RE.test(env)) return `header '${name}': bad env name; use $NAME or \${NAME}`;
+  if (!ENV_RE.test(env)) return t('err.http.headerEnv', { name });
   return m[1] ? { name, scheme: m[1], env } : { name, env };
 }
 
@@ -64,7 +63,8 @@ export function parseHeaderSpec(spec: string): { headers: HeaderRef[]; errors: s
   for (const [i, entry] of entries.entries()) {
     const r = parseEntry(entry, i + 1, seen);
     if (typeof r === 'string') errors.push(r);
-    else if (headers.length >= MAX_HEADERS) errors.push(`header '${r.name}': at most ${MAX_HEADERS} headers`);
+    else if (headers.length >= MAX_HEADERS)
+      errors.push(t('err.http.tooManyHeaders', { name: r.name, max: MAX_HEADERS }));
     else {
       seen.add(r.name.toLowerCase());
       headers.push(r);
@@ -87,9 +87,9 @@ function scanValue(value: string, parts: Part[]): string | null {
     }
     parts.push(value.slice(pos, at));
     const close = value.indexOf('}', at + 2);
-    if (close === -1) return 'unterminated placeholder';
+    if (close === -1) return t('err.http.unterminated');
     const name = value.slice(at + 2, close);
-    if (!ENV_RE.test(name)) return 'bad placeholder; use ${NAME}';
+    if (!ENV_RE.test(name)) return t('err.http.badPlaceholder');
     parts.push({ env: name });
     pos = close + 1;
   }
@@ -101,14 +101,14 @@ function scan(raw: string): { ok: true; parts: Part[] } | { ok: false; error: st
   const h = raw.indexOf('#');
   if (h !== -1 && q > h) q = -1;
   const headEnd = q !== -1 ? q : h !== -1 ? h : raw.length;
-  if (raw.slice(0, headEnd).includes('${')) return { ok: false, error: PLACEMENT };
+  if (raw.slice(0, headEnd).includes('${')) return { ok: false, error: placement() };
   if (q === -1) {
-    if (raw.slice(headEnd).includes('${')) return { ok: false, error: PLACEMENT };
+    if (raw.slice(headEnd).includes('${')) return { ok: false, error: placement() };
     return { ok: true, parts: [raw] };
   }
   const queryEnd = h !== -1 ? h : raw.length;
   const hash = raw.slice(queryEnd);
-  if (hash.includes('${')) return { ok: false, error: PLACEMENT };
+  if (hash.includes('${')) return { ok: false, error: placement() };
   const parts: Part[] = [raw.slice(0, q + 1)];
   const pairs = raw.slice(q + 1, queryEnd).split('&');
   for (let i = 0; i < pairs.length; i++) {
@@ -116,7 +116,7 @@ function scan(raw: string): { ok: true; parts: Part[] } | { ok: false; error: st
     if (i) parts.push('&');
     const eq = pair.indexOf('=');
     const key = eq === -1 ? pair : pair.slice(0, eq);
-    if (key.includes('${')) return { ok: false, error: PLACEMENT };
+    if (key.includes('${')) return { ok: false, error: placement() };
     if (eq === -1) {
       parts.push(key);
       continue;
@@ -143,18 +143,18 @@ const hasPlaceholder = (s: string): boolean => /\$(\{|%7b)/i.test(s);
 export function parseUrlTemplate(
   raw: string,
 ): { ok: true; vars: string[]; plain: boolean; hostname: string } | { ok: false; error: string } {
-  if (typeof raw !== 'string' || !raw) return { ok: false, error: 'url is empty' };
-  if (raw.length > MAX_URL) return { ok: false, error: `url longer than ${MAX_URL} characters` };
-  if (URL_BAD.test(raw)) return { ok: false, error: 'url contains spaces or control characters' };
+  if (typeof raw !== 'string' || !raw) return { ok: false, error: t('err.http.urlEmpty') };
+  if (raw.length > MAX_URL) return { ok: false, error: t('err.http.urlLong', { max: MAX_URL }) };
+  if (URL_BAD.test(raw)) return { ok: false, error: t('err.http.urlBadChars') };
   const s = scan(raw);
   if (!s.ok) return s;
   const url = parse(s.parts.map((p) => (typeof p === 'string' ? p : 'x')).join(''));
-  if (!url) return { ok: false, error: 'not a valid url' };
+  if (!url) return { ok: false, error: t('err.http.urlInvalid') };
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    return { ok: false, error: 'only http and https urls are allowed' };
+    return { ok: false, error: t('err.http.urlScheme') };
   }
-  if (url.username || url.password) return { ok: false, error: 'credentials in the url are not allowed' };
-  if ([url.hostname, url.pathname, url.hash].some(hasPlaceholder)) return { ok: false, error: PLACEMENT };
+  if (url.username || url.password) return { ok: false, error: t('err.http.urlCredentials') };
+  if ([url.hostname, url.pathname, url.hash].some(hasPlaceholder)) return { ok: false, error: placement() };
   const vars: string[] = [];
   for (const p of s.parts) if (typeof p !== 'string' && !vars.includes(p.env)) vars.push(p.env);
   const hostname = url.hostname.toLowerCase();
@@ -198,7 +198,7 @@ export function httpRefusal(url: string, headers: string, ghHosts?: readonly str
   if (!u.ok) return { code: 'bad-url', message: u.error, key: 'url' };
   const names = parseHeaderSpec(headers).headers.map((h) => h.env);
   if (u.plain && (u.vars.length || names.length))
-    return { code: 'insecure-url', message: NEEDS_TLS, key: u.vars.length ? 'url' : 'headers' };
+    return { code: 'insecure-url', message: t('err.http.needsTls'), key: u.vars.length ? 'url' : 'headers' };
   for (const [key, list] of [
     ['url', u.vars],
     ['headers', names],
@@ -206,11 +206,11 @@ export function httpRefusal(url: string, headers: string, ghHosts?: readonly str
     for (const name of list) {
       const rule = envRule(name, u.hostname);
       if (rule === 'denied')
-        return { code: `env ${name} denied`, message: `env ${name} is not allowed in http items`, key };
+        return { code: `env ${name} denied`, message: t('err.http.envDenied', { name }), key };
       if (rule === 'gh' && ghHosts && !ghHosts.includes(u.hostname))
         return {
           code: `env ${name} denied`,
-          message: `env ${name} is sent only to api.github.com, *.ghe.com or a host gh is logged in to`,
+          message: t('err.http.envGh', { name }),
           key,
         };
     }
@@ -250,9 +250,9 @@ export function resolveUrl(
     try {
       out += encodeURIComponent(v);
     } catch {
-      return { ok: false, error: `env ${p.env} has an invalid value` };
+      return { ok: false, error: t('err.http.envInvalid', { name: p.env }) };
     }
   }
   const url = parse(out);
-  return url ? { ok: true, url } : { ok: false, error: 'not a valid url' };
+  return url ? { ok: true, url } : { ok: false, error: t('err.http.urlInvalid') };
 }

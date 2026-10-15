@@ -113,7 +113,7 @@ export function previewHidden(config: Config, source: PreviewSource, width: numb
 function previewContext(config: Config, source: PreviewSource, width: number, theme?: Theme): RenderContext {
   if (typeof source === 'object') {
     const scenario = getScenario(source.scenario);
-    if (!scenario) throw new Error('unknown scenario');
+    if (!scenario) throw new Error(t('err.preview.unknownScenario'));
     const bundle = scenario.build(SCENARIO_NOW);
     return createContext({
       payload: bundle.payload,

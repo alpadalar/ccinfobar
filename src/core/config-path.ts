@@ -1,3 +1,5 @@
+import { t } from './i18n/index.js';
+
 export type PathSegment = string | number;
 
 export type PathErrorCode = 'badPath' | 'protoSegment' | 'outOfRange' | 'notContainer';
@@ -22,14 +24,14 @@ const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !
 function guard(path: readonly PathSegment[]): void {
   for (const seg of path) {
     if (typeof seg === 'string' && BLOCKED.has(seg)) {
-      throw new PathError('protoSegment', `segment "${seg}" is not allowed`, seg);
+      throw new PathError('protoSegment', t('err.cfgpath.blocked', { name: seg }), seg);
     }
   }
 }
 
 export function parsePath(text: string): PathSegment[] {
   const path = text.split('.').map((seg) => {
-    if (!seg) throw new PathError('badPath', `invalid path "${text}"`);
+    if (!seg) throw new PathError('badPath', t('err.cfgpath.invalid', { path: text }));
     return /^\d+$/.test(seg) ? Number(seg) : seg;
   });
   guard(path);
@@ -61,14 +63,15 @@ function setIn(node: unknown, path: readonly PathSegment[], i: number, value: un
   if (i === path.length) return value;
   const seg = path[i]!;
   if (Array.isArray(node)) {
-    if (typeof seg !== 'number') throw new PathError('notContainer', `"${seg}" is not an array index`);
-    if (seg > node.length) throw new PathError('outOfRange', `index ${seg} is past the end`);
+    if (typeof seg !== 'number')
+      throw new PathError('notContainer', t('err.cfgpath.notIndex', { name: seg }));
+    if (seg > node.length) throw new PathError('outOfRange', t('err.cfgpath.pastEnd', { index: seg }));
     const copy = node.slice();
     copy[seg] = setIn(node[seg], path, i + 1, value);
     return copy;
   }
   const base = node === undefined ? {} : node;
-  if (!isObj(base)) throw new PathError('notContainer', `cannot set "${seg}" inside a non-object`);
+  if (!isObj(base)) throw new PathError('notContainer', t('err.cfgpath.notObject', { name: seg }));
   const key = String(seg);
   const copy: Obj = { ...base };
   copy[key] = setIn(Object.hasOwn(base, key) ? base[key] : undefined, path, i + 1, value);

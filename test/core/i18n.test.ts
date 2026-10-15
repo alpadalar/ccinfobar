@@ -1,12 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { defaultConfig } from '../../src/core/config.js';
 import { benchMessages } from '../../src/core/i18n/en/bench.js';
 import { cliMessages } from '../../src/core/i18n/en/cli.js';
 import { commandsMessages } from '../../src/core/i18n/en/commands.js';
 import { configMessages } from '../../src/core/i18n/en/config.js';
 import { displayMessages } from '../../src/core/i18n/en/display.js';
 import { doctorMessages } from '../../src/core/i18n/en/doctor.js';
+import { errorMessages } from '../../src/core/i18n/en/errors.js';
 import { explainMessages } from '../../src/core/i18n/en/explain.js';
 import { funMessages } from '../../src/core/i18n/en/fun.js';
 import { hookMessages } from '../../src/core/i18n/en/hooks.js';
@@ -42,6 +44,7 @@ import { commandsMessages as trCommands } from '../../src/core/i18n/tr/commands.
 import { configMessages as trConfig } from '../../src/core/i18n/tr/config.js';
 import { displayMessages as trDisplay } from '../../src/core/i18n/tr/display.js';
 import { doctorMessages as trDoctor } from '../../src/core/i18n/tr/doctor.js';
+import { errorMessages as trErrors } from '../../src/core/i18n/tr/errors.js';
 import { explainMessages as trExplain } from '../../src/core/i18n/tr/explain.js';
 import { funMessages as trFun } from '../../src/core/i18n/tr/fun.js';
 import { hookMessages as trHooks } from '../../src/core/i18n/tr/hooks.js';
@@ -50,6 +53,8 @@ import { installMessages as trInstall } from '../../src/core/i18n/tr/install.js'
 import { jobsMessages as trJobs } from '../../src/core/i18n/tr/jobs.js';
 import { previewMessages as trPreview } from '../../src/core/i18n/tr/preview.js';
 import { widgetMessages as trWidgets } from '../../src/core/i18n/tr/widgets.js';
+import { renderPreview } from '../../src/core/preview.js';
+import { saveUserTheme, type ThemeInput } from '../../src/core/themes.js';
 import { withLang } from '../helpers.js';
 
 const dir = path.resolve(__dirname, '../../src/core/i18n');
@@ -228,6 +233,7 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['fun', funMessages, trFun],
   ['cli', cliMessages, trCli],
   ['commands', commandsMessages, trCommands],
+  ['errors', errorMessages, trErrors],
 ];
 
 function forms(m: Message): string[] {
@@ -387,6 +393,7 @@ describe('en table', () => {
       funMessages,
       cliMessages,
       commandsMessages,
+      errorMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);
@@ -436,5 +443,20 @@ describe('test pins', () => {
       'yy',
     );
     expect(language()).toBe('en');
+  });
+});
+
+describe('core errors', () => {
+  it('follow the active language', () => {
+    const bad = { id: '../x' } as ThemeInput;
+    expect(() => saveUserTheme(bad, '/nonexistent')).toThrow(
+      'Theme id must be letters, numbers, dot, dash or underscore',
+    );
+    expect(() => withLang('tr', () => saveUserTheme(bad, '/nonexistent'))).toThrow(
+      'Tema kimliği yalnızca harf, rakam, nokta, tire veya alt çizgi içerebilir',
+    );
+    expect(() => withLang('tr', () => renderPreview(defaultConfig(), { scenario: 'nope' }, 80))).toThrow(
+      'bilinmeyen senaryo',
+    );
   });
 });

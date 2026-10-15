@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { evaluatePath, type PathSeg, parsePath } from '../../src/core/jsonpath.js';
+import { withLang } from '../helpers.js';
 
 const SAMPLE = {
   data: { balance: 12.5, 'total-usage': 3, 'a b': 'x' },
@@ -172,5 +173,24 @@ describe('evaluatePath', () => {
   it('finds null and falsy values', () => {
     expect(run('$.v', { v: null })).toEqual({ found: true, value: null });
     expect(run('$[0]', [0])).toEqual({ found: true, value: 0 });
+  });
+});
+
+describe('parsePath errors in Turkish', () => {
+  const trError = (src: string): string => withLang('tr', () => error(src));
+
+  it('keeps the character, position and quoting', () => {
+    expect(trError('$[*]')).toBe(
+      "'*' joker karakteri desteklenmiyor (konum 2); bileşen tek bir değer gösterir",
+    );
+    expect(trError('data')).toBe("beklenmeyen 'd' (konum 0); yollar '$' ile başlar");
+    expect(trError('$.foo-bar')).toBe("beklenmeyen '-' (konum 5); ['foo-bar'] kullanın");
+    expect(trError('$[0')).toBe("beklenmeyen yol sonu (konum 3); kapatılmamış '[' (konum 1)");
+    expect(trError('$.__proto__')).toBe("'__proto__' yol parçasına izin verilmiyor");
+  });
+
+  it('stays English by default', () => {
+    expect(error('$[0')).toBe("unexpected end at 3; unterminated '[' at 1");
+    expect(error('$.foo-bar')).toBe("unexpected '-' at 5; use ['foo-bar']");
   });
 });

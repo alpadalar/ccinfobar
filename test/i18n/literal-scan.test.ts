@@ -22,6 +22,13 @@ const SWEPT: string[] = [
   'src/commands/settings-file.ts',
   'src/commands/hooks-install.ts',
   'src/commands/update.ts',
+  'src/core/http-spec.ts',
+  'src/core/jsonpath.ts',
+  'src/core/config-path.ts',
+  'src/core/themes.ts',
+  'src/core/http-report.ts',
+  'src/core/preview.ts',
+  'src/core/edit.ts',
 ];
 
 // left out on purpose, with the reason; 08-25 makes SWEPT + NOT_SWEPT cover src/
@@ -47,6 +54,8 @@ const ALLOW: Record<string, string[]> = {
   'src/commands/bench.ts': ['Step X: refactor the status line renderer', 'Done with step X.'],
   // persisted usage errors, matched and never shown as is
   'src/commands/usage-error.ts': ['rate limited by the usage API', 'usage API sent no limits'],
+  // English catalog data, shown through styleGroupName (08-12)
+  'src/core/edit.ts': ['Bold, dim, italic', 'Bar and graph options', 'Label switches'],
 };
 
 type Lit = { text: string; at: number; end: number };
