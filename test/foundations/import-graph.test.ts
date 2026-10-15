@@ -73,6 +73,7 @@ const PURE = [
   'src/core/eaw-table.ts',
   'src/core/width.ts',
   'src/core/conditions.ts',
+  'src/core/glyphs.ts',
   'src/data/live.ts',
 ];
 

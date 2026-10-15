@@ -1,0 +1,179 @@
+{
+  "cases": {
+    "emoji": ["\u001b[37m\ud83d\ude00 hi\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[36mOpus 5.5\u001b[0m"],
+    "icons": [
+      "\u001b[36m\ud83e\udd16 Opus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[37m\ud83d\udcdd statusline refactor\u001b[0m"
+    ],
+    "fullwidth": ["\u001b[37m\uff21\uff22\uff23\u3000\uff44\uff01\u001b[0m"],
+    "vs16": ["\u001b[37m\u2764\ufe0f ok \u2705\u001b[0m"],
+    "cjk": ["\u001b[37m\u4e2d\u6587\u001b[0m"],
+    "powerline": [
+      "\u001b[97m\u001b[44m \udb81\ude9a Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m \udb80\udf37 \u001b]8;;https://example.com/docs\u001b\\docs\u001b]8;;\u001b\\ \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m a b \u001b[0m\u001b[32m\ue0b0\u001b[0m"
+    ],
+    "ambiguous": [
+      "\u001b[97m\u001b[44m \u2502 \u25cf x \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Opus 5.5 \u001b[0m\u001b[36m\ue0b0\u001b[0m"
+    ],
+    "capsule": [
+      "\u001b[38;2;137;220;235m\ue0b6\u001b[0m\u001b[38;2;30;30;46m\u001b[48;2;137;220;235m \ud83e\udd16 Opus 5.5 \u001b[0m\u001b[38;2;137;220;235m\ue0b4\u001b[0m\u001b[90m \u001b[0m\u001b[38;2;69;71;90m\ue0b6\u001b[0m\u001b[38;2;205;214;244m\u001b[48;2;69;71;90m b \u001b[0m\u001b[38;2;69;71;90m\ue0b4\u001b[0m"
+    ],
+    "panel": [
+      "\u001b[38;2;92;99;112m\u256d\u2500\u001b[0m \u001b[38;2;97;175;239m\ud83e\udd16 Opus 5.5\u001b[0m \u001b[38;2;92;99;112m\u2500\u2500\u2500\u2500\u001b[0m ccinfobar \u001b[38;2;92;99;112m\u2500\u256e\u001b[0m",
+      "\u001b[38;2;92;99;112m\u2502\u001b[0m \u001b[38;2;97;175;239m\ud83e\udd16 Opus 5.5\u001b[0m  \u001b[38;2;171;178;191m\ud83d\ude00\u001b[0m              \u001b[38;2;92;99;112m\u2502\u001b[0m",
+      "\u001b[38;2;92;99;112m\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\u001b[0m"
+    ]
+  },
+  "scenarios": {
+    "fresh-session": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[90mCtx loading\u2026\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$0.00\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[90m5h loading\u2026\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[90mResets loading\u2026\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[90m7d loading\u2026\u001b[0m"
+    ],
+    "context-full": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[31mCtx \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2591 94%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32m5h 42%\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mResets 2h 14m\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m7d 61%\u001b[0m"
+    ],
+    "near-5h-limit": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[31m5h 92%\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mResets 25m\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m7d 61%\u001b[0m"
+    ],
+    "near-7d-limit": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32m5h 42%\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mResets 2h 14m\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[31m7d 80%\u001b[0m"
+    ],
+    "many-subagents": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32m5h 42%\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mResets 2h 14m\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m7d 61%\u001b[0m"
+    ],
+    "gsd-project": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[35mv1.2 Billing\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32m\u2588\u2588\u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591 50%\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[36mPhase 4/6 Invoice export\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mplans 3/5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[36mnext: /gsd-execute-phase 4\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32m5h 42%\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mResets 2h 14m\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m7d 61%\u001b[0m"
+    ],
+    "no-git": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[35mbranch \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[33mchanges \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32m5h 42%\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mResets 2h 14m\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m7d 61%\u001b[0m"
+    ],
+    "api-key-user": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32m5h \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mResets \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32m7d \u2014\u001b[0m"
+    ],
+    "bedrock-user": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32m5h \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mResets \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32m7d \u2014\u001b[0m"
+    ],
+    "gateway-glm": [
+      "\u001b[36mglm-5.3\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32m5h \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mResets \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32m7d \u2014\u001b[0m"
+    ],
+    "over-budget": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32m5h 42%\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mResets 2h 14m\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m7d 61%\u001b[0m"
+    ],
+    "workspace-folder": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mworkspace\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[35mbranch \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[33mchanges \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32m5h 42%\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mResets 2h 14m\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m7d 61%\u001b[0m"
+    ],
+    "waiting-permission": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32m5h 42%\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mResets 2h 14m\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m7d 61%\u001b[0m"
+    ],
+    "service-incident": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32m5h 42%\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mResets 2h 14m\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m7d 61%\u001b[0m"
+    ],
+    "pr-ci-failing": [
+      "\u001b[36mOpus 5.5\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mEffort high\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34macme-app\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[35mfeat/statusline\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m+148 -37\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32mCtx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34%\u001b[0m",
+      "\u001b[2m\u001b[35mmilestone \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[32mmilestone progress \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mPhase \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[34mplans \u2014\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[2m\u001b[36mnext: \u2014\u001b[0m",
+      "\u001b[33m$1.87\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[32m5h 42%\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[34mResets 2h 14m\u001b[0m\u001b[90m \u2502 \u001b[0m\u001b[33m7d 61%\u001b[0m"
+    ]
+  },
+  "powerline": {
+    "fresh-session": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx loading\u2026 \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $0.00 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m 5h loading\u2026 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Resets loading\u2026 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m 7d loading\u2026 \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "context-full": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2591 94% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m 5h 42% \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Resets 2h 14m \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m 7d 61% \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "near-5h-limit": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m 5h 92% \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Resets 25m \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m 7d 61% \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "near-7d-limit": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m 5h 42% \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Resets 2h 14m \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m 7d 80% \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "many-subagents": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m 5h 42% \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Resets 2h 14m \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m 7d 61% \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "gsd-project": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m v1.2 Billing \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m \u2588\u2588\u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591 50% \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Phase 4/6 Invoice export \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m plans 3/5 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m next: /gsd-execute-phase 4 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m 5h 42% \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Resets 2h 14m \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m 7d 61% \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "no-git": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m branch \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m changes \u2014 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m 5h 42% \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Resets 2h 14m \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m 7d 61% \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "api-key-user": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m 5h \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Resets \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m 7d \u2014 \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "bedrock-user": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m 5h \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Resets \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m 7d \u2014 \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "gateway-glm": [
+      "\u001b[97m\u001b[44m glm-5.3 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m 5h \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Resets \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m 7d \u2014 \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "over-budget": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m 5h 42% \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Resets 2h 14m \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m 7d 61% \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "workspace-folder": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m workspace \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m branch \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m changes \u2014 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m 5h 42% \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Resets 2h 14m \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m 7d 61% \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "waiting-permission": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m 5h 42% \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Resets 2h 14m \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m 7d 61% \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "service-incident": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m 5h 42% \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Resets 2h 14m \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m 7d 61% \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ],
+    "pr-ci-failing": [
+      "\u001b[97m\u001b[44m Opus 5.5 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m Effort high \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m acme-app \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m feat/statusline \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[97m\u001b[45m +148 -37 \u001b[0m\u001b[35m\u001b[100m\ue0b0\u001b[0m\u001b[97m\u001b[100m Ctx \u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591 34% \u001b[0m\u001b[90m\ue0b0\u001b[0m",
+      "\u001b[2m\u001b[97m\u001b[44m milestone \u2014 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[46m milestone progress \u2014 \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[42m Phase \u2014 \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[2m\u001b[30m\u001b[43m plans \u2014 \u001b[0m\u001b[33m\u001b[45m\ue0b0\u001b[0m\u001b[2m\u001b[97m\u001b[45m next: \u2014 \u001b[0m\u001b[35m\ue0b0\u001b[0m",
+      "\u001b[97m\u001b[44m $1.87 \u001b[0m\u001b[34m\u001b[46m\ue0b0\u001b[0m\u001b[30m\u001b[46m 5h 42% \u001b[0m\u001b[36m\u001b[42m\ue0b0\u001b[0m\u001b[30m\u001b[42m Resets 2h 14m \u001b[0m\u001b[32m\u001b[43m\ue0b0\u001b[0m\u001b[30m\u001b[43m 7d 61% \u001b[0m\u001b[33m\ue0b0\u001b[0m"
+    ]
+  }
+}

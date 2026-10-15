@@ -12,6 +12,7 @@ import {
   truncate,
   visibleWidth,
 } from './ansi.js';
+import { foldText, pasteSafeText, resolveGlyphMode, stripLinks, widthModeFor } from './glyphs.js';
 import { hasItemRules, ruleDecision } from './metrics.js';
 import { renderPanel } from './panel.js';
 import {
@@ -27,6 +28,7 @@ import type {
   Config,
   OverflowMode,
   RenderContext,
+  ResolvedGlyphMode,
   ThemeStyle,
   WidgetCategory,
   WidgetDef,
@@ -34,6 +36,7 @@ import type {
   WidgetOutput,
   WidgetResult,
 } from './types.js';
+import { setWidthMode } from './width.js';
 
 export interface Part {
   item: WidgetItem;
@@ -68,6 +71,7 @@ const UNICODE_GLYPHS: Record<ThemeStyle, ThemeGlyphs> = {
 export type ResolvedCharset = 'nerd' | 'unicode' | 'text';
 
 export function resolveCharset(config: Config, env: NodeJS.ProcessEnv = process.env): ResolvedCharset {
+  if (resolveGlyphMode(config, env) === 'paste-safe') return 'text';
   if (config.charset === 'auto' || config.charset === undefined) {
     return env.TERM_PROGRAM === 'Apple_Terminal' ? 'unicode' : 'nerd';
   }
@@ -85,7 +89,12 @@ export function resolveAppearance(
   const themed = styleChanged ? STYLE_GLYPHS[style] : theme.glyphs;
   const base = charset === 'text' ? ASCII_GLYPHS : charset === 'unicode' ? UNICODE_GLYPHS[style] : themed;
   let separator = config.separator ?? (styleChanged ? STYLE_SEPARATOR[style] : theme.separator);
-  if (charset === 'text' && config.separator === undefined) {
+  if (
+    charset === 'text' &&
+    (config.separator === undefined ||
+      (resolveGlyphMode(config, env) === 'paste-safe' &&
+        /[\uE000-\uF8FF\u{F0000}-\u{10FFFF}]/u.test(separator)))
+  ) {
     separator = asciiSeparator(separator, style);
   }
   return {
@@ -107,6 +116,7 @@ function asciiSeparator(sep: string, s: ThemeStyle): string {
 export function effectiveIcons(config: Config, env: NodeJS.ProcessEnv = process.env): Config['icons'] {
   const charset = resolveCharset(config, env);
   if (charset === 'text' && (config.icons === 'nerd' || config.icons === 'emoji')) return 'text';
+  if (config.icons === 'emoji' && resolveGlyphMode(config, env) === 'single-width') return 'text';
   if (charset === 'unicode' && config.icons === 'nerd') return 'text';
   return config.icons;
 }
@@ -133,19 +143,29 @@ export function renderValue(ctx: RenderContext, def: WidgetDef, item: WidgetItem
   } catch {
     return null;
   }
-  return normalizeResult(def, result);
+  return normalizeResult(def, result, ctx.glyphMode ?? resolveGlyphMode(ctx.config, ctx.env));
 }
 
-export function normalizeResult(def: WidgetDef, result: WidgetResult): WidgetOutput | null {
+export function normalizeResult(
+  def: WidgetDef,
+  result: WidgetResult,
+  mode: ResolvedGlyphMode = 'normal',
+): WidgetOutput | null {
   if (result === null || result === undefined) return null;
   const out = typeof result === 'string' ? { text: result } : result;
   if (typeof out !== 'object' || typeof out.text !== 'string') return null;
   try {
-    const text = sanitize(out.text);
+    const text = glyphText(sanitize(out.text), mode);
     return text.trim() === '' && def.type !== 'flex' ? null : { ...out, text };
   } catch {
     return null;
   }
+}
+
+function glyphText(text: string, mode: ResolvedGlyphMode): string {
+  if (mode === 'normal' || mode === 'jetbrains') return text;
+  const folded = foldText(text, mode);
+  return mode === 'paste-safe' ? pasteSafeText(folded) : folded;
 }
 
 export function workspaceMode(ctx: RenderContext): boolean {
@@ -180,7 +200,8 @@ export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
     out = { text: EMPTY_VALUE };
     empty = true;
   }
-  const label = flex ? '' : labelFor(def, item, effectiveIcons(ctx.config, ctx.env));
+  const mode = ctx.glyphMode ?? resolveGlyphMode(ctx.config, ctx.env);
+  const label = flex ? '' : glyphText(labelFor(def, item, effectiveIcons(ctx.config, ctx.env)), mode);
   const hint = empty && !label.trim() ? `${emptyHint(def)} ` : '';
   return {
     item,
@@ -497,6 +518,16 @@ function wrapLine(parts: Part[], a: Appearance, level: Level, max: number): stri
 }
 
 export function render(base: RenderContext): string[] {
+  const glyphMode = resolveGlyphMode(base.config, base.env);
+  const prev = setWidthMode(widthModeFor(glyphMode, base.config.ambiguousWidth));
+  try {
+    return renderAll({ ...base, glyphMode });
+  } finally {
+    setWidthMode(prev);
+  }
+}
+
+function renderAll(base: RenderContext): string[] {
   const ctx = workspaceMode(base) ? { ...base, workspaceMode: true } : base;
   const level = detectLevel(ctx.config.colorLevel, ctx.env);
   const a = resolveAppearance(ctx.config, ctx.theme, ctx.env);
@@ -569,6 +600,7 @@ export function gradientColor(pct: number): string {
   return `#${hex}`;
 }
 
-export function finalizeLine(line: string): string {
-  return `${RESET}${line.replace(/ /g, ' ')}`;
+export function finalizeLine(line: string, opts: { pasteSafe?: boolean } = {}): string {
+  if (opts.pasteSafe) return `${RESET}${stripLinks(line)}`;
+  return `${RESET}${line.replace(/ /g, '\u00a0')}`;
 }

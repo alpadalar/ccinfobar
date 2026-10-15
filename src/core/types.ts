@@ -182,6 +182,7 @@ export interface BudgetConfig {
 
 export type OverflowMode = 'truncate' | 'wrap' | 'priority';
 export type GlyphMode = 'normal' | 'single-width' | 'paste-safe' | 'jetbrains' | 'auto';
+export type ResolvedGlyphMode = Exclude<GlyphMode, 'auto'>;
 
 export interface ProgressConfig {
   enabled?: boolean;
@@ -312,6 +313,7 @@ export interface RenderContext {
   data: DataSources;
   extra?: number;
   workspaceMode?: boolean;
+  glyphMode?: ResolvedGlyphMode;
 }
 
 export interface DataSources {
