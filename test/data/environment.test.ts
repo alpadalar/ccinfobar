@@ -328,8 +328,23 @@ describe('readEnvironment mcp', () => {
     expect(read().mcp).toBe(1);
     json(cj(), servers('github'));
     expect(read().mcp).toBe(2);
-    fs.truncateSync(cj(), 51 * 1024 * 1024);
+    fs.truncateSync(cj(), 9 * 1024 * 1024);
+    expect(read().mcp).toBe(2);
+    expect(read({ persist: false }, proj, { ...env, CCINFOBAR_CACHE_DIR: path.join(root, 'none') }).mcp).toBe(
+      1,
+    );
+  });
+
+  it('keeps the last .claude.json facts while the file changed in the last 30 s', () => {
+    json(cj(), servers('github'));
     expect(read().mcp).toBe(1);
+    json(cj(), servers('github', 'linear'));
+    fs.utimesSync(cj(), new Date(NOW - 10_000), new Date(NOW - 10_000));
+    const open = vi.spyOn(fs, 'openSync');
+    expect(read().mcp).toBe(1);
+    expect(open.mock.calls.map((c) => String(c[0]))).not.toContain(cj());
+    expect(read({ now: NOW + 25_000 }).mcp).toBe(2);
+    expect(read({ now: NOW + 26_000 }).mcp).toBe(2);
   });
 
   it('ignores odd shapes and sanitizes names', () => {

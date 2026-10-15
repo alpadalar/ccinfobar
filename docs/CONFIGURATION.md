@@ -214,7 +214,7 @@ Counts come from config files and a stat-only cache; nothing is spawned and no s
 - **CLAUDE.md**: managed, user (`$CLAUDE_CONFIG_DIR/CLAUDE.md`), and `CLAUDE.md`, `CLAUDE.local.md` and `.claude/CLAUDE.md` in the launch folder and its parents. Files in subfolders load lazily and are not counted.
 - **AGENTS.md**: counted only when it is in effect, which by default means the project has no CLAUDE.md.
 - **rules**: `*.md` under the user and project `.claude/rules` folders.
-- **MCP**: servers in `.claude.json` (user and this project), approved `.mcp.json` servers in the launch folder and its parents, and managed servers.
+- **MCP**: servers in `.claude.json` (user and this project), approved `.mcp.json` servers in the launch folder and its parents, and managed servers. Claude Code rewrites `.claude.json` often, so a change is picked up once the file has been quiet for 30 seconds; a `.claude.json` over 8 MB is not parsed, and the counts from when it was smaller are kept.
 - **hooks**: handlers in user, project, local and managed settings, or `hooks off` when `disableAllHooks` applies.
 
 Not covered:

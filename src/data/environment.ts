@@ -13,7 +13,8 @@ import { cacheKey, readCache, writeCache } from './cache.js';
 const VERSION = 2;
 const MAX_UP = 20;
 const MAX_JSON = 1024 * 1024;
-const MAX_CLAUDE_JSON = 50 * 1024 * 1024;
+const MAX_CLAUDE_JSON = 8 * 1024 * 1024;
+const SETTLE_MS = 30_000;
 const MAX_NAMES = 1000;
 const MAX_NAME = 256;
 const RULE_DEPTH = 5;
@@ -352,16 +353,29 @@ export function readEnvironment(
       parse: (v: Record<string, unknown>) => Facts = settingsFacts,
       max = MAX_JSON,
       fits: (f: Facts | null) => boolean = () => true,
+      settle = false,
     ): Facts | null => {
       const k = fold(file);
       if (read.has(k)) return null;
       read.add(k);
       const st = stat(file);
+      const old = prev.get(file);
+      const keep = old !== undefined && old[3] !== null && fits(old[3]);
+      // a big or busy file keeps its last facts until it settles
+      if (
+        st?.isFile() &&
+        keep &&
+        settle &&
+        (st.size > max || (now >= st.mtimeMs && now - st.mtimeMs < SETTLE_MS))
+      ) {
+        sigs.push(old);
+        files.push(file);
+        return old[3];
+      }
       if (!st?.isFile() || st.size > max) {
         if (prev.has(file)) changed = true;
         return null;
       }
-      const old = prev.get(file);
       let facts: Facts | null;
       if (old && old[1] === st.mtimeMs && old[2] === st.size && fits(old[3])) facts = old[3];
       else {
@@ -398,6 +412,7 @@ export function readEnvironment(
       (v) => claudeJsonFacts(v, key, root),
       MAX_CLAUDE_JSON,
       (f) => !f || f.k === key,
+      true,
     );
     const projectMcp = dirs
       .filter((d) => path.dirname(d) !== d)
