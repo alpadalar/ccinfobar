@@ -192,7 +192,8 @@ export function failEnvelope<V>(
   let wait: number | undefined;
   if (finite(opts.blockMs)) wait = opts.blockMs;
   // a floor: a short Retry-After never undercuts the backoff
-  else if (finite(opts.retryAfterMs) && opts.retryAfterMs > 0) wait = Math.max(opts.retryAfterMs, backoff ?? 0);
+  else if (finite(opts.retryAfterMs) && opts.retryAfterMs > 0)
+    wait = Math.max(opts.retryAfterMs, backoff ?? 0);
   else wait = backoff;
   return {
     v: 1,
