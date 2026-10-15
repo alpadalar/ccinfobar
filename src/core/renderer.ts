@@ -25,8 +25,10 @@ import {
 import type {
   Align,
   Config,
+  OverflowMode,
   RenderContext,
   ThemeStyle,
+  WidgetCategory,
   WidgetDef,
   WidgetItem,
   WidgetOutput,
@@ -335,27 +337,7 @@ export function maxLineWidth(ctx: RenderContext): number | null {
   return null;
 }
 
-export function renderLine(
-  ctx: RenderContext,
-  items: WidgetItem[],
-  level: Level,
-  a = resolveAppearance(ctx.config, undefined, ctx.env),
-): string {
-  const parts = items.map((it) => renderPart(ctx, it)).filter((p): p is Part => p !== null);
-  if (parts.every((p) => p.flex)) return '';
-  const max = maxLineWidth(ctx);
-  const below: string[] = [];
-  const textual = { ...a, style: 'text' as const };
-  parts.forEach((p, i) => {
-    if (!p.text.includes('\n')) return;
-    const [first, ...rest] = p.text.split('\n');
-    const s = styleFor(textual, p, colorsFor(textual, p, i));
-    for (const r of rest) below.push(style(r, s, level));
-    p.text = first ?? '';
-    p.value = p.value.split('\n')[0] ?? '';
-  });
-  const withBelow = (line: string) =>
-    below.length ? [line, ...below.map((l) => (max === null ? l : truncate(l, max)))].join('\n') : line;
+function compose(parts: Part[], a: Appearance, level: Level, max: number | null): string {
   const groups: Part[][] = [[]];
   for (const p of parts) {
     if (p.flex) groups.push([]);
@@ -368,25 +350,125 @@ export function renderLine(
     return s;
   });
   const nonEmpty = rendered.filter((s) => s !== '');
-  let line: string;
   if (nonEmpty.length <= 1 || max === null) {
     const glue = a.style === 'text' ? style(a.separator || ' ', { fg: a.separatorColor }, level) : ' ';
-    line = nonEmpty.join(glue);
-  } else {
-    const used = nonEmpty.reduce((n, s) => n + visibleWidth(s), 0);
-    const gaps = nonEmpty.length - 1;
-    const free = Math.max(gaps, max - used);
-    line = nonEmpty
-      .map((s, i) => {
-        if (i === gaps) return s;
-        const fill = Math.floor(free / gaps) + (i < free % gaps ? 1 : 0);
-        return s + ' '.repeat(fill);
-      })
-      .join('');
+    return nonEmpty.join(glue);
   }
+  const used = nonEmpty.reduce((n, s) => n + visibleWidth(s), 0);
+  const gaps = nonEmpty.length - 1;
+  const free = Math.max(gaps, max - used);
+  return nonEmpty
+    .map((s, i) => {
+      if (i === gaps) return s;
+      const fill = Math.floor(free / gaps) + (i < free % gaps ? 1 : 0);
+      return s + ' '.repeat(fill);
+    })
+    .join('');
+}
+
+export const CATEGORY_PRIORITY: Partial<Record<WidgetCategory, number>> = {
+  context: 70,
+  limits: 70,
+  session: 70,
+  git: 50,
+  workspace: 50,
+  cost: 50,
+  tokens: 50,
+  gsd: 30,
+  agents: 30,
+  charts: 30,
+  system: 30,
+  custom: 30,
+};
+
+export function overflowOf(config: Pick<Config, 'overflow' | 'autoWrap'>): OverflowMode {
+  return config.overflow ?? (config.autoWrap ? 'wrap' : 'truncate');
+}
+
+export function effectivePriority(item: WidgetItem, def: WidgetDef): number {
+  return item.priority ?? CATEGORY_PRIORITY[def.category] ?? 30;
+}
+
+export interface LineReport {
+  dropped: string[];
+  width: number | null;
+}
+
+interface Unit {
+  parts: Part[];
+  priority: number;
+}
+
+function toUnits(parts: Part[]): Unit[] {
+  const chains: Part[][] = [];
+  parts.forEach((p, i) => {
+    if (p.flex) return;
+    const prev = parts[i - 1];
+    if (prev && !prev.flex && prev.item.merge) chains[chains.length - 1]!.push(p);
+    else chains.push([p]);
+  });
+  return chains.flatMap((c) => {
+    const ranked = c.filter((p) => p.def.category !== 'layout');
+    if (!ranked.length) return [];
+    return [{ parts: c, priority: Math.max(...ranked.map((p) => effectivePriority(p.item, p.def))) }];
+  });
+}
+
+function dropByPriority(parts: Part[], a: Appearance, level: Level, max: number, dropped: Part[]): string {
+  let alive = toUnits(parts);
+  let kept = parts;
+  let line = compose(kept, a, level, max);
+  while (alive.length > 1 && visibleWidth(line) > max) {
+    let victim = alive.length - 1;
+    for (let i = victim - 1; i >= 0; i--) if (alive[i]!.priority < alive[victim]!.priority) victim = i;
+    const gone = new Set(alive[victim]!.parts);
+    dropped.push(...gone);
+    alive = alive.filter((_, i) => i !== victim);
+    kept = kept.filter((p) => !gone.has(p));
+    line = compose(kept, a, level, max);
+  }
+  return visibleWidth(line) > max ? truncate(line, max) : line;
+}
+
+export function renderLine(
+  ctx: RenderContext,
+  items: WidgetItem[],
+  level: Level,
+  a = resolveAppearance(ctx.config, undefined, ctx.env),
+  report?: LineReport,
+): string {
+  const parts = items.map((it) => renderPart(ctx, it)).filter((p): p is Part => p !== null);
+  if (parts.every((p) => p.flex)) return '';
+  const max = maxLineWidth(ctx);
+  if (report) report.width = max;
+  const below = new Map<Part, string[]>();
+  const textual = { ...a, style: 'text' as const };
+  parts.forEach((p, i) => {
+    if (!p.text.includes('\n')) return;
+    const [first, ...rest] = p.text.split('\n');
+    const s = styleFor(textual, p, colorsFor(textual, p, i));
+    below.set(
+      p,
+      rest.map((r) => style(r, s, level)),
+    );
+    p.text = first ?? '';
+    p.value = p.value.split('\n')[0] ?? '';
+  });
+  const withBelow = (line: string, gone?: Set<Part>) => {
+    const rows = parts.flatMap((p) => (gone?.has(p) ? [] : (below.get(p) ?? [])));
+    return rows.length ? [line, ...rows.map((l) => (max === null ? l : truncate(l, max)))].join('\n') : line;
+  };
+  let line = compose(parts, a, level, max);
   if (max !== null && visibleWidth(line) > max) {
-    if (ctx.config.autoWrap && parts.filter((p) => !p.flex).length > 1)
+    const mode = overflowOf(ctx.config);
+    if (mode === 'wrap' && parts.filter((p) => !p.flex).length > 1)
       return withBelow(wrapLine(parts, a, level, max));
+    if (mode === 'priority') {
+      const dropped: Part[] = [];
+      line = dropByPriority(parts, a, level, max, dropped);
+      if (report) report.dropped.push(...dropped.map((p) => p.item.id));
+      return withBelow(line, new Set(dropped));
+    }
     line = truncate(line, max);
   }
   return withBelow(line);
