@@ -27,6 +27,8 @@ export interface WorkspaceRepos {
   repos: RepoEntry[];
   total: number;
   dirty?: Record<string, boolean>;
+  // when readRepos read the dirty cache: its time, or null without one
+  dirtyAt?: number | null;
 }
 
 export interface HeadInfo {
@@ -229,8 +231,9 @@ export function readRepos(
     if (!hit && opts.persist !== false) {
       writeCache(name, { v: VERSION, at: now, dirMtime: st.mtimeMs, ...scan }, env);
     }
-    const dirty = scan.total ? readDirty(root, env)?.dirty : undefined;
-    return dirty ? { root, ...scan, dirty } : { root, ...scan };
+    if (!scan.total) return { root, ...scan };
+    const d = readDirty(root, env);
+    return d ? { root, ...scan, dirty: d.dirty, dirtyAt: d.at } : { root, ...scan, dirtyAt: null };
   } catch {
     return { root, repos: [], total: 0 };
   }
@@ -285,8 +288,8 @@ export function scheduleRepoDirty(
   try {
     if (!repos || repos.total === 0) return;
     const root = path.resolve(cwd);
-    const at = readDirty(root, env)?.at;
-    if (at !== undefined && now >= at && now - at < DIRTY_TTL) return;
+    const at = repos.dirtyAt !== undefined ? repos.dirtyAt : readDirty(root, env)?.at;
+    if (typeof at === 'number' && now >= at && now - at < DIRTY_TTL) return;
     if (!acquireLock(`${dirtyFile(root, env)}.lock`, DIRTY_TTL, now)) return;
     spawnSelf(['repos', '--background', root], env);
   } catch {}

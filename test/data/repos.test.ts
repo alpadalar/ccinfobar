@@ -351,6 +351,14 @@ describe('dirty cache', () => {
     expect(lock('/ws')).toBe(true);
   });
 
+  it('uses the dirty time readRepos already read', () => {
+    scheduleRepoDirty('/ws', { ...ws(), dirtyAt: T - 1_000 }, env, T);
+    expect(lock('/ws')).toBe(false);
+    write('/ws', { v: 1, at: T - 1_000, dirty: {} });
+    scheduleRepoDirty('/ws', { ...ws(), dirtyAt: null }, env, T);
+    expect(lock('/ws')).toBe(true);
+  });
+
   it('does nothing without repos', () => {
     scheduleRepoDirty('/ws', null, env, T);
     scheduleRepoDirty('/ws', ws(0), env, T);
