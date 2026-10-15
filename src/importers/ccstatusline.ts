@@ -100,7 +100,7 @@ function convertItem(raw: Raw, notes: ImportNote[]): WidgetItem | null {
   const id = String(raw.id ?? type);
   let item: WidgetItem;
   if (SAME.has(type)) item = { id, type };
-  else if (RENAMED[type]) {
+  else if (Object.hasOwn(RENAMED, type)) {
     const r = RENAMED[type]!;
     item = { id, type: r.type, ...(r.options ? { options: { ...r.options } } : {}) };
   } else if (type === 'custom-text' || type === 'custom-symbol') {
