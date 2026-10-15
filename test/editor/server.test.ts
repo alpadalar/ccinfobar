@@ -144,6 +144,28 @@ describe('editor server', () => {
     expect(lines.join('\n')).toContain('\x1b[');
   });
 
+  it('returns the ids hidden by a rule next to the lines', async () => {
+    const config = {
+      lines: [
+        [
+          { id: 'g1', type: 'model', hideWhen: '!git' },
+          { id: 'm2', type: 'model' },
+        ],
+      ],
+    };
+    const post = async (c: unknown) =>
+      (
+        await request('POST', '/api/preview', {
+          body: JSON.stringify({ config: c, source: 'scenario', scenario: 'fresh-session', width: 120 }),
+        })
+      ).json();
+    const ruled = await post(config);
+    expect(ruled.hidden).toEqual(['g1']);
+    const plain = await post({ lines: [[{ id: 'm2', type: 'model' }]] });
+    expect(plain.hidden).toEqual([]);
+    expect(ruled.lines).toEqual(plain.lines);
+  });
+
   it('survives garbage preview input', async () => {
     const res = await request('POST', '/api/preview', { body: JSON.stringify({ config: 42 }) });
     expect(res.status).toBe(200);

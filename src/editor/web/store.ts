@@ -104,6 +104,7 @@ export interface Store {
   clip: { snap: StyleSnapshot; from: string; type: string } | null;
   groups: StyleGroup[];
   painting: boolean;
+  hidden: ReadonlySet<string>;
 }
 
 export interface CommitOpts {
@@ -144,6 +145,7 @@ export function init(api: ApiState): void {
     clip: null,
     groups: ['colors', 'text'],
     painting: false,
+    hidden: new Set(),
   };
 }
 

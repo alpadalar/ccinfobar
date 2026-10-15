@@ -10,6 +10,8 @@ import { readTranscript } from '../data/transcript.js';
 import { effectiveUsage } from '../data/usage.js';
 import { createContext, lazy, resolveCwd } from './context.js';
 import { t } from './i18n/index.js';
+import { inspectRows } from './inspect.js';
+import { hasItemRules } from './metrics.js';
 import { lastPayloadPath } from './paths.js';
 import { ingestPayload } from './payload.js';
 import { render } from './renderer.js';
@@ -29,7 +31,7 @@ import {
 import { sanitizeText } from './sanitize.js';
 import { getScenario, SCENARIO_NOW, scenarioConfig, scenarioEnv, scenarioList } from './scenarios.js';
 import type { Theme } from './themes.js';
-import type { Config, StatusPayload } from './types.js';
+import type { Config, RenderContext, StatusPayload } from './types.js';
 
 export type PreviewSource = 'sample' | 'last' | { scenario: string };
 
@@ -66,22 +68,31 @@ export function readLastPayload(env: NodeJS.ProcessEnv = process.env): StatusPay
 }
 
 export function renderPreview(config: Config, source: PreviewSource, width: number, theme?: Theme): string[] {
+  return render(previewContext(config, source, width, theme));
+}
+
+export function previewHidden(config: Config, source: PreviewSource, width: number, theme?: Theme): string[] {
+  if (!config.lines.some((l) => l.some(hasItemRules))) return [];
+  return inspectRows(previewContext(config, source, width, theme))
+    .filter((r) => r.empty?.code === 'hidden-by-rule')
+    .map((r) => r.id);
+}
+
+function previewContext(config: Config, source: PreviewSource, width: number, theme?: Theme): RenderContext {
   if (typeof source === 'object') {
     const scenario = getScenario(source.scenario);
     if (!scenario) throw new Error('unknown scenario');
     const bundle = scenario.build(SCENARIO_NOW);
-    return render(
-      createContext({
-        payload: bundle.payload,
-        config: scenarioConfig(config, bundle),
-        env: scenarioEnv(process.env, bundle.env),
-        now: new Date(SCENARIO_NOW),
-        preview: true,
-        terminalWidth: width,
-        ...(theme ? { theme } : {}),
-        data: bundle.data,
-      }),
-    );
+    return createContext({
+      payload: bundle.payload,
+      config: scenarioConfig(config, bundle),
+      env: scenarioEnv(process.env, bundle.env),
+      now: new Date(SCENARIO_NOW),
+      preview: true,
+      terminalWidth: width,
+      ...(theme ? { theme } : {}),
+      data: bundle.data,
+    });
   }
   const last = source === 'last' ? readLastPayload() : null;
   const env = { ...process.env, NO_COLOR: undefined, FORCE_COLOR: undefined };
@@ -91,69 +102,65 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
     const hooks = lazy(() =>
       last.session_id ? readHookState(last.session_id, env, { persist: false }) : null,
     );
-    return render(
-      createContext({
-        payload: eff.payload,
-        config,
-        env,
-        preview: true,
-        terminalWidth: width,
-        ...(theme ? { theme } : {}),
-        data: {
-          transcript,
-          agents: lazy(() => {
-            const h = hooks();
-            const t = transcript();
-            const n = Date.now();
-            const turnStart = hookTurnStart(h, t, last.prompt_id, n);
-            return readAgents(last.transcript_path, t, n, env, { persist: false, hooks: h, turnStart });
-          }),
-          limits: () => eff.limits,
-          repos: lazy(() => readRepos(resolveCwd(last), env, { persist: false })),
-          hooks,
-          environment: lazy(() => {
-            const cwd = resolveCwd(last);
-            return readEnvironment(last.workspace?.project_dir ?? cwd, cwd, env, { persist: false });
-          }),
-          ...(ledgerOn(config)
-            ? {
-                ledger: lazy(() => {
-                  const now = Date.now();
-                  const read = readLedger(env, now, { persist: false });
-                  return ledgerView(read.summary, accountKey(env), projectRoot(last), now, {
-                    session: last.session_id,
-                    c: last.cost?.total_cost_usd,
-                  });
-                }),
-              }
-            : {}),
-        },
-      }),
-    );
-  }
-  const now = Date.now();
-  const payload = samplePayload(now);
-  return render(
-    createContext({
-      payload,
+    return createContext({
+      payload: eff.payload,
       config,
       env,
       preview: true,
       terminalWidth: width,
       ...(theme ? { theme } : {}),
       data: {
-        git: sampleGit,
-        gsd: sampleGsd,
-        transcript: () => sampleTranscript(now),
-        history: () => sampleHistory(now),
-        agents: () => sampleAgents(now),
-        limits: () => sampleLimits(now, payload.rate_limits ?? null),
-        ledger: () => sampleLedger(now),
-        repos: () => null,
-        hooks: () => sampleHooks(now),
-        environment: sampleEnvironment,
-        jobs: () => sampleJobs(now),
+        transcript,
+        agents: lazy(() => {
+          const h = hooks();
+          const t = transcript();
+          const n = Date.now();
+          const turnStart = hookTurnStart(h, t, last.prompt_id, n);
+          return readAgents(last.transcript_path, t, n, env, { persist: false, hooks: h, turnStart });
+        }),
+        limits: () => eff.limits,
+        repos: lazy(() => readRepos(resolveCwd(last), env, { persist: false })),
+        hooks,
+        environment: lazy(() => {
+          const cwd = resolveCwd(last);
+          return readEnvironment(last.workspace?.project_dir ?? cwd, cwd, env, { persist: false });
+        }),
+        ...(ledgerOn(config)
+          ? {
+              ledger: lazy(() => {
+                const now = Date.now();
+                const read = readLedger(env, now, { persist: false });
+                return ledgerView(read.summary, accountKey(env), projectRoot(last), now, {
+                  session: last.session_id,
+                  c: last.cost?.total_cost_usd,
+                });
+              }),
+            }
+          : {}),
       },
-    }),
-  );
+    });
+  }
+  const now = Date.now();
+  const payload = samplePayload(now);
+  return createContext({
+    payload,
+    config,
+    env,
+    preview: true,
+    terminalWidth: width,
+    ...(theme ? { theme } : {}),
+    data: {
+      git: sampleGit,
+      gsd: sampleGsd,
+      transcript: () => sampleTranscript(now),
+      history: () => sampleHistory(now),
+      agents: () => sampleAgents(now),
+      limits: () => sampleLimits(now, payload.rate_limits ?? null),
+      ledger: () => sampleLedger(now),
+      repos: () => null,
+      hooks: () => sampleHooks(now),
+      environment: sampleEnvironment,
+      jobs: () => sampleJobs(now),
+    },
+  });
 }
