@@ -94,7 +94,7 @@ export async function runDetach(opts: DetachOptions): Promise<number> {
   const env = opts.env ?? process.env;
   const log = opts.log ?? ((s: string) => console.log(s));
   const ready = async (url: string) => {
-    log(`ccinfobar editor running at ${url}`);
+    log(t('edit.running', { url }));
     if (opts.open) await openUrl(url);
     return 0;
   };

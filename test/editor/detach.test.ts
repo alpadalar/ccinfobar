@@ -3,6 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { setLanguage } from '../../src/core/i18n/index.js';
 import { editorStateFile, pingEditor, readEditorState, runDetach } from '../../src/editor/detach.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
 
@@ -141,6 +142,31 @@ describe('runDetach', () => {
       ['edit', '--serve-detached', '--no-open', '--config', path.resolve('/x/c.json'), '--port', '9999'],
     ]);
     expect(lines.join('\n')).toContain(fresh);
+  });
+
+  it('prints the ready line in the display language', async () => {
+    fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+    const fresh = 'http://127.0.0.1:3/?t=ee';
+    const lines: string[] = [];
+    const prev = setLanguage('tr');
+    try {
+      await runDetach({
+        configPath: '/x/c.json',
+        open: false,
+        env,
+        spawn: () => {
+          setTimeout(
+            () => fs.writeFileSync(stateFile, JSON.stringify({ url: fresh, pid: 778, startedAt: 2 })),
+            50,
+          );
+          return 778;
+        },
+        log: (s) => lines.push(s),
+      });
+    } finally {
+      setLanguage(prev);
+    }
+    expect(lines).toEqual([`ccinfobar editörü çalışıyor: ${fresh}`]);
   });
 
   it('does not reuse an editor for another config or port', async () => {

@@ -105,6 +105,8 @@ describe('editor install plan', () => {
     expect(res.status).toBe(409);
     const body = res.json();
     expect(body.error).toBe('Confirm replacing the current statusLine first.');
+    expect(body.errorId).toBe('install.needsConfirm');
+    expect(body).not.toHaveProperty('errorParams');
     expect(body.plan.current.command).toBe('npx ccstatusline');
     expect(fs.readFileSync(settings).equals(before)).toBe(true);
   });
@@ -139,6 +141,8 @@ describe('editor install plan', () => {
     });
     expect(res.status).toBe(409);
     expect(res.json().plan.current.command).toBe('npx ccstatusline');
+    expect(res.json().errorId).toBe('install.stale');
+    expect(res.json().errorParams).toEqual({ file: tildify(settings) });
     expect(fs.readFileSync(settings).equals(before)).toBe(true);
   });
 
@@ -147,6 +151,7 @@ describe('editor install plan', () => {
     const before = fs.readFileSync(settings);
     const res = await request('POST', '/api/install', { command: 'ccinfobar', confirm: true });
     expect(res.status).toBe(400);
+    expect(res.json().errorId).toBe('install.confirmNeedsCurrent');
     expect(fs.readFileSync(settings).equals(before)).toBe(true);
   });
 

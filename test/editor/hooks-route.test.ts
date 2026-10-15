@@ -168,9 +168,12 @@ describe('editor hooks route', () => {
     const info = (await request('GET', '/api/state')).json().hooks;
     expect(info.available).toBe(false);
     expect(info.reason).toMatch(/status line/);
+    expect(info.reasonId).toBe('hooks.reason.notActive');
+    expect(info).not.toHaveProperty('reasonParams');
     const before = fs.readFileSync(settings);
     const res = await request('POST', '/api/hooks', { enabled: true });
     expect(res.status).toBe(409);
+    expect(res.json().errorId).toBe('hooks.reason.notActive');
     expect(fs.readFileSync(settings).equals(before)).toBe(true);
   });
 
@@ -192,6 +195,8 @@ describe('editor hooks route', () => {
     const info = (await request('GET', '/api/state')).json().hooks;
     expect(info.available).toBe(false);
     expect(info.reason).toContain('2.0.5');
+    expect(info.reasonId).toBe('hooks.reason.oldVersion');
+    expect(info.reasonParams).toEqual({ floor: '2.1.101', version: '2.0.5' });
     expect((await request('POST', '/api/hooks', { enabled: true })).status).toBe(409);
   });
 

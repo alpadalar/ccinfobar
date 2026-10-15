@@ -355,7 +355,7 @@ describe('http errors in Turkish', () => {
       });
       expect(httpRefusal('https://api.example.com/q?key=${ANTHROPIC_API_KEY}', '')).toEqual({
         code: 'env ANTHROPIC_API_KEY denied',
-        message: 'ortam değişkeni ANTHROPIC_API_KEY http bileşenlerinde kullanılamaz',
+        message: 'ortam değişkeni ANTHROPIC_API_KEY http öğelerinde kullanılamaz',
         key: 'url',
       });
       expect(describeHeaders('Authorization=Bearer $T', { T: 'x' })).toEqual(['Authorization=$T (ayarlı)']);

@@ -20,7 +20,7 @@ export const errorMessages = {
   'err.http.urlInvalid': 'geçerli bir url değil',
   'err.http.urlScheme': "yalnızca http ve https url'lerine izin verilir",
   'err.http.urlCredentials': 'url içinde kimlik bilgilerine izin verilmiyor',
-  'err.http.envDenied': 'ortam değişkeni {name} http bileşenlerinde kullanılamaz',
+  'err.http.envDenied': 'ortam değişkeni {name} http öğelerinde kullanılamaz',
   'err.http.envGh':
     'ortam değişkeni {name} yalnızca api.github.com, *.ghe.com veya gh ile giriş yapılmış bir sunucuya gönderilir',
   'err.http.envInvalid': 'ortam değişkeni {name} geçersiz bir değer içeriyor',

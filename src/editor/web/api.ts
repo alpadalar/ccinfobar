@@ -1,4 +1,6 @@
 import type { StyleHistory } from '../../core/edit.js';
+import { en } from '../../core/i18n/en/index.js';
+import { type MessageId, type Params, t } from '../../core/i18n/index.js';
 import type { Config, ProgressConfig } from '../../core/types.js';
 import type { ApiState, ClaudeInfo, HooksInfo, PresetInfo, Store, ThemeInfo } from './store.js';
 
@@ -30,8 +32,23 @@ export class ApiError extends Error {
   }
 }
 
-export function setToken(t: string): void {
-  token = t;
+export function setToken(value: string): void {
+  token = value;
+}
+
+// server ids; an unknown id keeps the English text
+export function idText(id: unknown, params: unknown, fallback: string): string {
+  if (typeof id !== 'string' || !Object.hasOwn(en, id)) return fallback;
+  const p: Params = Object.create(null);
+  if (params && typeof params === 'object' && !Array.isArray(params)) {
+    for (const [k, v] of Object.entries(params)) if (typeof v === 'string' || typeof v === 'number') p[k] = v;
+  }
+  return t(id as MessageId, p);
+}
+
+export function apiErrorText(body: Record<string, unknown> | null, status: number): string {
+  const error = typeof body?.error === 'string' ? body.error : `HTTP ${status}`;
+  return idText(body?.errorId, body?.errorParams, error);
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -46,8 +63,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   } catch {}
   if (!res.ok) {
     const body = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
-    const msg = typeof body?.error === 'string' ? body.error : `HTTP ${res.status}`;
-    throw new ApiError(res.status, msg, body);
+    throw new ApiError(res.status, apiErrorText(body, res.status), body);
   }
   return data as T;
 }

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetLanguageCache } from '../../src/cli/lang.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { language, t } from '../../src/core/i18n/index.js';
@@ -454,5 +454,68 @@ describe('editor server language', () => {
     expect(res.json().error).toBe(t('hooks.badBody'));
     expect(res.json().error).not.toBe(withLang('tr', () => t('hooks.badBody')));
     expect((await request('GET', '/api/nope')).json().error).toBe('Not found');
+  });
+
+  it('sends ids with English user-facing errors and none with developer-only ones', async () => {
+    await restart('tr');
+    const body = async (method: string, p: string, json?: object) =>
+      (await request(method, p, json === undefined ? {} : { body: JSON.stringify(json) })).json();
+    expect(await body('POST', '/api/themes', { theme: { id: '../evil' } })).toEqual({
+      error: 'Theme id must be letters, numbers, dot, dash or underscore',
+      errorId: 'err.theme.badId',
+    });
+    expect(await body('POST', '/api/presets', { preset: { id: '../p' } })).toEqual({
+      error: 'Preset id must be letters, numbers, dot, dash or underscore',
+      errorId: 'err.server.presetIdRule',
+    });
+    expect(await body('DELETE', '/api/presets/..%2Fx')).toMatchObject({ errorId: 'err.server.badPresetId' });
+    expect(await body('DELETE', '/api/presets/default')).toEqual({
+      error: 'Not a user preset',
+      errorId: 'err.server.notUserPreset',
+    });
+    expect(await body('DELETE', '/api/themes/..%2Fc')).toMatchObject({ errorId: 'err.server.badThemeId' });
+    expect(await body('DELETE', '/api/themes/classic')).toEqual({
+      error: 'Not a user theme',
+      errorId: 'err.server.notUserTheme',
+    });
+    expect(await body('POST', '/api/preview', { config: {}, theme: { extends: '../x' } })).toEqual({
+      error: 'Invalid extends id',
+      errorId: 'err.server.badExtendsId',
+    });
+    expect((await request('PUT', '/api/config', { body: '{nope' })).json()).toEqual({
+      error: 'Invalid JSON',
+      errorId: 'err.server.badJson',
+    });
+    expect(await body('GET', '/api/nope')).toEqual({ error: 'Not found' });
+    expect((await request('GET', '/api/state', { token: false })).json()).toEqual({ error: 'Invalid token' });
+    expect((await request('GET', '/api/state', { headers: { host: 'evil.example:80' } })).json()).toEqual({
+      error: 'Forbidden host',
+    });
+  });
+
+  it('prints the startup lines in the auto language', async () => {
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((s: string) => void lines.push(s));
+    try {
+      await restart('tr');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(lines).toEqual([
+      `ccinfobar editörü çalışıyor: ${handle.url}`,
+      'Durdurmak için Ctrl+C tuşlarına basın',
+    ]);
+  });
+
+  it('keeps a broken config error English with the file as a param', async () => {
+    await restart('tr');
+    fs.writeFileSync(file, '{ "lines": [');
+    const res = await request('PUT', '/api/config', { body: JSON.stringify({ config: defaultConfig() }) });
+    expect(res.status).toBe(409);
+    const json = res.json();
+    expect(json.error).toBe(withLang('en', () => t('config.refuseBroken', { file })));
+    expect(json.errorId).toBe('config.refuseBroken');
+    expect(json.errorParams).toEqual({ file });
+    expect(typeof json.line).toBe('number');
   });
 });

@@ -55,6 +55,8 @@ export interface HooksInfo {
   installed: string[];
   available: boolean;
   reason?: string;
+  reasonId?: string;
+  reasonParams?: Record<string, unknown>;
   claudeCode?: string;
   events: string[];
   optional: string[];

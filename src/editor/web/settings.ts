@@ -16,12 +16,14 @@ import { languageLocale, type MessageId, t } from '../../core/i18n/index.js';
 import { titleWidgets } from '../../core/panel.js';
 import { PROFILE_LABEL_MAX, PROFILE_MATCH_MAX, PROFILES, PROFILES_UPDATED } from '../../core/profiles.js';
 import type { Config, ProfileOverride, ProgressConfig } from '../../core/types.js';
-import { api } from './api.js';
+import { api, idText } from './api.js';
 import { clear, h, icon } from './dom.js';
 import { field, numberInput, segmented, textInput, toggle } from './inspector.js';
 import { installDialog } from './install-dialog.js';
-import { applySaved, commit, S } from './store.js';
+import { applySaved, commit, type HooksInfo, S } from './store.js';
 import { modal, toast } from './ui.js';
+
+const reasonText = (hk: HooksInfo): string => idText(hk.reasonId, hk.reasonParams, hk.reason ?? '');
 
 const KIND: Record<string, string> = {
   'npm-global': 'global npm install',
@@ -257,7 +259,7 @@ export async function openSettings(): Promise<void> {
     if (!hk) return [];
     const permission = hk.optional.some((e) => hk.installed.includes(e));
     const hint = `Optional. Records ${hk.events.join(', ')} so live widgets are exact; every widget also works without hooks. ${
-      hk.available ? `Claude Code ${hk.claudeCode ?? ''}.` : (hk.reason ?? '')
+      hk.available ? `Claude Code ${hk.claudeCode ?? ''}.` : reasonText(hk)
     }`;
     const out = [
       field(
@@ -329,7 +331,7 @@ export async function openSettings(): Promise<void> {
         toggle(on, (v) => void runProgress(v), undefined, {
           disabled: busy || !hk || (!hk.available && !installed && !on),
         }),
-        hk && !hk.available ? hk.reason : t('prog.saved'),
+        hk && !hk.available ? reasonText(hk) : t('prog.saved'),
         true,
       ),
       h('div', { class: 'hint' }, t('prog.hintBar')),

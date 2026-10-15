@@ -29,6 +29,9 @@ const SWEPT: string[] = [
   'src/core/http-report.ts',
   'src/core/preview.ts',
   'src/core/edit.ts',
+  'src/editor/server.ts',
+  'src/editor/detach.ts',
+  'src/editor/web/api.ts',
 ];
 
 // left out on purpose, with the reason; 08-25 makes SWEPT + NOT_SWEPT cover src/
@@ -56,6 +59,18 @@ const ALLOW: Record<string, string[]> = {
   'src/commands/usage-error.ts': ['rate limited by the usage API', 'usage API sent no limits'],
   // English catalog data, shown through styleGroupName (08-12)
   'src/core/edit.ts': ['Bold, dim, italic', 'Bar and graph options', 'Label switches'],
+  'src/editor/server.ts': [
+    // developer-only (D-36)
+    'Request body too large',
+    'Forbidden host',
+    'Not found',
+    'Invalid token',
+    'Forbidden origin',
+    // developer-only page when the bundle is not built
+    '<!doctype html><meta charset="utf-8"><title>ccinfobar editor</title>\n<body style="font:16px system-ui;background:#111;color:#eee;padding:3rem">\n<h1>Editor bundle not built</h1><p>Run <code>npm run build</code> and start the editor again.</p></body>',
+    // placeholder command, matched by prefix and sent in the API JSON
+    'Xinstalled on first Install)',
+  ],
 };
 
 type Lit = { text: string; at: number; end: number };

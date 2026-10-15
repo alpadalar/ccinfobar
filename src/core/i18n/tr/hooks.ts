@@ -60,4 +60,7 @@ export const hookMessages = {
     '⚠ İlerleme işleyicileri yalnızca kullanıcı ayarlarında bulunur; `--project`, --progress seçeneğini yok sayar.',
   'edit.detachFailed':
     'Editör arka planda başlatılamadı. Bunun yerine bir terminalde `ccinfobar edit` çalıştırın.',
+  'edit.running': 'ccinfobar editörü çalışıyor: {url}',
+  'edit.stopHint': 'Durdurmak için Ctrl+C tuşlarına basın',
+  'edit.stopping': '\nEditör durduruluyor',
 } satisfies Record<keyof typeof enHooks, Message>;

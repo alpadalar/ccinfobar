@@ -54,4 +54,7 @@ export const hookMessages = {
     '⚠ Progress handlers live in user settings only; `--project` ignores --progress.',
   'edit.detachFailed':
     'Could not start the editor in the background. Run `ccinfobar edit` in a terminal instead.',
+  'edit.running': 'ccinfobar editor running at {url}',
+  'edit.stopHint': 'Press Ctrl+C to stop',
+  'edit.stopping': '\nStopping editor',
 } as const;
