@@ -8,34 +8,34 @@ import { applyInstall, planInstall } from '../../src/commands/install.js';
 import { manifestFile, readManifest, writeManifest } from '../../src/commands/manifest.js';
 import { t } from '../../src/core/i18n/index.js';
 import { claudeSettingsPath, configDir, lastPayloadPath, tildify } from '../../src/core/paths.js';
-import { hooksDir } from '../../src/data/hooks.js';
+import { type HookEvent, hooksDir } from '../../src/data/hooks.js';
 
 const ROOT = process.env.CCIB_TEST_ROOT as string;
 const MANAGED = path.join(ROOT, 'managed', 'managed-settings.json');
 const SID = 'doctor-hooks-sid';
 const COMMAND = '/nonexistent/ccinfobar';
 
-const cfg = () => {
+const cfg = (extra: object = {}) => {
   const file = path.join(configDir(), 'doctor-hooks.json');
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ lines: [[{ type: 'model' }]] }));
+  fs.writeFileSync(file, JSON.stringify({ lines: [[{ type: 'model' }]], ...extra }));
   return file;
 };
 
-const doctor = (managedFiles: string[] = []): string[] => {
+const doctor = (managedFiles: string[] = [], extra: object = {}): string[] => {
   const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
   try {
-    runDoctor(cfg(), { managedFiles });
+    runDoctor(cfg(extra), { managedFiles });
     return spy.mock.calls.map((c) => c.map(String).join(' '));
   } finally {
     spy.mockRestore();
   }
 };
 
-const install = () =>
+const install = (progress = false, events: readonly HookEvent[] = DEFAULT_EVENTS) =>
   applyInstall(planInstall({ file: claudeSettingsPath(), command: COMMAND }), {
     confirmed: true,
-    hooks: { events: DEFAULT_EVENTS, claudeCode: '2.1.299' },
+    hooks: { events, claudeCode: '2.1.299', progress },
   });
 
 const readSettings = () => JSON.parse(fs.readFileSync(claudeSettingsPath(), 'utf8'));
@@ -49,6 +49,7 @@ const fold = path.join(hooksDir(), `${SID}.fold.json`);
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   for (const f of [claudeSettingsPath(), manifestFile(), lastPayloadPath(), log, fold, MANAGED]) {
     fs.rmSync(f, { force: true });
   }
@@ -149,5 +150,87 @@ describe('doctor Hooks block', () => {
     const out = doctor();
     expect(out.some((l) => l.includes('Hook command not found'))).toBe(true);
     expect(out.filter((l) => l.includes('\u001b') || l.includes('\u0007'))).toEqual([]);
+  });
+});
+
+describe('doctor progress checks (D-37, D-42, D-44)', () => {
+  const ON = { progress: { enabled: true } };
+  const quietEnv = () => {
+    vi.stubEnv('WT_SESSION', 'doctor-test');
+    vi.stubEnv('TMUX', '');
+  };
+  const progressLines = (out: string[]) =>
+    out.filter((l) => l.includes('progress') || l.includes('Progress'));
+
+  it('lists progress entries with a marker', () => {
+    quietEnv();
+    install(true, []);
+    const out = doctor([], ON);
+    for (const e of ['UserPromptSubmit', 'Stop', 'StopFailure'])
+      expect(out).toContain(t('doctor.hooks.progressEntry', { event: e, claudeCode: '2.1.299' }));
+    expect(out.some((l) => l.includes('UserPromptSubmit (progress)'))).toBe(true);
+    expect(out).toContain(t('doctor.hooks.missingBinary', { command: COMMAND, count: 3 }));
+  });
+
+  it('tells the user to turn Claude Code bar off, naming the effective file', () => {
+    quietEnv();
+    install(true, []);
+    const out = doctor([], ON);
+    expect(out).toContain(t('doctor.progress.ccBar', { file: tildify(claudeSettingsPath()) }));
+    expect(out).not.toContain(t('doctor.progress.noHandlers'));
+    writeSettings({ ...readSettings(), terminalProgressBarEnabled: false });
+    expect(doctor([], ON).some((l) => l.includes('terminalProgressBarEnabled'))).toBe(false);
+    fs.mkdirSync(path.dirname(MANAGED), { recursive: true });
+    fs.writeFileSync(MANAGED, JSON.stringify({ terminalProgressBarEnabled: true }));
+    expect(doctor([MANAGED], ON)).toContain(t('doctor.progress.ccBar', { file: tildify(MANAGED) }));
+  });
+
+  it('reports missing and stray handlers', () => {
+    quietEnv();
+    writeSettings({ terminalProgressBarEnabled: false });
+    expect(doctor([], ON)).toContain(t('doctor.progress.noHandlers'));
+    install(true, []);
+    const off = doctor([], { progress: { enabled: false } });
+    expect(off).toContain(t('doctor.progress.strayHandlers'));
+    expect(progressLines(off).some((l) => l.includes('terminalProgressBarEnabled'))).toBe(false);
+  });
+
+  it('notes the terminal, an old Claude Code and the tty channel in tmux', () => {
+    vi.stubEnv('WT_SESSION', '');
+    vi.stubEnv('ConEmuPID', '');
+    vi.stubEnv('ConEmuANSI', '');
+    vi.stubEnv('TERM_PROGRAM', 'xterm');
+    vi.stubEnv('TMUX', '/tmp/tmux-1/default,1,0');
+    install(true, []);
+    fs.mkdirSync(path.dirname(lastPayloadPath()), { recursive: true });
+    fs.writeFileSync(lastPayloadPath(), JSON.stringify({ session_id: SID, version: '2.1.100' }));
+    const out = doctor([], ON);
+    expect(out).toContain(t('doctor.progress.terminal'));
+    expect(out).toContain(t('doctor.progress.oldClaude', { version: '2.1.100' }));
+    const tty = doctor([], { progress: { enabled: true, channel: 'tty' } });
+    if (process.platform === 'win32') expect(tty).toContain(t('doctor.progress.ttyWindows'));
+    else expect(tty).toContain(t('doctor.progress.tmux'));
+    expect(doctor([], { progress: { enabled: true, terminals: 'always' } })).not.toContain(
+      t('doctor.progress.terminal'),
+    );
+  });
+
+  it('says nothing about progress when it is off and not installed', () => {
+    quietEnv();
+    expect(doctor().filter((l) => l.startsWith('⚠') && /progress/i.test(l))).toEqual([]);
+  });
+
+  it('leaves every settings file byte-identical', () => {
+    quietEnv();
+    install(true, []);
+    fs.mkdirSync(path.dirname(MANAGED), { recursive: true });
+    fs.writeFileSync(MANAGED, '{ "terminalProgressBarEnabled": true }\n');
+    const local = path.join(process.cwd(), '.claude', 'settings.local.json');
+    const project = path.join(process.cwd(), '.claude', 'settings.json');
+    const files = [claudeSettingsPath(), MANAGED, manifestFile(), local, project];
+    const before = files.map((f) => (fs.existsSync(f) ? fs.readFileSync(f) : null));
+    doctor([MANAGED], ON);
+    doctor([MANAGED], { progress: { enabled: false } });
+    expect(files.map((f) => (fs.existsSync(f) ? fs.readFileSync(f) : null))).toEqual(before);
   });
 });

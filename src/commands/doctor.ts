@@ -44,9 +44,11 @@ import {
   hookEntryState,
   hookGateWarnings,
   managedSettingsFiles,
+  progressWarnings,
   readSettingsLayer,
   type SettingsLayer,
 } from './hooks-doctor.js';
+import { parseClaudeVersion } from './hooks-install.js';
 import { currentStatusLine, projectOverride, projectSettingsPath } from './install.js';
 import {
   classifyOwner,
@@ -266,6 +268,7 @@ function printHooks(
   dirs: Set<string>,
   last: StatusPayload | null,
   managedFiles: string[],
+  progress: Config['progress'],
 ): void {
   const entries = manifest.readOnly ? [] : findHookEntries(manifest, settingsFile);
   if (!manifest.readOnly && entries.length === 0) console.log(t('doctor.hooks.off'));
@@ -275,9 +278,8 @@ function printHooks(
     const user = readSettingsLayer('user', settingsFile).data ?? {};
     const missing = new Map<string, number>();
     for (const e of entries) {
-      console.log(
-        t('doctor.hooks.entry', { event: safe(e.event), claudeCode: safe(e.claudeCode ?? 'unknown') }),
-      );
+      const row = { event: safe(e.event), claudeCode: safe(e.claudeCode ?? 'unknown') };
+      console.log(t(e.role === 'progress' ? 'doctor.hooks.progressEntry' : 'doctor.hooks.entry', row));
       if (hookEntryState(e, user) === 'edited')
         console.log(t('doctor.hooks.edited', { event: safe(e.event) }));
       const cmd = entryCommand(e);
@@ -292,7 +294,15 @@ function printHooks(
     layers.push(readSettingsLayer('local', projectSettingsPath(dir, true)));
   }
   for (const f of managedFiles) layers.push(readSettingsLayer('managed', f));
-  for (const w of hookGateWarnings(layers)) {
+  const progressOut = progressWarnings({
+    layers,
+    progress,
+    entries: entries.filter((e) => e.role === 'progress'),
+    env: process.env,
+    platform: process.platform,
+    claudeCode: parseClaudeVersion(last?.version),
+  }).filter((w) => !manifest.readOnly || !/Handlers$/.test(w.key));
+  for (const w of [...hookGateWarnings(layers), ...progressOut]) {
     const params = Object.fromEntries(Object.entries(w.params).map(([k, v]) => [k, safe(tildify(v))]));
     console.log(t(w.key, params));
   }
@@ -415,6 +425,7 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
     dirs,
     last,
     opts.managedFiles ?? managedSettingsFiles(process.platform, process.env),
+    loaded.config.progress,
   );
   console.log(t('doctor.backups', { dir: tildify(backupsDir()) }));
   for (const dir of dirs) {

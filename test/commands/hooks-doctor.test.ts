@@ -7,6 +7,7 @@ import {
   hookEntryState,
   hookGateWarnings,
   managedSettingsFiles,
+  progressWarnings,
   readSettingsLayer,
   type SettingsLayer,
 } from '../../src/commands/hooks-doctor.js';
@@ -189,5 +190,122 @@ describe('hookEntryState and entryCommand', () => {
     expect(entryCommand(entry)).toBe('/bin/ccinfobar');
     expect(entryCommand({ ...entry, value: { hooks: [] } })).toBeNull();
     expect(entryCommand({ ...entry, value: 'x' })).toBeNull();
+  });
+
+  it('drops the --progress hook form too', () => {
+    const value = { hooks: [{ type: 'command', command: '/bin/ccinfobar --progress hook StopFailure' }] };
+    expect(entryCommand({ ...entry, value, role: 'progress' })).toBe('/bin/ccinfobar');
+  });
+});
+
+describe('progressWarnings', () => {
+  const layer = (name: SettingsLayer['name'], data: Record<string, unknown> | null): SettingsLayer => ({
+    name,
+    file: `/x/${name}.json`,
+    data,
+  });
+  const USER = [layer('user', { terminalProgressBarEnabled: false })];
+  const WT = { WT_SESSION: 'abc' };
+  const HANDLERS = [{ event: 'UserPromptSubmit' }, { event: 'Stop' }, { event: 'StopFailure' }];
+  const keys = (o: Partial<Parameters<typeof progressWarnings>[0]> = {}) =>
+    progressWarnings({
+      layers: USER,
+      progress: { enabled: true },
+      entries: HANDLERS,
+      env: WT,
+      platform: 'linux',
+      claudeCode: '2.1.200',
+      ...o,
+    }).map((w) => w.key);
+
+  it('is quiet when progress is off and nothing is installed', () => {
+    expect(keys({ progress: undefined, entries: [], layers: [] })).toEqual([]);
+    expect(keys({ progress: { enabled: false }, entries: [], layers: [] })).toEqual([]);
+  });
+
+  it('is quiet when everything is in place', () => {
+    expect(keys()).toEqual([]);
+  });
+
+  it('warns about Claude Code bar by the effective layer, default on', () => {
+    const run = (layers: SettingsLayer[]) =>
+      progressWarnings({
+        layers,
+        progress: { enabled: true },
+        entries: HANDLERS,
+        env: WT,
+        platform: 'linux',
+        claudeCode: null,
+      });
+    expect(run([layer('user', {}), layer('project', null)])).toEqual([
+      { key: 'doctor.progress.ccBar', params: { file: '/x/user.json' } },
+    ]);
+    expect(run([layer('user', { terminalProgressBarEnabled: false })])).toEqual([]);
+    expect(
+      run([
+        layer('user', { terminalProgressBarEnabled: false }),
+        layer('local', { terminalProgressBarEnabled: true }),
+      ]),
+    ).toEqual([{ key: 'doctor.progress.ccBar', params: { file: '/x/local.json' } }]);
+    expect(
+      run([
+        layer('user', { terminalProgressBarEnabled: true }),
+        layer('project', { terminalProgressBarEnabled: false }),
+      ]),
+    ).toEqual([]);
+    expect(
+      run([
+        layer('local', { terminalProgressBarEnabled: false }),
+        layer('managed', { terminalProgressBarEnabled: true }),
+      ]),
+    ).toEqual([{ key: 'doctor.progress.ccBar', params: { file: '/x/managed.json' } }]);
+    expect(run([layer('user', { terminalProgressBarEnabled: 'false' })])).toEqual([
+      { key: 'doctor.progress.ccBar', params: { file: '/x/user.json' } },
+    ]);
+  });
+
+  it('reports missing and stray handlers', () => {
+    expect(keys({ entries: [] })).toEqual(['doctor.progress.noHandlers']);
+    expect(keys({ entries: [], progress: { enabled: true, channel: 'hook' } })).toEqual([
+      'doctor.progress.noHandlers',
+    ]);
+    expect(keys({ entries: [], progress: { enabled: true, channel: 'tty' } })).toEqual([]);
+    expect(keys({ progress: { enabled: false } })).toEqual(['doctor.progress.strayHandlers']);
+    expect(keys({ progress: undefined })).toEqual(['doctor.progress.strayHandlers']);
+  });
+
+  it('checks the terminal allowlist unless terminals is always', () => {
+    expect(keys({ env: { TERM_PROGRAM: 'xterm' } })).toEqual(['doctor.progress.terminal']);
+    expect(keys({ env: { WT_SESSION: '1' } })).toEqual([]);
+    expect(keys({ env: {}, progress: { enabled: true, terminals: 'always' } })).toEqual([]);
+  });
+
+  it('flags an old Claude Code on the hook channel', () => {
+    const out = progressWarnings({
+      layers: USER,
+      progress: { enabled: true },
+      entries: HANDLERS,
+      env: WT,
+      platform: 'linux',
+      claudeCode: '2.1.100',
+    });
+    expect(out).toEqual([{ key: 'doctor.progress.oldClaude', params: { version: '2.1.100' } }]);
+    expect(keys({ claudeCode: '2.1.141' })).toEqual([]);
+    expect(keys({ claudeCode: null })).toEqual([]);
+    expect(keys({ claudeCode: '2.1.100', progress: { enabled: true, channel: 'tty' } })).toEqual([]);
+  });
+
+  it('flags the tty channel on Windows and in tmux without passthrough', () => {
+    expect(keys({ progress: { enabled: true, channel: 'tty' }, platform: 'win32' })).toEqual([
+      'doctor.progress.ttyWindows',
+    ]);
+    const tmux = { ...WT, TMUX: '/tmp/tmux-1/default,1,0' };
+    expect(keys({ progress: { enabled: true, channel: 'tty' }, env: tmux })).toEqual([
+      'doctor.progress.tmux',
+    ]);
+    expect(keys({ progress: { enabled: true, channel: 'tty', tmuxPassthrough: true }, env: tmux })).toEqual(
+      [],
+    );
+    expect(keys({ env: tmux })).toEqual([]);
   });
 });

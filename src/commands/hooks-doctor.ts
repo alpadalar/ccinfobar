@@ -1,6 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { managedSettingsFiles as coreManagedFiles } from '../core/paths.js';
+import type { ProgressConfig } from '../core/types.js';
+import { terminalAllowed } from '../data/progress.js';
+import { compareVersions } from '../data/update-state.js';
+import { HOOK_FLOOR } from './hooks-install.js';
 import { deepEqual, type HookEntry } from './manifest.js';
 
 export interface SettingsLayer {
@@ -10,7 +14,16 @@ export interface SettingsLayer {
 }
 
 export interface HookWarning {
-  key: 'doctor.hooks.disableAll' | 'doctor.hooks.managedOnly';
+  key:
+    | 'doctor.hooks.disableAll'
+    | 'doctor.hooks.managedOnly'
+    | 'doctor.progress.ccBar'
+    | 'doctor.progress.noHandlers'
+    | 'doctor.progress.strayHandlers'
+    | 'doctor.progress.terminal'
+    | 'doctor.progress.oldClaude'
+    | 'doctor.progress.ttyWindows'
+    | 'doctor.progress.tmux';
   params: Record<string, string>;
 }
 
@@ -59,6 +72,48 @@ export function hookGateWarnings(layers: SettingsLayer[]): HookWarning[] {
     if (l.name === 'managed' && l.data?.allowManagedHooksOnly === true)
       out.push({ key: 'doctor.hooks.managedOnly', params: { file: l.file } });
   }
+  return out;
+}
+
+const BAR_ORDER: readonly SettingsLayer['name'][] = ['managed', 'local', 'project', 'user'];
+
+// claude code's own bar; default on
+export function ccProgressBar(layers: SettingsLayer[]): { on: boolean; file: string | null } {
+  for (const name of BAR_ORDER) {
+    const l = layers.find((x) => x.name === name && typeof x.data?.terminalProgressBarEnabled === 'boolean');
+    if (l) return { on: l.data!.terminalProgressBarEnabled === true, file: l.file };
+  }
+  return { on: true, file: layers.find((l) => l.name === 'user')?.file ?? null };
+}
+
+// pure
+export function progressWarnings(i: {
+  layers: SettingsLayer[];
+  progress: ProgressConfig | undefined;
+  entries: { event: string }[];
+  env: NodeJS.ProcessEnv;
+  platform: NodeJS.Platform;
+  claudeCode: string | null;
+}): HookWarning[] {
+  const out: HookWarning[] = [];
+  const p = i.progress;
+  const on = p?.enabled === true;
+  if (!on) {
+    if (i.entries.length) out.push({ key: 'doctor.progress.strayHandlers', params: {} });
+    return out;
+  }
+  const bar = ccProgressBar(i.layers);
+  if (bar.on && bar.file) out.push({ key: 'doctor.progress.ccBar', params: { file: bar.file } });
+  const tty = p.channel === 'tty';
+  const hook = !tty || i.platform === 'win32';
+  if (hook && !i.entries.length) out.push({ key: 'doctor.progress.noHandlers', params: {} });
+  if (p.terminals !== 'always' && !terminalAllowed(i.env, false))
+    out.push({ key: 'doctor.progress.terminal', params: {} });
+  if (hook && i.claudeCode && compareVersions(i.claudeCode, HOOK_FLOOR.terminalSequence) < 0)
+    out.push({ key: 'doctor.progress.oldClaude', params: { version: i.claudeCode } });
+  if (tty && i.platform === 'win32') out.push({ key: 'doctor.progress.ttyWindows', params: {} });
+  else if (tty && i.env.TMUX && p.tmuxPassthrough !== true)
+    out.push({ key: 'doctor.progress.tmux', params: {} });
   return out;
 }
 
@@ -122,5 +177,5 @@ export function entryCommand(entry: HookEntry): string | null {
   const v = entry.value;
   const h = isObj(v) && Array.isArray(v.hooks) ? v.hooks[0] : null;
   if (!isObj(h) || typeof h.command !== 'string') return null;
-  return h.command.replace(/\s+hook\s+[A-Za-z]+\s*$/, '');
+  return h.command.replace(/\s+(--progress\s+)?hook\s+[A-Za-z]+\s*$/, '');
 }

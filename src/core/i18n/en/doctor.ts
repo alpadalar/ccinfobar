@@ -46,6 +46,7 @@ export const doctorMessages = {
     '  Hooks: off. Run `ccinfobar install --hooks` for exact turn, permission and subagent state.',
   'doctor.hooks.summary': '  Hooks: {count} installed by ccinfobar (recorded with Claude Code {versions})',
   'doctor.hooks.entry': '    {event} (Claude Code {claudeCode})',
+  'doctor.hooks.progressEntry': '    {event} (progress), Claude Code {claudeCode}',
   'doctor.hooks.edited':
     '⚠ The {event} hook was changed or removed outside ccinfobar; ccinfobar leaves it alone.',
   'doctor.hooks.missingBinary':
@@ -58,4 +59,16 @@ export const doctorMessages = {
     '  Only file-based managed settings were checked (not MDM or registry policies)',
   'doctor.hooks.lastEvent': '  Last hook event {age} ago (last payload session)',
   'doctor.hooks.noEvents': '  No hook events logged for the last payload session yet',
+  'doctor.progress.ccBar':
+    '⚠ Claude Code draws its own progress bar too. Set "terminalProgressBarEnabled": false in {file} so the two do not flicker.',
+  'doctor.progress.noHandlers':
+    '⚠ Terminal progress is on but its hook handlers are missing. Run `ccinfobar install --progress`.',
+  'doctor.progress.strayHandlers':
+    '⚠ Progress hook handlers are installed but progress is off. Run `ccinfobar uninstall --progress`.',
+  'doctor.progress.terminal':
+    '⚠ This terminal is not known to show OSC 9;4 progress; set "progress.terminals": "always" to try anyway.',
+  'doctor.progress.oldClaude': '⚠ Terminal progress needs Claude Code 2.1.141 or newer (found {version}).',
+  'doctor.progress.ttyWindows': '⚠ "channel": "tty" does not work on Windows; use "auto".',
+  'doctor.progress.tmux':
+    '⚠ Inside tmux the tty channel needs "tmuxPassthrough": true and `set -g allow-passthrough on`.',
 } as const;
