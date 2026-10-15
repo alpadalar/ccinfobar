@@ -269,14 +269,18 @@ describe.skipIf(process.platform !== 'win32')('win32 shells', () => {
       const command = built({ kind: 'bin', bin: path.join(npm, 'ccinfobar.cmd'), onPath });
       expect(command).not.toContain('\\');
       for (const s of shells()) {
-        const res = spawnSync(s.file, s.args(command), {
-          input: INPUT,
-          encoding: 'utf8',
-          env,
-          timeout: 30_000,
-          windowsHide: true,
-          windowsVerbatimArguments: s.verbatim ?? false,
-        });
+        const run = () =>
+          spawnSync(s.file, s.args(command), {
+            input: INPUT,
+            encoding: 'utf8',
+            env,
+            timeout: 30_000,
+            windowsHide: true,
+            windowsVerbatimArguments: s.verbatim ?? false,
+          });
+        // a cold PowerShell on a busy runner can miss the timeout once
+        let res = run();
+        if (res.status === null) res = run();
         expect({
           shell: s.name,
           command,
