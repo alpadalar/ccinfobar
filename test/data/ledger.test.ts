@@ -643,7 +643,8 @@ describe('activity slots', () => {
     expect(rows(s.slots.acct2)).toEqual({ [k]: 2 });
   });
 
-  it('re-folds cold once when a built summary has no slots', () => {
+  // CR-03: an older writer strips slots; totals stay, slots start again
+  it('keeps a built summary that has no slots and starts the slots there', () => {
     fs.writeFileSync(month(), line('s1', 0) + line('s1', 1));
     const size = fs.statSync(month()).size;
     fs.writeFileSync(
@@ -652,17 +653,23 @@ describe('activity slots', () => {
         v: 1,
         built: true,
         files: { [monthKey(T)]: size },
+        sessions: { s1: { h: [1], seen: T } },
         days: { [A]: { '2026-10-14': 9 } },
       }),
     );
     const r = readLedger(env, T, { persist: true });
-    expect(r.moved).toBe(true);
-    expect(close(r.summary.days[A]?.['2026-10-14'])).toBe(1);
-    expect(rows(r.summary.slots[A])).toEqual({ [k]: 1 });
-    expect(readLedger(env, T).moved).toBe(false);
+    expect(r.moved).toBe(false);
+    expect(r.summary.built).toBe(true);
+    expect(r.summary.days[A]?.['2026-10-14']).toBe(9);
+    expect(rows(r.summary.slots[A])).toEqual({});
+    fs.appendFileSync(month(), line('s1', 1.5));
+    const next = readLedger(env, T, { persist: true });
+    expect(next.moved).toBe(true);
+    expect(close(next.summary.days[A]?.['2026-10-14'])).toBe(9.5);
+    expect(rows(next.summary.slots[A])).toEqual({ [k]: 0.5 });
   });
 
-  it('restarts an unfinished cold fold that has no slots', () => {
+  it('continues an unfinished cold fold that has no slots', () => {
     fs.writeFileSync(month(), line('s1', 0) + line('s1', 1) + line('s1', 2));
     const part = line('s1', 0).length + line('s1', 1).length;
     fs.writeFileSync(
@@ -672,11 +679,12 @@ describe('activity slots', () => {
         built: false,
         files: { [monthKey(T)]: part },
         sessions: { s1: { h: [1], seen: T } },
+        days: { [A]: { '2026-10-14': 1 } },
       }),
     );
     const s = readLedger(env, T).summary;
     expect(close(s.days[A]?.['2026-10-14'])).toBe(2);
-    expect(rows(s.slots[A])).toEqual({ [k]: 2 });
+    expect(rows(s.slots[A])).toEqual({ [k]: 1 });
   });
 
   it('drops invalid slot entries from a stored summary', () => {

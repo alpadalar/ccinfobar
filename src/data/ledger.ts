@@ -195,8 +195,6 @@ function parseSummary(raw: unknown): Summary {
   if (!raw || typeof raw !== 'object') return s;
   const r = raw as Record<string, unknown>;
   if (r.v !== 1) return s;
-  // older summaries lack slots: rebuild once
-  if (!('slots' in r)) return s;
   const obj = (v: unknown) => (v && typeof v === 'object' ? Object.entries(v) : []);
   for (const [k, n] of obj(r.files))
     if (MONTH.test(k) && Number.isSafeInteger(n) && (n as number) >= 0) s.files[k] = n as number;
