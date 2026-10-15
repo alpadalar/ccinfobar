@@ -177,6 +177,22 @@ export interface BudgetConfig {
   warnAt?: number;
 }
 
+export interface ProfileOverride {
+  match: string;
+  label?: string;
+  contextWindow?: number;
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+  currency?: string;
+}
+
+export interface ProfilesConfig {
+  builtIn?: boolean;
+  models?: ProfileOverride[];
+}
+
 export interface Config {
   $schema?: string;
   version: 1;

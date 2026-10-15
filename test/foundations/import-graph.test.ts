@@ -66,6 +66,7 @@ const PURE = [
   'src/core/time.ts',
   'src/core/cache-rule.ts',
   'src/core/job-values.ts',
+  'src/core/profiles.ts',
   'src/data/live.ts',
 ];
 
