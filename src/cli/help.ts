@@ -14,9 +14,11 @@ Usage
   ccinfobar install --no-global  With npx: do not install the ccinfobar command globally
   ccinfobar install --dry-run    Show what install would change and write nothing
   ccinfobar install --hooks      Also add optional Claude Code hooks (exact live state)
+  ccinfobar install --progress   Also show context fill as the terminal tab's progress bar
   ccinfobar uninstall            Remove ccinfobar and restore your previous status line
                                  Run it before \`npm rm -g ccinfobar\`: hooks call the ccinfobar command
   ccinfobar uninstall --hooks    Remove only ccinfobar's hooks
+  ccinfobar uninstall --progress Remove only the terminal progress handlers
   ccinfobar import <tool>        Import a ccstatusline or claude-powerline layout
   ccinfobar themes               Preview every theme
   ccinfobar themes --list        List theme ids and names only
@@ -59,6 +61,8 @@ Options
   --command <cmd>                install: command to write (default: auto)
   --hooks[=permission]           install: add hooks (=permission adds PermissionRequest);
                                  uninstall: remove only ccinfobar's hooks
+  --progress                     install: add the terminal progress handlers (Claude Code 2.1.141+);
+                                 uninstall: remove only them
   -y, --yes                      install: replace another tool's statusLine without asking
   --dry-run                      install: print the plan and write nothing
   --port <n>                     edit: port to listen on

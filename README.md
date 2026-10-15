@@ -329,10 +329,12 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar tui` | Open the terminal editor |
 | `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--yes` to replace another tool's without asking, `--dry-run` to only show the plan, `--import`, `--no-import`, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally, or a pinned copy with `--no-global`) |
 | `ccinfobar install --hooks` | Also add the optional [hooks](#hooks) (`--hooks=permission` adds PermissionRequest) |
+| `ccinfobar install --progress` | Show context fill as the terminal tab's progress bar (OSC 9;4) through synchronous hooks; needs Claude Code 2.1.141+ and adds about 60-110 ms before each prompt |
 | `ccinfobar usage` | Fetch your 5-hour and weekly usage from Claude now |
 | `ccinfobar install --project` | Use ccinfobar in this project even if its `.claude/settings.json` sets another status line |
 | `ccinfobar uninstall` | Remove ccinfobar and its hooks from Claude Code settings and restore the status line you had before (`--project` for the project file). Run it before `npm rm -g ccinfobar` |
 | `ccinfobar uninstall --hooks` | Remove only ccinfobar's hooks and keep the status line |
+| `ccinfobar uninstall --progress` | Remove only the terminal progress handlers, turn `progress.enabled` off and clear the bar |
 | `ccinfobar themes` | Preview every theme (`--width <n>`; `--list` prints ids and names only) |
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`) |

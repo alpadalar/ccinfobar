@@ -9,6 +9,7 @@ import { claudeSettingsPath, tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { VERSION } from '../core/version.js';
 import type { HookEvent } from '../data/hooks.js';
+import { progressSeq } from '../data/progress.js';
 import { selfCommand } from '../data/update-state.js';
 import { type DetectedTool, detectTool, type ImportSource } from '../importers/index.js';
 import { getWidget } from '../widgets/index.js';
@@ -23,6 +24,7 @@ import {
   hookKey,
   planHookRewrites,
   planHooks,
+  type RemovedHooks,
   uninstallHooks,
 } from './hooks-install.js';
 import {
@@ -71,6 +73,7 @@ export interface InstallIo {
   error(line: string): void;
   setup: typeof setupCommand;
   claudeVersion?: () => string | null;
+  write?: (raw: string) => void;
 }
 
 export function defaultIo(): InstallIo {
@@ -80,6 +83,9 @@ export function defaultIo(): InstallIo {
     log: (line) => console.log(line),
     error: (line) => console.error(line),
     setup: setupCommand,
+    write: (raw) => {
+      process.stdout.write(raw);
+    },
   };
 }
 
@@ -120,10 +126,14 @@ function previewHooks(
   command: string,
   events: HookEvent[],
   claudeCode: string | null,
+  progress: boolean,
 ): HookPlan | null {
   const settings = readSettings(file).data;
   const manifest = readManifest();
-  const asked = events.length ? planHooks({ settings, manifest, file, command, claudeCode, events }) : null;
+  const asked =
+    events.length || progress
+      ? planHooks({ settings, manifest, file, command, claudeCode, events, progress })
+      : null;
   const covered = new Set(asked?.items.map(hookKey));
   const rewrites = planHookRewrites(settings, manifest, file, command).filter(
     (i) => !covered.has(hookKey(i)),
@@ -137,11 +147,13 @@ const hookCommand = (i: HookPlanItem | undefined, from = false) =>
   show((from ? i?.from : i?.group)?.hooks[0]?.command ?? '');
 
 const floorOf = (i: HookPlanItem) => eventFloor(i.event) ?? HOOK_FLOOR.core;
+const labelOf = (i: HookPlanItem) => (i.role ? `${i.event} (progress)` : i.event);
 
 function dryHookLine(i: HookPlanItem): string {
-  const event = i.event;
+  const event = labelOf(i);
   switch (i.action) {
     case 'add':
+      if (i.role) return t('progress.dry.add', { event: i.event, command: hookCommand(i) });
       return t('hooks.dry.add', { event, command: hookCommand(i) });
     case 'keep':
       return t('hooks.dry.keep', { event });
@@ -174,10 +186,21 @@ function asyncNote(io: InstallIo, p: HookPlan): void {
   if (cmd && isRunnerCommand(cmd)) io.log(`⚠ ${t('hooks.runnerCommand')}`);
 }
 
-function showDryHooks(io: InstallIo, p: HookPlan): void {
+function progressRefusal(p: HookPlan): string | null {
+  const floor = HOOK_FLOOR.terminalSequence;
+  if (p.progressRefused === 'unknown-version') return t('progress.refused.unknownVersion', { floor });
+  if (p.progressRefused === 'old-version')
+    return t('progress.refused.oldVersion', { floor, version: p.claudeCode ?? '' });
+  return null;
+}
+
+function showDryHooks(io: InstallIo, p: HookPlan, hooksAsked: boolean): void {
   const floor = HOOK_FLOOR.core;
-  if (p.refused === 'unknown-version') io.log(t('hooks.dry.unknownVersion', { floor }));
-  if (p.refused === 'old-version') io.log(t('hooks.dry.oldVersion', { floor, version: p.claudeCode ?? '' }));
+  if (hooksAsked && p.refused === 'unknown-version') io.log(t('hooks.dry.unknownVersion', { floor }));
+  if (hooksAsked && p.refused === 'old-version')
+    io.log(t('hooks.dry.oldVersion', { floor, version: p.claudeCode ?? '' }));
+  const refusal = progressRefusal(p);
+  if (refusal) io.log(`  - ${refusal}`);
   for (const i of p.items) io.log(dryHookLine(i));
   asyncNote(io, p);
 }
@@ -190,15 +213,21 @@ const REPORT: Array<[HookAction, MessageId]> = [
   ['skip-version', 'hooks.skippedVersion'],
 ];
 
-function reportHooks(io: InstallIo, p: HookPlan): void {
+function reportHooks(io: InstallIo, p: HookPlan, hooksAsked: boolean): void {
+  const added = p.items.filter((i) => i.role && i.action === 'add').map((i) => i.event);
   for (const [action, id] of REPORT) {
-    const events = p.items.filter((i) => i.action === action).map((i) => i.event);
+    const events = p.items.filter((i) => i.action === action && !(i.role && action === 'add')).map(labelOf);
     if (events.length) io.log(t(id, { events: events.join(', ') }));
   }
+  if (added.length) io.log(t('progress.added', { events: added.join(', ') }));
   const floor = HOOK_FLOOR.core;
-  if (p.refused === 'unknown-version') io.log(`⚠ ${t('hooks.refused.unknownVersion', { floor })}`);
-  if (p.refused === 'old-version')
+  if (hooksAsked && p.refused === 'unknown-version')
+    io.log(`⚠ ${t('hooks.refused.unknownVersion', { floor })}`);
+  if (hooksAsked && p.refused === 'old-version')
     io.log(`⚠ ${t('hooks.refused.oldVersion', { floor, version: p.claudeCode ?? '' })}`);
+  const refusal = progressRefusal(p);
+  if (refusal) io.log(`⚠ ${refusal}`);
+  if (p.progressRefused === null) io.log(`  ${t('progress.tip')}`);
   asyncNote(io, p);
 }
 
@@ -209,6 +238,25 @@ const hooksChanged = (p: HookPlan | null) =>
 function persistConfig(cfgFile: string): void {
   if (!loadConfig(cfgFile).exists) saveConfig(loadForUse(cfgFile).config, cfgFile);
   else loadForUse(cfgFile, undefined, { persist: true });
+}
+
+// returns whether progress was on; refuses on a broken config
+function setProgress(io: InstallIo, cfgFile: string, on: boolean): boolean {
+  const loaded = loadConfig(cfgFile);
+  const was = loaded.config.progress?.enabled === true;
+  if (was === on || (!loaded.exists && !on)) return was;
+  if (loaded.error) {
+    io.error(`✗ ${t('config.refuseBroken', { file: tildify(cfgFile) })}`);
+    process.exitCode = 1;
+    return was;
+  }
+  saveConfig({ ...loaded.config, progress: { ...loaded.config.progress, enabled: on } }, cfgFile);
+  return was;
+}
+
+// OSC 9;4;0 clears the tab bar
+function clearProgress(io: InstallIo): void {
+  if (io.tty) io.write?.(progressSeq(0, 0));
 }
 
 // D-25: suggest only, never write refreshInterval
@@ -252,6 +300,17 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     process.exitCode = 1;
     return;
   }
+  if (args.flags.progress !== undefined && typeof args.flags.progress !== 'boolean') {
+    io.error(t('progress.badFlag'));
+    process.exitCode = 1;
+    return;
+  }
+  let progress = args.flags.progress === true;
+  if (progress && !project && !dryRun && loadConfig(cfgFile).error) {
+    io.error(`✗ ${t('config.refuseBroken', { file: tildify(cfgFile) })}`);
+    process.exitCode = 1;
+    return;
+  }
   io.log(t('install.installing', { version: VERSION }));
   let command: string | null = typeof args.flags.command === 'string' ? args.flags.command : null;
   const refresh = typeof args.flags.refresh === 'string' ? Number(args.flags.refresh) : undefined;
@@ -285,8 +344,13 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     io.log(t('hooks.projectIgnored'));
     events = [];
   }
+  if (progress && project) {
+    io.log(t('progress.projectIgnored'));
+    progress = false;
+  }
+  const hooksAsked = events.length > 0;
   let claudeCode: string | null = null;
-  if (events.length) {
+  if (hooksAsked || progress) {
     claudeCode = (io.claudeVersion ?? detectClaudeCode)();
     if (claudeCode) io.log(t('hooks.detected', { version: claudeCode }));
   }
@@ -294,9 +358,9 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   if (dryRun) {
     if (!plan.needsConfirm) io.log(t('install.dryRunFile', { file: tildify(file) }));
     showPlan(io, plan);
-    const hookPlan = project ? null : previewHooks(file, command, events, claudeCode);
+    const hookPlan = project ? null : previewHooks(file, command, events, claudeCode, progress);
     if (!plan.changes && !hooksChanged(hookPlan)) io.log(t('install.unchanged'));
-    if (hookPlan) showDryHooks(io, hookPlan);
+    if (hookPlan) showDryHooks(io, hookPlan, hooksAsked);
     if (!project) {
       const gsd = gsdProjects();
       if (gsd.length) io.log(t('install.dryRunProjects', { count: gsd.length }));
@@ -325,7 +389,7 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   if (tool) await offerImport(tool, args, cfgFile, io);
   let res: InstallResult;
   try {
-    const hooks = events.length ? { events, claudeCode } : undefined;
+    const hooks = hooksAsked || progress ? { events, claudeCode, progress } : undefined;
     res = applyInstall(plan, { confirmed: true, adoptLegacy, hooks });
   } catch (e) {
     if (!(e instanceof InstallNeedsConfirmError)) throw e;
@@ -335,11 +399,12 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   }
   if (project) ignoreLocally(file);
   persistConfig(cfgFile);
+  if (progress && res.hooks?.progressRefused === null) setProgress(io, cfgFile, true);
   if (plan.changes) io.log(t('install.wrote', { command: show(command), file: tildify(file) }));
   else if (!hooksChanged(res.hooks)) io.log(t('install.unchanged'));
   if (plan.needsConfirm && !adoptLegacy && plan.current)
     io.log(t('install.replaced', { command: show(plan.current.command) }));
-  if (res.hooks) reportHooks(io, res.hooks);
+  if (res.hooks) reportHooks(io, res.hooks, hooksAsked);
   if (res.backup) io.log(t('install.backup', { file: tildify(res.backup) }));
   refreshNotes(io, cfgFile, refresh, plan);
 
@@ -396,25 +461,46 @@ async function uninstallAsking(file: string, io: InstallIo): Promise<UninstallRe
   return uninstall(file, { adoptLegacy });
 }
 
-function hooksRemoved(io: InstallIo, hooks: { removed: string[]; kept: string[] }): void {
+function hooksRemoved(io: InstallIo, hooks: RemovedHooks): void {
   if (hooks.removed.length) io.log(t('hooks.removed', { events: hooks.removed.join(', ') }));
   if (hooks.kept.length) io.log(t('hooks.leftEdited', { events: hooks.kept.join(', ') }));
+  const p = hooks.progress;
+  if (p?.removed.length) io.log(t('progress.removed'));
+  if (p?.kept.length)
+    io.log(t('hooks.leftEdited', { events: p.kept.map((e) => `${e} (progress)`).join(', ') }));
 }
 
-export async function runUninstall(args: Args, _cfgFile: string, io: InstallIo = defaultIo()): Promise<void> {
+// D-36: after the handlers are gone, turn progress off and clear the bar
+function progressOff(io: InstallIo, cfgFile: string, hooks: RemovedHooks): void {
+  const removed = !!hooks.progress?.removed.length;
+  const was = setProgress(io, cfgFile, false);
+  if (removed || was) clearProgress(io);
+}
+
+export async function runUninstall(args: Args, cfgFile: string, io: InstallIo = defaultIo()): Promise<void> {
   if (badPositional(args, io)) return;
   const hooksOnly = args.flags.hooks !== undefined && args.flags.hooks !== false;
+  const progressOnly = args.flags.progress === true;
   if (args.flags.project) {
     if (hooksOnly) io.log(t('hooks.uninstallProject'));
+    if (progressOnly) io.log(t('progress.uninstallProject'));
     io.log(uninstallMessage(await uninstallAsking(projectLocalFile(process.cwd()), io)));
     return;
   }
-  if (hooksOnly) {
+  if (hooksOnly || progressOnly) {
     const file = claudeSettingsPath();
-    const res = uninstallHooks(file);
-    if (!res.removed.length && !res.kept.length) io.log(t('hooks.none', { file: tildify(file) }));
+    const res = uninstallHooks(
+      file,
+      undefined,
+      undefined,
+      !progressOnly ? 'hooks' : hooksOnly ? 'all' : 'progress',
+    );
+    if (hooksOnly && !res.removed.length && !res.kept.length)
+      io.log(t('hooks.none', { file: tildify(file) }));
+    if (progressOnly && !res.progress) io.log(t('progress.none', { file: tildify(file) }));
     hooksRemoved(io, res);
     if (res.backup) io.log(t('install.backup', { file: tildify(res.backup) }));
+    if (progressOnly) progressOff(io, cfgFile, res);
     return;
   }
   const released = releaseProjects();
@@ -422,4 +508,5 @@ export async function runUninstall(args: Args, _cfgFile: string, io: InstallIo =
   const res = await uninstallAsking(claudeSettingsPath(), io);
   io.log(uninstallMessage(res));
   hooksRemoved(io, res.hooks);
+  progressOff(io, cfgFile, res.hooks);
 }

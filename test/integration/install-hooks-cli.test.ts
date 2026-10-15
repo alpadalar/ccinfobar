@@ -241,4 +241,56 @@ describe.skipIf(!fs.existsSync(bin))('install --hooks with the built CLI', () =>
     expect(res.stdout).toContain('Hooks live in user settings only');
     expect(Object.keys(s.read().hooks)).toHaveLength(7);
   });
+
+  it('install --progress adds the sync handlers once; uninstall --progress removes only them', () => {
+    const s = sandbox('2.1.300 (Claude Code)');
+    fs.mkdirSync(s.claude, { recursive: true });
+    fs.writeFileSync(s.settings, JSON.stringify({ model: 'opus' }, null, 2));
+    const dry = s.run(['install', '--progress', '--dry-run']);
+    expect(dry.status).toBe(0);
+    expect(dry.stdout).toContain('  + StopFailure (progress): ccinfobar-test --progress hook StopFailure');
+    expect(dry.stdout.split('\n').filter((l) => l.includes(' (progress): '))).toHaveLength(3);
+    expect(JSON.parse(fs.readFileSync(s.settings, 'utf8'))).toEqual({ model: 'opus' });
+    const res = s.run(['install', '--hooks', '--progress', '--yes']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('✓ Added the progress handlers for UserPromptSubmit, Stop, StopFailure');
+    expect(res.stdout).toContain('terminalProgressBarEnabled');
+    const backups = fs.readdirSync(path.join(s.config, 'backups')).filter((f) => /^settings-\d{8}T/.test(f));
+    expect(backups).toHaveLength(1);
+    const hooks = s.read().hooks as Record<string, unknown[]>;
+    expect(commandsOf(hooks, 'Stop')).toEqual([
+      'ccinfobar-test hook Stop',
+      'ccinfobar-test --progress hook Stop',
+    ]);
+    expect(hooks.StopFailure).toEqual([
+      { hooks: [{ type: 'command', command: 'ccinfobar-test --progress hook StopFailure', timeout: 5 }] },
+    ]);
+    expect(s.read().terminalProgressBarEnabled).toBeUndefined();
+    const cfg = JSON.parse(fs.readFileSync(path.join(s.config, 'config.json'), 'utf8'));
+    expect(cfg.progress.enabled).toBe(true);
+    const off = s.run(['uninstall', '--progress']);
+    expect(off.status).toBe(0);
+    expect(off.stdout).toContain('✓ Removed the progress handlers');
+    expect(off.stdout).not.toContain('\u001b]9;4');
+    const after = s.read();
+    expect(after.model).toBe('opus');
+    expect(after.statusLine.command).toBe('ccinfobar-test');
+    expect(after.hooks.StopFailure).toBeUndefined();
+    for (const e of SEVEN) expect(commandsOf(after.hooks, e)).toEqual([`ccinfobar-test hook ${e}`]);
+    expect(JSON.parse(fs.readFileSync(path.join(s.config, 'config.json'), 'utf8')).progress.enabled).toBe(
+      false,
+    );
+  });
+
+  it('install --progress on an old Claude Code refuses and changes nothing', () => {
+    const s = sandbox('2.1.100 (Claude Code)');
+    expect(s.run(['install', '--yes']).status).toBe(0);
+    const settings = fs.readFileSync(s.settings);
+    const config = fs.readFileSync(path.join(s.config, 'config.json'));
+    const res = s.run(['install', '--progress', '--yes']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('Terminal progress needs Claude Code 2.1.141 or newer (found 2.1.100)');
+    expect(fs.readFileSync(s.settings).equals(settings)).toBe(true);
+    expect(fs.readFileSync(path.join(s.config, 'config.json')).equals(config)).toBe(true);
+  });
 });

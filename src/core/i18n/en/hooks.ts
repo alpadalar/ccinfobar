@@ -33,6 +33,21 @@ export const hookMessages = {
   'hooks.reason.oldVersion': 'Hooks need Claude Code {floor} or newer (found {version}).',
   'hooks.badBody': 'enabled must be true or false; permission must be true, false or left out',
   'hooks.uninstallProject': '⚠ Hooks live in user settings only; `--project` ignores --hooks.',
+  'progress.added':
+    '✓ Added the progress handlers for {events} (they run before each prompt; about 60-110 ms)',
+  'progress.removed': '✓ Removed the progress handlers',
+  'progress.none': 'No progress handlers in {file}',
+  'progress.refused.oldVersion': 'Terminal progress needs Claude Code {floor} or newer (found {version})',
+  'progress.refused.unknownVersion':
+    'Could not detect the Claude Code version; terminal progress needs {floor} or newer',
+  'progress.dry.add': '  + {event} (progress): {command}',
+  'progress.tip':
+    'Tip: set "terminalProgressBarEnabled": false in Claude Code settings so the two bars do not flicker.',
+  'progress.badFlag': '--progress takes no value',
+  'progress.projectIgnored':
+    '⚠ Terminal progress goes to user settings only; run `ccinfobar install --progress` without --project.',
+  'progress.uninstallProject':
+    '⚠ Progress handlers live in user settings only; `--project` ignores --progress.',
   'edit.detachFailed':
     'Could not start the editor in the background. Run `ccinfobar edit` in a terminal instead.',
 } as const;
