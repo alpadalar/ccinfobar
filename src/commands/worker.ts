@@ -84,8 +84,8 @@ export function sweepJobs(env: NodeJS.ProcessEnv, keep: Set<string>, now: number
 
 function accepted(job: Job<unknown> | undefined, req: JobRequest, ok: (job: Job<unknown>) => boolean) {
   if (!job) return false;
-  if (job.paramRe ? req.param === undefined || !job.paramRe.test(req.param) : req.param !== undefined)
-    return false;
+  const param = req.param;
+  if (param !== undefined ? !job.paramRe?.test(param) : !!job.paramRe && !job.paramOptional) return false;
   try {
     return ok(job);
   } catch {

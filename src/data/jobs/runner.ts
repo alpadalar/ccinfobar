@@ -70,6 +70,8 @@ export interface Job<V> {
   retryMs: number;
   keyRe: RegExp;
   paramRe?: RegExp;
+  // a request may come without a param
+  paramOptional?: boolean;
   keys(input: JobInput): JobRequest[];
   accepts(req: JobRequest, input: AcceptInput): boolean;
   due(envelope: JobEnvelope<V> | null, now: number, req: JobRequest): boolean;

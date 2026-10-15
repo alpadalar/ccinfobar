@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import { parseWorkerArgs, runWorker, sweepJobs, type WorkerDeps } from '../../src/commands/worker.js';
 import { defaultConfig } from '../../src/core/config.js';
@@ -17,6 +17,12 @@ import {
   okEnvelope,
   readEnvelope,
 } from '../../src/data/jobs/runner.js';
+
+// never an npm-global or local install kind, so the update job cannot install
+vi.mock('../../src/data/update-state.js', async (orig) => ({
+  ...(await orig<typeof import('../../src/data/update-state.js')>()),
+  installKind: () => 'source',
+}));
 
 const tmp = (p: string) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
@@ -142,6 +148,25 @@ describe('runWorker', () => {
     expect(seen.runs).toEqual([]);
     await runWorker(worker(['gh=repo#12']), s.cfgFile, s.deps(jobs));
     expect(seen.runs).toEqual([{ key: 'gh', param: 'repo#12', cwd: process.cwd() }]);
+  });
+
+  it('runs the real update job with and without a session param', async () => {
+    const { installKind } = await import('../../src/data/update-state.js');
+    expect(installKind()).toBe('source');
+    const { updateJob } = await import('../../src/data/jobs/update.js');
+    for (const argv of [['update'], ['update=abc-123']]) {
+      const { env, cfgFile, deps } = setup();
+      let calls = 0;
+      const f = (async () => {
+        calls++;
+        return new Response(null, { status: 302, headers: { location: '/releases/tag/v0.0.1' } });
+      }) as typeof fetch;
+      touchLock(env, 'update');
+      await runWorker(worker(argv), cfgFile, deps([updateJob as Job<unknown>], { fetch: f }));
+      expect(calls, argv[0]).toBe(1);
+      expect(readEnvelope('update', env)).toMatchObject({ ok: true, value: { latest: '0.0.1' } });
+      expect(fs.existsSync(lockFile('update', env))).toBe(false);
+    }
   });
 
   it('runs only the update job with the default config when the config is broken', async () => {

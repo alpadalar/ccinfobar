@@ -103,6 +103,7 @@ export const updateJob: Job<UpdateValue> = {
   retryMs: 0,
   keyRe: /^update$/,
   paramRe: SESSION_RE,
+  paramOptional: true,
   keys({ config, payload, env }) {
     if (updatesDisabled(config, env)) return [];
     const param = session(payload?.session_id);
