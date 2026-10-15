@@ -224,7 +224,7 @@ describe('widget line under zz', () => {
   );
 });
 
-const COL = 33;
+const COL = 34;
 const KNOWN = [...USAGE, ...OPTIONS].map(([u]) => u);
 const usageOf = (line: string) =>
   KNOWN.filter((u) => line === `  ${u}` || line.startsWith(`  ${u} `)).sort((a, b) => b.length - a.length)[0];
@@ -246,7 +246,7 @@ function helpDescriptions(text: string): { line: string; col: number; desc: stri
 }
 
 describe('help and CLI tables under zz', () => {
-  it('starts every help description at column 33', () => {
+  it('starts every help description at column 34', () => {
     const text = withLang(zz, () => help());
     const rows = helpDescriptions(text);
     expect(rows.length).toBeGreaterThanOrEqual(KNOWN.length);

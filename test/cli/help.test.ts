@@ -17,7 +17,7 @@ const fixture = fs
   .readFileSync(path.resolve(__dirname, '../fixtures/help-en.txt'), 'utf8')
   .replace('{version}', VERSION);
 
-const COL = 33;
+const COL = 34;
 
 const KNOWN = [...USAGE, ...OPTIONS].map(([u]) => u);
 
@@ -47,9 +47,10 @@ function expectAligned(text: string) {
     expect(u, line).toBeDefined();
     seen++;
     if (line === `  ${u}`) {
-      expect(visibleWidth(u!), line).toBeGreaterThan(COL - 3);
+      expect(visibleWidth(u!), line).toBeGreaterThan(COL - 4);
       continue;
     }
+    expect(visibleWidth(u!), `${line}: two spaces before the text`).toBeLessThanOrEqual(COL - 4);
     expect(line.slice(0, COL), line).toBe(`  ${u!.padEnd(COL - 2)}`);
     expect(visibleWidth(line.slice(0, COL)), line).toBe(COL);
     expect(line[COL], line).not.toBe(' ');
@@ -94,7 +95,9 @@ describe('help()', () => {
     );
     const zz: LanguageDef = { id: 'zz', name: 'Wide', aliases: [], locale: 'en', messages: wide };
     const text = withLang(zz, () => help());
-    expect(text).toContain(`  ccinfobar uninstall            ＡＢＣ\u3000ｄ\n${' '.repeat(COL)}ＥＦ\n`);
+    expect(text).toContain(
+      `  ${'ccinfobar uninstall'.padEnd(COL - 2)}ＡＢＣ\u3000ｄ\n${' '.repeat(COL)}ＥＦ\n`,
+    );
     expect(text).toContain(`  ccinfobar preview --scenario <name>\n${' '.repeat(COL)}ＷＩＤＥ`);
     expectAligned(text);
   });

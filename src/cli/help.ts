@@ -67,14 +67,15 @@ export const OPTIONS: Row[] = [
   ['-h, --help', 'help.opt.help'],
 ];
 
-const COL = 31;
+const COL = 32;
 const INDENT = ' '.repeat(COL + 2);
 
 function rows(list: Row[], presets: string): string[] {
   const out: string[] = [];
   for (const [usage, id] of list) {
     const [first = '', ...rest] = t(id, { presets }).split('\n');
-    if (visibleWidth(usage) < COL) out.push(`  ${padVisible(usage, COL)}${first}`);
+    // at least two spaces before the description
+    if (visibleWidth(usage) <= COL - 2) out.push(`  ${padVisible(usage, COL)}${first}`);
     else out.push(`  ${usage}`, INDENT + first);
     for (const line of rest) out.push(INDENT + line);
   }

@@ -2,70 +2,70 @@ ccinfobar X.Y.Z
 Claude Code için özelleştirilebilir, GSD uyumlu durum satırı
 
 Kullanım
-  ccinfobar                      Durum satırını görüntüler (Claude Code JSON'unu stdin'den okur)
-  ccinfobar edit                 Sürükle-bırak düzenleyiciyi tarayıcınızda açar
-  ccinfobar edit --detach        Düzenleyiciyi arka planda başlatır, URL'sini yazar ve çıkar
-  ccinfobar tui                  Terminal düzenleyicisini açar
-  ccinfobar install              Claude Code'un statusLine ayarını ccinfobar'a yönlendirir
-  ccinfobar install --project    Bu projenin kendi statusLine ayarını da devralır (örn. GSD'ninkini)
-  ccinfobar install --no-global  npx ile: ccinfobar komutunu global olarak kurmaz
-  ccinfobar install --dry-run    Kurulumun neyi değiştireceğini gösterir, hiçbir şey yazmaz
-  ccinfobar install --hooks      İsteğe bağlı Claude Code hook'larını da ekler (kesin canlı durum için)
-  ccinfobar install --progress   Bağlam doluluğunu terminal sekmesinin ilerleme çubuğunda da gösterir
-  ccinfobar uninstall            ccinfobar'ı kaldırır ve önceki durum satırınızı geri getirir
-                                 `npm rm -g ccinfobar` öncesinde çalıştırın: hook'lar ccinfobar komutunu çağırır
-  ccinfobar uninstall --hooks    Yalnızca ccinfobar'ın hook'larını kaldırır
-  ccinfobar uninstall --progress Yalnızca terminal ilerleme işleyicilerini kaldırır
-  ccinfobar import <tool>        Bir ccstatusline veya claude-powerline düzenini içe aktarır
-  ccinfobar themes               Tüm temaları önizler
-  ccinfobar themes --list        Yalnızca tema id'lerini ve adlarını listeler
-  ccinfobar theme <id>           Temayı değiştirir
-  ccinfobar theme new <id>       Kendi temanızı oluşturur (--from <theme>)
-  ccinfobar init [preset]        Hazır ayar yapılandırması yazar (default, cockpit, dashboard, minimal, gsd, powerline, full)
-  ccinfobar preview              Durum satırını örnek verilerle yazdırır
+  ccinfobar                       Durum satırını görüntüler (Claude Code JSON'unu stdin'den okur)
+  ccinfobar edit                  Sürükle-bırak düzenleyiciyi tarayıcınızda açar
+  ccinfobar edit --detach         Düzenleyiciyi arka planda başlatır, URL'sini yazar ve çıkar
+  ccinfobar tui                   Terminal düzenleyicisini açar
+  ccinfobar install               Claude Code'un statusLine ayarını ccinfobar'a yönlendirir
+  ccinfobar install --project     Bu projenin kendi statusLine ayarını da devralır (örn. GSD'ninkini)
+  ccinfobar install --no-global   npx ile: ccinfobar komutunu global olarak kurmaz
+  ccinfobar install --dry-run     Kurulumun neyi değiştireceğini gösterir, hiçbir şey yazmaz
+  ccinfobar install --hooks       İsteğe bağlı Claude Code hook'larını da ekler (kesin canlı durum için)
+  ccinfobar install --progress    Bağlam doluluğunu terminal sekmesinin ilerleme çubuğunda da gösterir
+  ccinfobar uninstall             ccinfobar'ı kaldırır ve önceki durum satırınızı geri getirir
+                                  `npm rm -g ccinfobar` öncesinde çalıştırın: hook'lar ccinfobar komutunu çağırır
+  ccinfobar uninstall --hooks     Yalnızca ccinfobar'ın hook'larını kaldırır
+  ccinfobar uninstall --progress  Yalnızca terminal ilerleme işleyicilerini kaldırır
+  ccinfobar import <tool>         Bir ccstatusline veya claude-powerline düzenini içe aktarır
+  ccinfobar themes                Tüm temaları önizler
+  ccinfobar themes --list         Yalnızca tema id'lerini ve adlarını listeler
+  ccinfobar theme <id>            Temayı değiştirir
+  ccinfobar theme new <id>        Kendi temanızı oluşturur (--from <theme>)
+  ccinfobar init [preset]         Hazır ayar yapılandırması yazar (default, cockpit, dashboard, minimal, gsd, powerline, full)
+  ccinfobar preview               Durum satırını örnek verilerle yazdırır
   ccinfobar preview --scenario <name>
-                                 Adı verilen bir durumu önizler (liste için --scenario)
+                                  Adı verilen bir durumu önizler (liste için --scenario)
   ccinfobar preview --glyph-mode <mode>
-                                 Bir glif moduyla önizler, örn. GitHub issue'ları için paste-safe
-  ccinfobar update               Son sürüme günceller (yalnızca bakmak için --check)
-  ccinfobar usage                Plan kullanımınızı şimdi Claude'dan çeker
-  ccinfobar widgets              Tüm bileşenleri listeler
-  ccinfobar doctor               Kurulumu denetler
-  ccinfobar explain [widget-id]  Her bileşenin değerini, kaynağını ve neden boş olduğunu gösterir
+                                  Bir glif moduyla önizler, örn. GitHub issue'ları için paste-safe
+  ccinfobar update                Son sürüme günceller (yalnızca bakmak için --check)
+  ccinfobar usage                 Plan kullanımınızı şimdi Claude'dan çeker
+  ccinfobar widgets               Tüm bileşenleri listeler
+  ccinfobar doctor                Kurulumu denetler
+  ccinfobar explain [widget-id]   Her bileşenin değerini, kaynağını ve neden boş olduğunu gösterir
   ccinfobar explain --scenario <name>
-                                 Adı verilen bir durum için bileşenleri açıklar
-                                 (tek başına --scenario senaryoları listeler)
-  ccinfobar bench                Görüntüleme süresini ölçer: soğuk, sıcak, medyan ve p95
-  ccinfobar config get <path>    Bir yapılandırma değerini yazdırır (örn. theme, lines.0.2.type)
+                                  Adı verilen bir durum için bileşenleri açıklar
+                                  (tek başına --scenario senaryoları listeler)
+  ccinfobar bench                 Görüntüleme süresini ölçer: soğuk, sıcak, medyan ve p95
+  ccinfobar config get <path>     Bir yapılandırma değerini yazdırır (örn. theme, lines.0.2.type)
   ccinfobar config set <path> <value>
-                                 Bir değer atar (JSON, değilse dize); geçersiz değerler reddedilir
-  ccinfobar config unset <path>  Bir değeri kaldırır (varsayılan geri gelir)
-  ccinfobar hook <Event>         Claude Code hook'ları kullanır (çıktı vermez)
+                                  Bir değer atar (JSON, değilse dize); geçersiz değerler reddedilir
+  ccinfobar config unset <path>   Bir değeri kaldırır (varsayılan geri gelir)
+  ccinfobar hook <Event>          Claude Code hook'ları kullanır (çıktı vermez)
 
 Seçenekler
-  --config <file>                Belirli bir yapılandırma dosyası kullanır
-  --payload <file>               Bir JSON payload dosyasıyla görüntüler
-  --width <n>                    Algılanan terminal genişliğini geçersiz kılar
-  --scenario <name>              preview/explain/bench: adı verilen bir senaryoyu kullanır (tek başına listeler;
-                                 bench yalnızca payload ve env değerlerini kullanır)
-  --runs <n>                     bench: tekrar sayısı (varsayılan 20, en fazla 1000)
-  --json                         explain, bench: tek bir JSON nesnesi yazdırır
-  --show-values                  explain: terminalde env, komut ve araç etkinliği değerlerini ve metin seçeneklerini de gösterir
-  --refresh <seconds>            install: statusLine.refreshInterval değerini de ayarlar
-  --project                      install/uninstall: buradaki .claude/settings.local.json dosyasını kullanır
-  --import / --no-import         install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz
-  --file <path>                  import: bu ayar dosyasını okur
-  --command <cmd>                install: yazılacak komut (varsayılan: auto)
-  --hooks[=permission]           install: hook'ları ekler (=permission, PermissionRequest de ekler);
-                                 uninstall: yalnızca ccinfobar'ın hook'larını kaldırır
-  --progress                     install: terminal ilerleme işleyicilerini ekler (Claude Code 2.1.141+);
-                                 uninstall: yalnızca bunları kaldırır
-  -y, --yes                      install: başka bir aracın statusLine ayarını sormadan değiştirir
-  --dry-run                      install: planı gösterir, hiçbir şey yazmaz
-  --port <n>                     edit: dinlenecek port
-  --detach                       edit: arka planda çalışır; 30 dakika boşta kalınca durur
-  --no-open                      edit: tarayıcı açmaz
-  --no-detect                    edit: terminale renklerini sormaz
-  --list                         themes: id'leri ve adları yazdırır, önizleme yok
-  -v, --version                  Sürümü yazdırır
-  -h, --help                     Bu yardımı gösterir
+  --config <file>                 Belirli bir yapılandırma dosyası kullanır
+  --payload <file>                Bir JSON payload dosyasıyla görüntüler
+  --width <n>                     Algılanan terminal genişliğini geçersiz kılar
+  --scenario <name>               preview/explain/bench: adı verilen bir senaryoyu kullanır (tek başına listeler;
+                                  bench yalnızca payload ve env değerlerini kullanır)
+  --runs <n>                      bench: tekrar sayısı (varsayılan 20, en fazla 1000)
+  --json                          explain, bench: tek bir JSON nesnesi yazdırır
+  --show-values                   explain: terminalde env, komut ve araç etkinliği değerlerini ve metin seçeneklerini de gösterir
+  --refresh <seconds>             install: statusLine.refreshInterval değerini de ayarlar
+  --project                       install/uninstall: buradaki .claude/settings.local.json dosyasını kullanır
+  --import / --no-import          install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz
+  --file <path>                   import: bu ayar dosyasını okur
+  --command <cmd>                 install: yazılacak komut (varsayılan: auto)
+  --hooks[=permission]            install: hook'ları ekler (=permission, PermissionRequest de ekler);
+                                  uninstall: yalnızca ccinfobar'ın hook'larını kaldırır
+  --progress                      install: terminal ilerleme işleyicilerini ekler (Claude Code 2.1.141+);
+                                  uninstall: yalnızca bunları kaldırır
+  -y, --yes                       install: başka bir aracın statusLine ayarını sormadan değiştirir
+  --dry-run                       install: planı gösterir, hiçbir şey yazmaz
+  --port <n>                      edit: dinlenecek port
+  --detach                        edit: arka planda çalışır; 30 dakika boşta kalınca durur
+  --no-open                       edit: tarayıcı açmaz
+  --no-detect                     edit: terminale renklerini sormaz
+  --list                          themes: id'leri ve adları yazdırır, önizleme yok
+  -v, --version                   Sürümü yazdırır
+  -h, --help                      Bu yardımı gösterir
