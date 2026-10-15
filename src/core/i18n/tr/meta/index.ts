@@ -6,11 +6,14 @@ import { categories } from './categories.js';
 import { charts } from './charts.js';
 import { context } from './context.js';
 import { cost } from './cost.js';
+import { git } from './git.js';
 import { gsd } from './gsd.js';
 import { limits } from './limits.js';
 import { session } from './session.js';
 import { sharedOptions } from './shared.js';
+import { system } from './system.js';
 import { tokens } from './tokens.js';
+import { workspace } from './workspace.js';
 
 export { sharedOptions };
 
@@ -23,6 +26,9 @@ export const byCategory: Partial<Record<WidgetCategory, MetaFile>> = {
   charts,
   agents,
   gsd,
+  git,
+  workspace,
+  system,
 };
 
 function merge(): MetaTable {

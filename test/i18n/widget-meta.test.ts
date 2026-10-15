@@ -325,6 +325,54 @@ describe('Turkish limits, charts, agents and gsd', () => {
   });
 });
 
+describe('Turkish git, workspace and system', () => {
+  it('have category files', () => {
+    for (const cat of ['git', 'workspace', 'system']) expect(Object.keys(byCategory)).toContain(cat);
+  });
+
+  it('render the Turkish git labels with the same values', () => {
+    const ctx = () =>
+      ctxWith({
+        config: {
+          lines: [
+            [
+              { id: 's', type: 'git-staged' },
+              { id: 'u', type: 'git-untracked' },
+            ],
+          ],
+        },
+      });
+    const en = stripAnsi(render(ctx())[0]!);
+    const tr = withLang('tr', () => stripAnsi(render(ctx())[0]!));
+    expect(en).toMatch(/^Staged \S+ │ Untracked \S+$/);
+    expect(tr).toBe(en.replace('Staged ', 'Hazır ').replace('Untracked ', 'İzlenmeyen '));
+  });
+
+  it('build nominative Turkish git hints', () => {
+    withLang('tr', () => {
+      expect(widgetHint(getWidget('git-branch')!)).toBe('dal');
+      expect(widgetHint(getWidget('git-status')!)).toBe('durum');
+      for (const w of ALL_WIDGETS.filter((d) => d.category === 'git')) {
+        const hint = widgetHint(w);
+        expect(hint, w.type).toBe(hint.toLocaleLowerCase('tr'));
+        expect(hint, w.type).not.toMatch(/^git\s/i);
+      }
+    });
+  });
+
+  it('show the date example the widget renders', () => {
+    const def = getWidget('date')!;
+    const spec = def.options!.find((o) => o.key === 'format')!;
+    const short = spec.choices!.find((c) => c.value === 'short')!;
+    const ctx = () =>
+      ctxWith({ config: { lines: [[{ id: 'd', type: 'date', options: { format: 'short' } }]] } });
+    withLang('tr', () => {
+      expect(choiceLabel(def, spec, short)).toBe('12 Eki');
+      expect(stripAnsi(render(ctx())[0]!)).toMatch(/^\d{1,2} \p{L}{3}$/u);
+    });
+  });
+});
+
 describe('Turkish category names', () => {
   it('cover every category with clean text', () => {
     expect(Object.keys(trMeta.categories).sort()).toEqual(CATEGORIES.map((c) => c.id).sort());
