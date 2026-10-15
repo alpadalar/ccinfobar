@@ -1,7 +1,12 @@
 import path from 'node:path';
 import { hyperlink } from '../core/ansi.js';
+import { t } from '../core/i18n/index.js';
+import type { GhValue } from '../core/job-values.js';
 import { safeUrl } from '../core/sanitize.js';
-import type { OptionSpec, WidgetDef } from '../core/types.js';
+import type { OptionSpec, RenderContext, WidgetDef, WidgetItem } from '../core/types.js';
+import { ghParam } from '../data/jobs/gh.js';
+import { ghKey } from '../data/jobs/keys.js';
+import { jobValue } from '../data/jobs/runner.js';
 import { pickRepos } from '../data/repos.js';
 import { opt } from './shared.js';
 
@@ -10,6 +15,46 @@ export function parseRemote(url: string | null | undefined): string | null {
   if (!/^[\w.+-]+:\/\/|^[^/\\:]+@[^:]+:|^[\w.-]+:[^\\/]/.test(url.trim())) return null;
   const m = /[:/]([^/:]+)\/([^/]+?)(?:\.git)?\/?$/.exec(url.trim());
   return m ? `${m[1]}/${m[2]}` : null;
+}
+
+export const PR_CI_GONE_MS = 3_600_000;
+
+export type PrCiState =
+  | { kind: 'off' }
+  | { kind: 'mr' }
+  | { kind: 'no-repo' }
+  | { kind: 'pending'; key: string }
+  | { kind: 'error'; key: string; error: string | null }
+  | { kind: 'gone'; key: string; error: string | null }
+  | { kind: 'ok'; key: string; v: GhValue; error: string | null };
+
+const count = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 0;
+
+const isCounts = (v: unknown): v is GhValue => {
+  const c = v as GhValue | null;
+  return !!c && typeof c === 'object' && count(c.fail) && count(c.pending) && count(c.total);
+};
+
+// same strict check as the gh job, so the widget never waits on a job that never runs
+export function prCiState(ctx: RenderContext, item: WidgetItem): PrCiState {
+  const pr = ctx.payload.pr;
+  if (item.options?.ci !== true || !pr || pr.number === undefined) return { kind: 'off' };
+  if (pr.kind === 'mr') return { kind: 'mr' };
+  const param = ghParam(ctx.payload);
+  if (!param) return { kind: 'no-repo' };
+  const key = ghKey(param);
+  const j = jobValue(ctx.data.jobs?.()?.job<GhValue>(key) ?? null);
+  if (!j) return { kind: 'pending', key };
+  if (!isCounts(j.value)) return { kind: 'error', key, error: j.error };
+  if (j.at === null || ctx.now.getTime() - j.at > PR_CI_GONE_MS) return { kind: 'gone', key, error: j.error };
+  return { kind: 'ok', key, v: j.value, error: j.error };
+}
+
+function ciText(v: GhValue, ascii: boolean): string {
+  if (v.fail > 0) return `${ascii ? 'x' : '✗'} ${v.fail}`;
+  if (v.pending > 0) return `${ascii ? '*' : '●'} ${v.pending}`;
+  if (v.total > 0) return ascii ? t('widget.pr.ciPassText') : '✓';
+  return '';
 }
 
 const hideZero: OptionSpec = {
@@ -222,13 +267,25 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '', emoji: '🔃' },
     color: 'green',
     sample: '#128 pending',
-    options: [{ key: 'link', label: 'Clickable link', kind: 'boolean', default: false }],
+    options: [
+      { key: 'link', label: 'Clickable link', kind: 'boolean', default: false },
+      {
+        key: 'ci',
+        label: 'CI checks (needs gh)',
+        kind: 'boolean',
+        default: false,
+        help: 'Shows passing, failing or running checks from gh pr checks, refreshed in the background',
+      },
+    ],
     render(ctx, item) {
       const pr = ctx.payload.pr;
       if (!pr || pr.number === undefined) return null;
       const text = `#${pr.number}${pr.review_state ? ` ${pr.review_state}` : ''}`;
       const href = pr.url ? safeUrl(pr.url) : null;
-      return opt(item, 'link', false) && href ? hyperlink(text, href) : text;
+      const out = opt(item, 'link', false) && href ? hyperlink(text, href) : text;
+      const ci = prCiState(ctx, item);
+      const part = ci.kind === 'ok' ? ciText(ci.v, ctx.config.charset === 'text') : '';
+      return part ? `${out} ${part}` : out;
     },
   },
   {

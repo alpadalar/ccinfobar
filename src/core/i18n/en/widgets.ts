@@ -17,4 +17,5 @@ export const widgetMessages = {
   'widget.provider.via': '{label} via {host}',
   'widget.status.ok': '✓ Claude OK',
   'widget.status.okText': 'Claude OK',
+  'widget.pr.ciPassText': 'ok',
 } as const;
