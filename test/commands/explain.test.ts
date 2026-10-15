@@ -28,6 +28,7 @@ import { ghKey, httpKey } from '../../src/data/jobs/keys.js';
 import { failEnvelope, jobsDir, okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
 import { monthKey } from '../../src/data/ledger.js';
 import { accountKey, limitsFile, recordLimits, recordUsageApi } from '../../src/data/limits.js';
+import { progressFiles } from '../../src/data/progress.js';
 import { readTranscript, transcriptCacheName } from '../../src/data/transcript.js';
 import { usageFile } from '../../src/data/usage.js';
 import { getWidget } from '../../src/widgets/index.js';
@@ -637,6 +638,7 @@ describe('explain --json', () => {
       'input',
       'lines',
       'overflow',
+      'progress',
       'schema',
       'version',
       'widgets',
@@ -1296,5 +1298,69 @@ describe('explain glyph mode and priority', () => {
     const emoji = '\u{1F600}\u{1F600}\u{1F600}';
     expect(line('normal', emoji).lines[0].width - line('jetbrains', emoji).lines[0].width).toBe(3);
     expect(widthMode()).toEqual(NORMAL_WIDTH);
+  });
+});
+
+describe('explain progress (D-43)', () => {
+  const ON = { ...LAYOUT, progress: { enabled: true } };
+
+  it('prints the progress line and the hook latency', () => {
+    const p = json([], ON).obj.progress;
+    expect(p).toEqual({
+      enabled: true,
+      channel: 'hook',
+      source: 'context',
+      scaleTo: 'full',
+      state: p.state,
+      pct: p.pct,
+    });
+    expect(typeof p.pct).toBe('number');
+    expect([1, 2, 4]).toContain(p.state);
+    const { out } = run([], ON);
+    expect(out).toContain(
+      t('explain.progress', { channel: 'hook', source: 'context', pct: p.pct, state: p.state }),
+    );
+    expect(out).toContain(t('explain.progress.latency'));
+    expect(t('explain.progress.latency')).toContain('60-110 ms');
+  });
+
+  it('follows the config: usage source, autocompact and the tty channel', () => {
+    const cfg = { ...LAYOUT, progress: { enabled: true, source: 'usage5h', channel: 'tty' } };
+    const p = json([], cfg).obj.progress;
+    const tty = process.platform !== 'win32';
+    expect(p).toMatchObject({ source: 'usage5h', channel: tty ? 'tty' : 'hook', scaleTo: 'full' });
+    expect(run([], cfg).out.includes(t('explain.progress.latency'))).toBe(!tty);
+    const auto = { ...LAYOUT, progress: { enabled: true, scaleTo: 'autocompact' } };
+    expect(json([], auto).obj.progress.scaleTo).toBe('autocompact');
+  });
+
+  it('is null without a progress key and quiet when progress is off', () => {
+    expect(json([]).obj.progress).toBeNull();
+    expect(run([]).out.some((l) => l.startsWith('Progress:'))).toBe(false);
+    const off = { ...LAYOUT, progress: { enabled: false } };
+    expect(json([], off).obj.progress).toMatchObject({ enabled: false, state: 0, pct: 0 });
+    expect(run([], off).out.some((l) => l.startsWith('Progress:'))).toBe(false);
+  });
+
+  it('writes no desired-state file', () => {
+    savedPayload();
+    const files = progressFiles('explain-test', process.env)!;
+    const writes: string[] = [];
+    const w = fs.writeFileSync;
+    const r = fs.renameSync;
+    vi.spyOn(fs, 'writeFileSync').mockImplementation((...a: Parameters<typeof w>) => {
+      writes.push(String(a[0]));
+      return w(...a);
+    });
+    vi.spyOn(fs, 'renameSync').mockImplementation((...a: Parameters<typeof r>) => {
+      writes.push(String(a[1]));
+      return r(...a);
+    });
+    module.syncBuiltinESMExports();
+    const { out } = run([], ON);
+    expect(out.some((l) => l.startsWith('Progress: hook, context 12%'))).toBe(true);
+    expect(writes.filter((f) => f.includes('.progress'))).toEqual([]);
+    expect(writes.filter((f) => path.resolve(f).startsWith(path.resolve(cacheDir())))).toEqual([]);
+    expect(fs.existsSync(files.want)).toBe(false);
   });
 });

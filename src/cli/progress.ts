@@ -24,6 +24,9 @@ export function progressTarget(
   return { state, pct };
 }
 
+export const progressChannel = (p: ProgressConfig, platform: NodeJS.Platform): 'hook' | 'tty' =>
+  p.channel === 'tty' && platform !== 'win32' ? 'tty' : 'hook';
+
 const same = (a: ProgressWant, b: ProgressWant): boolean =>
   a.state === b.state && a.pct === b.pct && a.channel === b.channel && a.always === b.always;
 
@@ -37,7 +40,7 @@ export function syncProgress(
   const files = progressFiles(ctx.payload.session_id ?? '', env);
   if (!files) return { changed: false, want: null };
   const prev = readWant(files.want);
-  const channel = p.channel === 'tty' && platform !== 'win32' ? 'tty' : 'hook';
+  const channel = progressChannel(p, platform);
   const always = p.terminals === 'always';
   let next: ProgressWant;
   if (p.enabled === true) {

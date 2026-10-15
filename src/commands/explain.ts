@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
+import { progressChannel, progressTarget } from '../cli/progress.js';
 import type { LoadResult } from '../core/config.js';
 import { createContext, lazy, resolveCwd } from '../core/context.js';
 import { resolveGlyphMode } from '../core/glyphs.js';
@@ -527,6 +528,35 @@ export interface ExplainJson {
   overflow: OverflowMode;
   widgets: (Omit<InspectRow, 'priority'> & { priority: number | null })[];
   lines: LineRow[];
+  progress: ExplainProgress | null;
+}
+
+export interface ExplainProgress {
+  enabled: boolean;
+  channel: 'hook' | 'tty';
+  source: 'context' | 'usage5h';
+  scaleTo: 'full' | 'autocompact';
+  state: number | null;
+  pct: number | null;
+}
+
+// read-only: computes, never writes the desired state
+export function explainProgress(
+  ctx: RenderContext,
+  platform: NodeJS.Platform = process.platform,
+): ExplainProgress | null {
+  const p = ctx.config.progress;
+  if (!p) return null;
+  const enabled = p.enabled === true;
+  const target = enabled ? progressTarget(ctx, p) : { state: 0, pct: 0 };
+  return {
+    enabled,
+    channel: progressChannel(p, platform),
+    source: p.source ?? 'context',
+    scaleTo: p.scaleTo ?? 'full',
+    state: target?.state ?? null,
+    pct: target?.pct ?? null,
+  };
 }
 
 export interface ExplainModes {
@@ -545,6 +575,7 @@ export function explainJson(
   lines: LineRow[],
   width: number | null,
   modes: ExplainModes,
+  progress: ExplainProgress | null = null,
 ): ExplainJson {
   return clean({
     schema: 1,
@@ -586,6 +617,7 @@ export function explainJson(
       cut: l.cut,
       dropped: l.dropped ?? [],
     })),
+    progress: progress ? { ...progress } : null,
   });
 }
 
@@ -725,8 +757,9 @@ function printExplain(
     return;
   }
   const modes = explainModes(data.ctx);
+  const progress = explainProgress(data.ctx);
   if (json) {
-    io.log(JSON.stringify(explainJson(data.input, picked, lines, data.width, modes), null, 2));
+    io.log(JSON.stringify(explainJson(data.input, picked, lines, data.width, modes, progress), null, 2));
     return;
   }
   const shown = (r: InspectRow): InspectRow => (reveal ? r : { ...r, value: redactValue(r) });
@@ -734,6 +767,15 @@ function printExplain(
   io.log(inputLine(data.input));
   io.log(data.width === null ? t('explain.widthUnknown') : t('explain.width', { width: data.width }));
   io.log(t('explain.modes', { ...modes }));
+  if (progress?.enabled) {
+    const p = { channel: progress.channel, source: progress.source };
+    io.log(
+      progress.pct === null
+        ? t('explain.progress.noValue', p)
+        : t('explain.progress', { ...p, pct: progress.pct, state: progress.state ?? 0 }),
+    );
+    if (progress.channel === 'hook') io.log(t('explain.progress.latency'));
+  }
   const withPriority = modes.overflow === 'priority';
   if (id !== undefined) {
     for (const r of picked) {
