@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import { loadForUse } from '../core/load.js';
 import { hardenedGit } from '../data/git.js';
-import { DIRTY_VERSION, dirtyFile, type RepoEntry, readRepos } from '../data/repos.js';
+import { DIRTY_VERSION, dirtyFile, insideRepo, type RepoEntry, scanRepos } from '../data/repos.js';
 import { writeAtomic } from '../data/store.js';
 
 const MAX_REPOS = 50;
@@ -50,9 +50,8 @@ export async function runRepos(args: Args, cfgFile: string): Promise<void> {
   const env = process.env;
   try {
     const harden = loadForUse(cfgFile).config.gitHardening !== false;
-    const ws = readRepos(root, env, { persist: false });
-    if (!ws) return;
-    const dirty = computeDirty(root, order(ws.repos), { harden, env });
+    if (insideRepo(root)) return;
+    const dirty = computeDirty(root, order(scanRepos(root, { exact: true }).repos), { harden, env });
     writeAtomic(dirtyFile(root, env), JSON.stringify({ v: DIRTY_VERSION, at: Date.now(), dirty }), {
       mode: 0o600,
     });

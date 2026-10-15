@@ -156,6 +156,16 @@ describe.skipIf(!available || tmpRepo)('repos dirty job', () => {
       fs.rmSync(dirtyFile(ws));
     });
 
+    it.skipIf(!posix)('runs git only in folders whose real name is the shown name', async () => {
+      const w = path.join(base, 'bidi');
+      repo(w, 'api', 'a.txt');
+      const odd = repo(w, 'api\u202e', 'a.txt');
+      fs.writeFileSync(path.join(odd, 'u.txt'), 'new\n');
+      await runRepos(parseArgs(['repos', '--background', w]), cfg);
+      expect({ ...readDirty(w)?.dirty }).toEqual({ api: false });
+      fs.rmSync(dirtyFile(w));
+    });
+
     it('writes nothing for a relative, missing or foreground path', async () => {
       // across drives on windows path.relative returns an absolute path
       const rel = path.isAbsolute(path.relative(process.cwd(), ws)) ? 'ws' : path.relative(process.cwd(), ws);

@@ -130,7 +130,11 @@ const byName = (a: RepoEntry, b: RepoEntry): number => {
   return x < y ? -1 : x > y ? 1 : a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
 };
 
-export function scanRepos(cwd: string): { repos: RepoEntry[]; total: number } {
+// exact: only folders whose name survives sanitizing, so it can be joined back
+export function scanRepos(
+  cwd: string,
+  opts: { exact?: boolean } = {},
+): { repos: RepoEntry[]; total: number } {
   const repos: RepoEntry[] = [];
   let dir: fs.Dir | undefined;
   try {
@@ -148,10 +152,12 @@ export function scanRepos(cwd: string): { repos: RepoEntry[]; total: number } {
         } catch {}
       }
       if (!isDir) continue;
+      const clean = sanitizeText(name);
+      if (opts.exact && clean !== name) continue;
       const h = readHead(child);
       if (!h.gitdir) continue;
       repos.push({
-        name: sanitizeText(name),
+        name: clean,
         branch: h.branch,
         detached: h.detached,
         activity: activity(h.gitdir),

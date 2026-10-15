@@ -177,6 +177,15 @@ describe.skipIf(tmpRepo)('scanRepos', () => {
     expect(scanRepos(w).repos.map((r) => r.name)).toEqual(['linked']);
   });
 
+  it.skipIf(!posix)('exact scans drop folders whose name changes when sanitized', () => {
+    const w = path.join(dir, 'w');
+    repo(w, 'api');
+    repo(w, 'api\u202e');
+    repo(w, 'a\tb');
+    expect(scanRepos(w).repos.map((r) => r.name)).toEqual(['a b', 'api', 'api']);
+    expect(scanRepos(w, { exact: true }).repos.map((r) => r.name)).toEqual(['api']);
+  });
+
   it('reads at most 1,000 entries', () => {
     const w = path.join(dir, 'w');
     for (let i = 0; i < 1005; i++) repo(w, `r${String(i).padStart(4, '0')}`);
