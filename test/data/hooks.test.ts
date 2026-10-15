@@ -123,14 +123,16 @@ describe('foldHookLog permission and session', () => {
     expect(foldHookLog([perm, j({ t: 5000, e: 'SessionStart', s: 'clear' })]).pendingPermission).toBeNull();
   });
 
-  it('clears pending permission on later subagent activity or another notification', () => {
+  it('closes pending permission on later subagent activity or another notification', () => {
     const perm = j({ t: 2000, e: 'Notification', n: 'permission_prompt' });
     for (const later of [
       j({ t: 3000, e: 'SubagentStart', a: 'a1', at: 'x' }),
       j({ t: 3000, e: 'SubagentStop', a: 'a1' }),
-      j({ t: 3000, e: 'Notification', n: 'idle_prompt' }),
+      j({ t: 3000, e: 'Notification', n: 'auth_success' }),
     ])
       expect(foldHookLog([perm, later]).pendingPermission).toBeNull();
+    const idle = j({ t: 3000, e: 'Notification', n: 'idle_prompt' });
+    expect(foldHookLog([perm, idle]).pendingPermission).toEqual({ since: 2000, tool: null });
     const earlier = j({ t: 1500, e: 'SubagentStop', a: 'a1' });
     expect(foldHookLog([perm, earlier]).pendingPermission).toEqual({ since: 2000, tool: null });
   });
@@ -315,7 +317,7 @@ describe('readHookState', () => {
     const cache = JSON.parse(fs.readFileSync(foldFile(), 'utf8'));
     fs.writeFileSync(foldFile(), JSON.stringify({ ...cache, v: cache.v - 1, state: {} }));
     expect(readHookState(SID, env)?.lastPermission).toEqual({ since: 2000, end: 9000, tool: 'Bash' });
-    expect(JSON.parse(fs.readFileSync(foldFile(), 'utf8')).v).toBe(3);
+    expect(JSON.parse(fs.readFileSync(foldFile(), 'utf8')).v).toBe(4);
   });
 
   it('never writes the fold cache with persist false', () => {
