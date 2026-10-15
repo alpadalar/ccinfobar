@@ -1,11 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 import { sanitize } from '../../src/core/ansi.js';
 import { t } from '../../src/core/i18n/index.js';
-import { emptyReason, inspectRows, lineReport, sessionNotes } from '../../src/core/inspect.js';
+import {
+  type EmptyCode,
+  emptyReason,
+  inspectRows,
+  jobEmpty,
+  jobReason,
+  lineReport,
+  sessionNotes,
+} from '../../src/core/inspect.js';
 import { normalizeResult, renderValue } from '../../src/core/renderer.js';
 import { samplePayload } from '../../src/core/sample.js';
 import { getScenario, SCENARIO_NOW } from '../../src/core/scenarios.js';
 import type { RenderContext, StatusPayload, WidgetDef, WidgetItem } from '../../src/core/types.js';
+import type { JobEnvelope } from '../../src/data/jobs/runner.js';
 import { parseTranscriptText } from '../../src/data/transcript.js';
 import { ALL_WIDGETS, getWidget } from '../../src/widgets/index.js';
 import { ctxWith, NOW, withoutSideEffects } from '../helpers.js';
@@ -660,5 +669,90 @@ describe('env-counts mcp health note', () => {
     expect(on).toMatchObject({ status: 'shown', value: 'CLAUDE.md 2 · rules 3 · MCP 4 · hooks 5' });
     expect(on.note).toEqual({ code: 'no-mcp-health', text: 'Claude Code does not expose MCP health' });
     expect(rowsFor(ctxWith({ config: { lines: [[ec()]] } }))[0]!.note).toBeUndefined();
+  });
+});
+
+describe('job empty reasons', () => {
+  const NEW: EmptyCode[] = [
+    'job-pending',
+    'job-error',
+    'nonessential-traffic-off',
+    'stale',
+    'gh-missing',
+    'gh-auth',
+    'gh-host',
+    'merge-request',
+    'no-ci-checks',
+    'not-scalar',
+    'path-miss',
+  ];
+  const now = 1_800_000_000_000;
+  const okEnv = (at: number): JobEnvelope<unknown> => ({
+    v: 1,
+    key: 'status',
+    fetchedAt: at,
+    ok: true,
+    value: { a: 1 },
+    lastGood: { a: 1 },
+    lastGoodAt: at,
+  });
+  const failed = (lastGood: unknown, lastGoodAt?: number): JobEnvelope<unknown> => ({
+    v: 1,
+    key: 'status',
+    fetchedAt: now - 1000,
+    ok: false,
+    value: null,
+    error: 'http-503',
+    blockedUntil: now + 60_000,
+    lastGood,
+    ...(lastGoodAt !== undefined ? { lastGoodAt } : {}),
+  });
+  const OFF = { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' };
+
+  it('has a message for every new code', () => {
+    for (const code of NEW) {
+      const text = t(`explain.reason.${code}`);
+      expect(typeof text, code).toBe('string');
+      expect(text.length, code).toBeGreaterThan(0);
+    }
+  });
+
+  it('says nonessential-traffic-off only for a missing auto job under the flag', () => {
+    expect(jobReason(null, 'auto', OFF, now, 60_000)).toBe('nonessential-traffic-off');
+    expect(jobReason(null, 'explicit', OFF, now, 60_000)).toBe('job-pending');
+    expect(jobReason(null, 'auto', { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '' }, now, 60_000)).toBe(
+      'job-pending',
+    );
+  });
+
+  it('says job-pending for a missing envelope', () => {
+    expect(jobReason(null, 'auto', {}, now, 60_000)).toBe('job-pending');
+    expect(jobReason(null, 'none', {}, now, 60_000)).toBe('job-pending');
+  });
+
+  it('says job-error for a failure without a last good value', () => {
+    expect(jobReason(failed(null), 'auto', {}, now, 60_000)).toBe('job-error');
+    expect(jobReason(failed(undefined), 'explicit', {}, now, 60_000)).toBe('job-error');
+  });
+
+  it('says stale past the window, from the shown value time', () => {
+    expect(jobReason(okEnv(now - 30_000), 'auto', {}, now, 60_000)).toBeNull();
+    expect(jobReason(okEnv(now - 61_000), 'auto', {}, now, 60_000)).toBe('stale');
+    expect(jobReason(failed({ a: 1 }, now - 30_000), 'auto', {}, now, 60_000)).toBeNull();
+    expect(jobReason(failed({ a: 1 }, now - 90_000), 'auto', {}, now, 60_000)).toBe('stale');
+    expect(jobReason(failed({ a: 1 }), 'auto', {}, now, 60_000)).toBe('stale');
+  });
+
+  it('builds the text with the error and the CCINFOBAR_NO_JOBS note', () => {
+    expect(jobEmpty(okEnv(now), 'auto', {}, now, 60_000)).toBeNull();
+    const err = jobEmpty({ ...failed(null), error: 'bad\u001b[31m' }, 'auto', {}, now, 60_000)!;
+    expect(err.code).toBe('job-error');
+    expect(err.text).toContain('bad');
+    expect(err.text).not.toContain('\u001b');
+    const pending = jobEmpty(null, 'auto', {}, now, 60_000)!;
+    expect(pending).toEqual({ code: 'job-pending', text: t('explain.reason.job-pending') });
+    const off = jobEmpty(null, 'explicit', { CCINFOBAR_NO_JOBS: '1' }, now, 60_000)!;
+    expect(off.code).toBe('job-pending');
+    expect(off.text).toBe(t('explain.reason.job-pending') + t('explain.job.noJobs'));
   });
 });

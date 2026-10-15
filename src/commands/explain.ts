@@ -25,6 +25,7 @@ import {
   sampleGsd,
   sampleHistory,
   sampleHooks,
+  sampleJobs,
   sampleLedger,
   sampleLimits,
   samplePayload,
@@ -32,6 +33,7 @@ import {
 } from '../core/sample.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { getScenario, SCENARIO_NOW, scenarioConfig, scenarioEnv } from '../core/scenarios.js';
+import type { JobSource } from '../core/trace.js';
 import type { Config, DataSources, RenderContext, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { agentsCacheName, readAgents } from '../data/agents.js';
@@ -39,12 +41,13 @@ import { cacheFile } from '../data/cache.js';
 import { readEnvironment } from '../data/environment.js';
 import { loadHistory } from '../data/history.js';
 import { readHookState } from '../data/hooks.js';
+import { createJobReader, readEnvelope } from '../data/jobs/runner.js';
 import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js';
 import { accountKey, type LimitsView, modelKey, readLimitsStore } from '../data/limits.js';
 import { hookTurnStart } from '../data/live.js';
 import { readRepos } from '../data/repos.js';
 import { readTranscript, type TranscriptInfo, transcriptCacheName } from '../data/transcript.js';
-import { effectiveUsage, type UsageCache } from '../data/usage.js';
+import { effectiveUsage, type UsageCache, usageKey } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
 import { type CliIo, cliIo, reportConfigIssue } from './io.js';
 import { findHookEntries, readManifest } from './manifest.js';
@@ -113,6 +116,7 @@ function readOnlyData(
     history: () => loadHistory(payload.session_id, env),
     repos: lazy(() => readRepos(resolveCwd(payload), env, { persist: false, now })),
     hooks,
+    jobs: lazy(() => createJobReader(env)),
     environment: lazy(() => {
       const cwd = resolveCwd(payload);
       return readEnvironment(payload.workspace?.project_dir ?? cwd, cwd, env, { persist: false, now });
@@ -142,6 +146,7 @@ function sampleData(now: number, payload: StatusPayload): DataSources {
     repos: () => null,
     hooks: () => sampleHooks(now),
     environment: sampleEnvironment,
+    jobs: () => sampleJobs(now),
   };
 }
 
@@ -199,6 +204,7 @@ function limitWindows(
   if (!view) return out;
   const wins = Object.entries(view.windows);
   const store = wins.some(([, w]) => w.source === 'limits-cache') ? readLimitsStore(env) : null;
+  const job = usage && wins.some(([, w]) => w.source === 'usage-api') ? usageJob(env) : undefined;
   for (const [key, w] of wins) {
     if (w.source === 'limits-cache') {
       const src = store?.windows[key]?.src;
@@ -211,10 +217,23 @@ function limitWindows(
       out[key] = {
         kind: 'usage-cache',
         ...(usage ? { age: Math.max(0, now - usage.fetchedAt) } : {}),
+        ...(job ? { job } : {}),
       };
     }
   }
   return out;
+}
+
+// legacy usage files have no job
+function usageJob(env: NodeJS.ProcessEnv): JobSource | undefined {
+  const e = readEnvelope(usageKey(env), env);
+  if (!e) return undefined;
+  return {
+    key: e.key,
+    ok: e.ok,
+    ...(e.error !== undefined ? { error: e.error } : {}),
+    ...(e.blockedUntil !== undefined ? { blockedUntil: e.blockedUntil } : {}),
+  };
 }
 
 function sourceMeta(
@@ -368,9 +387,35 @@ export function shortAge(ms: number): string {
   return t('explain.ageShort.days', { n: Math.round(h / 24) });
 }
 
-export function sourceText(src: Source): string {
+function jobText(src: Source, job: JobSource, now: number): string {
+  const parts = [t('explain.source.job', { path: sanitizeText(job.key) })];
+  if (src.age !== undefined) parts.push(t('explain.source.job.age', { age: shortAge(src.age) }));
+  if (job.ok) parts.push(t('explain.source.job.ok'));
+  else {
+    const error = sanitizeText(job.error ?? '');
+    parts.push(error ? t('explain.source.job.error', { error }) : t('explain.source.job.failed'));
+  }
+  if (job.blockedUntil !== undefined && job.blockedUntil > now)
+    parts.push(t('explain.source.job.retry', { in: shortAge(job.blockedUntil - now) }));
+  return parts.join(', ');
+}
+
+export function sourceText(src: Source, now = Date.now()): string {
   const path = sanitizeText(src.path ?? '');
   switch (src.kind) {
+    case 'usage-cache':
+      if (src.job) {
+        const key = sanitizeText(src.job.key);
+        return src.age === undefined
+          ? t('explain.source.usage-cache.job', { key })
+          : t('explain.source.usage-cache.job.age', { key, age: shortAge(src.age) });
+      }
+      return src.age === undefined
+        ? t('explain.source.usage-cache')
+        : t('explain.source.usage-cache.age', { age: shortAge(src.age) });
+    case 'job':
+      if (src.job) return jobText(src, src.job, now);
+      return path ? t('explain.source.job', { path }) : src.kind;
     case 'limits-cache':
       return src.age === undefined || !src.origin
         ? t('explain.source.limits-cache')
@@ -378,7 +423,6 @@ export function sourceText(src: Source): string {
             age: shortAge(src.age),
             origin: t(`explain.source.origin.${src.origin}`),
           });
-    case 'usage-cache':
     case 'transcript':
     case 'agents':
     case 'ledger':
@@ -388,7 +432,6 @@ export function sourceText(src: Source): string {
     case 'payload':
     case 'env':
     case 'config':
-    case 'job':
       return path ? t(`explain.source.${src.kind}`, { path }) : src.kind;
     case 'gsd':
       return t('explain.source.gsd', { path: path || '.planning/STATE.md' });
@@ -399,7 +442,7 @@ export function sourceText(src: Source): string {
 
 function sourcesSuffix(r: InspectRow): string {
   if (!r.sources.length) return '';
-  const list = [...new Set(r.sources.map(sourceText))].join(', ');
+  const list = [...new Set(r.sources.map((s) => sourceText(s)))].join(', ');
   return t('explain.sources', { sources: list });
 }
 
@@ -499,6 +542,7 @@ export function explainJson(
         ...(s.path !== undefined ? { path: s.path } : {}),
         ...(s.age !== undefined ? { age: Math.round(s.age) } : {}),
         ...(s.origin !== undefined ? { origin: s.origin } : {}),
+        ...(s.job !== undefined ? { job: { ...s.job } } : {}),
       })),
       empty: r.empty ? { code: r.empty.code, text: r.empty.text } : null,
       error: r.error,
@@ -593,7 +637,7 @@ function detailLines(data: InspectInput, r: InspectRow, reveal: boolean): string
   const id = s(r.id);
   const type = s(r.type);
   const options = data.config.lines[r.line]?.[r.index]?.options;
-  const sources = [...new Set(r.sources.map(sourceText))].join(', ');
+  const sources = [...new Set(r.sources.map((s) => sourceText(s)))].join(', ');
   const out = [
     t('explain.detail.header', { name: id === type ? type : `${id} (${type})` }),
     t('explain.detail.line', { line: r.line + 1 }),

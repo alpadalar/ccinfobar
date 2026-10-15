@@ -1,3 +1,4 @@
+import type { JobEnvelope, JobNetwork } from '../data/jobs/runner.js';
 import { LEDGER_TYPES } from '../data/ledger.js';
 import { trustedTurn } from '../data/live.js';
 import { detectProvider, type Provider } from '../data/provider.js';
@@ -57,6 +58,17 @@ export type EmptyCode =
   | 'no-mcp-health'
   | 'no-turn'
   | 'all-zero'
+  | 'job-pending'
+  | 'job-error'
+  | 'nonessential-traffic-off'
+  | 'stale'
+  | 'gh-missing'
+  | 'gh-auth'
+  | 'gh-host'
+  | 'merge-request'
+  | 'no-ci-checks'
+  | 'not-scalar'
+  | 'path-miss'
   | 'error'
   | 'no-data';
 
@@ -140,6 +152,44 @@ function expiredWindow(ctx: RenderContext, item: WidgetItem, reads: TraceRead[] 
   });
 }
 
+const absentValue = (v: unknown): boolean => v === null || v === undefined;
+
+// shared by every job-backed widget
+export function jobReason(
+  e: JobEnvelope<unknown> | null,
+  network: JobNetwork,
+  env: Record<string, string | undefined>,
+  now: number,
+  staleAfterMs: number,
+): EmptyCode | null {
+  if (!e) {
+    return network === 'auto' && env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
+      ? 'nonessential-traffic-off'
+      : 'job-pending';
+  }
+  if (!e.ok && absentValue(e.value) && absentValue(e.lastGood)) return 'job-error';
+  const at = e.ok ? e.fetchedAt : (e.lastGoodAt ?? null);
+  if (at === null || now - at > staleAfterMs) return 'stale';
+  return null;
+}
+
+export function jobEmpty(
+  e: JobEnvelope<unknown> | null,
+  network: JobNetwork,
+  env: Record<string, string | undefined>,
+  now: number,
+  staleAfterMs: number,
+): EmptyReason | null {
+  const code = jobReason(e, network, env, now, staleAfterMs);
+  if (code === null) return null;
+  if (code === 'job-error') {
+    return reason(code, undefined, { error: sanitizeText(e?.error ?? '') || t('explain.job.unknownError') });
+  }
+  if (code === 'job-pending' && env.CCINFOBAR_NO_JOBS)
+    return reason(code, t('explain.reason.job-pending') + t('explain.job.noJobs'));
+  return reason(code);
+}
+
 const PROJECTION_TYPES = new Set(['usage-projection', 'limit-eta', 'limit-risk']);
 const BELOW = { 'limit-risk': 'explain.reason.belowRisk', 'limit-eta': 'explain.reason.limitSafe' } as const;
 
@@ -214,6 +264,7 @@ export interface LimitWindowMeta {
   kind: 'limits-cache' | 'usage-cache';
   age?: number;
   origin?: LimitOrigin;
+  job?: JobSource;
 }
 
 export interface InspectMeta {
@@ -283,6 +334,7 @@ function toSources(item: WidgetItem, reads: TraceRead[], meta: InspectMeta): Sou
             path: r.path!,
             ...(age !== undefined ? { age } : {}),
             ...(lw.kind === 'limits-cache' && lw.origin ? { origin: lw.origin } : {}),
+            ...(lw.kind === 'usage-cache' && lw.job ? { job: { ...lw.job } } : {}),
           });
         } else out.push({ kind: 'payload', ...(r.path ? { path: r.path } : {}) });
         break;
