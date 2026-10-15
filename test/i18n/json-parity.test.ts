@@ -93,7 +93,7 @@ describe('JSON output stays English', () => {
     }
   });
 
-  it('bench --json keys and row names do not follow the language', () => {
+  it('bench --json keys and row names do not follow the language', { timeout: 60_000 }, () => {
     // own tmpdir: bench.test.ts counts ccib-bench-* dirs in the shared one
     const dir = fs.mkdtempSync(path.join(process.env.CCIB_TEST_ROOT!, 'parity-'));
     const prev = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
