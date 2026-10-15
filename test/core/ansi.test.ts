@@ -21,7 +21,7 @@ describe('ansi', () => {
     expect(visibleWidth('⚡')).toBe(2);
     expect(visibleWidth('✅')).toBe(2);
     expect(visibleWidth('🪐')).toBe(2);
-    expect(visibleWidth('🇹🇷')).toBe(4);
+    expect(visibleWidth('🇹🇷')).toBe(2);
     expect(visibleWidth('☐')).toBe(1);
     expect(visibleWidth('✓')).toBe(1);
     expect(visibleWidth('★')).toBe(1);
@@ -67,6 +67,15 @@ describe('ansi', () => {
     expect(stripAnsi(out)).toBe('hello…');
     expect(out.endsWith('\x1b[0m')).toBe(true);
     expect(truncate('short', 10)).toBe('short');
+  });
+
+  it('truncates whole grapheme clusters', () => {
+    expect(truncate('ab\u{1F468}\u{200D}\u{1F469}cd', 3)).toBe('ab…');
+    expect(truncate('\u{1F1F9}\u{1F1F7}\u{1F1FA}\u{1F1F8}', 3)).toBe('\u{1F1F9}\u{1F1F7}…');
+    expect(truncate('\x1b[32m1\u{FE0F}\u{20E3}2\u{FE0F}\u{20E3}\x1b[0m', 3)).toBe(
+      '\x1b[32m1\u{FE0F}\u{20E3}…\x1b[0m',
+    );
+    expect(visibleWidth('\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}')).toBe(2);
   });
 
   it('measures contrast between colors', () => {

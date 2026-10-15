@@ -71,6 +71,7 @@ const PURE = [
   'src/core/http-spec.ts',
   'src/core/http-report.ts',
   'src/core/eaw-table.ts',
+  'src/core/width.ts',
   'src/data/live.ts',
 ];
 
@@ -231,6 +232,20 @@ describe('import graph', () => {
       const text = fs.readFileSync(f, 'utf8');
       expect(text, path.relative(root, f)).not.toMatch(/['"]node:|require\(/);
     }
+  });
+
+  // D-07, D-41: string-width is never a runtime import
+  it('keeps string-width out of src', () => {
+    const bad = walk(src).filter((f) => fs.readFileSync(f, 'utf8').includes('string-width'));
+    expect(bad.map((f) => path.relative(root, f))).toEqual([]);
+  });
+
+  it('keeps width.ts free of env reads and the ansi module', () => {
+    const text = fs.readFileSync(path.join(src, 'core/width.ts'), 'utf8');
+    expect(text).not.toMatch(/process\.env|from '\.\/ansi\.js'/);
+    expect(text.match(/^import .* from '[^']+';/gm)).toEqual([
+      "import { AMBIGUOUS, JOIN, WIDE, ZERO } from './eaw-table.js';",
+    ]);
   });
 
   it('keeps src/core/inspect.ts free of node: imports', () => {
