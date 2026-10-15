@@ -8,8 +8,9 @@ export const gsd: MetaFile = {
       sample: 'v1.2 Faturalama',
     },
     'gsd-milestone-progress': {
-      name: 'GSD kilometre taşı ilerlemesi',
+      name: 'Kilometre taşı çubuğu',
       description: 'Kilometre taşı tamamlanma çubuğu (diskte biten plan ve aşamalar)',
+      hint: 'kilometre taşı ilerlemesi',
     },
     'gsd-phase': {
       name: 'GSD aşaması',

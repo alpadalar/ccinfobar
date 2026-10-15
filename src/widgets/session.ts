@@ -67,7 +67,7 @@ export const widgets: WidgetDef[] = [
     options: [
       {
         key: 'showFirstParty',
-        label: 'Show Claude for first-party sessions',
+        label: 'Show for first-party sessions',
         kind: 'boolean',
         default: false,
         help: 'Off: hidden for Claude subscription sessions',

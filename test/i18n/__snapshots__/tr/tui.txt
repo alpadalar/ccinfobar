@@ -8,9 +8,9 @@
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ── Satırlar · 3 satır ─────────────────────────────────────────────────────────────────────────────
 ▸ 1  [Model] [Çaba] [Geçerli dizin] [Git dalı] [Git değişiklikleri] [Bağlam çubuğu]
-  2  [GSD kilometre taşı] [GSD kilometre taşı ilerleme…] [GSD aşaması] [GSD planları]
-     [GSD sıradaki adım]
+  2  [GSD kilometre taşı] [Kilometre taşı çubuğu] [GSD aşaması] [GSD planları] [GSD sıradaki adım]
   3  [Oturum maliyeti] [Beş saatlik kullanım] [Beş saatlik sıfırlanma] [Haftalık kullanım]
+
 
 
 

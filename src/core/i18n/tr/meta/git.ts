@@ -91,8 +91,10 @@ export const git: MetaFile = {
     'By name': 'Ada göre',
     'Most recent first': 'En yeni önce',
     'Include hidden folders': 'Gizli klasörleri dahil et',
-    'Hide empty git widgets in a workspace folder': 'Çalışma alanı klasöründe boş git bileşenlerini gizle',
-    'Mark repos with uncommitted changes (background check)':
-      'Commit edilmemiş değişikliği olan depoları işaretle (arka planda denetlenir)',
+    'Hide empty git widgets': 'Boş git bileşenlerini gizle',
+    'While repos are shown, the other git widgets hide instead of showing —':
+      'Depolar gösterilirken diğer git bileşenleri — göstermek yerine gizlenir',
+    'Mark repos with uncommitted changes': 'Değişikliği olan depoları işaretle',
+    'Checked in the background': 'Arka planda denetlenir',
   },
 };

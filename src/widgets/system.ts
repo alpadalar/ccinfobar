@@ -138,8 +138,9 @@ export const widgets: WidgetDef[] = [
       { key: 'hideZero', label: 'Hide zero counts', kind: 'boolean', default: true },
       {
         key: 'mcpHealth',
-        label: 'MCP health (only when Claude Code exposes it)',
+        label: 'MCP health',
         kind: 'boolean',
+        help: 'Only when Claude Code exposes it',
         default: false,
       },
     ],

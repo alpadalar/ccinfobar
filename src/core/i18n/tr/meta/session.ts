@@ -48,7 +48,7 @@ export const session: MetaFile = {
     'Use profile model name': 'Profildeki model adını kullan',
     'Shows a model profile name (GLM-5.3) instead of a raw gateway model id':
       'Ham ağ geçidi model kimliği yerine model profilindeki adı (GLM-5.3) gösterir',
-    'Show Claude for first-party sessions': "Birinci taraf oturumlarında Claude'u göster",
+    'Show for first-party sessions': 'Birinci taraf oturumlarında göster',
     'Off: hidden for Claude subscription sessions': 'Kapalı: Claude aboneliği oturumlarında gizli',
     'Append +think when thinking is on': 'Düşünme açıkken +düşünme ekle',
     'Hide when off': 'Kapalıyken gizle',
@@ -64,6 +64,6 @@ export const session: MetaFile = {
     'Show last duration': 'Son süreyi göster',
     Hide: 'Gizle',
     'Show the tool name': 'Araç adını göster',
-    'Ignore waits longer than (minutes)': 'Şundan uzun beklemeleri yok say (dakika)',
+    'Ignore waits longer than (minutes)': 'Şundan uzunsa yok say (dakika)',
   },
 };

@@ -306,7 +306,9 @@ function settingsModal(state: State, mode: Extract<Mode, { kind: 'settings' }>, 
   const left: string[] = [];
   if (!mode.sub || sideBySide) {
     const start = windowStart(fields.length, mode.cursor, listH);
-    const labelW = Math.min(24, Math.floor(LW / 2));
+    // widen for long labels, keeping room for the value
+    const longest = Math.max(0, ...fields.map((f) => visibleWidth(f.label)));
+    const labelW = Math.max(Math.min(24, Math.floor(LW / 2)), Math.min(longest, LW - (sideBySide ? 11 : 23)));
     for (let i = 0; i < listH; i++) {
       const f = fields[start + i];
       if (!f) {

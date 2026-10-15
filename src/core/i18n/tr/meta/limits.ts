@@ -27,7 +27,7 @@ export const limits: MetaFile = {
       description: 'Planınızda varsa tek bir modelin (örneğin Fable) haftalık limiti',
     },
     'weekly-model-reset': {
-      name: 'Haftalık model sıfırlanması',
+      name: 'Haftalık model sıfırlama',
       description: 'Tek bir modelin haftalık limitinin sıfırlanmasına kalan süre',
       label: 'Sıfırlanma ',
     },

@@ -313,14 +313,16 @@ export const widgets: WidgetDef[] = [
       { key: 'includeHidden', label: 'Include hidden folders', kind: 'boolean', default: false },
       {
         key: 'hideGitPlaceholders',
-        label: 'Hide empty git widgets in a workspace folder',
+        label: 'Hide empty git widgets',
         kind: 'boolean',
+        help: 'While repos are shown, the other git widgets hide instead of showing —',
         default: true,
       },
       {
         key: 'dirty',
-        label: 'Mark repos with uncommitted changes (background check)',
+        label: 'Mark repos with uncommitted changes',
         kind: 'boolean',
+        help: 'Checked in the background',
         default: false,
       },
     ],
