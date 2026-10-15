@@ -156,6 +156,7 @@ export function sampleTranscript(now = Date.now()): TranscriptInfo {
       ['Agent', 3],
     ],
     lastToolResultAt: now - 10_000,
+    toolResultTimes: [now - 120_000, now - 90_000, now - 18_000, now - 10_000],
     promptId: null,
     promptStart: now - 134_000,
     turnEnd: null,

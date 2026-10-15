@@ -226,22 +226,22 @@ describe('permission-wait', () => {
 
   it('never shows an open wait; a newer tool result closes it', () => {
     const open = withPerm({ pendingPermission: { since: now - 30_000, tool: null } });
-    expect(wait(open, transcriptAt({ lastToolResultAt: now - 40_000 }))).toBeNull();
+    expect(wait(open, transcriptAt({ toolResultTimes: [now - 40_000] }))).toBeNull();
     expect(wait(open, null)).toBeNull();
-    expect(wait(open, transcriptAt({ lastToolResultAt: now - 18_000 }))).toBe('12s');
+    expect(wait(open, transcriptAt({ toolResultTimes: [now - 18_000] }))).toBe('12s');
   });
 
   it('is null for a wait before the turn or without hooks', () => {
     const before = withPerm(closed, { start: now - 30_000 });
     expect(wait(before)).toBeNull();
-    expect(wait(null, transcriptAt({ lastToolResultAt: now }))).toBeNull();
+    expect(wait(null, transcriptAt({ toolResultTimes: [now] }))).toBeNull();
   });
 
   it('drops an open wait older than maxAgeMin', () => {
     const old = withPerm({ pendingPermission: { since: now - 120_000, tool: 'Bash' } });
     expect(wait(old, null, { maxAgeMin: 1 })).toBeNull();
-    expect(wait(old, transcriptAt({ lastToolResultAt: now - 10_000 }), { maxAgeMin: 1 })).toBeNull();
-    expect(wait(old, transcriptAt({ lastToolResultAt: now - 10_000 }))).toBe('Bash 1m50s');
+    expect(wait(old, transcriptAt({ toolResultTimes: [now - 10_000] }), { maxAgeMin: 1 })).toBeNull();
+    expect(wait(old, transcriptAt({ toolResultTimes: [now - 10_000] }))).toBe('Bash 1m50s');
   });
 
   it('strips control characters from the tool name', () => {

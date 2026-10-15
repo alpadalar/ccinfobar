@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import type { HookState, HookTurn } from '../../src/data/hooks.js';
-import { activeTools, groupName, lastWait, mergeCounts, trustedTurn } from '../../src/data/live.js';
+import { foldHookLog, type HookState, type HookTurn } from '../../src/data/hooks.js';
+import {
+  activeTools,
+  groupName,
+  lastWait,
+  mergeCounts,
+  TOOL_RESULTS,
+  trustedTurn,
+} from '../../src/data/live.js';
 import { parseTranscriptText, type RunningTool, type TranscriptInfo } from '../../src/data/transcript.js';
 
 const NOW = Date.parse('2026-10-12T12:00:00Z');
 const tool = (id: string, start: number | null): RunningTool => ({ id, name: 'Bash', arg: '', start });
 const info = (over: Partial<TranscriptInfo>): TranscriptInfo => ({ ...parseTranscriptText(''), ...over });
+const results = (...at: number[]) =>
+  info({ toolResultTimes: at, lastToolResultAt: at[at.length - 1] ?? null });
 
 describe('activeTools', () => {
   it('keeps recent tools and drops ones older than 10 minutes', () => {
@@ -153,8 +162,8 @@ describe('lastWait', () => {
   it('closes an open wait at a newer tool result only', () => {
     const open = perm({ pendingPermission: { since: NOW - 30_000, tool: null } });
     expect(lastWait(open, null, null, NOW, MAX)).toBeNull();
-    expect(lastWait(open, info({ lastToolResultAt: NOW - 30_000 }), null, NOW, MAX)).toBeNull();
-    expect(lastWait(open, info({ lastToolResultAt: NOW - 18_000 }), null, NOW, MAX)).toEqual({
+    expect(lastWait(open, results(NOW - 30_000), null, NOW, MAX)).toBeNull();
+    expect(lastWait(open, results(NOW - 18_000), null, NOW, MAX)).toEqual({
       ms: 12_000,
       tool: null,
     });
@@ -171,15 +180,36 @@ describe('lastWait', () => {
       lastPermission: closed,
       pendingPermission: { since: NOW - 10_000, tool: 'Edit' },
     });
-    expect(lastWait(h, info({ lastToolResultAt: NOW - 4_000 }), null, NOW, MAX)).toEqual({
+    expect(lastWait(h, results(NOW - 4_000), null, NOW, MAX)).toEqual({
       ms: 6_000,
       tool: 'Edit',
     });
   });
 
+  it('ends a wait at the first tool result after the prompt, before and after Stop', () => {
+    const s = (sec: number) => NOW + sec * 1000;
+    const note = JSON.stringify({ v: 1, t: s(10), e: 'Notification', n: 'permission_prompt' });
+    const up = JSON.stringify({ v: 1, t: s(0), e: 'UserPromptSubmit', p: 'p1' });
+    const stop = JSON.stringify({ v: 1, t: s(300), e: 'Stop', p: 'p1' });
+    const t = results(s(5), s(20), s(60), s(120));
+    const during = foldHookLog([up, note]);
+    expect(lastWait(during, t, s(0), s(200), MAX)).toEqual({ ms: 10_000, tool: null });
+    const after = foldHookLog([up, note, stop]);
+    expect(after.lastPermission?.end).toBe(s(300));
+    expect(lastWait(after, t, s(0), s(310), MAX)).toEqual({ ms: 10_000, tool: null });
+    expect(lastWait(after, null, s(0), s(310), MAX)?.ms).toBe(290_000);
+  });
+
+  it('skips a wait whose first tool result left the ring', () => {
+    const full = Array.from({ length: TOOL_RESULTS }, (_, i) => NOW - 50_000 + i);
+    const h = perm({ lastPermission: { since: NOW - 60_000, end: NOW - 1_000, tool: null } });
+    expect(lastWait(h, results(...full), null, NOW, MAX)).toBeNull();
+    expect(lastWait(h, results(...full.slice(1)), null, NOW, MAX)?.ms).toBe(10_001);
+  });
+
   it('ignores a wait open longer than the max age', () => {
     const open = perm({ pendingPermission: { since: NOW - 120_000, tool: null } });
-    expect(lastWait(open, info({ lastToolResultAt: NOW - 1_000 }), null, NOW, 60_000)).toBeNull();
-    expect(lastWait(null, info({ lastToolResultAt: NOW }), null, NOW, MAX)).toBeNull();
+    expect(lastWait(open, results(NOW - 1_000), null, NOW, 60_000)).toBeNull();
+    expect(lastWait(null, results(NOW), null, NOW, MAX)).toBeNull();
   });
 });

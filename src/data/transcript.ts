@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { classify, type Outcome, type Req } from '../core/cache-rule.js';
 import { deepSanitize, sanitizeText } from '../core/sanitize.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
-import { byCount } from './live.js';
+import { byCount, TOOL_RESULTS } from './live.js';
 
 export interface Todo {
   content: string;
@@ -54,6 +54,7 @@ export interface TranscriptInfo {
   turnToolCounts: [string, number][];
   sessionToolCounts: [string, number][];
   lastToolResultAt: number | null;
+  toolResultTimes: number[];
   promptId: string | null;
   promptStart: number | null;
   turnEnd: number | null;
@@ -117,13 +118,14 @@ interface State {
   sessionTools: [string, number][];
   counted: string[];
   lastToolResultAt: number | null;
+  results: number[];
   promptId: string | null;
   promptStart: number | null;
   turnEnd: number | null;
   lastStop: { ts: number | null; final: boolean } | null;
 }
 
-const VERSION = 8;
+const VERSION = 9;
 const RESPONSES = 20;
 const MAX_RESPONSE_MS = 300_000;
 const RECENT = 64;
@@ -176,6 +178,7 @@ export function emptyState(): State {
     sessionTools: [],
     counted: [],
     lastToolResultAt: null,
+    results: [],
     promptId: null,
     promptStart: null,
     turnEnd: null,
@@ -315,6 +318,17 @@ function trackTool(s: State, block: Json, ts: number | null) {
   bump(s.sessionTools, name);
 }
 
+// ascending, deduped
+function addResult(s: State, ts: number) {
+  s.lastToolResultAt = ts;
+  const r = s.results;
+  const last = r[r.length - 1];
+  if (last === ts) return;
+  r.push(ts);
+  if (last !== undefined && ts < last) r.sort((a, b) => a - b);
+  if (r.length > TOOL_RESULTS) r.splice(0, r.length - TOOL_RESULTS);
+}
+
 function startTurn(s: State, promptId: string | null, ts: number | null) {
   s.promptId = promptId;
   s.promptStart = ts;
@@ -437,7 +451,7 @@ function applyLine(s: State, line: string, st: { prevTs: number | null }) {
         for (const b of content as Json[]) {
           if (b?.type !== 'tool_result') continue;
           s.running = s.running.filter((r) => r.id !== b.tool_use_id);
-          if (tsv !== null) s.lastToolResultAt = tsv;
+          if (tsv !== null) addResult(s, tsv);
           const call = s.agentCalls.find((c) => c.id === b.tool_use_id);
           if (!call || call.done !== null) continue;
           // background agents report back with a task notification
@@ -537,6 +551,7 @@ function toInfo(s: State): TranscriptInfo {
     turnToolCounts: counts(s.turnTools),
     sessionToolCounts: counts(s.sessionTools),
     lastToolResultAt: s.lastToolResultAt,
+    toolResultTimes: Array.isArray(s.results) ? s.results.filter((x) => Number.isFinite(x)) : [],
     promptId: clean(s.promptId),
     promptStart: s.promptStart,
     turnEnd: turnEnd(s),

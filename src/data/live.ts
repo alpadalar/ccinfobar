@@ -2,6 +2,7 @@ import type { HookState, PermissionWait } from './hooks.js';
 import type { RunningTool, TranscriptInfo } from './transcript.js';
 
 export const TOOL_MAX_MS = 600_000;
+export const TOOL_RESULTS = 64;
 const MISSED_UPS_MS = 5_000;
 const MISSED_STOP_MS = 60_000;
 
@@ -52,6 +53,14 @@ export function hookTurnStart(
   return turn?.source === 'hooks' ? turn.start : null;
 }
 
+// first tool result after since; undefined when the ring dropped it
+function firstResult(t: TranscriptInfo | null, since: number): number | null | undefined {
+  const list = t?.toolResultTimes ?? [];
+  const i = list.findIndex((x) => x > since);
+  if (i < 0) return null;
+  return i === 0 && list.length >= TOOL_RESULTS ? undefined : list[i];
+}
+
 // closed waits only: the status line is hidden while a dialog is open
 export function lastWait(
   h: HookState | null,
@@ -62,10 +71,14 @@ export function lastWait(
 ): { ms: number; tool: string | null } | null {
   if (!h) return null;
   const list: PermissionWait[] = [];
-  if (h.lastPermission) list.push(h.lastPermission);
+  const c = h.lastPermission;
+  if (c) {
+    const first = firstResult(t, c.since);
+    if (first !== undefined) list.push({ ...c, end: first === null ? c.end : Math.min(c.end, first) });
+  }
   const p = h.pendingPermission;
-  const res = t?.lastToolResultAt ?? null;
-  if (p && res !== null && res > p.since) list.push({ since: p.since, end: res, tool: p.tool });
+  const res = p ? firstResult(t, p.since) : null;
+  if (p && typeof res === 'number') list.push({ since: p.since, end: res, tool: p.tool });
   let best: PermissionWait | null = null;
   for (const w of list) {
     if (w.end < w.since || w.end - w.since > maxAgeMs) continue;

@@ -303,9 +303,19 @@ describe('transcript tool activity', () => {
       ['Bash', 1],
     ]);
     expect(t.lastToolResultAt).toBe(T0 + 2000);
+    expect(t.toolResultTimes).toEqual([T0 + 2000]);
     expect(t.promptId).toBe('p1');
     expect(t.promptStart).toBe(T0);
     expect(t.turnEnd).toBeNull();
+  });
+
+  it('keeps the last tool result times in order, once per timestamp', () => {
+    const lines = [prompt(0, 'go', 'p1')];
+    for (let i = 1; i <= 70; i++) lines.push(use(i, `t${i}`, 'Read'), result(i, `t${i}`), result(i, `t${i}`));
+    const t = parse(lines);
+    expect(t.toolResultTimes).toHaveLength(64);
+    expect(t.toolResultTimes[0]).toBe(T0 + 7000);
+    expect(t.toolResultTimes[63]).toBe(T0 + 70_000);
   });
 
   it('counts a streamed rewrite of the same tool_use once', () => {

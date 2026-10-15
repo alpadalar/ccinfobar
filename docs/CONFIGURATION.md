@@ -205,7 +205,7 @@ Both read the transcript and need no hooks. With hooks, `turn-timer` uses the ex
 
 ### permission-wait
 
-Needs `ccinfobar install --hooks`. The wait starts at the `Notification` hook for a permission prompt, about 6 s after the dialog appears (each keystroke in the terminal delays it), and ends at the next tool result, `PermissionDenied`, `Stop` or prompt. Because Claude Code hides the status line during the dialog, the widget only shows closed waits of the current turn; waits longer than `maxAgeMin` (default 30) are ignored.
+Needs `ccinfobar install --hooks`. The wait starts at the `Notification` hook for a permission prompt, about 6 s after the dialog appears (each keystroke in the terminal delays it), and ends at the first tool result after it (from the transcript), or at `PermissionDenied`, `Stop` or a new prompt when one of those comes first. Later tools in the same turn do not add to it. Because Claude Code hides the status line during the dialog, the widget only shows closed waits of the current turn; waits longer than `maxAgeMin` (default 30) are ignored.
 
 ### env-counts
 
