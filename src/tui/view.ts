@@ -1,6 +1,6 @@
 import { parseColor, stripAnsi, style, truncate, visibleWidth } from '../core/ansi.js';
 import { presetText, themeDescription } from '../core/i18n/catalog-text.js';
-import { type MessageId, t } from '../core/i18n/index.js';
+import { language, type MessageId, t } from '../core/i18n/index.js';
 import { widgetText } from '../core/i18n/widget-text.js';
 import { renderPreview } from '../core/preview.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -351,7 +351,7 @@ let themeLineCache = new Map<string, { at: number; line: string }>();
 function themePreviewLine(state: State, id: string, width: number): string {
   const first = state.config.lines.find((l) => l.length > 0);
   const lines = first ?? DEMO_TYPES.map((type) => ({ id: type, type }));
-  const key = `${id}|${width}|${state.config.colorLevel}|${state.config.icons}|${JSON.stringify(lines)}`;
+  const key = `${language()}|${id}|${width}|${state.config.colorLevel}|${state.config.icons}|${JSON.stringify(lines)}`;
   const hit = themeLineCache.get(key);
   if (hit && Date.now() - hit.at < 3000) return hit.line;
   if (themeLineCache.size > 200) themeLineCache = new Map();

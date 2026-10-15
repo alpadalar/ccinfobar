@@ -160,3 +160,20 @@ describe('Turkish TUI width', () => {
     expect(visibleWidth(top)).toBeLessThan(60);
   });
 });
+
+describe('TUI theme previews', () => {
+  it('follow a language switch at once', () => {
+    const config: Config = {
+      ...defaultConfig(),
+      language: 'en',
+      lines: [[{ id: 'c', type: 'context-bar' }]],
+    };
+    const s = build(config, { type: 'openThemes' });
+    const en = text(s);
+    expect(en).toContain('Ctx ');
+    const next: State = { ...s, config: { ...s.config, language: 'tr' } };
+    const tr = withLang('tr', () => text(next));
+    expect(tr).toContain('Bağlam ');
+    expect(tr).not.toContain('Ctx ');
+  });
+});
