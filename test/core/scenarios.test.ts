@@ -329,6 +329,26 @@ describe('new widgets across scenarios', () => {
     }
   });
 
+  it('phase 7 widgets and keys are opt-in', () => {
+    expect(NEW_WIDGETS).toEqual(expect.arrayContaining(['activity-strip', 'pet', 'kaomoji', 'quip']));
+    const cfg = defaultConfig();
+    for (const key of ['overflow', 'glyphMode', 'ambiguousWidth', 'progress']) {
+      expect(cfg, key).not.toHaveProperty(key);
+    }
+    const configs = [cfg, starterConfig(true), starterConfig(false), ...PRESETS.map((p) => p.build())];
+    for (const c of configs) {
+      for (const key of ['overflow', 'glyphMode', 'ambiguousWidth', 'progress']) {
+        expect(c, key).not.toHaveProperty(key);
+      }
+      for (const item of c.lines.flat()) {
+        for (const key of ['showWhen', 'hideWhen', 'priority']) {
+          expect(item, `${item.id} ${key}`).not.toHaveProperty(key);
+        }
+        expect(item.options?.barColor, item.id).toBeUndefined();
+      }
+    }
+  });
+
   it('http comes from no importer, even for an http-named source widget', () => {
     const fixture = (f: string) =>
       JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/import', f), 'utf8'));

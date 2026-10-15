@@ -4,12 +4,13 @@ import module from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { stripAnsi } from '../../src/core/ansi.js';
+import { syncProgress } from '../../src/cli/progress.js';
+import { stripAnsi, visibleWidth } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { createContext } from '../../src/core/context.js';
 import { render } from '../../src/core/renderer.js';
-import { samplePayload, sampleTranscript } from '../../src/core/sample.js';
-import type { StatusPayload, WidgetItem, WidgetOutput } from '../../src/core/types.js';
+import { sampleGit, samplePayload, sampleTranscript } from '../../src/core/sample.js';
+import type { Config, StatusPayload, WidgetItem, WidgetOutput } from '../../src/core/types.js';
 import { ghParam } from '../../src/data/jobs/gh.js';
 import { ghKey, httpKey } from '../../src/data/jobs/keys.js';
 import { envelopeFile, okEnvelope } from '../../src/data/jobs/runner.js';
@@ -351,5 +352,99 @@ describe('phase 6 widgets through real readers', () => {
       module.syncBuiltinESMExports();
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe.skipIf(fs.existsSync(path.join(os.tmpdir(), '.git')))('phase 7 render through real readers', () => {
+  const files = (dir: string): string[] =>
+    fs.existsSync(dir) ? (fs.readdirSync(dir, { recursive: true }) as string[]) : [];
+
+  function run(config: Config, git: () => ReturnType<typeof sampleGit> | null) {
+    const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-p7-perf-')));
+    const env = {
+      CLAUDE_CONFIG_DIR: path.join(root, 'claude'),
+      CCINFOBAR_CACHE_DIR: path.join(root, 'cache'),
+      CCINFOBAR_CONFIG_DIR: root,
+    };
+    const payload: StatusPayload = {
+      ...base(),
+      session_id: 'p7-perf',
+      cwd: root,
+      workspace: { current_dir: root, project_dir: root },
+    };
+    const ctx = createContext({
+      payload,
+      config,
+      env,
+      now: NOW,
+      preview: false,
+      terminalWidth: 60,
+      data: { git },
+    });
+    const spies = SPAWNS.map((name) => vi.spyOn(cp, name));
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    module.syncBuiltinESMExports();
+    try {
+      const lines = withoutSideEffects(() => {
+        const out = render(ctx);
+        syncProgress(ctx, env);
+        return out;
+      }).map(stripAnsi);
+      return {
+        lines,
+        spawns: spies.map((s) => s.mock.calls.length),
+        fetches: fetchSpy.mock.calls.length,
+        progress: files(env.CCINFOBAR_CACHE_DIR).filter((f) => f.endsWith('.progress.json')),
+      };
+    } finally {
+      vi.restoreAllMocks();
+      module.syncBuiltinESMExports();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  it('the default config spawns nothing and writes no progress file', () => {
+    const git = vi.fn(sampleGit);
+    const r = run({ ...defaultConfig(), colorLevel: 0 }, git);
+    expect(r.lines.length).toBeGreaterThan(0);
+    expect(r.spawns).toEqual(SPAWNS.map(() => 0));
+    expect(r.fetches).toBe(0);
+    expect(r.progress).toEqual([]);
+    const on = run({ ...defaultConfig(), colorLevel: 0, progress: { enabled: true } }, git);
+    expect(on.progress).toEqual([path.join('hooks', 'p7-perf.progress.json')]);
+  });
+
+  it('rules, priority overflow, paste-safe and a gradient bar spawn and fetch nothing', () => {
+    const git = vi.fn((): ReturnType<typeof sampleGit> | null => {
+      throw new Error('spawned');
+    });
+    const config: Config = {
+      ...defaultConfig(),
+      colorLevel: 3,
+      overflow: 'priority',
+      glyphMode: 'paste-safe',
+      lines: [
+        [
+          { id: 'm', type: 'model' },
+          { id: 'b', type: 'context-bar', options: { barColor: 'gradient', width: 10 } },
+          { id: 'g', type: 'text', options: { text: 'repo' }, showWhen: 'git' },
+          { id: 'h', type: 'clock', hideWhen: 'time.hour in 0..23' },
+          { id: 'c', type: 'session-cost', priority: 10 },
+          { id: 'd', type: 'cwd', options: { style: 'full' }, priority: 5 },
+        ],
+      ],
+      maxWidth: 50,
+    };
+    const r = run(config, git);
+    expect(r.lines).toHaveLength(1);
+    expect(r.lines[0]).not.toContain('repo');
+    expect(r.lines[0]).not.toContain('ccib-p7-perf-');
+    expect(r.lines[0]).toContain('$');
+    expect(r.lines[0]).not.toContain('…');
+    expect(visibleWidth(r.lines[0]!)).toBeLessThanOrEqual(50);
+    expect(git).not.toHaveBeenCalled();
+    expect(r.spawns).toEqual(SPAWNS.map(() => 0));
+    expect(r.fetches).toBe(0);
+    expect(r.progress).toEqual([]);
   });
 });
