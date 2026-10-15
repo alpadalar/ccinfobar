@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import { stripAnsi, visibleWidth } from '../core/ansi.js';
-import { type LoadResult, saveConfig } from '../core/config.js';
+import { GLYPH_MODES, type LoadResult, saveConfig } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { tildify } from '../core/paths.js';
@@ -128,6 +128,13 @@ export function runPreview(args: Args, cfgFile: string, io: CliIo = cliIo()): vo
     process.exitCode = 1;
     return;
   }
+  const gm = args.flags['glyph-mode'];
+  const glyphMode = GLYPH_MODES.find((m) => m === gm);
+  if (gm !== undefined && gm !== false && !glyphMode) {
+    io.error(t('preview.badGlyphMode', { mode: sanitizeText(typeof gm === 'string' ? gm : '') }));
+    process.exitCode = 1;
+    return;
+  }
   const width =
     typeof args.flags.width === 'string' ? Number(args.flags.width) : (process.stdout.columns ?? 120);
   const source: PreviewSource =
@@ -135,7 +142,8 @@ export function runPreview(args: Args, cfgFile: string, io: CliIo = cliIo()): vo
   const env = process.env;
   const forced = env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '0';
   const plain = (!io.tty && !forced) || !!env.NO_COLOR || env.FORCE_COLOR === '0';
-  for (const line of renderPreview(loadForUse(cfgFile).config, source, width)) {
+  const config = loadForUse(cfgFile).config;
+  for (const line of renderPreview(glyphMode ? { ...config, glyphMode } : config, source, width)) {
     io.log(plain ? stripAnsi(line) : line);
   }
 }

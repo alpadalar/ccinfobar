@@ -21,6 +21,7 @@ import { cacheDir, claudeSettingsPath, configDir, lastPayloadPath } from '../../
 import { scenarioListLines } from '../../src/core/preview.js';
 import type { StatusPayload } from '../../src/core/types.js';
 import { VERSION } from '../../src/core/version.js';
+import { NORMAL_WIDTH, widthMode } from '../../src/core/width.js';
 import { agentsCacheName, readAgents } from '../../src/data/agents.js';
 import { cacheFile } from '../../src/data/cache.js';
 import { ghKey, httpKey } from '../../src/data/jobs/keys.js';
@@ -605,7 +606,18 @@ describe('read-only readers', () => {
   });
 });
 
-const WIDGET_KEYS = ['empty', 'error', 'id', 'index', 'line', 'sources', 'status', 'type', 'value'];
+const WIDGET_KEYS = [
+  'empty',
+  'error',
+  'id',
+  'index',
+  'line',
+  'priority',
+  'sources',
+  'status',
+  'type',
+  'value',
+];
 
 function json(argv: string[], cfg: object = LAYOUT) {
   const { out, err } = run(['--json', ...argv], cfg);
@@ -620,10 +632,20 @@ describe('explain --json', () => {
     expect(obj.schema).toBe(1);
     expect(obj.version).toBe(VERSION);
     expect(obj.input).toEqual({ kind: 'sample' });
-    expect(Object.keys(obj).sort()).toEqual(['input', 'lines', 'schema', 'version', 'widgets', 'width']);
+    expect(Object.keys(obj).sort()).toEqual([
+      'glyphMode',
+      'input',
+      'lines',
+      'overflow',
+      'schema',
+      'version',
+      'widgets',
+      'width',
+    ]);
     expect(obj.widgets).toHaveLength(7);
     for (const w of obj.widgets) expect(Object.keys(w).sort()).toEqual(WIDGET_KEYS);
-    for (const l of obj.lines) expect(Object.keys(l).sort()).toEqual(['cut', 'line', 'max', 'width']);
+    for (const l of obj.lines)
+      expect(Object.keys(l).sort()).toEqual(['cut', 'dropped', 'line', 'max', 'width']);
     expect(process.exitCode).toBeUndefined();
   });
 
@@ -662,7 +684,7 @@ describe('explain --json', () => {
       empty: { code: 'no-data', text: `r${ESC}[31mz` },
       error: null,
     };
-    const obj = explainJson({ kind: 'sample' }, [row], [], null);
+    const obj = explainJson({ kind: 'sample' }, [row], [], null, { glyphMode: 'normal', overflow: 'wrap' });
     const text = JSON.stringify(obj);
     expect(text).not.toContain('\\u001b');
     expect(text).not.toContain(ESC);
@@ -1225,5 +1247,54 @@ describe('explain ledger sources', () => {
   it('formats the ledger source', () => {
     expect(sourceText({ kind: 'ledger' })).toBe('cost ledger');
     expect(sourceText({ kind: 'ledger', age: 120_000 })).toBe('cost ledger, updated 2m ago');
+  });
+});
+
+describe('explain glyph mode and priority', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('reports the resolved glyph mode and the overflow mode', () => {
+    vi.stubEnv('TERMINAL_EMULATOR', 'JetBrains-JediTerm');
+    expect(json([], { ...LAYOUT, glyphMode: 'auto' }).obj.glyphMode).toBe('jetbrains');
+    vi.stubEnv('TERMINAL_EMULATOR', '');
+    const { obj } = json([]);
+    expect(obj.glyphMode).toBe('normal');
+    expect(obj.overflow).toBe('wrap');
+    expect(json([], { ...LAYOUT, autoWrap: false }).obj.overflow).toBe('truncate');
+    expect(run([], { ...LAYOUT, overflow: 'priority' }).out).toContain(
+      t('explain.modes', { glyphMode: 'normal', overflow: 'priority' }),
+    );
+  });
+
+  it('gives each widget its effective priority', () => {
+    const rows = json([]).obj.widgets;
+    const ctx = rows.find((w: InspectRow) => w.id === 'ctx');
+    expect(ctx.priority).toBe(70);
+    expect(rows.find((w: InspectRow) => w.id === 'flex').priority).toBeNull();
+    const set = { lines: [[{ id: 'ctx', type: 'context-percentage', priority: 90 }]] };
+    expect(json([], set).obj.widgets[0].priority).toBe(90);
+    expect(run(['ctx'], set).out).toContain(t('explain.detail.priority', { priority: 90 }));
+  });
+
+  it('lists the dropped ids and shows priorities with overflow priority', () => {
+    const cfg = { ...LAYOUT, overflow: 'priority' };
+    const { obj } = json(['--scenario', 'context-full', '--width', '20'], cfg);
+    expect(obj.lines[0].dropped.length).toBeGreaterThan(0);
+    for (const id of obj.lines[0].dropped)
+      expect(obj.widgets.find((w: InspectRow) => w.id === id).empty.code).toBe('dropped-by-priority');
+    const { out } = run(['--scenario', 'context-full', '--width', '20'], cfg);
+    const row = out.find((l) => l.includes(' ctx (context-percentage): '))!;
+    expect(row).toContain(`, ${t('explain.priority', { priority: 70 })}`);
+    expect(run([], LAYOUT).out.some((l) => l.includes(t('explain.priority', { priority: 70 })))).toBe(false);
+  });
+
+  it('folds values and measures lines in the configured mode', () => {
+    const line = (glyphMode: string, text: string) =>
+      json([], { glyphMode, lines: [[{ id: 'tx', type: 'text', options: { text } }]] }).obj;
+    expect(line('single-width', '\u2705 ok').widgets[0].value).toBe('\u2714 ok');
+    expect(line('normal', '\u2705 ok').widgets[0].value).toBe('\u2705 ok');
+    const emoji = '\u{1F600}\u{1F600}\u{1F600}';
+    expect(line('normal', emoji).lines[0].width - line('jetbrains', emoji).lines[0].width).toBe(3);
+    expect(widthMode()).toEqual(NORMAL_WIDTH);
   });
 });

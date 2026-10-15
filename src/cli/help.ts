@@ -26,6 +26,8 @@ Usage
   ccinfobar preview              Print the status line with sample data
   ccinfobar preview --scenario <name>
                                  Preview a named situation (list them with --scenario)
+  ccinfobar preview --glyph-mode <mode>
+                                 Preview with a glyph mode, e.g. paste-safe for GitHub issues
   ccinfobar update               Update to the latest release (--check to only look)
   ccinfobar usage                Fetch your plan usage from Claude now
   ccinfobar widgets              List all widgets

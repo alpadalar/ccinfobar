@@ -15,19 +15,19 @@ import { withoutSideEffects } from '../helpers.js';
 
 const ESC = '\u001b';
 
-const cfgFile = () => {
+const cfgFile = (cfg: object = { colorLevel: 3 }) => {
   const dir = configDir();
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, 'preview-test.json');
-  fs.writeFileSync(file, JSON.stringify({ colorLevel: 3 }));
+  fs.writeFileSync(file, JSON.stringify(cfg));
   return file;
 };
 
-function run(argv: string[], tty = false): { out: string[]; err: string[] } {
+function run(argv: string[], tty = false, cfg?: object): { out: string[]; err: string[] } {
   const out: string[] = [];
   const err: string[] = [];
   const io: CliIo = { tty, log: (l) => out.push(l), error: (l) => err.push(l) };
-  withoutSideEffects(() => runPreview(parseArgs(['preview', ...argv]), cfgFile(), io));
+  withoutSideEffects(() => runPreview(parseArgs(['preview', ...argv]), cfgFile(cfg), io));
   return { out, err };
 }
 
@@ -211,5 +211,40 @@ describe('renderPreview of the last payload', () => {
     };
     renderPreview(config, 'last', 200);
     expect(fs.readdirSync(cache, { recursive: true })).toEqual(['last-payload.json']);
+  });
+});
+
+describe('runPreview --glyph-mode', () => {
+  const PUA = /[\uE000-\uF8FF\u{F0000}-\u{10FFFF}]/u;
+
+  const NERD = { colorLevel: 3, icons: 'nerd', charset: 'nerd', style: 'powerline' };
+
+  it('renders paste-safe text and leaves the config alone', () => {
+    const { out, err } = run(['--glyph-mode', 'paste-safe', '--width', '200'], true, NERD);
+    expect(err).toEqual([]);
+    const text = out.join('\n');
+    expect(text.length).toBeGreaterThan(0);
+    expect(text).not.toMatch(PUA);
+    expect(text).not.toContain(`${ESC}]8;`);
+    expect(text).not.toContain('\u00A0');
+    expect(fs.readFileSync(path.join(configDir(), 'preview-test.json'), 'utf8')).toBe(JSON.stringify(NERD));
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('keeps the normal preview without the flag', () => {
+    expect(run(['--width', '200'], true, NERD).out.join('\n')).toMatch(PUA);
+  });
+
+  it('refuses an unknown mode', () => {
+    const { out, err } = run(['--glyph-mode', 'wide']);
+    expect(out).toEqual([]);
+    expect(err).toEqual([t('preview.badGlyphMode', { mode: 'wide' })]);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('refuses a bare flag', () => {
+    const { err } = run(['--glyph-mode']);
+    expect(err).toEqual([t('preview.badGlyphMode', { mode: '' })]);
+    expect(process.exitCode).toBe(1);
   });
 });

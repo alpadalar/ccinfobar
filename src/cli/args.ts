@@ -15,6 +15,7 @@ const VALUE_FLAGS = [
   'file',
   'scenario',
   'runs',
+  'glyph-mode',
 ];
 
 export function parseArgs(argv: string[]): Args {

@@ -337,7 +337,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`) |
 | `ccinfobar init [preset]` | Write a preset: `default`, `cockpit`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
-| `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `bedrock-user`, `gateway-glm`, `near-7d-limit`, `over-budget`, `workspace-folder`, `waiting-permission`, `service-incident`, `pr-ci-failing`; a bare `--scenario` lists them) |
+| `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--glyph-mode <mode>` to try a glyph mode without saving it, for example `paste-safe` for text that stays aligned in a GitHub issue, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `bedrock-user`, `gateway-glm`, `near-7d-limit`, `over-budget`, `workspace-folder`, `waiting-permission`, `service-incident`, `pr-ci-failing`; a bare `--scenario` lists them) |
 | `ccinfobar update` | Update to the latest release now (`--check` to only look) |
 | `ccinfobar widgets` | List all widgets |
 | `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off; points to `ccinfobar explain` for details |

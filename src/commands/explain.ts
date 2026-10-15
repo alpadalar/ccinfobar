@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import type { LoadResult } from '../core/config.js';
 import { createContext, lazy, resolveCwd } from '../core/context.js';
+import { resolveGlyphMode } from '../core/glyphs.js';
 import { describeHeaders, redactUrl } from '../core/http-report.js';
 import { t } from '../core/i18n/index.js';
 import {
@@ -19,6 +20,7 @@ import { loadForUse } from '../core/load.js';
 import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
 import { readLastPayload, scenarioFlag, scenarioListLines } from '../core/preview.js';
+import { overflowOf } from '../core/renderer.js';
 import {
   sampleAgents,
   sampleEnvironment,
@@ -35,7 +37,14 @@ import {
 import { sanitizeText } from '../core/sanitize.js';
 import { getScenario, SCENARIO_NOW, scenarioConfig, scenarioEnv } from '../core/scenarios.js';
 import type { JobSource } from '../core/trace.js';
-import type { Config, DataSources, RenderContext, StatusPayload } from '../core/types.js';
+import type {
+  Config,
+  DataSources,
+  OverflowMode,
+  RenderContext,
+  ResolvedGlyphMode,
+  StatusPayload,
+} from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { agentsCacheName, readAgents } from '../data/agents.js';
 import { cacheFile } from '../data/cache.js';
@@ -464,9 +473,12 @@ function inputLine(input: InspectInput['input']): string {
   }
 }
 
-export function rowLine(r: InspectRow): string {
+export function rowLine(r: InspectRow, priority = false): string {
   const line = statusLine(r);
-  return r.status === 'error' || r.status === 'skipped' ? line : line + sourcesSuffix(r);
+  if (r.status === 'error' || r.status === 'skipped') return line;
+  const p =
+    priority && r.priority !== undefined ? `, ${t('explain.priority', { priority: r.priority })}` : '';
+  return line + p + sourcesSuffix(r);
 }
 
 function statusLine(r: InspectRow): string {
@@ -511,15 +523,28 @@ export interface ExplainJson {
   version: string;
   input: { kind: InputKind; name?: string; ageMs?: number; claudeCode?: string };
   width: number | null;
-  widgets: InspectRow[];
+  glyphMode: ResolvedGlyphMode;
+  overflow: OverflowMode;
+  widgets: (Omit<InspectRow, 'priority'> & { priority: number | null })[];
   lines: LineRow[];
 }
+
+export interface ExplainModes {
+  glyphMode: ResolvedGlyphMode;
+  overflow: OverflowMode;
+}
+
+export const explainModes = (ctx: RenderContext): ExplainModes => ({
+  glyphMode: resolveGlyphMode(ctx.config, ctx.env),
+  overflow: overflowOf(ctx.config),
+});
 
 export function explainJson(
   input: InspectInput['input'],
   rows: InspectRow[],
   lines: LineRow[],
   width: number | null,
+  modes: ExplainModes,
 ): ExplainJson {
   return clean({
     schema: 1,
@@ -531,12 +556,15 @@ export function explainJson(
       ...(input.claudeCode !== undefined ? { claudeCode: input.claudeCode } : {}),
     },
     width,
+    glyphMode: modes.glyphMode,
+    overflow: modes.overflow,
     widgets: rows.map((r) => ({
       line: r.line,
       index: r.index,
       id: r.id,
       type: r.type,
       status: r.status,
+      priority: r.priority ?? null,
       value: redactValue(r),
       sources: r.sources.map((s) => ({
         kind: s.kind,
@@ -551,7 +579,13 @@ export function explainJson(
       ...(r.ci ? { ci: { code: r.ci.code, text: r.ci.text } } : {}),
       ...(r.warning ? { warning: { code: r.warning.code, text: r.warning.text } } : {}),
     })),
-    lines: lines.map((l) => ({ line: l.line, width: l.width, max: l.max, cut: l.cut })),
+    lines: lines.map((l) => ({
+      line: l.line,
+      width: l.width,
+      max: l.max,
+      cut: l.cut,
+      dropped: l.dropped ?? [],
+    })),
   });
 }
 
@@ -654,6 +688,7 @@ function detailLines(data: InspectInput, r: InspectRow, reveal: boolean): string
     t('explain.detail.id', { id }),
     t('explain.detail.type', { type }),
     t('explain.detail.status', { status: r.status }),
+    ...(r.priority !== undefined ? [t('explain.detail.priority', { priority: r.priority })] : []),
     t('explain.detail.value', { value: r.value === null ? none : s(r.value) }),
     t('explain.detail.sources', { sources: sources || none }),
   ];
@@ -689,14 +724,17 @@ function printExplain(
     process.exitCode = 1;
     return;
   }
+  const modes = explainModes(data.ctx);
   if (json) {
-    io.log(JSON.stringify(explainJson(data.input, picked, lines, data.width), null, 2));
+    io.log(JSON.stringify(explainJson(data.input, picked, lines, data.width, modes), null, 2));
     return;
   }
   const shown = (r: InspectRow): InspectRow => (reveal ? r : { ...r, value: redactValue(r) });
   io.log(t('explain.header', { version: VERSION }));
   io.log(inputLine(data.input));
   io.log(data.width === null ? t('explain.widthUnknown') : t('explain.width', { width: data.width }));
+  io.log(t('explain.modes', { ...modes }));
+  const withPriority = modes.overflow === 'priority';
   if (id !== undefined) {
     for (const r of picked) {
       io.log('');
@@ -709,7 +747,7 @@ function printExplain(
     io.log(t('explain.lineHeader', { line: line + 1 }));
     for (const r of rows) {
       if (r.line !== line) continue;
-      io.log(rowLine(shown(r)));
+      io.log(rowLine(shown(r), withPriority));
       if (r.note) io.log(t('explain.row.note', { reason: sanitizeText(r.note.text) }));
       if (r.ci) io.log(t('explain.row.ci', { reason: sanitizeText(r.ci.text) }));
       if (r.warning) io.log(t('explain.row.warning', { reason: sanitizeText(r.warning.text) }));

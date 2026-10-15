@@ -270,7 +270,13 @@ export function normalizeProgress(raw: unknown): ProgressConfig | undefined {
 }
 
 const OVERFLOW_MODES: readonly OverflowMode[] = ['truncate', 'wrap', 'priority'];
-const GLYPH_MODES: readonly GlyphMode[] = ['normal', 'single-width', 'paste-safe', 'jetbrains', 'auto'];
+export const GLYPH_MODES: readonly GlyphMode[] = [
+  'normal',
+  'single-width',
+  'paste-safe',
+  'jetbrains',
+  'auto',
+];
 
 export function normalizeProfiles(raw: unknown): Config['profiles'] | undefined {
   if (!isObject(raw)) return undefined;

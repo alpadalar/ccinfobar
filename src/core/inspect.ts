@@ -11,6 +11,7 @@ import { isLoadingOutput } from '../widgets/shared.js';
 import { STATUS_STALE_MS, serviceState } from '../widgets/status.js';
 import { stripAnsi, visibleWidth } from './ansi.js';
 import { describeRuleError, type MetricValue, type Visibility } from './conditions.js';
+import { resolveGlyphMode, widthModeFor } from './glyphs.js';
 import { t } from './i18n/index.js';
 import { parsePath } from './jsonpath.js';
 import { hasItemRules, ruleDecision } from './metrics.js';
@@ -30,6 +31,7 @@ import {
 import { sanitizeText } from './sanitize.js';
 import { createTrace, type JobSource, leaves, type SourceKind, type Trace, type TraceRead } from './trace.js';
 import type { RenderContext, StatusPayload, WidgetDef, WidgetItem, WidgetResult } from './types.js';
+import { setWidthMode } from './width.js';
 
 export type { SourceKind } from './trace.js';
 
@@ -561,7 +563,7 @@ function inspectItem(
   }
   const reads = trace.end();
   const sources = sourcesFor(def, item, [...ruleReads, ...reads], opts.meta);
-  const out = normalizeResult(def, result);
+  const out = normalizeResult(def, result, ctx.glyphMode);
   if (out) {
     const shown: InspectRow = {
       ...row,
@@ -592,7 +594,22 @@ function shownNote(ctx: RenderContext, item: WidgetItem): EmptyReason | null {
   return ctx.data.environment?.()?.mcpHealth ? null : reason('no-mcp-health');
 }
 
+// measure and fold like render()
+function inMode<T>(base: RenderContext, fn: (ctx: RenderContext) => T): T {
+  const glyphMode = base.glyphMode ?? resolveGlyphMode(base.config, base.env);
+  const prev = setWidthMode(widthModeFor(glyphMode, base.config.ambiguousWidth));
+  try {
+    return fn({ ...base, glyphMode });
+  } finally {
+    setWidthMode(prev);
+  }
+}
+
 export function inspectRows(base: RenderContext, opts: InspectOptions = {}): InspectRow[] {
+  return inMode(base, (ctx) => inspectAll(ctx, opts));
+}
+
+function inspectAll(base: RenderContext, opts: InspectOptions): InspectRow[] {
   const ctx = withWorkspace(base);
   const trace = createTrace();
   const traced = trace.wrap(ctx);
@@ -640,6 +657,10 @@ const withWorkspace = (ctx: RenderContext): RenderContext =>
   workspaceMode(ctx) ? { ...ctx, workspaceMode: true } : ctx;
 
 export function lineReport(base: RenderContext): LineRow[] {
+  return inMode(base, lineRows);
+}
+
+function lineRows(base: RenderContext): LineRow[] {
   const ctx = withWorkspace(base);
   const a = resolveAppearance(ctx.config);
   if (a.style === 'tui') return [];

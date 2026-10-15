@@ -35,6 +35,13 @@ describe('parseArgs', () => {
     expect(parseArgs(['--payload=']).flags.payload).toBe('');
   });
 
+  it('takes a value for --glyph-mode', () => {
+    const a = parseArgs(['preview', '--glyph-mode', 'paste-safe']);
+    expect(a.flags['glyph-mode']).toBe('paste-safe');
+    expect(a.positional).toEqual([]);
+    expect(parseArgs(['preview', '--glyph-mode']).flags['glyph-mode']).toBe(true);
+  });
+
   it('takes values for --scenario and --runs', () => {
     expect(parseArgs(['preview', '--scenario', 'context-full']).flags.scenario).toBe('context-full');
     expect(parseArgs(['bench', '--runs', '20']).flags.runs).toBe('20');
