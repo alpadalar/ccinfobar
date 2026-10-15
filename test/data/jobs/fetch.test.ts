@@ -45,6 +45,16 @@ describe('fetchJson', () => {
     expect(calls[0]?.headers).toMatchObject({ accept: 'application/json', 'user-agent': 'ccinfobar' });
   });
 
+  it('never sends a second accept or user-agent', async () => {
+    const { fetch: f, calls } = fakeFetch([json({})]);
+    await get(f, URL_A, { headers: { Accept: 'text/html', 'User-Agent': 'x', Authorization: 'Bearer t' } });
+    expect(calls[0]?.headers).toEqual({
+      accept: 'application/json',
+      'user-agent': 'ccinfobar',
+      authorization: 'Bearer t',
+    });
+  });
+
   it('adds caller headers', async () => {
     const { fetch: f, calls } = fakeFetch([json({})]);
     await get(f, URL_A, { headers: { authorization: 'Bearer t' } });

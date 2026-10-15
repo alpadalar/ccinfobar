@@ -30,6 +30,12 @@ describe('parseHeaderSpec', () => {
     expect(r.headers.map((h) => h.env)).toEqual(['X', 'Y']);
   });
 
+  it('refuses the fixed accept and user-agent headers in any case', () => {
+    const r = parseHeaderSpec('Accept=$A, user-agent=$U, X-Ok=$K');
+    expect(r.headers.map((h) => h.name)).toEqual(['X-Ok']);
+    expect(r.errors).toEqual(["header 'Accept' is not allowed", "header 'user-agent' is not allowed"]);
+  });
+
   it('treats an empty spec as no headers', () => {
     expect(parseHeaderSpec('')).toEqual({ headers: [], errors: [] });
     expect(parseHeaderSpec('  ,\n ')).toEqual({ headers: [], errors: [] });

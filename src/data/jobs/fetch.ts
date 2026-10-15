@@ -81,7 +81,11 @@ export async function fetchJson(url: URL, opts: FetchJsonOpts): Promise<unknown>
   const max = opts.maxRedirects ?? 3;
   // one timeout covers every hop and the body
   const signal = AbortSignal.timeout(opts.timeoutMs);
-  const headers = { ...opts.headers, accept: 'application/json', 'user-agent': 'ccinfobar' };
+  // lower case, or fetch would send both Accept and accept
+  const headers: Record<string, string> = {};
+  for (const [k, v] of Object.entries(opts.headers ?? {})) headers[k.toLowerCase()] = v;
+  headers.accept = 'application/json';
+  headers['user-agent'] = 'ccinfobar';
   let cur = url;
   for (let hop = 0; ; hop++) {
     const res = await opts.fetch(cur, { method: 'GET', redirect: 'manual', signal, headers });

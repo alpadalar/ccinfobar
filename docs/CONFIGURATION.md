@@ -300,7 +300,7 @@ A gateway quota with the key in the query string:
 | `format` | `{value}` | Text around the value; `{value}` is the only placeholder |
 | `interval` | `300` | Seconds between fetches, at least 30 |
 | `timeout` | `5000` | Milliseconds, 1000 to 15000 |
-| `headers` | `""` | `Name=$VAR` or `Name=<Scheme> $VAR` entries, comma or newline separated (`${VAR}` works too) |
+| `headers` | `""` | `Name=$VAR` or `Name=<Scheme> $VAR` entries, comma or newline separated (`${VAR}` works too). `Accept` and `User-Agent` are fixed and cannot be set |
 | `decimals` | `-1` | Digits after the point for numbers; `-1` keeps them as they are |
 | `maxLength` | `40` | Cut a text value with `…` |
 

@@ -12,7 +12,16 @@ const MAX_URL = 2048;
 const ENV_RE = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const TOKEN_RE = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$/;
 const VALUE_RE = /^(?:([A-Za-z]{1,32})[ \t]+)?\$(\{[^{}]*\}|[^\s{}]*)$/;
-const FORBIDDEN = new Set(['host', 'content-length', 'connection', 'transfer-encoding', 'cookie']);
+// accept and user-agent are fixed by the fetch
+const FORBIDDEN = new Set([
+  'host',
+  'content-length',
+  'connection',
+  'transfer-encoding',
+  'cookie',
+  'accept',
+  'user-agent',
+]);
 const URL_BAD = /[\u0000-\u0020\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
 const PLACEMENT = 'placeholders are only allowed in query values';
 export const NEEDS_TLS = 'secrets need https or localhost';
