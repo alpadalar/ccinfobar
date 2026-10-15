@@ -25,6 +25,7 @@ import {
 } from '../../core/edit.js';
 import { httpRefusal, parseHeaderSpec } from '../../core/http-spec.js';
 import { type MessageId, t } from '../../core/i18n/index.js';
+import { choiceLabel, optionHelp, optionLabel, widgetText } from '../../core/i18n/widget-text.js';
 import { parsePath } from '../../core/jsonpath.js';
 import type { Config, GlyphMode, OptionSpec, OptionValue, WidgetItem } from '../../core/types.js';
 import { GLYPHS } from './ansi-html.js';
@@ -211,29 +212,32 @@ export function optionControl(item: WidgetItem, spec: OptionSpec): HTMLElement {
       ...(coalesce ? { coalesce, inspector: false } : {}),
     });
   const same = (v: OptionValue) => (v === spec.default ? undefined : v);
+  const def = { type: item.type };
+  const label = optionLabel(def, spec);
+  const help = optionHelp(def, spec);
   switch (spec.kind) {
     case 'boolean':
       return field(
-        spec.label,
+        label,
         toggle(Boolean(value), (v) => set(same(v))),
-        spec.help,
+        help,
         true,
       );
     case 'select': {
       const sel = h(
         'select',
         { class: 'input', onChange: () => set(same(sel.value)), value: String(value) },
-        ...(spec.choices ?? []).map((c) => h('option', { value: c.value }, c.label)),
+        ...(spec.choices ?? []).map((c) => h('option', { value: c.value }, choiceLabel(def, spec, c))),
       );
-      return field(spec.label, sel, spec.help);
+      return field(label, sel, help);
     }
     case 'number':
       return field(
-        spec.label,
+        label,
         numberInput(Number(value), (v) => set(v === null ? undefined : same(v), `${item.id}:${spec.key}`), {
           step: 'any',
         }),
-        spec.help,
+        help,
       );
     default: {
       const error =
@@ -245,12 +249,12 @@ export function optionControl(item: WidgetItem, spec: OptionSpec): HTMLElement {
         error.hidden = !msg;
       };
       const f = field(
-        spec.label,
+        label,
         textInput(String(value), (v) => {
           check(v);
           set(same(v), `${item.id}:${spec.key}`);
         }),
-        spec.help,
+        help,
       );
       if (error) {
         check(String(value));
@@ -480,6 +484,7 @@ function widgetTab(): HTMLElement {
   const patch = (p: Partial<WidgetItem>, coalesce?: string) =>
     commit(updateItem(S.config, item.id, p), coalesce ? { coalesce, inspector: false } : {});
   const defColor = info?.color;
+  const defaultLabel = info ? widgetText(info, 'label') : '';
   const hideDefault = info?.hideWhenEmpty === true;
 
   root.append(
@@ -490,7 +495,12 @@ function widgetTab(): HTMLElement {
         class: 'dot big',
         style: `--c:${colorToCss(item.color ?? defColor) ?? 'var(--muted)'}`,
       }),
-      h('div', { class: 'insp-title' }, h('h3', null, info?.name ?? item.type), h('code', null, item.type)),
+      h(
+        'div',
+        { class: 'insp-title' },
+        h('h3', null, info ? widgetText(info, 'name') : item.type),
+        h('code', null, item.type),
+      ),
       h(
         'button',
         {
@@ -502,7 +512,11 @@ function widgetTab(): HTMLElement {
         icon('trash'),
       ),
     ),
-    h('p', { class: 'insp-desc' }, info?.description ?? 'Unknown widget type. It is kept as-is.'),
+    h(
+      'p',
+      { class: 'insp-desc' },
+      info ? widgetText(info, 'description') : 'Unknown widget type. It is kept as-is.',
+    ),
   );
 
   const section = (title: string, ...body: Child[]) =>
@@ -514,7 +528,7 @@ function widgetTab(): HTMLElement {
       field(
         'Label override',
         textInput(item.label ?? '', (v) => patch({ label: v === '' ? undefined : v }, `${item.id}:label`), {
-          placeholder: info?.label ? `Default: ${info.label}` : 'Default label',
+          placeholder: defaultLabel ? `Default: ${defaultLabel}` : 'Default label',
           disabled: !!item.raw,
         }),
         'Leave empty to use the default label.',

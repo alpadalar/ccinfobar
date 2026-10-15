@@ -9,6 +9,7 @@ import {
   uniqueId,
 } from '../../core/edit.js';
 import { t } from '../../core/i18n/index.js';
+import { categoryText, widgetText } from '../../core/i18n/widget-text.js';
 import { titleWidgets } from '../../core/panel.js';
 import type { Config } from '../../core/types.js';
 import { ansiToHtml, escapeHtml } from './ansi-html.js';
@@ -19,6 +20,7 @@ import { clear, h, icon } from './dom.js';
 import { initInspector, renderInspector } from './inspector.js';
 import { installDialog } from './install-dialog.js';
 import { openPresets } from './presets.js';
+import { paletteMatches } from './search.js';
 import { openSettings } from './settings.js';
 import {
   commit,
@@ -89,7 +91,8 @@ function renderChip(id: string, line: number, index: number): HTMLElement {
   const item = S.config.lines[line]![index]!;
   const info = S.widgetMap.get(item.type);
   const color = widgetColor(item.type, item.color);
-  const name = info?.name ?? item.type;
+  const name = info ? widgetText(info, 'name') : item.type;
+  const sample = info ? widgetText(info, 'sample') : '';
   const chip = h(
     'div',
     {
@@ -100,7 +103,7 @@ function renderChip(id: string, line: number, index: number): HTMLElement {
       'aria-label': `${name}, line ${line + 1}, position ${index + 1}${hiddenSuffix(S.hidden.get(item.id))}`,
       'data-label': `${name}, line ${line + 1}, position ${index + 1}`,
       'data-id': id,
-      title: info ? `${info.description}${info.sample ? `\nSample: ${info.sample}` : ''}` : item.type,
+      title: info ? `${widgetText(info, 'description')}${sample ? `\nSample: ${sample}` : ''}` : item.type,
     },
     h('i', { class: 'dot', style: color ? `--c:${color}` : '' }),
     h('span', { class: 'chip-name' }, name),
@@ -312,17 +315,13 @@ function renderCanvas(): void {
 function renderPalette(): void {
   const host = $('palette-list');
   clear(host);
-  const q = S.search.trim().toLowerCase();
-  const matches = (w: WidgetInfo, catName: string) =>
-    !q ||
-    w.name.toLowerCase().includes(q) ||
-    w.type.toLowerCase().includes(q) ||
-    w.description.toLowerCase().includes(q) ||
-    catName.toLowerCase().includes(q);
+  const q = S.search.trim();
   let shown = 0;
   for (const cat of S.api.categories) {
     if (cat.id === 'gsd' && !S.api.gsdInstalled) continue;
-    const list = S.api.widgets.filter((w) => !w.hidden && w.category === cat.id && matches(w, cat.name));
+    const list = S.api.widgets.filter(
+      (w) => !w.hidden && w.category === cat.id && paletteMatches(w, cat.id, cat.name, q),
+    );
     if (!list.length) continue;
     shown += list.length;
     const open = q ? true : !S.collapsed.has(cat.id);
@@ -339,7 +338,7 @@ function renderPalette(): void {
         },
       },
       h('span', { class: `chev${open ? ' open' : ''}` }, icon('chevron', 14)),
-      h('span', { class: 'cat-name' }, cat.name),
+      h('span', { class: 'cat-name' }, categoryText(cat.id, cat.name)),
       h('span', { class: 'cat-count' }, String(list.length)),
     );
     const section = h('section', { class: `cat${open ? ' open' : ''}` }, head);
@@ -355,16 +354,19 @@ function renderPalette(): void {
 
 function paletteCard(w: WidgetInfo): HTMLElement {
   const color = colorToCss(w.color);
+  const name = widgetText(w, 'name');
+  const desc = widgetText(w, 'description');
+  const sample = widgetText(w, 'sample');
   const card = h(
     'div',
-    { class: 'card', title: w.description, 'data-type': w.type },
+    { class: 'card', title: desc, 'data-type': w.type },
     h('i', { class: 'dot', style: color ? `--c:${color}` : '' }),
     h(
       'div',
       { class: 'card-body' },
-      h('div', { class: 'card-name' }, w.name),
-      h('div', { class: 'card-desc' }, w.description),
-      w.sample ? h('div', { class: 'card-sample' }, w.sample) : null,
+      h('div', { class: 'card-name' }, name),
+      h('div', { class: 'card-desc' }, desc),
+      sample ? h('div', { class: 'card-sample' }, sample) : null,
     ),
     h(
       'button',
@@ -372,7 +374,7 @@ function paletteCard(w: WidgetInfo): HTMLElement {
         class: 'add-btn',
         type: 'button',
         title: 'Add to selected line',
-        'aria-label': `Add ${w.name} to selected line`,
+        'aria-label': `Add ${name} to selected line`,
         onPointerdown: (e: Event) => e.stopPropagation(),
         onClick: () => {
           const line = Math.max(0, Math.min(S.selectedLine, S.config.lines.length - 1));
@@ -383,7 +385,7 @@ function paletteCard(w: WidgetInfo): HTMLElement {
     ),
   );
   card.addEventListener('pointerdown', (e) =>
-    press(e, { kind: 'palette', type: w.type, label: w.name, color }, { drop: handleDrop }),
+    press(e, { kind: 'palette', type: w.type, label: name, color }, { drop: handleDrop }),
   );
   return card;
 }

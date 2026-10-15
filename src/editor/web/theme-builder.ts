@@ -1,3 +1,4 @@
+import { categoryText } from '../../core/i18n/widget-text.js';
 import { ansiToHtml } from './ansi-html.js';
 import { api, previewSource } from './api.js';
 import { colorToCss, isValidColor } from './colors.js';
@@ -254,7 +255,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
       for (const k of SLOTS) {
         const cat = S.api.categories.find((c) => c.id === k);
         slots.append(
-          swatchRow(cat?.name ?? k, colors.categories[k], (s) => {
+          swatchRow(cat ? categoryText(cat.id, cat.name) : k, colors.categories[k], (s) => {
             if (s) colors.categories[k] = s;
             else delete colors.categories[k];
           }),
