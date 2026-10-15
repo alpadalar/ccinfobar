@@ -209,14 +209,16 @@ describe('runDoctor install report', () => {
     }
   });
 
-  it('says when Claude Code turned off nonessential traffic', () => {
+  it('says once when Claude Code turned off nonessential traffic', () => {
+    const notices = () =>
+      capture(() => runDoctor(plain())).filter((l) => l.includes('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'));
     vi.stubEnv('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', '1');
     try {
-      expect(capture(() => runDoctor(plain()))).toContain(t('doctor.noTraffic'));
+      expect(notices()).toEqual([t('doctor.jobs.nonessential')]);
     } finally {
       vi.unstubAllEnvs();
     }
-    expect(capture(() => runDoctor(plain()))).not.toContain(t('doctor.noTraffic'));
+    expect(notices()).toEqual([]);
   });
 
   it('sweeps stale temp files from the cache dir', () => {

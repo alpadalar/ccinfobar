@@ -415,7 +415,6 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
   const upd = readUpdateState();
   const newer = availableUpdate(VERSION);
   if (loaded.config.gitHardening === false) console.log(t('doctor.gitHardeningOff'));
-  if (nonessentialTrafficOff()) console.log(t('doctor.noTraffic'));
   if (updatesDisabled(loaded.config)) console.log('  Update checks off');
   else if (newer) console.log(`✗ Update available: ${VERSION} → ${newer} (run \`ccinfobar update\`)`);
   else {

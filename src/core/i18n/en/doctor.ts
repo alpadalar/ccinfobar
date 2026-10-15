@@ -14,8 +14,6 @@ export const doctorMessages = {
   'doctor.http.plain':
     '⚠ http on line {line}: {host} uses plain http, so headers are not sent and the reply can be read or changed on the way. Use https.',
   'doctor.gitHardeningOff': '  Git hardening off (gitHardening: false)',
-  'doctor.noTraffic':
-    '  Background update and usage checks off (CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC is set)',
   'doctor.manifest': '  Manifest {file}: {count} recorded change(s)',
   'doctor.manifestEntry': '    {kind} in {file}',
   'doctor.backups': '  Backups {dir}',
