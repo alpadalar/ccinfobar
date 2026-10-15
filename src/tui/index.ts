@@ -1,4 +1,4 @@
-import { applyLanguage, reapplyLanguage } from '../cli/lang.js';
+import { applyLanguage, envLanguage, reapplyLanguage } from '../cli/lang.js';
 import {
   applyInstall,
   globalBinary,
@@ -43,16 +43,16 @@ export interface EffectDeps {
 
 function installCommand(deps: EffectDeps): string {
   const command = deps.command ? deps.command() : setupCommand(VERSION).command;
-  if (!command) throw new Error('could not install ccinfobar; run npm install -g ccinfobar');
+  if (!command) throw new Error(t('tui.msg.installFailed'));
   return command;
 }
 
-const PENDING = 'ccinfobar (installed after you confirm)';
+const pending = () => t('tui.msg.pending');
 
 // planning must not run npm
 function planCommand(deps: EffectDeps): string {
   if (deps.command || installKind() !== 'npx' || globalBinary()) return installCommand(deps);
-  return PENDING;
+  return pending();
 }
 
 const commandOf = (sl: InstallPlan['current']): string | null =>
@@ -74,7 +74,7 @@ export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): 
         type: 'effectDone',
         ok: true,
         saved: true,
-        message: 'Saved',
+        message: t('tui.msg.saved'),
         thenQuit: effect.thenQuit === true,
       };
     }
@@ -84,7 +84,7 @@ export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): 
         type: 'effectDone',
         ok: true,
         applyTheme: effect.id,
-        message: `Saved theme ${effect.id} (${file})`,
+        message: t('tui.msg.themeSaved', { id: effect.id, file }),
       };
     }
     const file = deps.settingsFile;
@@ -93,7 +93,7 @@ export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): 
     }
     saveConfig(upgradeOptions(state.config), state.path);
     const proposed = effect.plan?.proposed;
-    const command = proposed && proposed !== PENDING ? proposed : installCommand(deps);
+    const command = proposed && proposed !== pending() ? proposed : installCommand(deps);
     const plan = planInstall({ file, command });
     if (effect.plan && commandOf(plan.current) !== effect.plan.current)
       return { type: 'effectDone', ok: false, message: t('install.stale', { file: plan.file }) };
@@ -109,7 +109,11 @@ export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): 
       const message = brokenConfigMessage({ issue: err.issue, path: err.file }) ?? err.message;
       return { type: 'effectDone', ok: false, message };
     }
-    return { type: 'effectDone', ok: false, message: `Failed: ${(err as Error).message}` };
+    return {
+      type: 'effectDone',
+      ok: false,
+      message: t('tui.msg.failed', { message: (err as Error).message }),
+    };
   }
 }
 
@@ -126,21 +130,20 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   const stdin = process.stdin;
   const stdout = process.stdout;
   if (!stdin.isTTY || !stdout.isTTY || typeof stdin.setRawMode !== 'function') {
-    console.error(
-      'ccinfobar tui needs an interactive terminal. Use `ccinfobar edit` for the browser editor.',
-    );
+    console.error(t('tui.msg.needsTty'));
     process.exitCode = 1;
     return;
   }
 
   const note = loaded.error
-    ? `Could not read config (${loaded.error}); starting from defaults`
+    ? t('tui.msg.readFailed', { error: loaded.error })
     : loaded.exists
       ? ''
-      : 'No config yet. Press s to create it.';
+      : t('tui.msg.noConfig');
   let state: State = initialState(loaded.config, loaded.path, note, {
     presets: availablePresets(gsd),
     gsd,
+    autoLanguage: envLanguage().id,
   });
   let hits: Hit[] = [];
   let prev: string[] = [];

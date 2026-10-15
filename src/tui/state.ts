@@ -2,6 +2,7 @@ import {
   addLine,
   findItem,
   insertItem,
+  keepLanguage,
   moveItem,
   moveLine,
   type Position,
@@ -9,9 +10,13 @@ import {
   removeLine,
   upgradeOptions,
 } from '../core/edit.js';
+import { presetText, styleText, themeDescription } from '../core/i18n/catalog-text.js';
+import { foldSearch } from '../core/i18n/format.js';
+import { type LanguageId, languageLocale, t } from '../core/i18n/index.js';
+import { widgetText } from '../core/i18n/widget-text.js';
 import { PRESETS, type Preset } from '../core/presets.js';
 import type { PreviewSource } from '../core/preview.js';
-import { listThemes, type Theme } from '../core/themes.js';
+import { listThemes, STYLES, type Theme } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
 import { pickerItems } from './catalog.js';
@@ -81,6 +86,7 @@ export interface State {
   quit: boolean;
   presets: Preset[];
   gsd: boolean;
+  autoLanguage?: LanguageId;
 }
 
 export type NavDir = 'up' | 'down' | 'left' | 'right' | 'pageup' | 'pagedown' | 'home' | 'end';
@@ -139,10 +145,11 @@ export function initialState(
   loaded: Config,
   path: string,
   message = '',
-  opts: { presets?: Preset[]; gsd?: boolean } = {},
+  opts: { presets?: Preset[]; gsd?: boolean; autoLanguage?: LanguageId } = {},
 ): State {
   const config = upgradeOptions(loaded);
   return {
+    ...(opts.autoLanguage ? { autoLanguage: opts.autoLanguage } : {}),
     presets: opts.presets ?? PRESETS,
     gsd: opts.gsd ?? true,
     config,
@@ -162,11 +169,22 @@ export function initialState(
 }
 
 export function themeItems(filter: string): Theme[] {
-  const tokens = filter.toLowerCase().split(/\s+/).filter(Boolean);
-  return listThemes().filter((t) => {
-    const hay =
-      `${t.id} ${t.name} ${t.style} ${t.description} ${t.source === 'user' ? 'yours' : ''}`.toLowerCase();
-    return tokens.every((x) => hay.includes(x));
+  const locale = languageLocale();
+  const tokens = filter
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((x) => ({ plain: x.toLowerCase(), folded: foldSearch(x, locale) }));
+  if (!tokens.length) return listThemes();
+  const yours = t('insp.yours');
+  return listThemes().filter((th) => {
+    const user = th.source === 'user';
+    const hay = `${th.id} ${th.name} ${th.style} ${th.description} ${user ? 'yours' : ''}`.toLowerCase();
+    const style = STYLES.find((x) => x.id === th.style);
+    const shown = foldSearch(
+      `${themeDescription(th)} ${style ? styleText(style, 'name') : ''} ${user ? yours : ''}`,
+      locale,
+    );
+    return tokens.every((x) => hay.includes(x.plain) || shown.includes(x.folded));
   });
 }
 
@@ -206,7 +224,7 @@ export function clampSel(config: Config, sel: Position): Position {
 export function settingsFields(state: State): Field[] {
   const mode = state.mode;
   if (mode.kind !== 'settings') return [];
-  if (mode.scope === 'global') return globalFields(state.config);
+  if (mode.scope === 'global') return globalFields(state.config, state.autoLanguage);
   const found = findItem(state.config, mode.itemId);
   return found ? widgetFields(getWidget(found.item.type), mode.itemId, state.config) : [];
 }
@@ -229,7 +247,8 @@ function commit(state: State, config: Config, patch: Partial<State> = {}): State
 
 function itemName(item: WidgetItem | undefined): string {
   if (!item) return '';
-  return getWidget(item.type)?.name ?? item.type;
+  const def = getWidget(item.type);
+  return def ? widgetText(def, 'name') : item.type;
 }
 
 function step(cursor: number, dir: NavDir, count: number): number {
@@ -288,13 +307,15 @@ function reduceNormal(state: State, action: Action): State {
       return { ...state, mode: { kind: 'picker', filter: '', cursor: 0 } };
     case 'removeChip': {
       if (!item) return state;
-      const next = commit(state, removeItem(config, item.id), { message: `Removed ${itemName(item)}` });
+      const next = commit(state, removeItem(config, item.id), {
+        message: t('tui.msg.removed', { name: itemName(item) }),
+      });
       return next;
     }
     case 'openProps':
       return item
         ? { ...state, mode: { kind: 'settings', scope: 'widget', itemId: item.id, cursor: 0, sub: null } }
-        : { ...state, message: 'Nothing selected. Press a to add a widget.' };
+        : { ...state, message: t('tui.msg.nothingSelected') };
     case 'openGlobal':
       return { ...state, mode: { kind: 'settings', scope: 'global', itemId: '', cursor: 0, sub: null } };
     case 'openPresets':
@@ -319,30 +340,30 @@ function reduceNormal(state: State, action: Action): State {
       return {
         ...state,
         preview: state.preview === 'sample' ? 'last' : 'sample',
-        message: state.preview === 'sample' ? 'Preview: last session payload' : 'Preview: sample data',
+        message: state.preview === 'sample' ? t('tui.msg.previewLast') : t('tui.msg.previewSample'),
       };
     case 'undo': {
       const prev = state.past[state.past.length - 1];
-      if (!prev) return { ...state, message: 'Nothing to undo' };
+      if (!prev) return { ...state, message: t('tui.msg.nothingToUndo') };
       return withDirty({
         ...state,
         config: prev,
         past: state.past.slice(0, -1),
         future: [config, ...state.future],
         sel: clampSel(prev, sel),
-        message: 'Undo',
+        message: t('tui.msg.undo'),
       });
     }
     case 'redo': {
       const next = state.future[0];
-      if (!next) return { ...state, message: 'Nothing to redo' };
+      if (!next) return { ...state, message: t('tui.msg.nothingToRedo') };
       return withDirty({
         ...state,
         config: next,
         past: [...state.past, config],
         future: state.future.slice(1),
         sel: clampSel(next, sel),
-        message: 'Redo',
+        message: t('tui.msg.redo'),
       });
     }
     case 'save':
@@ -400,14 +421,14 @@ function reduceThemes(state: State, action: Action, mode: Extract<Mode, { kind: 
     const theme = themeItems(mode.filter)[index];
     if (!theme) return state;
     return commit({ ...state, mode: mode.back }, withTheme(state.config, theme.id), {
-      message: `Theme: ${theme.name}`,
+      message: t('tui.msg.theme', { name: theme.name }),
     });
   };
   if (mode.naming) {
     switch (action.type) {
       case 'enter': {
         const id = mode.naming.text.trim();
-        if (!THEME_ID.test(id)) return { ...state, message: 'Use letters, numbers, dot, dash or underscore' };
+        if (!THEME_ID.test(id)) return { ...state, message: t('tui.msg.themeId') };
         return { ...state, effect: { kind: 'saveTheme', id } };
       }
       case 'cancel':
@@ -449,7 +470,7 @@ function insertFromPicker(state: State, filter: string, cursor: number): State {
   const next = insertItem(state.config, { type: def.type }, at);
   return commit({ ...state, mode: { kind: 'normal' } }, next, {
     sel: at,
-    message: `Added ${def.name}`,
+    message: t('tui.msg.added', { name: widgetText(def, 'name') }),
   });
 }
 
@@ -645,14 +666,14 @@ function reduceConfirm(state: State, action: Action, mode: Extract<Mode, { kind:
       return state;
     case 'deleteLine':
       return action.answer === 'yes'
-        ? commit(back, removeLine(state.config, state.sel.line), { message: 'Line deleted' })
+        ? commit(back, removeLine(state.config, state.sel.line), { message: t('tui.msg.lineDeleted') })
         : state;
     case 'preset': {
       const preset = state.presets.find((p) => p.id === mode.preset);
       if (action.answer !== 'yes' || !preset) return state;
-      return commit(back, preset.build(), {
+      return commit(back, keepLanguage(preset.build(), state.config), {
         sel: { line: 0, index: 0 },
-        message: `Applied preset ${preset.name}`,
+        message: t('tui.msg.presetApplied', { name: presetText(preset, 'name') }),
       });
     }
     case 'install':

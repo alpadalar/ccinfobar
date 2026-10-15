@@ -1,8 +1,12 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import { PRESETS } from '../../src/core/presets.js';
+import { saveUserTheme } from '../../src/core/themes.js';
 import type { Config } from '../../src/core/types.js';
 import { pickerItems } from '../../src/tui/catalog.js';
+import { runEffect } from '../../src/tui/index.js';
 import {
   type Action,
   initialState,
@@ -10,8 +14,10 @@ import {
   reduce,
   type State,
   selectedItem,
+  settingsFields,
   themeItems,
 } from '../../src/tui/state.js';
+import { withLang } from '../helpers.js';
 
 const cfg = (): Config => ({
   ...defaultConfig(),
@@ -392,5 +398,155 @@ describe('legacy options', () => {
     expect(s.config.lines[0]![0]!.options).toEqual({ basis: 'usable' });
     expect(s.dirty).toBe(false);
     expect(legacy.lines[0]![0]!.options).toEqual({ usable: true });
+  });
+});
+
+describe('theme search across languages', () => {
+  const found = (q: string) => themeItems(q).map((x) => x.id);
+
+  it('matches ids and English text in every language', () => {
+    expect(found('nord')).toContain('nord');
+    expect(withLang('tr', () => found('nord'))).toContain('nord');
+    expect(withLang('tr', () => found('NORD'))).toContain('nord');
+    expect(withLang('tr', () => found('arctic'))).toContain('nord');
+    expect(withLang('tr', () => found('capsule'))).toContain('catppuccin');
+  });
+
+  it('matches the Turkish description and style name with Turkish folding', () => {
+    expect(found('kutup')).toEqual([]);
+    expect(withLang('tr', () => found('kutup'))).toContain('nord');
+    expect(withLang('tr', () => found('KUTUP mavileri'))).toEqual(['nord']);
+    expect(withLang('tr', () => found('kapsül'))).toContain('catppuccin');
+    expect(withLang('tr', () => found('KAPSUL'))).toContain('catppuccin');
+    expect(withLang('tr', () => found('İNCE'))).toContain('classic');
+    expect(withLang('tr', () => found('ACIK bloklar'))).toEqual(['paper']);
+  });
+
+  it('finds user themes by the translated word for yours', () => {
+    const prev = process.env.CCINFOBAR_CONFIG_DIR;
+    const dir = fs.mkdtempSync(path.join(process.env.CCIB_TEST_ROOT!, 'themes-'));
+    process.env.CCINFOBAR_CONFIG_DIR = dir;
+    try {
+      saveUserTheme({ id: 'mine', extends: 'nord' });
+      expect(found('yours')).toEqual(['mine']);
+      expect(found('sizin')).toEqual([]);
+      expect(withLang('tr', () => found('SİZİN'))).toEqual(['mine']);
+      expect(withLang('tr', () => found('yours'))).toEqual(['mine']);
+    } finally {
+      process.env.CCINFOBAR_CONFIG_DIR = prev;
+    }
+  });
+});
+
+describe('presets keep the language', () => {
+  const apply = (config: Config) => {
+    const s = { ...initialState(config, '/tmp/c.json'), presets: PRESETS };
+    const id = PRESETS.find((p) => p.id === 'minimal')!.id;
+    return run(
+      s,
+      { type: 'openPresets' },
+      { type: 'nav', dir: 'end' },
+      { type: 'cancel' },
+      {
+        type: 'openPresets',
+      },
+      ...pick(s, id),
+    );
+  };
+  const pick = (s: State, id: string): Action[] => [
+    { type: 'clickItem', area: 'main', index: s.presets.findIndex((p) => p.id === id) },
+    { type: 'confirm', answer: 'yes' },
+  ];
+
+  it('carries tr into the new config and adds nothing when unset', () => {
+    const tr = apply({ ...cfg(), language: 'tr' });
+    expect(tr.config.language).toBe('tr');
+    expect(tr.config.lines).toEqual(PRESETS.find((p) => p.id === 'minimal')!.build().lines);
+    expect('language' in apply(cfg()).config).toBe(false);
+  });
+
+  it('names the preset in the active language', () => {
+    expect(apply(cfg()).message).toBe('Applied preset Minimal');
+    const s = initialState(cfg(), '/tmp/c.json');
+    const done = withLang('tr', () => run(s, { type: 'openPresets' }, ...pick(s, 'cockpit')));
+    expect(done.message).toBe('Hazır ayar uygulandı: Kokpit');
+  });
+});
+
+describe('Turkish status messages', () => {
+  it('translates the reducer messages', () => {
+    withLang('tr', () => {
+      expect(run(start(), { type: 'undo' }).message).toBe('Geri alınacak bir şey yok');
+      expect(run(start(), { type: 'redo' }).message).toBe('Yinelenecek bir şey yok');
+      expect(run(start(), { type: 'togglePreview' }).message).toBe('Önizleme: son oturumun payload verisi');
+      const removed = run(start(), { type: 'removeChip' });
+      expect(removed.message).toBe('Kaldırıldı: Model');
+      expect(run(removed, { type: 'undo' }).message).toBe('Geri alındı');
+      const empty = { ...start(), sel: { line: 2, index: 0 } };
+      expect(run(empty, { type: 'openProps' }).message).toBe(
+        'Seçili bileşen yok. Bileşen eklemek için a tuşuna basın.',
+      );
+      const added = run(start(), { type: 'openPicker' }, { type: 'text', text: 'cwd' }, { type: 'enter' });
+      expect(added.message).toMatch(/^Eklendi: /);
+      const naming = run(
+        start(),
+        { type: 'openThemes' },
+        { type: 'saveTheme' },
+        { type: 'text', text: 'a b' },
+        {
+          type: 'enter',
+        },
+      );
+      expect(naming.message).toBe('Harf, rakam, nokta, tire ya da alt çizgi kullanın');
+    });
+    expect(run(start(), { type: 'undo' }).message).toBe('Nothing to undo');
+    expect(run(start(), { type: 'removeChip' }).message).toBe('Removed Model');
+  });
+
+  it('labels Auto with the auto language passed in', () => {
+    const s = initialState(cfg(), '/tmp/c.json', '', { autoLanguage: 'tr' });
+    expect(s.autoLanguage).toBe('tr');
+    const g = run(s, { type: 'openGlobal' });
+    const lang = settingsFields(g).find((f) => f.id === 'language')!;
+    expect(lang.choices![0]!.label).toBe('Auto (Türkçe)');
+    expect('autoLanguage' in initialState(cfg(), '/tmp/c.json')).toBe(false);
+  });
+
+  it('switches the language through the field and back to Auto', () => {
+    let s = run(start(), { type: 'openGlobal' });
+    const at = settingsFields(s).findIndex((f) => f.id === 'language');
+    s = run(s, { type: 'clickItem', area: 'main', index: at });
+    expect(s.mode).toMatchObject({ kind: 'settings', sub: { kind: 'list', cursor: 0 } });
+    s = run(s, { type: 'nav', dir: 'end' }, { type: 'enter' });
+    expect(s.config.language).toBe('tr');
+    expect(s.dirty).toBe(true);
+    s = run(s, { type: 'cycle', delta: 1 });
+    expect('language' in s.config).toBe(false);
+    s = run(s, { type: 'cancel' }, { type: 'undo' });
+    expect(s.config.language).toBe('tr');
+  });
+});
+
+describe('Turkish effect messages', () => {
+  it('reports save, save failure and a missing install command', () => {
+    const dir = fs.mkdtempSync(path.join(process.env.CCIB_TEST_ROOT!, 'tui-'));
+    const ok = initialState(cfg(), path.join(dir, 'config.json'));
+    fs.writeFileSync(path.join(dir, 'file'), '');
+    const bad = initialState(cfg(), path.join(dir, 'file', 'config.json'));
+    withLang('tr', () => {
+      expect(runEffect(ok, { kind: 'save' })).toMatchObject({ ok: true, message: 'Kaydedildi' });
+      expect(runEffect(bad, { kind: 'save' })).toMatchObject({
+        ok: false,
+        message: expect.stringMatching(/^Başarısız: /),
+      });
+      expect(runEffect(ok, { kind: 'install', confirmed: true }, { command: () => null })).toMatchObject({
+        ok: false,
+        message: 'Başarısız: ccinfobar kurulamadı; npm install -g ccinfobar çalıştırın',
+      });
+    });
+    expect(runEffect(ok, { kind: 'save' })).toMatchObject({ message: 'Saved' });
+    expect(runEffect(ok, { kind: 'install', confirmed: true }, { command: () => null })).toMatchObject({
+      message: 'Failed: could not install ccinfobar; run npm install -g ccinfobar',
+    });
   });
 });
