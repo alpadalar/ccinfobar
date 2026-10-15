@@ -25,6 +25,7 @@
 - [Themes](#themes)
 - [GSD integration](#gsd-integration)
 - [Coming from another status line](#coming-from-another-status-line)
+- [Reports](#reports)
 - [Plugin](#plugin)
 - [Commands](#commands)
 - [Configuration](#configuration)
@@ -281,7 +282,40 @@ Found ccstatusline as your current status line. Import its layout into ccinfobar
 
 Every import prints a report: what was imported, what was approximated and what was dropped, with the reason. `--dry-run` prints the report and a preview with sample data and writes nothing. Run it later with `ccinfobar import ccstatusline` or `ccinfobar import claude-powerline --file <path>` (`ccline` works as a short name for `ccometixline`); your current ccinfobar config is backed up first.
 
-Imported labels and text are cleaned of terminal escape sequences, and `javascript:`/`data:` links are dropped. A layout that runs shell commands (ccstatusline custom commands, claude-hud `--extra-cmd`) or opens URLs lists them first: on a terminal you are asked whether to keep them (default No), `--allow-commands` keeps them, and `--yes` or a non-interactive run drops them and prints the command to re-run with `--allow-commands`. Custom scripts are detected but not imported.
+Imported labels and text are cleaned of terminal escape sequences, and `javascript:`/`data:` links are dropped. A layout that runs shell commands (ccstatusline custom commands, claude-hud `--extra-cmd`) or opens URLs lists them first: on a terminal you are asked whether to keep them (default No), `--allow-commands` keeps them, and `--yes` or a non-interactive run drops them and prints the command to re-run with `--allow-commands`. ccusage, the GSD status line and your own scripts are recognised but have no layout to import.
+
+## Reports
+
+`ccinfobar report` shows tokens, estimated cost and active time per project, by day for the last 7 days:
+
+```
+$ ccinfobar report
+Day         Project   Sessions  Input  Output  Cache read  Cache write  Total  Cost (est.)  Active
+2026-10-15  api              1   2.6k    7.8k        252k        16.6k   279k        $0.44      9m
+2026-10-15  web              2   4.7k   13.1k        324k        25.6k   368k        $0.28     18m
+2026-10-15  cli              1   2.4k    4.7k        206k         8.9k   222k        $0.06      8m
+            subtotal         4   9.7k   25.5k        783k        51.1k   869k        $0.78     36m
+2026-10-16  notes            1   2.3k    5.6k        191k        14.6k   213k        $0.34     10m
+2026-10-16  api              1   2.7k    7.0k        218k         8.9k   237k        $0.21      9m
+            subtotal         2   5.0k   12.6k        409k        23.5k   450k        $0.55     19m
+            total            6  14.7k   38.1k        1.2M        74.6k   1.3M        $1.33     56m
+
+Costs are estimates at list prices; on a subscription they are not what you pay.
+```
+
+- `--period week` groups by ISO week (last 4 weeks), `--period month` by month (last 3 months).
+- `--since` and `--until` take `YYYY-MM-DD` or a count back (`7d`, `4w`, `3m`); `--all` shows everything there is.
+- `--project <text>` keeps projects whose path contains the text; `--project .` is the current project.
+- `--csv` and `--json` print CSV or one JSON object (always English) instead of the table. In a terminal the table fits the width by dropping cache columns first; piped, every column is kept.
+
+How it counts:
+
+- Tokens, time and projects come from the transcripts in your Claude config folder. Each request is counted once, by its message and request id: Claude Code writes a reply in several lines, subagent transcripts repeat their requests and a fork copies earlier ones, and none of that is counted twice. Subagents count toward their parent session. Active time adds up the gaps between entries of a session, each capped at 5 minutes.
+- Cost comes from the local cost ledger (the one behind `cost-today`) when it saw the session from its start. Otherwise it is estimated from the transcript with a built-in, dated price table, or your `profiles.models` prices when you set them. Costs that are only partly known are marked `*`, and unpriced models are listed. It is always an estimate at list prices; on a subscription it is a notional price, not what you pay.
+- One Claude config folder per run. For another profile, run `CLAUDE_CONFIG_DIR=~/.claude-work ccinfobar report`.
+- The first run builds an index in the cache folder (`report/` in `~/.cache/ccinfobar`, `~/Library/Caches/ccinfobar` on macOS, `%LOCALAPPDATA%\ccinfobar\cache` on Windows), so later runs read only what is new. It holds numbers, hashes, model and session ids and project paths, never prompt text. Totals of transcripts that Claude Code deletes later (`cleanupPeriodDays`) are kept for 13 months, so your history survives that cleanup from the first run on.
+- `--rebuild` reads every transcript again and repairs the cost ledger summary the cost widgets use; deleted transcripts keep their totals.
+- CSV has a fixed English header, one row per period and project and the full project path. A text cell that starts with `=`, `+`, `-`, `@` or a tab gets a leading `'`, so a spreadsheet never runs it as a formula; saving the file again from Excel can undo that.
 
 ## Plugin
 
@@ -359,6 +393,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar themes` | Preview every theme (`--width <n>`; `--list` prints ids and names only) |
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar import <tool>` | Import a `ccstatusline`, `claude-powerline`, `ccometixline` (`ccline`), `cship` or `claude-hud` layout (`--file <path>`, `--force`, `--dry-run` to only show the report and a preview, `--allow-commands` to keep its commands and URLs without asking) |
+| `ccinfobar report` | Tokens, estimated cost and active time per project ([Reports](#reports); `--period day\|week\|month`, `--since`/`--until <date>`, `--all`, `--project <text>`, `--csv`, `--json`, `--rebuild`) |
 | `ccinfobar init [preset]` | Write a preset: `default`, `cockpit`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
 | `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--glyph-mode <mode>` to try a glyph mode without saving it, for example `paste-safe` for text that stays aligned in a GitHub issue, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `bedrock-user`, `gateway-glm`, `near-7d-limit`, `over-budget`, `workspace-folder`, `waiting-permission`, `service-incident`, `pr-ci-failing`; a bare `--scenario` lists them) |
 | `ccinfobar update` | Update to the latest release now (`--check` to only look) |

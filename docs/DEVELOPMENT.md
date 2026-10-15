@@ -48,6 +48,7 @@ src/
 │   ├── hooks-doctor.ts  doctor's Hooks block: entry state, missing binaries, hook gates
 │   ├── explain.ts       `ccinfobar explain` and the read-only loader doctor shares
 │   ├── bench.ts         `ccinfobar bench`
+│   ├── report.ts        `ccinfobar report`: flags, output, progress line, `--rebuild`
 │   ├── repos.ts         the `repos --background` alias
 │   ├── worker.ts        hidden `ccinfobar worker <key>...`: runs due background jobs
 │   ├── io.ts            CliIo and the config-issue printer shared by explain, preview and bench
@@ -80,12 +81,17 @@ src/
 │   ├── http-spec.ts     http URL templates, header specs and the env deny-list (pure)
 │   ├── http-report.ts   redacted http URLs and headers for doctor and explain (pure)
 │   ├── profiles.ts      built-in model profiles and resolveProfile (pure)
-│   ├── time.ts          epoch seconds, milliseconds and ISO to ms (pure)
+│   ├── time.ts          epoch seconds, milliseconds and ISO to ms; day, ISO week and month keys (pure)
+│   ├── prices.ts        dated Anthropic list prices, model id normalization, requestCost (pure)
+│   ├── report-types.ts  report contracts and caps (pure)
+│   ├── report-model.ts  parseRange and buildReport: periods, one cost source per session, totals (pure)
+│   ├── report-format.ts report table, CSV and JSON (pure)
 │   ├── edit.ts          pure edit operations shared by both editors
 │   ├── presets.ts, sample.ts, preview.ts, paths.ts
 ├── data/                git, transcript, GSD and terminal readers; store.ts, provider.ts
 │   ├── limits.ts        shared plan limits store, keyed per account
 │   ├── ledger.ts        cross-session cost ledger
+│   ├── report-index.ts  transcript walk, scan, dedup and the persisted report index
 │   ├── live.ts          trusted turn, permission wait and running tools (pure)
 │   ├── environment.ts   CLAUDE.md, rules, MCP and hook counts from config files
 │   ├── repos.ts         child repos of a workspace folder and the dirty cache
@@ -99,6 +105,12 @@ src/
 │   ├── activity.ts      activity-strip
 │   ├── fun.ts           pet, kaomoji, quip
 │   └── projection.ts    usage projection, ETA and risk math (pure)
+├── importers/           `ccinfobar import` and the install offer; loaded only by manage.ts and install-cli.ts
+│   ├── index.ts         source registry, discovery, readSource (1 MB cap), importFrom, toConfig
+│   ├── confirm.ts       sanitizeImport and the command/URL targets of the confirmation step
+│   ├── toml.ts          TOML 1.0 parser with positioned errors (pure)
+│   ├── colors.ts        c16/c256/rgb, Starship style and claude-hud color mapping (pure)
+│   └── ccstatusline.ts, claude-powerline.ts, ccometixline.ts (+ -themes.ts), cship.ts, claude-hud.ts
 ├── editor/              web editor: HTTP server + browser app (web/)
 │   └── detach.ts        `edit --detach`: reuse or spawn a background editor
 └── tui/                 terminal editor: state, view, keys, IO loop
@@ -129,7 +141,7 @@ The transcript reader keeps an incremental cache in the cache directory, so only
 
 ### Lazy CLI
 
-`cli/main.ts` parses arguments and loads each command with `await import()`. The status line path (`cli/render.ts`) never pulls in install, update, doctor, the editors or the TUI. `test/foundations/import-graph.test.ts` checks this, and that the pure modules (`core/edit.ts` and others) have no `node:` imports.
+`cli/main.ts` parses arguments and loads each command with `await import()`. The status line path (`cli/render.ts`) never pulls in install, update, doctor, report, the importers, the editors or the TUI. `test/foundations/import-graph.test.ts` checks this, and that the pure modules (`core/edit.ts` and others) have no `node:` imports.
 
 ### Install and uninstall
 
@@ -222,6 +234,52 @@ The editor preview needs no trace: `renderPreviewReport` renders once with a `si
 - `explain` and `preview` read with `persist: false` and never call `recordLedger`. `test/data/ledger-concurrency.test.ts` checks that 8 processes appending at once never tear a line.
 
 Every new `DataSources` member (`limits`, `ledger`) has a sample injector in `core/sample.ts` and one in every scenario, and `ctxWith()` in tests defaults to the sample.
+
+### Reports
+
+`ccinfobar report` (`commands/report.ts`) reads one Claude config dir per run (`claudeDir(env)`), and two sources only:
+
+- **Ledger** (`<cacheDir>/ledger/YYYY-MM.jsonl`): cost. `report-index.ts` folds the raw month files through `stepText`, the same step function as `summary.json`, so both credit the same deltas; it does not read `summary.json`. Ledger lines count when their account key is one of `accountKeysForDir(env)` (all eight provider kinds of this dir).
+- **Transcripts** under `<claudeDir>/projects/`: tokens, active time, the session's project and the cost fallback. Main transcripts are `projects/<enc>/<sid>.jsonl`; subagent files (`<sid>/subagents/*.jsonl`) belong to the parent session. The walk has a fixed depth, skips symlinks and stops at `MAX_REPORT_FILES` (100,000) with a note. Lines are read in chunks, a substring check skips lines that cannot hold usage before `JSON.parse`, and lines over 16 MB are skipped and counted. `<synthetic>` models and `toolUseResult.usage` never count.
+
+Dedup is global across every file of the dir: the key is `message.id:requestId`. Inside a file the last line's usage wins (later lines carry the final `output_tokens`); across files the first file that saw a key owns it, so subagent files, sidechain copies and forked or resumed transcripts never count a request twice. Lines with neither id count each time, as in the render-path reader. Each request goes to the day of its own timestamp.
+
+- **Cost, one source per session** (`report-model.ts`): the ledger when it saw the session from its start; else the transcript estimate when every request has a price; else the partial ledger value (row marked `*`); else unknown. Never a sum of sources. Prices (`core/prices.ts`): a `costUSD` on the entry, then `profiles.models` overrides, then the built-in Phase 6 profiles for non-`claude-` ids, then the dated Anthropic table (`PRICES_UPDATED`), with 5m and 1h cache writes, fast mode and a long-prompt tier where the table has one. Non-USD profile costs stay apart.
+- **Project**: the ledger's `p`, else the first absolute `cwd` in the main transcript (normalized like `projectRoot`), else the decoded `projects/<enc>` name, marked approximate.
+- **Active time**: gaps between timestamped entries of the main transcript, each capped at 5 minutes, on the day of the later entry. Subagents add no time. Lines that a fork or resume copied from another main transcript move a copy horizon, and gaps before it are not counted again.
+- **Periods**: local `dayKey`, ISO week (`YYYY-Www`, ISO week-year) and month keys from `core/time.ts`; `parseRange` turns `--period/--since/--until/--all` into inclusive day keys.
+- **Output** (`report-format.ts`): the table fits `columns` on a TTY by dropping cache write, cache read, input and output, then middle-truncating the project (all width math through `visibleWidth`); CSV has a fixed English header, CRLF, RFC 4180 quoting and a `'` guard for cells starting with `= + - @` (or their full-width forms), TAB, CR or LF; JSON is a `v: 1` object with English note texts. Notes are codes with params; only the table translates them.
+
+`report.ts`, `report-model.ts`, `report-format.ts`, `report-types.ts`, `prices.ts` and `report-index.ts` are on `EXCLUDED_FILES` in `test/foundations/import-graph.test.ts`, and after a build the cli and hook chunks must not contain `report-index` or `TomlError`.
+
+### Report index
+
+`<cacheDir>/report/<first 16 hex of sha256(resolved config dir, NFC, lowercased on win32)>/` (dir 0700) holds two files written with `writeAtomic` (0600), only when something changed:
+
+- `index.json`: `{ v: 1, claudeDir, at, keys: { n, stamp }, order, files, ledger }`. Per transcript file: kind, session id, `dev:ino` identity (bigint stat), size, mtime, read offset, a cyrb53 hash of the 256 bytes before the offset, per-day/model buckets, time, the last 64 keys and the skipped-line count. `ledger` keeps month-file offsets and per-session credit state.
+- `keys.bin`: the request key set, a 16-byte header (`CCRK`, version, count, the random stamp that `index.json` names) and 12 bytes per key (float64 key hash, uint32 index into `order`). A count or stamp that does not match `index.json` means a cold scan, so a crash between the two writes never pairs the wrong key set.
+
+A file with the same identity, size and mtime is not opened. A grown file is read from its offset after the tail hash matches; a shrunk, rewritten or re-identified file is read again from 0 and its keys are released. The key set is loaded lazily, only before a file is read. Files that are gone keep their totals and keys for the current month and the 12 before it (the ledger's retention), so history survives Claude Code's `cleanupPeriodDays`; they show up as a note. `--rebuild` re-reads every walked file, refolds the ledger part from zero and calls `rebuildSummary(env)`; without it, report never writes the ledger or `summary.json`. The index holds only numbers, key hashes, sanitized model ids, session ids and normalized paths.
+
+### TOML subset
+
+`importers/toml.ts` is a pure, single-pass recursive-descent parser for TOML 1.0: comments, bare/quoted/dotted keys, `[table]` and `[[array of tables]]` with sub-tables of the last element, the four string kinds with every escape, integers (`_`, `0x`/`0o`/`0b`), floats (`inf`, `nan`), booleans, the four date-time kinds kept as source text, multi-line arrays and single-line inline tables. One BOM is stripped and CRLF is accepted.
+
+Everything else is a `TomlError { code, line, col }` (1-based line, code-point column at the offending token; header errors point at the `[`), never a guess: duplicate keys, table redefinition, extending an inline table, mixing arrays of tables with other values, bad escapes and numbers, control characters, unsafe integers, and `__proto__`/`constructor`/`prototype` keys. TOML 1.1 constructs (`\e`, `\xHH`, a newline or trailing comma in an inline table, a time without seconds) get a message that names them and the 1.0 form. Input is capped at 1 MB (`MAX_TOML_CHARS`) and nesting at 32 (`MAX_TOML_DEPTH`); tables have a null prototype. Echoed keys and characters are shown as `U+XXXX` when they are control, bidi or BOM code points. The importer prints `<file>:<line>:<col> <message>`.
+
+There is no TOML devDependency. The oracle is hand-written vectors with exact error positions (`test/importers/toml.test.ts`) plus a seeded round trip: `test/importers/toml-serialize.ts` writes generated values in header, dotted, inline and mixed styles, and `parse(serialize(v))` must deep-equal `v` (`toml-roundtrip.test.ts`; the seed is in the failure message).
+
+### Importers
+
+Each importer turns a raw source into `{ config, notes, file, source }` (`ImportResult`). Notes are `{ kind: 'approx' | 'drop' | 'info', text }`, already translated, with every foreign name sanitized. `importers/index.ts` holds the registry (`IMPORT_SOURCES`, `IMPORT_ALIASES` such as `ccline`), each tool's discovery (the same file the tool itself would read: `ccometixlinePaths`, `cshipDiscover`, `hudPaths`, ...), `detectTool` for the install offer and `readSource`, which opens the file, fstats the fd and reads at most 1 MB + 1 byte (`SourceTooLargeError` above that), stripping a BOM.
+
+`runImport` in `commands/manage.ts` is the one path for `ccinfobar import` and the install offer:
+
+1. `sanitizeImport` (`importers/confirm.ts`) deep-sanitizes the partial config (labels, text, separators, commands), drops `__proto__` keys and `javascript:`/`data:` links.
+2. The confirmation step lists every `command` string, `http` URL and `link` URL in full (wrapped, runs of spaces and invisible characters made visible). On a TTY it asks, default No; `--allow-commands` keeps them; `--yes` or a non-TTY run drops them and prints a re-run command quoted for the platform (`shellArg`). Targets over 2000 characters are kept only with `--allow-commands`.
+3. The mapping report (`✓ Imported N widgets`, then Approximated, Dropped and Notes). `--dry-run` adds a preview with sample data, in which `command` items are replaced by sample text so nothing runs, and writes nothing. Otherwise the config is backed up and saved, keeping its `language`.
+
+Adding an importer: a mapper module with its `TARGETS` list (every widget type it can produce; a test checks each exists in `ALL_WIDGETS`), discovery in `index.ts`, an entry in `IMPORT_SOURCES` and `detectTool`, `import.*` messages in `en/` and `tr/`, the `help.cmd.import` line and help fixtures, the file on `SWEPT` in `test/i18n/literal-scan.test.ts`, fixtures under `test/fixtures/import/`, and a row in the `TOOLS` table of `test/importers/guards.test.ts`, which checks targets, fixture round trips, hostile labels, prototype keys and that `--dry-run` writes nothing for every importer.
 
 ### Hooks
 
