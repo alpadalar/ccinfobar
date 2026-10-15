@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { stripAnsi } from '../../src/core/ansi.js';
 import type { LanguageDef, MetaFile, MetaTable } from '../../src/core/i18n/index.js';
 import { TR } from '../../src/core/i18n/languages.js';
 import { byCategory, sharedOptions, trMeta } from '../../src/core/i18n/tr/meta/index.js';
@@ -10,11 +11,12 @@ import {
   widgetHint,
   widgetText,
 } from '../../src/core/i18n/widget-text.js';
+import { render } from '../../src/core/renderer.js';
 import type { OptionSpec } from '../../src/core/types.js';
 import { NORMAL_WIDTH, visibleWidthIn } from '../../src/core/width.js';
 import { ALL_WIDGETS, CATEGORIES, getWidget } from '../../src/widgets/index.js';
 import { barOptions, fillOption, thresholdOption } from '../../src/widgets/shared.js';
-import { withLang } from '../helpers.js';
+import { ctxWith, withLang } from '../helpers.js';
 
 type Def = { type: string; name: string; label?: string; options?: OptionSpec[] };
 
@@ -283,6 +285,30 @@ describe('Turkish widget metadata', () => {
     for (const file of Object.values(byCategory)) {
       for (const type of Object.keys(file!.widgets)) expect(trMeta.widgets[type]).toBe(file!.widgets[type]);
     }
+  });
+});
+
+describe('Turkish limits and charts', () => {
+  it('have category files', () => {
+    for (const cat of ['limits', 'charts']) expect(Object.keys(byCategory)).toContain(cat);
+  });
+
+  it('render the Turkish reset label with the same value', () => {
+    const ctx = () =>
+      ctxWith({
+        config: {
+          lines: [
+            [
+              { id: 'u', type: 'five-hour-usage' },
+              { id: 'r', type: 'five-hour-reset' },
+            ],
+          ],
+        },
+      });
+    const en = stripAnsi(render(ctx())[0]!);
+    const tr = withLang('tr', () => stripAnsi(render(ctx())[0]!));
+    expect(en).toMatch(/^5h \S+ │ Resets 2h 14m$/);
+    expect(tr).toBe(en.replace('│ Resets ', '│ Sıfırlanma '));
   });
 });
 
