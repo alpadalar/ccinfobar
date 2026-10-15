@@ -118,7 +118,9 @@ describe('setupCommand under npx', () => {
     const shim = unfollowable();
     const res = setupCommand('9.9.9');
     expect(npm.calls).toEqual([]);
-    expect(slash(res.command ?? '')).toContain(slash(path.dirname(shim)));
+    // windows keeps the bare name when the .cmd cannot be followed
+    if (win) expect(res.command).toBe('ccinfobar');
+    else expect(slash(res.command ?? '')).toContain(slash(path.dirname(shim)));
   });
 
   it.runIf(win)('replaces a global shim whose package is gone', () => {
