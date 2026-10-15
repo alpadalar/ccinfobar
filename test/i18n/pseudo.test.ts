@@ -1,17 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { stripAnsi } from '../../src/core/ansi.js';
+import { help, OPTIONS, USAGE } from '../../src/cli/help.js';
+import { benchTable, type RowName, type Stats } from '../../src/commands/bench.js';
+import { rowLine } from '../../src/commands/explain.js';
+import { NAMED_COLORS, stripAnsi } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { en } from '../../src/core/i18n/en/index.js';
 import { type Message, t } from '../../src/core/i18n/index.js';
 import { isLanguageId, LANGUAGES } from '../../src/core/i18n/languages.js';
 import { widgetText } from '../../src/core/i18n/widget-text.js';
+import { inspectRows } from '../../src/core/inspect.js';
+import { PRESETS } from '../../src/core/presets.js';
+import { scenarioListLines } from '../../src/core/preview.js';
 import { render } from '../../src/core/renderer.js';
+import {
+  sampleAgents,
+  sampleGit,
+  sampleGsd,
+  sampleHistory,
+  sampleJobs,
+  sampleLimits,
+  samplePayload,
+  sampleTranscript,
+} from '../../src/core/sample.js';
+import { SCENARIOS } from '../../src/core/scenarios.js';
+import { BUILTIN_THEMES, STYLES } from '../../src/core/themes.js';
 import type { Config, OverflowMode, TuiConfig, WidgetItem } from '../../src/core/types.js';
 import { visibleWidthIn, type WidthMode } from '../../src/core/width.js';
 import { type Action, initialState, reduce, type State } from '../../src/tui/state.js';
 import { renderScreen } from '../../src/tui/view.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
-import { ctxWith, renderWidget, withLang } from '../helpers.js';
+import { ctxWith, NOW, renderWidget, withLang } from '../helpers.js';
 import { IDEOGRAPH, pseudoLanguage, wide } from './pseudo.js';
 
 const zz = pseudoLanguage();
@@ -204,4 +222,171 @@ describe('widget line under zz', () => {
       for (const l of out) expect(visibleWidthIn(l, mode(amb)), stripAnsi(l)).toBeLessThanOrEqual(60);
     },
   );
+});
+
+const COL = 33;
+const KNOWN = [...USAGE, ...OPTIONS].map(([u]) => u);
+const usageOf = (line: string) =>
+  KNOWN.filter((u) => line === `  ${u}` || line.startsWith(`  ${u} `)).sort((a, b) => b.length - a.length)[0];
+const FULL = /[\uff21-\uff5a]/;
+const startCol = (line: string, at: number) => visibleWidthIn(line.slice(0, at), mode(1));
+
+// description column of help(), with the visible column each part starts at
+function helpDescriptions(text: string): { line: string; col: number; desc: string }[] {
+  const out: { line: string; col: number; desc: string }[] = [];
+  for (const line of text.split('\n')) {
+    if (!line.startsWith('  ')) continue;
+    const u = line.startsWith('   ') ? undefined : usageOf(line);
+    if (u !== undefined && line === `  ${u}`) continue;
+    const head = u === undefined ? '' : `  ${u}`;
+    const at = head.length + /^ */.exec(line.slice(head.length))![0].length;
+    out.push({ line, col: startCol(line, at), desc: line.slice(at) });
+  }
+  return out;
+}
+
+describe('help and CLI tables under zz', () => {
+  it('starts every help description at column 33', () => {
+    const text = withLang(zz, () => help());
+    const rows = helpDescriptions(text);
+    expect(rows.length).toBeGreaterThanOrEqual(KNOWN.length);
+    for (const r of rows) {
+      expect(r.col, r.line).toBe(COL);
+      expect(r.desc, r.line).toMatch(FULL);
+    }
+    expect(text.split('\n').filter((l) => usageOf(l) !== undefined)).toHaveLength(KNOWN.length);
+  });
+
+  it('aligns the scenario list', () => {
+    const lines = withLang(zz, () => scenarioListLines());
+    expect(lines[0]).toContain(IDEOGRAPH);
+    const cols = lines.slice(1).map((l) => startCol(l, /^ +\S+ +/.exec(l)![0].length));
+    expect(cols).toHaveLength(SCENARIOS.length);
+    expect(new Set(cols).size, lines.join('\n')).toBe(1);
+  });
+
+  it('starts explain rows and their notes at fixed columns', () => {
+    const lines = [
+      [
+        { id: 'model', type: 'model' },
+        { id: 'ctx', type: 'context-percentage' },
+        { id: 'flex', type: 'flex' },
+        { id: 'branch', type: 'git-branch' },
+      ],
+      [
+        { id: 'messages', type: 'message-count' },
+        { id: 'nope', type: 'nope' },
+      ],
+    ];
+    const out = withLang(zz, () => {
+      const rows = inspectRows(ctxWith({ config: { lines, overflow: 'priority' } }));
+      return rows.map((r) => ({ r, line: rowLine(r, true), note: t('explain.row.note', { reason: 'x' }) }));
+    });
+    expect(out.length).toBe(6);
+    for (const { r, line, note } of out) {
+      const name = r.id === r.type ? r.type : `${r.id} (${r.type})`;
+      expect(startCol(line, line.indexOf(name)), line).toBe(4);
+      expect(startCol(line, 2), line).toBe(2);
+      expect(startCol(note, note.indexOf('x')), note).toBe(6);
+    }
+  });
+
+  it('aligns the bench table', () => {
+    const s = (median: number): Stats => ({ n: 20, median, p95: median * 2, min: 1.25, max: 1234.5 });
+    const rows: [RowName, Stats][] = [
+      ['control', s(67.3)],
+      ['cold', s(144.6)],
+      ['warm', s(125.6)],
+      ['warm-no-compile-cache', s(135.3)],
+      ['hook', s(77.7)],
+    ];
+    const lines = withLang(zz, () => benchTable(rows));
+    const ends = (line: string) =>
+      [...line.matchAll(/[\d.]+(?=\s|$)/g)].map((m) => startCol(line, m.index + m[0].length));
+    const want = ends(lines[1]!);
+    expect(want).toHaveLength(5);
+    for (const l of lines.slice(1)) expect(ends(l), l).toEqual(want);
+    expect(new Set(lines.slice(1).map((l) => visibleWidthIn(l, mode(1)))).size).toBe(1);
+    const head = lines[0]!;
+    const heads = [...head.matchAll(/\S+/g)].slice(1, 6).map((m) => startCol(head, m.index + m[0].length));
+    expect(heads).toEqual(want);
+  });
+});
+
+// words of string values only, not of object keys
+const wordsOf = (v: unknown): string[] =>
+  typeof v === 'string'
+    ? (v.match(/[A-Za-z]{3,}/g) ?? [])
+    : v && typeof v === 'object'
+      ? Object.values(v).flatMap(wordsOf)
+      : [];
+
+// ids, key names, proper nouns and sample user data
+function allowList(): Set<string> {
+  const ids = [
+    ...ALL_WIDGETS.map((d) => d.type),
+    ...BUILTIN_THEMES.flatMap((x) => [x.id, x.name]),
+    ...STYLES.map((x) => x.id),
+    ...PRESETS.map((x) => x.id),
+    ...SCENARIOS.map((x) => x.id),
+    ...Object.keys(defaultConfig()),
+    ...Object.keys(NAMED_COLORS),
+    ...LANGUAGES.map((l) => l.name),
+    ...KNOWN,
+    'auto',
+  ];
+  const keys = ['Enter', 'Esc', 'Tab', 'Ctrl', 'Shift', 'Alt', 'Space', 'Del', 'Delete', 'arrows'];
+  const names = ['ccinfobar', 'Claude', 'Code', 'GSD', 'JSON', 'MCP', 'API'];
+  const now = NOW.getTime();
+  const data = [
+    samplePayload(now),
+    sampleGit(),
+    sampleGsd(),
+    sampleTranscript(now),
+    sampleAgents(now),
+    sampleHistory(now),
+    sampleLimits(now),
+    sampleJobs(now),
+    '/tmp/cc/config.json',
+  ].flatMap(wordsOf);
+  return new Set([...ids.flatMap(wordsOf), ...keys, ...names, ...data]);
+}
+
+describe('untranslated text under zz', () => {
+  const allow = allowList();
+  const hits = (where: string, lines: string[]) =>
+    lines.flatMap((l) =>
+      [...stripAnsi(l).matchAll(/[A-Za-z]{3,}/g)]
+        .filter((m) => !allow.has(m[0]))
+        .map((m) => `${where}: "${m[0]}" in ${stripAnsi(l).trim()}`),
+    );
+
+  it('leaves no English word on the TUI screens', () => {
+    const found = withLang(zz, () =>
+      Object.entries(SCREENS).flatMap(([name, actions]) => {
+        const s = build(defaultConfig(), ...actions);
+        return [
+          [120, 40],
+          [80, 24],
+        ].flatMap(([cols, rows]) => hits(`${name} ${cols}x${rows}`, renderScreen(s, cols!, rows!).lines));
+      }),
+    );
+    expect(found).toEqual([]);
+  });
+
+  it('leaves no English word in the help descriptions', () => {
+    const rows = helpDescriptions(withLang(zz, () => help()));
+    expect(
+      hits(
+        'help',
+        rows.map((r) => r.desc),
+      ),
+    ).toEqual([]);
+  });
+
+  it('catches a hard-coded word', () => {
+    expect(hits('probe', ['Ｓａｖｅｄ中 Opus Wibble'])).toEqual([
+      'probe: "Wibble" in Ｓａｖｅｄ中 Opus Wibble',
+    ]);
+  });
 });
