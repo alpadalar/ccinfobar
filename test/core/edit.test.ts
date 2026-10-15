@@ -5,6 +5,9 @@ import {
   addProfileOverride,
   applyStyle,
   clearColors,
+  DEFAULT_PRIORITY,
+  defaultPriority,
+  effectiveOverflow,
   hasOwnColors,
   insertItem,
   moveItem,
@@ -20,10 +23,14 @@ import {
   ruleFromText,
   ruleQuickState,
   ruleToText,
+  setAmbiguousWidth,
   setBudget,
+  setGlyphMode,
   setItemRule,
   setLineAlign,
   setOption,
+  setOverflow,
+  setPriority,
   setProfilesBuiltIn,
   setRuleQuick,
   takeStyle,
@@ -32,7 +39,8 @@ import {
   updateProfileOverride,
   upgradeOptions,
 } from '../../src/core/edit.js';
-import type { Config, WidgetItem } from '../../src/core/types.js';
+import { CATEGORY_PRIORITY } from '../../src/core/renderer.js';
+import type { Config, GlyphMode, OverflowMode, WidgetItem } from '../../src/core/types.js';
 
 const base = (): Config => ({
   ...defaultConfig(),
@@ -223,6 +231,62 @@ describe('setBudget', () => {
     const c = setBudget(setBudget(base, 'daily', 5), 'daily', undefined);
     expect('budget' in c).toBe(false);
     expect('budget' in setBudget(base, 'warnAt', 0.8)).toBe(false);
+  });
+});
+
+describe('overflow, glyph and priority edits', () => {
+  const base = defaultConfig();
+
+  it('writes overflow and keeps autoWrap in step', () => {
+    expect(setOverflow(base, 'priority')).toMatchObject({ overflow: 'priority', autoWrap: false });
+    expect(setOverflow({ ...base, autoWrap: false }, 'wrap')).toMatchObject({
+      overflow: 'wrap',
+      autoWrap: true,
+    });
+    expect(setOverflow(base, 'truncate')).toMatchObject({ overflow: 'truncate', autoWrap: false });
+    expect(setOverflow(base, 'bogus' as OverflowMode)).toBe(base);
+    expect(base.overflow).toBeUndefined();
+  });
+
+  it('reads the effective overflow like the renderer', () => {
+    expect(effectiveOverflow({ autoWrap: true })).toBe('wrap');
+    expect(effectiveOverflow({ autoWrap: false })).toBe('truncate');
+    expect(effectiveOverflow({ autoWrap: true, overflow: 'priority' })).toBe('priority');
+    const c = normalizeConfig(setOverflow(base, 'priority'));
+    expect(effectiveOverflow(c)).toBe('priority');
+  });
+
+  it('drops default glyph mode and ambiguous width', () => {
+    const g = setGlyphMode(base, 'paste-safe');
+    expect(g.glyphMode).toBe('paste-safe');
+    expect('glyphMode' in setGlyphMode(g, 'normal')).toBe(false);
+    expect('glyphMode' in setGlyphMode(g, undefined)).toBe(false);
+    expect('glyphMode' in setGlyphMode(g, 'wide' as GlyphMode)).toBe(false);
+    const a = setAmbiguousWidth(base, 2);
+    expect(a.ambiguousWidth).toBe(2);
+    expect('ambiguousWidth' in setAmbiguousWidth(a, 1)).toBe(false);
+    expect('ambiguousWidth' in setAmbiguousWidth(a, undefined)).toBe(false);
+  });
+
+  it('clamps and removes item priority', () => {
+    const c: Config = { ...base, lines: [[{ id: 'm', type: 'model' }]] };
+    const get = (x: Config) => x.lines[0]![0]!;
+    expect(get(setPriority(c, 'm', 150)).priority).toBe(100);
+    expect(get(setPriority(c, 'm', -5)).priority).toBe(0);
+    expect(get(setPriority(c, 'm', 42.6)).priority).toBe(43);
+    const set = setPriority(c, 'm', 80);
+    expect(get(set).priority).toBe(80);
+    expect('priority' in get(setPriority(set, 'm', undefined))).toBe(false);
+    expect('priority' in get(setPriority(set, 'm', Number.NaN))).toBe(false);
+    expect(get(c).priority).toBeUndefined();
+  });
+
+  it('mirrors the renderer category defaults', () => {
+    expect(DEFAULT_PRIORITY).toEqual(CATEGORY_PRIORITY);
+    expect(defaultPriority('context')).toBe(70);
+    expect(defaultPriority('git')).toBe(50);
+    expect(defaultPriority('layout')).toBe(30);
+    expect(defaultPriority(undefined)).toBe(30);
   });
 });
 

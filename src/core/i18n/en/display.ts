@@ -54,4 +54,25 @@ export const displayMessages = {
   'vis.presetHelp':
     'Enter or ←/→ picks a common showWhen rule; a custom rule is kept until you edit it below',
   'vis.ignored': 'Ignored: {problem}',
+  'vis.droppedBadge': 'dropped by priority, the line is too wide',
+  'vis.droppedShort': 'dropped',
+  'opt.overflow': 'Overflow',
+  'opt.overflow.truncate': 'Cut',
+  'opt.overflow.wrap': 'Wrap',
+  'opt.overflow.priority': 'Drop by priority',
+  'opt.overflowHelp':
+    'When a line is too wide: cut it at the edge, wrap widgets onto extra rows, or drop the lowest-priority widgets',
+  'opt.priority': 'Priority',
+  'opt.priorityHelp': 'Higher stays longer when the line is too wide (overflow: priority)',
+  'opt.priorityDefault': 'Default {n}',
+  'opt.glyphMode': 'Glyph mode',
+  'opt.glyphMode.normal': 'Normal',
+  'opt.glyphMode.single-width': 'Single width',
+  'opt.glyphMode.paste-safe': 'Paste-safe',
+  'opt.glyphMode.jetbrains': 'JetBrains',
+  'opt.glyphMode.auto': 'Auto',
+  'opt.glyphModeHelp':
+    'single-width: emoji icons as text · paste-safe: stays aligned in GitHub code blocks · jetbrains: JetBrains terminal emoji width · auto: jetbrains in JetBrains terminals',
+  'opt.ambiguousWidth': 'Ambiguous width',
+  'opt.ambiguousWidthHelp': 'Set 2 if your terminal draws box lines, ● and ▓ two columns wide (CJK locales)',
 } as const;

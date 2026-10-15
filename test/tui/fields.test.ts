@@ -85,10 +85,11 @@ describe('panel fields', () => {
   const panelConfig = () => ({ ...defaultConfig(), style: 'tui' as const });
   const pf = (id: string) => globalFields(panelConfig()).find((f) => f.id === id)!;
 
-  it('adds charset and auto wrap, and panel fields only for the panel style', () => {
+  it('adds charset and overflow, and panel fields only for the panel style', () => {
     const base = globalFields(defaultConfig()).map((f) => f.id);
     expect(base).toContain('charset');
-    expect(base).toContain('autoWrap');
+    expect(base).toContain('overflow');
+    expect(base).not.toContain('autoWrap');
     expect(base.some((i) => i.startsWith('tui.'))).toBe(false);
     const panel = globalFields(panelConfig()).map((f) => f.id);
     for (const id of [
@@ -162,12 +163,78 @@ describe('panel fields', () => {
     expect('tui' in f.set(c, undefined)).toBe(false);
   });
 
-  it('edits charset and autoWrap', () => {
+  it('edits charset and overflow', () => {
     const c = defaultConfig();
     const charset = globalFields(c).find((f) => f.id === 'charset')!;
     expect(charset.set(c, 'text').charset).toBe('text');
-    const wrap = globalFields(c).find((f) => f.id === 'autoWrap')!;
-    expect(wrap.set(c, !c.autoWrap).autoWrap).toBe(!c.autoWrap);
+    const over = globalFields(c).find((f) => f.id === 'overflow')!;
+    expect(over.kind).toBe('select');
+    expect(over.choices?.map((x) => x.value)).toEqual(['truncate', 'wrap', 'priority']);
+    expect(over.get(c)).toBe('wrap');
+    expect(over.get({ ...c, autoWrap: false })).toBe('truncate');
+    const p = over.set(c, 'priority');
+    expect(p).toMatchObject({ overflow: 'priority', autoWrap: false });
+    expect(over.get(p)).toBe('priority');
+    expect(displayValue(over, p).text).toBe('Drop by priority');
+    expect(cycled(over, p, 1)).toBe('truncate');
+    expect(over.set(p, 'wrap')).toMatchObject({ overflow: 'wrap', autoWrap: true });
+  });
+
+  it('edits glyph mode and ambiguous width', () => {
+    const c = defaultConfig();
+    const glyph = globalFields(c).find((f) => f.id === 'glyphMode')!;
+    expect(glyph.kind).toBe('select');
+    expect(glyph.choices?.map((x) => x.value)).toEqual([
+      'normal',
+      'single-width',
+      'paste-safe',
+      'jetbrains',
+      'auto',
+    ]);
+    expect(glyph.get(c)).toBe('normal');
+    const j = glyph.set(c, 'jetbrains');
+    expect(j.glyphMode).toBe('jetbrains');
+    expect('glyphMode' in glyph.set(j, 'normal')).toBe(false);
+    const amb = globalFields(c).find((f) => f.id === 'ambiguousWidth')!;
+    expect(amb.kind).toBe('select');
+    expect(amb.get(c)).toBe('1');
+    const two = amb.set(c, '2');
+    expect(two.ambiguousWidth).toBe(2);
+    expect(amb.get(two)).toBe('2');
+    expect('ambiguousWidth' in amb.set(two, '1')).toBe(false);
+  });
+});
+
+describe('priority field', () => {
+  const setup = (type: string, priority?: number) => {
+    const config = defaultConfig();
+    config.lines = [[{ id: 'w', type, ...(priority === undefined ? {} : { priority }) }]];
+    const f = widgetFields(getWidget(type), 'w', config).find((x) => x.id === 'priority');
+    return { config, f };
+  };
+
+  it('is a 0-100 number with the category default as fallback', () => {
+    const { config, f } = setup('context-percentage');
+    expect(f?.kind).toBe('number');
+    expect(f?.range).toEqual([0, 100]);
+    expect(f?.fallback).toBe(70);
+    expect(displayValue(f!, config)).toEqual({ text: '70', isDefault: true });
+    expect(setup('git-branch').f?.fallback).toBe(50);
+    expect(setup('gsd-phase').f?.fallback).toBe(30);
+    expect(setup('separator').f).toBeUndefined();
+  });
+
+  it('sets, clamps by range and clears the key', () => {
+    const { config, f } = setup('model', 90);
+    expect(f!.get(config)).toBe(90);
+    expect(cycled(f!, config, 1)).toBe(91);
+    expect(cycled(f!, setup('model', 100).config, 1)).toBe(100);
+    expect(f!.parse('101')).toMatchObject({ ok: false });
+    expect(f!.parse('')).toEqual({ ok: true, value: undefined });
+    expect(f!.parse('55')).toEqual({ ok: true, value: 55 });
+    const set = f!.set(config, 55);
+    expect(set.lines[0]![0]!.priority).toBe(55);
+    expect('priority' in f!.set(set, undefined).lines[0]![0]!).toBe(false);
   });
 });
 

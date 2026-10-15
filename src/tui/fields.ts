@@ -2,15 +2,23 @@ import { parseColor } from '../core/ansi.js';
 import { describeRuleError, type RuleKey, validateRule } from '../core/conditions.js';
 import { normalizeTui } from '../core/config.js';
 import {
+  defaultPriority,
+  effectiveOverflow,
   findItem,
+  GLYPH_MODE_CHOICES,
+  OVERFLOW_CHOICES,
   optionShown,
   RULE_PRESETS,
   ruleFromText,
   rulePreset,
   ruleToText,
+  setAmbiguousWidth,
   setBudget,
+  setGlyphMode,
   setItemRule,
   setOption,
+  setOverflow,
+  setPriority,
   setProfilesBuiltIn,
   updateItem,
 } from '../core/edit.js';
@@ -19,7 +27,16 @@ import { BOX_PRESETS } from '../core/panel.js';
 import { resolveAppearance } from '../core/renderer.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { resolveTheme, STYLES } from '../core/themes.js';
-import type { Config, OptionChoice, OptionValue, TuiConfig, WidgetDef, WidgetItem } from '../core/types.js';
+import type {
+  Config,
+  GlyphMode,
+  OptionChoice,
+  OptionValue,
+  OverflowMode,
+  TuiConfig,
+  WidgetDef,
+  WidgetItem,
+} from '../core/types.js';
 
 export type FieldKind = 'bool' | 'text' | 'number' | 'select' | 'color' | 'theme';
 
@@ -193,7 +210,28 @@ export function widgetFields(def: WidgetDef | undefined, itemId: string, config?
   const specs = def?.options ?? [];
   const options = config?.lines.flat().find((i) => i.id === itemId)?.options;
   const shown = specs.filter((o) => optionShown(o, specs, options));
-  return [...base, ...visibilityFields(itemId, config), ...shown.map((o) => optionField(o, itemId))];
+  const priority = def?.category === 'layout' ? [] : [priorityField(itemId, defaultPriority(def?.category))];
+  return [
+    ...base,
+    ...visibilityFields(itemId, config),
+    ...priority,
+    ...shown.map((o) => optionField(o, itemId)),
+  ];
+}
+
+export function priorityField(itemId: string, fallback: number): Field {
+  return {
+    id: 'priority',
+    label: t('opt.priority'),
+    kind: 'number',
+    help: `${t('opt.priorityHelp')}. ${t('opt.priorityDefault', { n: fallback })}, Del resets`,
+    fallback,
+    range: [0, 100],
+    resettable: true,
+    get: (c) => findItem(c, itemId)?.item.priority,
+    set: (c, v) => setPriority(c, itemId, v === undefined ? undefined : Number(v)),
+    parse: (text) => (text.trim() ? rangeParser(0, 100)(text) : { ok: true, value: undefined }),
+  };
 }
 
 const CUSTOM_RULE = 'custom';
@@ -616,12 +654,34 @@ function baseGlobalFields(): Field[] {
       { help: 'Stop repos from running their own git hooks and filters through the status line' },
     ),
     globalField(
-      'autoWrap',
-      'Auto wrap',
-      'bool',
-      (c) => c.autoWrap,
-      (c, v) => ({ ...c, autoWrap: Boolean(v) }),
-      { help: 'Wrap widgets onto extra rows when the line is too wide' },
+      'overflow',
+      t('opt.overflow'),
+      'select',
+      (c) => effectiveOverflow(c),
+      (c, v) => setOverflow(c, v as OverflowMode),
+      {
+        choices: OVERFLOW_CHOICES.map((v) => ({ value: v, label: t(`opt.overflow.${v}`) })),
+        help: t('opt.overflowHelp'),
+      },
+    ),
+    globalField(
+      'glyphMode',
+      t('opt.glyphMode'),
+      'select',
+      (c) => c.glyphMode ?? 'normal',
+      (c, v) => setGlyphMode(c, v as GlyphMode),
+      {
+        choices: GLYPH_MODE_CHOICES.map((v) => ({ value: v, label: t(`opt.glyphMode.${v}`) })),
+        help: t('opt.glyphModeHelp'),
+      },
+    ),
+    globalField(
+      'ambiguousWidth',
+      t('opt.ambiguousWidth'),
+      'select',
+      (c) => String(c.ambiguousWidth ?? 1),
+      (c, v) => setAmbiguousWidth(c, v === '2' || v === 2 ? 2 : 1),
+      { choices: choices(['1', '2']), help: t('opt.ambiguousWidthHelp') },
     ),
     globalField(
       'icons',

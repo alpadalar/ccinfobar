@@ -13,10 +13,13 @@ import type {
   Align,
   BudgetConfig,
   Config,
+  GlyphMode,
   OptionSpec,
   OptionValue,
+  OverflowMode,
   ProfileOverride,
   ProfilesConfig,
+  WidgetCategory,
   WidgetItem,
 } from './types.js';
 
@@ -347,6 +350,65 @@ export function setBudget(config: Config, key: keyof BudgetConfig, value: number
   const next: Config = { ...config, budget };
   if (!Object.keys(budget).length) delete next.budget;
   return next;
+}
+
+export const OVERFLOW_CHOICES: readonly OverflowMode[] = ['truncate', 'wrap', 'priority'];
+export const GLYPH_MODE_CHOICES: readonly GlyphMode[] = [
+  'normal',
+  'single-width',
+  'paste-safe',
+  'jetbrains',
+  'auto',
+];
+
+// same as renderer overflowOf
+export function effectiveOverflow(config: Pick<Config, 'overflow' | 'autoWrap'>): OverflowMode {
+  return config.overflow ?? (config.autoWrap ? 'wrap' : 'truncate');
+}
+
+// autoWrap kept in step for older readers
+export function setOverflow(config: Config, v: OverflowMode): Config {
+  if (!OVERFLOW_CHOICES.includes(v)) return config;
+  return { ...config, overflow: v, autoWrap: v === 'wrap' };
+}
+
+export function setGlyphMode(config: Config, v: GlyphMode | undefined): Config {
+  const next: Config = { ...config };
+  if (v === undefined || v === 'normal' || !GLYPH_MODE_CHOICES.includes(v)) delete next.glyphMode;
+  else next.glyphMode = v;
+  return next;
+}
+
+export function setAmbiguousWidth(config: Config, v: 1 | 2 | undefined): Config {
+  const next: Config = { ...config };
+  if (v === 2) next.ambiguousWidth = 2;
+  else delete next.ambiguousWidth;
+  return next;
+}
+
+// mirrors renderer CATEGORY_PRIORITY
+export const DEFAULT_PRIORITY: Partial<Record<WidgetCategory, number>> = {
+  context: 70,
+  limits: 70,
+  session: 70,
+  git: 50,
+  workspace: 50,
+  cost: 50,
+  tokens: 50,
+  gsd: 30,
+  agents: 30,
+  charts: 30,
+  system: 30,
+  custom: 30,
+};
+
+export function defaultPriority(category: WidgetCategory | undefined): number {
+  return (category && DEFAULT_PRIORITY[category]) ?? 30;
+}
+
+export function setPriority(config: Config, itemId: string, v: number | undefined): Config {
+  const ok = typeof v === 'number' && Number.isFinite(v);
+  return updateItem(config, itemId, { priority: ok ? Math.min(100, Math.max(0, Math.round(v))) : undefined });
 }
 
 function withProfiles(config: Config, profiles: ProfilesConfig): Config {
