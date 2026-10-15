@@ -95,6 +95,8 @@ export const api = {
       enabled,
       permission,
     }),
+  progress: (enabled: boolean) =>
+    call<{ ok: boolean; hooks: HooksInfo; backup: string | null }>('POST', '/api/progress', { enabled }),
   update: (install: boolean) =>
     call<{ current: string; latest: string; newer: boolean; kind: string; installed?: string }>(
       'POST',

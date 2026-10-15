@@ -58,6 +58,7 @@ export interface HooksInfo {
   claudeCode?: string;
   events: string[];
   optional: string[];
+  progress: string[];
 }
 
 export interface ConfigIssueInfo {

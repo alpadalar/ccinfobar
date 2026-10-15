@@ -1,17 +1,20 @@
 import {
   addProfileOverride,
+  PROGRESS_CHOICES,
+  PROGRESS_DEFAULTS,
   REFRESH_SUGGEST,
   refreshReasons,
   removeProfileOverride,
   setBudget,
   setProfilesBuiltIn,
+  setProgress,
   timeRuleFeed,
   updateProfileOverride,
 } from '../../core/edit.js';
-import { t } from '../../core/i18n/index.js';
+import { type MessageId, t } from '../../core/i18n/index.js';
 import { titleWidgets } from '../../core/panel.js';
 import { PROFILE_LABEL_MAX, PROFILE_MATCH_MAX, PROFILES, PROFILES_UPDATED } from '../../core/profiles.js';
-import type { Config, ProfileOverride } from '../../core/types.js';
+import type { Config, ProfileOverride, ProgressConfig } from '../../core/types.js';
 import { api } from './api.js';
 import { clear, h, icon } from './dom.js';
 import { field, numberInput, segmented, textInput, toggle } from './inspector.js';
@@ -277,6 +280,76 @@ export async function openSettings(): Promise<void> {
     return out;
   }
 
+  async function runProgress(enabled: boolean) {
+    busy = true;
+    render();
+    try {
+      await api.progress(enabled);
+      commit(setProgress(S.config, { enabled }));
+      toast(t(enabled ? 'prog.on' : 'prog.off'));
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+    info = await api.system().catch(() => info);
+    busy = false;
+    render();
+  }
+
+  function progressFields(): HTMLElement[] {
+    const hk = info?.hooks ?? S.api.hooks;
+    const p = S.config.progress ?? {};
+    const on = p.enabled === true;
+    const installed = (hk?.progress?.length ?? 0) > 0;
+    const channel = p.channel ?? PROGRESS_DEFAULTS.channel;
+    const setP = (patch: Partial<ProgressConfig>, coalesce?: string) => {
+      commit(setProgress(S.config, patch), coalesce ? { coalesce } : {});
+      if (!coalesce) render();
+    };
+    const pick = <K extends keyof typeof PROGRESS_CHOICES>(key: K) =>
+      segmented(
+        PROGRESS_CHOICES[key].map((v) => ({ value: v, label: t(`prog.${key}.${v}` as MessageId) })),
+        p[key] ?? PROGRESS_DEFAULTS[key],
+        (v) => setP({ [key]: v }),
+      );
+    const level = (key: 'warnAt' | 'errorAt') =>
+      numberInput(p[key] ?? '', (v) => setP({ [key]: v ?? undefined }, `progress.${key}`), {
+        min: 1,
+        max: 100,
+        step: 1,
+        placeholder: String(PROGRESS_DEFAULTS[key]),
+      });
+    const out: HTMLElement[] = [
+      field(
+        t('prog.toggle'),
+        toggle(on, (v) => void runProgress(v), undefined, {
+          disabled: busy || !hk || (!hk.available && !installed && !on),
+        }),
+        hk && !hk.available ? hk.reason : undefined,
+        true,
+      ),
+      h('div', { class: 'hint' }, t('prog.hintBar')),
+    ];
+    if (channel !== 'tty') out.push(h('div', { class: 'hint' }, t('prog.hintLatency')));
+    out.push(
+      field(t('prog.source'), pick('source'), t('prog.sourceHelp')),
+      field(t('prog.scaleTo'), pick('scaleTo'), t('prog.scaleHelp')),
+      field(t('prog.warnAt'), level('warnAt')),
+      field(t('prog.errorAt'), level('errorAt'), t('prog.levelHelp')),
+      field(t('prog.channel'), pick('channel'), t('prog.channelHelp')),
+      field(t('prog.terminals'), pick('terminals'), t('prog.terminalsHelp')),
+    );
+    if (channel === 'tty')
+      out.push(
+        field(
+          t('prog.tmux'),
+          toggle(p.tmuxPassthrough === true, (v) => setP({ tmuxPassthrough: v })),
+          t('prog.tmuxHelp'),
+          true,
+        ),
+      );
+    return out;
+  }
+
   async function openInstall(dialog: Promise<void>) {
     await dialog;
     info = await api.system().catch(() => info);
@@ -368,6 +441,7 @@ export async function openSettings(): Promise<void> {
         ...refreshWarning(cl),
         ...hooksFields(),
       ),
+      section(t('prog.section'), ...progressFields()),
       section(
         'Updates',
         field(
