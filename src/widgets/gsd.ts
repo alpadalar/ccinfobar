@@ -1,3 +1,4 @@
+import { type MessageId, t } from '../core/i18n/index.js';
 import type { OptionSpec, RenderContext, WidgetDef, WidgetItem, WidgetOutput } from '../core/types.js';
 import type { GsdInfo } from '../data/gsd.js';
 import { barFor, barOptions, opt } from './shared.js';
@@ -14,6 +15,12 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const ACTIVE_STATUSES = new Set(['discussing', 'planning', 'executing', 'verifying']);
+
+export function gsdStatusText(status: string): string {
+  return Object.hasOwn(STATUS_COLORS, status)
+    ? t(`widget.gsd.status.${status}` as MessageId)
+    : status.replace(/-/g, ' ');
+}
 
 function clip(text: string, max: number): string {
   if (max <= 0 || text.length <= max) return text;
@@ -99,7 +106,7 @@ export const widgets: WidgetDef[] = [
       const parts = [barFor(ctx, item, info.percent)];
       if (opt(item, 'showPercent', true)) parts.push(`${info.percent}%`);
       if (opt(item, 'showCounts', false) && info.phasesTotal > 0) {
-        parts.push(`${info.phasesCompleted}/${info.phasesTotal} phases`);
+        parts.push(t('widget.gsd.phases', { done: info.phasesCompleted, total: info.phasesTotal }));
       }
       return parts.join(' ');
     }),
@@ -145,7 +152,7 @@ export const widgets: WidgetDef[] = [
     sample: 'executing',
     render: withGsd((info) => {
       if (!info.status) return null;
-      return { text: info.status.replace(/-/g, ' '), color: STATUS_COLORS[info.status] };
+      return { text: gsdStatusText(info.status), color: STATUS_COLORS[info.status] };
     }),
   },
   {
@@ -161,7 +168,7 @@ export const widgets: WidgetDef[] = [
     render: withGsd((info, item) => {
       const phase = info.phase;
       if (!phase) return null;
-      if (phase.plans === 0) return opt(item, 'showEmpty', false) ? 'none' : null;
+      if (phase.plans === 0) return opt(item, 'showEmpty', false) ? t('widget.gsd.none') : null;
       return `${Math.min(phase.summaries, phase.plans)}/${phase.plans}`;
     }),
   },
@@ -232,7 +239,7 @@ export const widgets: WidgetDef[] = [
     render: withGsd((info, item) => {
       const n = info.blockers.length;
       if (n === 0) return null;
-      const base = `⚠ ${n} concern${n === 1 ? '' : 's'}`;
+      const base = t('widget.gsd.concerns', { count: n });
       if (!opt(item, 'showFirst', false)) return base;
       return `${base}: ${clip(info.blockers[0]!, opt(item, 'maxLength', 40))}`;
     }),
@@ -247,7 +254,7 @@ export const widgets: WidgetDef[] = [
     sample: '2 todos',
     render: withGsd((info) => {
       const n = info.pendingTodos;
-      return n > 0 ? `${n} todo${n === 1 ? '' : 's'}` : null;
+      return n > 0 ? t('widget.gsd.todos', { count: n }) : null;
     }),
   },
   {
@@ -274,8 +281,8 @@ export const widgets: WidgetDef[] = [
     options: [{ key: 'onlyGsd', label: 'Only GSD commands', kind: 'boolean', default: true }],
     render(ctx, item) {
       if (!ctx.data.gsd()) return null;
-      const t = ctx.data.transcript();
-      const raw = opt(item, 'onlyGsd', true) ? t?.lastGsdCommand : t?.lastCommand;
+      const tr = ctx.data.transcript();
+      const raw = opt(item, 'onlyGsd', true) ? tr?.lastGsdCommand : tr?.lastCommand;
       const cmd = raw?.trim().split(/\s+/)[0]?.replace(/^\//, '');
       if (!cmd) return null;
       return `/${cmd}`;
@@ -293,7 +300,7 @@ export const widgets: WidgetDef[] = [
       if (!u) return null;
       const parts: string[] = [];
       if (u.available) parts.push(`⬆ GSD${u.latest ? ` ${u.latest}` : ''}`);
-      if (u.staleHooks) parts.push('⚠ stale hooks');
+      if (u.staleHooks) parts.push(t('widget.gsd.staleHooks'));
       return parts.length > 0 ? parts.join(' ') : null;
     }),
   },
@@ -331,12 +338,14 @@ export const widgets: WidgetDef[] = [
       }
       let tail: string | null = null;
       const n = info.phase?.number;
-      if (info.status === 'complete') tail = 'milestone complete';
-      else if (info.status && ACTIVE_STATUSES.has(info.status) && n) tail = `Phase ${n} ${info.status}`;
+      if (info.status === 'complete') tail = t('widget.gsd.milestoneComplete');
+      else if (info.status && ACTIVE_STATUSES.has(info.status) && n)
+        tail = t('widget.gsd.phaseStatus', { n, status: gsdStatusText(info.status) });
       else {
         const next = nextCommand(info);
-        if (next) tail = `next ${next.action}${next.phases ? ` ${next.phases}` : ''}`;
-        else if (n) tail = `Phase ${n}`;
+        if (next)
+          tail = t('widget.gsd.next', { action: `${next.action}${next.phases ? ` ${next.phases}` : ''}` });
+        else if (n) tail = t('widget.gsd.phase', { n });
       }
       const parts = [head.join(' '), tail].filter((p): p is string => !!p);
       return parts.length > 0 ? parts.join(' · ') : null;

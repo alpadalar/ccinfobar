@@ -27,7 +27,7 @@ export const widgets: WidgetDef[] = [
       let h = d.getHours();
       let suffix = '';
       if (opt(item, 'h12', false)) {
-        suffix = h >= 12 ? ' PM' : ' AM';
+        suffix = ` ${t(h >= 12 ? 'widget.clock.pm' : 'widget.clock.am')}`;
         h = h % 12 || 12;
       }
       const s = opt(item, 'seconds', false) ? `:${pad(d.getSeconds())}` : '';
@@ -147,18 +147,18 @@ export const widgets: WidgetDef[] = [
       if (!e) return null;
       const hideZero = opt(item, 'hideZero', true);
       const parts: string[] = [];
-      const add = (key: string, label: string, n: number) => {
-        if (opt(item, key, true) && (n > 0 || !hideZero)) parts.push(`${label} ${n}`);
+      const add = (key: string, n: number, text: string) => {
+        if (opt(item, key, true) && (n > 0 || !hideZero)) parts.push(text);
       };
-      add('showClaudeMd', 'CLAUDE.md', e.claudeMd);
+      add('showClaudeMd', e.claudeMd, `CLAUDE.md ${e.claudeMd}`);
       if (opt(item, 'showAgentsMd', true) && e.agentsMd > 0) parts.push(`AGENTS.md ${e.agentsMd}`);
-      add('showRules', 'rules', e.rules);
+      add('showRules', e.rules, t('widget.env.rules', { count: e.rules }));
       const health = opt(item, 'mcpHealth', false) ? e.mcpHealth : undefined;
       if (health && opt(item, 'showMcp', true)) parts.push(`MCP ${health.ok}/${health.total}`);
-      else add('showMcp', 'MCP', e.mcp);
+      else add('showMcp', e.mcp, `MCP ${e.mcp}`);
       if (opt(item, 'showHooks', true)) {
         if (e.hooksDisabled) parts.push(t('widget.env.hooksOff'));
-        else if (e.hooks > 0 || !hideZero) parts.push(`hooks ${e.hooks}`);
+        else if (e.hooks > 0 || !hideZero) parts.push(t('widget.env.hooks', { count: e.hooks }));
       }
       if (!parts.length) return null;
       return parts.join(ctx.config.charset === 'text' ? ' | ' : ' · ');

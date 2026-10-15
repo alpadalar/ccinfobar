@@ -15,7 +15,7 @@ function missPart(cause: string, c: MissCause): string {
   }
   if (cause === 'system_prompt_changed') {
     const d = num(c.system_char_delta);
-    if (d !== null) return `${name} (${d < 0 ? '-' : '+'}${Math.abs(d)} chars)`;
+    if (d !== null) return t('widget.tokens.chars', { name, delta: `${d < 0 ? '-' : '+'}${Math.abs(d)}` });
   }
   return name;
 }

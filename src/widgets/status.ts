@@ -71,7 +71,7 @@ function render(ctx: RenderContext, item: WidgetItem): WidgetResult {
     if (s.stale || !opt(item, 'showOk', false)) return null;
     return { text: ascii ? t('widget.status.okText') : t('widget.status.ok'), color: COLOR.none };
   }
-  let text = `${ascii ? '!' : '⚠'} ${s.indicator}`;
+  let text = `${ascii ? '!' : '⚠'} ${t(`widget.status.level.${s.indicator}`)}`;
   if (opt(item, 'showName', true)) {
     const max = Math.max(1, Math.floor(opt(item, 'maxLength', 40)));
     const name = s.incidents[0]?.name || s.description;

@@ -90,7 +90,9 @@ export const widgets: WidgetDef[] = [
     render(ctx, item) {
       const level = ctx.payload.effort?.level;
       if (!level) return null;
-      return opt(item, 'showThinking', false) && ctx.payload.thinking?.enabled ? `${level}+think` : level;
+      return opt(item, 'showThinking', false) && ctx.payload.thinking?.enabled
+        ? t('widget.session.think', { level })
+        : level;
     },
   },
   {
@@ -104,10 +106,10 @@ export const widgets: WidgetDef[] = [
     sample: 'on',
     options: [{ key: 'hideOff', label: 'Hide when off', kind: 'boolean', default: false }],
     render(ctx, item) {
-      const t = ctx.payload.thinking?.enabled;
-      if (t === undefined) return null;
-      if (!t && opt(item, 'hideOff', false)) return null;
-      return t ? 'on' : 'off';
+      const on = ctx.payload.thinking?.enabled;
+      if (on === undefined) return null;
+      if (!on && opt(item, 'hideOff', false)) return null;
+      return t(on ? 'widget.thinking.on' : 'widget.thinking.off');
     },
   },
   {
@@ -121,8 +123,8 @@ export const widgets: WidgetDef[] = [
     options: [{ key: 'showOff', label: 'Show when off', kind: 'boolean', default: false }],
     render(ctx, item) {
       const f = ctx.payload.fast_mode;
-      if (f) return 'fast';
-      return f === false && opt(item, 'showOff', false) ? 'normal' : null;
+      if (f) return t('widget.fast.on');
+      return f === false && opt(item, 'showOff', false) ? t('widget.fast.off') : null;
     },
   },
   {

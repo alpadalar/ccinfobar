@@ -1,4 +1,5 @@
 import { visibleWidth } from '../core/ansi.js';
+import { t as tr } from '../core/i18n/index.js';
 import type { RenderContext, WidgetDef } from '../core/types.js';
 import type { AgentInfo } from '../data/agents.js';
 import { formatTokens, opt, span } from './shared.js';
@@ -99,8 +100,9 @@ export const widgets: WidgetDef[] = [
         ({ t, i }) =>
           `  ${mark(ctx, t.status)} ${i + 1}. ${t.status === 'in_progress' ? (t.activeForm ?? t.content) : t.content}`,
       );
-      if (start > 0) lines.unshift(`  … ${start} earlier`);
-      if (start + max < list.length) lines.push(`  … ${list.length - start - max} more`);
+      if (start > 0) lines.unshift(`  ${tr('widget.agents.earlier', { count: start })}`);
+      if (start + max < list.length)
+        lines.push(`  ${tr('widget.agents.more', { count: list.length - start - max })}`);
       return [head, ...lines].join('\n');
     },
   },
@@ -142,7 +144,12 @@ export const widgets: WidgetDef[] = [
       if (!agents.length) return null;
       const running = agents.filter((a) => a.running).length;
       const done = agents.length - running;
-      return [running ? `${running} running` : '', done ? `${done} done` : ''].filter(Boolean).join(' · ');
+      return [
+        running ? tr('widget.agents.running', { count: running }) : '',
+        done ? tr('widget.agents.done', { count: done }) : '',
+      ]
+        .filter(Boolean)
+        .join(' · ');
     },
   },
 ];

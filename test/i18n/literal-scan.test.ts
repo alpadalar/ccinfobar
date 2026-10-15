@@ -32,6 +32,24 @@ const SWEPT: string[] = [
   'src/editor/server.ts',
   'src/editor/detach.ts',
   'src/editor/web/api.ts',
+  'src/widgets/activity.ts',
+  'src/widgets/agents.ts',
+  'src/widgets/charts.ts',
+  'src/widgets/context.ts',
+  'src/widgets/cost.ts',
+  'src/widgets/custom.ts',
+  'src/widgets/fun.ts',
+  'src/widgets/git.ts',
+  'src/widgets/gsd.ts',
+  'src/widgets/http.ts',
+  'src/widgets/index.ts',
+  'src/widgets/layout.ts',
+  'src/widgets/live.ts',
+  'src/widgets/projection.ts',
+  'src/widgets/session.ts',
+  'src/widgets/status.ts',
+  'src/widgets/tokens.ts',
+  'src/widgets/workspace.ts',
 ];
 
 // left out on purpose, with the reason; 08-25 makes SWEPT + NOT_SWEPT cover src/
@@ -187,10 +205,16 @@ function prose(raw: string): boolean {
   return SENTENCE.test(s) || [...s.matchAll(LOWER3)].some((m) => /[a-z]/.test(m[0]));
 }
 
+// WidgetDef metadata stays English and is translated through widget-text (D-14)
+const META_KEY = /\b(?:name|description|label|help|sample)\s*:\s*$/;
+function metadata(file: string, src: string, lit: Lit): boolean {
+  return file.startsWith('src/widgets/') && META_KEY.test(src.slice(Math.max(0, lit.at - 40), lit.at));
+}
+
 function hits(file: string, src: string): string[] {
   const allow = ALLOW[file] ?? [];
   return scan(src)
-    .filter((l) => !skipped(src, l) && prose(l.text) && !allow.includes(l.text))
+    .filter((l) => !skipped(src, l) && !metadata(file, src, l) && prose(l.text) && !allow.includes(l.text))
     .map((l) => `${file}:${src.slice(0, l.at).split('\n').length} ${JSON.stringify(l.text)}`);
 }
 
@@ -239,6 +263,16 @@ describe('literal scan', () => {
       'x.ts:5 "Saved theme X"',
       'x.ts:7 "Left alone ok"',
     ]);
+  });
+
+  it('skips WidgetDef metadata in widget files only', () => {
+    const src = [
+      "const w = { name: 'Some widget name', description:",
+      "  'Shows the widget text', sample: 'Two words here' };",
+      "const v = { text: 'Some value word' };",
+    ].join('\n');
+    expect(hits('src/widgets/x.ts', src)).toEqual(['src/widgets/x.ts:3 "Some value word"']);
+    expect(hits('src/core/x.ts', src)).toHaveLength(4);
   });
 
   it('lists files that exist, once', () => {
