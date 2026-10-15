@@ -33,9 +33,9 @@ export interface HookState {
   lastEventAt: number | null;
   lastSource: string | null;
   turn: HookTurn | null;
-  // a prompt was shown at since; any later activity clears it
+  // a prompt was shown at since; any later activity closes it
   pendingPermission: { since: number; tool: string | null } | null;
-  // closed by a denial, Stop, prompt or session start
+  // closed by a denial, Stop, prompt, session start, subagent or notification
   lastPermission: PermissionWait | null;
   agents: Record<string, HookAgent>;
 }
@@ -47,7 +47,7 @@ export interface PermissionWait {
 }
 
 export const DUP_WINDOW_MS = 2000;
-const FOLD_VERSION = 3;
+const FOLD_VERSION = 4;
 const MAX_TURNS = 50;
 const MAX_AGENTS = 100;
 const MAX_SEEN = 512;
@@ -234,12 +234,12 @@ function step(f: Fold, x: any) {
         if (v.tp) a.transcript = v.tp;
       }
       trim(f.agents, MAX_AGENTS);
-      clearPending(f, t);
+      closePending(f, t);
       break;
     }
     case 'Notification':
       if (v.n === 'permission_prompt') setPending(f, t, null);
-      else clearPending(f, t);
+      else if (v.n !== 'idle_prompt') closePending(f, t);
       break;
     case 'PermissionDenied':
       if (f.pending && t >= f.pending.since) closePending(f, t, v.tn ?? null);

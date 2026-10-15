@@ -178,6 +178,19 @@ describe('foldHookLog permission waits', () => {
     );
   });
 
+  it('closes an open wait on subagent events and other notifications, not on idle_prompt', () => {
+    expect(foldHookLog([note(2000), sStart(4000, 'a1')]).lastPermission).toEqual({
+      since: 2000,
+      end: 4000,
+      tool: null,
+    });
+    expect(foldHookLog([note(2000), sStop(4500, 'a1')]).lastPermission?.end).toBe(4500);
+    expect(foldHookLog([note(2000), note(5000, 'auth_success')]).lastPermission?.end).toBe(5000);
+    const idle = foldHookLog([note(2000), note(3000, 'idle_prompt')]);
+    expect(idle.pendingPermission).toEqual({ since: 2000, tool: null });
+    expect(idle.lastPermission).toBeNull();
+  });
+
   it('changes nothing on PermissionDenied without an open wait', () => {
     const base = [ups(1000, 'p1')];
     const { lastEventAt: _a, ...before } = foldHookLog(base);
