@@ -11,7 +11,8 @@ import {
   timeRuleFeed,
   updateProfileOverride,
 } from '../../core/edit.js';
-import { type MessageId, t } from '../../core/i18n/index.js';
+import { formatDateTime } from '../../core/i18n/format.js';
+import { languageLocale, type MessageId, t } from '../../core/i18n/index.js';
 import { titleWidgets } from '../../core/panel.js';
 import { PROFILE_LABEL_MAX, PROFILE_MATCH_MAX, PROFILES, PROFILES_UPDATED } from '../../core/profiles.js';
 import type { Config, ProfileOverride, ProgressConfig } from '../../core/types.js';
@@ -420,7 +421,7 @@ export async function openSettings(): Promise<void> {
     };
     const canUpdate = info?.kind === 'npm-global' || info?.kind === 'local';
     const checked = info?.update?.checkedAt
-      ? `last checked ${new Date(info.update.checkedAt).toLocaleString()}`
+      ? `last checked ${formatDateTime(new Date(info.update.checkedAt), languageLocale())}`
       : 'not checked yet';
     body.append(
       section(

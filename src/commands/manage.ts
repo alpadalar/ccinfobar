@@ -4,7 +4,8 @@ import type { Args } from '../cli/args.js';
 import { stripAnsi, visibleWidth } from '../core/ansi.js';
 import { GLYPH_MODES, type LoadResult, saveConfig } from '../core/config.js';
 import { resolveGlyphMode } from '../core/glyphs.js';
-import { t } from '../core/i18n/index.js';
+import { formatDateTime } from '../core/i18n/format.js';
+import { languageLocale, t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { tildify } from '../core/paths.js';
 import { forGsd, listPresets } from '../core/presets.js';
@@ -269,7 +270,7 @@ export async function runUsage(args: Args, cfgFile: string, jobs: Job<unknown>[]
     return;
   }
   const at = (w?: { resets_at?: number | string | null }) =>
-    w?.resets_at ? `, resets ${new Date(w.resets_at).toLocaleString()}` : '';
+    w?.resets_at ? `, resets ${formatDateTime(new Date(w.resets_at), languageLocale())}` : '';
   if (r.five_hour) console.log(`  5-hour: ${r.five_hour.used_percentage ?? '?'}%${at(r.five_hour)}`);
   if (r.seven_day) console.log(`  weekly: ${r.seven_day.used_percentage ?? '?'}%${at(r.seven_day)}`);
   for (const m of r.seven_day_models ?? []) {

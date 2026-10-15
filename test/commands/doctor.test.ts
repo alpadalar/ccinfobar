@@ -14,6 +14,7 @@ import type { StatusPayload } from '../../src/core/types.js';
 import { httpKey } from '../../src/data/jobs/keys.js';
 import { failEnvelope, jobsDir, okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
 import { usageFile, usageKey } from '../../src/data/usage.js';
+import { withLang } from '../helpers.js';
 
 const cfgFile = (name: string, text: string) => {
   const dir = configDir();
@@ -278,6 +279,23 @@ describe('runDoctor install report', () => {
       expect(out.some((l) => l.endsWith(': evilcmd'))).toBe(true);
       expect(out).toContain('  Last update check failed: bad');
     } finally {
+      fs.rmSync(upd, { force: true });
+    }
+  });
+
+  it('shows the last update check in the display language', () => {
+    fs.mkdirSync(cacheDir(), { recursive: true });
+    const upd = path.join(cacheDir(), 'update.json');
+    const at = new Date(2026, 9, 14, 21, 7);
+    fs.writeFileSync(upd, JSON.stringify({ checkedAt: at.getTime(), latest: null }));
+    vi.stubEnv('CCINFOBAR_NO_UPDATE', '');
+    vi.stubEnv('CI', '');
+    try {
+      const line = () => capture(() => runDoctor(plain())).find((l) => l.startsWith('✓ Up to date')) ?? '';
+      expect(line()).toContain('last checked Oct 14, 2026, 21:07)');
+      expect(withLang('tr', line)).toContain('last checked 14 Eki 2026 21:07)');
+    } finally {
+      vi.unstubAllEnvs();
       fs.rmSync(upd, { force: true });
     }
   });

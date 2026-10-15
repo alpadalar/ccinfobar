@@ -1,3 +1,4 @@
+import { compareIds } from '../../core/i18n/format.js';
 import type { Config, TuiBreakpoint, TuiConfig } from '../../core/types.js';
 import { api } from './api.js';
 import { h } from './dom.js';
@@ -39,7 +40,7 @@ function prune(value: unknown): unknown {
 function stable(value: unknown): string {
   return JSON.stringify(value ?? null, (_k, v) =>
     v && typeof v === 'object' && !Array.isArray(v)
-      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)))
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => compareIds(a, b)))
       : v,
   );
 }

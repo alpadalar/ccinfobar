@@ -4,7 +4,8 @@ import type { LoadResult } from '../core/config.js';
 import { refreshReasons, timeRuleFeed } from '../core/edit.js';
 import { describeHeaders, redactUrl } from '../core/http-report.js';
 import { httpRefusal, isLoopback, parseHeaderSpec, parseUrlTemplate } from '../core/http-spec.js';
-import { t } from '../core/i18n/index.js';
+import { formatDateTime } from '../core/i18n/format.js';
+import { languageLocale, t } from '../core/i18n/index.js';
 import { type InspectRow, inspectRows, lineReport, sessionNotes } from '../core/inspect.js';
 import { parsePath } from '../core/jsonpath.js';
 import { loadForUse } from '../core/load.js';
@@ -449,7 +450,9 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
   if (updatesDisabled(loaded.config)) console.log('  Update checks off');
   else if (newer) console.log(`✗ Update available: ${VERSION} → ${newer} (run \`ccinfobar update\`)`);
   else {
-    const when = upd ? `last checked ${new Date(upd.checkedAt).toLocaleString()}` : 'not checked yet';
+    const when = upd
+      ? `last checked ${formatDateTime(new Date(upd.checkedAt), languageLocale())}`
+      : 'not checked yet';
     console.log(`✓ Up to date (${loaded.config.update} mode, ${installKind()} install, ${when})`);
   }
   if (upd?.error) console.log(`  Last update check failed: ${safe(upd.error)}`);

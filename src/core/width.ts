@@ -119,7 +119,7 @@ export function widthTier(s: string, m: WidthMode = current): 1 | 2 | 3 {
 }
 
 function segmenter(): Intl.Segmenter {
-  seg ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+  seg ??= new Intl.Segmenter('en', { granularity: 'grapheme' });
   return seg;
 }
 

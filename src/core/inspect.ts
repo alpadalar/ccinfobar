@@ -12,6 +12,7 @@ import { STATUS_STALE_MS, serviceState } from '../widgets/status.js';
 import { stripAnsi } from './ansi.js';
 import { describeRuleError, type MetricValue, type Visibility } from './conditions.js';
 import { resolveGlyphMode, widthModeFor } from './glyphs.js';
+import { compareIds } from './i18n/format.js';
 import { t } from './i18n/index.js';
 import { parsePath } from './jsonpath.js';
 import { hasItemRules, ruleDecision } from './metrics.js';
@@ -154,7 +155,7 @@ function absentField(reads: TraceRead[] | undefined): EmptyReason | null {
   if (!reads) return null;
   const payload = leaves(reads).filter((r) => r.kind === 'payload' && r.path);
   if (!payload.length || payload.some((r) => !r.absent)) return null;
-  const path = payload.map((r) => r.path!).sort((a, b) => a.length - b.length || a.localeCompare(b))[0]!;
+  const path = payload.map((r) => r.path!).sort((a, b) => a.length - b.length || compareIds(a, b))[0]!;
   return reason('payload-field-absent', undefined, { path: sanitizeText(path), since: sinceFor(path) });
 }
 
