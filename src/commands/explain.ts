@@ -278,7 +278,7 @@ function sourceMeta(
   }
   if (Object.keys(ages).length) meta.ages = ages;
   if (config.lines.some((items) => items.some((i) => i.type === 'permission-wait')))
-    meta.hooksInstalled = findHookEntries(readManifest(env), claudeSettingsPath(env)).length > 0;
+    meta.hooksInstalled = findHookEntries(readManifest(env), claudeSettingsPath(env)).some((e) => !e.role);
   if (config.lines.some((items) => items.some((i) => getWidget(i.type)?.category === 'gsd'))) {
     const g = ctx.data.gsd();
     if (g) {

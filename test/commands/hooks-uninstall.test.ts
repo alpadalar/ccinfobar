@@ -236,3 +236,92 @@ describe('hook entries and groups', () => {
     expect(draft.hooks).toEqual({ PreToolUse: [], Stop: [userStop], Notification: 'odd' });
   });
 });
+
+describe('progress role (D-42)', () => {
+  const PROGRESS = ['UserPromptSubmit', 'Stop', 'StopFailure'];
+  const both = (fx: SettingsFixture) =>
+    applyInstall(planInstall({ file: fx.file, command: CMD, env: fx.env }), {
+      confirmed: true,
+      env: fx.env,
+      hooks: { ...HOOKS, claudeCode: '2.1.300', progress: true },
+    });
+  const groupsBy = (hooks: Record<string, unknown[]>, progress: boolean) =>
+    Object.fromEntries(
+      Object.entries(hooks)
+        .map(([k, v]) => [k, v.filter((g) => JSON.stringify(g).includes('--progress') === progress)])
+        .filter(([, v]) => (v as unknown[]).length),
+    );
+
+  it('uninstall progress removes only progress groups; async ones stay byte-identical', () => {
+    const fx = settingsFixture({ data: { model: 'opus', hooks: { Stop: [userStop] } } });
+    both(fx);
+    const before = read(fx.file);
+    const res = uninstallHooks(fx.file, fx.env, undefined, 'progress');
+    expect(res).toMatchObject({ removed: [], kept: [], progress: { removed: PROGRESS, kept: [] } });
+    const after = read(fx.file);
+    expect(after.hooks).toEqual(groupsBy(before.hooks, false));
+    expect(after.statusLine).toEqual(before.statusLine);
+    const entries = findHookEntries(manifest(fx), fx.file);
+    expect(entries.some((e) => e.role)).toBe(false);
+    expect(entries).toHaveLength(7);
+  });
+
+  it('uninstall hooks removes only role-less groups; progress ones stay', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    both(fx);
+    const before = read(fx.file);
+    const res = uninstallHooks(fx.file, fx.env);
+    expect(res.removed).toEqual(SIX);
+    expect(res.progress).toBeUndefined();
+    expect(read(fx.file).hooks).toEqual(groupsBy(before.hooks, true));
+    expect(findHookEntries(manifest(fx), fx.file).map((e) => e.role)).toEqual([
+      'progress',
+      'progress',
+      'progress',
+    ]);
+  });
+
+  it('a user-edited progress handler is kept and reported', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    both(fx);
+    const data = read(fx.file);
+    const stop = data.hooks.Stop.find((g: unknown) => JSON.stringify(g).includes('--progress'));
+    stop.hooks[0].timeout = 9;
+    write(fx, data);
+    const res = uninstallHooks(fx.file, fx.env, undefined, 'progress');
+    expect(res.progress).toEqual({ removed: ['UserPromptSubmit', 'StopFailure'], kept: ['Stop'] });
+    expect(read(fx.file).hooks.Stop).toContainEqual(stop);
+    expect(findHookEntries(manifest(fx), fx.file).some((e) => e.role)).toBe(false);
+  });
+
+  it('role all and a full uninstall remove both', () => {
+    const a = settingsFixture({ data: { model: 'opus' } });
+    both(a);
+    const res = uninstallHooks(a.file, a.env, undefined, 'all');
+    expect(res).toMatchObject({ removed: SIX, progress: { removed: PROGRESS } });
+    expect(read(a.file).hooks).toBeUndefined();
+    const b = settingsFixture({ data: { model: 'opus' } });
+    both(b);
+    write(b, { ...read(b.file), theme: 'x' });
+    const full2 = full(b);
+    expect(full2.status).toBe('removed');
+    expect(full2.hooks).toEqual({ removed: SIX, kept: [], progress: { removed: PROGRESS, kept: [] } });
+    expect(read(b.file)).toEqual({ model: 'opus', theme: 'x' });
+    expectClean(b);
+    const c = settingsFixture({ data: { model: 'opus' } });
+    both(c);
+    const exact = full(c);
+    expect(exact.status).toBe('restored-exact');
+    expect(exact.hooks.progress?.removed).toEqual(PROGRESS);
+    expectClean(c);
+  });
+
+  it('removeOwnedHooks with every entry removes both roles', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    both(fx);
+    const draft = read(fx.file);
+    const res = removeOwnedHooks(draft, findHookEntries(manifest(fx), fx.file));
+    expect(res).toEqual({ removed: SIX, kept: [], progress: { removed: PROGRESS, kept: [] } });
+    expect(draft.hooks).toBeUndefined();
+  });
+});

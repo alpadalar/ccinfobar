@@ -232,7 +232,7 @@ function installedHooks(): string[] {
     const file = claudeSettingsPath();
     const data = readSettings(file).data as Record<string, unknown>;
     return findHookEntries(readManifest(), file)
-      .filter((e) => hookEntryState(e, data) === 'ok')
+      .filter((e) => !e.role && hookEntryState(e, data) === 'ok')
       .map((e) => e.event)
       .sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
   } catch {

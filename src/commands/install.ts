@@ -17,10 +17,13 @@ import {
   type HookFloor,
   type HookPlan,
   type HookPlanItem,
+  hookKey,
   mutateHooks,
   planHookRewrites,
   planHooks,
+  type RemovedHooks,
   recordHooks,
+  removedLists,
   removeOwnedHooks,
 } from './hooks-install.js';
 import {
@@ -204,6 +207,7 @@ export interface InstallResult {
 export interface InstallHooks {
   events: readonly HookEvent[];
   claudeCode: string | null;
+  progress?: boolean;
   floor?: HookFloor;
 }
 
@@ -288,8 +292,8 @@ export function applyInstall(
       hooks.applied = [];
       if (!userFile) return;
       const asked = opts.hooks ? planHooks({ settings, manifest: m, file, command, ...opts.hooks }) : null;
-      const covered = new Set(asked?.items.map((i) => i.event));
-      const rewrites = planHookRewrites(settings, m, file, command).filter((i) => !covered.has(i.event));
+      const covered = new Set(asked?.items.map(hookKey));
+      const rewrites = planHookRewrites(settings, m, file, command).filter((i) => !covered.has(hookKey(i)));
       hooks.planned = [...(asked?.items ?? []), ...rewrites];
       hooks.applied = mutateHooks(settings, hooks.planned);
       if (asked || rewrites.length)
@@ -355,7 +359,7 @@ export interface UninstallResult {
   removed: boolean;
   restored: StatusLineSetting | null;
   current?: StatusLineSetting | null;
-  hooks: { removed: string[]; kept: string[] };
+  hooks: RemovedHooks;
 }
 
 type HooksOut = UninstallResult['hooks'];
@@ -460,7 +464,7 @@ export function uninstall(
     hooks: HooksOut = none,
   ): UninstallResult => {
     let next = entry ? dropEntry(m, target, 'statusLine') : m;
-    for (const h of hookEntries) next = dropHookEntry(next, target, h.event);
+    for (const h of hookEntries) next = dropHookEntry(next, target, h.event, h.role);
     if (next !== m) writeManifest(next, env);
     const res: UninstallResult = { status, file: target, removed: REMOVED.has(status), restored, hooks };
     if (current !== undefined) res.current = current;
@@ -484,7 +488,7 @@ export function uninstall(
     if (!deepEqual(sl, entry.value)) return done('foreign', null, sl, hooksOnly());
     const exact = restoreExact(target, entry, cur.hash, env);
     // the restore point predates every owned hook
-    const all = { removed: hookEntries.map((h) => h.event), kept: [] };
+    const all = removedLists(hookEntries);
     if (exact) return done(exact, exact === 'restored-exact' ? entry.previous : null, undefined, all);
     return done(
       ...restoreKey(target, cur.data, sl, entry.previous, entry.fileExisted, cur.hash, hookEntries, env),

@@ -321,6 +321,35 @@ describe('hook entries', () => {
     expect(findHookEntries({ ...m, readOnly: true }, file)).toEqual([]);
   });
 
+  it('keeps a progress entry apart from the Phase 4 entry on the same event', () => {
+    const { dir } = tmpEnv();
+    const file = path.join(dir, 'settings.json');
+    let m: Manifest = { version: 1, entries: [] };
+    m = recordHook(m, hook(file, 'UserPromptSubmit', 'a'));
+    m = recordHook(m, { ...hook(file, 'UserPromptSubmit', 'p'), role: 'progress' });
+    m = recordHook(m, { ...hook(file, 'UserPromptSubmit', 'p2'), role: 'progress' });
+    const found = findHookEntries(m, file);
+    expect(found).toHaveLength(2);
+    expect(found.find((e) => !e.role)?.value).toEqual(group('a'));
+    expect(found.find((e) => e.role === 'progress')?.value).toEqual(group('p2'));
+    const noProgress = findHookEntries(dropHookEntry(m, file, 'UserPromptSubmit', 'progress'), file);
+    expect(noProgress.map((e) => [e.event, e.role])).toEqual([['UserPromptSubmit', undefined]]);
+    const noAsync = findHookEntries(dropHookEntry(m, file, 'UserPromptSubmit'), file);
+    expect(noAsync.map((e) => e.role)).toEqual(['progress']);
+  });
+
+  it('reads an old entry without a role as the Phase 4 entry', () => {
+    const { dir } = tmpEnv();
+    const file = path.join(dir, 'settings.json');
+    const old = { kind: 'hook', ...hook(file, 'Stop'), version: '0.7.0', at: 'x' };
+    const m: Manifest = { version: 1, entries: [old] };
+    expect(Object.hasOwn(findHookEntries(m, file)[0] as object, 'role')).toBe(false);
+    expect(findHookEntries(dropHookEntry(m, file, 'Stop', 'progress'), file)).toHaveLength(1);
+    expect(findHookEntries(dropHookEntry(m, file, 'Stop'), file)).toEqual([]);
+    const next = recordHook(m, { ...hook(file, 'Stop', 'new'), role: 'progress' });
+    expect(findHookEntries(next, file)).toHaveLength(2);
+  });
+
   it('refreshes writtenHash on every entry of that file only', () => {
     const { dir } = tmpEnv();
     const file = path.join(dir, 'settings.json');

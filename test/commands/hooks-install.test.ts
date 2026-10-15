@@ -17,6 +17,7 @@ import {
   parseClaudeVersion,
   planHookRewrites,
   planHooks,
+  progressGroup,
   realExecAsync,
 } from '../../src/commands/hooks-install.js';
 import { applyInstall, planInstall, projectSettingsPath } from '../../src/commands/install.js';
@@ -102,8 +103,9 @@ describe('hook groups and events', () => {
     expect(hookEventsFor(undefined)).toEqual([]);
     expect(hookEventsFor(false)).toEqual([]);
     expect(hookEventsFor('x')).toBeNull();
-    const { PermissionDenied, ...rest } = HOOK_FLOOR;
+    const { PermissionDenied, terminalSequence, ...rest } = HOOK_FLOOR;
     expect(PermissionDenied).toBe('2.1.89');
+    expect(terminalSequence).toBe('2.1.141');
     expect(Object.values(rest).every((v) => v === '2.1.101')).toBe(true);
   });
 
@@ -149,6 +151,7 @@ describe('planHooks', () => {
       notificationMatcher: '2.0.0',
       PermissionRequest: '2.2.0',
       PermissionDenied: '2.0.0',
+      terminalSequence: '2.1.141',
     };
     const p = plan({ claudeCode: '2.0.50', floor, events: [...DEFAULT_EVENTS, 'PermissionRequest'] });
     expect(p.asyncOmitted).toBe(true);
@@ -491,5 +494,116 @@ describe('install with hooks', () => {
       changed: false,
       removed: [],
     });
+  });
+});
+
+describe('progress handlers (D-42)', () => {
+  const PROGRESS = ['UserPromptSubmit', 'Stop', 'StopFailure'];
+  const sync = (cmd: string, e: string) => ({
+    hooks: [{ type: 'command', command: `${cmd} --progress hook ${e}`, timeout: 5 }],
+  });
+  const withProgress = (fx: SettingsFixture, events: readonly HookEvent[] = [], claudeCode = '2.1.300') =>
+    applyInstall(planInstall({ file: fx.file, command: '/bin/ccinfobar', env: fx.env }), {
+      confirmed: true,
+      env: fx.env,
+      hooks: { events, claudeCode, progress: true },
+    });
+
+  it('builds a sync group in the --progress hook form', () => {
+    expect(progressGroup('StopFailure', 'x')).toEqual(sync('x', 'StopFailure'));
+    expect(Object.hasOwn(progressGroup('Stop', 'x').hooks[0] as object, 'async')).toBe(false);
+  });
+
+  it('plans the three events and refuses below the terminalSequence floor', () => {
+    const p = plan({ events: [], progress: true, claudeCode: '2.1.300' });
+    expect(p.progressRefused).toBeNull();
+    expect(p.items.map((i) => [i.event, i.role, i.action])).toEqual(
+      PROGRESS.map((e) => [e, 'progress', 'add']),
+    );
+    for (const i of p.items) expect(i.group).toEqual(sync('/bin/ccinfobar', i.event));
+    const old = plan({ events: [], progress: true, claudeCode: '2.1.140' });
+    expect(old).toMatchObject({ refused: null, progressRefused: 'old-version', items: [] });
+    const unknown = plan({ events: [], progress: true, claudeCode: null });
+    expect(unknown.progressRefused).toBe('unknown-version');
+    const both = plan({ progress: true, claudeCode: '2.1.120' });
+    expect(both.progressRefused).toBe('old-version');
+    expect(both.items).toHaveLength(7);
+    expect(both.items.some((i) => i.role)).toBe(false);
+    expect(Object.hasOwn(plan(), 'progressRefused')).toBe(false);
+  });
+
+  it('lives beside the async groups; each role keeps the other byte-identical', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx, '/bin/ccinfobar', { events: DEFAULT_EVENTS, claudeCode: '2.1.300' });
+    const asyncOnly = read(fx.file).hooks;
+    const res = withProgress(fx);
+    expect(res.hooks?.items.map((i) => [i.event, i.action])).toEqual(PROGRESS.map((e) => [e, 'add']));
+    const hooks = read(fx.file).hooks;
+    expect(hooks.UserPromptSubmit).toEqual([
+      ...asyncOnly.UserPromptSubmit,
+      sync('/bin/ccinfobar', 'UserPromptSubmit'),
+    ]);
+    expect(hooks.Stop).toEqual([...asyncOnly.Stop, sync('/bin/ccinfobar', 'Stop')]);
+    expect(hooks.StopFailure).toEqual([sync('/bin/ccinfobar', 'StopFailure')]);
+    const entries = findHookEntries(readManifest(fx.env), fx.file);
+    expect(entries.filter((e) => e.role === 'progress').map((e) => e.event)).toEqual(PROGRESS);
+    expect(entries.filter((e) => !e.role)).toHaveLength(7);
+    expect(withProgress(fx).hooks?.items.every((i) => i.action === 'keep')).toBe(true);
+  });
+
+  it('one write and one backup for --hooks --progress', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    withProgress(fx, DEFAULT_EVENTS);
+    expect(backups(fx)).toHaveLength(1);
+    const hooks = read(fx.file).hooks;
+    expect(hooks.UserPromptSubmit).toHaveLength(2);
+    expect(hooks.StopFailure).toHaveLength(1);
+    expect(read(fx.file).model).toBe('opus');
+    expect(fs.readFileSync(fx.file, 'utf8')).not.toContain('terminalProgressBarEnabled');
+  });
+
+  it('rewrites progress handlers sync and in the --progress form when the command changes', () => {
+    const fx = settingsFixture();
+    withProgress(fx, DEFAULT_EVENTS);
+    const settings = read(fx.file);
+    const items = planHookRewrites(settings, readManifest(fx.env), fx.file, '/new/ccinfobar');
+    const progress = items.filter((i) => i.role === 'progress');
+    expect(progress.map((i) => i.event)).toEqual(PROGRESS);
+    for (const i of progress) expect(i.group).toEqual(sync('/new/ccinfobar', i.event));
+    for (const i of items.filter((x) => !x.role)) expect(i.group.hooks[0]?.async).toBe(true);
+    install(fx, '/new/ccinfobar');
+    const hooks = read(fx.file).hooks;
+    expect(hooks.Stop).toEqual([
+      { hooks: [handler('/new/ccinfobar', 'Stop')] },
+      sync('/new/ccinfobar', 'Stop'),
+    ]);
+    expect(hooks.StopFailure).toEqual([sync('/new/ccinfobar', 'StopFailure')]);
+  });
+
+  it('a user-edited progress handler is not reclaimed; a fresh one is added beside it', () => {
+    const fx = settingsFixture();
+    withProgress(fx);
+    const data = read(fx.file);
+    data.hooks.Stop[0].hooks[0].timeout = 9;
+    fs.writeFileSync(fx.file, formatJson(data));
+    expect(planHookRewrites(data, readManifest(fx.env), fx.file, '/new/ccinfobar')).toHaveLength(2);
+  });
+
+  it('applyHooks re-decides per role and never drops progress entries for remove', () => {
+    const fx = settingsFixture();
+    withProgress(fx, [...DEFAULT_EVENTS, ...OPTIONAL_EVENTS]);
+    const p = planHooks({
+      settings: read(fx.file),
+      manifest: readManifest(fx.env),
+      file: fx.file,
+      command: '/bin/ccinfobar',
+      claudeCode: '2.1.300',
+      events: DEFAULT_EVENTS,
+    });
+    applyHooks(fx.file, p, fx.env, [...OPTIONAL_EVENTS, 'Stop']);
+    const entries = findHookEntries(readManifest(fx.env), fx.file);
+    expect(entries.filter((e) => e.role === 'progress')).toHaveLength(3);
+    expect(entries.some((e) => e.event === 'PermissionRequest')).toBe(false);
+    expect(read(fx.file).hooks.Stop).toHaveLength(2);
   });
 });

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { t } from '../core/i18n/index.js';
 import { claudeSettingsPath, lastPayloadPath } from '../core/paths.js';
 import { HOOK_EVENTS, type HookEvent, isHookEvent } from '../data/hooks.js';
+import { isProgressEvent, PROGRESS_EVENTS, type ProgressEvent } from '../data/progress.js';
 import { compareVersions, safeCwd } from '../data/update-state.js';
 import {
   deepEqual,
@@ -39,7 +40,7 @@ export const NEVER_EVENTS = [
 ] as const;
 
 export type HookFloor = Record<
-  'core' | 'async' | 'notificationMatcher' | 'PermissionRequest' | 'PermissionDenied',
+  'core' | 'async' | 'notificationMatcher' | 'PermissionRequest' | 'PermissionDenied' | 'terminalSequence',
   string
 >;
 
@@ -49,6 +50,7 @@ export const HOOK_FLOOR: HookFloor = {
   notificationMatcher: '2.1.101',
   PermissionRequest: '2.1.101',
   PermissionDenied: '2.1.89',
+  terminalSequence: '2.1.141',
 };
 
 export interface HookHandler {
@@ -65,8 +67,11 @@ export interface HookGroup {
 
 export type HookAction = 'add' | 'keep' | 'rewrite' | 'skip-unmanaged' | 'skip-version';
 
+export type HookRole = 'hooks' | 'progress' | 'all';
+
 export interface HookPlanItem {
-  event: HookEvent;
+  event: HookEvent | ProgressEvent;
+  role?: 'progress';
   action: HookAction;
   group: HookGroup;
   from?: HookGroup;
@@ -78,6 +83,7 @@ export interface HookPlan {
   claudeCode: string | null;
   refused: HookRefusal | null;
   asyncOmitted: boolean;
+  progressRefused?: HookRefusal | null;
   items: HookPlanItem[];
 }
 
@@ -88,6 +94,16 @@ export function hookGroup(event: HookEvent, command: string, opts: { async: bool
     : { type: 'command', command: cmd, timeout: 5 };
   return event === 'Notification' ? { matcher: 'permission_prompt', hooks: [handler] } : { hooks: [handler] };
 }
+
+// sync: async handlers never emit terminalSequence
+export function progressGroup(event: ProgressEvent, command: string): HookGroup {
+  return { hooks: [{ type: 'command', command: `${command} --progress hook ${event}`, timeout: 5 }] };
+}
+
+export const inRole = (e: { role?: unknown }, role: HookRole) =>
+  role === 'all' || (role === 'progress' ? e.role === 'progress' : e.role === undefined);
+
+export const hookKey = (i: { event: string; role?: string }) => (i.role ? `${i.role}:${i.event}` : i.event);
 
 export function hookEventsFor(flag: string | boolean | undefined): HookEvent[] | null {
   if (flag === undefined || flag === false) return [];
@@ -193,7 +209,7 @@ function groupsOf(settings: Record<string, unknown>, event: string): unknown[] {
 
 const handlersOf = (g: unknown): unknown[] => (isObj(g) && Array.isArray(g.hooks) ? g.hooks : []);
 
-export function eventFloor(event: HookEvent, floor: HookFloor = HOOK_FLOOR): string | null {
+export function eventFloor(event: string, floor: HookFloor = HOOK_FLOOR): string | null {
   if (event === 'PermissionRequest') return floor.PermissionRequest;
   if (event === 'PermissionDenied') return floor.PermissionDenied;
   if (event === 'Notification') return floor.notificationMatcher;
@@ -202,24 +218,32 @@ export function eventFloor(event: HookEvent, floor: HookFloor = HOOK_FLOOR): str
 
 // Claude Code dedupes identical handlers only, so a same-command one would run twice
 function decide(
-  event: HookEvent,
+  event: HookPlanItem['event'],
   desired: HookGroup,
   settings: Record<string, unknown>,
   entry: HookEntry | undefined,
+  role?: 'progress',
 ): HookPlanItem {
+  const base = role ? { event, role } : { event };
   const groups = groupsOf(settings, event);
   if (entry && groups.some((g) => deepEqual(g, entry.value))) {
-    if (deepEqual(entry.value, desired)) return { event, action: 'keep', group: desired };
-    return { event, action: 'rewrite', group: desired, from: structuredClone(entry.value) as HookGroup };
+    if (deepEqual(entry.value, desired)) return { ...base, action: 'keep', group: desired };
+    return { ...base, action: 'rewrite', group: desired, from: structuredClone(entry.value) as HookGroup };
   }
   const ours = desired.hooks[0] as HookHandler;
   const present = groups.some((g) =>
     handlersOf(g).some((h) => deepEqual(h, ours) || (isObj(h) && h.command === ours.command)),
   );
-  return { event, action: present ? 'skip-unmanaged' : 'add', group: desired };
+  return { ...base, action: present ? 'skip-unmanaged' : 'add', group: desired };
 }
 
-const entryOf = (entries: HookEntry[], event: string) => entries.find((e) => e.event === event);
+const entryOf = (entries: HookEntry[], event: string, role?: 'progress') =>
+  entries.find((e) => e.event === event && e.role === role);
+
+function progressRefusal(claudeCode: string | null, floor: HookFloor): HookRefusal | null {
+  if (!claudeCode) return 'unknown-version';
+  return below(claudeCode, floor.terminalSequence) ? 'old-version' : null;
+}
 
 // pure
 export function planHooks(input: {
@@ -229,13 +253,16 @@ export function planHooks(input: {
   command: string;
   claudeCode: string | null;
   events: readonly HookEvent[];
+  progress?: boolean;
   floor?: HookFloor;
 }): HookPlan {
   const floor = input.floor ?? HOOK_FLOOR;
   const { claudeCode } = input;
-  if (!claudeCode) return { claudeCode, refused: 'unknown-version', asyncOmitted: false, items: [] };
+  const progressRefused = input.progress ? progressRefusal(claudeCode, floor) : undefined;
+  const pr = progressRefused === undefined ? {} : { progressRefused };
+  if (!claudeCode) return { claudeCode, refused: 'unknown-version', asyncOmitted: false, ...pr, items: [] };
   if (below(claudeCode, floor.core))
-    return { claudeCode, refused: 'old-version', asyncOmitted: false, items: [] };
+    return { claudeCode, refused: 'old-version', asyncOmitted: false, ...pr, items: [] };
   const asyncOmitted = below(claudeCode, floor.async);
   const wanted = new Set<string>(input.events);
   const entries = findHookEntries(input.manifest, input.file);
@@ -245,7 +272,12 @@ export function planHooks(input: {
     if (min && below(claudeCode, min)) return { event, action: 'skip-version', group: desired };
     return decide(event, desired, input.settings, entryOf(entries, event));
   });
-  return { claudeCode, refused: null, asyncOmitted, items };
+  if (input.progress && !progressRefused)
+    for (const event of PROGRESS_EVENTS) {
+      const desired = progressGroup(event, input.command);
+      items.push(decide(event, desired, input.settings, entryOf(entries, event, 'progress'), 'progress'));
+    }
+  return { claudeCode, refused: null, asyncOmitted, ...pr, items };
 }
 
 const hasAsync = (v: unknown) => handlersOf(v).some((h) => isObj(h) && h.async === true);
@@ -260,11 +292,16 @@ export function planHookRewrites(
   const out: HookPlanItem[] = [];
   for (const entry of findHookEntries(manifest, file)) {
     const event = entry.event;
-    if (!isHookEvent(event) || NEVER.has(event)) continue;
+    const progress = entry.role === 'progress';
+    let desired: HookGroup;
+    if (progress && isProgressEvent(event)) desired = progressGroup(event, command);
+    else if (!progress && entry.role === undefined && isHookEvent(event) && !NEVER.has(event))
+      desired = hookGroup(event, command, { async: hasAsync(entry.value) });
+    else continue;
     if (!groupsOf(settings, event).some((g) => deepEqual(g, entry.value))) continue;
-    const desired = hookGroup(event, command, { async: hasAsync(entry.value) });
     if (deepEqual(desired, entry.value)) continue;
-    out.push({ event, action: 'rewrite', group: desired, from: structuredClone(entry.value) as HookGroup });
+    const from = structuredClone(entry.value) as HookGroup;
+    out.push({ event, ...(progress ? { role: 'progress' } : {}), action: 'rewrite', group: desired, from });
   }
   return out;
 }
@@ -308,10 +345,11 @@ export function recordHooks(
   const before = findHookEntries(m, file);
   let next = m;
   for (const item of applied) {
-    const prev = entryOf(before, item.event);
+    const prev = entryOf(before, item.event, item.role);
     next = recordHook(next, {
       file,
       event: item.event,
+      ...(item.role ? { role: item.role } : {}),
       ...(item.group.matcher !== undefined ? { matcher: item.group.matcher } : {}),
       value: structuredClone(item.group),
       claudeCode: item.action === 'add' ? claudeCode : (prev?.claudeCode ?? claudeCode),
@@ -337,14 +375,16 @@ export function applyHooks(
   const m = readManifest(env);
   if (m.readOnly) throw new Error(t('install.manifestReadOnly', { file: manifestFile(env) }));
   const entries = findHookEntries(m, file);
-  const planned = new Set<string>(plan.items.map((i) => i.event));
-  const drop = entries.filter((e) => remove.includes(e.event) && !planned.has(e.event));
+  const planned = new Set<string>(plan.items.map(hookKey));
+  const drop = entries.filter((e) => !e.role && remove.includes(e.event) && !planned.has(e.event));
   const state = { planned: [] as HookPlanItem[], applied: [] as HookPlanItem[], removed: [] as string[] };
   const res = patchSettings(
     file,
     (draft) => {
       state.planned = plan.items.map((i) =>
-        i.action === 'skip-version' ? i : decide(i.event, i.group, draft, entryOf(entries, i.event)),
+        i.action === 'skip-version'
+          ? i
+          : decide(i.event, i.group, draft, entryOf(entries, i.event, i.role), i.role),
       );
       state.applied = mutateHooks(draft, state.planned);
       state.removed = drop.length ? removeOwnedHooks(draft, drop).removed : [];
@@ -353,7 +393,7 @@ export function applyHooks(
   );
   try {
     let next = recordHooks(m, res.real, state.applied, plan.claudeCode, res.afterHash);
-    for (const e of drop) next = dropHookEntry(next, res.real, e.event);
+    for (const e of drop) next = dropHookEntry(next, res.real, e.event, e.role);
     writeManifest(res.changed ? noteWrite(next, res.real, res.beforeHash, res.afterHash) : next, env);
   } catch (err) {
     if (res.changed) rollbackPatch(file, res, env);
@@ -367,38 +407,53 @@ export function applyHooks(
   };
 }
 
+export interface RemovedHooks {
+  removed: string[];
+  kept: string[];
+  // only when progress entries were involved
+  progress?: { removed: string[]; kept: string[] };
+}
+
+function listsFor(out: RemovedHooks, e: HookEntry): { removed: string[]; kept: string[] } {
+  if (e.role !== 'progress') return out;
+  out.progress ??= { removed: [], kept: [] };
+  return out.progress;
+}
+
+// lists for entries removed without a key-level pass
+export function removedLists(entries: HookEntry[]): RemovedHooks {
+  const out: RemovedHooks = { removed: [], kept: [] };
+  for (const e of entries) listsFor(out, e).removed.push(e.event);
+  return out;
+}
+
 // D-19: deepEqual ownership; only arrays we emptied are dropped
-export function removeOwnedHooks(
-  draft: Record<string, unknown>,
-  entries: HookEntry[],
-): { removed: string[]; kept: string[] } {
-  const removed: string[] = [];
-  const kept: string[] = [];
+export function removeOwnedHooks(draft: Record<string, unknown>, entries: HookEntry[]): RemovedHooks {
+  const out: RemovedHooks = { removed: [], kept: [] };
   const hooks = draft.hooks;
   const touched = new Set<string>();
   for (const entry of entries) {
+    const lists = listsFor(out, entry);
     const list = isObj(hooks) ? hooks[entry.event] : undefined;
     const i = Array.isArray(list) ? list.findIndex((g) => deepEqual(g, entry.value)) : -1;
     if (i < 0 || !Array.isArray(list)) {
-      kept.push(entry.event);
+      lists.kept.push(entry.event);
       continue;
     }
     list.splice(i, 1);
-    removed.push(entry.event);
+    lists.removed.push(entry.event);
     touched.add(entry.event);
   }
-  if (!isObj(hooks) || !touched.size) return { removed, kept };
+  if (!isObj(hooks) || !touched.size) return out;
   for (const event of touched) {
     const list = hooks[event];
     if (Array.isArray(list) && list.length === 0) delete hooks[event];
   }
   if (Object.keys(hooks).length === 0) delete draft.hooks;
-  return { removed, kept };
+  return out;
 }
 
-export interface HooksRemoval {
-  removed: string[];
-  kept: string[];
+export interface HooksRemoval extends RemovedHooks {
   backup: string | null;
   changed: boolean;
 }
@@ -408,12 +463,15 @@ export function uninstallHooks(
   file: string = claudeSettingsPath(),
   env: NodeJS.ProcessEnv = process.env,
   only?: readonly string[],
+  role: HookRole = 'hooks',
 ): HooksRemoval {
   const m = readManifest(env);
   if (m.readOnly) throw new Error(t('install.manifestReadOnly', { file: manifestFile(env) }));
-  const entries = findHookEntries(m, file).filter((e) => !only || only.includes(e.event));
+  const entries = findHookEntries(m, file).filter(
+    (e) => inRole(e, role) && (!only || only.includes(e.event)),
+  );
   if (!entries.length) return { removed: [], kept: [], backup: null, changed: false };
-  const state = { removed: [] as string[], kept: [] as string[] };
+  const state: RemovedHooks = { removed: [], kept: [] };
   const res = patchSettings(
     file,
     (draft) => {
@@ -422,7 +480,7 @@ export function uninstallHooks(
     { original: false, env },
   );
   let next = m;
-  for (const e of entries) next = dropHookEntry(next, res.real, e.event);
+  for (const e of entries) next = dropHookEntry(next, res.real, e.event, e.role);
   try {
     writeManifest(res.changed ? noteWrite(next, res.real, res.beforeHash, res.afterHash) : next, env);
   } catch (err) {

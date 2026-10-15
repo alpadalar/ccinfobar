@@ -20,6 +20,7 @@ import {
   type HookPlan,
   type HookPlanItem,
   hookEventsFor,
+  hookKey,
   planHookRewrites,
   planHooks,
   uninstallHooks,
@@ -123,8 +124,10 @@ function previewHooks(
   const settings = readSettings(file).data;
   const manifest = readManifest();
   const asked = events.length ? planHooks({ settings, manifest, file, command, claudeCode, events }) : null;
-  const covered = new Set(asked?.items.map((i) => i.event));
-  const rewrites = planHookRewrites(settings, manifest, file, command).filter((i) => !covered.has(i.event));
+  const covered = new Set(asked?.items.map(hookKey));
+  const rewrites = planHookRewrites(settings, manifest, file, command).filter(
+    (i) => !covered.has(hookKey(i)),
+  );
   if (!asked && !rewrites.length) return null;
   const base = asked ?? { claudeCode: null, refused: null, asyncOmitted: false };
   return { ...base, items: [...(asked?.items ?? []), ...rewrites] };

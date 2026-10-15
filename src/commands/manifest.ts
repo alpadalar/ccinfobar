@@ -33,6 +33,7 @@ export interface HookEntry {
   kind: 'hook';
   file: string;
   event: string;
+  role?: 'progress';
   matcher?: string;
   value: unknown;
   claudeCode: string | null;
@@ -231,14 +232,16 @@ export function findHookEntries(m: Manifest, file: string): HookEntry[] {
   return m.entries.filter((e): e is HookEntry => isHookEntry(e) && sameFile(e.file, key));
 }
 
-const isHookOf = (e: ManifestEntry, key: string, event: string) =>
-  e.kind === 'hook' && sameFile(String(e.file), key) && e.event === event;
+// no role is the Phase 4 entry
+const isHookOf = (e: ManifestEntry, key: string, event: string, role?: 'progress') =>
+  e.kind === 'hook' && sameFile(String(e.file), key) && e.event === event && e.role === role;
 
 export function recordHook(
   m: Manifest,
   e: {
     file: string;
     event: string;
+    role?: 'progress';
     matcher?: string;
     value: unknown;
     claudeCode: string | null;
@@ -250,6 +253,7 @@ export function recordHook(
     kind: 'hook',
     file,
     event: e.event,
+    ...(e.role ? { role: e.role } : {}),
     ...(e.matcher !== undefined ? { matcher: e.matcher } : {}),
     value: e.value,
     claudeCode: e.claudeCode,
@@ -257,13 +261,13 @@ export function recordHook(
     version: VERSION,
     at: stampNow(),
   };
-  const rest = m.entries.filter((x) => !isHookOf(x, file, e.event));
+  const rest = m.entries.filter((x) => !isHookOf(x, file, e.event, e.role));
   return { ...m, entries: [...rest, next] };
 }
 
-export function dropHookEntry(m: Manifest, file: string, event: string): Manifest {
+export function dropHookEntry(m: Manifest, file: string, event: string, role?: 'progress'): Manifest {
   const key = realKey(file);
-  return { ...m, entries: m.entries.filter((e) => !isHookOf(e, key, event)) };
+  return { ...m, entries: m.entries.filter((e) => !isHookOf(e, key, event, role)) };
 }
 
 // D-19: the file's last ccinfobar write is the reference
