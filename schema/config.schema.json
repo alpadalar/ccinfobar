@@ -311,6 +311,72 @@
       },
       "additionalProperties": false
     },
+    "profiles": {
+      "type": "object",
+      "description": "Model names, context windows and prices for third-party providers (built-ins updated 2026-10-14)",
+      "properties": {
+        "builtIn": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use the built-in table for GLM, Kimi, DeepSeek, MiniMax and Qwen models"
+        },
+        "models": {
+          "type": "array",
+          "maxItems": 100,
+          "description": "Your own model profiles; they win over the built-ins and the first match wins",
+          "items": {
+            "type": "object",
+            "required": ["match"],
+            "properties": {
+              "match": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Case-insensitive glob on the model id or display name; only * is special"
+              },
+              "label": {
+                "type": "string",
+                "maxLength": 60,
+                "description": "Name shown for the model"
+              },
+              "contextWindow": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Context window in tokens"
+              },
+              "input": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Input price per 1M tokens"
+              },
+              "output": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Output price per 1M tokens"
+              },
+              "cacheRead": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Cache read price per 1M tokens"
+              },
+              "cacheWrite": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Cache write price per 1M tokens"
+              },
+              "currency": {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$",
+                "default": "USD",
+                "description": "Three-letter currency code of the prices"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "gsdAutoLine": {
       "type": "boolean",
       "description": "Set by ccinfobar when it left the GSD line out because GSD was not installed"

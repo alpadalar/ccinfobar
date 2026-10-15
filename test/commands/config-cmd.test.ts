@@ -223,6 +223,50 @@ describe('config budget', () => {
   });
 });
 
+describe('config profiles', () => {
+  it('sets, gets and unsets profiles', () => {
+    const file = withFile();
+    expect(run(['set', 'profiles.builtIn', 'false'], file).code).toBe(0);
+    expect(read(file).profiles).toEqual({ builtIn: false });
+    run(['set', 'profiles.builtIn', 'true'], file);
+    expect(read(file).profiles).toEqual({ builtIn: true });
+    run(['set', 'profiles.builtIn', 'false'], file);
+    const models = '[{"match":"glm-*","contextWindow":500000}]';
+    expect(run(['set', 'profiles.models', models], file)).toEqual({
+      out: [t('cfg.set', { path: 'profiles.models' })],
+      err: [],
+      code: 0,
+    });
+    expect(read(file).profiles).toEqual({
+      builtIn: false,
+      models: [{ match: 'glm-*', contextWindow: 500000 }],
+    });
+    expect(run(['get', 'profiles.models.0.contextWindow'], file).out).toEqual(['500000']);
+    run(['set', 'profiles.models.0.input', '1.5'], file);
+    expect(read(file).profiles.models[0].input).toBe(1.5);
+    expect(run(['unset', 'profiles'], file).out).toEqual([t('cfg.unset', { path: 'profiles' })]);
+    expect(read(file).profiles).toBeUndefined();
+  });
+
+  it('rejects invalid profile values without writing', () => {
+    const file = withFile();
+    const bytes = fs.readFileSync(file, 'utf8');
+    for (const argv of [
+      ['set', 'profiles.models', '[{"match":"glm-*","contextWindow":-5}]'],
+      ['set', 'profiles.models', '[{"match":""}]'],
+      ['set', 'profiles.models', '[{"match":"x","currency":"EURO"}]'],
+      ['set', 'profiles.builtIn', '"no"'],
+      ['set', 'profiles.extra', '1'],
+    ]) {
+      const r = run(argv, file);
+      expect(r.err).toEqual([t('cfg.rejected', { path: argv[1]! })]);
+      expect(r.code).toBe(1);
+      process.exitCode = undefined;
+    }
+    expect(fs.readFileSync(file, 'utf8')).toBe(bytes);
+  });
+});
+
 describe('broken config', () => {
   for (const argv of [
     ['get', 'theme'],

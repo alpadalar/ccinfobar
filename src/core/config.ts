@@ -3,6 +3,7 @@ import { writeAtomic } from '../data/store.js';
 import { t } from './i18n/index.js';
 import { locateJsonError, locateKey } from './json-locate.js';
 import { configPath } from './paths.js';
+import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
 import { sanitizeText } from './sanitize.js';
 import type {
   Align,
@@ -193,6 +194,20 @@ export function normalizeBudget(raw: unknown): Config['budget'] | undefined {
   return compact({ daily: usd(raw.daily), session: usd(raw.session), warnAt });
 }
 
+export function normalizeProfiles(raw: unknown): Config['profiles'] | undefined {
+  if (!isObject(raw)) return undefined;
+  const models = Array.isArray(raw.models)
+    ? raw.models
+        .map(normalizeProfileOverride)
+        .filter((o) => o !== null)
+        .slice(0, PROFILE_OVERRIDES_MAX)
+    : [];
+  return compact({
+    builtIn: typeof raw.builtIn === 'boolean' ? raw.builtIn : undefined,
+    models: models.length ? models : undefined,
+  });
+}
+
 const isAlign = (v: unknown): v is Align => v === 'left' || v === 'center' || v === 'right';
 
 export function normalizeConfig(raw: unknown): Config {
@@ -244,6 +259,8 @@ export function normalizeConfig(raw: unknown): Config {
   if (typeof raw.loadingText === 'string') cfg.loadingText = sanitizeText(raw.loadingText).slice(0, 40);
   const budget = normalizeBudget(raw.budget);
   if (budget) cfg.budget = budget;
+  const profiles = normalizeProfiles(raw.profiles);
+  if (profiles) cfg.profiles = profiles;
   const tui = normalizeTui(raw.tui);
   if (tui) cfg.tui = tui;
   if (typeof raw.style === 'string' && STYLE_IDS.includes(raw.style)) cfg.style = raw.style as ThemeStyle;

@@ -1,6 +1,6 @@
 import type { Provider } from '../data/provider.js';
 import { sanitizeText } from './sanitize.js';
-import type { ProfileOverride, ProfilesConfig } from './types.js';
+import type { Config, ProfileOverride } from './types.js';
 
 export interface ProfileModel {
   match: string;
@@ -228,7 +228,7 @@ function priced(p: {
 export function resolveProfile(
   model: { id?: string; display_name?: string } | undefined,
   provider: Provider,
-  config: { profiles?: ProfilesConfig },
+  config: Pick<Config, 'profiles'>,
 ): ResolvedProfile | null {
   const names = [strip(model?.id), strip(model?.display_name)].filter(Boolean);
   if (!names.length) return null;

@@ -1,4 +1,14 @@
-import type { Align, BudgetConfig, Config, OptionSpec, OptionValue, WidgetItem } from './types.js';
+import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
+import type {
+  Align,
+  BudgetConfig,
+  Config,
+  OptionSpec,
+  OptionValue,
+  ProfileOverride,
+  ProfilesConfig,
+  WidgetItem,
+} from './types.js';
 
 export interface Position {
   line: number;
@@ -317,4 +327,49 @@ export function setBudget(config: Config, key: keyof BudgetConfig, value: number
   const next: Config = { ...config, budget };
   if (!Object.keys(budget).length) delete next.budget;
   return next;
+}
+
+function withProfiles(config: Config, profiles: ProfilesConfig): Config {
+  if (!profiles.models?.length) delete profiles.models;
+  const next: Config = { ...config, profiles };
+  if (!Object.keys(profiles).length) delete next.profiles;
+  return next;
+}
+
+export function setProfilesBuiltIn(config: Config, on: boolean): Config {
+  const profiles: ProfilesConfig = { ...config.profiles };
+  if (on) delete profiles.builtIn;
+  else profiles.builtIn = false;
+  return withProfiles(config, profiles);
+}
+
+export function addProfileOverride(config: Config, entry: ProfileOverride): Config {
+  const models = config.profiles?.models ?? [];
+  const clean = normalizeProfileOverride(entry);
+  if (!clean || models.length >= PROFILE_OVERRIDES_MAX) return config;
+  return withProfiles(config, { ...config.profiles, models: [...models, clean] });
+}
+
+// an invalid match keeps the old one; other invalid values are dropped
+export function updateProfileOverride(
+  config: Config,
+  index: number,
+  patch: Partial<ProfileOverride>,
+): Config {
+  const models = config.profiles?.models ?? [];
+  const old = models[index];
+  if (!old) return config;
+  const merged: Record<string, unknown> = { ...old, ...patch };
+  for (const [k, v] of Object.entries(merged)) if (v === undefined) delete merged[k];
+  const clean = normalizeProfileOverride(merged) ?? normalizeProfileOverride({ ...merged, match: old.match });
+  if (!clean) return config;
+  const list = models.slice();
+  list[index] = clean;
+  return withProfiles(config, { ...config.profiles, models: list });
+}
+
+export function removeProfileOverride(config: Config, index: number): Config {
+  const models = config.profiles?.models ?? [];
+  if (!models[index]) return config;
+  return withProfiles(config, { ...config.profiles, models: models.filter((_, i) => i !== index) });
 }

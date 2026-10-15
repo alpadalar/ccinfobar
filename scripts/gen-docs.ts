@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { BOX_PRESETS } from '../src/core/panel.js';
+import {
+  PROFILE_LABEL_MAX,
+  PROFILE_MATCH_MAX,
+  PROFILE_OVERRIDES_MAX,
+  PROFILES_UPDATED,
+} from '../src/core/profiles.js';
 import { BUILTIN_THEMES, STYLES } from '../src/core/themes.js';
 import type { OptionSpec } from '../src/core/types.js';
 import { CATEGORIES, ALL_WIDGETS as EVERY_WIDGET } from '../src/widgets/index.js';
@@ -321,6 +327,60 @@ function schema(): object {
             maximum: 1,
             default: 0.8,
             description: 'Fraction of the budget where the widget turns yellow',
+          },
+        },
+        additionalProperties: false,
+      },
+      profiles: {
+        type: 'object',
+        description: `Model names, context windows and prices for third-party providers (built-ins updated ${PROFILES_UPDATED})`,
+        properties: {
+          builtIn: {
+            type: 'boolean',
+            default: true,
+            description: 'Use the built-in table for GLM, Kimi, DeepSeek, MiniMax and Qwen models',
+          },
+          models: {
+            type: 'array',
+            maxItems: PROFILE_OVERRIDES_MAX,
+            description: 'Your own model profiles; they win over the built-ins and the first match wins',
+            items: {
+              type: 'object',
+              required: ['match'],
+              properties: {
+                match: {
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: PROFILE_MATCH_MAX,
+                  description: 'Case-insensitive glob on the model id or display name; only * is special',
+                },
+                label: {
+                  type: 'string',
+                  maxLength: PROFILE_LABEL_MAX,
+                  description: 'Name shown for the model',
+                },
+                contextWindow: { type: 'integer', minimum: 1, description: 'Context window in tokens' },
+                input: { type: 'number', exclusiveMinimum: 0, description: 'Input price per 1M tokens' },
+                output: { type: 'number', exclusiveMinimum: 0, description: 'Output price per 1M tokens' },
+                cacheRead: {
+                  type: 'number',
+                  exclusiveMinimum: 0,
+                  description: 'Cache read price per 1M tokens',
+                },
+                cacheWrite: {
+                  type: 'number',
+                  exclusiveMinimum: 0,
+                  description: 'Cache write price per 1M tokens',
+                },
+                currency: {
+                  type: 'string',
+                  pattern: '^[A-Z]{3}$',
+                  default: 'USD',
+                  description: 'Three-letter currency code of the prices',
+                },
+              },
+              additionalProperties: false,
+            },
           },
         },
         additionalProperties: false,

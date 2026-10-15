@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaultConfig, normalizeConfig } from '../../src/core/config.js';
 import {
   addLine,
+  addProfileOverride,
   applyStyle,
   clearColors,
   hasOwnColors,
@@ -14,11 +15,14 @@ import {
   refreshReasons,
   removeItem,
   removeLine,
+  removeProfileOverride,
   setBudget,
   setLineAlign,
   setOption,
+  setProfilesBuiltIn,
   takeStyle,
   updateItem,
+  updateProfileOverride,
   upgradeOptions,
 } from '../../src/core/edit.js';
 import type { Config, WidgetItem } from '../../src/core/types.js';
@@ -251,5 +255,39 @@ describe('needsRefresh', () => {
       widgets: ['clock'],
       rules: [],
     });
+  });
+});
+
+describe('profile edits', () => {
+  const base = defaultConfig();
+
+  it('toggles builtIn and removes the key at the default', () => {
+    const off = setProfilesBuiltIn(base, false);
+    expect(off.profiles).toEqual({ builtIn: false });
+    expect(base.profiles).toBeUndefined();
+    expect(setProfilesBuiltIn(off, true).profiles).toBeUndefined();
+  });
+
+  it('adds, updates and removes overrides', () => {
+    let c = addProfileOverride(base, { match: 'glm-*', contextWindow: 500000, input: -1, currency: 'cny' });
+    expect(c.profiles).toEqual({ models: [{ match: 'glm-*', contextWindow: 500000, currency: 'CNY' }] });
+    expect(addProfileOverride(c, { match: '' })).toBe(c);
+    c = addProfileOverride(c, { match: 'kimi-*', label: 'Kimi' });
+    c = updateProfileOverride(c, 0, { input: 1, output: 2, contextWindow: undefined });
+    expect(c.profiles?.models?.[0]).toEqual({ match: 'glm-*', input: 1, output: 2, currency: 'CNY' });
+    c = updateProfileOverride(c, 0, { match: '', output: 0 });
+    expect(c.profiles?.models?.[0]).toEqual({ match: 'glm-*', input: 1, currency: 'CNY' });
+    expect(updateProfileOverride(c, 5, { label: 'x' })).toBe(c);
+    c = removeProfileOverride(c, 0);
+    expect(c.profiles).toEqual({ models: [{ match: 'kimi-*', label: 'Kimi' }] });
+    expect(removeProfileOverride(c, 0).profiles).toBeUndefined();
+    const off = removeProfileOverride(setProfilesBuiltIn(c, false), 0);
+    expect(off.profiles).toEqual({ builtIn: false });
+  });
+
+  it('caps the override list', () => {
+    let c = base;
+    for (let i = 0; i < 101; i++) c = addProfileOverride(c, { match: `m${i}` });
+    expect(c.profiles?.models).toHaveLength(100);
   });
 });

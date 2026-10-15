@@ -213,6 +213,7 @@ export interface Config {
   gitHardening?: boolean;
   loadingText?: string;
   budget?: BudgetConfig;
+  profiles?: ProfilesConfig;
   tui?: TuiConfig;
   colorLevel: ColorLevel;
   icons: IconMode;
