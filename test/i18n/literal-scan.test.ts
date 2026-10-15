@@ -42,6 +42,9 @@ const SWEPT: string[] = [
   'src/editor/web/colors.ts',
   'src/editor/web/store.ts',
   'src/editor/web/dnd.ts',
+  'src/editor/web/theme-builder.ts',
+  'src/editor/web/themes.ts',
+  'src/editor/web/presets.ts',
   'src/widgets/activity.ts',
   'src/widgets/agents.ts',
   'src/widgets/charts.ts',
@@ -126,6 +129,10 @@ const ALLOW: Record<string, string[]> = {
     // boot error, rebuilt from text nodes in 08-21
     '<div class="closed"><h2>Cannot reach the editor</h2><p>X. Reopen the URL printed by <code>ccinfobar edit</code>.</p></div>',
   ],
+  // CSS classes
+  'src/editor/web/theme-builder.ts': ['input mono mini-color-text', 'icon-btn sm danger', 'btn ghost sm'],
+  'src/editor/web/themes.ts': ['input mono import-area', 'icon-btn sm danger'],
+  'src/editor/web/presets.ts': ['icon-btn sm danger'],
   'src/editor/server.ts': [
     // developer-only (D-36)
     'Request body too large',

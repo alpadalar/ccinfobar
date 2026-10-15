@@ -124,7 +124,7 @@ describe('web html sinks', () => {
 
   it('finds the sinks in the editor', () => {
     const all = files.flatMap((f) => sinks(fs.readFileSync(path.join(dir, f), 'utf8')));
-    expect(all.length).toBeGreaterThanOrEqual(7);
+    expect(all.length).toBeGreaterThanOrEqual(6);
   });
 
   it('keeps ALLOW entries current', () => {

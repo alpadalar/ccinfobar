@@ -1,3 +1,5 @@
+import { presetText } from '../../core/i18n/catalog-text.js';
+import { t } from '../../core/i18n/index.js';
 import { ansiToHtml } from './ansi-html.js';
 import { api, previewSource } from './api.js';
 import { clear, h, icon } from './dom.js';
@@ -15,39 +17,57 @@ export function slug(name: string): string {
     .slice(0, 64);
 }
 
-const term = (lines: string[]) =>
-  lines.length
-    ? lines.map((l) => `<div class="term-line">${ansiToHtml(l) || '&nbsp;'}</div>`).join('')
-    : '<div class="term-line term-muted">(empty)</div>';
+// escaped ansi html only; the empty note is a text node
+export function previewBox(lines: string[] | undefined): HTMLElement {
+  if (!lines)
+    return h('div', { class: 'theme-preview', innerHTML: '<div class="term-line term-muted">&nbsp;</div>' });
+  if (!lines.length) {
+    return h(
+      'div',
+      { class: 'theme-preview' },
+      h('div', { class: 'term-line term-muted' }, t('themes.empty')),
+    );
+  }
+  return h('div', {
+    class: 'theme-preview',
+    innerHTML: lines.map((l) => `<div class="term-line">${ansiToHtml(l) || '&nbsp;'}</div>`).join(''),
+  });
+}
 
 async function saveCurrent(): Promise<boolean> {
-  const name = h('input', { class: 'input', type: 'text', placeholder: 'My layout', maxLength: 64 });
-  const desc = h('input', { class: 'input', type: 'text', placeholder: 'What it shows', maxLength: 200 });
+  const name = h('input', {
+    class: 'input',
+    type: 'text',
+    placeholder: t('presets.namePlaceholder'),
+    maxLength: 64,
+  });
+  const desc = h('input', {
+    class: 'input',
+    type: 'text',
+    placeholder: t('presets.descPlaceholder'),
+    maxLength: 200,
+  });
   const idHint = h('div', { class: 'hint' });
   const err = h('div', { class: 'form-error', role: 'alert' });
   const upd = () => {
     const id = slug(name.value);
     const builtin = S.api.presets.some((p) => p.id === id && p.source === 'builtin');
     idHint.textContent = id
-      ? `Saved as ${id}.json${builtin ? ' (replaces the built-in preset)' : ''}`
-      : 'Letters, numbers, dot, dash';
+      ? t(builtin ? 'presets.savedAsBuiltin' : 'presets.savedAs', { file: `${id}.json` })
+      : t('presets.idHint');
   };
   name.addEventListener('input', upd);
   upd();
   const r = await modal<boolean>({
-    title: 'Save as preset',
+    title: t('presets.saveTitle'),
     body: [
-      h(
-        'p',
-        { class: 'modal-text' },
-        'Saves your lines, widgets, theme and settings so you can apply them again.',
-      ),
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Name'), name, idHint),
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Description'), desc),
+      h('p', { class: 'modal-text' }, t('presets.saveText')),
+      h('div', { class: 'field' }, h('label', { class: 'field-label' }, t('tb.name')), name, idHint),
+      h('div', { class: 'field' }, h('label', { class: 'field-label' }, t('tb.description')), desc),
       err,
     ],
     actions: (close) => [
-      h('button', { class: 'btn', type: 'button', onClick: () => close(false) }, 'Cancel'),
+      h('button', { class: 'btn', type: 'button', onClick: () => close(false) }, t('web.ui.cancel')),
       h(
         'button',
         {
@@ -56,7 +76,7 @@ async function saveCurrent(): Promise<boolean> {
           onClick: async () => {
             const id = slug(name.value);
             if (!ID_RE.test(id)) {
-              err.textContent = 'Give the preset a name first';
+              err.textContent = t('presets.needName');
               return;
             }
             try {
@@ -65,14 +85,14 @@ async function saveCurrent(): Promise<boolean> {
                 S.config,
               );
               S.api.presets = out.presets;
-              toast(`Saved preset "${name.value.trim() || id}"`);
+              toast(t('presets.saved', { name: name.value.trim() || id }));
               close(true);
             } catch (e) {
               err.textContent = (e as Error).message;
             }
           },
         },
-        'Save preset',
+        t('presets.save'),
       ),
     ],
   });
@@ -88,20 +108,22 @@ export async function openPresets(): Promise<void> {
     if (
       isDirty() &&
       !(await confirmDialog(
-        `Apply "${p.name}"?`,
-        'This replaces your current layout and settings. You can undo it with Ctrl+Z.',
-        'Apply preset',
+        t('presets.applyTitle', { name: presetText(p, 'name') }),
+        t('presets.applyText'),
+        t('presets.apply'),
       ))
     )
       return;
     replaceAll(structuredClone(p.config));
-    toast(`Applied preset "${p.name}"`, 'info');
+    toast(t('presets.applied', { name: presetText(p, 'name') }), 'info');
     close();
   }
 
   function render(close: (v?: unknown) => void) {
     clear(grid);
     for (const p of S.api.presets) {
+      const name = presetText(p, 'name');
+      const description = presetText(p, 'description');
       const card = h(
         'div',
         {
@@ -109,7 +131,7 @@ export async function openPresets(): Promise<void> {
           role: 'button',
           tabindex: 0,
           'data-preset': p.id,
-          title: `Apply ${p.name}`,
+          title: t('presets.applyName', { name }),
           onClick: () => void apply(p, close),
           onKeydown: (e: KeyboardEvent) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -121,13 +143,9 @@ export async function openPresets(): Promise<void> {
         h(
           'div',
           { class: 'theme-card-head' },
-          h('strong', null, p.name),
-          h(
-            'span',
-            { class: 'theme-tag' },
-            `${p.config.lines.length} ${p.config.lines.length === 1 ? 'line' : 'lines'}`,
-          ),
-          p.source === 'user' ? h('span', { class: 'theme-tag yours' }, 'yours') : null,
+          h('strong', null, name),
+          h('span', { class: 'theme-tag' }, t('presets.lines', { count: p.config.lines.length })),
+          p.source === 'user' ? h('span', { class: 'theme-tag yours' }, t('insp.yours')) : null,
           h('span', { class: 'spacer' }),
           p.source === 'user'
             ? h(
@@ -138,22 +156,22 @@ export async function openPresets(): Promise<void> {
                   {
                     class: 'icon-btn sm danger',
                     type: 'button',
-                    title: 'Delete preset',
-                    'aria-label': `Delete ${p.name}`,
+                    title: t('presets.deletePreset'),
+                    'aria-label': t('presets.deleteName', { name }),
                     onClick: async (e: Event) => {
                       e.stopPropagation();
                       if (
                         !(await confirmDialog(
-                          `Delete "${p.name}"?`,
-                          'The preset file will be removed.',
-                          'Delete',
+                          t('themes.deleteTitle', { name }),
+                          t('presets.deleteText'),
+                          t('themes.delete'),
                         ))
                       )
                         return;
                       try {
                         S.api.presets = (await api.deletePreset(p.id)).presets;
                         render(close);
-                        toast('Preset deleted', 'info');
+                        toast(t('presets.deleted'), 'info');
                       } catch (err) {
                         toast((err as Error).message, 'error');
                       }
@@ -164,13 +182,8 @@ export async function openPresets(): Promise<void> {
               )
             : null,
         ),
-        p.description ? h('div', { class: 'theme-desc' }, p.description) : null,
-        h('div', {
-          class: 'theme-preview',
-          innerHTML: previews.has(p.id)
-            ? term(previews.get(p.id)!)
-            : '<div class="term-line term-muted">&nbsp;</div>',
-        }),
+        description ? h('div', { class: 'theme-desc' }, description) : null,
+        previewBox(previews.get(p.id)),
       );
       card.addEventListener('pointerdown', (e) => {
         if ((e.target as HTMLElement).closest('button')) e.stopPropagation();
@@ -208,21 +221,14 @@ export async function openPresets(): Promise<void> {
   }
 
   await modal({
-    title: 'Presets',
+    title: t('presets.title'),
     xl: true,
-    body: [
-      h(
-        'div',
-        { class: 'gallery-bar' },
-        h('span', { class: 'panel-note' }, 'Click a preset to apply it. You can undo.'),
-      ),
-      grid,
-    ],
+    body: [h('div', { class: 'gallery-bar' }, h('span', { class: 'panel-note' }, t('presets.note'))), grid],
     actions: (close) => {
       render(close);
       void loadPreviews(close);
       return [
-        h('span', { class: 'hint footer-hint' }, `Your presets live in ${S.api.presetsDir}`),
+        h('span', { class: 'hint footer-hint' }, t('presets.dir', { dir: S.api.presetsDir })),
         h('span', { class: 'spacer' }),
         h(
           'button',
@@ -233,9 +239,9 @@ export async function openPresets(): Promise<void> {
               if (await saveCurrent()) await loadPreviews(close);
             },
           },
-          'Save current as preset',
+          t('presets.saveCurrent'),
         ),
-        h('button', { class: 'btn primary', type: 'button', onClick: () => close() }, 'Done'),
+        h('button', { class: 'btn primary', type: 'button', onClick: () => close() }, t('web.settings.done')),
       ];
     },
   });

@@ -1,8 +1,10 @@
 import { clearColors, hasOwnColors } from '../../core/edit.js';
+import { styleText, themeDescription } from '../../core/i18n/catalog-text.js';
+import { t } from '../../core/i18n/index.js';
 import type { Config } from '../../core/types.js';
-import { ansiToHtml } from './ansi-html.js';
 import { api, previewSource } from './api.js';
 import { clear, h, icon } from './dom.js';
+import { previewBox } from './presets.js';
 import { commit, currentTheme, S, type StyleId, type ThemeInfo } from './store.js';
 import { openThemeBuilder } from './theme-builder.js';
 import { confirmDialog, modal, toast } from './ui.js';
@@ -21,10 +23,10 @@ export function applyTheme(id: string, useThemeColors = false): void {
 export async function askThemeColors(): Promise<boolean> {
   if (!hasOwnColors(S.config)) return false;
   return confirmDialog(
-    "Use the theme's colors?",
-    "Some widgets have their own colors, so every theme shows them the same way. Switch those widgets to the theme's colors? Ctrl+Z undoes it, and after you save, the old colors stay under each widget's earlier styles.",
-    'Use theme colors',
-    'Keep my colors',
+    t('themes.useColorsTitle'),
+    t('themes.useColorsText'),
+    t('themes.useColors'),
+    t('themes.keepColors'),
   );
 }
 
@@ -43,11 +45,11 @@ async function editJson(theme: ThemeInfo): Promise<boolean> {
   });
   const err = h('div', { class: 'form-error', role: 'alert' });
   const r = await modal<boolean>({
-    title: `Edit ${theme.name} (JSON)`,
+    title: t('themes.editJsonTitle', { name: theme.name }),
     wide: true,
     body: [area, err],
     actions: (close) => [
-      h('button', { class: 'btn', type: 'button', onClick: () => close(false) }, 'Cancel'),
+      h('button', { class: 'btn', type: 'button', onClick: () => close(false) }, t('web.ui.cancel')),
       h(
         'button',
         {
@@ -57,7 +59,7 @@ async function editJson(theme: ThemeInfo): Promise<boolean> {
             try {
               const parsed = JSON.parse(area.value) as unknown;
               if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-                throw new Error('Expected a JSON object');
+                throw new Error(t('themes.expectedObject'));
               }
               const out = await api.saveTheme({ ...(parsed as Record<string, unknown>), id });
               setThemes(out.themes);
@@ -67,7 +69,7 @@ async function editJson(theme: ThemeInfo): Promise<boolean> {
             }
           },
         },
-        'Save',
+        t('themes.save'),
       ),
     ],
   });
@@ -80,14 +82,9 @@ export async function openGallery(): Promise<void> {
   let previews: Record<string, string[]> = {};
   let liveLines: string[] = [];
   const grid = h('div', { class: 'gallery-grid' });
-  const filters = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Filter by style' });
+  const filters = h('div', { class: 'segmented', role: 'group', 'aria-label': t('themes.filter') });
   const live = h('div', { class: 'gallery-live' });
   let version = 0;
-
-  const term = (lines: string[]) =>
-    lines.length
-      ? lines.map((l) => `<div class="term-line">${ansiToHtml(l) || '&nbsp;'}</div>`).join('')
-      : '<div class="term-line term-muted">(empty)</div>';
 
   async function refreshLive() {
     const v = ++version;
@@ -101,22 +98,25 @@ export async function openGallery(): Promise<void> {
   }
 
   function renderLive() {
-    const t = currentTheme();
+    const th = currentTheme();
     clear(live);
     live.append(
       h(
         'div',
         { class: 'gallery-live-head' },
-        h('span', null, 'Your status line'),
-        h('span', { class: 'theme-tag' }, t?.name ?? S.config.theme),
+        h('span', null, t('themes.yourLine')),
+        h('span', { class: 'theme-tag' }, th?.name ?? S.config.theme),
       ),
-      h('div', { class: 'theme-preview', innerHTML: term(liveLines) }),
+      previewBox(liveLines),
     );
   }
 
   function renderFilters() {
     clear(filters);
-    const opts: { id: 'all' | StyleId; name: string }[] = [{ id: 'all', name: 'All' }, ...S.api.styles];
+    const opts: { id: 'all' | StyleId; name: string }[] = [
+      { id: 'all', name: t('themes.all') },
+      ...S.api.styles.map((st) => ({ id: st.id, name: styleText(st, 'name') })),
+    ];
     for (const o of opts) {
       filters.append(
         h(
@@ -139,10 +139,10 @@ export async function openGallery(): Promise<void> {
 
   function renderGrid() {
     clear(grid);
-    const list = S.api.themes.filter((t) => filter === 'all' || t.style === filter);
-    if (!list.length) grid.append(h('div', { class: 'empty-state small' }, 'No themes in this style yet'));
-    for (const t of list) {
-      const current = t.id === (S.config.theme || 'classic');
+    const list = S.api.themes.filter((th) => filter === 'all' || th.style === filter);
+    if (!list.length) grid.append(h('div', { class: 'empty-state small' }, t('themes.noThemes')));
+    for (const th of list) {
+      const current = th.id === (S.config.theme || 'classic');
       const card = h(
         'div',
         {
@@ -150,11 +150,11 @@ export async function openGallery(): Promise<void> {
           role: 'button',
           tabindex: 0,
           'aria-pressed': String(current),
-          'data-theme': t.id,
-          title: `Apply ${t.name}`,
+          'data-theme': th.id,
+          title: t('themes.apply', { name: th.name }),
           onClick: async () => {
             if (useThemeColors === null && hasOwnColors(S.config)) useThemeColors = await askThemeColors();
-            applyTheme(t.id, useThemeColors ?? false);
+            applyTheme(th.id, useThemeColors ?? false);
             renderGrid();
             void refreshLive();
           },
@@ -168,12 +168,12 @@ export async function openGallery(): Promise<void> {
         h(
           'div',
           { class: 'theme-card-head' },
-          h('strong', null, t.name),
-          h('span', { class: `theme-tag style-${t.style}` }, t.style),
-          t.source === 'user' ? h('span', { class: 'theme-tag yours' }, 'yours') : null,
-          current ? h('span', { class: 'theme-tag now' }, icon('check', 11), 'current') : null,
+          h('strong', null, th.name),
+          h('span', { class: `theme-tag style-${th.style}` }, th.style),
+          th.source === 'user' ? h('span', { class: 'theme-tag yours' }, t('insp.yours')) : null,
+          current ? h('span', { class: 'theme-tag now' }, icon('check', 11), t('themes.current')) : null,
           h('span', { class: 'spacer' }),
-          t.source === 'user'
+          th.source === 'user'
             ? h(
                 'span',
                 { class: 'theme-actions' },
@@ -182,11 +182,11 @@ export async function openGallery(): Promise<void> {
                   {
                     class: 'icon-btn sm',
                     type: 'button',
-                    title: 'Edit theme',
-                    'aria-label': `Edit ${t.name}`,
+                    title: t('themes.editTheme'),
+                    'aria-label': t('themes.editName', { name: th.name }),
                     onClick: async (e: Event) => {
                       e.stopPropagation();
-                      if (await openThemeBuilder({ edit: t })) {
+                      if (await openThemeBuilder({ edit: th })) {
                         await loadPreviews();
                         void refreshLive();
                       }
@@ -199,13 +199,13 @@ export async function openGallery(): Promise<void> {
                   {
                     class: 'icon-btn sm',
                     type: 'button',
-                    title: 'Edit JSON',
-                    'aria-label': `Edit ${t.name} JSON`,
+                    title: t('themes.editJson'),
+                    'aria-label': t('themes.editJsonName', { name: th.name }),
                     onClick: async (e: Event) => {
                       e.stopPropagation();
-                      if (await editJson(t)) {
+                      if (await editJson(th)) {
                         await loadPreviews();
-                        toast('Theme updated');
+                        toast(t('themes.updated'));
                       }
                     },
                   },
@@ -216,23 +216,23 @@ export async function openGallery(): Promise<void> {
                   {
                     class: 'icon-btn sm danger',
                     type: 'button',
-                    title: 'Delete theme',
-                    'aria-label': `Delete ${t.name}`,
+                    title: t('themes.deleteTheme'),
+                    'aria-label': t('themes.deleteName', { name: th.name }),
                     onClick: async (e: Event) => {
                       e.stopPropagation();
                       if (
                         !(await confirmDialog(
-                          `Delete "${t.name}"?`,
-                          'The theme file will be removed.',
-                          'Delete',
+                          t('themes.deleteTitle', { name: th.name }),
+                          t('themes.deleteText'),
+                          t('themes.delete'),
                         ))
                       )
                         return;
                       try {
-                        setThemes((await api.deleteTheme(t.id)).themes);
+                        setThemes((await api.deleteTheme(th.id)).themes);
                         renderGrid();
                         void refreshLive();
-                        toast('Theme deleted', 'info');
+                        toast(t('themes.deleted'), 'info');
                       } catch (err) {
                         toast((err as Error).message, 'error');
                       }
@@ -243,13 +243,8 @@ export async function openGallery(): Promise<void> {
               )
             : null,
         ),
-        h('div', { class: 'theme-desc' }, t.description),
-        h('div', {
-          class: 'theme-preview',
-          innerHTML: previews[t.id]
-            ? term(previews[t.id]!)
-            : '<div class="term-line term-muted">&nbsp;</div>',
-        }),
+        h('div', { class: 'theme-desc' }, themeDescription(th)),
+        previewBox(previews[th.id]),
       );
       card.addEventListener('pointerdown', (e) => {
         if ((e.target as HTMLElement).closest('button')) e.stopPropagation();
@@ -262,7 +257,7 @@ export async function openGallery(): Promise<void> {
     try {
       previews = (await api.themePreviews(S.config, previewSource(S), 96)).previews;
     } catch (err) {
-      toast(`Previews failed: ${(err as Error).message}`, 'error');
+      toast(t('themes.previewsFailed', { error: (err as Error).message }), 'error');
     }
     renderGrid();
   }
@@ -274,24 +269,15 @@ export async function openGallery(): Promise<void> {
   void refreshLive();
 
   await modal({
-    title: 'Themes',
+    title: t('themes.title'),
     xl: true,
     body: [
       live,
-      h(
-        'div',
-        { class: 'gallery-bar' },
-        filters,
-        h(
-          'span',
-          { class: 'panel-note' },
-          'Click a theme to apply it; you can undo. Previews show each theme without your widget colors.',
-        ),
-      ),
+      h('div', { class: 'gallery-bar' }, filters, h('span', { class: 'panel-note' }, t('themes.note'))),
       grid,
     ],
     actions: (close) => [
-      h('span', { class: 'hint footer-hint' }, `Your themes live in ${S.api.themesDir}`),
+      h('span', { class: 'hint footer-hint' }, t('themes.dir', { dir: S.api.themesDir })),
       h('span', { class: 'spacer' }),
       h(
         'button',
@@ -308,9 +294,9 @@ export async function openGallery(): Promise<void> {
             }
           },
         },
-        'New theme',
+        t('insp.newTheme'),
       ),
-      h('button', { class: 'btn primary', type: 'button', onClick: () => close() }, 'Done'),
+      h('button', { class: 'btn primary', type: 'button', onClick: () => close() }, t('web.settings.done')),
     ],
   });
   version++;

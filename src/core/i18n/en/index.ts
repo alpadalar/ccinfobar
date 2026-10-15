@@ -13,6 +13,7 @@ import { inspectorMessages } from './inspector.js';
 import { installMessages } from './install.js';
 import { jobsMessages } from './jobs.js';
 import { previewMessages } from './preview.js';
+import { themeEditorMessages } from './theme-editor.js';
 import { widgetMessages } from './widgets.js';
 
 export const en = {
@@ -32,4 +33,5 @@ export const en = {
   ...errorMessages,
   ...inspectorMessages,
   ...editorMessages,
+  ...themeEditorMessages,
 } as const;

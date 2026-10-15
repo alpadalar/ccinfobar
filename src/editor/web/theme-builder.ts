@@ -1,3 +1,5 @@
+import { styleText, themeDescription } from '../../core/i18n/catalog-text.js';
+import { t } from '../../core/i18n/index.js';
 import { categoryText } from '../../core/i18n/widget-text.js';
 import { ansiToHtml } from './ansi-html.js';
 import { api, previewSource } from './api.js';
@@ -43,8 +45,8 @@ const MAX_STOPS = 8;
 const fgOf = (s: Swatch | undefined) => (typeof s === 'object' ? s.fg : s);
 const bgOf = (s: Swatch | undefined) => (typeof s === 'object' ? s.bg : undefined);
 
-function colorsOf(t: ThemeInfo): Colors {
-  return structuredClone(t.colors) as unknown as Colors;
+function colorsOf(th: ThemeInfo): Colors {
+  return structuredClone(th.colors) as unknown as Colors;
 }
 
 // text colors become blocks and back
@@ -63,8 +65,8 @@ function restyle(c: Colors, blocky: boolean): Colors {
 }
 
 // dots for a theme's palette
-export function paletteDots(t: ThemeInfo, max = 6): HTMLElement {
-  const c = t.colors as unknown as Colors;
+export function paletteDots(th: ThemeInfo, max = 6): HTMLElement {
+  const c = th.colors as unknown as Colors;
   const list: string[] = [];
   const add = (v: string | undefined) => {
     const css = colorToCss(v);
@@ -83,21 +85,21 @@ export function paletteDots(t: ThemeInfo, max = 6): HTMLElement {
 
 export function themeChips(current: string, onPick: (t: ThemeInfo) => void): HTMLElement {
   const wrap = h('div', { class: 'pal-grid', role: 'listbox' });
-  for (const t of S.api.themes) {
-    if (t.style === 'tui') continue;
+  for (const th of S.api.themes) {
+    if (th.style === 'tui') continue;
     wrap.append(
       h(
         'button',
         {
           type: 'button',
-          class: `pal-chip${t.id === current ? ' on' : ''}`,
+          class: `pal-chip${th.id === current ? ' on' : ''}`,
           role: 'option',
-          'aria-selected': String(t.id === current),
-          title: t.description,
-          onClick: () => onPick(t),
+          'aria-selected': String(th.id === current),
+          title: themeDescription(th),
+          onClick: () => onPick(th),
         },
-        paletteDots(t),
-        h('span', { class: 'pal-name' }, t.name),
+        paletteDots(th),
+        h('span', { class: 'pal-name' }, th.name),
       ),
     );
   }
@@ -110,16 +112,16 @@ function miniColor(value: string | undefined, onChange: (v: string | undefined) 
     class: 'input mono mini-color-text',
     type: 'text',
     value: value ?? '',
-    placeholder: 'none',
+    placeholder: t('insp.none'),
     spellcheck: false,
-    'aria-label': `${label} color`,
+    'aria-label': t('tb.colorAria', { label }),
   });
   const dot = h('i', { class: 'mini-color-dot', style: css ? `--c:${css}` : '' });
   const native = h('input', {
     class: 'color-native',
     type: 'color',
     value: css && /^#[0-9a-f]{6}$/i.test(css) ? css : '#888888',
-    'aria-label': `Pick ${label} color`,
+    'aria-label': t('tb.pickColor', { label }),
   });
   const set = (v: string | undefined) => {
     const c = colorToCss(v);
@@ -148,7 +150,7 @@ export interface BuilderOpts {
 }
 
 export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string | null> {
-  const fallback = S.api.themes.find((t) => t.id === 'classic')!;
+  const fallback = S.api.themes.find((th) => th.id === 'classic')!;
   let base = opts.edit ?? opts.from ?? fallback;
   let style: StyleId = opts.style && opts.style !== 'tui' ? opts.style : base.style;
   let colors = colorsOf(base);
@@ -167,7 +169,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
   let seq = 0;
 
   const draft = () => ({
-    name: name.trim() || 'My theme',
+    name: name.trim() || t('tb.defaultName'),
     description,
     style,
     separator,
@@ -220,7 +222,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
           cur.fg = v;
           emit();
         },
-        `${label} text`,
+        t('tb.slotText', { label }),
       ),
       BLOCKY.has(style)
         ? miniColor(
@@ -229,7 +231,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
               cur.bg = v;
               emit();
             },
-            `${label} background`,
+            t('tb.slotBackground', { label }),
           )
         : null,
       extra ?? null,
@@ -246,8 +248,8 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
           'div',
           { class: 'swatch-row swatch-head' },
           h('span', null, ''),
-          h('span', null, 'Text'),
-          blocky ? h('span', null, 'Background') : null,
+          h('span', null, t('web.term.text')),
+          blocky ? h('span', null, t('web.term.background')) : null,
         ),
       );
     }
@@ -265,7 +267,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
       colors.cycle.forEach((sw, i) => {
         slots.append(
           swatchRow(
-            `Color ${i + 1}`,
+            t('tb.colorN', { n: i + 1 }),
             sw,
             (s) => {
               colors.cycle[i] = s ?? {};
@@ -275,8 +277,8 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
               {
                 class: 'icon-btn sm danger',
                 type: 'button',
-                title: 'Remove color',
-                'aria-label': `Remove color ${i + 1}`,
+                title: t('tb.removeColor'),
+                'aria-label': t('tb.removeColorN', { n: i + 1 }),
                 onClick: () => {
                   colors.cycle.splice(i, 1);
                   renderForm();
@@ -301,22 +303,22 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
             },
           },
           icon('plus', 14),
-          'Add color',
+          t('tb.addColor'),
         ),
       );
     } else {
-      slots.append(h('div', { class: 'hint' }, 'Each widget keeps its own color.'));
+      slots.append(h('div', { class: 'hint' }, t('tb.widgetColors')));
     }
     const general = h('div', { class: 'swatch-list' });
     if (blocky) {
       general.append(
-        swatchRow('Text on blocks', colors.on, (s) => {
+        swatchRow(t('tb.textOnBlocks'), colors.on, (s) => {
           colors.on = fgOf(s) ?? 'black';
         }),
       );
     }
     general.append(
-      swatchRow('Separator', colors.muted, (s) => {
+      swatchRow(t('insp.separator'), colors.muted, (s) => {
         colors.muted = fgOf(s) ?? 'brightBlack';
       }),
     );
@@ -331,7 +333,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
         h(
           'div',
           { class: 'swatch-row' },
-          h('span', { class: 'swatch-label' }, `Stop ${i + 1}`),
+          h('span', { class: 'swatch-label' }, t('tb.stopN', { n: i + 1 })),
           miniColor(
             c,
             (v) => {
@@ -341,7 +343,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
                 preview();
               }
             },
-            `Gradient stop ${i + 1}`,
+            t('tb.gradientStopN', { n: i + 1 }),
           ),
           h('span', null),
           h(
@@ -349,8 +351,8 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
             {
               class: 'icon-btn sm danger',
               type: 'button',
-              title: 'Remove stop',
-              'aria-label': `Remove gradient stop ${i + 1}`,
+              title: t('tb.removeStop'),
+              'aria-label': t('tb.removeStopN', { n: i + 1 }),
               onClick: remove,
             },
             icon('trash', 14),
@@ -372,7 +374,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
             },
           },
           icon('plus', 14),
-          'Add stop',
+          t('tb.addStop'),
         ),
       );
     }
@@ -382,53 +384,53 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
         'div',
         { class: 'builder-cols' },
         field(
-          'Name',
+          t('tb.name'),
           textInput(
             name,
             (v) => {
               name = v;
               preview();
             },
-            { placeholder: 'My theme' },
+            { placeholder: t('tb.defaultName') },
           ),
-          opts.edit ? `File: ${opts.edit.id}.json` : undefined,
+          opts.edit ? t('tb.file', { file: `${opts.edit.id}.json` }) : undefined,
         ),
         field(
-          'Description',
-          textInput(description, (v) => (description = v), { placeholder: 'Optional' }),
+          t('tb.description'),
+          textInput(description, (v) => (description = v), { placeholder: t('tb.optional') }),
         ),
       ),
       ...(opts.edit
         ? []
         : [
             field(
-              'Start from',
-              themeChips(base.id, (t) => {
-                base = t;
-                style = t.style === 'tui' ? 'text' : t.style;
-                colors = colorsOf(t);
-                separator = t.separator;
-                padding = t.padding;
-                bold = t.bold;
-                gradient = [...(t.gradient ?? [])];
+              t('tb.startFrom'),
+              themeChips(base.id, (th) => {
+                base = th;
+                style = th.style === 'tui' ? 'text' : th.style;
+                colors = colorsOf(th);
+                separator = th.separator;
+                padding = th.padding;
+                bold = th.bold;
+                gradient = [...(th.gradient ?? [])];
                 renderForm();
                 preview();
               }),
             ),
           ]),
       field(
-        'Style',
+        t('insp.style'),
         segmented(
           S.api.styles
             .filter((s) => s.id !== 'tui')
-            .map((s) => ({ value: s.id, label: s.name, title: s.description })),
+            .map((s) => ({ value: s.id, label: styleText(s, 'name'), title: styleText(s, 'description') })),
           style,
           (v) => {
             const was = BLOCKY.has(style);
             style = v;
             if (was !== BLOCKY.has(style)) {
               colors = restyle(colors, BLOCKY.has(style));
-              const own = S.api.themes.find((t) => t.style === style && t.id === base.id);
+              const own = S.api.themes.find((th) => th.style === style && th.id === base.id);
               separator = own?.separator ?? (BLOCKY.has(style) ? (style === 'powerline' ? '' : ' ') : ' │ ');
             }
             renderForm();
@@ -437,12 +439,12 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
         ),
       ),
       field(
-        'Colors',
+        t('tb.colors'),
         segmented(
           [
-            { value: 'widget', label: 'Per widget', title: 'Every widget keeps its own color' },
-            { value: 'category', label: 'Per category', title: 'One color per widget category' },
-            { value: 'cycle', label: 'Cycle', title: 'Colors repeat in order along the line' },
+            { value: 'widget', label: t('tb.perWidget'), title: t('tb.perWidgetTitle') },
+            { value: 'category', label: t('tb.perCategory'), title: t('tb.perCategoryTitle') },
+            { value: 'cycle', label: t('tb.cycle'), title: t('tb.cycleTitle') },
           ] as const,
           colors.mode,
           (v) => {
@@ -463,29 +465,23 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
       ),
       slots,
       general,
-      field(
-        'Gradient',
-        stops,
-        gradient.length
-          ? 'Gradient bars blend these colors from low to high'
-          : 'Gradient bars use the default ramp; add stops to set your own',
-      ),
+      field(t('tb.gradient'), stops, gradient.length ? t('tb.gradientHelp') : t('tb.gradientDefault')),
       h(
         'div',
         { class: 'builder-cols' },
         field(
-          'Separator',
+          t('insp.separator'),
           textInput(
             separator,
             (v) => {
               separator = v;
               preview();
             },
-            { class: 'input mono', placeholder: 'none' },
+            { class: 'input mono', placeholder: t('insp.none') },
           ),
         ),
         field(
-          'Padding',
+          t('insp.padding'),
           numberInput(
             padding,
             (v) => {
@@ -496,7 +492,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
           ),
         ),
         field(
-          'Bold',
+          t('insp.bold'),
           toggle(bold, (v) => {
             bold = v;
             preview();
@@ -512,11 +508,11 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
   preview();
 
   const result = await modal<string>({
-    title: opts.edit ? `Edit ${opts.edit.name}` : 'New theme',
+    title: opts.edit ? t('themes.editName', { name: opts.edit.name }) : t('insp.newTheme'),
     wide: true,
     body: [previewEl, form, err],
     actions: (close) => [
-      h('button', { class: 'btn', type: 'button', onClick: () => close() }, 'Cancel'),
+      h('button', { class: 'btn', type: 'button', onClick: () => close() }, t('web.ui.cancel')),
       h(
         'button',
         {
@@ -525,24 +521,24 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
           onClick: async () => {
             const id = opts.edit?.id ?? slug(name);
             if (!ID_RE.test(id)) {
-              err.textContent = 'Give the theme a name first';
+              err.textContent = t('tb.needName');
               return;
             }
-            if (!opts.edit && S.api.themes.some((t) => t.id === id && t.source === 'user')) {
-              err.textContent = `You already have a theme called ${id}`;
+            if (!opts.edit && S.api.themes.some((th) => th.id === id && th.source === 'user')) {
+              err.textContent = t('tb.exists', { id });
               return;
             }
             try {
               const out = await api.saveTheme({ ...draft(), name: name.trim() || id, id });
               S.api.themes = out.themes;
-              toast(`Saved theme "${name.trim() || id}"`);
+              toast(t('tb.saved', { name: name.trim() || id }));
               close(id);
             } catch (e) {
               err.textContent = (e as Error).message;
             }
           },
         },
-        'Save theme',
+        t('tb.save'),
       ),
     ],
   });
