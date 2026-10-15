@@ -95,14 +95,14 @@ export const api = {
       enabled,
       permission,
     }),
-  progress: (enabled: boolean) =>
+  progress: (enabled: boolean, channel?: ProgressConfig['channel']) =>
     call<{
       ok: boolean;
       hooks: HooksInfo;
       backup: string | null;
       progress: ProgressConfig | null;
       held: boolean;
-    }>('POST', '/api/progress', { enabled }),
+    }>('POST', '/api/progress', channel ? { enabled, channel } : { enabled }),
   update: (install: boolean) =>
     call<{ current: string; latest: string; newer: boolean; kind: string; installed?: string }>(
       'POST',

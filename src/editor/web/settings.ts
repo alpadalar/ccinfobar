@@ -280,13 +280,13 @@ export async function openSettings(): Promise<void> {
     return out;
   }
 
-  async function runProgress(enabled: boolean) {
+  async function runProgress(enabled: boolean, channel?: ProgressConfig['channel']) {
     busy = true;
     render();
     try {
-      const r = await api.progress(enabled);
-      applySaved((c) => setProgress(c, { enabled }));
-      toast(t(enabled ? 'prog.on' : r.held ? 'prog.offHeld' : 'prog.off'));
+      const r = await api.progress(enabled, channel);
+      applySaved((c) => setProgress(c, channel ? { enabled, channel } : { enabled }));
+      toast(t(channel ? 'prog.channelSaved' : enabled ? 'prog.on' : r.held ? 'prog.offHeld' : 'prog.off'));
     } catch (e) {
       toast((e as Error).message, 'error');
     }
@@ -309,7 +309,11 @@ export async function openSettings(): Promise<void> {
       segmented(
         PROGRESS_CHOICES[key].map((v) => ({ value: v, label: t(`prog.${key}.${v}` as MessageId) })),
         p[key] ?? PROGRESS_DEFAULTS[key],
-        (v) => setP({ [key]: v }),
+        // the channel decides the handlers, so it saves with them (WR-02)
+        (v) =>
+          key === 'channel' && on
+            ? void runProgress(true, v as ProgressConfig['channel'])
+            : setP({ [key]: v }),
       );
     const level = (key: 'warnAt' | 'errorAt') =>
       numberInput(p[key] ?? '', (v) => setP({ [key]: v ?? undefined }, `progress.${key}`), {

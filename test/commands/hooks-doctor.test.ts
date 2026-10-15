@@ -270,6 +270,10 @@ describe('progressWarnings', () => {
       'doctor.progress.noHandlers',
     ]);
     expect(keys({ entries: [], progress: { enabled: true, channel: 'tty' } })).toEqual([]);
+    expect(keys({ progress: { enabled: true, channel: 'tty' } })).toEqual(['doctor.progress.ttyHandlers']);
+    expect(keys({ progress: { enabled: true, channel: 'tty' }, platform: 'win32' })).not.toContain(
+      'doctor.progress.ttyHandlers',
+    );
     expect(keys({ progress: { enabled: false } })).toEqual(['doctor.progress.strayHandlers']);
     expect(keys({ progress: undefined })).toEqual(['doctor.progress.strayHandlers']);
   });
@@ -292,7 +296,9 @@ describe('progressWarnings', () => {
     expect(out).toEqual([{ key: 'doctor.progress.oldClaude', params: { version: '2.1.100' } }]);
     expect(keys({ claudeCode: '2.1.141' })).toEqual([]);
     expect(keys({ claudeCode: null })).toEqual([]);
-    expect(keys({ claudeCode: '2.1.100', progress: { enabled: true, channel: 'tty' } })).toEqual([]);
+    expect(keys({ claudeCode: '2.1.100', entries: [], progress: { enabled: true, channel: 'tty' } })).toEqual(
+      [],
+    );
   });
 
   it('flags the tty channel on Windows and in tmux without passthrough', () => {
@@ -300,12 +306,12 @@ describe('progressWarnings', () => {
       'doctor.progress.ttyWindows',
     ]);
     const tmux = { ...WT, TMUX: '/tmp/tmux-1/default,1,0' };
-    expect(keys({ progress: { enabled: true, channel: 'tty' }, env: tmux })).toEqual([
+    expect(keys({ progress: { enabled: true, channel: 'tty' }, env: tmux, entries: [] })).toEqual([
       'doctor.progress.tmux',
     ]);
-    expect(keys({ progress: { enabled: true, channel: 'tty', tmuxPassthrough: true }, env: tmux })).toEqual(
-      [],
-    );
+    expect(
+      keys({ progress: { enabled: true, channel: 'tty', tmuxPassthrough: true }, env: tmux, entries: [] }),
+    ).toEqual([]);
     expect(keys({ env: tmux })).toEqual([]);
   });
 });

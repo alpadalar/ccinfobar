@@ -131,6 +131,27 @@ describe('install --progress and uninstall --progress (D-42)', () => {
     expect(fs.readFileSync(cfg, 'utf8')).toBe('{ "lines": [');
   });
 
+  // WR-02
+  it('adds no handlers on the tty channel and removes installed ones', async () => {
+    if (process.platform === 'win32') return;
+    await install(fake(false).io, '--progress', '--yes');
+    expect(progressGroups(read().hooks)).toHaveLength(3);
+    const c = JSON.parse(fs.readFileSync(cfg, 'utf8'));
+    fs.writeFileSync(cfg, JSON.stringify({ ...c, progress: { enabled: true, channel: 'tty' } }));
+    const f = fake(false, null);
+    await install(f.io, '--progress', '--yes');
+    expect(f.lines).toContain(t('progress.tty'));
+    expect(f.lines).toContain(t('progress.removed'));
+    expect(f.lines.some((l) => l.includes('2.1.141'))).toBe(false);
+    expect(read().hooks).toBeUndefined();
+    expect(findHookEntries(readManifest(), settings)).toEqual([]);
+    expect(loadConfig(cfg).config.progress).toEqual({ enabled: true, channel: 'tty' });
+    const again = fake(false);
+    await install(again.io, '--progress', '--yes');
+    expect(again.lines).not.toContain(t('progress.removed'));
+    expect(read().hooks).toBeUndefined();
+  });
+
   it('--progress=x is a usage error', async () => {
     const f = fake(false);
     await install(f.io, '--progress=x');

@@ -501,7 +501,7 @@ function progressFields(): Field[] {
     progressSelect('scaleTo', t('prog.scaleHelp')),
     progressLevel('warnAt'),
     progressLevel('errorAt'),
-    progressSelect('channel', t('prog.channelHelp')),
+    progressSelect('channel', t('prog.tuiChannelHelp')),
     progressSelect('terminals', t('prog.terminalsHelp')),
     globalField(
       'progress.tmuxPassthrough',

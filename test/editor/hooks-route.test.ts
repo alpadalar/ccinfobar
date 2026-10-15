@@ -341,6 +341,23 @@ describe('editor progress route', () => {
     expect(progressGroups(readSettings())).toEqual([]);
   });
 
+  it('needs no handlers on the tty channel and re-plans when it changes (WR-02)', async () => {
+    if (process.platform === 'win32') return;
+    await startInstalled('2.1.300');
+    await request('POST', '/api/progress', { enabled: true });
+    expect(progressGroups(readSettings())).toHaveLength(3);
+    const tty = await request('POST', '/api/progress', { enabled: true, channel: 'tty' });
+    expect(tty.status).toBe(200);
+    expect(tty.json().progress).toEqual({ enabled: true, channel: 'tty' });
+    expect(tty.json().hooks.progress).toEqual([]);
+    expect(progressGroups(readSettings())).toEqual([]);
+    expect(readConfig().progress).toEqual({ enabled: true, channel: 'tty' });
+    const back = await request('POST', '/api/progress', { enabled: true, channel: 'auto' });
+    expect(back.json().hooks.progress).toEqual(PROGRESS);
+    expect(readConfig().progress).toEqual({ enabled: true });
+    expect((await request('POST', '/api/progress', { enabled: true, channel: 'x' })).status).toBe(400);
+  });
+
   it('refuses a broken config before touching settings', async () => {
     await startInstalled('2.1.300');
     fs.writeFileSync(configFile, '{ "lines": [');

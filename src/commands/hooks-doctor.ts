@@ -23,6 +23,7 @@ export interface HookWarning {
     | 'doctor.progress.terminal'
     | 'doctor.progress.oldClaude'
     | 'doctor.progress.ttyWindows'
+    | 'doctor.progress.ttyHandlers'
     | 'doctor.progress.tmux';
   params: Record<string, string>;
 }
@@ -107,6 +108,7 @@ export function progressWarnings(i: {
   const tty = p.channel === 'tty';
   const hook = !tty || i.platform === 'win32';
   if (hook && !i.entries.length) out.push({ key: 'doctor.progress.noHandlers', params: {} });
+  if (!hook && i.entries.length) out.push({ key: 'doctor.progress.ttyHandlers', params: {} });
   if (p.terminals !== 'always' && !terminalAllowed(i.env, false))
     out.push({ key: 'doctor.progress.terminal', params: {} });
   if (hook && i.claudeCode && compareVersions(i.claudeCode, HOOK_FLOOR.terminalSequence) < 0)

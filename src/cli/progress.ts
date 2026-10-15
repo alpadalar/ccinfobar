@@ -1,6 +1,15 @@
 import { metricGetter } from '../core/metrics.js';
 import type { ProgressConfig, RenderContext } from '../core/types.js';
-import { type ProgressState, type ProgressWant, progressFiles, readWant } from '../data/progress.js';
+import {
+  type ProgressState,
+  type ProgressWant,
+  progressChannel,
+  progressFiles,
+  readWant,
+} from '../data/progress.js';
+
+export { progressChannel };
+
 import { writeAtomic } from '../data/store.js';
 
 export interface ProgressSync {
@@ -23,9 +32,6 @@ export function progressTarget(
   const state: ProgressState = pct >= (p.errorAt ?? 80) ? 2 : pct >= (p.warnAt ?? 50) ? 4 : 1;
   return { state, pct };
 }
-
-export const progressChannel = (p: ProgressConfig, platform: NodeJS.Platform): 'hook' | 'tty' =>
-  p.channel === 'tty' && platform !== 'win32' ? 'tty' : 'hook';
 
 const same = (a: ProgressWant, b: ProgressWant): boolean =>
   a.state === b.state && a.pct === b.pct && a.channel === b.channel && a.always === b.always;

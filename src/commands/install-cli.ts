@@ -9,7 +9,7 @@ import { claudeSettingsPath, tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { VERSION } from '../core/version.js';
 import type { HookEvent } from '../data/hooks.js';
-import { progressSeq } from '../data/progress.js';
+import { progressChannel, progressSeq } from '../data/progress.js';
 import { requestClear } from '../data/progress-clear.js';
 import { selfCommand } from '../data/update-state.js';
 import { type DetectedTool, detectTool, type ImportSource } from '../importers/index.js';
@@ -350,8 +350,12 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     progress = false;
   }
   const hooksAsked = events.length > 0;
+  // WR-02: the tty channel writes from the status line, so no handlers
+  const tty =
+    progress && !project && progressChannel(loadConfig(cfgFile).config.progress, process.platform) === 'tty';
+  const handlers = progress && !tty;
   let claudeCode: string | null = null;
-  if (hooksAsked || progress) {
+  if (hooksAsked || handlers) {
     claudeCode = (io.claudeVersion ?? detectClaudeCode)();
     if (claudeCode) io.log(t('hooks.detected', { version: claudeCode }));
   }
@@ -359,7 +363,8 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   if (dryRun) {
     if (!plan.needsConfirm) io.log(t('install.dryRunFile', { file: tildify(file) }));
     showPlan(io, plan);
-    const hookPlan = project ? null : previewHooks(file, command, events, claudeCode, progress);
+    const hookPlan = project ? null : previewHooks(file, command, events, claudeCode, handlers);
+    if (tty) io.log(t('progress.tty'));
     if (!plan.changes && !hooksChanged(hookPlan)) io.log(t('install.unchanged'));
     if (hookPlan) showDryHooks(io, hookPlan, hooksAsked);
     if (!project) {
@@ -390,7 +395,7 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   if (tool) await offerImport(tool, args, cfgFile, io);
   let res: InstallResult;
   try {
-    const hooks = hooksAsked || progress ? { events, claudeCode, progress } : undefined;
+    const hooks = hooksAsked || handlers ? { events, claudeCode, progress: handlers } : undefined;
     res = applyInstall(plan, { confirmed: true, adoptLegacy, hooks });
   } catch (e) {
     if (!(e instanceof InstallNeedsConfirmError)) throw e;
@@ -400,13 +405,18 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   }
   if (project) ignoreLocally(file);
   persistConfig(cfgFile);
-  if (progress && res.hooks?.progressRefused === null) setProgress(io, cfgFile, true);
+  if (tty || (handlers && res.hooks?.progressRefused === null)) setProgress(io, cfgFile, true);
+  const ttyRemoved =
+    tty && hasProgressHandlers(file) ? uninstallHooks(file, undefined, undefined, 'progress') : null;
   if (plan.changes) io.log(t('install.wrote', { command: show(command), file: tildify(file) }));
   else if (!hooksChanged(res.hooks)) io.log(t('install.unchanged'));
   if (plan.needsConfirm && !adoptLegacy && plan.current)
     io.log(t('install.replaced', { command: show(plan.current.command) }));
   if (res.hooks) reportHooks(io, res.hooks, hooksAsked);
+  if (tty) io.log(t('progress.tty'));
+  if (ttyRemoved) hooksRemoved(io, ttyRemoved);
   if (res.backup) io.log(t('install.backup', { file: tildify(res.backup) }));
+  else if (ttyRemoved?.backup) io.log(t('install.backup', { file: tildify(ttyRemoved.backup) }));
   refreshNotes(io, cfgFile, refresh, plan);
 
   if (project) {

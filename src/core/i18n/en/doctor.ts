@@ -68,6 +68,8 @@ export const doctorMessages = {
   'doctor.progress.terminal':
     '⚠ This terminal is not known to show OSC 9;4 progress; set "progress.terminals": "always" to try anyway.',
   'doctor.progress.oldClaude': '⚠ Terminal progress needs Claude Code 2.1.141 or newer (found {version}).',
+  'doctor.progress.ttyHandlers':
+    '⚠ Progress uses the tty channel, so its hook handlers only add prompt latency. Run `ccinfobar install --progress` to remove them.',
   'doctor.progress.ttyWindows': '⚠ "channel": "tty" does not work on Windows; use "auto".',
   'doctor.progress.tmux':
     '⚠ Inside tmux the tty channel needs "tmuxPassthrough": true and `set -g allow-passthrough on`.',

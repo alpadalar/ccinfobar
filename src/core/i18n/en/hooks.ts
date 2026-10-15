@@ -37,6 +37,8 @@ export const hookMessages = {
     '✓ Added the progress handlers for {events} (they run before each prompt; about 60-110 ms)',
   'progress.removed': '✓ Removed the progress handlers',
   'progress.none': 'No progress handlers in {file}',
+  'progress.tty':
+    '✓ Terminal progress uses the tty channel: the status line writes the bar itself, so no hook handlers are added (installed ones are removed).',
   'progress.held':
     '✓ Turned progress off. Its handlers stay until the bar clears at the next prompt; run `ccinfobar uninstall --progress` again to remove them.',
   'progress.refused.oldVersion': 'Terminal progress needs Claude Code {floor} or newer (found {version})',

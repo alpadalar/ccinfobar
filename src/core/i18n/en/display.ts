@@ -100,7 +100,7 @@ export const displayMessages = {
   'prog.scaleHelp': 'Auto-compact point: 100% is where Claude Code compacts, not the full window',
   'prog.levelHelp': 'The bar turns yellow at the warn level and red at the error level',
   'prog.channelHelp':
-    'auto and hook use the Claude Code hook; tty writes from the status line itself (Linux, macOS)',
+    'auto and hook use the Claude Code hook; tty writes from the status line itself (Linux, macOS) and needs no hook handlers. While progress is on, a change here saves at once and adds or removes the handlers',
   'prog.terminalsHelp':
     'Supported: Windows Terminal, Ghostty, WezTerm, ConEmu, iTerm2. Always may pop notifications elsewhere',
   'prog.tmuxHelp': 'Needs set -g allow-passthrough on in tmux; tty channel only',
@@ -109,6 +109,8 @@ export const displayMessages = {
   'prog.hintLatency':
     'Runs a small hook before each prompt (about 60-110 ms). The tty channel (Linux, macOS) avoids it.',
   'prog.tuiHelp': 'Hook handlers are added with `ccinfobar install --progress` or the web editor.',
+  'prog.tuiChannelHelp':
+    'auto and hook use the Claude Code hook; tty writes from the status line itself (Linux, macOS) and needs no handlers. After switching, run `ccinfobar install --progress` so the handlers match',
   'prog.on': 'Terminal progress on (saved).',
   'prog.off': 'Terminal progress off (saved).',
   'prog.offHeld':
@@ -116,4 +118,5 @@ export const displayMessages = {
   'prog.leftover': 'Progress is off, but its hook handlers are still installed and run before each prompt.',
   'prog.removeHandlers': 'Remove handlers',
   'prog.saved': 'This switch saves at once and is not part of undo.',
+  'prog.channelSaved': 'Progress channel saved; the hook handlers now match it.',
 } as const;

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { ProgressConfig } from '../core/types.js';
 import { hooksDir, SESSION_RE } from './hook-line.js';
 import { readJsonSafe, writeSmall } from './store.js';
 
@@ -21,6 +22,10 @@ export interface ProgressSent {
 
 // Claude Code's OSC 9 body validator
 export const SEQ_BODY_RE = /^4;[0-4](;(100|\d{1,2})?)?$/;
+
+// tty is POSIX only (D-44)
+export const progressChannel = (p: ProgressConfig | undefined, platform: NodeJS.Platform): 'hook' | 'tty' =>
+  p?.channel === 'tty' && platform !== 'win32' ? 'tty' : 'hook';
 
 export function isProgressEvent(v: unknown): v is ProgressEvent {
   return typeof v === 'string' && (PROGRESS_EVENTS as readonly string[]).includes(v);

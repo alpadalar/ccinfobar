@@ -37,7 +37,13 @@ import {
   writeUpdateState,
 } from '../commands/update.js';
 import { ConfigBrokenError, loadConfig, normalizeConfig, saveConfig } from '../core/config.js';
-import { applyStyle, type StyleHistory, setProgress, upgradeOptions } from '../core/edit.js';
+import {
+  applyStyle,
+  PROGRESS_CHOICES,
+  type StyleHistory,
+  setProgress,
+  upgradeOptions,
+} from '../core/edit.js';
 import { t } from '../core/i18n/index.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
@@ -55,9 +61,9 @@ import {
   themesDir,
   themeToInput,
 } from '../core/themes.js';
-import type { Config, WidgetItem } from '../core/types.js';
+import type { Config, ProgressConfig, WidgetItem } from '../core/types.js';
 import { gsdInstalled } from '../data/gsd.js';
-import { PROGRESS_EVENTS } from '../data/progress.js';
+import { PROGRESS_EVENTS, progressChannel } from '../data/progress.js';
 import { requestClear } from '../data/progress-clear.js';
 import { writeAtomic } from '../data/store.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
@@ -622,8 +628,10 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         return;
       }
       case 'POST /api/progress': {
-        const { enabled } = asObject(await readBody(req));
+        const { enabled, channel } = asObject(await readBody(req));
         if (typeof enabled !== 'boolean') throw new HttpError(400, t('hooks.badBody'));
+        if (channel !== undefined && !(PROGRESS_CHOICES.channel as readonly unknown[]).includes(channel))
+          throw new HttpError(400, t('hooks.badBody'));
         // config and handlers change together (WR-03)
         const loaded = loadConfig(opts.configPath);
         if (loaded.error)
@@ -631,8 +639,16 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const file = claudeSettingsPath();
         let backup: string | null = null;
         let held = false;
-        const next = setProgress(loaded.config, { enabled });
-        if (enabled) {
+        const next = setProgress(loaded.config, {
+          enabled,
+          ...(channel === undefined ? {} : { channel: channel as ProgressConfig['channel'] }),
+        });
+        // the tty channel needs no handlers (WR-02)
+        if (enabled && progressChannel(next.progress, process.platform) === 'tty') {
+          saveConfig(next, opts.configPath);
+          if (installedHooks(true).length)
+            backup = uninstallHooks(file, process.env, undefined, 'progress').backup;
+        } else if (enabled) {
           const active = activeCommand(command);
           if (!active)
             throw new HttpError(409, t('hooks.reason.notActive'), { hooks: await hooksInfo(command) });
