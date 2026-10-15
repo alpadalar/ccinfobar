@@ -53,6 +53,7 @@ function sandbox(claudeOut: Fake = '2.1.299 (Claude Code)') {
     CCINFOBAR_CACHE_DIR: path.join(dir, 'cache'),
     CCINFOBAR_NO_UPDATE: '1',
     CCINFOBAR_NO_USAGE_API: '1',
+    CCINFOBAR_NO_JOBS: '1',
   });
   const run = (args: string[], command = 'ccinfobar-test') =>
     spawnSync(process.execPath, [bin, ...args, '--command', command, '--no-import'], {

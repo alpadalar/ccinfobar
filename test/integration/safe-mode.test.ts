@@ -23,6 +23,7 @@ function run(args: string[], config?: string) {
       CLAUDE_CONFIG_DIR: path.join(dir, 'claude'),
       CCINFOBAR_NO_UPDATE: '1',
       CCINFOBAR_NO_USAGE_API: '1',
+      CCINFOBAR_NO_JOBS: '1',
       NO_COLOR: '',
       FORCE_COLOR: '2',
       COLUMNS: '200',

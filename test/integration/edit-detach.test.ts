@@ -19,6 +19,7 @@ function envFor(d: string): NodeJS.ProcessEnv {
     CLAUDE_CONFIG_DIR: path.join(d, 'claude'),
     HOME: path.join(d, 'home'),
     USERPROFILE: path.join(d, 'home'),
+    CCINFOBAR_NO_JOBS: '1',
   };
 }
 

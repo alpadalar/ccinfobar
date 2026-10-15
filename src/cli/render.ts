@@ -1,13 +1,15 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { detectLevel, style } from '../core/ansi.js';
 import { createContext, lazy, resolveCwd } from '../core/context.js';
 import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
-import { configPath, lastPayloadPath } from '../core/paths.js';
+import { lastPayloadPath } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
 import { finalizeLine, render } from '../core/renderer.js';
 import type { Config, DataSources, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
+import { scheduleJobs } from '../data/jobs/index.js';
 import {
   ledgerOn,
   ledgerView,
@@ -21,8 +23,8 @@ import { readRepos, repoDirtyWanted, scheduleRepoDirty } from '../data/repos.js'
 import { writeAtomic } from '../data/store.js';
 import { terminalWidth } from '../data/terminal.js';
 import { readTranscript } from '../data/transcript.js';
-import { scheduleCheck, updateNotice } from '../data/update-state.js';
-import { effectiveUsage, scheduleUsage, usageDue } from '../data/usage.js';
+import { updateNotice } from '../data/update-state.js';
+import { effectiveUsage } from '../data/usage.js';
 import type { Args } from './args.js';
 
 export function readStdin(timeoutMs = 3000): Promise<string> {
@@ -125,10 +127,7 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
       const read = ledger();
       if (read) recordLedger(process.env, payload, read, Date.now());
     }
-    // the worker loads the same config
-    const extra = cfgFile === configPath() ? [] : [`--config=${cfgFile}`];
-    scheduleCheck(config, payload.session_id, process.env, extra);
-    if (eff.usageOn && usageDue(eff.usage)) scheduleUsage(process.env, Date.now(), extra);
+    scheduleJobs(config, payload, process.env, path.resolve(cwd), cfgFile);
     if (repoDirtyWanted(config)) scheduleRepoDirty(cwd, repos(), process.env, Date.now());
   } catch {}
 }

@@ -64,6 +64,7 @@ export function benchEnv(
   env.CLAUDE_CONFIG_DIR = dirs.claude;
   env.NODE_COMPILE_CACHE = dirs.compile;
   env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = '1';
+  env.CCINFOBAR_NO_JOBS = '1';
   env.COLUMNS = '140';
   if (opts.compileCache === false) env.NODE_DISABLE_COMPILE_CACHE = '1';
   return env;

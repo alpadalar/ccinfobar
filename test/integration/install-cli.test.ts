@@ -22,6 +22,7 @@ function sandbox() {
     CCINFOBAR_CACHE_DIR: path.join(dir, 'cache'),
     CCINFOBAR_NO_UPDATE: '1',
     CCINFOBAR_NO_USAGE_API: '1',
+    CCINFOBAR_NO_JOBS: '1',
   };
   const run = (...args: string[]) =>
     spawnSync(process.execPath, [bin, ...args, '--command', 'ccinfobar-test', '--no-import'], {

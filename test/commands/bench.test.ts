@@ -85,6 +85,7 @@ describe('benchEnv', () => {
     expect(env.NODE_COMPILE_CACHE).toBe('/t/compile');
     expect('CCINFOBAR_CONFIG' in env).toBe(false);
     expect(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe('1');
+    expect(env.CCINFOBAR_NO_JOBS).toBe('1');
     expect(env.COLUMNS).toBe('140');
     expect(env.NODE_DISABLE_COMPILE_CACHE).toBeUndefined();
   });

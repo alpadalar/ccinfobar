@@ -48,6 +48,7 @@ function render(session: string, c: number): string {
       CCINFOBAR_CACHE_DIR: path.join(dir, 'cache'),
       CLAUDE_CONFIG_DIR: path.join(dir, 'claude'),
       CCINFOBAR_NO_USAGE_API: '1',
+      CCINFOBAR_NO_JOBS: '1',
       CCINFOBAR_NO_UPDATE: '1',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
       NO_COLOR: '',

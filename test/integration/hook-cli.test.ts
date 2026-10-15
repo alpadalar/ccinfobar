@@ -20,6 +20,7 @@ function sandbox() {
     CCINFOBAR_CACHE_DIR: cache,
     CCINFOBAR_NO_UPDATE: '1',
     CCINFOBAR_NO_USAGE_API: '1',
+    CCINFOBAR_NO_JOBS: '1',
   };
   const log = (sid = SID) => path.join(cache, 'hooks', `${sid}.jsonl`);
   const lines = (sid = SID) =>

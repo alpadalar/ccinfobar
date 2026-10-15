@@ -6,14 +6,7 @@ import { cacheDir, claudeDir, claudeJsonPath } from '../core/paths.js';
 import { deepSanitize } from '../core/sanitize.js';
 import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
-import {
-  type JobEnvelope,
-  nonessentialTrafficOff,
-  okEnvelope,
-  readEnvelope,
-  scheduleRequests,
-  writeEnvelope,
-} from './jobs/runner.js';
+import { type JobEnvelope, okEnvelope, readEnvelope, writeEnvelope } from './jobs/runner.js';
 import {
   accountKey,
   captureTime,
@@ -416,15 +409,4 @@ export async function fetchUsage(
   writeEnvelope(fromUsageCache(usageKey(env), r.cache, prev.envelope, now), env);
   recordUsage(env, prev.cache, r, now);
   return r.cache;
-}
-
-const LOCK_MS = 30_000;
-
-export function scheduleUsage(
-  env: NodeJS.ProcessEnv = process.env,
-  now = Date.now(),
-  extra: string[] = [],
-): void {
-  if (nonessentialTrafficOff(env)) return;
-  scheduleRequests([{ req: { key: usageKey(env) }, lockMs: LOCK_MS }], env, extra, { now });
 }

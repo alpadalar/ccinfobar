@@ -23,6 +23,7 @@ function run(args: string[], env: Record<string, string> = {}, input = payload) 
       FORCE_COLOR: '2',
       COLUMNS: '200',
       TERM_PROGRAM: '',
+      CCINFOBAR_NO_JOBS: '1',
       ...env,
     },
   });
@@ -40,6 +41,7 @@ describe.skipIf(!fs.existsSync(bin))('built cli', () => {
         ...process.env,
         CCINFOBAR_CONFIG_DIR: init.dir,
         CCINFOBAR_CACHE_DIR: path.join(init.dir, 'c'),
+        CCINFOBAR_NO_JOBS: '1',
         COLUMNS: '200',
       },
     });

@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
+import { scheduleJobs } from '../../src/data/jobs/index.js';
 import { envelopeFile, lockFile } from '../../src/data/jobs/runner.js';
 import { limitsOn, readLimitsStore, recordLimits, resolveLimits } from '../../src/data/limits.js';
 import {
@@ -12,7 +13,6 @@ import {
   needsUsage,
   parseUsageResponse,
   readUsageCache,
-  scheduleUsage,
   usageDue,
   usageFile,
   usageKey,
@@ -169,10 +169,31 @@ describe('usage api', () => {
     const lock = lockFile(usageKey(env), env);
     expect(path.basename(path.dirname(lock))).toBe('jobs');
     expect(path.basename(lock)).toMatch(/^usage-[0-9a-f]{16}\.lock$/);
-    scheduleUsage({ ...env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' });
+    const calls: string[][] = [];
+    const schedule = (off: string) =>
+      scheduleJobs(
+        defaultConfig(),
+        {},
+        {
+          ...env,
+          CCINFOBAR_NO_JOBS: '',
+          CCINFOBAR_NO_USAGE_API: '',
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: off,
+        },
+        os.tmpdir(),
+        null,
+        {
+          spawn: (args) => {
+            calls.push(args);
+            return true;
+          },
+        },
+      );
+    expect(schedule('1')).toEqual([]);
     expect(fs.existsSync(lock)).toBe(false);
-    scheduleUsage({ ...env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '' });
+    expect(schedule('')).toContain(usageKey(env));
     expect(fs.existsSync(lock)).toBe(true);
+    expect(calls).toHaveLength(1);
   });
 
   it('feeds the shared limits store and starts it over after a login change', async () => {

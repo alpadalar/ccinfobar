@@ -56,6 +56,7 @@ function render(id: string, file: string, limits: Record<string, Win>, env: Reco
       CCINFOBAR_CACHE_DIR: path.join(dir, 'cache'),
       CLAUDE_CONFIG_DIR: path.join(dir, 'claude'),
       CCINFOBAR_NO_USAGE_API: '1',
+      CCINFOBAR_NO_JOBS: '1',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
       NO_COLOR: '',
       FORCE_COLOR: '0',

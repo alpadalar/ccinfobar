@@ -23,6 +23,7 @@ describe.skipIf(!fs.existsSync(bin))('ccinfobar hook parallel appends', () => {
         CCINFOBAR_CACHE_DIR: cache,
         CCINFOBAR_NO_UPDATE: '1',
         CCINFOBAR_NO_USAGE_API: '1',
+        CCINFOBAR_NO_JOBS: '1',
       };
       const one = (i: number) =>
         new Promise<{ code: number | null; out: string }>((resolve) => {
