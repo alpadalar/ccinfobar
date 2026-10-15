@@ -69,6 +69,7 @@ const PURE = [
   'src/core/profiles.ts',
   'src/core/jsonpath.ts',
   'src/core/http-spec.ts',
+  'src/core/http-report.ts',
   'src/data/live.ts',
 ];
 
@@ -122,6 +123,33 @@ describe('import graph', () => {
     expect([...files].filter((f) => !allowed.has(f))).toEqual([]);
     const lazy = fs.readFileSync(path.join(src, 'data/jobs/update.ts'), 'utf8');
     expect(lazy).toContain("await import('../../commands/update.js')");
+  });
+
+  // fetch, exec and json path code load only in the worker; each extra chunk costs about 0.3 ms
+  it('keeps worker code out of the render and the registry in the cli chunk', () => {
+    const files = closure('cli/render.ts');
+    expect(files.has('src/data/jobs/index.ts')).toBe(true);
+    const bad = [...files].filter(
+      (f) =>
+        /^src\/(data\/jobs\/(fetch|gh-exec)|core\/(jsonpath|http-report))\.ts$/.test(f) ||
+        f.startsWith('src/commands/'),
+    );
+    expect(bad).toEqual([]);
+    const read = (f: string) => fs.readFileSync(path.join(root, f), 'utf8');
+    const users = walk(src)
+      .map((f) => path.relative(root, f).replace(/\\/g, '/'))
+      .filter((f) =>
+        /from '[./]+(data\/)?jobs\/index\.js'|import\('[./]+(data\/)?jobs\/index\.js'\)/.test(read(f)),
+      );
+    expect(users.sort()).toEqual(['src/cli/main.ts', 'src/cli/render.ts']);
+    expect(read('src/data/jobs/http.ts')).toContain("await import('./fetch.js')");
+    expect(read('src/data/jobs/http.ts')).toContain("await import('../../core/jsonpath.js')");
+    expect(read('src/data/jobs/status.ts')).toContain("await import('./fetch.js')");
+    expect(read('src/data/jobs/gh.ts')).toContain("await import('./gh-exec.js')");
+    for (const f of ['data/jobs/fetch.ts', 'data/jobs/gh-exec.ts']) {
+      expect(read(`src/${f}`), f).not.toMatch(/^import\s+(?!type\b)[^;]*from\s+'\./m);
+      expect(closure(f)).toEqual(new Set([`src/${f}`]));
+    }
   });
 
   // node:crypto, a static node:fs ESM import and the stdin stream each cost ms per event

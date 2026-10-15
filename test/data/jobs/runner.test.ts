@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Config } from '../../../src/core/types.js';
+import { retryAfterMs } from '../../../src/data/jobs/fetch.js';
 import {
   backoffMs,
   blockedByTraffic,
@@ -21,7 +22,6 @@ import {
   okEnvelope,
   parseArg,
   readEnvelope,
-  retryAfterMs,
   scheduleRequests,
   writeEnvelope,
 } from '../../../src/data/jobs/runner.js';
@@ -165,6 +165,28 @@ describe('defaultDue', () => {
     expect(defaultDue(failed, NOW + 60_000, 60_000)).toBe(false);
     expect(defaultDue(failed, NOW + 120_000, 60_000)).toBe(true);
     expect(defaultDue(ok, NOW - 10_000, 60_000)).toBe(true);
+  });
+});
+
+describe('keyNetwork', () => {
+  it('matches the network of every registered job', async () => {
+    const { JOBS } = await import('../../../src/data/jobs/index.js');
+    const { keyNetwork } = await import('../../../src/data/jobs/keys.js');
+    const samples: Record<string, string> = {
+      usage: 'usage-0123456789abcdef',
+      update: 'update',
+      status: 'status',
+      http: 'http-0123456789abcdef',
+      gh: 'gh-0123456789abcdef',
+      repos: 'repos-dirty-0123456789abcdef0123',
+    };
+    for (const job of JOBS) {
+      const key = samples[job.id]!;
+      expect(job.keyRe.test(key), job.id).toBe(true);
+      expect(keyNetwork(key), job.id).toBe(job.network);
+    }
+    expect(keyNetwork('gh-hosts')).toBeNull();
+    expect(keyNetwork('http-xyz')).toBeNull();
   });
 });
 

@@ -4,8 +4,7 @@ import type { Args } from '../cli/args.js';
 import { loadForUse } from '../core/load.js';
 import type { Config } from '../core/types.js';
 import { hardenedGit } from '../data/git.js';
-import { reposJob } from '../data/jobs/repos.js';
-import { executeJob, releaseLock } from '../data/jobs/runner.js';
+import { executeJob, type Job, releaseLock } from '../data/jobs/runner.js';
 import {
   insideRepo,
   legacyDirtyFile,
@@ -71,7 +70,7 @@ export async function checkRepos(
 }
 
 // hidden alias for renders that still spawn `repos --background`
-export async function runRepos(args: Args, cfgFile: string): Promise<void> {
+export async function runRepos(args: Args, cfgFile: string, jobs: Job<unknown>[]): Promise<void> {
   const cwd = args.positional[0];
   if (args.flags.background !== true || !cwd || !path.isAbsolute(cwd)) return;
   const root = path.resolve(cwd);
@@ -81,7 +80,8 @@ export async function runRepos(args: Args, cfgFile: string): Promise<void> {
     const loaded = loadForUse(cfgFile);
     if (loaded.issue || loaded.error) return;
     const input = { config: loaded.config, env, cwd: root };
-    if (!reposJob.paramRe?.test(root) || !reposJob.accepts(req, input)) return;
+    const reposJob = jobs.find((j) => j.keyRe.test(req.key));
+    if (!reposJob?.paramRe?.test(root) || !reposJob.accepts(req, input)) return;
     const prev = reposJob.readPrev?.(req.key, env) ?? null;
     const ctx = { ...input, prev, fetch: globalThis.fetch, now: Date.now() };
     await executeJob(reposJob, req, ctx, env);

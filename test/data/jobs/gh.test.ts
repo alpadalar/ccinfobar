@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../../src/core/config.js';
 import type { GhValue } from '../../../src/core/job-values.js';
 import type { Config, StatusPayload, WidgetItem } from '../../../src/core/types.js';
-import { defaultExecFile, ghJob, ghParam } from '../../../src/data/jobs/gh.js';
+import { ghJob, ghParam } from '../../../src/data/jobs/gh.js';
+import { defaultExecFile } from '../../../src/data/jobs/gh-exec.js';
 import { JOBS, jobFor } from '../../../src/data/jobs/index.js';
 import { ghKey } from '../../../src/data/jobs/keys.js';
 import {

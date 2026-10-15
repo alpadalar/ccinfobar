@@ -22,7 +22,8 @@ import {
 } from './jobs/update.js';
 
 export { nonessentialTrafficOff, safeCwd, spawnSelf, spawnSelfDetached } from './jobs/runner.js';
-export { type UpdateState, updatesDisabled } from './jobs/update.js';
+// the registry takes it from here, so both share a chunk
+export { type UpdateState, updateJob, updatesDisabled } from './jobs/update.js';
 
 // legacy path, read only
 export function updateFile(env: NodeJS.ProcessEnv = process.env): string {

@@ -1,7 +1,6 @@
 import type { StatusIncident, StatusIndicator, StatusValue } from '../../core/job-values.js';
 import { sanitizeText } from '../../core/sanitize.js';
 import type { Config } from '../../core/types.js';
-import { errorCode, fetchJson, JobFetchError } from './fetch.js';
 import { defaultDue, failEnvelope, type Job, okEnvelope } from './runner.js';
 
 export const STATUS_URL = 'https://status.claude.com/api/v2/summary.json';
@@ -95,6 +94,8 @@ export const statusJob: Job<StatusValue> = {
     return defaultDue(e, now, req.ttlMs ?? DEFAULT_INTERVAL * 1000);
   },
   async run(req, ctx) {
+    // fetch code loads only in the worker
+    const { errorCode, fetchJson, JobFetchError } = await import('./fetch.js');
     try {
       const body = await fetchJson(new URL(STATUS_URL), { fetch: ctx.fetch, timeoutMs: 5000, now: ctx.now });
       const value = parseSummary(body);

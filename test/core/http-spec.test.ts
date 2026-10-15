@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { describeHeaders, externalTargets, redactUrl } from '../../src/core/http-report.js';
 import {
-  describeHeaders,
   envRule,
-  externalTargets,
   ghTokenNames,
   httpItemError,
   httpRefusal,
@@ -10,7 +9,6 @@ import {
   normalizeHeaderSpec,
   parseHeaderSpec,
   parseUrlTemplate,
-  redactUrl,
   resolveUrl,
 } from '../../src/core/http-spec.js';
 import type { WidgetItem } from '../../src/core/types.js';

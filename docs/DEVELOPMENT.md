@@ -69,7 +69,8 @@ src/
 │   ├── scenarios.ts     named payload and data situations
 │   ├── cache-rule.ts    Claude Code's cache miss rule and the latest-miss check (pure)
 │   ├── jsonpath.ts      the http widget's JSON path subset (pure)
-│   ├── http-spec.ts     http URL templates and header specs (pure)
+│   ├── http-spec.ts     http URL templates, header specs and the env deny-list (pure)
+│   ├── http-report.ts   redacted http URLs and headers for doctor and explain (pure)
 │   ├── profiles.ts      built-in model profiles and resolveProfile (pure)
 │   ├── time.ts          epoch seconds, milliseconds and ISO to ms (pure)
 │   ├── edit.ts          pure edit operations shared by both editors
@@ -226,8 +227,11 @@ Phase 5 added three optional `DataSources` members, `hooks`, `repos` and `enviro
 Everything slow or networked runs in one detached worker, never in the render. `src/data/jobs/`:
 
 - `runner.ts`: the `Job` interface, envelopes, backoff, locks, `spawnSelf`, `scheduleRequests` and `executeJob`. It imports only `core/paths.ts`, `core/sanitize.ts` and `data/store.ts` (plus types), so the hook's update check can reach it.
-- `index.ts`: the `JOBS` registry, `jobFor(key)` and `scheduleJobs`.
-- One module per job: `usage.ts`, `update.ts`, `status.ts`, `http.ts`, `gh.ts`, `repos.ts`; `fetch.ts` (`fetchJson`) and `keys.ts` (`httpKey`, `ghKey`) are shared.
+- `index.ts`: the `JOBS` registry, `jobFor(key)` and `scheduleJobs`. Only `cli/main.ts` and `cli/render.ts` import it, so the registry and every job module land in the cli chunk; `main.ts` passes `JOBS` to `worker`, `usage --background` and `repos --background`, and doctor gets a key's network class from `keyNetwork`. It takes `updateJob` through `data/update-state.ts`, so the two share a chunk.
+- One module per job: `usage.ts`, `update.ts`, `status.ts`, `http.ts`, `gh.ts`, `repos.ts`. `keys.ts` (`httpKey`, `ghKey`, `httpGroups`, `ghParam`, `keyNetwork`) is shared with the widgets and doctor.
+- Worker-only code: `fetch.ts` (`fetchJson`, `retryAfterMs`) and `gh-exec.ts` (the `execFile` wrapper) import no other module, and `http.ts`, `status.ts` and `gh.ts` load them, and `core/jsonpath.js`, with `import()` inside `run()`. `update.ts` and `repos.ts` load their command modules the same way.
+
+Each ESM chunk costs about 0.3 ms at startup, more than its bytes, and esbuild makes a new chunk for every module that a different set of entry points reaches. So a worker-only module that imports a render module splits that module into a chunk of its own. The render loads 15 chunks, the same as before the job runner. `test/foundations/import-graph.test.ts` fails when the render closure reaches `fetch.ts`, `gh-exec.ts`, `core/jsonpath.ts`, `core/http-report.ts` or `commands/`, when another module imports `index.ts`, or when `fetch.ts` or `gh-exec.ts` imports a module.
 
 | Job | Key | Network | Lock | Refresh |
 | --- | --- | --- | --- | --- |
@@ -256,9 +260,9 @@ Everything slow or networked runs in one detached worker, never in the render. `
 
 Adding a job:
 
-1. Add the id to `JobId` and a module in `src/data/jobs/` with `network`, `lockMs`, `timeoutMs`, `retryMs`, `keyRe` (and `paramRe` when it needs payload input), `keys`, `accepts`, `due` and `run`. Pass only short, non-secret params in argv; anything from the config is re-read by the worker.
+1. Add the id to `JobId` and a module in `src/data/jobs/` with `network`, `lockMs`, `timeoutMs`, `retryMs`, `keyRe` (and `paramRe` when it needs payload input), `keys`, `accepts`, `due` and `run`. Load network, exec and other worker-only code with `import()` inside `run()`, from a module that imports no render module. Pass only short, non-secret params in argv; anything from the config is re-read by the worker.
 2. Return `okEnvelope` or `failEnvelope` with a fixed error code; sanitize strings and keep only what the widget needs.
-3. Register it in `JOBS`, and let the widget read it with `ctx.data.jobs?.()?.job(key)` and `jobValue`. Add the key to `sampleJobs` and to a scenario.
+3. Register it in `JOBS` and add its key pattern to `keyNetwork`, and let the widget read it with `ctx.data.jobs?.()?.job(key)` and `jobValue`. Add the key to `sampleJobs` and to a scenario.
 4. Choose the network class: `auto` for anything the user did not ask for by URL or option.
 5. Test `keys`, `due`, `run` with injected `fetch` or `execFile`, the worker round trip and the explain reason.
 

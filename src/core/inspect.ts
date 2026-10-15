@@ -11,6 +11,7 @@ import { isLoadingOutput } from '../widgets/shared.js';
 import { STATUS_STALE_MS, serviceState } from '../widgets/status.js';
 import { stripAnsi, visibleWidth } from './ansi.js';
 import { t } from './i18n/index.js';
+import { parsePath } from './jsonpath.js';
 import { hasReplies } from './payload.js';
 import {
   hiddenByWorkspace,
@@ -214,15 +215,16 @@ function serviceReason(ctx: RenderContext, item: WidgetItem): EmptyReason {
 function httpReason(ctx: RenderContext, item: WidgetItem): EmptyReason {
   const s = httpState(ctx, item);
   const now = ctx.now.getTime();
+  if (s.kind !== 'no-url' && s.kind !== 'bad-url') {
+    const raw = item.options?.path;
+    const path = parsePath((typeof raw === 'string' && raw) || '$');
+    if (!path.ok) return reason('bad-option', undefined, { key: 'path', error: sanitizeText(path.error) });
+  }
   switch (s.kind) {
     case 'no-url':
       return reason('missing-option', undefined, { key: 'url' });
     case 'bad-url':
-    case 'bad-path':
-      return reason('bad-option', undefined, {
-        key: s.kind === 'bad-url' ? (s.field ?? 'url') : 'path',
-        error: sanitizeText(s.error),
-      });
+      return reason('bad-option', undefined, { key: s.field ?? 'url', error: sanitizeText(s.error) });
     case 'pending':
       return jobEmpty(null, 'explicit', ctx.env, now, HTTP_GONE_MS)!;
     case 'error':

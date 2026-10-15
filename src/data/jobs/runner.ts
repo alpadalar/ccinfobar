@@ -52,7 +52,7 @@ export interface AcceptInput {
 export type ExecFileLike = (
   file: string,
   args: string[],
-  opts: { timeout: number; env: NodeJS.ProcessEnv; maxBuffer: number },
+  opts: { timeout: number; env: NodeJS.ProcessEnv; maxBuffer: number; cwd?: string },
 ) => Promise<{ code: number | null; stdout: string; stderr: string; errno?: string }>;
 
 export interface JobCtx<V> {
@@ -228,15 +228,6 @@ export function jobValue<V>(
 export function backoffMs(retryMs: number, attempts: number, maxMs = MAX_BACKOFF_MS): number {
   const n = Math.max(0, Math.min(attempts, MAX_ATTEMPTS) - 1);
   return Math.max(0, Math.min(maxMs, retryMs * 2 ** n));
-}
-
-// seconds or an HTTP date; zero, past or garbage means none
-export function retryAfterMs(header: string | null, now = Date.now()): number | null {
-  const v = header?.trim();
-  if (!v) return null;
-  const ms = /^\d+$/.test(v) ? Number(v) * 1000 : Date.parse(v) - now;
-  if (!Number.isFinite(ms) || ms <= 0) return null;
-  return Math.min(ms, MAX_RETRY_AFTER_MS);
 }
 
 export function defaultDue<V>(e: JobEnvelope<V> | null, now: number, ttlMs: number): boolean {

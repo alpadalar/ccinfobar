@@ -2,6 +2,7 @@ import path from 'node:path';
 import { configPath } from '../../core/paths.js';
 import type { Config, StatusPayload } from '../../core/types.js';
 import type { WorkspaceRepos } from '../repos.js';
+import { updateJob } from '../update-state.js';
 import { ghJob } from './gh.js';
 import { httpJob } from './http.js';
 import { reposJob } from './repos.js';
@@ -15,7 +16,6 @@ import {
   type spawnSelf,
 } from './runner.js';
 import { statusJob } from './status.js';
-import { updateJob } from './update.js';
 import { usageJob } from './usage.js';
 
 export const JOBS: Job<unknown>[] = [

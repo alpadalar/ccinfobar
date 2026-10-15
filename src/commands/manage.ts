@@ -11,8 +11,7 @@ import { type PreviewSource, renderPreview, scenarioFlag, scenarioListLines } fr
 import { sanitizeText } from '../core/sanitize.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from '../core/themes.js';
 import { gsdInstalled } from '../data/gsd.js';
-import { executeJob } from '../data/jobs/runner.js';
-import { usageJob } from '../data/jobs/usage.js';
+import { executeJob, type Job } from '../data/jobs/runner.js';
 import { fetchUsage, usageKey } from '../data/usage.js';
 import { type ImportSource, importFrom, toConfig } from '../importers/index.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
@@ -230,17 +229,19 @@ export function runWidgets(_args: Args, _cfgFile: string): void {
   }
 }
 
-export async function runUsage(args: Args, cfgFile: string): Promise<void> {
+export async function runUsage(args: Args, cfgFile: string, jobs: Job<unknown>[]): Promise<void> {
   if (args.flags.background) {
     const key = usageKey();
+    const job = jobs.find((j) => j.keyRe.test(key));
+    if (!job) return;
     await executeJob(
-      usageJob,
+      job,
       { key },
       {
         env: process.env,
         config: loadForUse(cfgFile).config,
         cwd: process.cwd(),
-        prev: usageJob.readPrev!(key, process.env),
+        prev: job.readPrev?.(key, process.env) ?? null,
         fetch,
         now: Date.now(),
       },

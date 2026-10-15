@@ -133,7 +133,7 @@ describe('http widget', () => {
     expect(text(ok(value({})))).toBeNull();
     expect(text(null)).toBeNull();
     expect(text(ok(balance({ ok: true, v: 1 })), { url: '' })).toBeNull();
-    expect(text(ok(value({ '$..x': { ok: true, v: 1 } })), { path: '$..x' })).toBeNull();
+    expect(text(ok(value({ '$..x': { ok: false, code: 'bad-path' } })), { path: '$..x' })).toBeNull();
     expect(text(ok(balance({ ok: true, v: { a: 1 } as never })))).toBeNull();
   });
 

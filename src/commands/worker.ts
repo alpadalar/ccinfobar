@@ -5,7 +5,6 @@ import { defaultConfig } from '../core/config.js';
 import { loadForUse } from '../core/load.js';
 import type { Config, StatusPayload } from '../core/types.js';
 import { gsdInstalled } from '../data/gsd.js';
-import { JOBS, jobFor } from '../data/jobs/index.js';
 import {
   type ExecFileLike,
   executeJob,
@@ -20,7 +19,8 @@ import {
 import { pruneTmp } from '../data/store.js';
 
 export interface WorkerDeps {
-  jobs?: Job<unknown>[];
+  // main passes the registry, so it stays in the cli chunk
+  jobs: Job<unknown>[];
   env?: NodeJS.ProcessEnv;
   fetch?: typeof fetch;
   execFile?: ExecFileLike;
@@ -112,12 +112,12 @@ function liveKeys(
   return keep;
 }
 
-export async function runWorker(args: Args, cfgFile: string, deps: WorkerDeps = {}): Promise<void> {
+export async function runWorker(args: Args, cfgFile: string, deps: WorkerDeps): Promise<void> {
   if (deps.silent !== false) quiet();
   const exit = deps.exit ?? ((code: number) => process.exit(code));
   try {
     const env = deps.env ?? process.env;
-    const jobs = deps.jobs ?? JOBS;
+    const jobs = deps.jobs;
     const now = deps.now?.() ?? Date.now();
     const file = typeof args.flags.config === 'string' ? path.resolve(args.flags.config) : cfgFile;
     const cwdFlag = args.flags.cwd;
@@ -128,7 +128,7 @@ export async function runWorker(args: Args, cfgFile: string, deps: WorkerDeps = 
     const runs: Promise<unknown>[] = [];
     const ran: string[] = [];
     for (const req of parseWorkerArgs(args.positional)) {
-      const job = jobFor(req.key, jobs);
+      const job = jobs.find((j) => j.keyRe.test(req.key));
       const ok = accepted(
         job,
         req,

@@ -1,7 +1,6 @@
 import { truncate } from '../core/ansi.js';
 import { httpRefusal } from '../core/http-spec.js';
 import type { HttpPathResult, HttpValue } from '../core/job-values.js';
-import { parsePath } from '../core/jsonpath.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { RenderContext, WidgetDef, WidgetItem, WidgetResult } from '../core/types.js';
 import { httpKey } from '../data/jobs/keys.js';
@@ -16,7 +15,6 @@ export const httpStaleMs = (intervalS: number): number => Math.max(3 * intervalS
 export type HttpState =
   | { kind: 'no-url' }
   | { kind: 'bad-url'; error: string; field?: 'url' | 'headers' }
-  | { kind: 'bad-path'; error: string }
   | { kind: 'pending'; key: string }
   | { kind: 'error'; key: string; error: string | null }
   | { kind: 'gone'; key: string; error: string | null }
@@ -37,9 +35,8 @@ export function httpState(ctx: RenderContext, item: WidgetItem): HttpState {
   const headers = opt(item, 'headers', '');
   const refused = httpRefusal(url, headers);
   if (refused) return { kind: 'bad-url', error: refused.message, field: refused.key };
+  // a bad path comes back from the worker as bad-path; explain parses it itself
   const path = pathOf(item);
-  const parsed = parsePath(path);
-  if (!parsed.ok) return { kind: 'bad-path', error: parsed.error };
   const key = httpKey(url, headers);
   const j = jobValue(ctx.data.jobs?.()?.job<HttpValue>(key) ?? null);
   if (!j) return { kind: 'pending', key };

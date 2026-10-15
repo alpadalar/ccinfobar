@@ -8,7 +8,6 @@ import { lastPayloadPath } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
 import { finalizeLine, render } from '../core/renderer.js';
 import type { Config, DataSources, StatusPayload } from '../core/types.js';
-import { VERSION } from '../core/version.js';
 import { scheduleJobs } from '../data/jobs/index.js';
 import {
   ledgerOn,
@@ -26,6 +25,10 @@ import { readTranscript } from '../data/transcript.js';
 import { updateNotice } from '../data/update-state.js';
 import { effectiveUsage } from '../data/usage.js';
 import type { Args } from './args.js';
+
+// own copy: importing core/version.ts costs the render one more chunk
+declare const __VERSION__: string;
+const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
 
 export function readStdin(timeoutMs = 3000): Promise<string> {
   return new Promise((resolve) => {

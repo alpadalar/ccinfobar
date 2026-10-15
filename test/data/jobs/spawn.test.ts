@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -22,7 +23,9 @@ vi.mock('node:child_process', async (orig) => {
 });
 
 const { absoluteEnv, safeCwd, spawnSelf } = await import('../../../src/data/jobs/runner.js');
-const { defaultExecFile } = await import('../../../src/data/jobs/gh.js');
+const { defaultExecFile } = await import('../../../src/data/jobs/gh-exec.js');
+const { ghJob } = await import('../../../src/data/jobs/gh.js');
+const { executeJob } = await import('../../../src/data/jobs/runner.js');
 
 const argv1 = process.argv[1]!;
 
@@ -53,7 +56,29 @@ describe('worker spawn', () => {
   });
 
   it('runs gh from a safe cwd', async () => {
-    await defaultExecFile('gh', ['--version'], { timeout: 1000, env: {}, maxBuffer: 1024 });
-    expect(calls[0]).toMatchObject({ file: 'gh', opts: { cwd: safeCwd() } });
+    await defaultExecFile('gh', ['--version'], { timeout: 1000, env: {}, maxBuffer: 1024, cwd: '/safe' });
+    expect(calls[0]).toMatchObject({ file: 'gh', opts: { cwd: '/safe' } });
+    const seen: (string | undefined)[] = [];
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-spawn-'));
+    const env = { CCINFOBAR_CACHE_DIR: dir, CCINFOBAR_CONFIG_DIR: dir };
+    const param = 'ghe.corp.example/o/r#1';
+    await executeJob(
+      ghJob,
+      { key: 'gh-0000000000000000', param },
+      {
+        env,
+        config: { lines: [[{ id: 'p', type: 'pr', options: { ci: true } }]] } as never,
+        cwd: '/',
+        prev: null,
+        fetch: globalThis.fetch,
+        execFile: async (_f, _a, opts) => {
+          seen.push(opts.cwd);
+          return { code: 0, stdout: JSON.stringify({ hosts: { 'ghe.corp.example': [] } }), stderr: '' };
+        },
+        now: Date.now(),
+      },
+    );
+    expect(seen).toHaveLength(2);
+    expect(seen.every((c) => c === safeCwd())).toBe(true);
   });
 });

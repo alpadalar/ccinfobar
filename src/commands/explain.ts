@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import type { LoadResult } from '../core/config.js';
 import { createContext, lazy, resolveCwd } from '../core/context.js';
-import { describeHeaders, redactUrl } from '../core/http-spec.js';
+import { describeHeaders, redactUrl } from '../core/http-report.js';
 import { t } from '../core/i18n/index.js';
 import {
   type InspectMeta,

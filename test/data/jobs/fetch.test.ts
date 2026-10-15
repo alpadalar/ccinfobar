@@ -1,7 +1,8 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { errorCode, fetchJson, isLoopback, JobFetchError } from '../../../src/data/jobs/fetch.js';
+import { isLoopback } from '../../../src/core/http-spec.js';
+import { errorCode, fetchJson, JobFetchError } from '../../../src/data/jobs/fetch.js';
 import { fakeFetch, json, redirect, streamed } from '../../fake-fetch.js';
 
 const NOW = 1_800_000_000_000;

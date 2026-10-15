@@ -339,7 +339,8 @@ describe('usageJob', () => {
     try {
       const { runUsage } = await import('../../../src/commands/manage.js');
       const cfgFile = path.join(env.CCINFOBAR_CONFIG_DIR!, 'usage-bg.json');
-      await runUsage({ command: 'usage', positional: [], flags: { background: true } }, cfgFile);
+      const { JOBS } = await import('../../../src/data/jobs/index.js');
+      await runUsage({ command: 'usage', positional: [], flags: { background: true } }, cfgFile, JOBS);
       expect(log).not.toHaveBeenCalled();
     } finally {
       log.mockRestore();

@@ -1,8 +1,7 @@
-import { execFile } from 'node:child_process';
 import type { GhValue } from '../../core/job-values.js';
 import { sanitizeText } from '../../core/sanitize.js';
-import type { Config, StatusPayload } from '../../core/types.js';
-import { ghKey } from './keys.js';
+import type { Config } from '../../core/types.js';
+import { GH_HOSTS_KEY, GH_PARAM_RE, ghKey, ghParam } from './keys.js';
 import {
   defaultDue,
   type ExecFileLike,
@@ -15,9 +14,7 @@ import {
   writeEnvelope,
 } from './runner.js';
 
-export const GH_PARAM_RE =
-  /^[a-z0-9.-]+(:\d{1,5})?\/[A-Za-z0-9_.][A-Za-z0-9_.-]*\/[A-Za-z0-9_.][A-Za-z0-9_.-]*#[1-9]\d{0,9}$/;
-export const GH_HOSTS_KEY = 'gh-hosts';
+export { GH_HOSTS_KEY, GH_PARAM_RE, ghParam } from './keys.js';
 
 const RETRY_MS = 60_000;
 const PENDING_TTL = 60_000;
@@ -39,46 +36,9 @@ export type GhResult = Awaited<ReturnType<ExecFileLike>>;
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
-export const defaultExecFile: ExecFileLike = (file, args, opts) =>
-  new Promise((resolve) => {
-    try {
-      // Windows looks up gh in the cwd first
-      const cwd = safeCwd();
-      const child = execFile(
-        file,
-        args,
-        {
-          timeout: opts.timeout,
-          env: opts.env,
-          maxBuffer: opts.maxBuffer,
-          windowsHide: true,
-          encoding: 'utf8',
-          ...(cwd ? { cwd } : {}),
-        },
-        (e, stdout, stderr) => {
-          const code = (e as NodeJS.ErrnoException | null)?.code as unknown;
-          resolve({
-            code: e ? (typeof code === 'number' ? code : null) : 0,
-            stdout: String(stdout ?? ''),
-            stderr: String(stderr ?? ''),
-            ...(typeof code === 'string' ? { errno: code } : {}),
-          });
-        },
-      );
-      child.stdin?.end();
-    } catch {
-      resolve({ code: null, stdout: '', stderr: '', errno: 'spawn' });
-    }
-  });
-
-export function ghParam(payload: StatusPayload): string | null {
-  const pr = payload?.pr;
-  const repo = payload?.workspace?.repo;
-  if (!pr || pr.kind === 'mr' || !Number.isInteger(pr.number) || (pr.number ?? 0) <= 0) return null;
-  const host = typeof repo?.host === 'string' ? repo.host.toLowerCase() : 'github.com';
-  if (typeof repo?.owner !== 'string' || typeof repo?.name !== 'string') return null;
-  const p = `${host}/${repo.owner}/${repo.name}#${pr.number}`;
-  return GH_PARAM_RE.test(p) ? p : null;
+// exec code loads only in the worker
+export async function ghExec(ctx: { execFile?: ExecFileLike }): Promise<ExecFileLike> {
+  return ctx.execFile ?? (await import('./gh-exec.js')).defaultExecFile;
 }
 
 function splitParam(param: string): { host: string; repo: string; number: string } | null {
@@ -180,10 +140,12 @@ export async function storedHosts(
     ? prev.value.hosts.filter((h) => typeof h === 'string' && HOST_RE.test(h))
     : null;
   if (prev && cached && now >= prev.fetchedAt && now - prev.fetchedAt < HOSTS_TTL) return cached;
+  const cwd = safeCwd();
   const r = await exec('gh', ['auth', 'status', '--json', 'hosts'], {
     timeout: EXEC_TIMEOUT,
     env: childEnv(env, false),
     maxBuffer: 1 << 20,
+    ...(cwd ? { cwd } : {}),
   });
   if (r.errno === 'ENOENT') return 'missing';
   let hosts: string[] | null = null;
@@ -221,7 +183,8 @@ export const ghJob: Job<GhValue> = {
       failEnvelope(req.key, ctx.prev, code, ctx.now, blockMs ? { blockMs } : { retryMs: RETRY_MS });
     const parts = splitParam(req.param ?? '');
     if (!parts) return fail('gh-failed');
-    const exec = ctx.execFile ?? defaultExecFile;
+    const exec = await ghExec(ctx);
+    const cwd = safeCwd();
     let stored = false;
     if (!defaultHost(parts.host)) {
       const hosts = await storedHosts(exec, ctx.env, ctx.now);
@@ -236,6 +199,7 @@ export const ghJob: Job<GhValue> = {
         timeout: EXEC_TIMEOUT,
         env: childEnv(ctx.env, stored),
         maxBuffer: 1 << 20,
+        ...(cwd ? { cwd } : {}),
       },
     );
     const c = classifyGh(r);

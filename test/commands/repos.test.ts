@@ -8,6 +8,7 @@ import { computeDirty, dirtyOrder, runRepos } from '../../src/commands/repos.js'
 import { defaultConfig } from '../../src/core/config.js';
 import { configDir } from '../../src/core/paths.js';
 import type { Config, WidgetItem } from '../../src/core/types.js';
+import { JOBS } from '../../src/data/jobs/index.js';
 import { envelopeFile, lockFile } from '../../src/data/jobs/runner.js';
 import { legacyDirtyFile, type RepoEntry, readDirty, reposKey } from '../../src/data/repos.js';
 
@@ -183,7 +184,7 @@ describe.skipIf(!available || tmpRepo)('repos dirty job', () => {
         fs.mkdirSync(path.dirname(f), { recursive: true });
         fs.writeFileSync(f, '');
       }
-      await runRepos(parseArgs(['repos', '--background', ws]), cfg);
+      await runRepos(parseArgs(['repos', '--background', ws]), cfg, JOBS);
       const d = readDirty(ws);
       expect({ ...d?.dirty }).toEqual({ clean: false, dirty: true });
       expect(fs.existsSync(envelopeFile(reposKey(ws)))).toBe(true);
@@ -196,7 +197,7 @@ describe.skipIf(!available || tmpRepo)('repos dirty job', () => {
     it('writes nothing when no item wants the dirty marker', async () => {
       const off = path.join(configDir(), 'repos-off.json');
       fs.writeFileSync(off, JSON.stringify({ lines: [[{ id: 'r', type: 'workspace-repos' }]] }));
-      await runRepos(parseArgs(['repos', '--background', ws]), off);
+      await runRepos(parseArgs(['repos', '--background', ws]), off, JOBS);
       expect(fs.existsSync(envelopeFile(reposKey(ws)))).toBe(false);
       expect(fs.existsSync(lockFile(reposKey(ws)))).toBe(false);
     });
@@ -206,7 +207,7 @@ describe.skipIf(!available || tmpRepo)('repos dirty job', () => {
       repo(w, 'api', 'a.txt');
       const odd = repo(w, 'api\u202e', 'a.txt');
       fs.writeFileSync(path.join(odd, 'u.txt'), 'new\n');
-      await runRepos(parseArgs(['repos', '--background', w]), cfg);
+      await runRepos(parseArgs(['repos', '--background', w]), cfg, JOBS);
       expect({ ...readDirty(w)?.dirty }).toEqual({ api: false });
       fs.rmSync(envelopeFile(reposKey(w)));
     });
@@ -214,9 +215,9 @@ describe.skipIf(!available || tmpRepo)('repos dirty job', () => {
     it('writes nothing for a relative, missing or foreground path', async () => {
       // across drives on windows path.relative returns an absolute path
       const rel = path.isAbsolute(path.relative(process.cwd(), ws)) ? 'ws' : path.relative(process.cwd(), ws);
-      await runRepos(parseArgs(['repos', '--background', rel]), cfg);
-      await runRepos(parseArgs(['repos', '--background', path.join(base, 'missing')]), cfg);
-      await runRepos(parseArgs(['repos', ws]), cfg);
+      await runRepos(parseArgs(['repos', '--background', rel]), cfg, JOBS);
+      await runRepos(parseArgs(['repos', '--background', path.join(base, 'missing')]), cfg, JOBS);
+      await runRepos(parseArgs(['repos', ws]), cfg, JOBS);
       for (const p of [ws, path.resolve(rel), path.join(base, 'missing')]) {
         expect(fs.existsSync(envelopeFile(reposKey(p)))).toBe(false);
         expect(fs.existsSync(legacyDirtyFile(p))).toBe(false);

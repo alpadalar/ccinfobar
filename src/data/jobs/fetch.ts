@@ -1,8 +1,15 @@
-import { retryAfterMs } from './runner.js';
-
-export { isLoopback } from '../../core/http-spec.js';
-
+// a leaf: loaded only by the worker, it imports no render module
 export const CAP_BYTES = 256 * 1024;
+const MAX_RETRY_AFTER_MS = 86_400_000;
+
+// seconds or an HTTP date; zero, past or garbage means none
+export function retryAfterMs(header: string | null, now = Date.now()): number | null {
+  const v = header?.trim();
+  if (!v) return null;
+  const ms = /^\d+$/.test(v) ? Number(v) * 1000 : Date.parse(v) - now;
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  return Math.min(ms, MAX_RETRY_AFTER_MS);
+}
 
 export class JobFetchError extends Error {
   readonly code: string;

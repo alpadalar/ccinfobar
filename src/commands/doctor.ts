@@ -1,14 +1,8 @@
 import fs from 'node:fs';
 import type { LoadResult } from '../core/config.js';
 import { needsRefresh } from '../core/edit.js';
-import {
-  describeHeaders,
-  httpItemError,
-  isLoopback,
-  parseHeaderSpec,
-  parseUrlTemplate,
-  redactUrl,
-} from '../core/http-spec.js';
+import { describeHeaders, redactUrl } from '../core/http-report.js';
+import { httpItemError, isLoopback, parseHeaderSpec, parseUrlTemplate } from '../core/http-spec.js';
 import { t } from '../core/i18n/index.js';
 import { type InspectRow, inspectRows, lineReport, sessionNotes } from '../core/inspect.js';
 import { parsePath } from '../core/jsonpath.js';
@@ -20,9 +14,7 @@ import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionSpec, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { readHookState } from '../data/hooks.js';
-import { GH_HOSTS_KEY } from '../data/jobs/gh.js';
-import { httpGroups } from '../data/jobs/http.js';
-import { jobFor } from '../data/jobs/index.js';
+import { GH_HOSTS_KEY, httpGroups, keyNetwork } from '../data/jobs/keys.js';
 import {
   blockedByTraffic,
   type JobEnvelope,
@@ -337,9 +329,9 @@ function jobLine(
     const url = urls.get(e.key);
     line += url ? t('doctor.jobs.httpUrl', { url: safe(redactUrl(url)) }) : t('doctor.jobs.httpUnused');
   }
-  const job = jobFor(e.key);
+  const network = keyNetwork(e.key);
   if (jobsDisabled(env)) line += t('doctor.jobs.offAll');
-  else if (job && blockedByTraffic(job.network, env)) line += t('doctor.jobs.offTraffic');
+  else if (network && blockedByTraffic(network, env)) line += t('doctor.jobs.offTraffic');
   return line;
 }
 
