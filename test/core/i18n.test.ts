@@ -36,7 +36,9 @@ import {
 } from '../../src/core/i18n/languages.js';
 import { benchMessages as trBench } from '../../src/core/i18n/tr/bench.js';
 import { configMessages as trConfig } from '../../src/core/i18n/tr/config.js';
+import { displayMessages as trDisplay } from '../../src/core/i18n/tr/display.js';
 import { doctorMessages as trDoctor } from '../../src/core/i18n/tr/doctor.js';
+import { explainMessages as trExplain } from '../../src/core/i18n/tr/explain.js';
 import { hookMessages as trHooks } from '../../src/core/i18n/tr/hooks.js';
 import { tr } from '../../src/core/i18n/tr/index.js';
 import { installMessages as trInstall } from '../../src/core/i18n/tr/install.js';
@@ -214,6 +216,8 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['jobs', jobsMessages, trJobs],
   ['bench', benchMessages, trBench],
   ['preview', previewMessages, trPreview],
+  ['explain', explainMessages, trExplain],
+  ['display', displayMessages, trDisplay],
 ];
 
 function forms(m: Message): string[] {
