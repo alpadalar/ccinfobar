@@ -45,6 +45,9 @@ export const installMessages = {
   'editor.planReplace': 'Replace it',
   'editor.planCancel': 'Keep current',
   'editor.installed': 'Installed. Backups are in {dir}',
+  'editor.refreshHint':
+    'These widgets only update when Claude Code refreshes the status line: {widgets}. Claude Code does not refresh it on hook events or while a permission dialog is open.',
+  'editor.refreshUse': 'Use {n} s refresh',
   'tui.replaceQuestion': 'Replace "{current}" with "{proposed}"?',
   'tui.installed': 'Installed: statusLine runs "{command}". Backups are in {dir}',
 } as const;

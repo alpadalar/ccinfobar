@@ -117,11 +117,7 @@ export async function openSettings(): Promise<void> {
     const list = [...why.widgets, ...why.rules];
     if (!list.length) return [];
     return [
-      h(
-        'div',
-        { class: 'hint warn' },
-        `These widgets only update when Claude Code refreshes the status line: ${list.join(', ')}. Claude Code does not refresh it on hook events or while a permission dialog is open.`,
-      ),
+      h('div', { class: 'hint warn' }, t('editor.refreshHint', { widgets: list.join(', ') })),
       h(
         'div',
         { class: 'row-inline' },
@@ -132,7 +128,7 @@ export async function openSettings(): Promise<void> {
             type: 'button',
             onClick: () => openInstall(installDialog({ refresh: REFRESH_SUGGEST })),
           },
-          'Use 5 s refresh',
+          t('editor.refreshUse', { n: REFRESH_SUGGEST }),
         ),
       ),
     ];
