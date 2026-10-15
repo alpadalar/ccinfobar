@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { configPath } from '../../core/paths.js';
 import type { Config, StatusPayload } from '../../core/types.js';
+import { httpJob } from './http.js';
 import {
   blockedByTraffic,
   type Job,
@@ -14,11 +15,12 @@ import { statusJob } from './status.js';
 import { updateJob } from './update.js';
 import { usageJob } from './usage.js';
 
-// later plans register http, gh and repos here
+// later plans register gh and repos here
 export const JOBS: Job<unknown>[] = [
   updateJob as Job<unknown>,
   usageJob as Job<unknown>,
   statusJob as Job<unknown>,
+  httpJob as Job<unknown>,
 ];
 
 export function jobFor(key: string, jobs: Job<unknown>[] = JOBS): Job<unknown> | undefined {
