@@ -4,6 +4,12 @@ export const doctorMessages = {
     '  Time-based widgets ({widgets}) only update when Claude Code re-runs the status line. Run `ccinfobar install --refresh 5` to refresh every 5 s; Claude Code does not re-run it on hook events or while a permission dialog is open.',
   'doctor.refreshHintRules':
     '  Time rules on {items} only change when Claude Code re-runs the status line. Run `ccinfobar install --refresh 5` to refresh every 5 s.',
+  'doctor.lineCut':
+    '  ⚠ Line {line} needs {need} columns and is cut with "…". Lower widthOffset, set "overflow": "priority" to drop low-priority widgets, or "overflow": "wrap".',
+  'doctor.jetbrains':
+    '  JetBrains terminal detected. Set "glyphMode": "jetbrains" (or "auto") so emoji line up.',
+  'doctor.priorityTui':
+    '  "overflow": "priority" does not apply to the tui style; panel cells use their own breakpoints.',
   'doctor.columnNote': '  (columns count UTF-16 code units)',
   'doctor.unknownWidget': '⚠ Unknown widget type "{type}" on line {line}',
   'doctor.badOption': '⚠ {type}: option "{key}" has an unsupported value',

@@ -11,6 +11,7 @@ import { loadForUse } from '../core/load.js';
 import { titleWidgets } from '../core/panel.js';
 import { cacheDir, claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { readLastPayload } from '../core/preview.js';
+import { overflowOf, resolveAppearance } from '../core/renderer.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionSpec, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
@@ -251,11 +252,8 @@ export function printWidgetReport(cfgFile: string, loaded?: LoadResult): void {
     console.log(
       `\n  Width: ${data.width ?? 'unknown'} columns detected, ${lines[0]?.max ?? 'no'} usable after widthOffset`,
     );
-    for (const l of lines.filter((x) => x.cut)) {
-      console.log(
-        `  ⚠ Line ${l.line + 1} needs ${l.width} columns and is cut with "…". Lower widthOffset, set autoWrap, or move widgets to another line.`,
-      );
-    }
+    for (const l of lines.filter((x) => x.cut))
+      console.log(t('doctor.lineCut', { line: l.line + 1, need: l.width }));
     console.log(t('doctor.explainPointer'));
   } finally {
     data.cleanup();
@@ -395,6 +393,11 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
     if (why.widgets.length) console.log(t('doctor.refreshHint', { widgets: why.widgets.join(', ') }));
     if (why.rules.length) console.log(t('doctor.refreshHintRules', { items: safe(why.rules.join(', ')) }));
   }
+  const cfg = loaded.config;
+  if (overflowOf(cfg) === 'priority' && resolveAppearance(cfg).style === 'tui')
+    console.log(t('doctor.priorityTui'));
+  if (/JetBrains/.test(process.env.TERMINAL_EMULATOR ?? '') && (cfg.glyphMode ?? 'normal') === 'normal')
+    console.log(t('doctor.jetbrains'));
   if (manifest.readOnly) console.log(`⚠ ${t('install.manifestReadOnly', { file: tildify(manifestFile()) })}`);
   else {
     console.log(t('doctor.manifest', { file: tildify(manifestFile()), count: manifest.entries.length }));

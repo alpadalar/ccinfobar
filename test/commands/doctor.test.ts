@@ -185,6 +185,27 @@ describe('runDoctor refresh hint', () => {
   });
 });
 
+describe('runDoctor glyph and overflow hints', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  const doctor = (name: string, cfg: object) => capture(() => runDoctor(cfgFile(name, JSON.stringify(cfg))));
+
+  it('suggests glyphMode jetbrains in a JetBrains terminal', () => {
+    vi.stubEnv('TERMINAL_EMULATOR', 'JetBrains-JediTerm');
+    expect(doctor('jb.json', {})).toContain(t('doctor.jetbrains'));
+    expect(doctor('jb-n.json', { glyphMode: 'normal' })).toContain(t('doctor.jetbrains'));
+    expect(doctor('jb-j.json', { glyphMode: 'jetbrains' })).not.toContain(t('doctor.jetbrains'));
+    expect(doctor('jb-a.json', { glyphMode: 'auto' })).not.toContain(t('doctor.jetbrains'));
+    vi.stubEnv('TERMINAL_EMULATOR', '');
+    expect(doctor('jb-off.json', {})).not.toContain(t('doctor.jetbrains'));
+  });
+
+  it('notes that priority overflow skips the tui style', () => {
+    expect(doctor('tui-p.json', { style: 'tui', overflow: 'priority' })).toContain(t('doctor.priorityTui'));
+    expect(doctor('tui.json', { style: 'tui' })).not.toContain(t('doctor.priorityTui'));
+    expect(doctor('line-p.json', { overflow: 'priority' })).not.toContain(t('doctor.priorityTui'));
+  });
+});
+
 describe('commandWarnings', () => {
   it('warns on win32 about backslashes and a quoted first token', () => {
     expect(commandWarnings('C:\\Users\\a\\npm\\ccinfobar.cmd', 'win32')).toEqual([t('doctor.winCommand')]);
@@ -450,7 +471,15 @@ describe('printWidgetReport', () => {
       const out = capture(() => runDoctor(cfgFile('cut.json', cfg)));
       expect(out).toContain('  Detected width 12');
       expect(out.some((l) => l.startsWith('\n  Width: 12 columns detected, '))).toBe(true);
-      expect(out.some((l) => l.startsWith('  ⚠ Line 1 needs '))).toBe(true);
+      const cut = out.find((l) => l.startsWith('  ⚠ Line 1 needs '))!;
+      expect(cut).toMatch(/^ {2}⚠ Line 1 needs \d+ columns/);
+      expect(cut).toBe(t('doctor.lineCut', { line: 1, need: /needs (\d+)/.exec(cut)![1]! }));
+      expect(cut).toContain('"overflow": "priority"');
+      for (const overflow of ['priority', 'wrap']) {
+        const other = JSON.stringify({ ...JSON.parse(cfg), overflow });
+        const lines = capture(() => runDoctor(cfgFile(`cut-${overflow}.json`, other)));
+        expect(lines.some((l) => l.includes('⚠ Line'))).toBe(false);
+      }
     } finally {
       fs.rmSync(width, { force: true });
       restore();
