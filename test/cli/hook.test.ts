@@ -534,7 +534,7 @@ describe('pruneHookLogs', () => {
     const debug = make(dir, 'debug.log', 30);
     const other = make(dir, 'notes.json', 30);
     fs.mkdirSync(path.join(dir, 'd.jsonl'));
-    expect(pruneHookLogs(dir, ['me.jsonl', 'me.fold.json'], now)).toBe(2);
+    expect(pruneHookLogs(dir, ['me.jsonl', 'me.fold.json'], now, 7 * DAY, 200, 10_000)).toBe(2);
     expect(fs.existsSync(old)).toBe(false);
     expect(fs.existsSync(oldFold)).toBe(false);
     for (const f of [fresh, kept, keptFold, debug, other, path.join(dir, 'd.jsonl')]) {
@@ -545,7 +545,7 @@ describe('pruneHookLogs', () => {
   it('stops after maxRemove deletions and tolerates a missing dir', () => {
     const dir = tmp();
     for (let i = 0; i < 10; i++) make(dir, `s${i}.jsonl`, 9);
-    expect(pruneHookLogs(dir, [], now, 7 * DAY, 4)).toBe(4);
+    expect(pruneHookLogs(dir, [], now, 7 * DAY, 4, 10_000)).toBe(4);
     expect(fs.readdirSync(dir)).toHaveLength(6);
     expect(pruneHookLogs(path.join(dir, 'missing'), [], now)).toBe(0);
   });
