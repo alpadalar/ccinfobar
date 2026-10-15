@@ -70,6 +70,7 @@ const PURE = [
   'src/core/cache-rule.ts',
   'src/core/job-values.ts',
   'src/core/profiles.ts',
+  'src/core/prices.ts',
   'src/core/jsonpath.ts',
   'src/core/http-spec.ts',
   'src/core/http-report.ts',

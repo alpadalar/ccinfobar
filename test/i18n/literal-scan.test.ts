@@ -100,6 +100,7 @@ const SWEPT: string[] = [
   'src/core/paths.ts',
   'src/core/payload.ts',
   'src/core/presets.ts',
+  'src/core/prices.ts',
   'src/core/renderer.ts',
   'src/core/sanitize.ts',
   'src/core/themes/builtin.ts',
