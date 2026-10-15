@@ -6,6 +6,7 @@ import { main } from '../../src/cli/main.js';
 import { type ReportIo, runReport } from '../../src/commands/report.js';
 import { setLanguage } from '../../src/core/i18n/index.js';
 import { tildify } from '../../src/core/paths.js';
+import { normalizeRoot } from '../../src/data/ledger.js';
 import { accountKeyFor } from '../../src/data/limits.js';
 import {
   assistantLine,
@@ -140,7 +141,8 @@ describe('report command', () => {
     const api = run(['--project', 'API']);
     expect(rows(api).every((l) => / api /.test(l))).toBe(true);
     expect(rows(api)).toHaveLength(2);
-    vi.spyOn(process, 'cwd').mockReturnValue('/w/web');
+    // windows resolves a drive-less path against cwd, so mock an absolute one
+    vi.spyOn(process, 'cwd').mockReturnValue(path.resolve('/w/web'));
     const here = run(['--project', '.']);
     expect(rows(here).every((l) => / web /.test(l))).toBe(true);
     expect(rows(here)).toHaveLength(2);
@@ -207,7 +209,7 @@ describe('report command', () => {
     expect(csv.replace(/\r\n/g, '')).not.toMatch(/[\r\n]/);
     const lines = csv.split('\r\n').slice(1, -1);
     expect(lines).toHaveLength(5);
-    const quoted = `"${cwd.replace(/"/g, '""')}"`;
+    const quoted = `"${normalizeRoot(cwd).replace(/"/g, '""')}"`;
     expect(lines.filter((l) => l.startsWith(`2026-10-05,${quoted},1,`))).toHaveLength(1);
     expect(io.out).toEqual([]);
   });
