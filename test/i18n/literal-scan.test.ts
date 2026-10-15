@@ -35,7 +35,13 @@ const SWEPT: string[] = [
   'src/editor/web/inspector.ts',
   'src/editor/web/panel-inspector.ts',
   'src/editor/web/settings.ts',
+  'src/editor/web/app.ts',
+  'src/editor/web/install-dialog.ts',
+  'src/editor/web/terminal-picker.ts',
   'src/editor/web/ui.ts',
+  'src/editor/web/colors.ts',
+  'src/editor/web/store.ts',
+  'src/editor/web/dnd.ts',
   'src/widgets/activity.ts',
   'src/widgets/agents.ts',
   'src/widgets/charts.ts',
@@ -113,6 +119,13 @@ const ALLOW: Record<string, string[]> = {
   ],
   // product name as the section title
   'src/editor/web/settings.ts': ['Claude Code'],
+  'src/editor/web/app.ts': [
+    // CSS classes
+    'icon-btn danger sm',
+    'input mono import-area',
+    // boot error, rebuilt from text nodes in 08-21
+    '<div class="closed"><h2>Cannot reach the editor</h2><p>X. Reopen the URL printed by <code>ccinfobar edit</code>.</p></div>',
+  ],
   'src/editor/server.ts': [
     // developer-only (D-36)
     'Request body too large',

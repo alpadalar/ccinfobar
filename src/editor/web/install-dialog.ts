@@ -17,7 +17,7 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
     type: 'number',
     min: '0',
     step: '1',
-    placeholder: 'off',
+    placeholder: t('web.install.off'),
     value: opts.refresh
       ? String(opts.refresh)
       : claude.statusLine?.refreshInterval
@@ -37,7 +37,7 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
   const planBox = h('div', { class: 'install-plan', hidden: true });
   const refreshValue = () => (Number(refresh.value) > 0 ? Number(refresh.value) : undefined);
   await modal({
-    title: 'Install in Claude Code',
+    title: t('web.install.title'),
     body: [
       h(
         'div',
@@ -47,28 +47,21 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
           'span',
           null,
           claude.installed
-            ? 'ccinfobar is the active status line.'
+            ? t('web.install.active')
             : current
-              ? `Current status line: ${current}`
-              : 'No status line is configured yet.',
+              ? t('web.install.current', { command: current })
+              : t('web.install.none'),
         ),
       ),
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Command'), cmd),
-      h(
-        'div',
-        { class: 'field' },
-        h('label', { class: 'field-label' }, 'Refresh interval (seconds, optional)'),
-        refresh,
-      ),
-      h('div', { class: 'field-label' }, `Will be written to ${claude.settingsFile}`),
+      h('div', { class: 'field' }, h('label', { class: 'field-label' }, t('web.install.command')), cmd),
+      h('div', { class: 'field' }, h('label', { class: 'field-label' }, t('web.install.refresh')), refresh),
+      h('div', { class: 'field-label' }, t('web.install.writesTo', { file: claude.settingsFile })),
       preview,
       planBox,
-      isDirty()
-        ? h('div', { class: 'hint warn' }, 'You have unsaved changes. Save them so Claude Code uses them.')
-        : null,
+      isDirty() ? h('div', { class: 'hint warn' }, t('web.install.unsaved')) : null,
     ],
     actions: (close) => [
-      h('button', { class: 'btn', type: 'button', onClick: () => close() }, 'Cancel'),
+      h('button', { class: 'btn', type: 'button', onClick: () => close() }, t('web.ui.cancel')),
       h(
         'button',
         {
@@ -87,7 +80,7 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
                 showPlan(e.data.plan);
                 return;
               }
-              toast(`Install failed: ${(e as Error).message}`, 'error');
+              toast(t('web.install.failed', { error: (e as Error).message }), 'error');
             };
             const showPlan = (plan: InstallPlanInfo) => {
               clear(planBox);
@@ -133,7 +126,7 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
             }
           },
         },
-        claude.installed ? 'Update' : 'Install',
+        claude.installed ? t('web.install.update') : t('web.install.install'),
       ),
     ],
   });

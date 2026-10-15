@@ -1,3 +1,4 @@
+import { t } from '../../core/i18n/index.js';
 import { ansi256ToHex, BASIC } from './ansi-html.js';
 import { h } from './dom.js';
 
@@ -56,16 +57,16 @@ export function colorPicker(opts: ColorPickerOpts): HTMLElement {
   const text = h('input', {
     class: 'input mono',
     type: 'text',
-    placeholder: 'ansi256:N or #hex',
+    placeholder: t('web.color.placeholder'),
     spellcheck: false,
     value: current && !COLOR_NAMES.includes(current) ? current : '',
-    'aria-label': 'Custom color',
+    'aria-label': t('web.color.custom'),
   });
   const native = h('input', {
     class: 'color-native',
     type: 'color',
     value: toHex6(colorToCss(current) ?? colorToCss(opts.fallback)),
-    'aria-label': 'Pick a hex color',
+    'aria-label': t('web.color.pick'),
   });
 
   function sync() {
@@ -94,7 +95,7 @@ export function colorPicker(opts: ColorPickerOpts): HTMLElement {
       {
         class: 'swatch swatch-default',
         type: 'button',
-        title: opts.fallback ? `Default (${opts.fallback})` : 'Default',
+        title: opts.fallback ? t('web.color.defaultValue', { color: opts.fallback }) : t('web.color.default'),
         'data-value': '',
         onClick: () => set(undefined),
         style: fb ? `--sw:${fb}` : '',
@@ -141,7 +142,7 @@ export function colorPicker(opts: ColorPickerOpts): HTMLElement {
       ? h(
           'div',
           { class: 'hint' },
-          'Using default ',
+          t('web.color.usingDefault'),
           h('i', { class: 'dot', style: fallbackCss ? `--c:${fallbackCss}` : '' }),
           h('code', null, opts.fallback),
         )

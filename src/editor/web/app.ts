@@ -8,7 +8,8 @@ import {
   setLineAlign,
   uniqueId,
 } from '../../core/edit.js';
-import { t } from '../../core/i18n/index.js';
+import { scenarioText } from '../../core/i18n/catalog-text.js';
+import { type MessageId, t } from '../../core/i18n/index.js';
 import { categoryText, widgetText } from '../../core/i18n/widget-text.js';
 import { titleWidgets } from '../../core/panel.js';
 import type { Config } from '../../core/types.js';
@@ -93,6 +94,8 @@ function renderChip(id: string, line: number, index: number): HTMLElement {
   const color = widgetColor(item.type, item.color);
   const name = info ? widgetText(info, 'name') : item.type;
   const sample = info ? widgetText(info, 'sample') : '';
+  const description = info ? widgetText(info, 'description') : '';
+  const label = t('web.app.chipLabel', { name, line: line + 1, position: index + 1 });
   const chip = h(
     'div',
     {
@@ -100,14 +103,14 @@ function renderChip(id: string, line: number, index: number): HTMLElement {
       tabindex: 0,
       role: 'button',
       'aria-pressed': String(item.id === S.selectedId),
-      'aria-label': `${name}, line ${line + 1}, position ${index + 1}${hiddenSuffix(S.hidden.get(item.id))}`,
-      'data-label': `${name}, line ${line + 1}, position ${index + 1}`,
+      'aria-label': label + hiddenSuffix(S.hidden.get(item.id)),
+      'data-label': label,
       'data-id': id,
-      title: info ? `${widgetText(info, 'description')}${sample ? `\nSample: ${sample}` : ''}` : item.type,
+      title: info ? (sample ? t('web.app.chipTitle', { description, sample }) : description) : item.type,
     },
     h('i', { class: 'dot', style: color ? `--c:${color}` : '' }),
     h('span', { class: 'chip-name' }, name),
-    item.merge ? h('span', { class: 'chip-link', title: 'Merged with next' }, icon('link', 12)) : null,
+    item.merge ? h('span', { class: 'chip-link', title: t('web.app.merged') }, icon('link', 12)) : null,
     hiddenBadge(S.hidden.get(item.id)),
   );
   chip.addEventListener('pointerdown', (e) =>
@@ -196,6 +199,17 @@ function removeSelected(): void {
   }
 }
 
+const ALIGNED: Record<'left' | 'center' | 'right', MessageId> = {
+  left: 'web.app.aligned.left',
+  center: 'web.app.aligned.center',
+  right: 'web.app.aligned.right',
+};
+const ALIGN: Record<'left' | 'center' | 'right', MessageId> = {
+  left: 'web.app.align.left',
+  center: 'web.app.align.center',
+  right: 'web.app.align.right',
+};
+
 // pressing the active one goes back to the global alignment
 function lineAlignButtons(li: number): HTMLElement | null {
   const items = S.config.lines[li] ?? [];
@@ -204,25 +218,21 @@ function lineAlignButtons(li: number): HTMLElement | null {
     if (tui.breakpoints?.length) return null;
     const shown = titleWidgets(tui);
     if (items.length && items.every((i) => shown.has(i.id) || shown.has(i.type))) {
-      return h(
-        'span',
-        { class: 'line-note', title: 'These widgets are drawn in the panel border' },
-        'In panel title',
-      );
+      return h('span', { class: 'line-note', title: t('web.app.inTitleHelp') }, t('web.app.inTitle'));
     }
   }
   const own = S.config.lineAlign?.[li] ?? null;
   const global = S.config.align ?? 'left';
   return h(
     'div',
-    { class: 'line-align', role: 'group', 'aria-label': `Align line ${li + 1}` },
+    { class: 'line-align', role: 'group', 'aria-label': t('web.app.alignLine', { n: li + 1 }) },
     ...(['left', 'center', 'right'] as const).map((a) =>
       h(
         'button',
         {
           type: 'button',
           class: `icon-btn sm${own === a ? ' on' : !own && global === a ? ' inherit' : ''}`,
-          title: own === a ? `Aligned ${a}. Click to follow the global alignment` : `Align this line ${a}`,
+          title: t(own === a ? ALIGNED[a] : ALIGN[a]),
           'aria-pressed': String(own === a),
           onClick: (e: Event) => {
             e.stopPropagation();
@@ -242,26 +252,17 @@ function renderCanvas(): void {
   const effStyle = S.config.style ?? currentTheme()?.style;
   if (effStyle === 'tui' && S.config.tui?.breakpoints?.length) {
     canvas.append(
-      h(
-        'div',
-        { class: 'canvas-note' },
-        icon('info', 14),
-        h(
-          'span',
-          null,
-          'Panel grid areas control where widgets sit. Lines still decide which widgets render.',
-        ),
-      ),
+      h('div', { class: 'canvas-note' }, icon('info', 14), h('span', null, t('web.app.gridNote'))),
     );
   }
   lines.forEach((items, li) => {
     const grip = h(
       'div',
-      { class: 'grip', title: 'Drag to reorder line', 'aria-label': `Reorder line ${li + 1}` },
+      { class: 'grip', title: t('web.app.dragLine'), 'aria-label': t('web.app.reorderLine', { n: li + 1 }) },
       icon('grip', 14),
     );
     grip.addEventListener('pointerdown', (e) =>
-      press(e, { kind: 'row', line: li, label: `Line ${li + 1}` }, { drop: handleDrop }),
+      press(e, { kind: 'row', line: li, label: t('web.app.line', { n: li + 1 }) }, { drop: handleDrop }),
     );
     const row = h(
       'div',
@@ -270,16 +271,16 @@ function renderCanvas(): void {
         'div',
         { class: 'line-head' },
         grip,
-        h('span', { class: 'line-title' }, `Line ${li + 1}`),
-        h('span', { class: 'line-count' }, items.length === 1 ? '1 widget' : `${items.length} widgets`),
+        h('span', { class: 'line-title' }, t('web.app.line', { n: li + 1 })),
+        h('span', { class: 'line-count' }, t('web.app.widgetCount', { count: items.length })),
         lineAlignButtons(li),
         h(
           'button',
           {
             class: 'icon-btn danger sm',
             type: 'button',
-            title: 'Delete line',
-            'aria-label': `Delete line ${li + 1}`,
+            title: t('web.app.deleteLine'),
+            'aria-label': t('web.app.deleteLineN', { n: li + 1 }),
             onClick: (e: Event) => {
               e.stopPropagation();
               commit(removeLine(S.config, li));
@@ -293,7 +294,7 @@ function renderCanvas(): void {
         { class: 'line-items' },
         ...(items.length
           ? items.map((it, i) => renderChip(it.id, li, i))
-          : [h('div', { class: 'line-empty' }, 'Drag widgets here, or press + in the palette')]),
+          : [h('div', { class: 'line-empty' }, t('web.app.lineEmpty'))]),
       ),
     );
     row.addEventListener('pointerdown', (e) => {
@@ -303,7 +304,7 @@ function renderCanvas(): void {
     canvas.append(row);
   });
   if (!lines.length) {
-    canvas.append(h('div', { class: 'canvas-empty' }, 'No lines yet. Add one to get started.'));
+    canvas.append(h('div', { class: 'canvas-empty' }, t('web.app.noLines')));
   }
   if (pendingFocus) {
     const el = canvas.querySelector<HTMLElement>(`.chip[data-id="${CSS.escape(pendingFocus)}"]`);
@@ -349,7 +350,8 @@ function renderPalette(): void {
     }
     host.append(section);
   }
-  if (!shown) host.append(h('div', { class: 'empty-state small' }, `No widgets match "${S.search}"`));
+  if (!shown)
+    host.append(h('div', { class: 'empty-state small' }, t('web.app.noMatch', { query: S.search })));
 }
 
 function paletteCard(w: WidgetInfo): HTMLElement {
@@ -373,8 +375,8 @@ function paletteCard(w: WidgetInfo): HTMLElement {
       {
         class: 'add-btn',
         type: 'button',
-        title: 'Add to selected line',
-        'aria-label': `Add ${name} to selected line`,
+        title: t('web.app.addToLine'),
+        'aria-label': t('web.app.addNamed', { name }),
         onPointerdown: (e: Event) => e.stopPropagation(),
         onClick: () => {
           const line = Math.max(0, Math.min(S.selectedLine, S.config.lines.length - 1));
@@ -406,39 +408,41 @@ async function runPreview(): Promise<void> {
     syncHidden(res.hidden ?? [], res.dropped ?? []);
     const term = $('term-lines');
     term.classList.remove('error');
-    term.innerHTML = res.lines.length
-      ? res.lines.map((l) => `<div class="term-line">${ansiToHtml(l) || '&nbsp;'}</div>`).join('')
-      : '<div class="term-line term-muted">(no output)</div>';
+    if (res.lines.length)
+      term.innerHTML = res.lines
+        .map((l) => `<div class="term-line">${ansiToHtml(l) || '&nbsp;'}</div>`)
+        .join('');
+    else term.replaceChildren(h('div', { class: 'term-line term-muted' }, t('web.app.noOutput')));
   } catch (err) {
     if (seq !== previewSeq) return;
     const term = $('term-lines');
     term.classList.add('error');
-    term.innerHTML = `<div class="term-line">${escapeHtml((err as Error).message)}</div>`;
+    term.replaceChildren(h('div', { class: 'term-line' }, (err as Error).message));
   }
 }
 
 function applyWidth(): void {
   $('term-screen').style.setProperty('--cols', String(S.width));
-  $('width-value').textContent = `${S.width} cols`;
+  $('width-value').textContent = t('web.app.cols', { n: S.width });
 }
 
 function renderChrome(): void {
   const dirty = isDirty();
   const d = $('dirty');
   d.classList.toggle('on', dirty);
-  d.querySelector('span')!.textContent = dirty ? 'Unsaved changes' : 'All changes saved';
+  d.querySelector('span')!.textContent = dirty ? t('web.app.unsaved') : t('web.app.allSaved');
   $<HTMLButtonElement>('save').disabled = !dirty;
   $<HTMLButtonElement>('undo').disabled = !S.undo.length;
   $<HTMLButtonElement>('redo').disabled = !S.redo.length;
-  document.title = `${dirty ? '● ' : ''}ccinfobar editor`;
-  $('theme-btn').querySelector('.theme-btn-label')!.textContent = currentTheme()?.name ?? 'Theme';
+  document.title = `${dirty ? '● ' : ''}${t('web.app.docTitle')}`;
+  $('theme-btn').querySelector('.theme-btn-label')!.textContent = currentTheme()?.name ?? t('insp.theme');
   const inst = S.api.claude.installed;
   const btn = $('install');
   btn.hidden = inst;
-  btn.title = `Will write: ${S.api.claude.defaultCommand}`;
+  btn.title = t('web.app.willWrite', { command: S.api.claude.defaultCommand });
   const status = $('claude-status');
   status.hidden = !inst;
-  status.title = `Claude Code runs: ${S.api.claude.statusLine?.command ?? ''}\nSaved changes show up on its next refresh. Settings: Global tab.`;
+  status.title = t('web.app.claudeRuns', { command: S.api.claude.statusLine?.command ?? '' });
 }
 
 function configBrokenText(): string | null {
@@ -480,11 +484,7 @@ async function save(): Promise<void> {
     await api.save(S.config);
     void rememberStyles(before, S.config);
     markSaved();
-    toast(
-      S.api.claude.installed
-        ? 'Saved. Claude Code shows it on its next refresh.'
-        : 'Saved. Install in Claude Code to see it there.',
-    );
+    toast(S.api.claude.installed ? t('web.app.saved') : t('web.app.savedInstall'));
   } catch (err) {
     const issue = issueFrom(err);
     if (issue) {
@@ -493,7 +493,7 @@ async function save(): Promise<void> {
       toast(configBrokenText() ?? '', 'error');
       return;
     }
-    toast(`Save failed: ${(err as Error).message}`, 'error');
+    toast(t('web.app.saveFailed', { error: (err as Error).message }), 'error');
   }
 }
 
@@ -509,7 +509,7 @@ function exportJson(): void {
 async function importJson(): Promise<void> {
   const area = h('textarea', {
     class: 'input mono import-area',
-    placeholder: 'Paste a ccinfobar config JSON here',
+    placeholder: t('web.app.importPlaceholder'),
     rows: 12,
     spellcheck: false,
   });
@@ -524,11 +524,15 @@ async function importJson(): Promise<void> {
   });
   const err = h('div', { class: 'form-error', role: 'alert' });
   await modal({
-    title: 'Import config',
+    title: t('web.app.importTitle'),
     wide: true,
-    body: [h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'From file'), file), area, err],
+    body: [
+      h('div', { class: 'field' }, h('label', { class: 'field-label' }, t('web.app.fromFile')), file),
+      area,
+      err,
+    ],
     actions: (close) => [
-      h('button', { class: 'btn', type: 'button', onClick: () => close() }, 'Cancel'),
+      h('button', { class: 'btn', type: 'button', onClick: () => close() }, t('web.ui.cancel')),
       h(
         'button',
         {
@@ -542,18 +546,18 @@ async function importJson(): Promise<void> {
                 parsed === null ||
                 !Array.isArray((parsed as { lines?: unknown }).lines)
               ) {
-                throw new Error('Expected an object with a "lines" array');
+                throw new Error(t('web.app.importBad'));
               }
               const { config } = await api.normalize(parsed);
               replaceAll(config);
               close();
-              toast('Config imported. Undo with Ctrl+Z');
+              toast(t('web.app.imported'));
             } catch (e) {
               err.textContent = (e as Error).message;
             }
           },
         },
-        'Import',
+        t('web.app.import'),
       ),
     ],
   });
@@ -562,11 +566,7 @@ async function importJson(): Promise<void> {
 async function done(): Promise<void> {
   if (
     isDirty() &&
-    !(await confirmDialog(
-      'Discard unsaved changes?',
-      'Closing the editor now will lose your unsaved changes.',
-      'Close without saving',
-    ))
+    !(await confirmDialog(t('web.app.discardTitle'), t('web.app.discardText'), t('web.app.discardConfirm')))
   ) {
     return;
   }
@@ -582,8 +582,8 @@ async function done(): Promise<void> {
         'div',
         { class: 'closed' },
         icon('check', 28),
-        h('h2', null, 'Editor closed'),
-        h('p', null, 'You can close this tab. Run ccinfobar edit to open it again.'),
+        h('h2', null, t('web.app.closed')),
+        h('p', null, t('web.app.closedHelp')),
       ),
     ),
   );
@@ -685,7 +685,11 @@ function setupStatic(): void {
   const sample = $<HTMLButtonElement>('src-sample');
   const last = $<HTMLButtonElement>('src-last');
   const scenario = $<HTMLSelectElement>('src-scenario');
-  scenario.append(...S.api.scenarios.map((s) => h('option', { value: s.id, title: s.description }, s.label)));
+  scenario.append(
+    ...S.api.scenarios.map((s) =>
+      h('option', { value: s.id, title: scenarioText(s, 'description') }, scenarioText(s, 'label')),
+    ),
+  );
   const setSource = (s: 'sample' | 'last' | 'scenario') => {
     S.source = s;
     S.scenario = s === 'scenario' ? scenario.value : null;
@@ -700,9 +704,7 @@ function setupStatic(): void {
   last.addEventListener('click', () => setSource('last'));
   scenario.addEventListener('change', () => setSource(scenario.value ? 'scenario' : 'sample'));
   last.disabled = !S.api.hasLastPayload;
-  last.title = S.api.hasLastPayload
-    ? 'Use the last payload Claude Code sent'
-    : 'No session payload recorded yet';
+  last.title = S.api.hasLastPayload ? t('web.app.lastPayload') : t('web.app.noPayload');
   setSource('sample');
   initTerminalPicker($('term-picker'), S.api.terminal);
   initInspector();
@@ -727,7 +729,8 @@ async function boot(): Promise<void> {
   }
   $('boot').remove();
   renderConfigBanner();
-  if (S.api.configError && !S.api.configIssue) toast(`Config problem: ${S.api.configError}`, 'error');
+  if (S.api.configError && !S.api.configIssue)
+    toast(t('web.app.configProblem', { error: S.api.configError }), 'error');
   setupStatic();
   on('config', (o) => {
     renderCanvas();

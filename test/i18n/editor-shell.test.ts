@@ -183,7 +183,33 @@ describe('web settings text', () => {
   });
 });
 
-describe('web dialog defaults', () => {
+describe('web dialogs text', () => {
+  it.each([true, false])('install dialog (installed %s) is Turkish', async (installed) => {
+    await init(cfg(), installed, true);
+    const { installDialog } = await import('../../src/editor/web/install-dialog.js');
+    const list = await shown('tr', installDialog);
+    expect(list).toContain("Claude Code'a kur");
+    expect(list).toContain('/tmp/settings.json dosyasına yazılacak');
+    expect(foreign(list)).toEqual([]);
+  });
+
+  it('install dialog keeps the English text', async () => {
+    await init(cfg(), false, true);
+    const { installDialog } = await import('../../src/editor/web/install-dialog.js');
+    const list = await shown('en', installDialog);
+    for (const s of [
+      'Install in Claude Code',
+      'No status line is configured yet.',
+      'Command',
+      'Refresh interval (seconds, optional)',
+      'Will be written to /tmp/settings.json',
+      'Cancel',
+      'Install',
+      'Close',
+    ])
+      expect(list).toContain(s);
+  });
+
   it('confirm dialog defaults follow the language', async () => {
     const { confirmDialog } = await import('../../src/editor/web/ui.js');
     expect(await shown('tr', () => confirmDialog('Başlık', 'Metin'))).toEqual(
@@ -193,5 +219,35 @@ describe('web dialog defaults', () => {
     expect(await shown('en', () => confirmDialog('Title', 'Text'))).toEqual(
       expect.arrayContaining(['Close', 'Cancel', 'Continue']),
     );
+  });
+
+  it('terminal picker is Turkish', async () => {
+    const { initTerminalPicker } = await import('../../src/editor/web/terminal-picker.js');
+    for (const lang of ['tr', 'en'] as const) {
+      const mount = new FakeEl('DIV');
+      setLanguage(lang);
+      initTerminalPicker(mount as any, null);
+      const button = mount.children[0] as FakeEl;
+      const panel = mount.children[1] as FakeEl;
+      button.dispatch('click');
+      const list = texts(mount);
+      if (lang === 'tr') {
+        expect(list).toContain('Önizlemede kullanılan terminal renkleri');
+        expect(foreign(list)).toEqual([]);
+      } else expect(list).toContain('Terminal colors used for the preview');
+      expect(panel.getAttribute('aria-label')).toBe(lang === 'tr' ? 'Terminal renkleri' : 'Terminal colors');
+    }
+  });
+
+  it('color picker is Turkish and keeps color names', async () => {
+    const { colorPicker } = await import('../../src/editor/web/colors.js');
+    setLanguage('tr');
+    const tr1 = texts(colorPicker({ value: undefined, fallback: 'cyan', onChange() {} }) as any);
+    expect(tr1).toEqual(expect.arrayContaining(['Varsayılan (cyan)', 'Özel renk', 'Hex renk seç', 'red']));
+    expect(tr1).toContain('Varsayılan renk ');
+    expect(foreign(tr1)).toEqual([]);
+    setLanguage('en');
+    const en1 = texts(colorPicker({ value: undefined, fallback: 'cyan', onChange() {} }) as any);
+    expect(en1).toEqual(expect.arrayContaining(['Default (cyan)', 'Custom color', 'Using default ', 'red']));
   });
 });

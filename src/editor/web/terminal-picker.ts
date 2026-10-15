@@ -1,3 +1,4 @@
+import { t } from '../../core/i18n/index.js';
 import { clear, h, icon } from './dom.js';
 import {
   applyProfile,
@@ -50,7 +51,7 @@ export function initTerminalPicker(mount: HTMLElement, detectedColors: DetectedC
       class: 'btn term-picker-btn',
       'aria-haspopup': 'dialog',
       'aria-expanded': 'false',
-      title: 'Terminal colors used for the preview',
+      title: t('web.term.title'),
     },
     h('span', { class: 'term-picker-dot' }),
     label,
@@ -59,7 +60,7 @@ export function initTerminalPicker(mount: HTMLElement, detectedColors: DetectedC
   const panel = h('div', {
     class: 'term-picker-panel',
     role: 'dialog',
-    'aria-label': 'Terminal colors',
+    'aria-label': t('web.term.colors'),
     hidden: true,
   });
   mount.append(button, panel);
@@ -67,7 +68,7 @@ export function initTerminalPicker(mount: HTMLElement, detectedColors: DetectedC
   const apply = () => {
     const p = resolveProfile(choice, detected);
     applyProfile(document.documentElement, p);
-    label.textContent = choice.bg || choice.fg ? `${p.name} · custom` : p.name;
+    label.textContent = choice.bg || choice.fg ? t('web.term.custom', { name: p.name }) : p.name;
     (button.querySelector('.term-picker-dot') as HTMLElement).style.cssText =
       `background:${p.bg};box-shadow:inset 0 0 0 0.1875rem ${p.palette[4]}, 0 0 0 0.0625rem var(--line)`;
     save(choice);
@@ -80,15 +81,15 @@ export function initTerminalPicker(mount: HTMLElement, detectedColors: DetectedC
       h(
         'div',
         { class: 'term-picker-head' },
-        h('strong', null, 'Terminal colors'),
-        h(
-          'span',
-          { class: 'hint' },
-          'Match your terminal so the preview shows the colors you will really see.',
-        ),
+        h('strong', null, t('web.term.colors')),
+        h('span', { class: 'hint' }, t('web.term.help')),
       ),
     );
-    const list = h('div', { class: 'term-picker-list', role: 'listbox', 'aria-label': 'Terminal profiles' });
+    const list = h('div', {
+      class: 'term-picker-list',
+      role: 'listbox',
+      'aria-label': t('web.term.profiles'),
+    });
     for (const p of profiles) {
       const selected = p.id === choice.id;
       list.append(
@@ -131,9 +132,9 @@ export function initTerminalPicker(mount: HTMLElement, detectedColors: DetectedC
       h(
         'div',
         { class: 'term-custom' },
-        h('span', { class: 'term-custom-title' }, 'Custom'),
-        colorInput('bg', 'Background'),
-        colorInput('fg', 'Text'),
+        h('span', { class: 'term-custom-title' }, t('web.term.customHead')),
+        colorInput('bg', t('web.term.background')),
+        colorInput('fg', t('web.term.text')),
         choice.bg || choice.fg
           ? h(
               'button',
@@ -146,19 +147,13 @@ export function initTerminalPicker(mount: HTMLElement, detectedColors: DetectedC
                   render();
                 },
               },
-              'Reset',
+              t('web.term.reset'),
             )
           : null,
       ),
     );
     if (!detected) {
-      panel.append(
-        h(
-          'p',
-          { class: 'hint term-picker-note' },
-          'Tip: run ccinfobar edit from your usual terminal to detect its colors automatically.',
-        ),
-      );
+      panel.append(h('p', { class: 'hint term-picker-note' }, t('web.term.tip')));
     }
   };
 
