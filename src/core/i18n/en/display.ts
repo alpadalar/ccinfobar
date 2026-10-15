@@ -41,8 +41,15 @@ export const displayMessages = {
   'vis.hours': 'Only between {from} and {to}',
   'vis.advanced': 'Advanced',
   'vis.hiddenBadge': 'hidden by rule',
+  'vis.hiddenShort': 'hidden',
   'vis.refreshHint':
-    'Time rules only change when Claude Code re-runs the status line. Set refreshInterval to {n}.',
+    'Time rules on {items} only change when Claude Code re-runs the status line. Set refreshInterval to {n}.',
+  'vis.show': 'Show',
+  'vis.hide': 'Hide',
+  'vis.locked': 'This rule has parts these controls cannot show. Edit it under Advanced.',
+  'vis.lockedInvalid': 'This rule does not parse. Fix it under Advanced.',
+  'vis.advancedHelp': 'Entries joined by ; must all hold; || means or. Empty removes the rule.',
+  'vis.threshold': '{metric} threshold',
   'vis.help': 'Rule like context.pct >= 70, !git, time.hour in 9..18 (|| = or, ; = and). Del removes',
   'vis.presetHelp':
     'Enter or ←/→ picks a common showWhen rule; a custom rule is kept until you edit it below',

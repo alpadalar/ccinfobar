@@ -5,6 +5,7 @@ import {
   removeProfileOverride,
   setBudget,
   setProfilesBuiltIn,
+  timeRuleFeed,
   updateProfileOverride,
 } from '../../core/edit.js';
 import { t } from '../../core/i18n/index.js';
@@ -282,19 +283,27 @@ export async function openSettings(): Promise<void> {
     render();
   }
 
-  function refreshWarning(cl: typeof S.api.claude): HTMLElement[] {
+  function refreshWarning(cl: typeof S.api.claude): (HTMLElement | null)[] {
     if (cl.statusLine?.refreshInterval) return [];
     const c = S.config;
     const why = refreshReasons(
       c,
       (type) => S.widgetMap.get(type)?.timeBased === true,
-      [],
+      [timeRuleFeed],
       c.tui ? titleWidgets(c.tui) : [],
     );
-    const list = [...why.widgets, ...why.rules];
-    if (!list.length) return [];
+    if (!why.widgets.length && !why.rules.length) return [];
     return [
-      h('div', { class: 'hint warn' }, t('editor.refreshHint', { widgets: list.join(', ') })),
+      why.widgets.length
+        ? h('div', { class: 'hint warn' }, t('editor.refreshHint', { widgets: why.widgets.join(', ') }))
+        : null,
+      why.rules.length
+        ? h(
+            'div',
+            { class: 'hint warn' },
+            t('vis.refreshHint', { items: why.rules.join(', '), n: REFRESH_SUGGEST }),
+          )
+        : null,
       h(
         'div',
         { class: 'row-inline' },

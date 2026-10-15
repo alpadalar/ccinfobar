@@ -1,10 +1,27 @@
-import { clearColors, optionShown, removeItem, setOption, updateItem } from '../../core/edit.js';
+import { METRIC_SPECS, type RuleKey } from '../../core/conditions.js';
+import {
+  clearColors,
+  optionShown,
+  REFRESH_SUGGEST,
+  type RuleQuick,
+  removeItem,
+  ruleFromText,
+  ruleQuickState,
+  ruleToText,
+  setItemRule,
+  setOption,
+  setRuleQuick,
+  type Threshold,
+  timeRuleFeed,
+  updateItem,
+} from '../../core/edit.js';
 import { httpRefusal, parseHeaderSpec } from '../../core/http-spec.js';
+import { type MessageId, t } from '../../core/i18n/index.js';
 import { parsePath } from '../../core/jsonpath.js';
 import type { Config, OptionSpec, OptionValue, WidgetItem } from '../../core/types.js';
 import { GLYPHS } from './ansi-html.js';
 import { colorPicker, colorToCss } from './colors.js';
-import { type Child, clear, h, icon } from './dom.js';
+import { append, type Child, clear, h, icon } from './dom.js';
 import { panelSection } from './panel-inspector.js';
 import { commit, currentTheme, emit, S, type StyleId, type WidgetInfo } from './store.js';
 import { recentStyles, styleTools } from './styles.js';
@@ -236,6 +253,204 @@ export function optionControl(item: WidgetItem, spec: OptionSpec): HTMLElement {
   }
 }
 
+const PROVIDERS = METRIC_SPECS.get('provider')?.choices ?? [];
+
+const findItem = (id: string) => S.config.lines.flat().find((i) => i.id === id);
+
+function visibilitySection(id: string): HTMLElement[] {
+  const quickBox = h('div', { class: 'vis-quick' });
+  const inputs: Partial<Record<RuleKey, HTMLInputElement>> = {};
+  const now = () => findItem(id);
+  const quickNow = () => {
+    const it = now();
+    return it ? ruleQuickState(it).quick : null;
+  };
+  const syncAdvanced = () => {
+    const it = now();
+    for (const key of ['showWhen', 'hideWhen'] as const) {
+      const input = inputs[key];
+      if (it && input && document.activeElement !== input) input.value = ruleToText(it[key]);
+    }
+  };
+  const quick = (p: Partial<RuleQuick>, coalesce?: string) => {
+    commit(setRuleQuick(S.config, id, p), coalesce ? { coalesce, inspector: false } : {});
+    if (coalesce) syncAdvanced();
+  };
+
+  const drawQuick = () => {
+    const it = now();
+    if (!it) return;
+    const st = ruleQuickState(it);
+    const q = st.quick;
+    const locked = (k: RuleKey) => st.custom[k] || st.invalid[k] !== null;
+    const showLocked = locked('showWhen');
+    const hideLocked = locked('hideWhen');
+    const note = (k: RuleKey) =>
+      locked(k)
+        ? h(
+            'div',
+            { class: 'hint vis-locked' },
+            t(st.invalid[k] !== null ? 'vis.lockedInvalid' : 'vis.locked'),
+          )
+        : null;
+
+    const flag = (key: 'git' | 'gsd' | 'agents', label: MessageId) =>
+      field(
+        t(label),
+        toggle(q[key], (v) => quick({ [key]: v }), undefined, { disabled: showLocked }),
+        undefined,
+        true,
+      );
+
+    const threshold = (key: 'context' | 'usage5h', label: MessageId, metric: string, def: number) => {
+      const th = q[key];
+      const dis = showLocked || hideLocked;
+      const at = th?.at ?? def;
+      const cur = (): Threshold => quickNow()?.[key] ?? { mode: 'show', at: def };
+      const sw = toggle(!!th, (v) => quick({ [key]: v ? cur() : null }), t(label, { n: at }), {
+        disabled: dis,
+      });
+      const range = h('input', {
+        type: 'range',
+        min: 0,
+        max: 100,
+        step: 5,
+        value: String(at),
+        disabled: dis || !th,
+        'aria-label': t('vis.threshold', { metric: t(METRIC_SPECS.get(metric)!.label) }),
+        onInput: () => {
+          const n = Number(range.value);
+          sw.querySelector('.switch-label')!.textContent = t(label, { n });
+          quick({ [key]: { mode: cur().mode, at: n } }, `${id}:vis:${key}`);
+        },
+      });
+      const seg = segmented(
+        [
+          { value: 'show', label: t('vis.show') },
+          { value: 'hide', label: t('vis.hide') },
+        ],
+        th?.mode ?? 'show',
+        (mode) => quick({ [key]: { mode, at: cur().at } }),
+      );
+      if (dis || !th) for (const b of seg.querySelectorAll('button')) b.disabled = true;
+      return h('div', { class: 'field vis-threshold' }, sw, h('div', { class: 'vis-row' }, range, seg));
+    };
+
+    const providers = h('div', { class: 'segmented vis-multi', role: 'group' });
+    for (const p of PROVIDERS) {
+      const on = q.hideProviders.includes(p);
+      providers.append(
+        h(
+          'button',
+          {
+            type: 'button',
+            class: on ? 'on' : '',
+            'aria-pressed': String(on),
+            disabled: hideLocked,
+            onClick: () => {
+              const list = quickNow()?.hideProviders ?? [];
+              quick({ hideProviders: on ? list.filter((x) => x !== p) : [...list, p] });
+            },
+          },
+          p,
+        ),
+      );
+    }
+
+    const hours = q.hours ?? { from: 9, to: 18 };
+    const hoursLabel = () => t('vis.hours', { from: hours.from, to: hours.to });
+    const hoursSw = toggle(!!q.hours, (v) => quick({ hours: v ? hours : null }), hoursLabel(), {
+      disabled: showLocked,
+    });
+    const hour = (k: 'from' | 'to') =>
+      numberInput(
+        hours[k],
+        (v) => {
+          if (v === null || !Number.isFinite(v)) return;
+          hours[k] = Math.min(23, Math.max(0, Math.round(v)));
+          hoursSw.querySelector('.switch-label')!.textContent = hoursLabel();
+          quick({ hours: { ...hours } }, `${id}:vis:hours`);
+        },
+        { min: 0, max: 23, step: 1, disabled: showLocked || !q.hours, 'aria-label': `hours ${k}` },
+      );
+
+    const timed =
+      !S.api.claude.statusLine?.refreshInterval && timeRuleFeed(S.config).includes(it.id || it.type);
+    clear(quickBox);
+    append(quickBox, [
+      note('showWhen'),
+      flag('git', 'vis.onlyGit'),
+      flag('gsd', 'vis.onlyGsd'),
+      flag('agents', 'vis.onlyAgents'),
+      threshold('context', 'vis.context', 'context.pct', 70),
+      threshold('usage5h', 'vis.usage5h', 'usage.5h', 80),
+      note('hideWhen'),
+      field(t('vis.hideProvider'), providers),
+      h(
+        'div',
+        { class: 'field vis-hours' },
+        hoursSw,
+        h('div', { class: 'vis-row' }, hour('from'), hour('to')),
+      ),
+      timed
+        ? h(
+            'div',
+            { class: 'hint warn' },
+            t('vis.refreshHint', { items: it.id || it.type, n: REFRESH_SUGGEST }),
+          )
+        : null,
+    ]);
+  };
+
+  const advanced = (key: RuleKey, placeholder: string) => {
+    const it = now();
+    const err = h('div', { class: 'hint warn field-error', 'aria-live': 'polite' });
+    const input = textInput(
+      ruleToText(it?.[key]),
+      (v) => {
+        const r = setItemRule(S.config, id, key, ruleFromText(v));
+        show(r.ok ? null : r.error);
+        if (!r.ok) return;
+        commit(r.config, { coalesce: `${id}:${key}`, inspector: false });
+        drawQuick();
+      },
+      { class: 'input mono', placeholder },
+    );
+    const show = (msg: string | null) => {
+      err.replaceChildren(msg ?? '');
+      err.hidden = !msg;
+      input.classList.toggle('invalid', !!msg);
+      input.setAttribute('aria-invalid', String(!!msg));
+    };
+    const stored = it ? ruleQuickState(it).invalid[key] : null;
+    show(stored ? t('vis.ignored', { problem: stored }) : null);
+    inputs[key] = input;
+    const f = field(t(key === 'showWhen' ? 'vis.showWhen' : 'vis.hideWhen'), input);
+    f.append(err);
+    return f;
+  };
+
+  drawQuick();
+  return [
+    quickBox,
+    h(
+      'details',
+      {
+        class: 'vis-advanced',
+        open: Boolean(now()?.showWhen !== undefined || now()?.hideWhen !== undefined),
+      },
+      h('summary', null, t('vis.advanced')),
+      h(
+        'div',
+        { class: 'vis-advanced-body' },
+        advanced('showWhen', 'git; context.pct >= 70'),
+        advanced('hideWhen', 'provider in bedrock,vertex'),
+        h('div', { class: 'hint' }, t('vis.advancedHelp')),
+      ),
+    ),
+  ];
+}
+
 function widgetTab(): HTMLElement {
   const root = h('div', { class: 'pane' });
   const id = S.selectedId;
@@ -318,6 +533,8 @@ function widgetTab(): HTMLElement {
       ),
     ),
   );
+
+  root.append(section(t('vis.section'), ...visibilitySection(item.id)));
 
   if (info?.options.length) {
     const shown = info.options.filter((o) => optionShown(o, info.options, item.options));

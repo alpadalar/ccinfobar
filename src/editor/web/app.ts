@@ -96,13 +96,14 @@ function renderChip(id: string, line: number, index: number): HTMLElement {
       tabindex: 0,
       role: 'button',
       'aria-pressed': String(item.id === S.selectedId),
-      'aria-label': `${name}, line ${line + 1}, position ${index + 1}`,
+      'aria-label': `${name}, line ${line + 1}, position ${index + 1}${S.hidden.has(item.id) ? HIDDEN_SUFFIX() : ''}`,
       'data-id': id,
       title: info ? `${info.description}${info.sample ? `\nSample: ${info.sample}` : ''}` : item.type,
     },
     h('i', { class: 'dot', style: color ? `--c:${color}` : '' }),
     h('span', { class: 'chip-name' }, name),
     item.merge ? h('span', { class: 'chip-link', title: 'Merged with next' }, icon('link', 12)) : null,
+    S.hidden.has(item.id) ? hiddenBadge() : null,
   );
   chip.addEventListener('pointerdown', (e) =>
     press(
@@ -114,6 +115,27 @@ function renderChip(id: string, line: number, index: number): HTMLElement {
   chip.addEventListener('contextmenu', (e) => chipMenu(e, id, line));
   chip.addEventListener('keydown', (e) => chipKey(e, id));
   return chip;
+}
+
+const HIDDEN_SUFFIX = () => `, ${t('vis.hiddenBadge')}`;
+
+function hiddenBadge(): HTMLElement {
+  return h('span', { class: 'chip-hidden', title: t('vis.hiddenBadge') }, t('vis.hiddenShort'));
+}
+
+function syncHidden(next: string[]): void {
+  const set = new Set(next);
+  if (set.size === S.hidden.size && next.every((id) => S.hidden.has(id))) return;
+  S.hidden = set;
+  for (const chip of document.querySelectorAll<HTMLElement>('.chip[data-id]')) {
+    const badge = chip.querySelector('.chip-hidden');
+    const on = set.has(chip.dataset.id ?? '');
+    if (on === !!badge) continue;
+    const label = (chip.getAttribute('aria-label') ?? '').replace(HIDDEN_SUFFIX(), '');
+    chip.setAttribute('aria-label', on ? label + HIDDEN_SUFFIX() : label);
+    if (on) chip.append(hiddenBadge());
+    else badge?.remove();
+  }
 }
 
 function chipKey(e: KeyboardEvent, id: string): void {
@@ -373,6 +395,7 @@ async function runPreview(): Promise<void> {
   try {
     const res = await api.preview(S.config, previewSource(S), S.width);
     if (seq !== previewSeq) return;
+    syncHidden(res.hidden ?? []);
     const term = $('term-lines');
     term.classList.remove('error');
     term.innerHTML = res.lines.length

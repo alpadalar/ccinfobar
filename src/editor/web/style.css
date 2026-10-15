@@ -1168,6 +1168,56 @@ body.dragging-chip .trash {
   font-size: 0.78125rem;
 }
 
+.chip-hidden {
+  padding: 0 0.3125rem;
+  border-radius: 0.375rem;
+  background: var(--surface-3);
+  color: var(--warn);
+  font-size: 0.65625rem;
+  font-weight: 600;
+}
+
+.vis-quick {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.vis-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.vis-row .input.num {
+  width: 4.5rem;
+}
+
+.vis-multi {
+  flex-wrap: wrap;
+}
+
+.hint.vis-locked {
+  color: var(--warn);
+}
+
+.vis-advanced {
+  margin-top: 0.75rem;
+}
+
+.vis-advanced-body {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.625rem;
+}
+
+.vis-advanced summary {
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
 .canvas-empty {
   padding: 1.75rem;
   text-align: center;
@@ -1617,6 +1667,16 @@ body.dragging-chip .trash {
 .switch-input:checked + .switch-track .switch-thumb {
   translate: 0.875rem 0;
   background: #fff;
+}
+
+.switch:has(.switch-input:disabled),
+input[type="range"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.switch-input:disabled {
+  cursor: not-allowed;
 }
 
 .switch-input:focus-visible + .switch-track {
