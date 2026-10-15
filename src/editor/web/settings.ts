@@ -11,10 +11,17 @@ import {
   timeRuleFeed,
   updateProfileOverride,
 } from '../../core/edit.js';
+import { en } from '../../core/i18n/en/index.js';
 import { formatDateTime } from '../../core/i18n/format.js';
 import { languageLocale, type MessageId, t } from '../../core/i18n/index.js';
 import { titleWidgets } from '../../core/panel.js';
-import { PROFILE_LABEL_MAX, PROFILE_MATCH_MAX, PROFILES, PROFILES_UPDATED } from '../../core/profiles.js';
+import {
+  PROFILE_LABEL_MAX,
+  PROFILE_MATCH_MAX,
+  PROFILES,
+  PROFILES_UPDATED,
+  type ProfileVendor,
+} from '../../core/profiles.js';
 import type { Config, ProfileOverride, ProgressConfig } from '../../core/types.js';
 import { api, idText } from './api.js';
 import { clear, h, icon } from './dom.js';
@@ -25,13 +32,17 @@ import { modal, toast } from './ui.js';
 
 const reasonText = (hk: HooksInfo): string => idText(hk.reasonId, hk.reasonParams, hk.reason ?? '');
 
-const KIND: Record<string, string> = {
-  'npm-global': 'global npm install',
-  local: 'pinned copy in your config folder',
-  npx: 'running through npx',
-  source: 'source checkout',
-  unknown: 'unknown install',
+const KIND: Record<string, MessageId> = {
+  'npm-global': 'web.kind.npm-global',
+  local: 'web.kind.local',
+  npx: 'web.kind.npx',
+  source: 'web.kind.source',
+  unknown: 'web.kind.unknown',
 };
+
+function kindText(kind = 'unknown'): string {
+  return Object.hasOwn(KIND, kind) ? t(KIND[kind]!) : kind;
+}
 
 function budgetInput(
   key: 'daily' | 'session' | 'warnAt',
@@ -51,15 +62,27 @@ type ProfileKey = keyof ProfileOverride;
 export type ProfileDraft = Partial<Record<ProfileKey, string | number>>;
 export type ProfileApply = (fn: (c: Config) => Config, coalesce?: string) => void;
 
-const PROFILE_COLUMNS: { key: ProfileKey; label: string; placeholder: string; num?: boolean }[] = [
-  { key: 'match', label: 'Model match', placeholder: 'glm-*' },
-  { key: 'label', label: 'Label', placeholder: 'GLM' },
-  { key: 'contextWindow', label: 'Context window', placeholder: 'window', num: true },
-  { key: 'input', label: 'Input price', placeholder: 'input', num: true },
-  { key: 'output', label: 'Output price', placeholder: 'output', num: true },
-  { key: 'cacheRead', label: 'Cache read price', placeholder: 'cache read', num: true },
-  { key: 'cacheWrite', label: 'Cache write price', placeholder: 'cache write', num: true },
-  { key: 'currency', label: 'Currency', placeholder: 'USD' },
+// example values stay literal, word hints are ids
+const PROFILE_COLUMNS: {
+  key: ProfileKey;
+  label: MessageId;
+  hint?: MessageId;
+  example?: string;
+  num?: boolean;
+}[] = [
+  { key: 'match', label: 'web.profile.match', example: 'glm-*' },
+  { key: 'label', label: 'web.profile.label', example: 'GLM' },
+  {
+    key: 'contextWindow',
+    label: 'web.profile.contextWindow',
+    hint: 'web.profile.hint.contextWindow',
+    num: true,
+  },
+  { key: 'input', label: 'web.profile.input', hint: 'web.profile.hint.input', num: true },
+  { key: 'output', label: 'web.profile.output', hint: 'web.profile.hint.output', num: true },
+  { key: 'cacheRead', label: 'web.profile.cacheRead', hint: 'web.profile.hint.cacheRead', num: true },
+  { key: 'cacheWrite', label: 'web.profile.cacheWrite', hint: 'web.profile.hint.cacheWrite', num: true },
+  { key: 'currency', label: 'web.profile.currency', example: 'USD' },
 ];
 
 // undefined clears the field, null is invalid
@@ -93,14 +116,23 @@ function prices(
   currency: string | null,
 ): string {
   if (p.input === null || p.output === null) return '\u2014';
-  const parts = [`in ${p.input}`, `out ${p.output}`];
-  if (typeof p.cacheRead === 'number') parts.push(`cache read ${p.cacheRead}`);
-  if (typeof p.cacheWrite === 'number') parts.push(`cache write ${p.cacheWrite}`);
+  const parts = [
+    t('web.profile.priceIn', { price: p.input }),
+    t('web.profile.priceOut', { price: p.output }),
+  ];
+  if (typeof p.cacheRead === 'number') parts.push(t('web.profile.priceCacheRead', { price: p.cacheRead }));
+  if (typeof p.cacheWrite === 'number') parts.push(t('web.profile.priceCacheWrite', { price: p.cacheWrite }));
   return `${parts.join(', ')}${currency ? ` ${currency}` : ''}`;
 }
 
+// built-in notes are English data; a stale translation falls back to it
+function noteText(v: ProfileVendor): string | undefined {
+  const id = `web.profile.note.${v.id}`;
+  return Object.hasOwn(en, id) && en[id as MessageId] === v.priceNote ? t(id as MessageId) : v.priceNote;
+}
+
 function builtInList(): HTMLElement {
-  const list = h('details', { class: 'profile-list' }, h('summary', null, 'Built-in models'));
+  const list = h('details', { class: 'profile-list' }, h('summary', null, t('web.profile.builtInList')));
   for (const v of PROFILES) {
     list.append(
       h(
@@ -108,7 +140,7 @@ function builtInList(): HTMLElement {
         { class: 'profile-vendor' },
         h('strong', null, v.label),
         ` ${v.hosts.join(', ')}`,
-        v.priceNote ? h('div', { class: 'hint' }, v.priceNote) : null,
+        v.priceNote ? h('div', { class: 'hint' }, noteText(v)) : null,
       ),
     );
     for (const m of v.models)
@@ -131,7 +163,12 @@ function profileInputs(
   onValue: (key: ProfileKey, v: string | number | undefined | null, raw: string | number | null) => void,
 ): HTMLInputElement[] {
   return PROFILE_COLUMNS.map((col) => {
-    const attrs = { 'aria-label': col.label, title: col.label, placeholder: col.placeholder };
+    const label = t(col.label);
+    const attrs = {
+      'aria-label': label,
+      title: label,
+      placeholder: col.hint ? t(col.hint) : (col.example ?? ''),
+    };
     const check = (raw: string | number | null) => {
       const v = profileValue(col.key, raw);
       input.classList.toggle('invalid', v === null);
@@ -165,8 +202,8 @@ export function profilesFields(c: Config, apply: ProfileApply, draft: ProfileDra
         {
           class: 'icon-btn danger',
           type: 'button',
-          title: 'Remove',
-          'aria-label': `Remove ${entry.match}`,
+          title: t('pinsp.remove'),
+          'aria-label': t('web.profile.remove', { match: entry.match }),
           onClick: () => apply((x) => removeProfileOverride(x, i)),
         },
         icon('trash'),
@@ -181,15 +218,15 @@ export function profilesFields(c: Config, apply: ProfileApply, draft: ProfileDra
   };
   return [
     field(
-      'Built-in model profiles',
+      t('web.profile.builtIn'),
       toggle(c.profiles?.builtIn !== false, (v) => apply((x) => setProfilesBuiltIn(x, v))),
-      "Names, context windows and prices for third-party models. Built-in prices are list prices and apply only on the vendor's own API host.",
+      t('web.profile.builtInHelp'),
       true,
     ),
     builtInList(),
-    h('div', { class: 'hint' }, `Updated ${PROFILES_UPDATED}`),
+    h('div', { class: 'hint' }, t('web.profile.updated', { date: PROFILES_UPDATED })),
     field(
-      'Your models',
+      t('web.profile.yours'),
       h(
         'div',
         { class: 'profile-rows' },
@@ -203,12 +240,39 @@ export function profilesFields(c: Config, apply: ProfileApply, draft: ProfileDra
           }),
           h(
             'button',
-            { class: 'icon-btn', type: 'button', title: 'Add', 'aria-label': 'Add model', onClick: add },
+            {
+              class: 'icon-btn',
+              type: 'button',
+              title: t('web.profile.add'),
+              'aria-label': t('web.profile.addModel'),
+              onClick: add,
+            },
             icon('plus'),
           ),
         ),
       ),
-      'Match is a model id with * wildcards. Yours win over the built-ins; prices are per 1M tokens and need both input and output.',
+      t('web.profile.yoursHelp'),
+    ),
+  ];
+}
+
+// the language field (08-21) joins these
+function appearanceFields(c: Config): HTMLElement[] {
+  return [
+    field(
+      t('web.settings.loadingText'),
+      textInput(
+        c.loadingText ?? t('loading.default'),
+        (v) => {
+          const { loadingText: _, ...rest } = S.config;
+          const text = v.slice(0, 40);
+          commit(text === t('loading.default') ? rest : { ...rest, loadingText: text }, {
+            coalesce: 'loadingText',
+          });
+        },
+        { maxLength: 40 },
+      ),
+      t('web.settings.loadingTextHelp'),
     ),
   ];
 }
@@ -229,8 +293,14 @@ export async function openSettings(): Promise<void> {
     try {
       const r = await api.update(install);
       latest = { latest: r.latest, newer: r.newer && !r.installed };
-      if (r.installed) toast(`Updated to ${r.installed}. Restart the editor to use it.`);
-      else toast(r.newer ? `Version ${r.latest} is available` : `${r.current} is the latest version`, 'info');
+      if (r.installed) toast(t('web.settings.updatedTo', { version: r.installed }));
+      else
+        toast(
+          r.newer
+            ? t('web.settings.available', { version: r.latest })
+            : t('web.settings.latestVersion', { version: r.current }),
+          'info',
+        );
       info = await api.system();
     } catch (e) {
       toast((e as Error).message, 'error');
@@ -245,7 +315,13 @@ export async function openSettings(): Promise<void> {
     try {
       const r = await api.hooks(enabled, permission);
       const on = r.hooks.installed;
-      toast(enabled ? (on.length ? `Hooks on: ${on.join(', ')}` : 'No hooks were added') : 'Hooks removed');
+      toast(
+        enabled
+          ? on.length
+            ? t('web.settings.hooksOn', { events: on.join(', ') })
+            : t('web.settings.hooksNone')
+          : t('web.settings.hooksRemoved'),
+      );
     } catch (e) {
       toast((e as Error).message, 'error');
     }
@@ -258,12 +334,12 @@ export async function openSettings(): Promise<void> {
     const hk = info?.hooks ?? S.api.hooks;
     if (!hk) return [];
     const permission = hk.optional.some((e) => hk.installed.includes(e));
-    const hint = `Optional. Records ${hk.events.join(', ')} so live widgets are exact; every widget also works without hooks. ${
-      hk.available ? `Claude Code ${hk.claudeCode ?? ''}.` : reasonText(hk)
+    const hint = `${t('web.settings.hooksHint', { events: hk.events.join(', ') })} ${
+      hk.available ? t('web.settings.hooksVersion', { version: hk.claudeCode ?? '' }) : reasonText(hk)
     }`;
     const out = [
       field(
-        'Hooks',
+        t('web.settings.hooks'),
         toggle(hk.installed.length > 0, (v) => void runHooks(v, permission), undefined, {
           disabled: busy || (!hk.available && hk.installed.length === 0),
         }),
@@ -274,9 +350,9 @@ export async function openSettings(): Promise<void> {
     if (hk.available)
       out.push(
         field(
-          'Permission requests',
+          t('web.settings.permission'),
           toggle(permission, (v) => void runHooks(true, v), undefined, { disabled: busy }),
-          `Opt-in. Also records ${hk.optional.join(', ')} so a waiting permission prompt shows at once. Best left off on Windows without Git Bash.`,
+          t('web.settings.permissionHint', { events: hk.optional.join(', ') }),
           true,
         ),
       );
@@ -423,8 +499,12 @@ export async function openSettings(): Promise<void> {
     };
     const canUpdate = info?.kind === 'npm-global' || info?.kind === 'local';
     const checked = info?.update?.checkedAt
-      ? `last checked ${formatDateTime(new Date(info.update.checkedAt), languageLocale())}`
-      : 'not checked yet';
+      ? t('web.settings.lastChecked', {
+          when: formatDateTime(new Date(info.update.checkedAt), languageLocale()),
+        })
+      : t('web.settings.notChecked');
+    const command = cl.statusLine?.command ?? '';
+    const every = cl.statusLine?.refreshInterval;
     body.append(
       section(
         'Claude Code',
@@ -432,18 +512,16 @@ export async function openSettings(): Promise<void> {
           'div',
           { class: `status-line ${cl.installed ? 'ok' : 'off'}` },
           h('i', { class: 'status-dot' }),
-          h(
-            'span',
-            null,
-            cl.installed ? 'Claude Code uses ccinfobar.' : 'Claude Code does not use ccinfobar yet.',
-          ),
+          h('span', null, cl.installed ? t('web.settings.cliUses') : t('web.settings.cliNotYet')),
         ),
         h(
           'div',
           { class: 'hint' },
-          cl.installed
-            ? `Command: ${cl.statusLine?.command ?? ''}${cl.statusLine?.refreshInterval ? `, refresh every ${cl.statusLine.refreshInterval}s` : ''}. Saving is enough; Claude Code picks up changes on its next refresh.`
-            : 'Install once; after that, saving is enough.',
+          !cl.installed
+            ? t('web.settings.cliInstallOnce')
+            : every
+              ? t('web.settings.cliCommandRefresh', { command, n: every })
+              : t('web.settings.cliCommand', { command }),
         ),
         h(
           'div',
@@ -455,7 +533,7 @@ export async function openSettings(): Promise<void> {
               type: 'button',
               onClick: () => openInstall(installDialog()),
             },
-            cl.installed ? 'Change command or refresh' : 'Install in Claude Code',
+            cl.installed ? t('web.settings.cliChange') : t('web.install.title'),
           ),
         ),
         ...refreshWarning(cl),
@@ -463,29 +541,37 @@ export async function openSettings(): Promise<void> {
       ),
       section(t('prog.section'), ...progressFields()),
       section(
-        'Updates',
+        t('web.settings.updates'),
         field(
-          'When a new version is out',
+          t('web.settings.updateWhen'),
           segmented(
             [
               {
                 value: 'auto',
-                label: 'Install automatically',
-                title: 'Default. Checks each time Claude Code starts and installs in the background',
+                label: t('web.settings.updateAuto'),
+                title: t('web.settings.updateAutoHelp'),
               },
-              { value: 'notify', label: 'Tell me', title: 'Shows a note at the end of the status line' },
-              { value: 'off', label: 'Off', title: 'Never checks' },
+              {
+                value: 'notify',
+                label: t('web.settings.updateNotify'),
+                title: t('web.settings.updateNotifyHelp'),
+              },
+              { value: 'off', label: t('web.settings.updateOff'), title: t('web.settings.updateOffHelp') },
             ] as const,
             c.update,
             (v) => set({ update: v }),
           ),
-          'Automatic is the default. Save to apply.',
+          t('web.settings.updateHelp'),
         ),
         h(
           'div',
           { class: 'hint' },
-          `This is ccinfobar ${info?.version ?? S.api.version}, ${KIND[info?.kind ?? 'unknown'] ?? info?.kind}; ${checked}.`,
-          latest ? ` Latest: ${latest.latest}.` : '',
+          t('web.settings.version', {
+            version: info?.version ?? S.api.version,
+            kind: kindText(info?.kind),
+            checked,
+          }),
+          latest ? t('web.settings.latest', { version: latest.latest }) : '',
         ),
         h(
           'div',
@@ -493,80 +579,63 @@ export async function openSettings(): Promise<void> {
           h(
             'button',
             { class: 'btn', type: 'button', disabled: busy, onClick: () => void run(false) },
-            'Check now',
+            t('web.settings.checkNow'),
           ),
           latest?.newer && canUpdate
             ? h(
                 'button',
                 { class: 'btn primary', type: 'button', disabled: busy, onClick: () => void run(true) },
-                `Update to ${latest.latest}`,
+                t('web.settings.updateTo', { version: latest.latest }),
               )
             : null,
         ),
       ),
+      section(t('insp.appearance'), ...appearanceFields(c)),
       section(
-        'Appearance',
+        t('web.settings.data'),
         field(
-          'Loading text',
-          textInput(
-            c.loadingText ?? t('loading.default'),
-            (v) => {
-              const { loadingText: _, ...rest } = S.config;
-              const text = v.slice(0, 40);
-              commit(text === t('loading.default') ? rest : { ...rest, loadingText: text }, {
-                coalesce: 'loadingText',
-              });
-            },
-            { maxLength: 40 },
-          ),
-          'Shown by context, token and limit widgets before the first reply. Leave empty to turn it off.',
-        ),
-      ),
-      section(
-        'Data',
-        field(
-          'Usage from Claude',
+          t('web.settings.usageApi'),
           toggle(c.usageApi, (v) => set({ usageApi: v })),
-          'Fill usage limit widgets from your Claude login when Claude Code sends none.',
+          t('web.settings.usageApiHelp'),
           true,
         ),
         field(
-          'Git hardening',
+          t('web.settings.gitHardening'),
           toggle(c.gitHardening !== false, (v) => set({ gitHardening: v ? undefined : false })),
-          'Stop repos from running their own git hooks and filters through the status line.',
+          t('web.settings.gitHardeningHelp'),
           true,
         ),
         field(
-          'Save last payload',
+          t('web.settings.savePayload'),
           toggle(c.savePayload, (v) => set({ savePayload: v })),
-          'Lets the preview use your real last session.',
+          t('web.settings.savePayloadHelp'),
           true,
         ),
       ),
       section(
-        'Budget',
+        t('web.settings.budget'),
         field(
-          'Daily budget (USD)',
-          budgetInput('daily', c.budget?.daily, { min: 0, step: 'any', placeholder: 'none' }),
-          'Estimated spend for the budget widget. Not your bill.',
+          t('web.settings.daily'),
+          budgetInput('daily', c.budget?.daily, { min: 0, step: 'any', placeholder: t('insp.none') }),
+          t('web.settings.dailyHelp'),
         ),
         field(
-          'Per session (USD)',
-          budgetInput('session', c.budget?.session, { min: 0, step: 'any', placeholder: 'none' }),
+          t('web.settings.session'),
+          budgetInput('session', c.budget?.session, { min: 0, step: 'any', placeholder: t('insp.none') }),
         ),
         field(
-          'Warn at (%)',
+          t('web.settings.warnAt'),
           budgetInput(
             'warnAt',
             c.budget?.warnAt === undefined ? undefined : Math.round(c.budget.warnAt * 100),
             { min: 5, max: 100, step: 1, placeholder: '80' },
             100,
           ),
-          'The budget widget turns yellow here and red at 100%.',
+          t('web.settings.warnAtHelp'),
         ),
       ),
       section(
-        'Model profiles',
+        t('web.settings.profiles'),
         ...profilesFields(
           c,
           (fn, coalesce) => {
@@ -588,10 +657,10 @@ export async function openSettings(): Promise<void> {
     })
     .catch(() => {});
   await modal({
-    title: 'Settings',
+    title: t('web.settings.title'),
     body: [body],
     actions: (close) => [
-      h('button', { class: 'btn primary', type: 'button', onClick: () => close() }, 'Done'),
+      h('button', { class: 'btn primary', type: 'button', onClick: () => close() }, t('web.settings.done')),
     ],
   });
 }

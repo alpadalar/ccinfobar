@@ -8,6 +8,7 @@ import { commandsMessages } from '../../src/core/i18n/en/commands.js';
 import { configMessages } from '../../src/core/i18n/en/config.js';
 import { displayMessages } from '../../src/core/i18n/en/display.js';
 import { doctorMessages } from '../../src/core/i18n/en/doctor.js';
+import { editorMessages } from '../../src/core/i18n/en/editor.js';
 import { errorMessages } from '../../src/core/i18n/en/errors.js';
 import { explainMessages } from '../../src/core/i18n/en/explain.js';
 import { funMessages } from '../../src/core/i18n/en/fun.js';
@@ -45,6 +46,7 @@ import { commandsMessages as trCommands } from '../../src/core/i18n/tr/commands.
 import { configMessages as trConfig } from '../../src/core/i18n/tr/config.js';
 import { displayMessages as trDisplay } from '../../src/core/i18n/tr/display.js';
 import { doctorMessages as trDoctor } from '../../src/core/i18n/tr/doctor.js';
+import { editorMessages as trEditor } from '../../src/core/i18n/tr/editor.js';
 import { errorMessages as trErrors } from '../../src/core/i18n/tr/errors.js';
 import { explainMessages as trExplain } from '../../src/core/i18n/tr/explain.js';
 import { funMessages as trFun } from '../../src/core/i18n/tr/fun.js';
@@ -237,6 +239,7 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['commands', commandsMessages, trCommands],
   ['errors', errorMessages, trErrors],
   ['inspector', inspectorMessages, trInspector],
+  ['editor', editorMessages, trEditor],
 ];
 
 function forms(m: Message): string[] {
@@ -398,6 +401,7 @@ describe('en table', () => {
       commandsMessages,
       errorMessages,
       inspectorMessages,
+      editorMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);

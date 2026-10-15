@@ -1,3 +1,4 @@
+import { t } from '../../core/i18n/index.js';
 import { type Child, h, icon } from './dom.js';
 
 export function toast(message: string, kind: 'ok' | 'error' | 'info' = 'ok'): void {
@@ -52,7 +53,11 @@ export function modal<T = unknown>(opts: ModalOpts): Promise<T | undefined> {
         'header',
         { class: 'modal-head' },
         h('h2', null, opts.title),
-        h('button', { class: 'icon-btn', type: 'button', title: 'Close', onClick: () => close() }, icon('x')),
+        h(
+          'button',
+          { class: 'icon-btn', type: 'button', title: t('web.ui.close'), onClick: () => close() },
+          icon('x'),
+        ),
       ),
       h('div', { class: 'modal-body' }, ...opts.body),
       h('footer', { class: 'modal-foot' }, ...opts.actions(close)),
@@ -73,8 +78,8 @@ export function modal<T = unknown>(opts: ModalOpts): Promise<T | undefined> {
 export async function confirmDialog(
   title: string,
   message: string,
-  confirmLabel = 'Continue',
-  cancelLabel = 'Cancel',
+  confirmLabel = t('web.ui.continue'),
+  cancelLabel = t('web.ui.cancel'),
 ): Promise<boolean> {
   const r = await modal<boolean>({
     title,

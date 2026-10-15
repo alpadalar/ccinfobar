@@ -34,6 +34,8 @@ const SWEPT: string[] = [
   'src/editor/web/api.ts',
   'src/editor/web/inspector.ts',
   'src/editor/web/panel-inspector.ts',
+  'src/editor/web/settings.ts',
+  'src/editor/web/ui.ts',
   'src/widgets/activity.ts',
   'src/widgets/agents.ts',
   'src/widgets/charts.ts',
@@ -109,6 +111,8 @@ const ALLOW: Record<string, string[]> = {
     // grid areas example, widget types (D-13)
     'model cwd cwd\\n---\\ngit git .',
   ],
+  // product name as the section title
+  'src/editor/web/settings.ts': ['Claude Code'],
   'src/editor/server.ts': [
     // developer-only (D-36)
     'Request body too large',
