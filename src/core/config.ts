@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { writeAtomic } from '../data/store.js';
+import { normalizeHeaderSpec, parseHeaderSpec, parseUrlTemplate } from './http-spec.js';
 import { t } from './i18n/index.js';
 import { locateJsonError, locateKey } from './json-locate.js';
 import { configPath } from './paths.js';
@@ -74,9 +75,10 @@ function isObject(v: unknown): v is Record<string, unknown> {
 
 function normalizeItem(raw: unknown, index: number): WidgetItem | null {
   if (!isObject(raw) || typeof raw.type !== 'string' || !raw.type) return null;
+  const type = raw.type;
   const out: WidgetItem = {
-    id: typeof raw.id === 'string' && raw.id ? raw.id : `${raw.type}-${index}`,
-    type: raw.type,
+    id: typeof raw.id === 'string' && raw.id ? raw.id : `${type}-${index}`,
+    type,
   };
   for (const key of ['color', 'background', 'label'] as const) {
     if (typeof raw[key] === 'string') out[key] = raw[key] as string;
@@ -89,7 +91,46 @@ function normalizeItem(raw: unknown, index: number): WidgetItem | null {
     for (const [k, v] of Object.entries(raw.options)) {
       if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') opts[k] = v;
     }
-    out.options = opts;
+    out.options = type === 'http' ? normalizeHttpOptions(opts) : opts;
+  }
+  return out;
+}
+
+const toNum = (v: unknown): number | undefined => {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : Number.NaN;
+  return Number.isFinite(n) ? Math.trunc(n) : undefined;
+};
+
+const HTTP_RANGES: Record<string, [number, number]> = {
+  interval: [30, Number.MAX_SAFE_INTEGER],
+  timeout: [1000, 15_000],
+  decimals: [-1, 10],
+  maxLength: [1, 200],
+};
+
+// drops only what the worker would refuse, so the rest of the item survives
+export function normalizeHttpOptions(
+  opts: Record<string, unknown>,
+): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {};
+  for (const [k, v] of Object.entries(opts)) {
+    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') out[k] = v;
+  }
+  if ('url' in out && (typeof out.url !== 'string' || !parseUrlTemplate(out.url).ok)) delete out.url;
+  if ('headers' in out) {
+    const valid = typeof out.headers === 'string' ? parseHeaderSpec(out.headers).headers : [];
+    if (valid.length) out.headers = normalizeHeaderSpec(valid);
+    else delete out.headers;
+  }
+  if ('path' in out) {
+    if (typeof out.path === 'string') out.path = out.path.slice(0, 256);
+    else delete out.path;
+  }
+  for (const [k, [min, max]] of Object.entries(HTTP_RANGES)) {
+    if (!(k in out)) continue;
+    const n = toNum(out[k]);
+    if (n === undefined) delete out[k];
+    else out[k] = Math.min(max, Math.max(min, n));
   }
   return out;
 }

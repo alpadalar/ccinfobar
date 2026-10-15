@@ -89,6 +89,21 @@ const FULL_ITEM: Required<WidgetItem> = {
   options: { format: 'short', width: 12, compact: false },
 };
 
+const HTTP_ITEM: WidgetItem = {
+  id: 'http-1',
+  type: 'http',
+  options: {
+    url: 'https://relay.example.com/v1/balance?key=${RELAY_KEY}',
+    path: "$.data['balance']",
+    format: '${value}',
+    interval: 300,
+    timeout: 5000,
+    headers: 'Authorization=Bearer $RELAY_TOKEN',
+    decimals: 2,
+    maxLength: 40,
+  },
+};
+
 const FULL_TUI: Required<TuiConfig> = {
   box: { topLeft: '+', topRight: '+', horizontal: '-' },
   fitContent: true,
@@ -110,7 +125,7 @@ const FULL_TUI: Required<TuiConfig> = {
 const FULL_CONFIG: Required<Config> = {
   $schema: SCHEMA_URL,
   version: 1,
-  lines: [[FULL_ITEM, { id: 'cwd-1', type: 'cwd' }], [{ id: 'git-1', type: 'git-branch' }], []],
+  lines: [[FULL_ITEM, { id: 'cwd-1', type: 'cwd' }], [{ id: 'git-1', type: 'git-branch' }, HTTP_ITEM], []],
   align: 'center',
   lineAlign: ['right', null, 'center'],
   theme: 'nord',

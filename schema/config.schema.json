@@ -130,6 +130,7 @@
                 "command",
                 "link",
                 "env",
+                "http",
                 "text",
                 "separator",
                 "flex"

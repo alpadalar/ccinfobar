@@ -20,6 +20,8 @@ import {
 } from '../../src/core/scenarios.js';
 import type { RenderContext } from '../../src/core/types.js';
 import { limitsFile, recordLimits } from '../../src/data/limits.js';
+import { importCcstatusline } from '../../src/importers/ccstatusline.js';
+import { importClaudePowerline } from '../../src/importers/claude-powerline.js';
 import { getWidget } from '../../src/widgets/index.js';
 import { renderWidget, withoutSideEffects } from '../helpers.js';
 
@@ -289,13 +291,14 @@ const NEW_WIDGETS = [
   'env-counts',
   'provider',
   'service-status',
+  'http',
 ];
 
 const raw = (id: string, type: string) =>
   withoutSideEffects(() => getWidget(type)!.render(ctxFor(id), { id: type, type }));
 
 const PHASE5 = ['workspace-repos', 'tool-activity', 'turn-timer', 'permission-wait', 'env-counts'];
-const OPT_IN = [...PHASE5, 'provider', 'service-status'];
+const OPT_IN = [...PHASE5, 'provider', 'service-status', 'http'];
 
 describe('new widgets across scenarios', () => {
   it('cover every live session widget', () => {
@@ -317,6 +320,31 @@ describe('new widgets across scenarios', () => {
         expect(text, type).not.toContain(`"${type}"`);
         expect(text, type).not.toContain(`{${type}}`);
       }
+    }
+  });
+
+  it('http comes from no importer, even for an http-named source widget', () => {
+    const fixture = (f: string) =>
+      JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/import', f), 'utf8'));
+    const cc = fixture('ccstatusline-settings.json');
+    cc.lines[0].push({ id: 'h', type: 'http', url: 'https://x.com/' });
+    const results = [
+      importCcstatusline(fixture('ccstatusline-settings.json')),
+      importCcstatusline(cc),
+      importClaudePowerline(fixture('claude-powerline.json')),
+    ];
+    for (const r of results) {
+      expect((r.config.lines ?? []).flat().some((i) => i.type === 'http')).toBe(false);
+    }
+  });
+
+  it('http shows the sample job value in every scenario once it has a url', () => {
+    const item = { id: 'h', type: 'http', options: { url: 'https://relay.example.com/b', path: '$.a' } };
+    for (const id of IDS) {
+      expect(
+        withoutSideEffects(() => getWidget('http')!.render(ctxFor(id), item)),
+        id,
+      ).toBe('42.5');
     }
   });
 

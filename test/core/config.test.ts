@@ -2,7 +2,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { defaultConfig, loadConfig, normalizeConfig, saveConfig } from '../../src/core/config.js';
+import {
+  defaultConfig,
+  loadConfig,
+  normalizeConfig,
+  normalizeHttpOptions,
+  saveConfig,
+} from '../../src/core/config.js';
 
 describe('config', () => {
   it('falls back to defaults for garbage', () => {
@@ -70,5 +76,83 @@ describe('config', () => {
     const loaded = loadConfig(file);
     expect(loaded.error).toBeTruthy();
     expect(loaded.config).toEqual(defaultConfig());
+  });
+});
+
+describe('http options', () => {
+  const http = (options: Record<string, unknown>) =>
+    normalizeConfig({ lines: [[{ id: 'h', type: 'http', options }]] }).lines[0]![0]!.options;
+
+  it('drops only invalid header entries', () => {
+    expect(http({ url: 'https://x.com/', headers: 'Authorization=Bearer abc, X-Key=$K' })).toEqual({
+      url: 'https://x.com/',
+      headers: 'X-Key=$K',
+    });
+    expect(http({ headers: 'Bad Name=$A, Host=$H, X-A=${A}' })?.headers).toBe('X-A=$A');
+    expect(http({ headers: 'Authorization=abc' })).toEqual({});
+    expect(http({ headers: 'Authorization=Bearer ${TOK}\nX-B = $B' })?.headers).toBe(
+      'Authorization=Bearer $TOK, X-B=$B',
+    );
+  });
+
+  it('keeps only valid urls', () => {
+    expect(http({ url: 'https://u:p@x.com' })).toEqual({});
+    expect(http({ url: 'https://x.com/?k=${K}' })).toEqual({ url: 'https://x.com/?k=${K}' });
+    expect(http({ url: 'https://${H}.com/' })).toEqual({});
+    expect(http({ url: 'ftp://x.com/' })).toEqual({});
+    expect(http({ url: '', path: '$.a' })).toEqual({ path: '$.a' });
+  });
+
+  it('clamps numbers and keeps the rest of the item', () => {
+    expect(http({ interval: 5, timeout: 60000, decimals: 50, maxLength: 0 })).toEqual({
+      interval: 30,
+      timeout: 15000,
+      decimals: 10,
+      maxLength: 1,
+    });
+    expect(http({ interval: '90', timeout: 200, decimals: -7, maxLength: 999 })).toEqual({
+      interval: 90,
+      timeout: 1000,
+      decimals: -1,
+      maxLength: 200,
+    });
+    expect(http({ interval: 'soon', decimals: 2.7, format: '${value}' })).toEqual({
+      decimals: 2,
+      format: '${value}',
+    });
+    expect(http({ path: 'x'.repeat(300) })?.path).toHaveLength(256);
+    const item = normalizeConfig({
+      lines: [[{ id: 'h', type: 'http', color: 'red', options: { url: 'https://u:p@x.com', path: '$.a' } }]],
+    }).lines[0]![0]!;
+    expect(item).toEqual({ id: 'h', type: 'http', color: 'red', options: { path: '$.a' } });
+  });
+
+  it('leaves other widgets alone', () => {
+    const opts = { url: 'https://u:p@x.com', headers: 'A=b', interval: 1 };
+    expect(
+      normalizeConfig({ lines: [[{ id: 't', type: 'text', options: opts }]] }).lines[0]![0]!.options,
+    ).toEqual(opts);
+    expect(normalizeHttpOptions({ list: [1], url: 'https://x.com/' })).toEqual({ url: 'https://x.com/' });
+  });
+
+  it('round-trips a valid item through save and load', () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-')), 'c.json');
+    const item = {
+      id: 'h',
+      type: 'http',
+      options: {
+        url: 'https://relay.example.com/balance?key=${RELAY_KEY}',
+        path: '$.data.balance',
+        format: '${value}',
+        interval: 600,
+        timeout: 8000,
+        headers: 'Authorization=Bearer $RELAY_TOKEN, X-Org=$ORG',
+        decimals: 2,
+        maxLength: 30,
+      },
+    };
+    const cfg = { ...defaultConfig(), lines: [[item]] };
+    saveConfig(cfg, file);
+    expect(loadConfig(file).config.lines).toEqual([[item]]);
   });
 });
