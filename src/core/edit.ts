@@ -19,6 +19,7 @@ import type {
   OverflowMode,
   ProfileOverride,
   ProfilesConfig,
+  ProgressConfig,
   WidgetCategory,
   WidgetItem,
 } from './types.js';
@@ -350,6 +351,47 @@ export function setBudget(config: Config, key: keyof BudgetConfig, value: number
   if (budget.warnAt === 0.8) delete budget.warnAt;
   const next: Config = { ...config, budget };
   if (!Object.keys(budget).length) delete next.budget;
+  return next;
+}
+
+export const PROGRESS_DEFAULTS: Required<ProgressConfig> = {
+  enabled: false,
+  source: 'context',
+  scaleTo: 'full',
+  warnAt: 50,
+  errorAt: 80,
+  channel: 'auto',
+  tmuxPassthrough: false,
+  terminals: 'allowlist',
+};
+
+export const PROGRESS_CHOICES = {
+  source: ['context', 'usage5h'],
+  scaleTo: ['full', 'autocompact'],
+  channel: ['auto', 'hook', 'tty'],
+  terminals: ['allowlist', 'always'],
+} as const;
+
+function progressValue(key: keyof ProgressConfig, v: unknown): unknown {
+  if (key === 'enabled' || key === 'tmuxPassthrough') return typeof v === 'boolean' ? v : undefined;
+  if (key === 'warnAt' || key === 'errorAt')
+    return typeof v === 'number' && Number.isFinite(v)
+      ? Math.min(100, Math.max(1, Math.round(v)))
+      : undefined;
+  return (PROGRESS_CHOICES[key] as readonly unknown[]).includes(v) ? v : undefined;
+}
+
+// sparse; enabled false stays only next to other keys
+export function setProgress(config: Config, patch: Partial<ProgressConfig>): Config {
+  const merged: Record<string, unknown> = { ...config.progress, ...patch };
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(PROGRESS_DEFAULTS) as (keyof ProgressConfig)[]) {
+    const v = progressValue(key, merged[key]);
+    if (v !== undefined && v !== PROGRESS_DEFAULTS[key]) out[key] = v;
+  }
+  const next: Config = { ...config };
+  if (Object.keys(out).length) next.progress = { enabled: false, ...out } as ProgressConfig;
+  else delete next.progress;
   return next;
 }
 

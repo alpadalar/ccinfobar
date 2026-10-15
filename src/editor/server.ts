@@ -57,6 +57,7 @@ import {
 } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
 import { gsdInstalled } from '../data/gsd.js';
+import { PROGRESS_EVENTS } from '../data/progress.js';
 import { writeAtomic } from '../data/store.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import type { TerminalColors } from './terminal-colors.js';
@@ -87,6 +88,7 @@ export interface HooksInfo {
   claudeCode?: string;
   events: string[];
   optional: string[];
+  progress: string[];
 }
 
 export interface EditorHandle {
@@ -225,14 +227,14 @@ function activeCommand(command: string | null): string | null {
   }
 }
 
-const ORDER: readonly string[] = [...DEFAULT_EVENTS, ...OPTIONAL_EVENTS];
+const ORDER: readonly string[] = [...DEFAULT_EVENTS, ...OPTIONAL_EVENTS, ...PROGRESS_EVENTS];
 
-function installedHooks(): string[] {
+function installedHooks(progress = false): string[] {
   try {
     const file = claudeSettingsPath();
     const data = readSettings(file).data as Record<string, unknown>;
     return findHookEntries(readManifest(), file)
-      .filter((e) => !e.role && hookEntryState(e, data) === 'ok')
+      .filter((e) => (progress ? e.role === 'progress' : !e.role) && hookEntryState(e, data) === 'ok')
       .map((e) => e.event)
       .sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
   } catch {
@@ -244,6 +246,13 @@ function refusalText(refused: HookRefusal, version: string | null): string {
   return refused === 'unknown-version'
     ? t('hooks.reason.unknownVersion', { floor: HOOK_FLOOR.core })
     : t('hooks.reason.oldVersion', { floor: HOOK_FLOOR.core, version: version ?? '' });
+}
+
+function progressRefusalText(refused: HookRefusal, version: string | null): string {
+  const floor = HOOK_FLOOR.terminalSequence;
+  return refused === 'unknown-version'
+    ? t('progress.refused.unknownVersion', { floor })
+    : t('progress.refused.oldVersion', { floor, version: version ?? '' });
 }
 
 const PLACEHOLDER_PREFIX = 'ccinfobar (';
@@ -286,7 +295,12 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     }).refused;
 
   async function hooksInfo(cmd: string | null): Promise<HooksInfo> {
-    const base = { installed: installedHooks(), events: [...DEFAULT_EVENTS], optional: [...OPTIONAL_EVENTS] };
+    const base = {
+      installed: installedHooks(),
+      events: [...DEFAULT_EVENTS],
+      optional: [...OPTIONAL_EVENTS],
+      progress: installedHooks(true),
+    };
     if (!activeCommand(cmd)) return { ...base, available: false, reason: t('hooks.reason.notActive') };
     const version = await claudeVersion();
     const refused = refusalOf(version);
@@ -602,6 +616,36 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           backup = applyHooks(file, plan, process.env, permission === false ? OPTIONAL_EVENTS : []).backup;
         } else {
           backup = uninstallHooks(file).backup;
+        }
+        send(res, 200, { ok: true, hooks: await hooksInfo(command), backup });
+        return;
+      }
+      case 'POST /api/progress': {
+        const { enabled } = asObject(await readBody(req));
+        if (typeof enabled !== 'boolean') throw new HttpError(400, t('hooks.badBody'));
+        const file = claudeSettingsPath();
+        let backup: string | null = null;
+        if (enabled) {
+          const active = activeCommand(command);
+          if (!active)
+            throw new HttpError(409, t('hooks.reason.notActive'), { hooks: await hooksInfo(command) });
+          const claudeCode = await claudeVersion();
+          const plan = planHooks({
+            settings: readSettings(file).data as Record<string, unknown>,
+            manifest: readManifest(),
+            file,
+            command: active,
+            claudeCode,
+            events: [],
+            progress: true,
+          });
+          if (plan.progressRefused)
+            throw new HttpError(409, progressRefusalText(plan.progressRefused, claudeCode), {
+              hooks: await hooksInfo(command),
+            });
+          backup = applyHooks(file, plan).backup;
+        } else {
+          backup = uninstallHooks(file, process.env, undefined, 'progress').backup;
         }
         send(res, 200, { ok: true, hooks: await hooksInfo(command), backup });
         return;

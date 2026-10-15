@@ -32,6 +32,7 @@ import {
   setOverflow,
   setPriority,
   setProfilesBuiltIn,
+  setProgress,
   setRuleQuick,
   takeStyle,
   timeRuleFeed,
@@ -231,6 +232,58 @@ describe('setBudget', () => {
     const c = setBudget(setBudget(base, 'daily', 5), 'daily', undefined);
     expect('budget' in c).toBe(false);
     expect('budget' in setBudget(base, 'warnAt', 0.8)).toBe(false);
+  });
+});
+
+describe('setProgress', () => {
+  const base = defaultConfig();
+
+  it('turns progress on and off', () => {
+    const on = setProgress(base, { enabled: true });
+    expect(on.progress).toEqual({ enabled: true });
+    expect(base.progress).toBeUndefined();
+    expect('progress' in setProgress(on, { enabled: false })).toBe(false);
+  });
+
+  it('drops default values and keeps the rest', () => {
+    const on = setProgress(base, { enabled: true });
+    expect(setProgress(on, { warnAt: 50 }).progress).toEqual({ enabled: true });
+    expect(setProgress(on, { warnAt: 60 }).progress).toEqual({ enabled: true, warnAt: 60 });
+    const all = setProgress(on, {
+      source: 'usage5h',
+      scaleTo: 'autocompact',
+      errorAt: 90,
+      channel: 'tty',
+      tmuxPassthrough: true,
+      terminals: 'always',
+    });
+    expect(all.progress).toEqual({
+      enabled: true,
+      source: 'usage5h',
+      scaleTo: 'autocompact',
+      errorAt: 90,
+      channel: 'tty',
+      tmuxPassthrough: true,
+      terminals: 'always',
+    });
+    expect(normalizeConfig(all).progress).toEqual(all.progress);
+    expect(setProgress(all, { channel: 'auto', source: 'context' }).progress?.channel).toBeUndefined();
+  });
+
+  it('keeps enabled false only next to other keys', () => {
+    const c = setProgress(setProgress(base, { enabled: true, channel: 'tty' }), { enabled: false });
+    expect(c.progress).toEqual({ enabled: false, channel: 'tty' });
+    expect('progress' in setProgress(c, { channel: 'auto' })).toBe(false);
+  });
+
+  it('clamps levels and ignores bad values', () => {
+    const on = setProgress(base, { enabled: true, warnAt: 60 });
+    expect(setProgress(on, { warnAt: 150 }).progress?.warnAt).toBe(100);
+    expect(setProgress(on, { errorAt: 0 }).progress?.errorAt).toBe(1);
+    expect(setProgress(on, { warnAt: 70.4 }).progress?.warnAt).toBe(70);
+    expect(setProgress(on, { warnAt: Number.NaN }).progress).toEqual({ enabled: true });
+    expect(setProgress(on, { warnAt: undefined }).progress).toEqual({ enabled: true });
+    expect(setProgress(on, { channel: 'x' as never }).progress).toEqual({ enabled: true, warnAt: 60 });
   });
 });
 

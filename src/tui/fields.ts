@@ -8,6 +8,8 @@ import {
   GLYPH_MODE_CHOICES,
   OVERFLOW_CHOICES,
   optionShown,
+  PROGRESS_CHOICES,
+  PROGRESS_DEFAULTS,
   RULE_PRESETS,
   ruleFromText,
   rulePreset,
@@ -20,9 +22,10 @@ import {
   setOverflow,
   setPriority,
   setProfilesBuiltIn,
+  setProgress,
   updateItem,
 } from '../core/edit.js';
-import { t } from '../core/i18n/index.js';
+import { type MessageId, t } from '../core/i18n/index.js';
 import { BOX_PRESETS } from '../core/panel.js';
 import { resolveAppearance } from '../core/renderer.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -33,6 +36,7 @@ import type {
   OptionChoice,
   OptionValue,
   OverflowMode,
+  ProgressConfig,
   TuiConfig,
   WidgetDef,
   WidgetItem,
@@ -451,6 +455,65 @@ function budgetFields(): Field[] {
   ];
 }
 
+type ProgressChoiceKey = keyof typeof PROGRESS_CHOICES;
+
+function progressSelect(key: ProgressChoiceKey, help: string): Field {
+  return globalField(
+    `progress.${key}`,
+    t(`prog.${key}`),
+    'select',
+    (c) => c.progress?.[key],
+    (c, v) => setProgress(c, { [key]: v } as Partial<ProgressConfig>),
+    {
+      fallback: PROGRESS_DEFAULTS[key],
+      choices: PROGRESS_CHOICES[key].map((v) => ({ value: v, label: t(`prog.${key}.${v}` as MessageId) })),
+      help,
+    },
+  );
+}
+
+function progressLevel(key: 'warnAt' | 'errorAt'): Field {
+  return {
+    id: `progress.${key}`,
+    label: t(`prog.${key}`),
+    kind: 'number',
+    resettable: true,
+    fallback: PROGRESS_DEFAULTS[key],
+    range: [1, 100],
+    help: `${t('prog.levelHelp')}. Del resets to ${PROGRESS_DEFAULTS[key]}`,
+    get: (c) => c.progress?.[key],
+    set: (c, v) => setProgress(c, { [key]: v === undefined ? undefined : Number(v) }),
+    parse: rangeParser(1, 100),
+  };
+}
+
+function progressFields(): Field[] {
+  return [
+    globalField(
+      'progress.enabled',
+      t('prog.tuiToggle'),
+      'bool',
+      (c) => c.progress?.enabled === true,
+      (c, v) => setProgress(c, { enabled: Boolean(v) }),
+      { help: t('prog.tuiHelp') },
+    ),
+    progressSelect('source', t('prog.sourceHelp')),
+    progressSelect('scaleTo', t('prog.scaleHelp')),
+    progressLevel('warnAt'),
+    progressLevel('errorAt'),
+    progressSelect('channel', t('prog.channelHelp')),
+    progressSelect('terminals', t('prog.terminalsHelp')),
+    globalField(
+      'progress.tmuxPassthrough',
+      t('prog.tmux'),
+      'bool',
+      (c) => c.progress?.tmuxPassthrough === true,
+      (c, v) => setProgress(c, { tmuxPassthrough: Boolean(v) }),
+      { help: t('prog.tmuxHelp') },
+    ),
+  ];
+}
+
 function sideField(
   group: 'title' | 'footer',
   side: 'left' | 'right',
@@ -744,6 +807,7 @@ function baseGlobalFields(): Field[] {
       { help: 'Lets the preview use your last real session data' },
     ),
     ...budgetFields(),
+    ...progressFields(),
     globalField(
       'profiles.builtIn',
       'Built-in model profiles',

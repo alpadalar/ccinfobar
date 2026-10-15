@@ -287,6 +287,55 @@ describe('budget fields', () => {
   });
 });
 
+describe('progress fields', () => {
+  it('lists every progress key with the right kind', () => {
+    const kinds = Object.fromEntries(
+      globalFields()
+        .filter((f) => f.id.startsWith('progress.'))
+        .map((f) => [f.id, f.kind]),
+    );
+    expect(kinds).toEqual({
+      'progress.enabled': 'bool',
+      'progress.source': 'select',
+      'progress.scaleTo': 'select',
+      'progress.warnAt': 'number',
+      'progress.errorAt': 'number',
+      'progress.channel': 'select',
+      'progress.terminals': 'select',
+      'progress.tmuxPassthrough': 'bool',
+    });
+    expect(field('progress.enabled').help).toContain('ccinfobar install --progress');
+    expect(field('progress.warnAt').range).toEqual([1, 100]);
+    expect(field('progress.errorAt').range).toEqual([1, 100]);
+  });
+
+  it('sets through setProgress and stays sparse', () => {
+    let c = field('progress.enabled').set(defaultConfig(), true);
+    expect(c.progress).toEqual({ enabled: true });
+    c = field('progress.source').set(c, 'usage5h');
+    c = field('progress.warnAt').set(c, 60);
+    c = field('progress.tmuxPassthrough').set(c, true);
+    expect(c.progress).toEqual({ enabled: true, source: 'usage5h', warnAt: 60, tmuxPassthrough: true });
+    expect(field('progress.warnAt').set(c, 50).progress?.warnAt).toBeUndefined();
+    expect(field('progress.warnAt').set(c, undefined).progress?.warnAt).toBeUndefined();
+    c = field('progress.source').set(c, 'context');
+    c = field('progress.warnAt').set(c, undefined);
+    c = field('progress.tmuxPassthrough').set(c, false);
+    expect('progress' in field('progress.enabled').set(c, false)).toBe(false);
+  });
+
+  it('shows defaults and cycles the selects', () => {
+    const c = defaultConfig();
+    const ch = field('progress.channel');
+    expect(displayValue(ch, c)).toEqual({ text: 'Auto', isDefault: true });
+    expect(cycled(ch, c, 1)).toBe('hook');
+    expect(displayValue(field('progress.errorAt'), c)).toEqual({ text: '80', isDefault: true });
+    expect(field('progress.warnAt').parse('0').ok).toBe(false);
+    expect(field('progress.warnAt').parse('101').ok).toBe(false);
+    expect(field('progress.warnAt').parse('70')).toEqual({ ok: true, value: 70 });
+  });
+});
+
 describe('profiles field', () => {
   it('toggles the built-in model profiles', () => {
     const f = field('profiles.builtIn');

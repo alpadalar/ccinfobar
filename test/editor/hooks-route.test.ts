@@ -115,6 +115,7 @@ describe('editor hooks route', () => {
       claudeCode: '2.1.299',
       events: SEVEN,
       optional: ['PermissionRequest'],
+      progress: [],
     };
     expect((await request('GET', '/api/state')).json().hooks).toEqual(want);
     expect((await request('GET', '/api/system')).json().hooks).toEqual(want);
@@ -238,5 +239,94 @@ describe('editor hooks route', () => {
     await request('GET', '/api/system');
     await request('POST', '/api/hooks', { enabled: true });
     expect(versionCalls).toBe(1);
+  });
+});
+
+const PROGRESS = ['UserPromptSubmit', 'Stop', 'StopFailure'];
+const progressGroups = (data: Record<string, any>) =>
+  PROGRESS.flatMap((e) =>
+    ((data.hooks?.[e] ?? []) as any[]).filter((g) => g.hooks[0].command === `${CMD} --progress hook ${e}`),
+  );
+
+describe('editor progress route', () => {
+  it('adds the sync progress handlers once', async () => {
+    await startInstalled('2.1.300');
+    const res = await request('POST', '/api/progress', { enabled: true });
+    expect(res.status).toBe(200);
+    const body = res.json();
+    expect(body.ok).toBe(true);
+    expect(body.hooks.progress).toEqual(PROGRESS);
+    expect(body.hooks.installed).toEqual([]);
+    const groups = progressGroups(readSettings());
+    expect(groups).toHaveLength(3);
+    for (const g of groups) expect(g.hooks[0].async).toBeUndefined();
+    const again = await request('POST', '/api/progress', { enabled: true });
+    expect(again.status).toBe(200);
+    expect(again.json().hooks.progress).toEqual(PROGRESS);
+    expect(progressGroups(readSettings())).toHaveLength(3);
+    expect(hookEntries()).toHaveLength(3);
+    expect((await request('GET', '/api/state')).json().hooks.progress).toEqual(PROGRESS);
+  });
+
+  it('removes only the progress handlers', async () => {
+    await startInstalled('2.1.300');
+    await request('POST', '/api/hooks', { enabled: true });
+    const before = JSON.stringify(readSettings().hooks);
+    await request('POST', '/api/progress', { enabled: true });
+    expect(progressGroups(readSettings())).toHaveLength(3);
+    const res = await request('POST', '/api/progress', { enabled: false });
+    expect(res.status).toBe(200);
+    expect(res.json().hooks.progress).toEqual([]);
+    expect(res.json().hooks.installed).toEqual(SEVEN);
+    expect(JSON.stringify(readSettings().hooks)).toBe(before);
+    expect(hookEntries()).toHaveLength(7);
+  });
+
+  it('turning hooks off keeps the progress handlers', async () => {
+    await startInstalled('2.1.300');
+    await request('POST', '/api/hooks', { enabled: true });
+    await request('POST', '/api/progress', { enabled: true });
+    const res = await request('POST', '/api/hooks', { enabled: false });
+    expect(res.status).toBe(200);
+    expect(res.json().hooks.installed).toEqual([]);
+    expect(res.json().hooks.progress).toEqual(PROGRESS);
+    expect(progressGroups(readSettings())).toHaveLength(3);
+    expect(Object.keys(readSettings().hooks).sort()).toEqual([...PROGRESS].sort());
+  });
+
+  it('refuses an old Claude Code with the progress text', async () => {
+    await startInstalled('2.1.100');
+    const before = fs.readFileSync(settings);
+    const res = await request('POST', '/api/progress', { enabled: true });
+    expect(res.status).toBe(409);
+    expect(res.json().error).toContain('2.1.141');
+    expect(res.json().error).toContain('2.1.100');
+    expect(res.json().hooks.progress).toEqual([]);
+    expect(fs.readFileSync(settings).equals(before)).toBe(true);
+  });
+
+  it('refuses when ccinfobar is not the active status line', async () => {
+    await start('2.1.300', FOREIGN);
+    const before = fs.readFileSync(settings);
+    expect((await request('POST', '/api/progress', { enabled: true })).status).toBe(409);
+    expect(fs.readFileSync(settings).equals(before)).toBe(true);
+  });
+
+  it('rejects a bad body and needs the token and a local origin', async () => {
+    await startInstalled('2.1.300');
+    expect((await request('POST', '/api/progress', { enabled: 'yes' })).status).toBe(400);
+    expect((await request('POST', '/api/progress', {})).status).toBe(400);
+    const bad = { 'x-ccinfobar-token': 'nope' };
+    expect((await request('POST', '/api/progress', { enabled: true }, bad)).status).toBe(401);
+    const evil = { origin: 'http://evil.example' };
+    expect((await request('POST', '/api/progress', { enabled: true }, evil)).status).toBe(403);
+    expect(readSettings().hooks).toBeUndefined();
+  });
+
+  it('never writes terminalProgressBarEnabled', async () => {
+    await startInstalled('2.1.300');
+    await request('POST', '/api/progress', { enabled: true });
+    await request('POST', '/api/progress', { enabled: false });
+    expect(fs.readFileSync(settings, 'utf8')).not.toContain('terminalProgressBarEnabled');
   });
 });
