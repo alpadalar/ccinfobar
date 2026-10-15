@@ -179,7 +179,8 @@ export function readAgents(
     let meta: Json = {};
     let stat: fs.Stats;
     try {
-      meta = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) as Json;
+      const parsed: unknown = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      if (parsed && typeof parsed === 'object') meta = parsed as Json;
       stat = fs.statSync(jsonl);
     } catch {
       continue;

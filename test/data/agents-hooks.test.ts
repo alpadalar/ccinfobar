@@ -100,6 +100,18 @@ describe('readAgents without hooks (D-13)', () => {
     );
   });
 
+  it('reads a null meta file as empty, like the hook path, instead of failing every agent', () => {
+    const f = setup();
+    f.add('a1', { first: NOW - 100_000, last: NOW - 10_000 });
+    f.add('a2', { first: NOW - 100_000, last: NOW - 10_000 });
+    fs.writeFileSync(path.join(f.sub, 'agent-a2.meta.json'), 'null');
+    const rows = readAgents(f.transcript, info(), NOW, f.env, { persist: false });
+    expect(rows.map((r) => [r.id, r.type, r.description])).toEqual([
+      ['a1', 'Explore', 'do a1'],
+      ['a2', 'agent', ''],
+    ]);
+  });
+
   it('D-13: a missing subagents dir is still empty', () => {
     const f = setup();
     expect(readAgents(f.transcript, info(), NOW, f.env, { hooks: null })).toEqual([]);
