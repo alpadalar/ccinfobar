@@ -284,13 +284,14 @@ function hookAgents(
   const out: AgentInfo[] = [];
   for (const m of metas) {
     const h = match.get(m);
+    const call = typeof m.meta.toolUseId === 'string' ? calls.get(m.meta.toolUseId) : undefined;
     let running: boolean;
     let ref = m.stat.mtimeMs;
     if (h) {
-      running = hookRunning(h, now);
-      ref = h.end ?? ref;
+      // a lost SubagentStop: the transcript says done
+      running = hookRunning(h, now) && !(call && call.done !== null);
+      ref = h.end ?? (call?.done || ref);
     } else {
-      const call = typeof m.meta.toolUseId === 'string' ? calls.get(m.meta.toolUseId) : undefined;
       const quiet = now - m.stat.mtimeMs;
       running = call ? call.done === null && (!call.async || quiet < LOST_MS) : quiet < LIVE_MS;
     }
@@ -312,7 +313,7 @@ function hookAgents(
   }
   for (const k of keys) {
     const h = hooks.agents[k]!;
-    if (used.has(k) || !hookRunning(h, now)) continue;
+    if (used.has(k) || !hookRunning(h, now) || (turn !== null && (h.start ?? 0) < turn)) continue;
     out.push({
       id: sanitizeText(k),
       type: (h.type !== null ? sanitizeText(h.type) : '') || 'agent',

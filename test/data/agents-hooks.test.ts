@@ -231,6 +231,30 @@ describe('readAgents with hooks (D-12)', () => {
     expect(scoped.map((r) => r.id)).toEqual(['a3']);
   });
 
+  it('trusts a finished transcript call over a hook agent without SubagentStop', () => {
+    const f = setup();
+    f.add('a1', { toolUseId: 'toolu_1', ...quiet });
+    const h = hooks({ a1: { type: 'Explore', start: NOW - 60_000 } });
+    const i = (done: number | null) => info({ agentCalls: [{ id: 'toolu_1', start: NOW - 60_000, done }] });
+    expect(readAgents(f.transcript, i(null), NOW, f.env, { hooks: h })[0]?.running).toBe(true);
+    expect(readAgents(f.transcript, i(NOW - 30_000), NOW, f.env, { hooks: h })[0]?.running).toBe(false);
+  });
+
+  it('drops an unmatched hook agent from an earlier turn', () => {
+    const f = setup();
+    const h = hooks({
+      old: { type: 'Plan', start: NOW - 600_000 },
+      cur: { type: 'Plan', start: NOW - 5_000 },
+    });
+    const rows = readAgents(f.transcript, info(), NOW, f.env, { hooks: h, turnStart: NOW - 60_000 });
+    expect(rows.map((r) => r.id)).toEqual(['cur']);
+    expect(
+      readAgents(f.transcript, info(), NOW, f.env, { hooks: h })
+        .map((r) => r.id)
+        .sort(),
+    ).toEqual(['cur', 'old']);
+  });
+
   it('sanitizes hook agent types', () => {
     const f = setup();
     f.add('a1', quiet);
