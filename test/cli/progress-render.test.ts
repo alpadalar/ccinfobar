@@ -148,7 +148,7 @@ describe('render wiring', () => {
     expect(sync).toBeGreaterThan(out);
     const tryAt = text.lastIndexOf('try {', sync);
     expect(tryAt).toBeGreaterThan(out);
-    expect(text).not.toMatch(/progressSeq|terminalProgressBarEnabled/);
+    expect(text).not.toMatch(/terminalProgressBarEnabled/);
   });
 
   it('writes the progress file from a real render', async () => {

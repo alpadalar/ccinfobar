@@ -19,6 +19,7 @@ import {
   recordLedger,
 } from '../data/ledger.js';
 import { accountKey, recordLimits } from '../data/limits.js';
+import { progressSeq } from '../data/progress.js';
 import { readRepos } from '../data/repos.js';
 import { writeAtomic } from '../data/store.js';
 import { terminalWidth } from '../data/terminal.js';
@@ -27,6 +28,7 @@ import { updateNotice } from '../data/update-state.js';
 import { effectiveUsage } from '../data/usage.js';
 import type { Args } from './args.js';
 import { syncProgress } from './progress.js';
+import { type TtyDeps, writeTty } from './progress-tty.js';
 
 // own copy: importing core/version.ts costs the render one more chunk
 declare const __VERSION__: string;
@@ -80,9 +82,9 @@ function safeLine(text: string): void {
   process.stdout.write(`${style(text, { dim: true }, detectLevel('auto'))}\n`);
 }
 
-export async function runRender(args: Args, cfgFile: string): Promise<void> {
+export async function runRender(args: Args, cfgFile: string, tty?: TtyDeps): Promise<void> {
   try {
-    await renderOnce(args, cfgFile);
+    await renderOnce(args, cfgFile, tty);
   } catch {
     try {
       safeLine(t('safe.render'));
@@ -90,7 +92,7 @@ export async function runRender(args: Args, cfgFile: string): Promise<void> {
   }
 }
 
-async function renderOnce(args: Args, cfgFile: string): Promise<void> {
+async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<void> {
   const loaded = loadForUse(cfgFile);
   if (loaded.issue) {
     safeLine(t('safe.line', { line: loaded.issue.line }));
@@ -148,6 +150,11 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
     scheduleJobs(config, payload, process.env, path.resolve(cwd), cfgFile, { repos });
   } catch {}
   try {
-    if (config.progress) syncProgress(ctx, process.env);
+    const p = config.progress;
+    const sync = p ? syncProgress(ctx, process.env, tty?.platform) : null;
+    if (p && sync?.changed && sync.want?.channel === 'tty') {
+      const opts = { tmuxPassthrough: p.tmuxPassthrough === true, always: sync.want.always };
+      writeTty(progressSeq(sync.want.state, sync.want.pct), process.env, opts, tty);
+    }
   } catch {}
 }
