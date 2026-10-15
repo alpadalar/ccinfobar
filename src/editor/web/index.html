@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
-<title>ccinfobar editor</title>
+<title data-i18n="web.app.docTitle">ccinfobar editor</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23131316'/%3E%3Crect x='6' y='9' width='20' height='3.5' rx='1.75' fill='%23e8895a'/%3E%3Crect x='6' y='14.5' width='13' height='3.5' rx='1.75' fill='%23e8895a' opacity='.7'/%3E%3Crect x='6' y='20' width='17' height='3.5' rx='1.75' fill='%23e8895a' opacity='.45'/%3E%3C/svg%3E">
 <!--STYLE-->
 </head>
@@ -14,82 +14,82 @@
   <header class="topbar">
     <div class="brand">
       <span class="logo" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="brand-name">ccinfobar</span>
+      <span class="brand-name" translate="no">ccinfobar</span>
       <span class="brand-version" id="version"></span>
     </div>
     <div class="sep"></div>
-    <button id="preset-btn" class="btn" type="button" title="Browse presets"><span class="btn-text">Presets</span></button>
-    <button id="theme-btn" class="btn" type="button" title="Browse themes"><span class="theme-btn-label">Theme</span></button>
+    <button id="preset-btn" class="btn" type="button" title="Browse presets" data-i18n-title="web.static.presetsTitle"><span class="btn-text" data-i18n="web.static.presets">Presets</span></button>
+    <button id="theme-btn" class="btn" type="button" title="Browse themes" data-i18n-title="web.static.themesTitle"><span class="theme-btn-label" data-i18n="insp.theme">Theme</span></button>
     <div class="btn-group">
-      <button id="undo" class="btn ghost" type="button" title="Undo (Ctrl+Z)"><span class="visually-hidden">Undo</span></button>
-      <button id="redo" class="btn ghost" type="button" title="Redo (Ctrl+Shift+Z)"><span class="visually-hidden">Redo</span></button>
+      <button id="undo" class="btn ghost" type="button" title="Undo (Ctrl+Z)" data-i18n-title="web.static.undoTitle"><span class="visually-hidden" data-i18n="web.static.undo">Undo</span></button>
+      <button id="redo" class="btn ghost" type="button" title="Redo (Ctrl+Shift+Z)" data-i18n-title="web.static.redoTitle"><span class="visually-hidden" data-i18n="web.static.redo">Redo</span></button>
     </div>
     <div class="btn-group">
-      <button id="import" class="btn ghost" type="button" title="Import JSON"><span class="btn-text">Import</span></button>
-      <button id="export" class="btn ghost" type="button" title="Export JSON"><span class="btn-text">Export</span></button>
+      <button id="import" class="btn ghost" type="button" title="Import JSON" data-i18n-title="web.static.importTitle"><span class="btn-text" data-i18n="web.app.import">Import</span></button>
+      <button id="export" class="btn ghost" type="button" title="Export JSON" data-i18n-title="web.static.exportTitle"><span class="btn-text" data-i18n="web.static.export">Export</span></button>
     </div>
     <div class="spacer"></div>
-    <div id="claude-status" class="claude-status" hidden><i></i><span>Active in Claude Code</span></div>
-    <div id="dirty" class="dirty"><i></i><span>All changes saved</span></div>
-    <button id="save" class="btn primary" type="button" title="Save (Ctrl+S)"><span>Save</span></button>
-    <button id="install" class="btn install" type="button" hidden><span class="install-label">Install in Claude Code</span></button>
-    <button id="settings-btn" class="btn ghost" type="button" title="Settings: Claude Code, updates, data"><span class="btn-text">Settings</span></button>
-    <button id="done" class="btn" type="button">Done</button>
+    <div id="claude-status" class="claude-status" hidden><i></i><span data-i18n="web.static.active">Active in Claude Code</span></div>
+    <div id="dirty" class="dirty"><i></i><span data-i18n="web.app.allSaved">All changes saved</span></div>
+    <button id="save" class="btn primary" type="button" title="Save (Ctrl+S)" data-i18n-title="web.static.saveTitle"><span data-i18n="web.static.save">Save</span></button>
+    <button id="install" class="btn install" type="button" hidden><span class="install-label" data-i18n="web.install.title">Install in Claude Code</span></button>
+    <button id="settings-btn" class="btn ghost" type="button" title="Settings: Claude Code, updates, data" data-i18n-title="web.static.settingsTitle"><span class="btn-text" data-i18n="web.settings.title">Settings</span></button>
+    <button id="done" class="btn" type="button" data-i18n="web.static.done">Done</button>
   </header>
 
-  <aside class="side palette" aria-label="Widget palette">
+  <aside class="side palette" aria-label="Widget palette" data-i18n-aria-label="web.static.palette">
     <div class="side-head">
-      <h2>Widgets</h2>
-      <div class="search"><span id="search-icon"></span><input id="search" class="input" type="search" placeholder="Search widgets" aria-label="Search widgets" autocomplete="off" spellcheck="false"></div>
+      <h2 data-i18n="web.static.widgets">Widgets</h2>
+      <div class="search"><span id="search-icon"></span><input id="search" class="input" type="search" placeholder="Search widgets" aria-label="Search widgets" data-i18n-placeholder="web.static.search" data-i18n-aria-label="web.static.search" autocomplete="off" spellcheck="false"></div>
     </div>
     <div id="palette-list" class="side-scroll"></div>
   </aside>
 
   <main class="center">
-    <section class="panel preview" aria-label="Live preview">
+    <section class="panel preview" aria-label="Live preview" data-i18n-aria-label="web.static.livePreview">
       <div class="panel-head">
-        <h2>Preview</h2>
+        <h2 data-i18n="web.static.preview">Preview</h2>
         <div class="preview-controls">
           <div id="term-picker" class="term-picker"></div>
-          <fieldset class="segmented" aria-label="Preview data">
-            <button id="src-sample" type="button" class="on">Sample data</button>
-            <button id="src-last" type="button">Last session</button>
+          <fieldset class="segmented" aria-label="Preview data" data-i18n-aria-label="web.static.previewData">
+            <button id="src-sample" type="button" class="on" data-i18n="web.static.sample">Sample data</button>
+            <button id="src-last" type="button" data-i18n="web.static.last">Last session</button>
           </fieldset>
-          <label class="visually-hidden" for="src-scenario">Scenario</label>
-          <select id="src-scenario" class="input" title="Preview a named situation"><option value="">Scenario&hellip;</option></select>
-          <label class="slider" title="Preview width only. In Claude Code the status line uses your terminal width."><span class="visually-hidden">Preview width</span>
+          <label class="visually-hidden" for="src-scenario" data-i18n="web.static.scenario">Scenario</label>
+          <select id="src-scenario" class="input" title="Preview a named situation" data-i18n-title="web.static.scenarioTitle"><option value="" data-i18n="web.static.scenarioPick">Scenario&hellip;</option></select>
+          <label class="slider" title="Preview width only. In Claude Code the status line uses your terminal width." data-i18n-title="web.static.widthTitle"><span class="visually-hidden" data-i18n="web.static.width">Preview width</span>
             <input id="width" type="range" min="40" max="240" step="1" value="130">
-            <output id="width-value">130 cols</output>
+            <output id="width-value" translate="no">130 cols</output>
           </label>
         </div>
       </div>
       <div class="term-scroll">
         <div class="term" id="term-screen">
-          <div class="term-bar"><i></i><i></i><i></i><span>claude</span></div>
+          <div class="term-bar"><i></i><i></i><i></i><span translate="no">claude</span></div>
           <div class="term-body">
-            <div class="term-prompt"><span class="term-caret">&gt;</span> <span class="term-muted">Ask Claude to build something</span></div>
+            <div class="term-prompt"><span class="term-caret" translate="no">&gt;</span> <span class="term-muted" data-i18n="web.static.prompt">Ask Claude to build something</span></div>
             <div id="term-lines" class="term-lines" aria-live="polite"></div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="panel canvas-panel" aria-label="Status line canvas">
+    <section class="panel canvas-panel" aria-label="Status line canvas" data-i18n-aria-label="web.static.canvas">
       <div class="panel-head">
-        <h2>Lines</h2>
-        <span class="panel-note">Drag widgets to arrange. Alt + arrow keys move the selected chip.</span>
-        <div id="trash" class="trash" title="Drop a widget here to remove it"><span>Drop to remove</span></div>
+        <h2 data-i18n="web.static.lines">Lines</h2>
+        <span class="panel-note" data-i18n="web.static.canvasNote">Drag widgets to arrange. Alt + arrow keys move the selected chip.</span>
+        <div id="trash" class="trash" title="Drop a widget here to remove it" data-i18n-title="web.static.trashTitle"><span data-i18n="web.static.trash">Drop to remove</span></div>
       </div>
       <div id="canvas" class="canvas"></div>
-      <button id="add-line" class="add-line" type="button"><span>Add line</span></button>
-      <div class="config-path">Editing <code id="config-path"></code></div>
+      <button id="add-line" class="add-line" type="button"><span data-i18n="web.static.addLine">Add line</span></button>
+      <div class="config-path"><span data-i18n="web.static.editing">Editing</span> <code translate="no" id="config-path"></code></div>
     </section>
   </main>
 
-  <aside class="side inspector" aria-label="Inspector">
+  <aside class="side inspector" aria-label="Inspector" data-i18n-aria-label="web.static.inspector">
     <div id="inspector-tabs" class="tabs" role="tablist">
-      <button type="button" role="tab" data-tab="widget" class="on">Widget</button>
-      <button type="button" role="tab" data-tab="global">Global</button>
+      <button type="button" role="tab" data-tab="widget" class="on" data-i18n="web.static.tabWidget">Widget</button>
+      <button type="button" role="tab" data-tab="global" data-i18n="web.static.tabGlobal">Global</button>
     </div>
     <div id="inspector-body" class="side-scroll"></div>
   </aside>

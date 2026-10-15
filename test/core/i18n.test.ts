@@ -18,6 +18,7 @@ import { inspectorMessages } from '../../src/core/i18n/en/inspector.js';
 import { installMessages } from '../../src/core/i18n/en/install.js';
 import { jobsMessages } from '../../src/core/i18n/en/jobs.js';
 import { previewMessages } from '../../src/core/i18n/en/preview.js';
+import { staticMessages } from '../../src/core/i18n/en/static.js';
 import { themeEditorMessages } from '../../src/core/i18n/en/theme-editor.js';
 import { widgetMessages } from '../../src/core/i18n/en/widgets.js';
 import {
@@ -57,6 +58,7 @@ import { inspectorMessages as trInspector } from '../../src/core/i18n/tr/inspect
 import { installMessages as trInstall } from '../../src/core/i18n/tr/install.js';
 import { jobsMessages as trJobs } from '../../src/core/i18n/tr/jobs.js';
 import { previewMessages as trPreview } from '../../src/core/i18n/tr/preview.js';
+import { staticMessages as trStatic } from '../../src/core/i18n/tr/static.js';
 import { themeEditorMessages as trThemeEditor } from '../../src/core/i18n/tr/theme-editor.js';
 import { widgetMessages as trWidgets } from '../../src/core/i18n/tr/widgets.js';
 import { renderPreview } from '../../src/core/preview.js';
@@ -243,6 +245,7 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['inspector', inspectorMessages, trInspector],
   ['editor', editorMessages, trEditor],
   ['theme-editor', themeEditorMessages, trThemeEditor],
+  ['static', staticMessages, trStatic],
 ];
 
 function forms(m: Message): string[] {
@@ -406,6 +409,7 @@ describe('en table', () => {
       inspectorMessages,
       editorMessages,
       themeEditorMessages,
+      staticMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);

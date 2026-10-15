@@ -90,7 +90,8 @@ export class FakeEl {
     return this.all((e) => (cls ? e.classList.contains(cls) : e.tagName === sel.toUpperCase()))[0] ?? null;
   }
   querySelectorAll(sel: string): FakeEl[] {
-    return this.all((e) => e.tagName === sel.toUpperCase());
+    const attr = /^\[([\w-]+)\]$/.exec(sel)?.[1];
+    return this.all((e) => (attr ? e.attrs.has(attr) : e.tagName === sel.toUpperCase()));
   }
   all(pred: (e: FakeEl) => boolean): FakeEl[] {
     const out: FakeEl[] = [];
