@@ -5,55 +5,16 @@ import { en } from '../../src/core/i18n/en/index.js';
 import { tr } from '../../src/core/i18n/tr/index.js';
 import { applyStatic } from '../../src/editor/web/i18n-static.js';
 import { withLang } from '../helpers.js';
-import { FakeEl, texts } from './fake-dom.js';
+import { FakeEl, parseHtml, texts } from './fake-dom.js';
 
 const html = fs.readFileSync(path.resolve(__dirname, '../../src/editor/web/index.html'), 'utf8');
 const ATTRS = ['title', 'placeholder', 'aria-label'];
-const VOID = new Set(['meta', 'link', 'input', 'br', 'img', 'hr']);
-const ENTITIES: Record<string, string> = { hellip: '…', gt: '>', lt: '<', amp: '&', nbsp: ' ', quot: '"' };
-
-const decode = (s: string) => s.replace(/&(\w+);/g, (m, k: string) => ENTITIES[k] ?? m);
 const message = (key: string): string | undefined => {
   const m = Object.hasOwn(en, key) ? (en as Record<string, unknown>)[key] : undefined;
   return typeof m === 'string' ? m : undefined;
 };
 
-type Node = { el: FakeEl; tag: string; attrs: Map<string, string>; elements: number };
-type Text = { text: string; stack: Node[] };
-
-function parse(src: string): { root: FakeEl; nodes: Node[]; textNodes: Text[] } {
-  const root = new FakeEl('ROOT');
-  const stack: Node[] = [];
-  const nodes: Node[] = [];
-  const textNodes: Text[] = [];
-  const top = () => stack[stack.length - 1]?.el ?? root;
-  for (const m of src.matchAll(/<!--[\s\S]*?-->|<!doctype[^>]*>|<(\/?)([a-zA-Z][\w-]*)([^>]*)>|([^<]+)/gi)) {
-    if (m[4] !== undefined) {
-      const text = decode(m[4]);
-      top().append(text);
-      if (text.trim()) textNodes.push({ text: text.trim(), stack: [...stack] });
-      continue;
-    }
-    if (!m[2]) continue;
-    const tag = m[2].toLowerCase();
-    if (m[1]) {
-      while (stack.length && stack.pop()!.tag !== tag) {}
-      continue;
-    }
-    const attrs = new Map<string, string>();
-    for (const a of m[3]!.matchAll(/([\w-]+)(?:="([^"]*)")?/g)) attrs.set(a[1]!, decode(a[2] ?? ''));
-    const el = new FakeEl(tag.toUpperCase());
-    for (const [k, v] of attrs) el.setAttribute(k, v);
-    const parent = stack[stack.length - 1];
-    if (parent) parent.elements++;
-    top().append(el);
-    const node: Node = { el, tag, attrs, elements: 0 };
-    nodes.push(node);
-    if (!VOID.has(tag)) stack.push(node);
-  }
-  return { root, nodes, textNodes };
-}
-
+const parse = parseHtml;
 const page = parse(html);
 
 describe('index.html keys', () => {

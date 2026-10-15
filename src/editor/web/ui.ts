@@ -1,4 +1,4 @@
-import { t } from '../../core/i18n/index.js';
+import { type MessageId, t } from '../../core/i18n/index.js';
 import { type Child, h, icon } from './dom.js';
 
 export function toast(message: string, kind: 'ok' | 'error' | 'info' = 'ok'): void {
@@ -19,6 +19,7 @@ export function toast(message: string, kind: 'ok' | 'error' | 'info' = 'ok'): vo
 
 export interface ModalOpts {
   title: string;
+  titleId?: MessageId;
   body: Child[];
   actions: (close: (value?: unknown) => void) => Child[];
   wide?: boolean;
@@ -48,14 +49,21 @@ export function modal<T = unknown>(opts: ModalOpts): Promise<T | undefined> {
         role: 'dialog',
         'aria-modal': 'true',
         'aria-label': opts.title,
+        'data-i18n-aria-label': opts.titleId,
       },
       h(
         'header',
         { class: 'modal-head' },
-        h('h2', null, opts.title),
+        h('h2', { 'data-i18n': opts.titleId }, opts.title),
         h(
           'button',
-          { class: 'icon-btn', type: 'button', title: t('web.ui.close'), onClick: () => close() },
+          {
+            class: 'icon-btn',
+            type: 'button',
+            title: t('web.ui.close'),
+            'data-i18n-title': 'web.ui.close',
+            onClick: () => close(),
+          },
           icon('x'),
         ),
       ),

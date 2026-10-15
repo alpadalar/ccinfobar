@@ -15,9 +15,7 @@ const SENTENCE = /^[A-Z][a-z]+[\s\S]*\s[A-Za-z]/;
 const LOWER3 = /\b(?:[a-z]+|[A-Z]{2,})(?: (?:[a-z]+|[A-Z]{2,})){2,}\b/g;
 
 // file and a fragment of the sink expression, with the plan that removes it
-const ALLOW: [string, string, string][] = [
-  ['app.ts', 'Cannot reach the editor', 'boot error before /api/state, rebuilt with text nodes in 08-21'],
-];
+const ALLOW: [string, string, string][] = [];
 
 type Sink = { line: number; expr: string };
 
@@ -124,7 +122,13 @@ describe('web html sinks', () => {
 
   it('finds the sinks in the editor', () => {
     const all = files.flatMap((f) => sinks(fs.readFileSync(path.join(dir, f), 'utf8')));
-    expect(all.length).toBeGreaterThanOrEqual(6);
+    expect(all.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('builds the boot error from text nodes', () => {
+    const src = fs.readFileSync(path.join(dir, 'app.ts'), 'utf8');
+    expect(src).toContain('replaceChildren(bootError(');
+    expect(sinks(src).filter((s) => /closed|boot/i.test(s.expr))).toEqual([]);
   });
 
   it('keeps ALLOW entries current', () => {

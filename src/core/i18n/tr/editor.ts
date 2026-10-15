@@ -47,6 +47,9 @@ export const editorMessages = {
   'web.settings.loadingText': 'Yükleniyor metni',
   'web.settings.loadingTextHelp':
     'Bağlam, token ve limit bileşenleri ilk yanıttan önce bunu gösterir. Kapatmak için boş bırakın.',
+  'web.settings.language': 'Dil',
+  'web.settings.languageAuto': 'Otomatik ({name})',
+  'web.settings.languageHelp': 'Otomatik, durum satırı gibi bu bilgisayarın dil ayarlarını izler.',
   'web.settings.data': 'Veri',
   'web.settings.usageApi': "Claude'dan kullanım",
   'web.settings.usageApiHelp':

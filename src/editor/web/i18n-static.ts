@@ -3,6 +3,15 @@ import { language, type MessageId, t } from '../../core/i18n/index.js';
 
 const ATTRS = ['title', 'placeholder', 'aria-label'] as const;
 
+export function browserLanguages(): readonly string[] {
+  try {
+    if (typeof navigator === 'undefined') return [];
+    return navigator.languages?.length ? navigator.languages : navigator.language ? [navigator.language] : [];
+  } catch {
+    return [];
+  }
+}
+
 function text(key: string | null): string | null {
   return key && Object.hasOwn(en, key) ? t(key as MessageId) : null;
 }

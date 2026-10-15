@@ -45,6 +45,9 @@ export const editorMessages = {
   'web.settings.loadingText': 'Loading text',
   'web.settings.loadingTextHelp':
     'Shown by context, token and limit widgets before the first reply. Leave empty to turn it off.',
+  'web.settings.language': 'Language',
+  'web.settings.languageAuto': 'Auto ({name})',
+  'web.settings.languageHelp': "Auto follows this machine's language settings, like the status line.",
   'web.settings.data': 'Data',
   'web.settings.usageApi': 'Usage from Claude',
   'web.settings.usageApiHelp': 'Fill usage limit widgets from your Claude login when Claude Code sends none.',

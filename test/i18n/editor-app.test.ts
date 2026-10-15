@@ -102,10 +102,12 @@ beforeAll(() => {
   g.location = { search: '', pathname: '/' };
   g.history = { replaceState() {} };
   g.fetch = async () => ({ ok: true, json: async () => JSON.parse(JSON.stringify(state)) });
+  vi.stubGlobal('navigator', { languages: [] });
 });
 
 afterAll(() => {
   for (const [k, v] of Object.entries(saved)) g[k] = v;
+  vi.unstubAllGlobals();
 });
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -129,7 +131,8 @@ async function boot(lang: 'en' | 'tr'): Promise<{ shown: () => string[]; title: 
   };
   g.document = doc;
   vi.resetModules();
-  (await import('../../src/core/i18n/index.js')).setLanguage(lang);
+  // the app takes its language from /api/state
+  (state as Record<string, unknown>).language = { id: lang, source: 'LANG' };
   await import('../../src/editor/web/app.js');
   await flush();
   await flush();

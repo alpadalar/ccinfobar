@@ -47,6 +47,7 @@ const SWEPT: string[] = [
   'src/editor/web/presets.ts',
   'src/editor/web/styles.ts',
   'src/editor/web/terminals.ts',
+  'src/editor/web/i18n-static.ts',
   'src/widgets/activity.ts',
   'src/widgets/agents.ts',
   'src/widgets/charts.ts',
@@ -128,8 +129,6 @@ const ALLOW: Record<string, string[]> = {
     // CSS classes
     'icon-btn danger sm',
     'input mono import-area',
-    // boot error, rebuilt from text nodes in 08-21
-    '<div class="closed"><h2>Cannot reach the editor</h2><p>X. Reopen the URL printed by <code>ccinfobar edit</code>.</p></div>',
   ],
   // CSS classes
   'src/editor/web/theme-builder.ts': ['input mono mini-color-text', 'icon-btn sm danger', 'btn ghost sm'],

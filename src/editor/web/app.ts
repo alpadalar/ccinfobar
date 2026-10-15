@@ -1,6 +1,7 @@
 import {
   addLine,
   insertItem,
+  keepLanguage,
   moveItem,
   moveLine,
   removeItem,
@@ -9,15 +10,17 @@ import {
   uniqueId,
 } from '../../core/edit.js';
 import { scenarioText } from '../../core/i18n/catalog-text.js';
-import { type MessageId, t } from '../../core/i18n/index.js';
+import { type LanguageId, language, type MessageId, setLanguage, t } from '../../core/i18n/index.js';
+import { pickUiLanguage } from '../../core/i18n/resolve.js';
 import { categoryText, widgetText } from '../../core/i18n/widget-text.js';
 import { titleWidgets } from '../../core/panel.js';
 import type { Config } from '../../core/types.js';
-import { ansiToHtml, escapeHtml } from './ansi-html.js';
+import { ansiToHtml } from './ansi-html.js';
 import { ApiError, api, previewSource, setToken } from './api.js';
 import { colorToCss } from './colors.js';
 import { type DragSpec, type DropTarget, press } from './dnd.js';
 import { clear, h, icon } from './dom.js';
+import { applyStatic, browserLanguages } from './i18n-static.js';
 import { initInspector, renderInspector } from './inspector.js';
 import { installDialog } from './install-dialog.js';
 import { openPresets } from './presets.js';
@@ -549,7 +552,7 @@ async function importJson(): Promise<void> {
                 throw new Error(t('web.app.importBad'));
               }
               const { config } = await api.normalize(parsed);
-              replaceAll(config);
+              replaceAll(keepLanguage(config, S.config));
               close();
               toast(t('web.app.imported'));
             } catch (e) {
@@ -635,6 +638,57 @@ function onKeydown(e: KeyboardEvent): void {
   }
 }
 
+function renderScenarios(): void {
+  const sel = $<HTMLSelectElement>('src-scenario');
+  const value = sel.value;
+  for (const o of [...sel.querySelectorAll<HTMLOptionElement>('option')]) if (o.value) o.remove();
+  sel.append(
+    ...S.api.scenarios.map((s) =>
+      h('option', { value: s.id, title: scenarioText(s, 'description') }, scenarioText(s, 'label')),
+    ),
+  );
+  sel.value = value;
+}
+
+function lastTitle(): void {
+  $('src-last').title = S.api.hasLastPayload ? t('web.app.lastPayload') : t('web.app.noPayload');
+}
+
+let relabelPicker = () => {};
+
+// config, then this machine's auto answer, then the browser
+function uiLanguage(): LanguageId {
+  return pickUiLanguage(S.config.language, S.api.language?.id, browserLanguages());
+}
+
+function syncLanguage(): boolean {
+  const id = uiLanguage();
+  if (id === language()) return false;
+  setLanguage(id);
+  applyStatic(document);
+  renderScenarios();
+  lastTitle();
+  relabelPicker();
+  renderConfigBanner();
+  applyWidth();
+  renderPalette();
+  renderCanvas();
+  renderInspector();
+  renderChrome();
+  return true;
+}
+
+function bootError(message: string): HTMLElement {
+  const [before = '', after = ''] = t('web.static.bootHelp').split('{command}');
+  const fill = (s: string) => s.split('{error}').join(message);
+  return h(
+    'div',
+    { class: 'closed' },
+    h('h2', null, t('web.static.bootTitle')),
+    h('p', null, fill(before), h('code', null, 'ccinfobar edit'), fill(after)),
+  );
+}
+
 function setupStatic(): void {
   for (const [id, name] of [
     ['undo', 'undo'],
@@ -685,11 +739,7 @@ function setupStatic(): void {
   const sample = $<HTMLButtonElement>('src-sample');
   const last = $<HTMLButtonElement>('src-last');
   const scenario = $<HTMLSelectElement>('src-scenario');
-  scenario.append(
-    ...S.api.scenarios.map((s) =>
-      h('option', { value: s.id, title: scenarioText(s, 'description') }, scenarioText(s, 'label')),
-    ),
-  );
+  renderScenarios();
   const setSource = (s: 'sample' | 'last' | 'scenario') => {
     S.source = s;
     S.scenario = s === 'scenario' ? scenario.value : null;
@@ -704,9 +754,9 @@ function setupStatic(): void {
   last.addEventListener('click', () => setSource('last'));
   scenario.addEventListener('change', () => setSource(scenario.value ? 'scenario' : 'sample'));
   last.disabled = !S.api.hasLastPayload;
-  last.title = S.api.hasLastPayload ? t('web.app.lastPayload') : t('web.app.noPayload');
+  lastTitle();
   setSource('sample');
-  initTerminalPicker($('term-picker'), S.api.terminal);
+  relabelPicker = initTerminalPicker($('term-picker'), S.api.terminal);
   initInspector();
   window.addEventListener('keydown', onKeydown);
   window.addEventListener('beforeunload', onUnload);
@@ -723,16 +773,21 @@ async function boot(): Promise<void> {
   try {
     init(await api.state());
   } catch (err) {
-    $('boot').innerHTML =
-      `<div class="closed"><h2>Cannot reach the editor</h2><p>${escapeHtml((err as Error).message)}. Reopen the URL printed by <code>ccinfobar edit</code>.</p></div>`;
+    setLanguage(pickUiLanguage(undefined, undefined, browserLanguages()));
+    applyStatic(document);
+    $('boot').replaceChildren(bootError((err as Error).message));
     return;
   }
+  setLanguage(uiLanguage());
+  applyStatic(document);
   $('boot').remove();
   renderConfigBanner();
   if (S.api.configError && !S.api.configIssue)
     toast(t('web.app.configProblem', { error: S.api.configError }), 'error');
   setupStatic();
+  // undo, presets and import can change it too
   on('config', (o) => {
+    if (syncLanguage()) return;
     renderCanvas();
     if (o.inspector !== false) renderInspector();
   });

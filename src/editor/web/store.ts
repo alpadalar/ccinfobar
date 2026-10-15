@@ -90,6 +90,7 @@ export interface ApiState {
   hasLastPayload: boolean;
   scenarios: { id: string; label: string; description: string }[];
   terminal: import('./terminals.js').DetectedColors | null;
+  language?: { id: string; source: string };
 }
 
 export interface Store {

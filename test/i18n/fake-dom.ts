@@ -1,6 +1,7 @@
 // minimal DOM for rendering editor code in node
 export class FakeEl {
   id = '';
+  lang = '';
   htmlFor = '';
   className = '';
   value = '';
@@ -119,4 +120,55 @@ export function texts(el: FakeEl): string[] {
   };
   walk(el);
   return out;
+}
+
+const VOID = new Set(['meta', 'link', 'input', 'br', 'img', 'hr']);
+const ENTITIES: Record<string, string> = {
+  hellip: '…',
+  gt: '>',
+  lt: '<',
+  amp: '&',
+  nbsp: '\u00a0',
+  quot: '"',
+};
+
+const decode = (s: string) => s.replace(/&(\w+);/g, (m, k: string) => ENTITIES[k] ?? m);
+export type HtmlNode = { el: FakeEl; tag: string; attrs: Map<string, string>; elements: number };
+export type HtmlText = { text: string; stack: HtmlNode[] };
+
+// index.html as FakeEl, with every element and text node
+export function parseHtml(src: string): { root: FakeEl; nodes: HtmlNode[]; textNodes: HtmlText[] } {
+  const root = new FakeEl('ROOT');
+  const stack: HtmlNode[] = [];
+  const nodes: HtmlNode[] = [];
+  const textNodes: HtmlText[] = [];
+  const top = () => stack[stack.length - 1]?.el ?? root;
+  for (const m of src.matchAll(/<!--[\s\S]*?-->|<!doctype[^>]*>|<(\/?)([a-zA-Z][\w-]*)([^>]*)>|([^<]+)/gi)) {
+    if (m[4] !== undefined) {
+      const text = decode(m[4]);
+      top().append(text);
+      if (text.trim()) textNodes.push({ text: text.trim(), stack: [...stack] });
+      continue;
+    }
+    if (!m[2]) continue;
+    const tag = m[2].toLowerCase();
+    if (m[1]) {
+      while (stack.length && stack.pop()!.tag !== tag) {}
+      continue;
+    }
+    const attrs = new Map<string, string>();
+    for (const a of m[3]!.matchAll(/([\w-]+)(?:="([^"]*)")?/g)) attrs.set(a[1]!, decode(a[2] ?? ''));
+    const el = new FakeEl(tag.toUpperCase());
+    for (const [k, v] of attrs) el.setAttribute(k, v);
+    el.id = attrs.get('id') ?? '';
+    el.className = attrs.get('class') ?? '';
+    el.hidden = attrs.has('hidden');
+    const parent = stack[stack.length - 1];
+    if (parent) parent.elements++;
+    top().append(el);
+    const node: HtmlNode = { el, tag, attrs, elements: 0 };
+    nodes.push(node);
+    if (!VOID.has(tag)) stack.push(node);
+  }
+  return { root, nodes, textNodes };
 }

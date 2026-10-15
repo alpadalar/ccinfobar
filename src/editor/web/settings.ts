@@ -6,6 +6,7 @@ import {
   refreshReasons,
   removeProfileOverride,
   setBudget,
+  setLanguageSetting,
   setProfilesBuiltIn,
   setProgress,
   timeRuleFeed,
@@ -13,7 +14,9 @@ import {
 } from '../../core/edit.js';
 import { en } from '../../core/i18n/en/index.js';
 import { formatDateTime } from '../../core/i18n/format.js';
-import { languageLocale, type MessageId, t } from '../../core/i18n/index.js';
+import { type LanguageSetting, languageLocale, type MessageId, t } from '../../core/i18n/index.js';
+import { LANGUAGES, nativeName } from '../../core/i18n/languages.js';
+import { pickUiLanguage } from '../../core/i18n/resolve.js';
 import { titleWidgets } from '../../core/panel.js';
 import {
   PROFILE_LABEL_MAX,
@@ -25,6 +28,7 @@ import {
 import type { Config, ProfileOverride, ProgressConfig } from '../../core/types.js';
 import { api, idText } from './api.js';
 import { clear, h, icon } from './dom.js';
+import { browserLanguages } from './i18n-static.js';
 import { field, numberInput, segmented, textInput, toggle } from './inspector.js';
 import { installDialog } from './install-dialog.js';
 import { applySaved, commit, type HooksInfo, S } from './store.js';
@@ -256,9 +260,28 @@ export function profilesFields(c: Config, apply: ProfileApply, draft: ProfileDra
   ];
 }
 
-// the language field (08-21) joins these
-function appearanceFields(c: Config): HTMLElement[] {
+// option texts are native names
+function languageField(c: Config, rerender: () => void): HTMLElement {
+  const auto = pickUiLanguage(undefined, S.api.language?.id, browserLanguages());
+  const sel = h(
+    'select',
+    {
+      class: 'input',
+      onChange: () => {
+        commit(setLanguageSetting(S.config, sel.value as LanguageSetting));
+        rerender();
+      },
+    },
+    h('option', { value: 'auto' }, t('web.settings.languageAuto', { name: nativeName(auto) })),
+    ...LANGUAGES.map((l) => h('option', { value: l.id, lang: l.id }, l.name)),
+  );
+  sel.value = c.language ?? 'auto';
+  return field(t('web.settings.language'), sel, t('web.settings.languageHelp'));
+}
+
+function appearanceFields(c: Config, rerender: () => void): HTMLElement[] {
   return [
+    languageField(c, rerender),
     field(
       t('web.settings.loadingText'),
       textInput(
@@ -590,7 +613,7 @@ export async function openSettings(): Promise<void> {
             : null,
         ),
       ),
-      section(t('insp.appearance'), ...appearanceFields(c)),
+      section(t('insp.appearance'), ...appearanceFields(c, render)),
       section(
         t('web.settings.data'),
         field(
@@ -658,9 +681,14 @@ export async function openSettings(): Promise<void> {
     .catch(() => {});
   await modal({
     title: t('web.settings.title'),
+    titleId: 'web.settings.title',
     body: [body],
     actions: (close) => [
-      h('button', { class: 'btn primary', type: 'button', onClick: () => close() }, t('web.settings.done')),
+      h(
+        'button',
+        { class: 'btn primary', type: 'button', 'data-i18n': 'web.settings.done', onClick: () => close() },
+        t('web.settings.done'),
+      ),
     ],
   });
 }

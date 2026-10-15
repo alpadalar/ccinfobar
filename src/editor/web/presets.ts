@@ -1,3 +1,4 @@
+import { keepLanguage } from '../../core/edit.js';
 import { presetText } from '../../core/i18n/catalog-text.js';
 import { t } from '../../core/i18n/index.js';
 import { ansiToHtml } from './ansi-html.js';
@@ -114,7 +115,7 @@ export async function openPresets(): Promise<void> {
       ))
     )
       return;
-    replaceAll(structuredClone(p.config));
+    replaceAll(keepLanguage(structuredClone(p.config), S.config));
     toast(t('presets.applied', { name: presetText(p, 'name') }), 'info');
     close();
   }
@@ -212,7 +213,11 @@ export async function openPresets(): Promise<void> {
     await Promise.all(
       S.api.presets.map(async (p) => {
         try {
-          const r = await api.preview({ ...p.config, widthOffset: 0 }, previewSource(S), cols);
+          const r = await api.preview(
+            { ...keepLanguage(p.config, S.config), widthOffset: 0 },
+            previewSource(S),
+            cols,
+          );
           if (v === version) previews.set(p.id, r.lines);
         } catch {}
       }),

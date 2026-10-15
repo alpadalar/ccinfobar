@@ -38,7 +38,8 @@ function swatch(p: TerminalProfile, size: 'sm' | 'lg' = 'lg'): HTMLSpanElement {
   );
 }
 
-export function initTerminalPicker(mount: HTMLElement, detectedColors: DetectedColors | null): void {
+// returns a relabel function
+export function initTerminalPicker(mount: HTMLElement, detectedColors: DetectedColors | null): () => void {
   const detected = detectedColors ? detectedProfile(detectedColors) : null;
   const profiles = detected ? [detected, ...TERMINALS] : TERMINALS;
   let choice: TerminalChoice = load() ?? { id: detected ? 'detected' : 'default' };
@@ -181,4 +182,10 @@ export function initTerminalPicker(mount: HTMLElement, detectedColors: DetectedC
     }
   });
   apply();
+  return () => {
+    button.setAttribute('title', t('web.term.title'));
+    panel.setAttribute('aria-label', t('web.term.colors'));
+    apply();
+    if (!panel.hidden) render();
+  };
 }
