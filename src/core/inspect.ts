@@ -220,7 +220,7 @@ function httpReason(ctx: RenderContext, item: WidgetItem): EmptyReason {
     case 'bad-url':
     case 'bad-path':
       return reason('bad-option', undefined, {
-        key: s.kind === 'bad-url' ? 'url' : 'path',
+        key: s.kind === 'bad-url' ? (s.field ?? 'url') : 'path',
         error: sanitizeText(s.error),
       });
     case 'pending':

@@ -137,7 +137,7 @@ describe('http widget', () => {
     expect(text(ok(balance({ ok: true, v: { a: 1 } as never })))).toBeNull();
   });
 
-  it('hides an item that would send env values over plain http', () => {
+  it('hides an item that would send env values over plain http or a denied env var', () => {
     const insecure = { url: 'http://relay.example.com/balance' };
     const e = ok(balance({ ok: true, v: 1 }));
     expect(text(e, insecure)).toBeNull();
@@ -145,6 +145,18 @@ describe('http widget', () => {
     expect(httpState(ctxWith({ jobs: () => reader(e) }), item)).toEqual({
       kind: 'bad-url',
       error: 'secrets need https or localhost',
+      field: 'headers',
+    });
+    const denied: WidgetItem = {
+      id: 'h',
+      type: 'http',
+      options: { ...base, headers: 'X=$ANTHROPIC_API_KEY' },
+    };
+    expect(text(e, denied.options)).toBeNull();
+    expect(httpState(ctxWith({ jobs: () => reader(e) }), denied)).toEqual({
+      kind: 'bad-url',
+      error: 'env ANTHROPIC_API_KEY is not allowed in http items',
+      field: 'headers',
     });
   });
 

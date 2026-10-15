@@ -857,6 +857,20 @@ describe('http explain', () => {
     expect(path.text).toContain("unexpected '-' at 5");
   });
 
+  it('names the field of a refused item and maps insecure-url', () => {
+    const denied = why(null, item({ headers: 'X=$ANTHROPIC_API_KEY' }));
+    expect(denied).toEqual({
+      code: 'bad-option',
+      text: t('explain.reason.bad-option', {
+        key: 'headers',
+        error: 'env ANTHROPIC_API_KEY is not allowed in http items',
+      }),
+    });
+    const plain = why(null, item({ url: 'http://x.example/?k=${K}' }));
+    expect(plain.text).toContain('secrets need https or localhost');
+    expect(why(failed('insecure-url')).text).toContain(t('explain.job.insecure-url'));
+  });
+
   it('reports path-miss and not-scalar from the job', () => {
     expect(why(okEnv({ ok: false, code: 'path-miss' })).code).toBe('path-miss');
     expect(why(okEnv({ ok: false, code: 'not-scalar' })).code).toBe('not-scalar');

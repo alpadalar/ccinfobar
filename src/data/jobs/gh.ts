@@ -170,7 +170,7 @@ function childEnv(env: NodeJS.ProcessEnv, keepEnterprise: boolean): NodeJS.Proce
   return out;
 }
 
-async function storedHosts(
+export async function storedHosts(
   exec: ExecFileLike,
   env: NodeJS.ProcessEnv,
   now: number,

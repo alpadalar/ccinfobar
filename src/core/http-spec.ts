@@ -134,7 +134,7 @@ const hasPlaceholder = (s: string): boolean => s.includes('$') || /%7b/i.test(s)
 
 export function parseUrlTemplate(
   raw: string,
-): { ok: true; vars: string[]; plain: boolean } | { ok: false; error: string } {
+): { ok: true; vars: string[]; plain: boolean; hostname: string } | { ok: false; error: string } {
   if (typeof raw !== 'string' || !raw) return { ok: false, error: 'url is empty' };
   if (raw.length > MAX_URL) return { ok: false, error: `url longer than ${MAX_URL} characters` };
   if (URL_BAD.test(raw)) return { ok: false, error: 'url contains spaces or control characters' };
@@ -149,15 +149,78 @@ export function parseUrlTemplate(
   if ([url.hostname, url.pathname, url.hash].some(hasPlaceholder)) return { ok: false, error: PLACEMENT };
   const vars: string[] = [];
   for (const p of s.parts) if (typeof p !== 'string' && !vars.includes(p.env)) vars.push(p.env);
-  return { ok: true, vars, plain: url.protocol === 'http:' && !isLoopback(url.hostname) };
+  const hostname = url.hostname.toLowerCase();
+  return { ok: true, vars, plain: url.protocol === 'http:' && !isLoopback(hostname), hostname };
+}
+
+const DENY_PREFIX = [
+  'ANTHROPIC_',
+  'CLAUDE_',
+  'AWS_',
+  'GOOGLE_',
+  'GCLOUD_',
+  'GCP_',
+  'AZURE_',
+  'CCINFOBAR_',
+  'SSH_',
+];
+const DENY_NAMES = new Set(['NPM_TOKEN', 'NODE_AUTH_TOKEN']);
+const GH_TOKENS = new Set(['GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN']);
+
+export const ghApiHost = (hostname: string): boolean =>
+  hostname === 'api.github.com' || hostname.endsWith('.ghe.com');
+
+// gh: only to github hosts or one gh is logged in to
+export function envRule(name: string, hostname: string): 'ok' | 'denied' | 'gh' {
+  const n = name.toUpperCase();
+  if (DENY_NAMES.has(n) || DENY_PREFIX.some((p) => n.startsWith(p))) return 'denied';
+  if (GH_TOKENS.has(n)) return ghApiHost(hostname.toLowerCase()) ? 'ok' : 'gh';
+  return 'ok';
+}
+
+export interface HttpRefusal {
+  code: string;
+  message: string;
+  key: 'url' | 'headers';
+}
+
+// gh hosts unknown (undefined): gh tokens are left to the worker
+export function httpRefusal(url: string, headers: string, ghHosts?: readonly string[]): HttpRefusal | null {
+  const u = parseUrlTemplate(url);
+  if (!u.ok) return { code: 'bad-url', message: u.error, key: 'url' };
+  const names = parseHeaderSpec(headers).headers.map((h) => h.env);
+  if (u.plain && (u.vars.length || names.length))
+    return { code: 'insecure-url', message: NEEDS_TLS, key: u.vars.length ? 'url' : 'headers' };
+  for (const [key, list] of [
+    ['url', u.vars],
+    ['headers', names],
+  ] as const) {
+    for (const name of list) {
+      const rule = envRule(name, u.hostname);
+      if (rule === 'denied')
+        return { code: `env ${name} denied`, message: `env ${name} is not allowed in http items`, key };
+      if (rule === 'gh' && ghHosts && !ghHosts.includes(u.hostname))
+        return {
+          code: `env ${name} denied`,
+          message: `env ${name} is sent only to api.github.com, *.ghe.com or a host gh is logged in to`,
+          key,
+        };
+    }
+  }
+  return null;
 }
 
 // what the worker refuses; normalize keeps it so explain can say why
-export function httpItemError(url: string, headers: string): string | null {
+export function httpItemError(url: string, headers: string, ghHosts?: readonly string[]): string | null {
+  return httpRefusal(url, headers, ghHosts)?.message ?? null;
+}
+
+// env names a url and headers pair sends that need a host gh lists
+export function ghTokenNames(url: string, headers: string): string[] {
   const u = parseUrlTemplate(url);
-  if (!u.ok) return u.error;
-  if (u.plain && (u.vars.length || parseHeaderSpec(headers).headers.length)) return NEEDS_TLS;
-  return null;
+  if (!u.ok) return [];
+  const names = [...u.vars, ...parseHeaderSpec(headers).headers.map((h) => h.env)];
+  return names.filter((n) => envRule(n, u.hostname) === 'gh');
 }
 
 export function resolveUrl(

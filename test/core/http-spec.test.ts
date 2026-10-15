@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   describeHeaders,
+  envRule,
   externalTargets,
+  ghTokenNames,
   httpItemError,
+  httpRefusal,
   NEEDS_TLS,
   normalizeHeaderSpec,
   parseHeaderSpec,
@@ -98,16 +101,18 @@ describe('parseUrlTemplate', () => {
       ok: true,
       vars: ['API_KEY'],
       plain: false,
+      hostname: 'api.example.com',
     });
     expect(parseUrlTemplate('http://localhost:8080/x?a=${A}&b=1&c=${B}&d=${A}#top')).toEqual({
       ok: true,
       vars: ['A', 'B'],
       plain: false,
+      hostname: 'localhost',
     });
     expect(parseUrlTemplate('https://x.com/p?q=pre-${A}-post')).toMatchObject({ ok: true, vars: ['A'] });
     expect(parseUrlTemplate('https://x.com/')).toMatchObject({ ok: true, vars: [] });
     expect(parseUrlTemplate('https://x.com/?$top=5')).toMatchObject({ ok: true, vars: [] });
-    expect(parseUrlTemplate('http://x.com/')).toEqual({ ok: true, vars: [], plain: true });
+    expect(parseUrlTemplate('http://X.com/')).toEqual({ ok: true, vars: [], plain: true, hostname: 'x.com' });
   });
 
   it.each([
@@ -165,6 +170,53 @@ describe('httpItemError', () => {
 
   it('passes url errors through', () => {
     expect(httpItemError('https://${H}.x.com/', '')).toBe('placeholders are only allowed in query values');
+  });
+});
+
+describe('env deny-list', () => {
+  it('refuses credentials of Claude, cloud and package tools anywhere', () => {
+    for (const name of [
+      'ANTHROPIC_API_KEY',
+      'CLAUDE_CODE_OAUTH_TOKEN',
+      'AWS_SECRET_ACCESS_KEY',
+      'GOOGLE_API_KEY',
+      'GCLOUD_TOKEN',
+      'GCP_KEY',
+      'AZURE_CLIENT_SECRET',
+      'CCINFOBAR_X',
+      'NPM_TOKEN',
+      'NODE_AUTH_TOKEN',
+      'SSH_AUTH_SOCK',
+      'anthropic_api_key',
+    ]) {
+      expect(envRule(name, 'api.example.com'), name).toBe('denied');
+      expect(httpRefusal('https://api.example.com/q', `X=$${name}`)).toEqual({
+        code: `env ${name} denied`,
+        message: `env ${name} is not allowed in http items`,
+        key: 'headers',
+      });
+      expect(httpRefusal(`https://api.example.com/q?k=\${${name}}`, '')?.key).toBe('url');
+    }
+    for (const name of ['RELAY_TOKEN', 'OPENROUTER_KEY', 'MY_AWS', 'SSHKEY'])
+      expect(envRule(name, 'x.com'), name).toBe('ok');
+  });
+
+  it('sends GitHub tokens only to GitHub hosts or hosts gh lists', () => {
+    for (const host of ['api.github.com', 'api.acme.ghe.com'])
+      expect(httpRefusal(`https://${host}/user`, 'Authorization=Bearer $GH_TOKEN', [])).toBeNull();
+    const other = 'https://ghe.corp.example/api/v3/user';
+    expect(envRule('GITHUB_TOKEN', 'ghe.corp.example')).toBe('gh');
+    expect(httpRefusal(other, 'Authorization=Bearer $GITHUB_TOKEN')).toBeNull();
+    expect(httpRefusal(other, 'Authorization=Bearer $GITHUB_TOKEN', ['ghe.corp.example'])).toBeNull();
+    expect(httpRefusal(other, 'Authorization=Bearer $GITHUB_TOKEN', ['github.com'])).toMatchObject({
+      code: 'env GITHUB_TOKEN denied',
+      key: 'headers',
+    });
+    expect(ghTokenNames(other, 'A=$GH_TOKEN, B=$GH_ENTERPRISE_TOKEN, C=$RELAY')).toEqual([
+      'GH_TOKEN',
+      'GH_ENTERPRISE_TOKEN',
+    ]);
+    expect(ghTokenNames('https://api.github.com/x', 'A=$GH_TOKEN')).toEqual([]);
   });
 });
 

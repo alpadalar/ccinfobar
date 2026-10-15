@@ -126,6 +126,17 @@ describe('editor http option validation', () => {
     expect(headers.error()).toBe('');
   });
 
+  it('flags denied env names on the field that uses them', async () => {
+    const headers = await control('headers', 'X-Key=$ANTHROPIC_API_KEY', { url: 'https://x.example/v1' });
+    expect(headers.error()).toBe('env ANTHROPIC_API_KEY is not allowed in http items');
+    headers.type('X-Key=$RELAY_TOKEN');
+    expect(headers.error()).toBe('');
+    const url = await control('url', 'https://x.example/v1?k=${AWS_SECRET_ACCESS_KEY}');
+    expect(url.error()).toBe('env AWS_SECRET_ACCESS_KEY is not allowed in http items');
+    const other = await control('url', 'https://x.example/v1', { headers: 'X-Key=$NPM_TOKEN' });
+    expect(other.error()).toBe('');
+  });
+
   it('shows no error for other widgets or options', async () => {
     const c = await control('format', '{value');
     expect(c.error()).toBe('');

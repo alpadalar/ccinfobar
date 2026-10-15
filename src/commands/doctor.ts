@@ -20,6 +20,7 @@ import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionSpec, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { readHookState } from '../data/hooks.js';
+import { GH_HOSTS_KEY } from '../data/jobs/gh.js';
 import { httpGroups } from '../data/jobs/http.js';
 import { jobFor } from '../data/jobs/index.js';
 import {
@@ -117,6 +118,7 @@ function httpItemLines(
   opts: Record<string, unknown>,
   line: number,
   env: Record<string, string | undefined>,
+  ghHosts?: readonly string[],
 ): string[] {
   const url = text(opts.url);
   const headers = text(opts.headers);
@@ -132,7 +134,7 @@ function httpItemLines(
       env: safe(vars.join(', ')) || t('doctor.http.noEnv'),
     }),
   ];
-  const refused = url ? httpItemError(url, headers) : null;
+  const refused = url ? httpItemError(url, headers, ghHosts) : null;
   if (!url) out.push(t('doctor.http.noUrl', { line }));
   else if (refused) out.push(t('doctor.http.badUrl', { line, error: safe(refused) }));
   else {
@@ -150,11 +152,13 @@ function httpItemLines(
 export function httpReport(raw: unknown, env: Record<string, string | undefined> = process.env): string[] {
   const out: string[] = [];
   if (!isRecord(raw) || !Array.isArray(raw.lines)) return out;
+  const hosts = readEnvelope<{ hosts?: unknown }>(GH_HOSTS_KEY, env as NodeJS.ProcessEnv)?.value?.hosts;
+  const ghHosts = Array.isArray(hosts) ? hosts.filter((h): h is string => typeof h === 'string') : undefined;
   raw.lines.forEach((items: unknown, index) => {
     if (!Array.isArray(items)) return;
     for (const item of items) {
       if (!isRecord(item) || item.type !== 'http') continue;
-      out.push(...httpItemLines(isRecord(item.options) ? item.options : {}, index + 1, env));
+      out.push(...httpItemLines(isRecord(item.options) ? item.options : {}, index + 1, env, ghHosts));
     }
   });
   return out;

@@ -1,9 +1,17 @@
-import { httpItemError, NEEDS_TLS, parseHeaderSpec, resolveUrl } from '../../core/http-spec.js';
+import {
+  ghTokenNames,
+  httpItemError,
+  httpRefusal,
+  parseHeaderSpec,
+  parseUrlTemplate,
+  resolveUrl,
+} from '../../core/http-spec.js';
 import type { HttpPathResult, HttpValue } from '../../core/job-values.js';
 import { evaluatePath, parsePath } from '../../core/jsonpath.js';
 import { sanitizeText } from '../../core/sanitize.js';
 import type { Config, OptionValue } from '../../core/types.js';
 import { errorCode, fetchJson, JobFetchError } from './fetch.js';
+import { defaultExecFile, storedHosts } from './gh.js';
 import { httpKey } from './keys.js';
 import { defaultDue, failEnvelope, type Job, okEnvelope } from './runner.js';
 
@@ -17,6 +25,7 @@ export interface HttpGroup {
 }
 
 const RETRY_MS = 60_000;
+const GH_HOST_BLOCK = 3_600_000;
 const DEFAULT_INTERVAL = 300;
 const MIN_INTERVAL = 30;
 const DEFAULT_TIMEOUT = 5000;
@@ -100,13 +109,24 @@ export const httpJob: Job<HttpValue> = {
     return defaultDue(e, now, req.ttlMs ?? DEFAULT_INTERVAL * 1000);
   },
   async run(req, ctx) {
-    const fail = (error: string, retryAfterMs: number | null = null) =>
-      failEnvelope(req.key, ctx.prev, error, ctx.now, { retryMs: RETRY_MS, retryAfterMs });
+    const fail = (error: string, retryAfterMs: number | null = null, blockMs?: number) =>
+      failEnvelope(req.key, ctx.prev, error, ctx.now, {
+        retryMs: RETRY_MS,
+        retryAfterMs,
+        ...(blockMs ? { blockMs } : {}),
+      });
     const group = httpGroups(ctx.config).get(req.key);
     if (!group) return fail('not-configured');
     // checked before any env value is read
-    const refused = httpItemError(group.url, group.headers);
-    if (refused) return fail(refused === NEEDS_TLS ? 'insecure-url' : 'bad-url');
+    const refused = httpRefusal(group.url, group.headers);
+    if (refused) return fail(refused.code);
+    const gh = ghTokenNames(group.url, group.headers);
+    if (gh.length) {
+      const tpl = parseUrlTemplate(group.url);
+      const hosts = await storedHosts(ctx.execFile ?? defaultExecFile, ctx.env, ctx.now);
+      if (hosts === 'missing' || !tpl.ok || !hosts.includes(tpl.hostname))
+        return fail(`env ${gh[0]} denied`, null, GH_HOST_BLOCK);
+    }
     const spec = parseHeaderSpec(group.headers);
     if (spec.errors.length) return fail('bad-headers');
     // secrets stay in locals; only fixed codes and env names leave

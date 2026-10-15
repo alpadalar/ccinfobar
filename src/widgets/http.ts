@@ -1,5 +1,5 @@
 import { truncate } from '../core/ansi.js';
-import { httpItemError } from '../core/http-spec.js';
+import { httpRefusal } from '../core/http-spec.js';
 import type { HttpPathResult, HttpValue } from '../core/job-values.js';
 import { parsePath } from '../core/jsonpath.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -15,7 +15,7 @@ export const httpStaleMs = (intervalS: number): number => Math.max(3 * intervalS
 
 export type HttpState =
   | { kind: 'no-url' }
-  | { kind: 'bad-url'; error: string }
+  | { kind: 'bad-url'; error: string; field?: 'url' | 'headers' }
   | { kind: 'bad-path'; error: string }
   | { kind: 'pending'; key: string }
   | { kind: 'error'; key: string; error: string | null }
@@ -35,8 +35,8 @@ export function httpState(ctx: RenderContext, item: WidgetItem): HttpState {
   const url = opt(item, 'url', '');
   if (!url) return { kind: 'no-url' };
   const headers = opt(item, 'headers', '');
-  const refused = httpItemError(url, headers);
-  if (refused) return { kind: 'bad-url', error: refused };
+  const refused = httpRefusal(url, headers);
+  if (refused) return { kind: 'bad-url', error: refused.message, field: refused.key };
   const path = pathOf(item);
   const parsed = parsePath(path);
   if (!parsed.ok) return { kind: 'bad-path', error: parsed.error };

