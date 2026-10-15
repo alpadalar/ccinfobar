@@ -26,6 +26,7 @@ import {
   updateItem,
 } from '../core/edit.js';
 import { type MessageId, t } from '../core/i18n/index.js';
+import { choiceLabel, optionHelp, optionLabel } from '../core/i18n/widget-text.js';
 import { BOX_PRESETS } from '../core/panel.js';
 import { resolveAppearance } from '../core/renderer.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -184,10 +185,10 @@ function baseField(
   }
 }
 
-function optionField(spec: NonNullable<WidgetDef['options']>[number], itemId: string): Field {
+function optionField(def: WidgetDef, spec: NonNullable<WidgetDef['options']>[number], itemId: string): Field {
   const field: Field = {
     id: `option:${spec.key}`,
-    label: spec.label,
+    label: optionLabel(def, spec),
     kind: spec.kind === 'boolean' ? 'bool' : spec.kind,
     fallback: spec.default,
     resettable: true,
@@ -201,8 +202,10 @@ function optionField(spec: NonNullable<WidgetDef['options']>[number], itemId: st
     set: (config, value) => setOption(config, itemId, spec.key, value),
     parse: spec.kind === 'number' ? parseNumberText : parseText,
   };
-  if (spec.help) field.help = spec.help;
-  if (spec.choices) field.choices = spec.choices;
+  const help = optionHelp(def, spec);
+  if (help) field.help = help;
+  if (spec.choices)
+    field.choices = spec.choices.map((c) => ({ value: c.value, label: choiceLabel(def, spec, c) }));
   return field;
 }
 
@@ -219,7 +222,7 @@ export function widgetFields(def: WidgetDef | undefined, itemId: string, config?
     ...base,
     ...visibilityFields(itemId, config),
     ...priority,
-    ...shown.map((o) => optionField(o, itemId)),
+    ...(def ? shown.map((o) => optionField(def, o, itemId)) : []),
   ];
 }
 

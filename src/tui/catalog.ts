@@ -1,3 +1,6 @@
+import { foldSearch } from '../core/i18n/format.js';
+import { languageLocale } from '../core/i18n/index.js';
+import { categoryText, widgetText } from '../core/i18n/widget-text.js';
 import type { WidgetCategory, WidgetDef } from '../core/types.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 
@@ -7,8 +10,12 @@ export function categoryOrder(): WidgetCategory[] {
   return ordered;
 }
 
-export function categoryName(id: WidgetCategory): string {
+function englishCategory(id: WidgetCategory): string {
   return CATEGORIES.find((c) => c.id === id)?.name ?? id;
+}
+
+export function categoryName(id: WidgetCategory): string {
+  return categoryText(id, englishCategory(id));
 }
 
 function subsequence(hay: string, needle: string): number | null {
@@ -23,30 +30,49 @@ function subsequence(hay: string, needle: string): number | null {
   return Math.max(1, 30 - gaps);
 }
 
-function tokenScore(def: WidgetDef, token: string): number | null {
+interface Token {
+  plain: string;
+  folded: string;
+}
+
+function tokenScore(def: WidgetDef, token: Token, locale: string): number | null {
+  const { plain, folded } = token;
   const name = def.name.toLowerCase();
   const type = def.type.toLowerCase();
-  const cat = categoryName(def.category).toLowerCase();
+  const english = englishCategory(def.category);
+  const cat = english.toLowerCase();
+  const shown = widgetText(def, 'name');
+  const tname = shown === def.name ? null : foldSearch(shown, locale);
+  const shownCat = categoryText(def.category, english);
+  const tcat = shownCat === english ? null : foldSearch(shownCat, locale);
   let best: number | null = null;
   const consider = (v: number | null) => {
     if (v !== null && (best === null || v > best)) best = v;
   };
-  const nameAt = name.indexOf(token);
-  if (nameAt >= 0) consider(300 - nameAt + (nameAt === 0 ? 100 : 0));
-  const typeAt = type.indexOf(token);
+  const byName = (hay: string, t: string) => {
+    const at = hay.indexOf(t);
+    if (at >= 0) consider(300 - at + (at === 0 ? 100 : 0));
+  };
+  byName(name, plain);
+  if (tname !== null) byName(tname, folded);
+  const typeAt = type.indexOf(plain);
   if (typeAt >= 0) consider(250 - typeAt + (typeAt === 0 ? 50 : 0));
-  const catAt = cat.indexOf(token);
-  if (catAt >= 0 || def.category.includes(token)) consider(150);
-  consider(subsequence(name, token));
-  consider(subsequence(type, token));
+  if (cat.includes(plain) || tcat?.includes(folded) || def.category.includes(plain)) consider(150);
+  consider(subsequence(name, plain));
+  if (tname !== null) consider(subsequence(tname, folded));
+  consider(subsequence(type, plain));
   return best;
 }
 
 export function widgetScore(def: WidgetDef, filter: string): number | null {
-  const tokens = filter.toLowerCase().split(/\s+/).filter(Boolean);
+  const locale = languageLocale();
+  const tokens = filter
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => ({ plain: t.toLowerCase(), folded: foldSearch(t, locale) }));
   let total = 0;
   for (const t of tokens) {
-    const s = tokenScore(def, t);
+    const s = tokenScore(def, t, locale);
     if (s === null) return null;
     total += s;
   }

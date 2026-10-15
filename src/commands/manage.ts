@@ -8,6 +8,7 @@ import { keepLanguage } from '../core/edit.js';
 import { resolveGlyphMode } from '../core/glyphs.js';
 import { formatDateTime } from '../core/i18n/format.js';
 import { languageLocale, t } from '../core/i18n/index.js';
+import { categoryText, widgetText } from '../core/i18n/widget-text.js';
 import { loadForUse } from '../core/load.js';
 import { tildify } from '../core/paths.js';
 import { forGsd, listPresets } from '../core/presets.js';
@@ -261,9 +262,9 @@ export function runWidgets(_args: Args, _cfgFile: string): void {
   for (const cat of CATEGORIES) {
     const list = ALL_WIDGETS.filter((w) => !w.hidden && w.category === cat.id);
     if (!list.length) continue;
-    console.log(`\n${cat.name}`);
+    console.log(`\n${categoryText(cat.id, cat.name)}`);
     const pad = Math.max(...list.map((w) => visibleWidth(w.type)));
-    for (const w of list) console.log(`  ${padVisible(w.type, pad)}  ${w.description}`);
+    for (const w of list) console.log(`  ${padVisible(w.type, pad)}  ${widgetText(w, 'description')}`);
   }
 }
 

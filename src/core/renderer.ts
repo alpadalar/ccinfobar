@@ -17,6 +17,7 @@ import { CATEGORY_PRIORITY, overflowOf } from './display-opts.js';
 import { foldText, pasteSafeText, resolveGlyphMode, stripLinks, widthModeFor } from './glyphs.js';
 import { setLanguage } from './i18n/index.js';
 import { isLanguageId } from './i18n/languages.js';
+import { widgetHint, widgetText } from './i18n/widget-text.js';
 import { hasItemRules, ruleDecision } from './metrics.js';
 import { renderPanel } from './panel.js';
 import {
@@ -131,13 +132,13 @@ export function labelFor(def: WidgetDef, item: WidgetItem, icons: Config['icons'
   if (icons === 'none') return '';
   if (icons === 'nerd' && def.icon?.nerd) return `${def.icon.nerd} `;
   if (icons === 'emoji' && def.icon?.emoji) return `${def.icon.emoji} `;
-  return def.label ?? '';
+  return widgetText(def, 'label');
 }
 
 export const EMPTY_VALUE = '—';
 
 export function emptyHint(def: WidgetDef): string {
-  return def.name.replace(/^(GSD|Git)\s+/i, '').toLowerCase();
+  return widgetHint(def);
 }
 
 export function renderValue(ctx: RenderContext, def: WidgetDef, item: WidgetItem): WidgetOutput | null {

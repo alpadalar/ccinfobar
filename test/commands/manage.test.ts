@@ -184,6 +184,21 @@ describe('widgets', () => {
       for (const b of blocks) expect(new Set(b).size, lang).toBe(1);
     }
   });
+
+  it('prints translated category headings and keeps the types', () => {
+    const run = () => capture(() => runWidgets(parseArgs(['widgets']), '')).out.join('\n');
+    const en = run();
+    const tr = withLang('tr', run);
+    expect(en).toContain('\nContext window\n');
+    expect(tr).toContain('\nBağlam penceresi\n');
+    expect(tr).toContain('\nGit\n');
+    const types = (s: string) =>
+      s
+        .split('\n')
+        .filter((l) => l.startsWith('  '))
+        .map((l) => l.trim().split(' ')[0]);
+    expect(types(tr)).toEqual(types(en));
+  });
 });
 
 describe('usage', () => {

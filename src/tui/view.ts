@@ -1,5 +1,6 @@
 import { parseColor, stripAnsi, style, truncate, visibleWidth } from '../core/ansi.js';
 import { t } from '../core/i18n/index.js';
+import { widgetText } from '../core/i18n/widget-text.js';
 import { renderPreview } from '../core/preview.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { resolveTheme } from '../core/themes.js';
@@ -62,7 +63,8 @@ function box(title: string, content: string[], cols: number): string[] {
 }
 
 function itemLabel(item: WidgetItem): string {
-  return getWidget(item.type)?.name ?? `? ${item.type}`;
+  const def = getWidget(item.type);
+  return def ? widgetText(def, 'name') : `? ${item.type}`;
 }
 
 interface Row {
@@ -150,8 +152,8 @@ function contextPanel(state: State, cols: number, height: number): string[] {
   } else if (item) {
     const def = getWidget(item.type);
     body.push(
-      `${bold(def?.name ?? item.type)} ${dim(`(${item.type}${def ? ` · ${categoryName(def.category)}` : ' · unknown widget'})`)}`,
-      def?.description ?? dim('This widget type is not registered.'),
+      `${bold(def ? widgetText(def, 'name') : item.type)} ${dim(`(${item.type}${def ? ` · ${categoryName(def.category)}` : ' · unknown widget'})`)}`,
+      def ? widgetText(def, 'description') : dim('This widget type is not registered.'),
       summary(item),
       dim(`id ${item.id}`),
     );
@@ -183,12 +185,12 @@ function pickerModal(state: State, mode: Extract<Mode, { kind: 'picker' }>, w: n
   const items = pickerItems(mode.filter, state.gsd);
   const lines = [rule('Add widget', w), ` ${dim('Filter:')} ${mode.filter}${inv(' ')}`];
   const listH = Math.max(1, h - 3);
-  type R = { header: string } | { index: number };
+  type R = { header: string; gsd: boolean } | { index: number };
   const rows: R[] = [];
   let last = '';
   items.forEach((def, index) => {
     if (def.category !== last) {
-      rows.push({ header: categoryName(def.category) });
+      rows.push({ header: categoryName(def.category), gsd: def.category === 'gsd' });
       last = def.category;
     }
     rows.push({ index });
@@ -208,22 +210,24 @@ function pickerModal(state: State, mode: Extract<Mode, { kind: 'picker' }>, w: n
       continue;
     }
     if ('header' in r) {
-      lines.push(` ${bold(fg(r.header, r.header === 'GSD' ? 'brightYellow' : 'brightBlue'))}`);
+      lines.push(` ${bold(fg(r.header, r.gsd ? 'brightYellow' : 'brightBlue'))}`);
       continue;
     }
     const def = items[r.index]!;
     const sel = r.index === mode.cursor;
-    const base = `   ${pad(def.name, nameW)} ${pad(def.type, typeW)} ${def.description}`;
+    const name = widgetText(def, 'name');
+    const desc = widgetText(def, 'description');
+    const base = `   ${pad(name, nameW)} ${pad(def.type, typeW)} ${desc}`;
     lines.push(
       sel
         ? inv(pad(base, w))
-        : `   ${pad(def.name, nameW)} ${dim(pad(def.type, typeW))} ${dim(truncate(def.description, Math.max(0, w - nameW - typeW - 5)))}`,
+        : `   ${pad(name, nameW)} ${dim(pad(def.type, typeW))} ${dim(truncate(desc, Math.max(0, w - nameW - typeW - 5)))}`,
     );
     hits.push({ kind: 'item', area: 'main', index: r.index, x: 0, y: lines.length - 1, w });
   }
   if (!items.length) lines[2] = ` ${dim('No widgets match. Esc to cancel.')}`;
   const cur = items[mode.cursor];
-  lines.push(cur ? dim(` ${truncate(cur.description, w - 2)}`) : '');
+  lines.push(cur ? dim(` ${truncate(widgetText(cur, 'description'), w - 2)}`) : '');
   return { lines, hits };
 }
 

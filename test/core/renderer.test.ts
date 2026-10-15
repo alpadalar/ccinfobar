@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { stripAnsi, visibleWidth } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
-import { language, setLanguage } from '../../src/core/i18n/index.js';
+import { type LanguageDef, language, type MetaTable, setLanguage } from '../../src/core/i18n/index.js';
 import { finalizeLine, render, renderValue, workspaceMode } from '../../src/core/renderer.js';
 import { samplePayload } from '../../src/core/sample.js';
 import type { StatusPayload, WidgetDef, WidgetItem, WidgetResult } from '../../src/core/types.js';
@@ -282,5 +282,46 @@ describe('render language', () => {
     expect(() => render(broken)).toThrow();
     expect(language()).toBe('en');
     setLanguage('en');
+  });
+});
+
+describe('render widget metadata', () => {
+  const meta: MetaTable = {
+    widgets: {
+      'context-percentage': { name: 'Bağlam yüzdesi', description: 'D', label: 'Bğl ' },
+      model: { name: 'İstatistik', description: 'D' },
+    },
+    options: {},
+    categories: {},
+    catalog: {},
+  };
+  const zz: LanguageDef = { id: 'zz', name: 'Test', aliases: [], locale: 'tr', messages: {}, meta };
+
+  it('translates the default label and keeps a user label', () => {
+    const ctx = ctxWith({
+      config: {
+        lines: [
+          [
+            { id: 'c', type: 'context-percentage' },
+            { id: 'd', type: 'context-percentage', label: 'Ctx' },
+          ],
+        ],
+      },
+    });
+    const en = stripAnsi(render(ctx)[0]!);
+    const out = withLang(zz, () => stripAnsi(render(ctx)[0]!));
+    expect(en).toMatch(/^Ctx \S+ │ Ctx \S+$/);
+    expect(out).toBe(en.replace(/^Ctx /, 'Bğl '));
+  });
+
+  it('translates the empty hint with the language locale', () => {
+    const spy = vi.spyOn(getWidget('model')!, 'render').mockReturnValue(null);
+    try {
+      const ctx = ctxWith({ config: { lines: [[{ id: 'm', type: 'model' }]] } });
+      expect(stripAnsi(render(ctx)[0]!)).toBe('model —');
+      expect(withLang(zz, () => stripAnsi(render(ctx)[0]!))).toBe('istatistik —');
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
