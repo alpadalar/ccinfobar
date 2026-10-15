@@ -47,10 +47,13 @@ function rule(title: string, cols: number): string {
   return dim('──') + bold(head) + dim(dashes(cols - visibleWidth(`── ${title} `) - 1));
 }
 
-const boxInner = (cols: number) => cols - 2 - 2 * lineW();
+// whole dashes on the bottom edge
+const boxCols = (cols: number) => cols - ((cols - 2 * lineW()) % lineW());
+const boxInner = (cols: number) => boxCols(cols) - 2 - 2 * lineW();
 
-function box(title: string, content: string[], cols: number): string[] {
+function box(title: string, content: string[], full: number): string[] {
   const cw = lineW();
+  const cols = boxCols(full);
   const inner = boxInner(cols);
   const name = ` ${truncate(title, cols - 3 - 3 * cw)} `;
   const fill = Math.max(0, cols - 3 * cw - visibleWidth(name));

@@ -3,6 +3,7 @@ import { stripAnsi, visibleWidth } from '../../src/core/ansi.js';
 import { parseArea, pickBreakpoint, sizeColumns } from '../../src/core/panel.js';
 import { render } from '../../src/core/renderer.js';
 import type { TuiConfig, WidgetItem } from '../../src/core/types.js';
+import { visibleWidthIn, type WidthMode } from '../../src/core/width.js';
 import { ctxWith } from '../helpers.js';
 
 const text = (t: string, extra: Partial<WidgetItem> = {}): WidgetItem => ({
@@ -203,6 +204,55 @@ describe('panel style', () => {
 
   it('returns nothing when every cell is empty', () => {
     expect(panel({ breakpoints: [{ minWidth: 0, areas: ['nope'] }] })).toEqual([]);
+  });
+});
+
+describe('panel width', () => {
+  const long = 'x'.repeat(100);
+  const widths = (out: string[], m: WidthMode = { emoji: 2, ambiguous: 1 }) =>
+    out.map((l) => visibleWidthIn(l, m));
+
+  it.each([
+    ['left', { left: long }],
+    ['right', { left: 'a', right: long }],
+    ['both', { left: long, right: long }],
+    ['left only', { left: long, right: false }],
+  ] as const)('keeps a truncated %s title inside the box', (_name, title) => {
+    for (const width of [40, 41, 50]) {
+      const out = panel({ fitContent: false, title }, width);
+      expect(widths(out), out.join('\n')).toEqual(out.map(() => width));
+      expect(out[0]).toContain('…');
+    }
+  });
+
+  it('measures box glyphs with ambiguousWidth 2', () => {
+    const wide = { emoji: 2, ambiguous: 2 } as const;
+    for (const width of [40, 41, 60]) {
+      const out = render(
+        ctxWith({
+          width,
+          config: {
+            theme: 'panel',
+            widthOffset: 0,
+            ambiguousWidth: 2,
+            tui: { fitContent: false },
+            lines: [[text('alpha'), text('beta')], [text('gamma')]],
+          },
+        }),
+      ).map(stripAnsi);
+      const ws = widths(out, wide);
+      expect(new Set(ws).size, out.join('\n')).toBe(1);
+      expect(ws[0]).toBeLessThanOrEqual(width);
+      expect(ws[0]).toBeGreaterThanOrEqual(width - 1);
+      expect(out[0]).toMatch(/╮$/);
+      expect(out[2]).toMatch(/^├─+┤$/);
+    }
+  });
+
+  it('fills dividers by visible width', () => {
+    const out = panel({ fitContent: false, divider: '＝' }, 40);
+    expect(out[2]).toBe(`├${'＝'.repeat(19)}┤`);
+    expect(widths(out)).toEqual(out.map(() => 40));
   });
 });
 

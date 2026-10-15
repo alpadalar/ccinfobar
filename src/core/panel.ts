@@ -395,14 +395,18 @@ export function renderPanel(
   const natural = byLine
     ? [Math.max(0, ...rows.map((r) => (r.divider ? 0 : contentWidth(r.cells.map((c) => widthOf(c.name))))))]
     : sizeColumns(specs, rows, widthOf, null, gapW);
+  // box glyphs are two columns wide under ambiguousWidth 2
+  const frame = 2 * visibleWidth(b.vertical);
+  const hw = Math.max(1, visibleWidth(b.horizontal));
   let inner: number;
   if (fit) {
-    inner = Math.max(minW - 2 - padding * 2, contentWidth(natural));
-    if (target !== null) inner = Math.min(inner, target - 2 - padding * 2);
+    inner = Math.max(minW - frame - padding * 2, contentWidth(natural));
+    if (target !== null) inner = Math.min(inner, target - frame - padding * 2);
   } else {
-    inner = (target ?? minW) - 2 - padding * 2;
+    inner = (target ?? minW) - frame - padding * 2;
   }
   inner = Math.max(4, inner);
+  inner -= (inner + padding * 2 + frame - visibleWidth(b.topLeft) - visibleWidth(b.topRight)) % hw;
   const widths = byLine ? [inner] : sizeColumns(specs, rows, widthOf, inner, gapW);
   const rowWidths = new Map<Row, number[]>();
   if (byLine) {
@@ -410,20 +414,27 @@ export function renderPanel(
     sizeLineRows(rows, rowWidths, widthOf, fills, inner, gapW);
   }
   const total = inner + padding * 2;
+  const full = total + frame;
   const side = ' '.repeat(padding);
+  const fillWith = (ch: string, cols: number): string => {
+    const w = Math.max(1, visibleWidth(ch));
+    const n = Math.max(0, Math.floor(cols / w));
+    return ch.repeat(n) + ' '.repeat(Math.max(0, cols - n * w));
+  };
 
   const edge = (left: string, right: string, l?: string, r?: string | false): string => {
     const lt = l ? template(l) : '';
     const rt = r ? template(r) : '';
-    if (!lt && !rt) return border(left + b.horizontal.repeat(total) + right);
-    const room = total - 2;
-    const lText = lt ? ` ${truncate(lt, Math.max(1, room - (rt ? visibleWidth(rt) + 3 : 0)))} ` : '';
-    const rText = rt ? ` ${truncate(rt, Math.max(1, room - visibleWidth(lText)))} ` : '';
-    const fill = Math.max(0, total - 1 - visibleWidth(lText) - visibleWidth(rText) - (rText ? 1 : 0));
+    const span = full - visibleWidth(left) - visibleWidth(right);
+    if (!lt && !rt) return border(left + fillWith(b.horizontal, span) + right);
+    const room = span - 2 * hw;
+    const lText = lt ? ` ${truncate(lt, Math.max(1, room - (rt ? visibleWidth(rt) + 4 : 2)))} ` : '';
+    const rText = rt ? ` ${truncate(rt, Math.max(1, room - 2 - visibleWidth(lText)))} ` : '';
+    const fill = Math.max(0, span - hw - visibleWidth(lText) - visibleWidth(rText) - (rText ? hw : 0));
     return (
       border(left + b.horizontal) +
       lText +
-      border(b.horizontal.repeat(fill)) +
+      border(fillWith(b.horizontal, fill)) +
       rText +
       border((rText ? b.horizontal : '') + right)
     );
@@ -433,7 +444,11 @@ export function renderPanel(
   for (const r of rows) {
     if (r.divider) {
       const ch = tui.divider ?? b.horizontal;
-      out.push(border(b.teeLeft + ch.repeat(total) + b.teeRight));
+      out.push(
+        border(
+          b.teeLeft + fillWith(ch, full - visibleWidth(b.teeLeft) - visibleWidth(b.teeRight)) + b.teeRight,
+        ),
+      );
       continue;
     }
     let col = 0;
@@ -455,7 +470,7 @@ export function renderPanel(
     }
   }
   out.push(edge(b.bottomLeft, b.bottomRight, tui.footer?.left, tui.footer?.right));
-  const free = maxWidth === null ? 0 : maxWidth - (total + 2);
+  const free = maxWidth === null ? 0 : maxWidth - full;
   const place = ctx.config.align ?? 'left';
   if (free <= 0 || place === 'left') return out;
   const shift = ' '.repeat(place === 'center' ? Math.floor(free / 2) : free);
