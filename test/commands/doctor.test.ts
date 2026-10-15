@@ -3,9 +3,11 @@ import fs from 'node:fs';
 import module from 'node:module';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { envLanguage } from '../../src/cli/lang.js';
 import {
   commandWarnings,
   configWarnings,
+  languageLine,
   printWidgetReport,
   runDoctor,
   usageLine,
@@ -247,9 +249,10 @@ describe('runDoctor language', () => {
     vi.stubEnv('LC_ALL', '');
     try {
       const out = withEnvLang('', () => capture(() => runDoctor(file)));
-      expect(out.some((l) => /^ {2}Language: English \(en, from (system locale|default)\)$/.test(l))).toBe(
-        true,
-      );
+      // the ICU default decides (Turkish in the tr-locale CI job)
+      const sys = envLanguage({});
+      expect(['Intl', 'default']).toContain(sys.source);
+      expect(out).toContain(withLang(sys.id, () => languageLine(sys)));
     } finally {
       vi.unstubAllEnvs();
     }

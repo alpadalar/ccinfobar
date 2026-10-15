@@ -44,6 +44,32 @@ jobs:
           node dist/ccinfobar.js --payload test/fixtures/payload.json --width 120
           node dist/ccinfobar.js preview --width 120
 
+  test-tr-locale:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      LANG: tr_TR.UTF-8
+      LC_ALL: tr_TR.UTF-8
+    steps:
+      - uses: actions/checkout@v5
+      - name: Generate the Turkish locale
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo locale-gen tr_TR.UTF-8 || { echo 'tr_TR.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen && sudo locale-gen; }
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Confirm the ICU default is Turkish
+        shell: bash
+        run: node -e "const l=Intl.DateTimeFormat().resolvedOptions().locale;console.log(l);if(!/^tr\b/.test(l))process.exit(1)"
+      - run: npm run check
+
   clean-install:
     timeout-minutes: 20
     strategy:
