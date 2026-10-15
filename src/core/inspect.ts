@@ -9,7 +9,7 @@ import { getWidget } from '../widgets/index.js';
 import { projectionState } from '../widgets/projection.js';
 import { isLoadingOutput } from '../widgets/shared.js';
 import { STATUS_STALE_MS, serviceState } from '../widgets/status.js';
-import { stripAnsi, visibleWidth } from './ansi.js';
+import { stripAnsi } from './ansi.js';
 import { describeRuleError, type MetricValue, type Visibility } from './conditions.js';
 import { resolveGlyphMode, widthModeFor } from './glyphs.js';
 import { t } from './i18n/index.js';

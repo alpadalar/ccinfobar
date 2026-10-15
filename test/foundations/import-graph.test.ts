@@ -74,6 +74,7 @@ const PURE = [
   'src/core/width.ts',
   'src/core/conditions.ts',
   'src/core/glyphs.ts',
+  'src/core/display-opts.ts',
   'src/core/themes/builtin.ts',
   'src/core/themes/style.ts',
   'src/data/live.ts',

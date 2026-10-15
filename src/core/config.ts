@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { writeAtomic } from '../data/store.js';
+import { GLYPH_MODES, OVERFLOW_MODES } from './display-opts.js';
 import { normalizeHeaderSpec, parseHeaderSpec, parseUrlTemplate } from './http-spec.js';
 import { t } from './i18n/index.js';
 import { locateJsonError, locateKey } from './json-locate.js';
@@ -10,9 +11,7 @@ import type {
   Align,
   BoxChars,
   Config,
-  GlyphMode,
   GlyphOverrides,
-  OverflowMode,
   ProgressConfig,
   ThemeStyle,
   TuiBreakpoint,
@@ -269,14 +268,7 @@ export function normalizeProgress(raw: unknown): ProgressConfig | undefined {
   });
 }
 
-const OVERFLOW_MODES: readonly OverflowMode[] = ['truncate', 'wrap', 'priority'];
-export const GLYPH_MODES: readonly GlyphMode[] = [
-  'normal',
-  'single-width',
-  'paste-safe',
-  'jetbrains',
-  'auto',
-];
+export { GLYPH_MODES };
 
 export function normalizeProfiles(raw: unknown): Config['profiles'] | undefined {
   if (!isObject(raw)) return undefined;

@@ -13,6 +13,7 @@ import {
   truncate,
   visibleWidth,
 } from './ansi.js';
+import { CATEGORY_PRIORITY, overflowOf } from './display-opts.js';
 import { foldText, pasteSafeText, resolveGlyphMode, stripLinks, widthModeFor } from './glyphs.js';
 import { hasItemRules, ruleDecision } from './metrics.js';
 import { renderPanel } from './panel.js';
@@ -27,11 +28,9 @@ import {
 import type {
   Align,
   Config,
-  OverflowMode,
   RenderContext,
   ResolvedGlyphMode,
   ThemeStyle,
-  WidgetCategory,
   WidgetDef,
   WidgetItem,
   WidgetOutput,
@@ -402,25 +401,7 @@ function compose(parts: Part[], a: Appearance, level: Level, max: number | null)
     .join('');
 }
 
-export const CATEGORY_PRIORITY: Partial<Record<WidgetCategory, number>> = {
-  context: 70,
-  limits: 70,
-  session: 70,
-  git: 50,
-  workspace: 50,
-  cost: 50,
-  tokens: 50,
-  gsd: 30,
-  agents: 30,
-  charts: 30,
-  system: 30,
-  custom: 30,
-  fun: 30,
-};
-
-export function overflowOf(config: Pick<Config, 'overflow' | 'autoWrap'>): OverflowMode {
-  return config.overflow ?? (config.autoWrap ? 'wrap' : 'truncate');
-}
+export { CATEGORY_PRIORITY, overflowOf };
 
 export function effectivePriority(item: WidgetItem, def: WidgetDef): number {
   return item.priority ?? CATEGORY_PRIORITY[def.category] ?? 30;
