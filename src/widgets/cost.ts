@@ -1,5 +1,7 @@
+import { resolveProfile } from '../core/profiles.js';
 import type { OptionSpec, RenderContext, WidgetDef, WidgetItem, WidgetResult } from '../core/types.js';
-import { barFor, barOptions, formatCurrency, formatDuration, opt } from './shared.js';
+import { detectProvider } from '../data/provider.js';
+import { barFor, barOptions, formatCurrency, formatDuration, formatMoney, opt } from './shared.js';
 
 const durationOption: OptionSpec = {
   key: 'format',
@@ -46,6 +48,48 @@ function budget(ctx: RenderContext, item: WidgetItem): WidgetResult {
 
 const forBar = { key: 'display', values: ['bar'] };
 
+const basisOption: OptionSpec = {
+  key: 'basis',
+  label: 'Cost from',
+  kind: 'select',
+  default: 'payload',
+  choices: [
+    { value: 'payload', label: 'Claude Code' },
+    { value: 'profile', label: 'Model profile prices' },
+    { value: 'auto', label: 'Profile for third-party providers' },
+  ],
+  help: 'Profile prices the session tokens in the profile currency; auto is the pick for gateway users',
+};
+
+const finite = (n: unknown): number => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : 0);
+
+function profileCost(
+  ctx: RenderContext,
+  thirdPartyOnly: boolean,
+): { amount: number; currency: string } | null {
+  const provider = detectProvider(ctx.env);
+  if (thirdPartyOnly && provider.kind === 'firstParty') return null;
+  const p = resolveProfile(ctx.payload.model, provider, ctx.config);
+  if (!p?.prices || !p.currency) return null;
+  const t = ctx.data.transcript();
+  const cw = ctx.payload.context_window;
+  let tokens = t
+    ? [t.inputTokens, t.outputTokens, t.cacheReadTokens, t.cacheWriteTokens].map(finite)
+    : [0, 0, 0, 0];
+  if (!tokens.some((n) => n > 0))
+    tokens = [finite(cw?.total_input_tokens), finite(cw?.total_output_tokens), 0, 0];
+  if (!tokens.some((n) => n > 0)) return null;
+  const [input, output, cacheRead, cacheWrite] = tokens as [number, number, number, number];
+  const { prices: r } = p;
+  const amount =
+    (input * r.input +
+      output * r.output +
+      cacheRead * (r.cacheRead ?? r.input) +
+      cacheWrite * (r.cacheWrite ?? r.input)) /
+    1e6;
+  return { amount, currency: p.currency };
+}
+
 // low while the ledger is still being built
 function ledgerText(view: { partial: boolean }, n: number, item: WidgetItem): string {
   return `${formatCurrency(n, opt(item, 'decimals', 2))}${view.partial ? '…' : ''}`;
@@ -56,14 +100,21 @@ export const widgets: WidgetDef[] = [
     type: 'session-cost',
     name: 'Session cost',
     category: 'cost',
-    description: 'Total cost of this session in USD',
+    description: 'Total cost of this session, in USD from Claude Code or from model profile prices',
     icon: { nerd: '󰈸', emoji: '💰' },
     color: 'yellow',
     sample: '$1.87',
-    options: [decimalsOption],
+    options: [decimalsOption, basisOption],
     render(ctx, item) {
+      const d = opt(item, 'decimals', 2);
+      const basis = opt<string>(item, 'basis', 'payload');
+      if (basis === 'profile' || basis === 'auto') {
+        const p = profileCost(ctx, basis === 'auto');
+        if (p) return formatMoney(p.amount, p.currency, d);
+        if (basis === 'profile') return null;
+      }
       const c = ctx.payload.cost?.total_cost_usd;
-      return typeof c === 'number' ? formatCurrency(c, opt(item, 'decimals', 2)) : null;
+      return typeof c === 'number' ? formatCurrency(c, d) : null;
     },
   },
   {

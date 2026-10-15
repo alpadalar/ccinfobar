@@ -138,6 +138,14 @@ export function formatCurrency(usd: number, decimals = 2): string {
   return `$${usd.toFixed(decimals)}`;
 }
 
+const MONEY_SIGNS: Record<string, string> = { CNY: '¥', EUR: '€' };
+
+export function formatMoney(amount: number, currency: string, decimals = 2): string {
+  if (currency === 'USD') return formatCurrency(amount, decimals);
+  const sign = MONEY_SIGNS[currency];
+  return sign ? `${sign}${amount.toFixed(decimals)}` : `${currency} ${amount.toFixed(decimals)}`;
+}
+
 export function formatPercent(p: number, decimals = 0): string {
   return `${p.toFixed(decimals)}%`;
 }

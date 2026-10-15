@@ -69,7 +69,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 
 | Type | Description | Example | Options |
 | --- | --- | --- | --- |
-| `session-cost` | Total cost of this session in USD | `$1.87` | `decimals` number, default `2` |
+| `session-cost` | Total cost of this session, in USD from Claude Code or from model profile prices | `$1.87` | `decimals` number, default `2`<br>`basis` select, default `"payload"` (`payload`, `profile`, `auto`) |
 | `cost-today` | Estimated cost of all sessions today (from the local ledger) | `Today ~$4.12` | `decimals` number, default `2` |
 | `cost-week` | Estimated cost of all sessions this ISO week, Monday to Sunday, local time | `Week ~$18.40` | `decimals` number, default `2` |
 | `cost-project` | Estimated cost of this project across sessions | `Project ~$62` | `period` select, default `"all"` (`today`, `week`, `month`, `all`)<br>`decimals` number, default `2` |
