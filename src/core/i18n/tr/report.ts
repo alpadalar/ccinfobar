@@ -26,7 +26,8 @@ export const reportMessages = {
   'report.badOrder': 'Başlangıç tarihi {value}, bitiş tarihinden sonra.',
   'report.badFormat': 'Bilinmeyen biçim "{value}". table, csv ya da json kullanın.',
   'report.formatConflict': 'Tek bir çıktı biçimi seçin: --format, --csv ya da --json.',
-  'report.projectValue': '--project bir değer ister: proje yolunun bir parçası ya da geçerli proje için .',
+  'report.projectValue':
+    '--project bir değer ister: proje yolunun bir parçası ya da geçerli proje için "." yazın.',
   'report.progress': {
     one: 'Transkriptler taranıyor: {count} dosya, {mb} MB',
     other: 'Transkriptler taranıyor: {count} dosya, {mb} MB',

@@ -23,7 +23,7 @@ export const reportMessages = {
   'report.badOrder': 'The start date {value} is after the end date.',
   'report.badFormat': 'Unknown format "{value}". Use table, csv or json.',
   'report.formatConflict': 'Pick one output format: --format, --csv or --json.',
-  'report.projectValue': '--project needs a value: part of a project path, or . for the current project.',
+  'report.projectValue': '--project needs a value: part of a project path, or "." for the current project.',
   'report.progress': {
     one: 'Scanning transcripts: {count} file, {mb} MB',
     other: 'Scanning transcripts: {count} files, {mb} MB',

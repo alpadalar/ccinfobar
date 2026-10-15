@@ -325,6 +325,11 @@ describe('runInstall and runUninstall', () => {
     await runUninstall(parseArgs(['uninstall', '--hooks', 'Stop']), cfg, u.io);
     expect(u.errors).toEqual([t('hooks.badArg', { arg: 'Stop' })]);
     expect(process.exitCode).toBe(1);
+    process.exitCode = undefined;
+    const p = fake(false);
+    await runInstall(parseArgs(['install', '--project', 'here']), cfg, p.io);
+    expect(p.errors).toEqual([t('hooks.badArg', { arg: 'here' })]);
+    expect(process.exitCode).toBe(1);
   });
 
   it('warns when the hooks would run through a package runner', async () => {
