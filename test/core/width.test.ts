@@ -4,6 +4,7 @@ import {
   charWidth,
   graphemeWidth,
   NORMAL_WIDTH,
+  padVisible,
   setWidthMode,
   stripAnsi,
   textWidth,
@@ -357,5 +358,28 @@ describe('truncate by grapheme', () => {
   it('uses the given mode', () => {
     expect(truncate('\u{1F600}\u{1F600}\u{1F600}', 3, '…', JET)).toBe('\u{1F600}\u{1F600}\u{1F600}');
     expect(truncate('\u{1F600}\u{1F600}\u{1F600}', 3)).toBe('\u{1F600}…');
+  });
+});
+
+describe('padVisible', () => {
+  it('pads by visible width', () => {
+    expect(padVisible('ab', 4)).toBe('ab  ');
+    expect(padVisible('ab', 4, 'right')).toBe('  ab');
+    expect(padVisible('ab', 4, 'center')).toBe(' ab ');
+    expect(padVisible('ab', 5, 'center')).toBe(' ab  ');
+    expect(padVisible('\uFF21', 3)).toBe('\uFF21 ');
+    expect(padVisible('\x1b[31mab\x1b[0m', 3)).toBe('\x1b[31mab\x1b[0m ');
+  });
+
+  it('truncates to exactly the width', () => {
+    const out = padVisible('abcdefgh', 5);
+    expect(out).toBe('abcd…');
+    expect(visibleWidth(out)).toBe(5);
+    expect(visibleWidth(padVisible('\uFF21\uFF21\uFF21', 5, 'right'))).toBe(5);
+  });
+
+  it('counts Turkish letters as one column each', () => {
+    expect(visibleWidth('çğış')).toBe(4);
+    expect(padVisible('çğış', 6)).toBe('çğış  ');
   });
 });

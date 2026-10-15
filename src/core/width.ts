@@ -140,6 +140,15 @@ export function visibleWidthIn(text: string, m: WidthMode): number {
   return textWidth(text.includes('\x1b') ? stripAnsi(text) : text, m);
 }
 
+export function padVisible(text: string, width: number, align: 'left' | 'center' | 'right' = 'left'): string {
+  const t = visibleWidth(text) > width ? truncate(text, width) : text;
+  const free = Math.max(0, width - visibleWidth(t));
+  if (align === 'right') return ' '.repeat(free) + t;
+  if (align === 'center')
+    return ' '.repeat(Math.floor(free / 2)) + t + ' '.repeat(free - Math.floor(free / 2));
+  return t + ' '.repeat(free);
+}
+
 export function charWidth(ch: string, m: WidthMode = current): number {
   return cpWidth(ch.codePointAt(0) ?? 0, m);
 }

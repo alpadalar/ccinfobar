@@ -1,6 +1,7 @@
 import { type Level, splitAnsiLines, style, truncate, visibleWidth } from './ansi.js';
 import type { Appearance } from './renderer.js';
 import type { BoxChars, RenderContext, TuiBreakpoint, TuiConfig, WidgetItem } from './types.js';
+import { padVisible } from './width.js';
 
 export const BOX_PRESETS: Record<string, BoxChars> = {
   rounded: box('╭╮╰╯─│├┤'),
@@ -48,15 +49,6 @@ type Row =
 
 const DEFAULT_TITLE = '{model}';
 const DEFAULT_RIGHT = 'ccinfobar';
-
-function pad(text: string, width: number, align: 'left' | 'center' | 'right' = 'left'): string {
-  const t = visibleWidth(text) > width ? truncate(text, width) : text;
-  const free = Math.max(0, width - visibleWidth(t));
-  if (align === 'right') return ' '.repeat(free) + t;
-  if (align === 'center')
-    return ' '.repeat(Math.floor(free / 2)) + t + ' '.repeat(free - Math.floor(free / 2));
-  return t + ' '.repeat(free);
-}
 
 export function resolveBox(tui: TuiConfig, ascii: boolean): BoxChars {
   if (ascii) return BOX_PRESETS.ascii!;
@@ -457,8 +449,8 @@ export function renderPanel(
     while (col < ws.length) columns.push({ lines: [''], w: ws[col++]!, align: 'left' });
     const height = Math.max(1, ...columns.map((c) => c.lines.length));
     for (let k = 0; k < height; k++) {
-      const parts = columns.map((c) => pad(c.lines[k] ?? '', c.w, c.align));
-      const body = pad(parts.join(gapText), inner, r.align ?? 'left');
+      const parts = columns.map((c) => padVisible(c.lines[k] ?? '', c.w, c.align));
+      const body = padVisible(parts.join(gapText), inner, r.align ?? 'left');
       out.push(border(b.vertical) + side + body + side + border(b.vertical));
     }
   }
