@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { parseArgs } from '../../src/cli/args.js';
 import { help, OPTIONS, USAGE } from '../../src/cli/help.js';
+import { resetLanguageCache } from '../../src/cli/lang.js';
+import { main } from '../../src/cli/main.js';
+import { runRender } from '../../src/cli/render.js';
 import { cliMessages } from '../../src/core/i18n/en/cli.js';
 import type { LanguageDef } from '../../src/core/i18n/index.js';
 import { VERSION } from '../../src/core/version.js';
@@ -92,5 +96,47 @@ describe('help()', () => {
     expect(text).toContain(`  ccinfobar uninstall            ＡＢＣ\u3000ｄ\n${' '.repeat(COL)}ＥＦ\n`);
     expect(text).toContain(`  ccinfobar preview --scenario <name>\n${' '.repeat(COL)}ＷＩＤＥ`);
     expectAligned(text);
+  });
+});
+
+describe('cli messages', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    resetLanguageCache();
+  });
+
+  const unknown = async (lang?: string) => {
+    if (lang) vi.stubEnv('CCINFOBAR_LANG', lang);
+    resetLanguageCache();
+    const err: string[] = [];
+    vi.spyOn(console, 'error').mockImplementation((s) => void err.push(String(s)));
+    await main(['frobnicate']);
+    process.exitCode = undefined;
+    return err;
+  };
+
+  it('names an unknown command in the env language', async () => {
+    expect(await unknown()).toEqual(['Unknown command "frobnicate". Run ccinfobar --help.']);
+    expect(await unknown('tr')).toEqual(['Bilinmeyen komut "frobnicate". ccinfobar --help çalıştırın.']);
+  });
+
+  it.each([
+    ['en', 'ccinfobar: invalid JSON on stdin\n'],
+    ['tr', "ccinfobar: stdin'den gelen JSON geçersiz\n"],
+  ])('reports bad payload JSON in the config language (%s)', async (language, text) => {
+    const dir = fs.mkdtempSync(path.join(process.env.CCIB_TEST_ROOT!, 'help-json-'));
+    const file = path.join(dir, 'p.json');
+    fs.writeFileSync(file, '{"session_id": ');
+    const cfg = path.join(dir, 'config.json');
+    fs.writeFileSync(cfg, JSON.stringify({ language, lines: [[{ id: 'm', type: 'model' }]] }));
+    let out = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((s) => {
+      out += String(s);
+      return true;
+    });
+    await runRender(parseArgs(['--payload', file]), cfg);
+    vi.restoreAllMocks();
+    expect(out).toBe(text);
   });
 });

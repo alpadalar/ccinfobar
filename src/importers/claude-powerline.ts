@@ -1,3 +1,4 @@
+import { t } from '../core/i18n/index.js';
 import { BUILTIN_THEMES } from '../core/themes.js';
 import type { Config, OptionValue, ThemeStyle, WidgetItem } from '../core/types.js';
 import type { ImportResult } from './index.js';
@@ -104,7 +105,7 @@ function segmentItems(name: string, seg: Raw, warnings: string[]): WidgetItem[] 
     case 'env':
       return typeof seg.variable === 'string' ? [item('env', { name: seg.variable })] : [];
     default:
-      warnings.push(`claude-powerline segment "${name}" has no ccinfobar equivalent and was skipped`);
+      warnings.push(t('import.skippedSegment', { name }));
       return [];
   }
 }
@@ -146,7 +147,7 @@ export function importClaudePowerline(raw: unknown, args: Record<string, string>
   const style = STYLES[String(args.style ?? display.style ?? 'minimal')] ?? 'blocks';
   const config: Partial<Config> = {
     lines,
-    theme: BUILTIN_THEMES.some((t) => t.id === theme) ? theme : 'dark',
+    theme: BUILTIN_THEMES.some((b) => b.id === theme) ? theme : 'dark',
     style,
   };
   if (style === 'blocks') config.separator = '';
@@ -155,6 +156,6 @@ export function importClaudePowerline(raw: unknown, args: Record<string, string>
   config.autoWrap = display.autoWrap !== false;
   if (typeof display.widthReserve === 'number') config.widthOffset = display.widthReserve;
   if (typeof display.padding === 'number') config.padding = display.padding;
-  if (theme === 'custom') warnings.push('custom claude-powerline colors were copied onto each widget');
+  if (theme === 'custom') warnings.push(t('import.customColors'));
   return { config, warnings, source: 'claude-powerline' };
 }

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { defaultConfig, normalizeConfig } from '../core/config.js';
+import { t } from '../core/i18n/index.js';
 import { claudeDir } from '../core/paths.js';
 import type { Config } from '../core/types.js';
 import { importCcstatusline } from './ccstatusline.js';
@@ -23,20 +24,28 @@ export interface DetectedTool {
   command: string;
 }
 
-const KNOWN: { re: RegExp; tool: DetectedTool['tool']; name: string; importable: boolean }[] = [
+const KNOWN: {
+  re: RegExp;
+  tool: DetectedTool['tool'];
+  name: string | (() => string);
+  importable: boolean;
+}[] = [
   { re: /ccstatusline/i, tool: 'ccstatusline', name: 'ccstatusline', importable: true },
   { re: /claude-powerline/i, tool: 'claude-powerline', name: 'claude-powerline', importable: true },
   { re: /ccline|cometix/i, tool: 'ccometixline', name: 'CCometixLine', importable: false },
   { re: /claude-hud/i, tool: 'claude-hud', name: 'claude-hud', importable: false },
   { re: /ccusage/i, tool: 'ccusage', name: 'ccusage statusline', importable: false },
-  { re: /gsd-statusline/i, tool: 'gsd', name: 'GSD status line', importable: false },
+  { re: /gsd-statusline/i, tool: 'gsd', name: () => t('import.tool.gsd'), importable: false },
 ];
 
 export function detectTool(command: string | undefined | null): DetectedTool | null {
   if (!command || /ccinfobar/i.test(command)) return null;
   const hit = KNOWN.find((k) => k.re.test(command));
-  if (hit) return { tool: hit.tool, name: hit.name, importable: hit.importable, command };
-  return { tool: 'unknown', name: 'a custom status line', importable: false, command };
+  if (hit) {
+    const name = typeof hit.name === 'string' ? hit.name : hit.name();
+    return { tool: hit.tool, name, importable: hit.importable, command };
+  }
+  return { tool: 'unknown', name: t('import.tool.custom'), importable: false, command };
 }
 
 function expand(p: string): string {
@@ -82,15 +91,15 @@ export function importFrom(
   if (source === 'ccstatusline') {
     const file = opts.file ?? ccstatuslinePath(env, command);
     const raw = readJson(file);
-    if (!raw) throw new Error(`Cannot read ccstatusline settings at ${file}`);
+    if (!raw) throw new Error(t('import.cannotRead', { file }));
     return { ...importCcstatusline(raw), file };
   }
   const files = opts.file ? [opts.file] : powerlinePaths(env, command);
   const file = files.find((f) => fs.existsSync(f)) ?? null;
   const raw = file ? readJson(file) : {};
-  if (file && raw === null) throw new Error(`Cannot parse claude-powerline config at ${file}`);
+  if (file && raw === null) throw new Error(t('import.cannotParse', { file }));
   const result = importClaudePowerline(raw, parsePowerlineArgs(command));
-  if (!file) result.warnings.unshift('no claude-powerline config file found, imported its default layout');
+  if (!file) result.warnings.unshift(t('import.noPowerlineFile'));
   return { ...result, file };
 }
 

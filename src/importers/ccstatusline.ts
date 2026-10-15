@@ -1,3 +1,4 @@
+import { t } from '../core/i18n/index.js';
 import { BUILTIN_THEMES } from '../core/themes.js';
 import type { Config, OptionValue, WidgetItem } from '../core/types.js';
 import type { ImportResult } from './index.js';
@@ -100,7 +101,7 @@ function convertItem(raw: Raw, warnings: string[]): WidgetItem | null {
       options: { char: typeof raw.character === 'string' ? raw.character : '|' },
     };
   } else {
-    warnings.push(`ccstatusline widget "${type}" has no ccinfobar equivalent and was skipped`);
+    warnings.push(t('import.skippedWidget', { type }));
     return null;
   }
   const meta = (raw.metadata ?? {}) as Record<string, string>;
@@ -150,7 +151,7 @@ export function importCcstatusline(raw: unknown): ImportResult {
       endCap: typeof end === 'string' ? end : '',
     };
     const theme = typeof pl.theme === 'string' ? pl.theme : '';
-    config.theme = BUILTIN_THEMES.some((t) => t.id === theme) ? theme : 'powerline';
+    config.theme = BUILTIN_THEMES.some((b) => b.id === theme) ? theme : 'powerline';
   }
   return { config, warnings, source: 'ccstatusline' };
 }

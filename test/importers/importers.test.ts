@@ -8,7 +8,8 @@ import { sampleGit, sampleGsd, samplePayload, sampleTranscript } from '../../src
 import type { Config } from '../../src/core/types.js';
 import { convertColor, importCcstatusline } from '../../src/importers/ccstatusline.js';
 import { importClaudePowerline, parsePowerlineArgs } from '../../src/importers/claude-powerline.js';
-import { detectTool, toConfig } from '../../src/importers/index.js';
+import { detectTool, importFrom, toConfig } from '../../src/importers/index.js';
+import { withLang } from '../helpers.js';
 
 const fixture = (f: string) =>
   JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/import', f), 'utf8'));
@@ -127,5 +128,43 @@ describe('detectTool', () => {
     expect(detectTool('/usr/local/bin/ccinfobar')).toBeNull();
     expect(detectTool(undefined)).toBeNull();
     expect(detectTool('bash ~/my-line.sh')).toMatchObject({ tool: 'unknown' });
+  });
+});
+
+describe('import text', () => {
+  const missing = path.join(__dirname, '../fixtures/import/no-such-file.json');
+
+  it('names tools in English', () => {
+    expect(detectTool('node ~/.claude/hooks/gsd-statusline.js')?.name).toBe('GSD status line');
+    expect(detectTool('bash ~/my-line.sh')?.name).toBe('a custom status line');
+    expect(() => importFrom('ccstatusline', { file: missing })).toThrow(
+      `Cannot read ccstatusline settings at ${missing}`,
+    );
+    expect(importFrom('claude-powerline', { file: missing }).warnings[0]).toBe(
+      'no claude-powerline config file found, imported its default layout',
+    );
+  });
+
+  it('follows the active language and keeps names', () => {
+    withLang('tr', () => {
+      const cc = importCcstatusline({ lines: [[{ id: '1', type: 'jj-revision' }]] });
+      expect(cc.warnings).toEqual([
+        'ccstatusline bileşeni "jj-revision" için ccinfobar karşılığı yok, atlandı',
+      ]);
+      const pl = importClaudePowerline({ theme: 'custom', display: { lines: [{ segments: { tmux: {} } }] } });
+      expect(pl.warnings).toEqual([
+        'claude-powerline bölümü "tmux" için ccinfobar karşılığı yok, atlandı',
+        'özel claude-powerline renkleri her bileşene ayrı ayrı kopyalandı',
+      ]);
+      expect(() => importFrom('ccstatusline', { file: missing })).toThrow(
+        `${missing} konumundaki ccstatusline ayarları okunamıyor`,
+      );
+      expect(importFrom('claude-powerline', { file: missing }).warnings[0]).toBe(
+        'claude-powerline yapılandırma dosyası bulunamadı, varsayılan düzeni içe aktarıldı',
+      );
+      expect(detectTool('node ~/.claude/hooks/gsd-statusline.js')?.name).toBe('GSD durum satırı');
+      expect(detectTool('bash ~/my-line.sh')?.name).toBe('özel bir durum satırı');
+      expect(detectTool('ccline')?.name).toBe('CCometixLine');
+    });
   });
 });

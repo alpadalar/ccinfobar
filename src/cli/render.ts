@@ -105,7 +105,7 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
   else raw = await readStdin();
   const payload = ingestPayload(raw);
   if (!payload) {
-    process.stdout.write('ccinfobar: invalid JSON on stdin\n');
+    process.stdout.write(`${t('cli.invalidJson')}\n`);
     return;
   }
   if (config.savePayload && typeof args.flags.payload !== 'string') savePayload(payload);

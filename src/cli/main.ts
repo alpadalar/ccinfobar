@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { t } from '../core/i18n/index.js';
 import { configPath } from '../core/paths.js';
 import { JOBS } from '../data/jobs/index.js';
 import { parseArgs } from './args.js';
@@ -143,7 +144,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       return;
     }
     default:
-      console.error(`Unknown command "${args.command}". Run ccinfobar --help.`);
+      console.error(t('cli.unknownCommand', { command: args.command }));
       process.exitCode = 1;
   }
 }
