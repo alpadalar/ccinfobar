@@ -34,8 +34,14 @@ import {
   nativeName,
   TR,
 } from '../../src/core/i18n/languages.js';
+import { benchMessages as trBench } from '../../src/core/i18n/tr/bench.js';
 import { configMessages as trConfig } from '../../src/core/i18n/tr/config.js';
+import { doctorMessages as trDoctor } from '../../src/core/i18n/tr/doctor.js';
+import { hookMessages as trHooks } from '../../src/core/i18n/tr/hooks.js';
+import { tr } from '../../src/core/i18n/tr/index.js';
 import { installMessages as trInstall } from '../../src/core/i18n/tr/install.js';
+import { jobsMessages as trJobs } from '../../src/core/i18n/tr/jobs.js';
+import { previewMessages as trPreview } from '../../src/core/i18n/tr/preview.js';
 import { withLang } from '../helpers.js';
 
 const dir = path.resolve(__dirname, '../../src/core/i18n');
@@ -203,6 +209,11 @@ type Table = Record<string, Message>;
 const AREA_PAIRS: [string, Table, Table][] = [
   ['install', installMessages, trInstall],
   ['config', configMessages, trConfig],
+  ['doctor', doctorMessages, trDoctor],
+  ['hooks', hookMessages, trHooks],
+  ['jobs', jobsMessages, trJobs],
+  ['bench', benchMessages, trBench],
+  ['preview', previewMessages, trPreview],
 ];
 
 function forms(m: Message): string[] {
@@ -218,6 +229,20 @@ function edges(f: string): [string, string, string] {
 }
 
 const CONTROL = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069]/;
+
+describe('tr table', () => {
+  it('merges every area without overlap', () => {
+    const sum = AREA_PAIRS.reduce((n, [, , a]) => n + Object.keys(a).length, 0);
+    expect(Object.keys(tr).length).toBe(sum);
+    expect(TR.messages).toBe(tr);
+  });
+
+  it('hook messages take versions as params', () => {
+    for (const [id, msg] of Object.entries(trHooks)) {
+      for (const f of forms(msg)) expect(f, id).not.toMatch(/\d+\.\d+\.\d+/);
+    }
+  });
+});
 
 describe.each(AREA_PAIRS)('tr %s table', (_name, enArea, trArea) => {
   it('has the same ids', () => {
