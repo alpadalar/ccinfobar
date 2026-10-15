@@ -1,4 +1,5 @@
 import { LEDGER_TYPES } from '../data/ledger.js';
+import { trustedTurn } from '../data/live.js';
 import { detectProvider, type Provider } from '../data/provider.js';
 import { budgetPeriod } from '../widgets/cost.js';
 import { getWidget } from '../widgets/index.js';
@@ -52,6 +53,8 @@ export type EmptyCode =
   | 'no-replies'
   | 'payload-field-absent'
   | 'no-mcp-health'
+  | 'no-turn'
+  | 'all-zero'
   | 'error'
   | 'no-data';
 
@@ -178,6 +181,12 @@ export function emptyReason(
     if (!ctx.data.hooks?.()) return reason(meta.hooksInstalled ? 'no-hook-state' : 'needs-hooks');
     return reason('no-data', t('explain.reason.noPermissionWait'));
   }
+  if (item.type === 'turn-timer') {
+    const h = ctx.data.hooks?.() ?? null;
+    const turn = trustedTurn(h, ctx.data.transcript(), p.prompt_id, ctx.now.getTime());
+    return turn ? reason('no-data', t('explain.reason.turnHidden')) : reason('no-turn');
+  }
+  if (item.type === 'env-counts' && ctx.data.environment?.()) return reason('all-zero');
   if (item.type === 'tool-activity') {
     return reason('no-tools', undefined, { scope: item.options?.scope === 'session' ? 'session' : 'turn' });
   }

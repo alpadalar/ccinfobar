@@ -595,6 +595,29 @@ describe('tool-activity empty reasons', () => {
   });
 });
 
+describe('turn-timer and env-counts empty reasons', () => {
+  const tt: WidgetItem = { id: 'turn-timer', type: 'turn-timer' };
+  const env: WidgetItem = { id: 'env-counts', type: 'env-counts' };
+
+  it('names a missing turn, then a hidden ended turn', () => {
+    const none = emptyReason(ctxWith({ hooks: () => null, transcript: () => parseTranscriptText('') }), tt);
+    expect(none).toEqual({ code: 'no-turn', text: t('explain.reason.no-turn') });
+    const ended = { ...parseTranscriptText(''), promptStart: 1, turnEnd: 2 };
+    const hidden = emptyReason(ctxWith({ hooks: () => null, transcript: () => ended }), {
+      ...tt,
+      options: { afterStop: 'hide' },
+    });
+    expect(hidden).toEqual({ code: 'no-data', text: t('explain.reason.turnHidden') });
+  });
+
+  it('says every count is zero when the environment was read', () => {
+    const zero = { claudeMd: 0, agentsMd: 0, rules: 0, mcp: 0, hooks: 0, hooksDisabled: false, files: [] };
+    const ctx = ctxWith({ environment: () => zero, config: { lines: [[env]] } });
+    expect(inspectRows(ctx)[0]).toMatchObject({ status: 'empty', empty: { code: 'all-zero' } });
+    expect(emptyReason(ctxWith({ environment: () => null }), env).code).toBe('no-data');
+  });
+});
+
 describe('permission-wait empty reasons', () => {
   const pw: WidgetItem = { id: 'permission-wait', type: 'permission-wait' };
 

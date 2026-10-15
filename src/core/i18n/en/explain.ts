@@ -24,6 +24,9 @@ export const explainMessages = {
   'explain.reason.no-hook-state': 'hooks are installed but this session has no hook log yet',
   'explain.reason.no-mcp-health': 'Claude Code does not expose MCP health',
   'explain.reason.noPermissionWait': 'no permission prompt waited in this turn',
+  'explain.reason.no-turn': 'no turn yet: no prompt in the transcript and no hook turn',
+  'explain.reason.turnHidden': 'the turn ended and afterStop is hide',
+  'explain.reason.all-zero': 'every shown count is zero (hideZero), or every part is turned off',
   'explain.reason.workspace-mode': 'hidden in a workspace folder (workspace-repos hideGitPlaceholders)',
   'explain.reason.no-ledger':
     'no cost recorded yet; counting starts when a cost ledger widget is on the status line',
