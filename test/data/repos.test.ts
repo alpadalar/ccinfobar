@@ -134,6 +134,19 @@ describe.skipIf(tmpRepo)('readHead and insideRepo', () => {
     expect(insideRepo(inner)).toBe(path.join(dir, 'w'));
   });
 
+  it.skipIf(!posix)('follows a symlinked .git in readHead and insideRepo alike', () => {
+    const real = repo(dir, 'real', 'ref: refs/heads/dev\n');
+    const w = path.join(dir, 'w');
+    fs.mkdirSync(path.join(w, 'dots'), { recursive: true });
+    fs.symlinkSync(path.join(real, '.git'), path.join(w, 'dots', '.git'));
+    expect(readHead(path.join(w, 'dots'))).toMatchObject({ branch: 'dev' });
+    expect(insideRepo(path.join(w, 'dots'))).toBe(path.join(w, 'dots'));
+    fs.mkdirSync(path.join(w, 'gone'));
+    fs.symlinkSync(path.join(dir, 'missing'), path.join(w, 'gone', '.git'));
+    expect(readHead(path.join(w, 'gone')).gitdir).toBeNull();
+    expect(insideRepo(path.join(w, 'gone'))).toBeNull();
+  });
+
   it('ignores GIT_DIR and GIT_WORK_TREE', () => {
     const w = path.join(dir, 'w');
     repo(w, 'api');

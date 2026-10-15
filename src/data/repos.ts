@@ -47,11 +47,11 @@ export function ancestors(start: string, p: path.PlatformPath = path): string[] 
   return out;
 }
 
-// ignores GIT_DIR and GIT_WORK_TREE on purpose
+// ignores GIT_DIR and GIT_WORK_TREE on purpose; follows a symlinked .git like readHead
 export function insideRepo(start: string, p: path.PlatformPath = path): string | null {
   for (const d of ancestors(start, p)) {
     try {
-      if (fs.lstatSync(p.join(d, '.git'), { throwIfNoEntry: false })) return d;
+      if (fs.statSync(p.join(d, '.git'), { throwIfNoEntry: false })) return d;
     } catch {}
   }
   return null;
@@ -98,7 +98,7 @@ export function parseHead(raw: string): { branch: string | null; detached: boole
 export function readHead(childDir: string, p: path.PlatformPath = path): HeadInfo {
   try {
     const dotgit = p.join(childDir, '.git');
-    const st = fs.lstatSync(dotgit, { throwIfNoEntry: false });
+    const st = fs.statSync(dotgit, { throwIfNoEntry: false });
     let gitdir: string | null = null;
     if (st?.isDirectory()) gitdir = dotgit;
     else if (st?.isFile()) {
