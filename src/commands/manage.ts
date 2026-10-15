@@ -109,7 +109,7 @@ export function runImportCommand(args: Args, cfgFile: string): void {
     return;
   }
   const file = typeof args.flags.file === 'string' ? path.resolve(args.flags.file) : undefined;
-  runImport(source, { file, command: currentCommandSafe() }, cfgFile);
+  if (!runImport(source, { file, command: currentCommandSafe() }, cfgFile)) process.exitCode = 1;
 }
 
 export function runInit(args: Args, cfgFile: string): void {

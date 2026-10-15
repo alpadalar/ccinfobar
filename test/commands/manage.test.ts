@@ -154,6 +154,12 @@ describe('import', () => {
     expect(withLang('tr', () => capture(() => cmd('nope')).err)).toEqual([
       'Kullanım: ccinfobar import <ccstatusline|claude-powerline> [--file <path>] [--force]',
     ]);
+    let code: typeof process.exitCode;
+    capture(() => {
+      runImportCommand(parseArgs(['import', 'ccstatusline', '--file', missing]), path.join(root, 'n.json'));
+      code = process.exitCode;
+    });
+    expect(code).toBe(1);
     const old = file('old.json', '{}');
     expect(capture(() => runImportCommand(parseArgs(['import', 'ccstatusline']), old)).err).toEqual([
       `${tildify(old)} already exists. Use --force to replace it (a backup is kept).`,
