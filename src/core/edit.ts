@@ -200,6 +200,7 @@ const GROUP_KEYS: Record<Exclude<StyleGroup, 'bars'>, (keyof WidgetItem)[]> = {
 export const LOOK_OPTIONS = [
   'display',
   'style',
+  'barColor',
   'width',
   'showPercent',
   'thresholdColors',

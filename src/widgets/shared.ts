@@ -1,3 +1,4 @@
+import { detectLevel, fgCode, gradientColor, type Level } from '../core/ansi.js';
 import { t } from '../core/i18n/index.js';
 import { isFreshSession } from '../core/payload.js';
 import type { OptionSpec, OptionValue, RenderContext, WidgetItem, WidgetOutput } from '../core/types.js';
@@ -60,24 +61,70 @@ export const BAR_STYLES: Record<string, BarStyle> = {
   squares: { filled: '◼', empty: '◻' },
   geometric: { filled: '▰', empty: '▱' },
   ascii: { filled: '#', empty: '-' },
+  ring: { filled: '⣿', empty: '\u2800' },
+  matrix: { filled: '⣿', empty: '⣀' },
 };
 
 const TEXT_BAR: BarStyle = { filled: '=', empty: '-' };
+// clockwise from top-left
+const RING = ['\u2800', '⠁', '⠉', '⠙', '⠹', '⢹', '⣹', '⣽', '⣿'];
+const MATRIX = { empty: '⣀', half: '⣇', full: '⣿' };
 
 export interface BarOpts {
   pace?: number | null;
   ascii?: boolean;
+  gradient?: { level: Level; stops?: readonly string[] | undefined };
+}
+
+function paceMark(cells: string[], pct: number, opts: BarOpts, marker?: string): void {
+  if (typeof opts.pace !== 'number' || !Number.isFinite(opts.pace)) return;
+  const w = cells.length;
+  const p = Math.max(0, Math.min(100, opts.pace));
+  const at = Math.min(Math.round((p / 100) * w), w - 1);
+  const over = pct > p;
+  if (marker && cells[at] === marker) cells[at] = opts.ascii ? '*' : '◈';
+  else cells[at] = opts.ascii ? (over ? '!' : ':') : over ? '◆' : '◇';
+}
+
+function paint(cells: string[], n: number, g: BarOpts['gradient'], value?: number): string {
+  if (!g || g.level === 0 || n <= 0) return cells.join('');
+  let out = '';
+  let prev = '';
+  for (let i = 0; i < cells.length; i++) {
+    if (i < n) {
+      const p = value ?? ((i + 0.5) / cells.length) * 100;
+      const code = g.level === 1 ? fgCode(thresholdColor(p), 1) : fgCode(gradientColor(p, g.stops), g.level);
+      if (code !== prev) out += code;
+      prev = code;
+    } else if (i === n) out += '\x1b[39m';
+    out += cells[i];
+  }
+  return n >= cells.length ? `${out}\x1b[39m` : out;
 }
 
 export function bar(percent: number, width = 10, styleName = 'blocks', opts: BarOpts = {}): string {
-  const s = opts.ascii ? TEXT_BAR : (BAR_STYLES[styleName] ?? BAR_STYLES.blocks!);
   const w = Math.max(1, Math.floor(width));
   const pct = Math.max(0, Math.min(100, percent));
+  if (!opts.ascii && styleName === 'ring') {
+    const i = Math.round(pct / 12.5);
+    return paint([RING[i] ?? RING[0]!], i > 0 ? 1 : 0, opts.gradient, pct);
+  }
+  if (!opts.ascii && styleName === 'matrix') {
+    const halves = Math.round((pct / 100) * 2 * w);
+    const cells = Array.from({ length: w }, (_, i) =>
+      halves >= 2 * i + 2 ? MATRIX.full : halves === 2 * i + 1 ? MATRIX.half : MATRIX.empty,
+    );
+    paceMark(cells, pct, opts);
+    return paint(cells, Math.ceil(halves / 2), opts.gradient);
+  }
+  const s = opts.ascii ? TEXT_BAR : (BAR_STYLES[styleName] ?? BAR_STYLES.blocks!);
   const filled = Math.round((pct / 100) * w);
   let cells: string[];
+  let lit = filled;
   if (s.marker) {
     const pos = Math.min(filled, w - 1);
     cells = [...s.filled.repeat(pos), s.marker, ...s.empty.repeat(w - pos - 1)];
+    lit = filled > 0 ? pos + 1 : 0;
   } else if (s.cap && filled < w) {
     cells =
       filled === 0
@@ -86,21 +133,20 @@ export function bar(percent: number, width = 10, styleName = 'blocks', opts: Bar
   } else {
     cells = [...s.filled.repeat(filled), ...s.empty.repeat(w - filled)];
   }
-  if (typeof opts.pace === 'number' && Number.isFinite(opts.pace)) {
-    const p = Math.max(0, Math.min(100, opts.pace));
-    const at = Math.min(Math.round((p / 100) * w), w - 1);
-    const over = pct > p;
-    if (s.marker && cells[at] === s.marker) cells[at] = opts.ascii ? '*' : '◈';
-    else cells[at] = opts.ascii ? (over ? '!' : ':') : over ? '◆' : '◇';
-  }
-  return cells.join('');
+  paceMark(cells, pct, opts, s.marker);
+  return paint(cells, lit, opts.gradient);
 }
 
 export function barFor(ctx: RenderContext, item: WidgetItem, percent: number, pace?: number | null): string {
   const grow = opt(item, 'fill', false) ? (ctx.extra ?? 0) : 0;
+  const gradient =
+    opt<string>(item, 'barColor', 'solid') === 'gradient'
+      ? { level: detectLevel(ctx.config.colorLevel, ctx.env), stops: ctx.gradient ?? ctx.theme?.gradient }
+      : undefined;
   return bar(percent, opt(item, 'width', 10) + grow, opt<string>(item, 'style', 'blocks'), {
     pace: pace ?? null,
     ascii: ctx.config.charset === 'text',
+    ...(gradient ? { gradient } : {}),
   });
 }
 
@@ -174,6 +220,16 @@ export const barOptions: OptionSpec[] = [
     kind: 'select',
     default: 'blocks',
     choices: Object.keys(BAR_STYLES).map((k) => ({ value: k, label: k })),
+  },
+  {
+    key: 'barColor',
+    label: 'Bar color',
+    kind: 'select',
+    default: 'solid',
+    choices: [
+      { value: 'solid', label: 'solid' },
+      { value: 'gradient', label: 'gradient' },
+    ],
   },
   { key: 'showPercent', label: 'Show percent', kind: 'boolean', default: true },
   fillOption,

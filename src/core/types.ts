@@ -314,6 +314,7 @@ export interface RenderContext {
   extra?: number;
   workspaceMode?: boolean;
   glyphMode?: ResolvedGlyphMode;
+  gradient?: readonly string[];
 }
 
 export interface DataSources {

@@ -151,16 +151,64 @@ function colorCode(value: string | undefined, level: Level, bg: boolean): string
   return `\x1b[${bg ? 48 : 38};2;${r};${g};${b}m`;
 }
 
+export function fgCode(color: string, level: Level): string {
+  return colorCode(color, level, false);
+}
+
 export function style(text: string, s: Style, level: Level): string {
   if (!text) return '';
   if (level === 0) return text;
+  const fg = colorCode(s.fg, level, false);
   const open =
     (s.bold ? '\x1b[1m' : '') +
     (s.dim ? '\x1b[2m' : '') +
     (s.italic ? '\x1b[3m' : '') +
-    colorCode(s.fg, level, false) +
+    fg +
     colorCode(s.bg, level, true);
-  return open ? `${open}${text}${RESET}` : text;
+  // embedded bar colors end with 39
+  const body = fg && text.includes('\x1b[39m') ? text.replaceAll('\x1b[39m', fg) : text;
+  return open ? `${open}${body}${RESET}` : text;
+}
+
+type Stop = [number, [number, number, number]];
+
+// green to yellow to red to violet
+const STOPS: Stop[] = [
+  [0, [76, 207, 146]],
+  [50, [242, 192, 92]],
+  [80, [240, 106, 106]],
+  [100, [198, 120, 221]],
+];
+
+const ramps = new WeakMap<readonly string[], Stop[]>();
+
+function rampFor(stops: readonly string[] | undefined): Stop[] {
+  if (!stops) return STOPS;
+  let r = ramps.get(stops);
+  if (!r) {
+    const rgb = stops.map((c) => colorToRgb(c)).filter((c): c is [number, number, number] => c !== null);
+    r = rgb.length < 2 ? STOPS : rgb.map((c, i): Stop => [(i / (rgb.length - 1)) * 100, c]);
+    ramps.set(stops, r);
+  }
+  return r;
+}
+
+export function gradientColor(pct: number, stops?: readonly string[]): string {
+  const ramp = rampFor(stops);
+  const p = Math.max(0, Math.min(100, pct));
+  let i = 0;
+  while (i < ramp.length - 2 && p > ramp[i + 1]![0]) i++;
+  const [p0, c0] = ramp[i]!;
+  const [p1, c1] = ramp[i + 1]!;
+  const t = (p - p0) / (p1 - p0 || 1);
+  const hex = c0
+    .map((v, k) =>
+      Math.round(v + (c1[k]! - v) * t)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('');
+  return `#${hex}`;
 }
 
 export function detectLevel(setting: ColorLevel, env: NodeJS.ProcessEnv = process.env): Level {

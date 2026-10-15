@@ -4,6 +4,7 @@ import { opt } from '../widgets/shared.js';
 import {
   contrastRatio,
   detectLevel,
+  gradientColor,
   type Level,
   RESET,
   sanitize,
@@ -37,6 +38,8 @@ import type {
   WidgetResult,
 } from './types.js';
 import { setWidthMode } from './width.js';
+
+export { gradientColor };
 
 export interface Part {
   item: WidgetItem;
@@ -528,9 +531,10 @@ export function render(base: RenderContext): string[] {
 }
 
 function renderAll(base: RenderContext): string[] {
-  const ctx = workspaceMode(base) ? { ...base, workspaceMode: true } : base;
-  const level = detectLevel(ctx.config.colorLevel, ctx.env);
-  const a = resolveAppearance(ctx.config, ctx.theme, ctx.env);
+  const ws = workspaceMode(base) ? { ...base, workspaceMode: true } : base;
+  const level = detectLevel(ws.config.colorLevel, ws.env);
+  const a = resolveAppearance(ws.config, ws.theme, ws.env);
+  const ctx = a.theme.gradient && !ws.gradient ? { ...ws, gradient: a.theme.gradient } : ws;
   if (a.style === 'tui') {
     const textual = { ...a, style: 'text' as const };
     return renderPanel(
@@ -573,31 +577,6 @@ export function alignLine(line: string, width: number | null, align: Align): str
   const free = width - visibleWidth(line);
   if (free <= 0) return line;
   return ' '.repeat(align === 'center' ? Math.floor(free / 2) : free) + line;
-}
-
-// green to yellow to red to violet
-const STOPS: [number, [number, number, number]][] = [
-  [0, [76, 207, 146]],
-  [50, [242, 192, 92]],
-  [80, [240, 106, 106]],
-  [100, [198, 120, 221]],
-];
-
-export function gradientColor(pct: number): string {
-  const p = Math.max(0, Math.min(100, pct));
-  let i = 0;
-  while (i < STOPS.length - 2 && p > STOPS[i + 1]![0]) i++;
-  const [p0, c0] = STOPS[i]!;
-  const [p1, c1] = STOPS[i + 1]!;
-  const t = (p - p0) / (p1 - p0 || 1);
-  const hex = c0
-    .map((v, k) =>
-      Math.round(v + (c1[k]! - v) * t)
-        .toString(16)
-        .padStart(2, '0'),
-    )
-    .join('');
-  return `#${hex}`;
 }
 
 export function finalizeLine(line: string, opts: { pasteSafe?: boolean } = {}): string {

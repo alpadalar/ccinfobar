@@ -117,7 +117,7 @@ Colors are converted down automatically when the terminal supports fewer colors.
 
 ## Bars
 
-Widgets that draw a bar (`context-bar`, `five-hour-usage` and `weekly-usage` with `display: "bar"`, `gsd-milestone-progress`, `gsd-plan-progress`, `gsd-summary`) accept `width`, `style` and `showPercent`.
+Widgets that draw a bar (`context-bar`, `five-hour-usage` and `weekly-usage` with `display: "bar"`, `gsd-milestone-progress`, `gsd-plan-progress`, `gsd-summary`) accept `width`, `style`, `barColor` and `showPercent`.
 
 | `style` | Example |
 | --- | --- |
@@ -134,8 +134,12 @@ Widgets that draw a bar (`context-bar`, `five-hour-usage` and `weekly-usage` wit
 | `squares` | `◼◼◼◼◼◻◻◻◻◻` |
 | `geometric` | `▰▰▰▰▰▱▱▱▱▱` |
 | `ascii` | `#####-----` |
+| `ring` | `⠹` (one Braille cell that fills clockwise in 8 steps; `width` is ignored) |
+| `matrix` | `⣿⣿⣇⣀⣀` (Braille dots, two steps per cell) |
 
 With `charset: "text"` every bar becomes `=====-----`.
+
+`barColor: "gradient"` colors each filled cell by its position along the bar, from green through yellow and red to violet, or through the theme's `gradient` colors when it has them. The default is `solid`. With 16 colors the steps are green, yellow and red at 50% and 80%, and without color the bar is plain.
 
 `five-hour-usage` and `weekly-usage` also take `showPace`: the text becomes `60%/40%` (actual and even-burn usage), and bars get a `◆` (ahead of pace) or `◇` (under pace) marker where even burn would be.
 
