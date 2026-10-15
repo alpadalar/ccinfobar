@@ -42,7 +42,7 @@ import { t } from '../core/i18n/index.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { deleteUserPreset, listPresets, presetsDir, saveUserPreset } from '../core/presets.js';
-import { type PreviewSource, previewHidden, renderPreview } from '../core/preview.js';
+import { type PreviewSource, previewHiddenBy, renderPreview } from '../core/preview.js';
 import { resolveAppearance } from '../core/renderer.js';
 import { getScenario, scenarioList } from '../core/scenarios.js';
 import {
@@ -430,7 +430,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const theme = draft ? resolveThemeInput(draft) : undefined;
         send(res, 200, {
           lines: renderPreview(config, source, width, theme),
-          hidden: previewHidden(config, source, width, theme),
+          ...previewHiddenBy(config, source, width, theme),
         });
         return;
       }

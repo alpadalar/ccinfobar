@@ -1,6 +1,10 @@
 import { METRIC_SPECS, type RuleKey } from '../../core/conditions.js';
 import {
   clearColors,
+  defaultPriority,
+  effectiveOverflow,
+  GLYPH_MODE_CHOICES,
+  OVERFLOW_CHOICES,
   optionShown,
   REFRESH_SUGGEST,
   type RuleQuick,
@@ -8,8 +12,12 @@ import {
   ruleFromText,
   ruleQuickState,
   ruleToText,
+  setAmbiguousWidth,
+  setGlyphMode,
   setItemRule,
   setOption,
+  setOverflow,
+  setPriority,
   setRuleQuick,
   type Threshold,
   timeRuleFeed,
@@ -18,7 +26,7 @@ import {
 import { httpRefusal, parseHeaderSpec } from '../../core/http-spec.js';
 import { type MessageId, t } from '../../core/i18n/index.js';
 import { parsePath } from '../../core/jsonpath.js';
-import type { Config, OptionSpec, OptionValue, WidgetItem } from '../../core/types.js';
+import type { Config, GlyphMode, OptionSpec, OptionValue, WidgetItem } from '../../core/types.js';
 import { GLYPHS } from './ansi-html.js';
 import { colorPicker, colorToCss } from './colors.js';
 import { append, type Child, clear, h, icon } from './dom.js';
@@ -534,7 +542,28 @@ function widgetTab(): HTMLElement {
     ),
   );
 
-  root.append(section(t('vis.section'), ...visibilitySection(item.id)));
+  const prio = defaultPriority(info?.category);
+  root.append(
+    section(
+      t('vis.section'),
+      ...visibilitySection(item.id),
+      info?.category === 'layout'
+        ? null
+        : field(
+            t('opt.priority'),
+            numberInput(
+              item.priority ?? '',
+              (v) =>
+                commit(setPriority(S.config, item.id, v ?? undefined), {
+                  coalesce: `${item.id}:priority`,
+                  inspector: false,
+                }),
+              { min: 0, max: 100, step: 1, placeholder: t('opt.priorityDefault', { n: prio }) },
+            ),
+            t('opt.priorityHelp'),
+          ),
+    ),
+  );
 
   if (info?.options.length) {
     const shown = info.options.filter((o) => optionShown(o, info.options, item.options));
@@ -640,6 +669,19 @@ function glyphField(label: string, key: GlyphKey, choices: string[], themeValue:
   );
 }
 
+function glyphModeSelect(c: Config): HTMLSelectElement {
+  const sel = h(
+    'select',
+    {
+      class: 'input',
+      onChange: () => commit(setGlyphMode(S.config, sel.value as GlyphMode)),
+    },
+    ...GLYPH_MODE_CHOICES.map((v) => h('option', { value: v }, t(`opt.glyphMode.${v}`))),
+  );
+  sel.value = c.glyphMode ?? 'normal';
+  return sel;
+}
+
 function globalTab(): HTMLElement {
   const c = S.config;
   const theme = currentTheme();
@@ -731,10 +773,26 @@ function globalTab(): HTMLElement {
         ),
       ),
       field(
-        'Auto wrap',
-        toggle(c.autoWrap, (v) => set({ autoWrap: v })),
-        'Wrap widgets onto extra lines instead of truncating.',
-        true,
+        t('opt.overflow'),
+        segmented(
+          OVERFLOW_CHOICES.map((v) => ({ value: v, label: t(`opt.overflow.${v}`) })),
+          effectiveOverflow(c),
+          (v) => commit(setOverflow(S.config, v)),
+        ),
+        style === 'tui' && effectiveOverflow(c) === 'priority' ? t('opt.overflowTui') : t('opt.overflowHelp'),
+      ),
+      field(t('opt.glyphMode'), glyphModeSelect(c), t('opt.glyphModeHelp')),
+      field(
+        t('opt.ambiguousWidth'),
+        segmented(
+          [
+            { value: 1, label: '1' },
+            { value: 2, label: '2' },
+          ],
+          c.ambiguousWidth ?? 1,
+          (v) => commit(setAmbiguousWidth(S.config, v === 2 ? 2 : 1)),
+        ),
+        t('opt.ambiguousWidthHelp'),
       ),
       field(
         'Color level',

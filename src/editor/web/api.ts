@@ -55,7 +55,12 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export const api = {
   state: () => call<ApiState>('GET', '/api/state'),
   preview: (config: Config, src: PreviewSrc, width: number, theme?: Record<string, unknown>) =>
-    call<{ lines: string[]; hidden: string[] }>('POST', '/api/preview', { config, ...src, width, theme }),
+    call<{ lines: string[]; hidden: string[]; dropped?: string[] }>('POST', '/api/preview', {
+      config,
+      ...src,
+      width,
+      theme,
+    }),
   save: (config: Config) => call<{ ok: boolean; config: Config }>('PUT', '/api/config', { config }),
   normalize: (config: unknown) => call<{ config: Config }>('POST', '/api/normalize', { config }),
   installPlan(command: string, refreshInterval?: number) {

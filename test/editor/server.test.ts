@@ -161,9 +161,34 @@ describe('editor server', () => {
       ).json();
     const ruled = await post(config);
     expect(ruled.hidden).toEqual(['g1']);
+    expect(ruled.dropped).toEqual([]);
     const plain = await post({ lines: [[{ id: 'm2', type: 'model' }]] });
     expect(plain.hidden).toEqual([]);
     expect(ruled.lines).toEqual(plain.lines);
+  });
+
+  it('marks the ids dropped by priority overflow', async () => {
+    const config = {
+      overflow: 'priority',
+      widthOffset: 0,
+      lines: [
+        [
+          { id: 'm', type: 'model' },
+          { id: 'r', type: 'model', hideWhen: '!git' },
+          { id: 'p', type: 'gsd-phase' },
+          { id: 'c', type: 'context-percentage' },
+          { id: 'g', type: 'git-branch' },
+        ],
+      ],
+    };
+    const res = await request('POST', '/api/preview', {
+      body: JSON.stringify({ config, source: 'scenario', scenario: 'fresh-session', width: 20 }),
+    });
+    const body = res.json();
+    expect(body.hidden).toContain('r');
+    expect(body.dropped.length).toBeGreaterThan(0);
+    expect(body.dropped).not.toContain('r');
+    for (const id of body.dropped) expect(body.hidden).toContain(id);
   });
 
   it('survives garbage preview input', async () => {

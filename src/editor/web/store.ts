@@ -1,6 +1,8 @@
 import type { StyleGroup, StyleHistory, StyleSnapshot } from '../../core/edit.js';
 import type { Config, OptionSpec, WidgetCategory } from '../../core/types.js';
 
+export type HiddenWhy = 'rule' | 'priority';
+
 export interface WidgetInfo {
   type: string;
   name: string;
@@ -104,7 +106,7 @@ export interface Store {
   clip: { snap: StyleSnapshot; from: string; type: string } | null;
   groups: StyleGroup[];
   painting: boolean;
-  hidden: ReadonlySet<string>;
+  hidden: ReadonlyMap<string, HiddenWhy>;
 }
 
 export interface CommitOpts {
@@ -145,7 +147,7 @@ export function init(api: ApiState): void {
     clip: null,
     groups: ['colors', 'text'],
     painting: false,
-    hidden: new Set(),
+    hidden: new Map(),
   };
 }
 

@@ -24,6 +24,7 @@ import {
   commit,
   currentTheme,
   emit,
+  type HiddenWhy,
   init,
   isDirty,
   markSaved,
@@ -96,14 +97,15 @@ function renderChip(id: string, line: number, index: number): HTMLElement {
       tabindex: 0,
       role: 'button',
       'aria-pressed': String(item.id === S.selectedId),
-      'aria-label': `${name}, line ${line + 1}, position ${index + 1}${S.hidden.has(item.id) ? HIDDEN_SUFFIX() : ''}`,
+      'aria-label': `${name}, line ${line + 1}, position ${index + 1}${hiddenSuffix(S.hidden.get(item.id))}`,
+      'data-label': `${name}, line ${line + 1}, position ${index + 1}`,
       'data-id': id,
       title: info ? `${info.description}${info.sample ? `\nSample: ${info.sample}` : ''}` : item.type,
     },
     h('i', { class: 'dot', style: color ? `--c:${color}` : '' }),
     h('span', { class: 'chip-name' }, name),
     item.merge ? h('span', { class: 'chip-link', title: 'Merged with next' }, icon('link', 12)) : null,
-    S.hidden.has(item.id) ? hiddenBadge() : null,
+    hiddenBadge(S.hidden.get(item.id)),
   );
   chip.addEventListener('pointerdown', (e) =>
     press(
@@ -117,24 +119,28 @@ function renderChip(id: string, line: number, index: number): HTMLElement {
   return chip;
 }
 
-const HIDDEN_SUFFIX = () => `, ${t('vis.hiddenBadge')}`;
+const hiddenText = (why: HiddenWhy) => t(why === 'rule' ? 'vis.hiddenBadge' : 'vis.droppedBadge');
+const hiddenSuffix = (why: HiddenWhy | undefined) => (why ? `, ${hiddenText(why)}` : '');
 
-function hiddenBadge(): HTMLElement {
-  return h('span', { class: 'chip-hidden', title: t('vis.hiddenBadge') }, t('vis.hiddenShort'));
+function hiddenBadge(why: HiddenWhy | undefined): HTMLElement | null {
+  if (!why) return null;
+  const short = t(why === 'rule' ? 'vis.hiddenShort' : 'vis.droppedShort');
+  return h('span', { class: 'chip-hidden', title: hiddenText(why), 'data-why': why }, short);
 }
 
-function syncHidden(next: string[]): void {
-  const set = new Set(next);
-  if (set.size === S.hidden.size && next.every((id) => S.hidden.has(id))) return;
-  S.hidden = set;
+function syncHidden(hidden: string[], dropped: string[]): void {
+  const drop = new Set(dropped);
+  const next = new Map(hidden.map((id): [string, HiddenWhy] => [id, drop.has(id) ? 'priority' : 'rule']));
+  if (next.size === S.hidden.size && [...next].every(([id, why]) => S.hidden.get(id) === why)) return;
+  S.hidden = next;
   for (const chip of document.querySelectorAll<HTMLElement>('.chip[data-id]')) {
-    const badge = chip.querySelector('.chip-hidden');
-    const on = set.has(chip.dataset.id ?? '');
-    if (on === !!badge) continue;
-    const label = (chip.getAttribute('aria-label') ?? '').replace(HIDDEN_SUFFIX(), '');
-    chip.setAttribute('aria-label', on ? label + HIDDEN_SUFFIX() : label);
-    if (on) chip.append(hiddenBadge());
-    else badge?.remove();
+    const badge = chip.querySelector<HTMLElement>('.chip-hidden');
+    const why = next.get(chip.dataset.id ?? '');
+    if (badge?.dataset.why === why) continue;
+    chip.setAttribute('aria-label', (chip.dataset.label ?? '') + hiddenSuffix(why));
+    badge?.remove();
+    const fresh = hiddenBadge(why);
+    if (fresh) chip.append(fresh);
   }
 }
 
@@ -395,7 +401,7 @@ async function runPreview(): Promise<void> {
   try {
     const res = await api.preview(S.config, previewSource(S), S.width);
     if (seq !== previewSeq) return;
-    syncHidden(res.hidden ?? []);
+    syncHidden(res.hidden ?? [], res.dropped ?? []);
     const term = $('term-lines');
     term.classList.remove('error');
     term.innerHTML = res.lines.length

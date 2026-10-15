@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeConfig } from '../../src/core/config.js';
-import { previewHidden, renderPreview } from '../../src/core/preview.js';
+import { previewHidden, previewHiddenBy, renderPreview } from '../../src/core/preview.js';
 import { withoutSideEffects } from '../helpers.js';
 
 const config = (items: Record<string, unknown>[]) => normalizeConfig({ lines: [items] });
@@ -35,6 +35,28 @@ describe('previewHidden', () => {
     expect(hidden).toContain('p');
     expect(hidden).not.toContain('m');
     expect(withoutSideEffects(() => previewHidden({ ...c, overflow: 'wrap' }, 'sample', 20))).toEqual([]);
+  });
+
+  it('tells rule hides from priority drops', () => {
+    const items = [
+      { id: 'm', type: 'model' },
+      { id: 'r', type: 'model', hideWhen: '!git' },
+      { id: 'g', type: 'git-branch' },
+      { id: 'p', type: 'gsd-phase' },
+      { id: 'c', type: 'context-percentage' },
+    ];
+    const c = normalizeConfig({ lines: [items], overflow: 'priority', widthOffset: 0 });
+    const by = withoutSideEffects(() => previewHiddenBy(c, 'sample', 20));
+    expect(by.hidden).toContain('r');
+    expect(by.dropped).toContain('p');
+    expect(by.dropped).not.toContain('r');
+    expect(by.dropped.every((id) => by.hidden.includes(id))).toBe(true);
+    expect(withoutSideEffects(() => previewHidden(c, 'sample', 20))).toEqual(by.hidden);
+    const plain = normalizeConfig({ lines: [[{ id: 'm', type: 'model' }]] });
+    expect(withoutSideEffects(() => previewHiddenBy(plain, 'sample', 20))).toEqual({
+      hidden: [],
+      dropped: [],
+    });
   });
 
   it('works for scenarios and leaves the lines alone', () => {

@@ -71,11 +71,28 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
   return render(previewContext(config, source, width, theme));
 }
 
+export interface PreviewHidden {
+  hidden: string[];
+  dropped: string[];
+}
+
+// dropped: the hidden ids that priority overflow removed
+export function previewHiddenBy(
+  config: Config,
+  source: PreviewSource,
+  width: number,
+  theme?: Theme,
+): PreviewHidden {
+  if (overflowOf(config) !== 'priority' && !config.lines.some((l) => l.some(hasItemRules))) {
+    return { hidden: [], dropped: [] };
+  }
+  const rows = inspectRows(previewContext(config, source, width, theme));
+  const ids = (codes: string[]) => rows.filter((r) => codes.includes(r.empty?.code ?? '')).map((r) => r.id);
+  return { hidden: ids(['hidden-by-rule', 'dropped-by-priority']), dropped: ids(['dropped-by-priority']) };
+}
+
 export function previewHidden(config: Config, source: PreviewSource, width: number, theme?: Theme): string[] {
-  if (overflowOf(config) !== 'priority' && !config.lines.some((l) => l.some(hasItemRules))) return [];
-  return inspectRows(previewContext(config, source, width, theme))
-    .filter((r) => r.empty?.code === 'hidden-by-rule' || r.empty?.code === 'dropped-by-priority')
-    .map((r) => r.id);
+  return previewHiddenBy(config, source, width, theme).hidden;
 }
 
 function previewContext(config: Config, source: PreviewSource, width: number, theme?: Theme): RenderContext {

@@ -62,6 +62,8 @@ export const displayMessages = {
   'opt.overflow.priority': 'Drop by priority',
   'opt.overflowHelp':
     'When a line is too wide: cut it at the edge, wrap widgets onto extra rows, or drop the lowest-priority widgets',
+  'opt.overflowTui':
+    'Drop by priority does not apply to the tui style; panel cells use their own breakpoints.',
   'opt.priority': 'Priority',
   'opt.priorityHelp': 'Higher stays longer when the line is too wide (overflow: priority)',
   'opt.priorityDefault': 'Default {n}',
