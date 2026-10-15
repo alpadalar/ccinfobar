@@ -61,7 +61,7 @@ src/
 │   ├── sanitize.ts      control, escape and bidi stripping, safe URLs
 │   ├── json-locate.ts   line and column of a JSON error or key
 │   ├── config-path.ts   dotted paths for `ccinfobar config`
-│   ├── i18n/            t() and the English message tables
+│   ├── i18n/            t(), the language registry and resolver, en/ and tr/ message tables, tr/meta/
 │   ├── renderer.ts      lines → ANSI text (styles, separators, flex, rules, priority, truncation)
 │   ├── themes.ts        theme logic, user theme loading and resolution
 │   ├── themes/          builtin.ts (theme data) and style.ts (types and style tables), both pure
@@ -335,7 +335,19 @@ Adding a job:
 
 ### Messages and providers
 
-User-facing messages go through `t(id, params)` from `core/i18n/`. Each area has its own table in `src/core/i18n/en/` (`install.ts`, `config.ts`, `doctor.ts`, `widgets.ts`, `explain.ts`, `preview.ts`, `bench.ts`, `hooks.ts`, `jobs.ts`, `display.ts` for rules, overflow, glyph modes and progress, and `fun.ts` for the quips). `data/provider.ts` detects API-key, Bedrock, Vertex, Foundry, Mantle, Anthropic AWS and gateway sessions from the environment (presence only), so plan-limit widgets and the OAuth usage fetch only run for Claude subscriptions.
+User-facing messages go through `t(id, params)` from `core/i18n/`. Each area has its own table in `src/core/i18n/en/` (`install.ts`, `config.ts`, `doctor.ts`, `widgets.ts`, `explain.ts`, `cli.ts`, `editor.ts`, `tui.ts` and so on; `display.ts` covers rules, overflow, glyph modes and progress, `fun.ts` the quips). The English message is the id's meaning; `tr/` has one file per area with the same ids. `data/provider.ts` detects API-key, Bedrock, Vertex, Foundry, Mantle, Anthropic AWS and gateway sessions from the environment (presence only), so plan-limit widgets and the OAuth usage fetch only run for Claude subscriptions.
+
+### Languages
+
+- **Registry.** `core/i18n/languages.ts` lists each language once: id, native name, aliases, locale, and a loader. `LANGUAGE_SETTINGS` (`auto` plus the ids) feeds config validation, `config set`, the schema and both editors' selectors, so they pick up a new entry by themselves.
+- **Lookup.** `t()` looks in the active language's table, then in English, then returns the id. A message can be a `{ one, other }` plural, picked with a cached `Intl.PluralRules` for the language's locale from `params.count`. `{name}` params are filled the same way in every language.
+- **Resolver.** `core/i18n/resolve.ts` is pure and never reads `process`: `resolveLanguage(setting, hints)` takes the config value and the hints in order. A config id wins; otherwise the first non-empty hint decides (an unsupported tag, `C` or `POSIX` gives English from that source), else the default. `pickUiLanguage` does the same for the browser.
+- **Active language.** One module-level language, switched with set-and-restore: `render()` switches to the config's `language` and restores the previous one in `finally`, and so does `inMode` in `core/inspect.ts`. Render is synchronous, so editor previews with different configs cannot interleave.
+- **Edges.** Only the edges read the environment. `cli/lang.ts` builds the hints from `CCINFOBAR_LANG`, `LC_ALL`, `LC_MESSAGES` and `LANG`, and only when all are empty asks `new Intl.PluralRules().resolvedOptions().locale` (about 0.2 ms, against about 12 ms for `Intl.DateTimeFormat()`), memoized per process. `applyLanguage(config)` runs after `loadForUse` in each command; a broken config keeps the environment's answer. The editor server sends its environment answer as `language` in `/api/state` and renders previews in it. The TUI applies the config language at boot and again after each change. The browser app picks the UI language from the config, the server's answer and `navigator.languages`, and fills `data-i18n` keys in `index.html` with `applyStatic`.
+- **Loading.** English is always loaded. Other tables load with `import()` (`loadLanguage`), so an English status line never parses them: `cli/render.ts` awaits `prepareLanguage(config)` before the first `t()`, and `main.ts` loads every language for the other commands (not for `hook` and `worker`). The browser bundle and `test/setup.ts` call `installBundled()` from `core/i18n/bundled.ts`, which installs every table up front.
+- **Metadata.** Widget names, descriptions, labels, hints, samples and option texts stay English in the `WidgetDef`s; translations live in `tr/meta/`, one `MetaFile` per widget category keyed by widget type and option key, plus `catalog.ts` for themes, styles, presets, scenarios and style groups keyed by id. `widgetText`, `optionLabel`, `choiceLabel` (`core/i18n/widget-text.ts`) and `themeDescription`, `styleText`, `presetText`, `scenarioText` (`core/i18n/catalog-text.ts`) fall back to the English text.
+- **Formats.** `core/i18n/format.ts` formats dates with an explicit locale and 24-hour times, and `foldSearch` folds search text with the language's casing rules. Numbers, units and compact durations are not localized. Ids, config keys and JSON output stay English; JSON paths run under `withLanguage('en', …)`.
+- **Tests.** `test/setup.ts` pins `LANG=C` and `LC_ALL=C`, removes `LC_MESSAGES` and `CCINFOBAR_LANG`, and sets English before each test; `withLang` and `withTz` in `test/helpers.ts` switch for one test. `test/core/i18n.test.ts` checks that every language has exactly the English ids, the same params and plural shapes, and clean text; `test/i18n/widget-meta.test.ts` checks that every widget and category has metadata in every language that ships it. `test/i18n/snapshots.test.ts` keeps one plain-text file per scenario under `test/i18n/__snapshots__/tr/` (update with `-u`). `test/i18n/literal-scan.test.ts` lists every `src/` file outside `core/i18n/` as swept or not swept with a reason, `test/foundations/locale-scan.test.ts` rejects implicit-locale casing, date strings and sorting, and `test/i18n/pseudo.test.ts` renders a wide pseudo-locale (`zz`, test-only) to prove widths. The `test-tr-locale` CI job runs `npm run check` with the process started under `tr_TR.UTF-8`.
 
 ## Adding a widget
 
@@ -365,6 +377,16 @@ User-facing messages go through `t(id, params)` from `core/i18n/`. Each area has
 5. Run `npm run docs` and commit the regenerated files.
 
 Both editors pick up new widgets and their options automatically.
+
+## Adding a language
+
+1. Copy `src/core/i18n/tr/` to `src/core/i18n/<id>/`: one file per area with the same ids as `en/`, an `index.ts` that merges them, and `tables.ts`.
+2. Add `<id>/meta/`: one `MetaFile` per widget category, `catalog.ts` and an `index.ts` that merges them, as in `tr/meta/`.
+3. Add one entry to `LANGUAGES` in `src/core/i18n/languages.ts` (id, native name, aliases, locale, empty `messages`), its loader in `LOADERS` and one `installTables` line in `src/core/i18n/bundled.ts`.
+4. Run `npx vitest run test/core/i18n.test.ts test/i18n test/core/i18n-lazy.test.ts`; the completeness tests fail until every id, widget and category is there.
+5. Run `npm run docs` (the schema lists the new value). If the language gets its own snapshot suite, add it to `test/i18n/snapshots.test.ts` and write the files with `-u`.
+
+The resolver, the editors' selectors, `config set language` and `doctor` need no change.
 
 ## Testing
 
@@ -521,6 +543,19 @@ Phase 7 (display: width engine, rules, priority overflow, glyph modes, bars, act
 The warm median is 1.5 to 1.9% above the baseline, inside the 5% gate; the per-plan runs during the phase stayed between 123.4 and 127.3 ms. A layout without rules does no metric work, overflow other than `priority` takes the old path, and ASCII text takes the width engine's first tier, so the default layout pays only for the larger render code.
 
 The progress hook (`--progress hook UserPromptSubmit`, `WT_SESSION=1`, a want file in a temp cache dir, 20 interleaved runs, two rounds) took 77.9 and 77.1 ms when it printed a sequence and 77.0 and 76.3 ms when the value was unchanged, against 66.7 and 66.9 ms for `node -e 0`: about 10 ms of ccinfobar code over Node's own start. Claude Code waits for the whole process, which is where the 60-110 ms per prompt in [CONFIGURATION.md](CONFIGURATION.md#terminal-progress) comes from.
+
+Phase 8 (languages), 2026-10-15, same machine and method, `nice -n -10` (priority 0), Node v22.23.1, load average about 1.3 to 2.5, cwd this git repo, default layout, N = 30. The machine was busier than in Phase 7, so the builds ran side by side in alternating rounds: `before` is the build before Phase 8 (141a7e6), `static` the phase with every table loaded statically (8d66c49), `lazy` the phase with Turkish loaded on demand. Medians of the rounds' medians in ms (six rounds for `before` and `lazy`, three for `static`):
+
+| Row | before | static | lazy |
+|-----|-------:|-------:|-----:|
+| `node -e 0` | 74.0 | 73.5 | 73.7 |
+| cold | 165.7 | 174.0 | 170.1 |
+| warm | 144.7 | 153.6 (+6.1%) | 150.1 (+3.7%) |
+| warm, `LANG=en_US.UTF-8` | 145.9 | 157.6 (+8.0%) | 150.3 (+3.0%) |
+| warm, compile cache off | 154.4 | 167.5 | 160.6 |
+| hook UserPromptSubmit | 83.8 | 86.6 | 86.0 |
+
+With every table loaded statically the warm render was 6 to 8% slower, over the 5% gate, so the Turkish tables (about 160 KB of the bundle) now load with `import()` only when Turkish is shown. What is left is the larger English table, which now also holds the editor and TUI texts (the render loads about 590 KB of chunks against 530 KB before), and two more chunks. A `LANG=tr_TR.UTF-8` warm render took 152.0 to 156.7 ms.
 
 ## Releasing
 

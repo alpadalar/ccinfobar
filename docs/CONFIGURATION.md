@@ -200,15 +200,37 @@ With `priority`, each widget has a `priority` from 0 to 100; higher stays longer
 
 ## Language
 
-`language` sets the language of the status line, the CLI and the editors. With `auto` (or no `language` key) ccinfobar picks it from the first of these that is set:
+`language` sets the language of the status line, the CLI and both editors. The values are `auto` (default), `en` and `tr`.
+
+With `auto` (or no `language` key) ccinfobar picks the language from the first of these that is set:
 
 1. `CCINFOBAR_LANG=<tag>`, which forces the display language while `language` is `auto`
 2. `LC_ALL`
 3. `LC_MESSAGES`
 4. `LANG`
 5. the system locale
+6. English
 
-Tags such as `tr`, `tr_TR.UTF-8` or `tr-TR` select Turkish. A language ccinfobar does not have, `C` or `POSIX` gives English. Set `"language": "en"` to keep English.
+The first non-empty variable decides, even when it names a language ccinfobar does not have; then you get English. `C` and `POSIX` mean English. Tags such as `tr`, `tr_TR.UTF-8` or `tr-TR` select Turkish.
+
+```json
+{ "language": "tr" }
+```
+
+```sh
+ccinfobar config set language tr     # or en, or auto
+CCINFOBAR_LANG=tr ccinfobar preview  # one run in Turkish
+LANG=C ccinfobar doctor              # English in scripts
+```
+
+Set `"language": "en"` to keep English on a machine with a Turkish locale. The web editor has a Language select in Settings and the terminal editor (`ccinfobar tui`) a Language field next to Glyph mode; both switch at once, and Auto removes the `language` key. `ccinfobar doctor` shows the language in use and where it came from (`Language: English (en, from config)`), and warns about an unsupported `language` value.
+
+What does not change with the language:
+
+- JSON output (`explain --json`, `bench --json`, `config get` and the editor API) stays English.
+- Numbers, units, costs and compact durations look the same as in English (`12.4/31.0 GB`, `$1.87`, `2h 13m`). Dates use the language's month and day names with 24-hour times (`Oct 14, 2026, 21:07`, `14 Eki 2026 21:07`).
+- Widget ids, theme ids, config keys, commands and flags never change. Labels and text you wrote in your config show as written.
+- `ccinfobar init --force`, presets and import keep your `language` setting.
 
 ## Colors
 

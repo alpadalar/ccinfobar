@@ -384,6 +384,10 @@ The config lives in `~/.config/ccinfobar/config.json` (`%APPDATA%\ccinfobar\conf
 }
 ```
 
+### Languages
+
+ccinfobar speaks English and Turkish. The status line, the CLI and both editors follow your locale (`CCINFOBAR_LANG`, `LC_ALL`, `LC_MESSAGES`, `LANG`, then the system locale). Set `"language": "en"` to keep English, or `"tr"` for Turkish; `ccinfobar config set language tr` does the same. See [Language](docs/CONFIGURATION.md#language).
+
 ## Updates
 
 ccinfobar keeps itself up to date: each time Claude Code starts a session (and at least once a day), after the status line has been printed, a background process asks GitHub for the latest release and installs it from npm (or from the GitHub release if npm does not have it yet); the status line never waits for it. Installs made from a GitHub release tarball move to the npm package on their next update.
