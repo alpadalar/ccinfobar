@@ -288,9 +288,9 @@ describe('Turkish widget metadata', () => {
   });
 });
 
-describe('Turkish limits and charts', () => {
+describe('Turkish limits, charts, agents and gsd', () => {
   it('have category files', () => {
-    for (const cat of ['limits', 'charts']) expect(Object.keys(byCategory)).toContain(cat);
+    for (const cat of ['limits', 'charts', 'agents', 'gsd']) expect(Object.keys(byCategory)).toContain(cat);
   });
 
   it('render the Turkish reset label with the same value', () => {
@@ -309,6 +309,19 @@ describe('Turkish limits and charts', () => {
     const tr = withLang('tr', () => stripAnsi(render(ctx())[0]!));
     expect(en).toMatch(/^5h \S+ │ Resets 2h 14m$/);
     expect(tr).toBe(en.replace('│ Resets ', '│ Sıfırlanma '));
+  });
+
+  it('build lowercase Turkish GSD hints', () => {
+    withLang('tr', () => {
+      expect(widgetHint(getWidget('gsd-milestone')!)).toBe('kilometre taşı');
+      expect(widgetHint(getWidget('gsd-status')!)).toBe('durum');
+      for (const w of ALL_WIDGETS.filter((d) => d.category === 'gsd')) {
+        const hint = widgetHint(w);
+        expect(hint, w.type).toBe(hint.toLocaleLowerCase('tr'));
+        expect(hint, w.type).not.toMatch(/^gsd\s/i);
+        expect(hint, w.type).not.toBe(w.name.replace(/^GSD\s+/, '').toLowerCase());
+      }
+    });
   });
 });
 
