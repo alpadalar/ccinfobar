@@ -33,6 +33,17 @@ describe('renderScreen', () => {
     expect(out).toContain('q quit');
   });
 
+  it('counts lines and widgets with plural words', () => {
+    const [first] = defaultConfig().lines;
+    const one = { ...defaultConfig(), lines: [first!] };
+    expect(text(build(one)).join('\n')).toContain('Lines · 1 line ');
+    expect(text(build({ ...one, lines: [first!, []] })).join('\n')).toContain('Lines · 2 lines');
+    const single = { ...defaultConfig(), lines: [[first![0]!]] };
+    expect(text(build(single, { type: 'deleteLine' })).join('\n')).toContain('Delete line 1 with 1 widget?');
+    expect(text(build(one, { type: 'deleteLine' })).join('\n')).toMatch(/Delete line 1 with \d+ widgets\?/);
+    expect(text(build(defaultConfig(), { type: 'openThemes' })).join('\n')).toMatch(/ \d+ themes · Ctrl\+S/);
+  });
+
   it('marks the dirty state in the header', () => {
     const s = build(defaultConfig(), { type: 'removeChip' });
     expect(text(s)[0]).toContain('modified');

@@ -51,6 +51,7 @@ const SWEPT: string[] = [
   'src/tui/fields.ts',
   'src/tui/state.ts',
   'src/tui/index.ts',
+  'src/tui/view.ts',
   'src/widgets/activity.ts',
   'src/widgets/agents.ts',
   'src/widgets/charts.ts',
@@ -128,6 +129,8 @@ const ALLOW: Record<string, string[]> = {
   ],
   // product name as the section title
   'src/editor/web/settings.ts': ['Claude Code'],
+  // key names stay as typed (D-30)
+  'src/tui/view.ts': ['← → ↑ ↓  h j k l'],
   'src/editor/web/app.ts': [
     // CSS classes
     'icon-btn danger sm',

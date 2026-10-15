@@ -1,10 +1,12 @@
 import { parseColor, stripAnsi, style, truncate, visibleWidth } from '../core/ansi.js';
-import { t } from '../core/i18n/index.js';
+import { presetText, themeDescription } from '../core/i18n/catalog-text.js';
+import { type MessageId, t } from '../core/i18n/index.js';
 import { widgetText } from '../core/i18n/widget-text.js';
 import { renderPreview } from '../core/preview.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { resolveTheme } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
+import { padVisible as pad } from '../core/width.js';
 import { getWidget } from '../widgets/index.js';
 import { categoryName, pickerItems } from './catalog.js';
 import { displayValue, type Field, listEntries } from './fields.js';
@@ -35,12 +37,6 @@ const dim = (t: string) => `${ESC}2m${t}${ESC}22m`;
 const bold = (t: string) => `${ESC}1m${t}${ESC}22m`;
 const under = (t: string) => `${ESC}4m${t}${ESC}24m`;
 const fg = (t: string, color: string | undefined) => (color ? style(t, { fg: color }, 3) : t);
-
-function pad(text: string, width: number): string {
-  const w = visibleWidth(text);
-  if (w > width) return truncate(text, width);
-  return text + ' '.repeat(width - w);
-}
 
 function rule(title: string, cols: number): string {
   const head = `── ${title} `;
@@ -77,7 +73,7 @@ function editorRows(state: State, cols: number): { rows: Row[]; selRow: number }
   let selRow = 0;
   const { lines } = state.config;
   if (!lines.length) {
-    return { rows: [{ text: `    ${dim('No lines yet. Press n to create one.')}`, hits: [] }], selRow: 0 };
+    return { rows: [{ text: `    ${dim(t('tui.view.noLines'))}`, hits: [] }], selRow: 0 };
   }
   const mark = fg('┃', 'brightCyan');
   lines.forEach((items, l) => {
@@ -96,7 +92,7 @@ function editorRows(state: State, cols: number): { rows: Row[]; selRow: number }
     if (!items.length) {
       const dropHere = state.drag?.to?.line === l;
       text += dropHere ? mark : ' ';
-      text += dim('(empty line)');
+      text += dim(t('tui.view.emptyLine'));
       if (cur) selRow = rows.length;
       flush();
       return;
@@ -133,32 +129,34 @@ function windowStart(total: number, cursor: number, height: number): number {
   return Math.max(0, Math.min(total - height, cursor - Math.floor(height / 2)));
 }
 
+const FLAGS = ['bold', 'dim', 'italic', 'raw', 'merge'] as const;
+
 function summary(item: WidgetItem): string {
   const parts: string[] = [];
-  if (item.color) parts.push(`color ${item.color}`);
-  if (item.background) parts.push(`bg ${item.background}`);
-  for (const f of ['bold', 'dim', 'italic', 'raw', 'merge'] as const) if (item[f]) parts.push(f);
-  if (item.label !== undefined) parts.push(`label "${item.label}"`);
+  if (item.color) parts.push(t('tui.view.color', { value: item.color }));
+  if (item.background) parts.push(t('tui.view.background', { value: item.background }));
+  for (const f of FLAGS) if (item[f]) parts.push(t(`tui.view.flag.${f}`));
+  if (item.label !== undefined) parts.push(t('tui.view.label', { value: item.label }));
   for (const [k, v] of Object.entries(item.options ?? {})) parts.push(`${k}=${v}`);
-  return parts.length ? parts.join('  ') : 'default style';
+  return parts.length ? parts.join('  ') : t('tui.view.defaultStyle');
 }
 
 function contextPanel(state: State, cols: number, height: number): string[] {
-  const out: string[] = [rule('Selected', cols)];
+  const out: string[] = [rule(t('tui.view.selected'), cols)];
   const item = selectedItem(state);
   const body: string[] = [];
   if (state.drag) {
-    body.push(bold('Dragging…'), dim('Release over a position to drop. Esc cancels.'));
+    body.push(bold(t('tui.view.dragging')), dim(t('tui.view.dropHint')));
   } else if (item) {
     const def = getWidget(item.type);
     body.push(
-      `${bold(def ? widgetText(def, 'name') : item.type)} ${dim(`(${item.type}${def ? ` · ${categoryName(def.category)}` : ' · unknown widget'})`)}`,
-      def ? widgetText(def, 'description') : dim('This widget type is not registered.'),
+      `${bold(def ? widgetText(def, 'name') : item.type)} ${dim(`(${item.type} · ${def ? categoryName(def.category) : t('tui.view.unknownWidget')})`)}`,
+      def ? widgetText(def, 'description') : dim(t('tui.view.notRegistered')),
       summary(item),
       dim(`id ${item.id}`),
     );
   } else {
-    body.push(dim('No widget selected.'), dim('Press a to add a widget, n for a new line, ? for help.'));
+    body.push(dim(t('tui.view.noWidget')), dim(t('tui.view.noWidgetHint')));
   }
   for (let i = 0; i < height - 1; i++) out.push(` ${truncate(body[i] ?? '', cols - 2)}`);
   return out;
@@ -184,7 +182,7 @@ interface Modal {
 
 function pickerModal(state: State, mode: Extract<Mode, { kind: 'picker' }>, w: number, h: number): Modal {
   const items = pickerItems(mode.filter, state.gsd);
-  const lines = [rule('Add widget', w), ` ${dim('Filter:')} ${mode.filter}${inv(' ')}`];
+  const lines = [rule(t('tui.view.addWidget'), w), ` ${dim(t('tui.view.filter'))} ${mode.filter}${inv(' ')}`];
   const listH = Math.max(1, h - 3);
   type R = { header: string; gsd: boolean } | { index: number };
   const rows: R[] = [];
@@ -226,7 +224,7 @@ function pickerModal(state: State, mode: Extract<Mode, { kind: 'picker' }>, w: n
     );
     hits.push({ kind: 'item', area: 'main', index: r.index, x: 0, y: lines.length - 1, w });
   }
-  if (!items.length) lines[2] = ` ${dim('No widgets match. Esc to cancel.')}`;
+  if (!items.length) lines[2] = ` ${dim(t('tui.view.noWidgets'))}`;
   const cur = items[mode.cursor];
   lines.push(cur ? dim(` ${truncate(widgetText(cur, 'description'), w - 2)}`) : '');
   return { lines, hits };
@@ -269,16 +267,16 @@ function subPanel(field: Field, mode: Extract<Mode, { kind: 'settings' }>, w: nu
   if (visibleWidth(after) > room) after = `${truncate(after, Math.max(1, room))}`;
   const hint =
     field.kind === 'color'
-      ? '#rrggbb, ansi256:N or a color name'
+      ? t('tui.view.colorHint')
       : field.kind === 'number'
-        ? 'a number'
-        : (field.help ?? 'text');
+        ? t('tui.view.numberHint')
+        : (field.help ?? t('tui.view.textHint'));
   lines.push(
     bold(` ${field.label}`),
     ` ${before}${inv(at)}${after}`,
     '',
     dim(` ${hint}`),
-    dim(' Enter apply · Esc cancel'),
+    dim(` ${t('tui.view.editKeys')}`),
   );
   return { lines: lines.slice(0, h), hits };
 }
@@ -287,7 +285,9 @@ function settingsModal(state: State, mode: Extract<Mode, { kind: 'settings' }>, 
   const fields = settingsFields(state);
   const item = mode.scope === 'widget' ? selectedItem(state) : undefined;
   const title =
-    mode.scope === 'global' ? 'Global settings' : `${itemLabel(item ?? { id: '', type: '?' })} · properties`;
+    mode.scope === 'global'
+      ? t('tui.view.globalSettings')
+      : t('tui.view.properties', { name: itemLabel(item ?? { id: '', type: '?' }) });
   const lines = [rule(title, w)];
   const listH = Math.max(1, h - 2);
   const field = fields[mode.cursor];
@@ -324,7 +324,11 @@ function settingsModal(state: State, mode: Extract<Mode, { kind: 'settings' }>, 
   }
   const help =
     field?.help ??
-    (field?.kind === 'bool' ? 'Enter toggles' : field?.kind === 'select' ? 'Enter or ←/→ changes' : '');
+    (field?.kind === 'bool'
+      ? t('tui.view.boolHelp')
+      : field?.kind === 'select'
+        ? t('tui.view.selectHelp')
+        : '');
   lines.push(dim(` ${truncate(help, w - 2)}`));
   return { lines, hits };
 }
@@ -345,7 +349,7 @@ function themePreviewLine(state: State, id: string, width: number): string {
     const out = renderPreview(demo, 'sample', width + state.config.widthOffset);
     line = (resolveTheme(id).style === 'tui' && out.length >= 3 ? out[1] : out[0]) ?? '';
   } catch {
-    line = dim('(preview unavailable)');
+    line = dim(t('tui.view.previewUnavailable'));
   }
   themeLineCache.set(key, { at: Date.now(), line });
   return line;
@@ -354,52 +358,51 @@ function themePreviewLine(state: State, id: string, width: number): string {
 function themesModal(state: State, mode: Extract<Mode, { kind: 'themes' }>, w: number, h: number): Modal {
   const items = themeItems(mode.filter);
   const current = state.config.theme;
-  const lines = [rule('Themes', w)];
+  const lines = [rule(t('tui.view.themes'), w)];
   if (mode.naming) {
     const chars = [...mode.naming.text];
     const before = chars.slice(0, mode.naming.pos).join('');
     const at = chars[mode.naming.pos] ?? ' ';
     const after = chars.slice(mode.naming.pos + 1).join('');
-    lines.push(` ${bold('Save as my theme')} ${dim('(letters, numbers, . - _)')}`);
-    lines.push(` ${dim('Id:')} ${before}${inv(at)}${after}`);
-    lines.push(
-      dim(' Saves the current theme with your overrides, then switches to it. Enter save · Esc cancel'),
-    );
+    lines.push(` ${bold(t('tui.view.saveAsMine'))} ${dim(t('tui.view.themeIdRule'))}`);
+    lines.push(` ${dim(t('tui.view.themeId'))} ${before}${inv(at)}${after}`);
+    lines.push(dim(` ${t('tui.view.saveThemeHint')}`));
     while (lines.length < h) lines.push('');
     return { lines, hits: [] };
   }
-  lines.push(` ${dim('Filter:')} ${mode.filter}${inv(' ')}`);
+  lines.push(` ${dim(t('tui.view.filter'))} ${mode.filter}${inv(' ')}`);
   const listH = Math.max(2, h - 2);
   const per = 2;
   const visible = Math.max(1, Math.floor(listH / per));
   const start = windowStart(items.length, mode.cursor, visible);
   const hits: Hit[] = [];
+  const yours = t('insp.yours');
   for (let n = 0; n < visible; n++) {
-    const t = items[start + n];
-    if (!t) break;
+    const th = items[start + n];
+    if (!th) break;
     const selected = start + n === mode.cursor;
-    const tags = `${t.style} · ${t.source === 'user' ? 'yours · ' : ''}${t.description}`;
-    const head = ` ${t.id === current ? '●' : ' '} ${pad(t.name, 16)} ${truncate(tags, Math.max(0, w - 22))}`;
+    const tags = `${th.style} · ${th.source === 'user' ? `${yours} · ` : ''}${themeDescription(th)}`;
+    const head = ` ${th.id === current ? '●' : ' '} ${pad(th.name, 16)} ${truncate(tags, Math.max(0, w - 22))}`;
     lines.push(
       selected
         ? inv(pad(head, w))
-        : `${pad(` ${t.id === current ? '●' : ' '} ${bold(t.name)}`, 20)} ${dim(truncate(tags, Math.max(0, w - 22)))}`,
+        : `${pad(` ${th.id === current ? '●' : ' '} ${bold(th.name)}`, 20)} ${dim(truncate(tags, Math.max(0, w - 22)))}`,
     );
-    lines.push(`   ${truncate(themePreviewLine(state, t.id, w - 6), w - 3)}\x1b[0m`);
+    lines.push(`   ${truncate(themePreviewLine(state, th.id, w - 6), w - 3)}\x1b[0m`);
     for (const dy of [0, 1])
       hits.push({ kind: 'item', area: 'main', index: start + n, x: 0, y: lines.length - 2 + dy, w });
   }
-  if (!items.length) lines.push(` ${dim('No themes match. Esc to cancel.')}`);
+  if (!items.length) lines.push(` ${dim(t('tui.view.noThemes'))}`);
   while (lines.length < h - 1) lines.push('');
   lines.push(
-    dim(` ${items.length} themes · ${truncate('Ctrl+S saves the current look as your own theme', w - 16)}`),
+    dim(` ${t('tui.view.themeCount', { count: items.length })} · ${truncate(t('tui.view.saveTip'), w - 16)}`),
   );
   return { lines: lines.slice(0, h), hits };
 }
 
 function presetsModal(state: State, mode: Extract<Mode, { kind: 'presets' }>, w: number, h: number): Modal {
   const PRESETS = state.presets;
-  const lines = [rule('Presets · replaces the current layout', w)];
+  const lines = [rule(t('tui.view.presets'), w)];
   const hits: Hit[] = [];
   const listH = Math.max(1, h - 1);
   const start = windowStart(PRESETS.length, mode.cursor, listH);
@@ -409,12 +412,12 @@ function presetsModal(state: State, mode: Extract<Mode, { kind: 'presets' }>, w:
       lines.push('');
       continue;
     }
-    const row = ` ${pad(p.name, 16)} ${p.description}`;
+    const name = presetText(p, 'name');
+    const desc = presetText(p, 'description');
+    const row = ` ${pad(name, 16)} ${desc}`;
     const selected = start + i === mode.cursor;
     lines.push(
-      selected
-        ? inv(pad(row, w))
-        : `${pad(` ${p.name}`, 17)} ${dim(truncate(p.description, Math.max(0, w - 18)))}`,
+      selected ? inv(pad(row, w)) : `${pad(` ${name}`, 17)} ${dim(truncate(desc, Math.max(0, w - 18)))}`,
     );
     hits.push({ kind: 'item', area: 'main', index: start + i, x: 0, y: lines.length - 1, w });
   }
@@ -432,7 +435,7 @@ function centered(rows: string[], w: number, h: number, title: string): Modal {
 const shown = (s: string) => sanitizeText(s).replace(/\s+/g, ' ');
 
 export function installQuestion(plan?: TuiInstallPlan): string {
-  if (!plan?.needsConfirm) return "Set Claude Code's statusLine to ccinfobar?";
+  if (!plan?.needsConfirm) return t('tui.confirm.installQuestion');
   return t('tui.replaceQuestion', {
     current: shown(plan.current ?? t('install.unset')),
     proposed: shown(plan.proposed),
@@ -440,86 +443,93 @@ export function installQuestion(plan?: TuiInstallPlan): string {
 }
 
 function confirmModal(state: State, mode: Extract<Mode, { kind: 'confirm' }>, w: number, h: number): Modal {
-  const k = (t: string) => bold(fg(t, 'brightYellow'));
+  const k = (key: string, id: MessageId) => `${bold(fg(key, 'brightYellow'))} ${t(id)}`;
   switch (mode.what) {
     case 'quit':
       return centered(
         [
-          bold('You have unsaved changes.'),
+          bold(t('tui.confirm.unsaved')),
           '',
-          `${k('s')} save and quit   ${k('d')} discard   ${k('Esc')} keep editing`,
+          `${k('s', 'tui.confirm.saveQuit')}   ${k('d', 'tui.confirm.discard')}   ${k('Esc', 'tui.confirm.keepEditing')}`,
         ],
         w,
         h,
-        'Quit',
+        t('tui.confirm.quit'),
       );
     case 'deleteLine':
       return centered(
         [
           bold(
-            `Delete line ${state.sel.line + 1} with ${state.config.lines[state.sel.line]?.length ?? 0} widgets?`,
+            t('tui.confirm.deleteLine', {
+              line: state.sel.line + 1,
+              count: state.config.lines[state.sel.line]?.length ?? 0,
+            }),
           ),
           '',
-          `${k('y')} delete   ${k('n')} cancel`,
+          `${k('y', 'tui.confirm.delete')}   ${k('n', 'tui.confirm.cancel')}`,
         ],
         w,
         h,
-        'Delete line',
+        t('tui.confirm.deleteLineTitle'),
       );
     case 'preset': {
-      const name = state.presets.find((p) => p.id === mode.preset)?.name ?? '';
+      const preset = state.presets.find((p) => p.id === mode.preset);
       return centered(
         [
-          bold(`Replace the current layout with "${name}"?`),
-          dim('You can undo this with u.'),
+          bold(t('tui.confirm.replacePreset', { name: preset ? presetText(preset, 'name') : '' })),
+          dim(t('tui.confirm.undoHint')),
           '',
-          `${k('y')} replace   ${k('n')} cancel`,
+          `${k('y', 'tui.confirm.replace')}   ${k('n', 'tui.confirm.cancel')}`,
         ],
         w,
         h,
-        'Apply preset',
+        t('tui.confirm.applyPreset'),
       );
     }
     case 'install':
       return centered(
         [
           bold(truncate(installQuestion(mode.plan), Math.max(10, w - 4))),
-          dim('Unsaved changes are saved first.'),
+          dim(t('tui.confirm.savedFirst')),
           '',
-          `${k('y')} install   ${k('n')} cancel`,
+          `${k('y', 'tui.confirm.install')}   ${k('n', 'tui.confirm.cancel')}`,
         ],
         w,
         h,
-        'Install',
+        t('tui.confirm.installTitle'),
       );
   }
 }
 
-const HELP: [string, string][] = [
-  ['← → ↑ ↓  h j k l', 'select widget / line'],
-  ['Shift+← →  <  >', 'move widget in line'],
-  ['Shift+↑ ↓  {  }', 'move widget to prev/next line'],
-  ['a  +', 'add widget'],
-  ['d  x  Delete', 'remove widget'],
-  ['e  Enter', 'edit properties'],
-  ['n', 'new line below'],
-  ['D', 'delete line'],
-  ['K  J', 'move line up / down'],
-  ['g', 'global settings'],
-  ['t', 'presets'],
-  ['p', 'preview: sample / last session'],
-  ['u  Ctrl+Z', 'undo'],
-  ['U  Ctrl+Y', 'redo'],
-  ['s  Ctrl+S', 'save'],
-  ['i', 'install into Claude Code'],
-  ['q  Esc', 'quit'],
-  ['Mouse', 'click selects, drag moves, wheel scrolls lists'],
+// a key name stays as typed; a [id] key is a word
+type Key = string | [MessageId];
+const keyText = (k: Key) => (typeof k === 'string' ? k : t(k[0]));
+
+const HELP: [Key, MessageId][] = [
+  ['← → ↑ ↓  h j k l', 'tui.help.select'],
+  ['Shift+← →  <  >', 'tui.help.moveInLine'],
+  ['Shift+↑ ↓  {  }', 'tui.help.moveToLine'],
+  ['a  +', 'tui.help.add'],
+  ['d  x  Delete', 'tui.help.remove'],
+  ['e  Enter', 'tui.help.edit'],
+  ['n', 'tui.help.newLine'],
+  ['D', 'tui.help.deleteLine'],
+  ['K  J', 'tui.help.moveLine'],
+  ['g', 'tui.help.global'],
+  ['t', 'tui.help.presets'],
+  ['p', 'tui.help.preview'],
+  ['u  Ctrl+Z', 'tui.help.undo'],
+  ['U  Ctrl+Y', 'tui.help.redo'],
+  ['s  Ctrl+S', 'tui.help.save'],
+  ['i', 'tui.help.install'],
+  ['q  Esc', 'tui.help.quit'],
+  [['tui.key.mouse'], 'tui.help.mouse'],
 ];
 
 function helpModal(w: number, h: number): Modal {
-  const lines = [rule('Keys · press any key to close', w)];
+  const lines = [rule(t('tui.help.title'), w)];
   const keyW = Math.min(20, Math.floor(w / 3));
-  const rows = HELP.map(([k, d]) => ` ${bold(pad(k, keyW))} ${dim(d)}`);
+  const rows = HELP.map(([k, d]) => ` ${bold(pad(keyText(k), keyW))} ${dim(t(d))}`);
   const body = h - 1;
   if (w >= 100 && rows.length > body) {
     const half = Math.ceil(rows.length / 2);
@@ -529,67 +539,68 @@ function helpModal(w: number, h: number): Modal {
   return { lines: lines.slice(0, h), hits: [] };
 }
 
-const HINTS: Record<Mode['kind'], [string, string][]> = {
+const HINTS: Record<Mode['kind'], [Key, MessageId][]> = {
   normal: [
-    ['←→↑↓', 'select'],
-    ['S-arrows', 'move'],
-    ['a', 'add'],
-    ['e', 'edit'],
-    ['d', 'delete'],
-    ['s', 'save'],
-    ['q', 'quit'],
-    ['?', 'help'],
-    ['n', 'new line'],
-    ['T', 'themes'],
-    ['g', 'global'],
-    ['t', 'presets'],
-    ['u', 'undo'],
+    ['←→↑↓', 'tui.hint.select'],
+    ['S-arrows', 'tui.hint.move'],
+    ['a', 'tui.hint.add'],
+    ['e', 'tui.hint.edit'],
+    ['d', 'tui.hint.delete'],
+    ['s', 'tui.hint.save'],
+    ['q', 'tui.hint.quit'],
+    ['?', 'tui.hint.help'],
+    ['n', 'tui.hint.newLine'],
+    ['T', 'tui.hint.themes'],
+    ['g', 'tui.hint.global'],
+    ['t', 'tui.hint.presets'],
+    ['u', 'tui.hint.undo'],
   ],
   picker: [
-    ['type', 'filter'],
-    ['↑↓', 'choose'],
-    ['Enter', 'insert after selection'],
-    ['Esc', 'cancel'],
+    [['tui.key.type'], 'tui.hint.filter'],
+    ['↑↓', 'tui.hint.choose'],
+    ['Enter', 'tui.hint.insert'],
+    ['Esc', 'tui.hint.cancel'],
   ],
   settings: [
-    ['↑↓', 'field'],
-    ['Enter', 'edit'],
-    ['←→', 'cycle'],
-    ['Del', 'reset'],
-    ['Esc', 'back'],
+    ['↑↓', 'tui.hint.field'],
+    ['Enter', 'tui.hint.edit'],
+    ['←→', 'tui.hint.cycle'],
+    ['Del', 'tui.hint.reset'],
+    ['Esc', 'tui.hint.back'],
   ],
   themes: [
-    ['type', 'filter'],
-    ['↑↓', 'preview'],
-    ['Enter', 'apply'],
-    ['^S', 'save as mine'],
-    ['Esc', 'revert'],
+    [['tui.key.type'], 'tui.hint.filter'],
+    ['↑↓', 'tui.hint.preview'],
+    ['Enter', 'tui.hint.apply'],
+    ['^S', 'tui.hint.saveMine'],
+    ['Esc', 'tui.hint.revert'],
   ],
   presets: [
-    ['↑↓', 'choose'],
-    ['Enter', 'apply'],
-    ['Esc', 'cancel'],
+    ['↑↓', 'tui.hint.choose'],
+    ['Enter', 'tui.hint.apply'],
+    ['Esc', 'tui.hint.cancel'],
   ],
-  confirm: [['Esc', 'cancel']],
-  help: [['any key', 'close']],
+  confirm: [['Esc', 'tui.hint.cancel']],
+  help: [[['tui.key.any'], 'tui.hint.close']],
 };
+
+const EDITING_HINTS: [Key, MessageId][] = [
+  ['↑↓', 'tui.hint.choose'],
+  ['Enter', 'tui.hint.apply'],
+  ['Esc', 'tui.hint.back'],
+];
 
 function hintLine(state: State, cols: number): string {
   const editing = state.mode.kind === 'settings' && state.mode.sub !== null;
-  const list: [string, string][] = editing
-    ? [
-        ['↑↓', 'choose'],
-        ['Enter', 'apply'],
-        ['Esc', 'back'],
-      ]
-    : HINTS[state.mode.kind];
+  const list = editing ? EDITING_HINTS : HINTS[state.mode.kind];
   let out = '';
   let width = 0;
-  for (const [k, d] of list) {
-    const piece = `${bold(k)} ${dim(d)}`;
+  for (const [key, id] of list) {
+    const k = keyText(key);
+    const d = t(id);
     const w = visibleWidth(k) + visibleWidth(d) + 3;
     if (width + w > cols - 1) break;
-    out += `${piece}  `;
+    out += `${bold(k)} ${dim(d)}  `;
     width += w;
   }
   return ` ${out}`;
@@ -597,9 +608,9 @@ function hintLine(state: State, cols: number): string {
 
 function tooSmall(cols: number, rows: number): Screen {
   const msg = [
-    `Terminal too small (${cols}x${rows}).`,
-    `ccinfobar tui needs at least ${MIN_COLS}x${MIN_ROWS}.`,
-    'q quits.',
+    t('tui.view.tooSmall', { cols, rows }),
+    t('tui.view.needsSize', { cols: MIN_COLS, rows: MIN_ROWS }),
+    t('tui.view.quits'),
   ];
   const lines = Array.from({ length: rows }, () => '');
   const top = Math.max(0, Math.floor((rows - msg.length) / 2));
@@ -610,7 +621,7 @@ function tooSmall(cols: number, rows: number): Screen {
 }
 
 function header(state: State, cols: number): string {
-  const right = state.dirty ? ' ● modified ' : ' saved ';
+  const right = state.dirty ? ` ● ${t('tui.view.modified')} ` : ` ${t('tui.view.saved')} `;
   const left = ` ccinfobar  ${state.path}`;
   const text = pad(truncate(left, cols - visibleWidth(right)), cols - visibleWidth(right)) + right;
   return state.dirty ? `${ESC}1;7m${text}${ESC}0m` : inv(text);
@@ -636,10 +647,10 @@ export function renderScreen(state: State, cols: number, rows: number): Screen {
   try {
     previewLines = cachedPreview(state, cols - 4 + state.config.widthOffset);
   } catch {
-    previewLines = [dim('(preview unavailable)')];
+    previewLines = [dim(t('tui.view.previewUnavailable'))];
   }
-  if (!previewLines.length) previewLines = [dim('(nothing to show)')];
-  const previewTitle = `Preview · ${state.preview === 'sample' ? 'sample data' : 'last session'}`;
+  if (!previewLines.length) previewLines = [dim(t('tui.view.nothingToShow'))];
+  const previewTitle = t(state.preview === 'sample' ? 'tui.view.previewSample' : 'tui.view.previewLast');
   const normal = state.mode.kind === 'normal';
   const out: string[] = [header(state, cols)];
 
@@ -657,12 +668,7 @@ export function renderScreen(state: State, cols: number, rows: number): Screen {
     const edTop = out.length;
     const listH = edH - 1;
     const start = windowStart(editor.rows.length, editor.selRow, listH);
-    out.push(
-      rule(
-        `Lines · ${state.config.lines.length} ${state.config.lines.length === 1 ? 'line' : 'lines'}`,
-        cols,
-      ),
-    );
+    out.push(rule(t('tui.view.lines', { count: state.config.lines.length }), cols));
     for (let i = 0; i < listH; i++) out.push(editor.rows[start + i]?.text ?? '');
     for (let r = start; r < Math.min(editor.rows.length, start + listH); r++) {
       hits.push(...shiftHits(editor.rows[r]!.hits, edTop + 1 - start));
