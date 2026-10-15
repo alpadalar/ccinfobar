@@ -70,6 +70,7 @@ export type EmptyCode =
   | 'gh-missing'
   | 'gh-auth'
   | 'gh-host'
+  | 'gh-old'
   | 'merge-request'
   | 'no-ci-checks'
   | 'not-scalar'
@@ -245,7 +246,7 @@ function httpReason(ctx: RenderContext, item: WidgetItem): EmptyReason {
   }
 }
 
-const GH_CODES = new Set<string>(['gh-missing', 'gh-auth', 'gh-host']);
+const GH_CODES = new Set<string>(['gh-missing', 'gh-auth', 'gh-host', 'gh-old']);
 
 function ciInfo(ctx: RenderContext, item: WidgetItem): { code: EmptyCode; error: string | null } | null {
   const s = prCiState(ctx, item);

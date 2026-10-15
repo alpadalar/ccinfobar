@@ -294,6 +294,13 @@ describe('gh host gate', () => {
     }
   });
 
+  it('says gh-old when gh has no auth status --json', async () => {
+    const gh = fakeGh([ok(MIX)], err('unknown flag: --json\n\nUsage:  gh auth status [flags]'));
+    const { e } = await run(gh.exec, { env: sandbox(), param: 'ghe.corp.example/acme/api#128' });
+    expect(gh.checks()).toHaveLength(0);
+    expect(e).toMatchObject({ ok: false, error: 'gh-old', blockedUntil: NOW + 60 * MIN });
+  });
+
   it('caches the host list for about an hour', async () => {
     const env = sandbox();
     const param = 'ghe.corp.example/acme/api#128';

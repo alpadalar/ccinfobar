@@ -31,7 +31,7 @@ const MAX_HOSTS = 50;
 const HOST_RE = /^[a-z0-9.-]{1,253}(:\d{1,5})?$/;
 const ENTERPRISE = ['GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN'];
 
-export type GhError = 'gh-missing' | 'gh-auth' | 'gh-rate' | 'gh-failed';
+export type GhError = 'gh-missing' | 'gh-auth' | 'gh-rate' | 'gh-failed' | 'gh-old';
 export type GhResult = Awaited<ReturnType<ExecFileLike>>;
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -134,7 +134,7 @@ export async function storedHosts(
   exec: ExecFileLike,
   env: NodeJS.ProcessEnv,
   now: number,
-): Promise<string[] | 'missing'> {
+): Promise<string[] | 'missing' | 'old'> {
   const prev = readEnvelope<{ hosts: string[] }>(GH_HOSTS_KEY, env);
   const cached = Array.isArray(prev?.value?.hosts)
     ? prev.value.hosts.filter((h) => typeof h === 'string' && HOST_RE.test(h))
@@ -152,7 +152,10 @@ export async function storedHosts(
   try {
     const body = JSON.parse(r.stdout) as unknown;
     if (isObj(body)) hosts = hostList(body.hosts);
-  } catch {}
+  } catch {
+    // gh before 2.81 has no auth status --json
+    if (/unknown flag/i.test(r.stderr)) return 'old';
+  }
   if (!hosts) return cached ?? [];
   writeEnvelope(okEnvelope(GH_HOSTS_KEY, { hosts }, now), env);
   return hosts;
@@ -189,6 +192,7 @@ export const ghJob: Job<GhValue> = {
     if (!defaultHost(parts.host)) {
       const hosts = await storedHosts(exec, ctx.env, ctx.now);
       if (hosts === 'missing') return fail('gh-missing', MISSING_BLOCK);
+      if (hosts === 'old') return fail('gh-old', HOST_BLOCK);
       if (!hosts.includes(parts.host)) return fail('gh-host', HOST_BLOCK);
       stored = true;
     }

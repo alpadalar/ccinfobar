@@ -322,7 +322,7 @@ Rules:
 
 - The PR comes only from the payload Claude Code sends (`pr` and `workspace.repo`); GitLab merge requests are skipped.
 - gh runs for `github.com` and `*.ghe.com`. Any other host must be one you logged in to with `gh auth login --hostname <host>` (`gh auth status` lists them); otherwise gh is not run, so `GH_ENTERPRISE_TOKEN` never goes to an unknown host.
-- Without gh, or when it is not logged in, the CI part is left out and `ccinfobar explain` prints a `CI:` line with the reason.
+- Without gh, when it is not logged in, or when it is older than 2.81 (no `gh auth status --json`) for a host that needs the check, the CI part is left out and `ccinfobar explain` prints a `CI:` line with the reason.
 
 ### provider
 

@@ -81,7 +81,7 @@ export const httpJob: Job<HttpValue> = {
     if (gh.length) {
       const tpl = parseUrlTemplate(group.url);
       const hosts = await storedHosts(await ghExec(ctx), ctx.env, ctx.now);
-      if (hosts === 'missing' || !tpl.ok || !hosts.includes(tpl.hostname))
+      if (typeof hosts === 'string' || !tpl.ok || !hosts.includes(tpl.hostname))
         return fail(`env ${gh[0]} denied`, null, GH_HOST_BLOCK);
     }
     const spec = parseHeaderSpec(group.headers);

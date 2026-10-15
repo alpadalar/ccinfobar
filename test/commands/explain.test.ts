@@ -823,9 +823,9 @@ describe('explain the pr CI part', () => {
     expect(row()).toMatchObject({ value: '#128 approved', ci: { code: 'no-ci-checks' } });
   });
 
-  it('maps gh-missing, gh-auth and gh-host', () => {
+  it('maps gh-missing, gh-auth, gh-host and gh-old', () => {
     payload();
-    for (const code of ['gh-missing', 'gh-auth', 'gh-host'] as const) {
+    for (const code of ['gh-missing', 'gh-auth', 'gh-host', 'gh-old'] as const) {
       writeEnvelope(failEnvelope(KEY, null, code, Date.now(), { blockMs: 3_600_000 }));
       const r = row();
       expect(r.value, code).toBe('#128 approved');

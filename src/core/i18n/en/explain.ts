@@ -45,6 +45,8 @@ export const explainMessages = {
   'explain.reason.gh-missing': 'the GitHub CLI (gh) is not on PATH',
   'explain.reason.gh-auth': 'gh is not logged in (run `gh auth login`)',
   'explain.reason.gh-host': 'gh is not logged in to this repo host',
+  'explain.reason.gh-old':
+    'gh 2.81 or newer is needed for hosts other than github.com (`gh auth status --json`)',
   'explain.reason.merge-request': 'CI checks are skipped for GitLab merge requests',
   'explain.reason.no-ci-checks': 'the pull request has no CI checks',
   'explain.reason.not-scalar': 'the JSON path matched an object or an array, not a single value',
