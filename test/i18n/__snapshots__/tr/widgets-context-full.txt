@@ -47,7 +47,7 @@ limit-eta: güvenli
 limit-risk: (empty)
 token-rate-graph: ▅▂▁▃▆█▆▃▂▁▂▅▇▆▃▂ 6.5k
 output-speed-graph: ▃▂▂▃▅█▆▄▃▁▂▅▇▆▃▂ 56 t/s
-context-graph: ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁ 170%
+context-graph: ▂▂▃▃▄▄▄▅▅▆▆▆▇▇██ 94%
 usage-graph: ▂▂▃▃▃▃▄▄▄▄▅▅▅▅▆▆ 42%
 cost-graph: ▅▃▁▄▆█▆▃▃▁▃▅█▅▄▃ $1.44
 activity-strip: ··▂▅▇▄···▁▃▆██▅▂·····▃▄▆▅▃▂··▁▄▆▇▄▂▂

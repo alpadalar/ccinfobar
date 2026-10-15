@@ -126,6 +126,7 @@ describe('scenarios', () => {
 
   it('context-full is about 94% full', () => {
     expect(widget('context-full', 'context-percentage')).toContain('94');
+    expect(widget('context-full', 'context-graph')).toMatch(/[▂-█] 94%$/);
   });
 
   it('fresh-session shows the loading placeholder', () => {

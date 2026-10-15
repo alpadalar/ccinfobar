@@ -100,6 +100,9 @@ function contextFull(now: number): ScenarioBundle {
   };
   b.payload.exceeds_200k_tokens = false;
   b.data.transcript = () => ({ ...sampleTranscript(now), contextLength: 188_000 });
+  // history sized for this window, ending at 188k
+  b.data.history = () =>
+    sampleHistory(now).map((s, i, a) => ({ ...s, ctx: Math.round(120_000 + (i / (a.length - 1)) * 68_000) }));
   return b;
 }
 

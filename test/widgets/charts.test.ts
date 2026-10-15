@@ -54,6 +54,15 @@ describe('chart widgets', () => {
     expect(renderWidget('output-speed-graph', c)).toMatch(/^[▁-█]{16} \d+ t\/s$/);
   });
 
+  it('caps the context graph at 100%', () => {
+    const c = ctxWith();
+    c.data.history = () => [
+      { t: 0, ctx: 600_000 },
+      { t: 10_000, ctx: 1_400_000 },
+    ];
+    expect(renderWidget('context-graph', c)).toMatch(/^[▁-█ ]+█ 100%$/);
+  });
+
   it('records a sample on a real render and needs two to draw', () => {
     const env = tmpEnv();
     const payload = { ...samplePayload(NOW.getTime()), session_id: 'live' };

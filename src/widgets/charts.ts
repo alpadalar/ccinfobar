@@ -130,7 +130,7 @@ export const widgets: WidgetDef[] = [
       if (!size) return null;
       const pct = series(ctx)
         .filter((s) => typeof s.ctx === 'number')
-        .map((s) => (s.ctx! / size) * 100);
+        .map((s) => Math.min(100, (s.ctx! / size) * 100));
       const last = pct[pct.length - 1];
       return chart(
         ctx,
