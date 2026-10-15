@@ -19,7 +19,10 @@ import { withLang } from '../helpers.js';
 type Def = { type: string; name: string; label?: string; options?: OptionSpec[] };
 
 // choice labels kept as they are, with the reason
-const EXEMPT_CHOICES = new Map<string, string>([['ascii', 'proper name (D-36)']]);
+const EXEMPT_CHOICES = new Map<string, string>([
+  ['ascii', 'proper name (D-36)'],
+  ['Claude Code', 'proper name (D-36)'],
+]);
 
 const exemptChoice = (label: string) => !/\p{L}{2,}/u.test(label) || EXEMPT_CHOICES.has(label);
 

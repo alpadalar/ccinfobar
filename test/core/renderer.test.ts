@@ -325,3 +325,36 @@ describe('render widget metadata', () => {
     }
   });
 });
+
+describe('render Turkish default labels', () => {
+  const ctx = (icons?: 'nerd') =>
+    ctxWith({
+      config: {
+        ...(icons ? { icons } : {}),
+        lines: [
+          [
+            { id: 'c', type: 'context-percentage' },
+            { id: 'i', type: 'tokens-input' },
+            { id: 'a', type: 'api-duration' },
+            { id: 'b', type: 'budget' },
+          ],
+        ],
+        budget: { daily: 10 },
+      },
+    });
+
+  it('shows the Turkish labels and keeps compact units', () => {
+    const en = stripAnsi(render(ctx())[0]!);
+    const tr = withLang('tr', () => stripAnsi(render(ctx())[0]!));
+    expect(en).toMatch(/^Ctx \S+ │ In \S+ │ API \S+ │ Budget \S+$/);
+    expect(tr).toBe(
+      en.replace(/^Ctx /, 'Bğl ').replace('│ In ', '│ Girdi ').replace('│ Budget ', '│ Bütçe '),
+    );
+  });
+
+  it('uses the icon instead of the label', () => {
+    const en = stripAnsi(render(ctx('nerd'))[0]!);
+    expect(withLang('tr', () => stripAnsi(render(ctx('nerd'))[0]!))).toBe(en);
+    expect(en).not.toMatch(/Ctx|Bğl/);
+  });
+});
