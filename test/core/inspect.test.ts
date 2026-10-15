@@ -810,3 +810,85 @@ describe('service-status explain', () => {
     expect(row?.sources).toContainEqual(expect.objectContaining({ kind: 'job', path: 'status' }));
   });
 });
+
+describe('http explain', () => {
+  const now = NOW.getTime();
+  const PATH = '$.data.balance';
+  const item = (options: WidgetItem['options'] = {}): WidgetItem => ({
+    id: 'h',
+    type: 'http',
+    options: { url: 'https://api.x.com/v1', path: PATH, ...options },
+  });
+  const okEnv = (r: unknown, at = now - 30_000): JobEnvelope<unknown> => ({
+    v: 1,
+    key: 'http-0123456789abcdef',
+    fetchedAt: at,
+    ok: true,
+    value: { paths: { [PATH]: r } },
+    lastGood: { paths: { [PATH]: r } },
+    lastGoodAt: at,
+  });
+  const failed = (error: string, lastGood: unknown = null, lastGoodAt?: number): JobEnvelope<unknown> => ({
+    v: 1,
+    key: 'http-0123456789abcdef',
+    fetchedAt: now - 1000,
+    ok: false,
+    value: null,
+    error,
+    lastGood,
+    ...(lastGoodAt !== undefined ? { lastGoodAt } : {}),
+  });
+  const why = (e: JobEnvelope<unknown> | null, it: WidgetItem = item(), env = {}) =>
+    withoutSideEffects(() => emptyReason(ctxWith({ jobs: () => ({ job: () => e as never }), env }), it));
+
+  it('says missing-option for an empty url', () => {
+    expect(why(null, item({ url: '' }))).toEqual({
+      code: 'missing-option',
+      text: t('explain.reason.missing-option', { key: 'url' }),
+    });
+  });
+
+  it('shows the url and path parse errors', () => {
+    const url = why(null, item({ url: 'https://${H}.x.com' }));
+    expect(url.code).toBe('bad-option');
+    expect(url.text).toContain('placeholders are only allowed in query values');
+    const path = why(null, item({ path: '$.foo-bar' }));
+    expect(path.code).toBe('bad-option');
+    expect(path.text).toContain("unexpected '-' at 5");
+  });
+
+  it('reports path-miss and not-scalar from the job', () => {
+    expect(why(okEnv({ ok: false, code: 'path-miss' })).code).toBe('path-miss');
+    expect(why(okEnv({ ok: false, code: 'not-scalar' })).code).toBe('not-scalar');
+  });
+
+  it('reports the job states with the error code', () => {
+    expect(why(null).code).toBe('job-pending');
+    expect(why(null, item(), { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' }).code).toBe('job-pending');
+    const err = why(failed('env RELAY_TOKEN not set'));
+    expect(err.code).toBe('job-error');
+    expect(err.text).toContain('env RELAY_TOKEN not set');
+    expect(why(failed('http-401')).text).toContain('http-401');
+    const old = { paths: { [PATH]: { ok: true, v: 1 } } };
+    expect(why(failed('http-503', old, now - 25 * 3_600_000)).code).toBe('stale');
+    expect(why(okEnv({ ok: true, v: 1 }, now - 25 * 3_600_000)).code).toBe('stale');
+  });
+
+  it('says job-pending when the cached value lacks this path', () => {
+    const e = { ...okEnv({ ok: true, v: 1 }), value: { paths: {} } };
+    expect(why(e).code).toBe('job-pending');
+  });
+
+  it('notes the last error when the last good value is shown', () => {
+    const ctx = ctxWith({
+      config: { lines: [[item()]] },
+      jobs: () => ({
+        job: () => failed('http-401', { paths: { [PATH]: { ok: true, v: 2 } } }, now - 60_000) as never,
+      }),
+    });
+    const [row] = rowsFor(ctx);
+    expect(row?.status).toBe('shown');
+    expect(row?.note?.code).toBe('job-error');
+    expect(row?.note?.text).toContain('http-401');
+  });
+});

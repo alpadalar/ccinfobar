@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import type { LoadResult } from '../core/config.js';
 import { createContext, lazy, resolveCwd } from '../core/context.js';
+import { describeHeaders, redactUrl } from '../core/http-spec.js';
 import { t } from '../core/i18n/index.js';
 import {
   type InspectMeta,
@@ -491,7 +492,7 @@ function statusLine(r: InspectRow): string {
 }
 
 // tool-activity shows command arguments
-const REDACT = new Set(['env', 'command', 'tool-activity']);
+const REDACT = new Set(['env', 'command', 'http', 'tool-activity']);
 
 export function redactValue(r: InspectRow): string | null {
   return r.value !== null && REDACT.has(r.type) ? t('explain.redacted', { n: r.value.length }) : r.value;
@@ -620,10 +621,16 @@ function pick(rows: InspectRow[], id: string): InspectRow[] {
   return byId.length ? byId : rows.filter((r) => r.type === id);
 }
 
-function maskOptions(type: string, options: Record<string, unknown>): Record<string, unknown> {
+function maskOptions(
+  type: string,
+  options: Record<string, unknown>,
+  env: Record<string, string | undefined>,
+): Record<string, unknown> {
   const spec = getWidget(type)?.options ?? [];
   return Object.fromEntries(
     Object.entries(options).map(([k, v]) => {
+      if (type === 'http' && k === 'url') return [k, redactUrl(String(v))];
+      if (type === 'http' && k === 'headers') return [k, describeHeaders(String(v), env).join(', ')];
       const kind = spec.find((o) => o.key === k)?.kind;
       const text = kind === 'text' || (kind === undefined && typeof v === 'string');
       return [k, text ? t('explain.maskedOption', { n: String(v).length }) : v];
@@ -653,7 +660,7 @@ function detailLines(data: InspectInput, r: InspectRow, reveal: boolean): string
   if (r.note) out.push(t('explain.detail.note', { note: s(r.note.text) }));
   const opts =
     options && Object.keys(options).length
-      ? JSON.stringify(clean(reveal ? options : maskOptions(r.type, options)))
+      ? JSON.stringify(clean(reveal ? options : maskOptions(r.type, options, data.ctx.env)))
       : none;
   out.push(t('explain.detail.options', { options: opts }));
   return out;

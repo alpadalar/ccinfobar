@@ -1,6 +1,7 @@
 export const explainMessages = {
   'explain.reason.unknown-type': 'unknown widget type "{type}"',
   'explain.reason.missing-option': 'option "{key}" is not set',
+  'explain.reason.bad-option': 'option "{key}" is invalid: {error}',
   'explain.reason.no-gsd': 'not inside a GSD project (no .planning/ found above the working directory)',
   'explain.reason.gsdNothing': 'the GSD files have nothing for this widget right now',
   'explain.reason.no-rate-limits':
@@ -48,6 +49,7 @@ export const explainMessages = {
   'explain.reason.no-ci-checks': 'the pull request has no CI checks',
   'explain.reason.not-scalar': 'the JSON path matched an object or an array, not a single value',
   'explain.reason.path-miss': 'the JSON path matched nothing in the response',
+  'explain.reason.httpLastGood': 'the last fetch failed ({error}); showing the last good value',
   'explain.job.noJobs': ' (background jobs are off: CCINFOBAR_NO_JOBS is set)',
   'explain.job.unknownError': 'unknown error',
   'explain.reason.error': 'the widget failed',

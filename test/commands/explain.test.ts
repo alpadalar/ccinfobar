@@ -23,6 +23,8 @@ import type { StatusPayload } from '../../src/core/types.js';
 import { VERSION } from '../../src/core/version.js';
 import { agentsCacheName, readAgents } from '../../src/data/agents.js';
 import { cacheFile } from '../../src/data/cache.js';
+import { httpKey } from '../../src/data/jobs/keys.js';
+import { failEnvelope, jobsDir, okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
 import { monthKey } from '../../src/data/ledger.js';
 import { accountKey, limitsFile, recordLimits, recordUsageApi } from '../../src/data/limits.js';
 import { readTranscript, transcriptCacheName } from '../../src/data/transcript.js';
@@ -693,6 +695,84 @@ describe('explain redacts env and command values', () => {
     expect(err).toEqual([]);
     expect(out.join('\n')).toContain(SECRET);
     expect(out.join('\n')).toContain(CMD_OUT);
+  });
+});
+
+describe('explain redacts http values and options', () => {
+  const TOKEN = 'tok-SECRET-abc';
+  const URL = 'https://api.x.com/v1?key=${API_KEY}';
+  const HEADERS = 'Authorization=Bearer $RELAY_TOKEN';
+  const PATH = '$.data.balance';
+  const key = httpKey(URL, HEADERS);
+  const cfg = {
+    lines: [
+      [{ id: 'bal', type: 'http', options: { url: URL, headers: HEADERS, path: PATH, format: '${value}' } }],
+    ],
+  };
+  const value = (v: unknown) => ({ paths: { [PATH]: { ok: true, v } } });
+
+  beforeEach(() => {
+    process.env.RELAY_TOKEN = TOKEN;
+    process.env.API_KEY = 'q-SECRET-xyz';
+    savedPayload();
+  });
+  afterEach(() => {
+    delete process.env.RELAY_TOKEN;
+    delete process.env.API_KEY;
+    fs.rmSync(jobsDir(), { recursive: true, force: true });
+  });
+
+  it('redacts the value unless --show-values in a terminal', () => {
+    writeEnvelope(okEnvelope(key, value(12.5), Date.now()));
+    const redacted = t('explain.redacted', { n: '$12.5'.length });
+    for (const [argv, tty] of [
+      [[], false],
+      [['--show-values'], false],
+      [[], true],
+      [['bal'], false],
+    ] as const) {
+      const text = run([...argv], cfg, tty).out.join('\n');
+      expect(text).toContain(redacted);
+      expect(text).not.toContain('$12.5');
+    }
+    expect(json([], cfg).obj.widgets[0]).toMatchObject({ status: 'shown', value: redacted });
+    expect(run(['--show-values'], cfg, true).out.join('\n')).toContain('$12.5');
+  });
+
+  it('shows the url with query values hidden and headers as env names', () => {
+    writeEnvelope(okEnvelope(key, value(12.5), Date.now()));
+    for (const tty of [false, true]) {
+      const text = run(['bal'], cfg, tty).out.join('\n');
+      expect(text).toContain('"url":"https://api.x.com/v1?key=\u2026"');
+      expect(text).toContain('"headers":"Authorization=$RELAY_TOKEN (set)"');
+      expect(text).not.toContain(TOKEN);
+      expect(text).not.toContain('q-SECRET');
+    }
+    delete process.env.RELAY_TOKEN;
+    expect(run(['bal'], cfg).out.join('\n')).toContain('"headers":"Authorization=$RELAY_TOKEN (unset)"');
+  });
+
+  it('never prints the token in text or --json, whatever the state', () => {
+    writeEnvelope(failEnvelope(key, null, 'env RELAY_TOKEN not set', Date.now()));
+    for (const argv of [[], ['bal'], ['--show-values'], ['bal', '--show-values']]) {
+      for (const tty of [false, true]) {
+        const text = [...run(argv, cfg, tty).out, ...run(argv, cfg, tty).err].join('\n');
+        expect(text).not.toContain(TOKEN);
+      }
+      expect(json(argv, cfg).text).not.toContain(TOKEN);
+    }
+    const row = json([], cfg).obj.widgets[0];
+    expect(row.empty.code).toBe('job-error');
+    expect(row.empty.text).toContain('env RELAY_TOKEN not set');
+  });
+
+  it('says job-pending without an envelope, even with nonessential traffic off', () => {
+    vi.stubEnv('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', '1');
+    try {
+      expect(json([], cfg).obj.widgets[0].empty.code).toBe('job-pending');
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 

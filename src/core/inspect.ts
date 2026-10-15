@@ -3,6 +3,7 @@ import { LEDGER_TYPES } from '../data/ledger.js';
 import { trustedTurn } from '../data/live.js';
 import { detectProvider, type Provider } from '../data/provider.js';
 import { budgetPeriod } from '../widgets/cost.js';
+import { HTTP_GONE_MS, httpState } from '../widgets/http.js';
 import { getWidget } from '../widgets/index.js';
 import { projectionState } from '../widgets/projection.js';
 import { isLoadingOutput } from '../widgets/shared.js';
@@ -38,6 +39,7 @@ export interface Source {
 export type EmptyCode =
   | 'unknown-type'
   | 'missing-option'
+  | 'bad-option'
   | 'no-gsd'
   | 'no-rate-limits'
   | 'limits-expired'
@@ -204,6 +206,38 @@ function serviceReason(ctx: RenderContext, item: WidgetItem): EmptyReason {
   return reason('no-data', t('explain.reason.serviceOk'));
 }
 
+function httpReason(ctx: RenderContext, item: WidgetItem): EmptyReason {
+  const s = httpState(ctx, item);
+  const now = ctx.now.getTime();
+  switch (s.kind) {
+    case 'no-url':
+      return reason('missing-option', undefined, { key: 'url' });
+    case 'bad-url':
+    case 'bad-path':
+      return reason('bad-option', undefined, {
+        key: s.kind === 'bad-url' ? 'url' : 'path',
+        error: sanitizeText(s.error),
+      });
+    case 'pending':
+      return jobEmpty(null, 'explicit', ctx.env, now, HTTP_GONE_MS)!;
+    case 'error':
+    case 'gone': {
+      const e = ctx.data.jobs?.()?.job(s.key) ?? null;
+      const fallback = s.kind === 'gone' ? 'stale' : 'job-error';
+      return (
+        jobEmpty(e, 'explicit', ctx.env, now, HTTP_GONE_MS) ??
+        reason(fallback, undefined, { error: sanitizeText(s.error ?? '') || t('explain.job.unknownError') })
+      );
+    }
+    case 'miss':
+      return s.code === 'path-miss' || s.code === 'not-scalar'
+        ? reason(s.code)
+        : reason('bad-option', undefined, { key: 'path', error: sanitizeText(s.code) });
+    default:
+      return reason('no-data');
+  }
+}
+
 const PROJECTION_TYPES = new Set(['usage-projection', 'limit-eta', 'limit-risk']);
 const BELOW = { 'limit-risk': 'explain.reason.belowRisk', 'limit-eta': 'explain.reason.limitSafe' } as const;
 
@@ -220,6 +254,7 @@ export function emptyReason(
   }
   if (item.type === 'env' && !item.options?.name) return reason('missing-option', undefined, { key: 'name' });
   if (item.type === 'service-status') return serviceReason(ctx, item);
+  if (item.type === 'http') return httpReason(ctx, item);
   const p = ctx.payload;
   if (def.category === 'gsd') {
     return ctx.data.gsd() ? reason('no-data', t('explain.reason.gsdNothing')) : reason('no-gsd');
@@ -444,6 +479,11 @@ function inspectItem(
 
 // the payload has no mcp status yet
 function shownNote(ctx: RenderContext, item: WidgetItem): EmptyReason | null {
+  if (item.type === 'http') {
+    const s = httpState(ctx, item);
+    if (s.kind !== 'ok' || !s.error) return null;
+    return reason('job-error', t('explain.reason.httpLastGood', { error: sanitizeText(s.error) }));
+  }
   if (item.type !== 'env-counts' || item.options?.mcpHealth !== true) return null;
   return ctx.data.environment?.()?.mcpHealth ? null : reason('no-mcp-health');
 }
