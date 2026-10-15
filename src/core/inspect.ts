@@ -116,6 +116,8 @@ export interface LineRow {
   width: number;
   max: number | null;
   cut: boolean;
+  // set when the cut happened under wrap or priority
+  overflow?: 'wrap' | 'priority';
   dropped?: string[];
 }
 
@@ -671,7 +673,15 @@ function lineRows(base: RenderContext): LineRow[] {
     renderLine(ctx, items, 0, a, report);
     const width = report.natural ?? 0;
     const over = max !== null && width > max;
-    const cut = over && overflowOf(ctx.config) === 'truncate';
-    return { line, width, max, cut, ...(over && report.dropped.length ? { dropped: report.dropped } : {}) };
+    const cut = report.truncated === true;
+    const mode = overflowOf(ctx.config);
+    return {
+      line,
+      width,
+      max,
+      cut,
+      ...(cut && mode !== 'truncate' ? { overflow: mode as 'wrap' | 'priority' } : {}),
+      ...(over && report.dropped.length ? { dropped: report.dropped } : {}),
+    };
   });
 }

@@ -431,7 +431,11 @@ export interface LineReport {
   width: number | null;
   // width before any overflow handling
   natural?: number;
+  // a row was cut with … in any overflow mode (IN-03)
+  truncated?: boolean;
 }
+
+type Cut = (line: string, max: number) => string;
 
 interface Unit {
   parts: Part[];
@@ -519,7 +523,14 @@ function tidy(parts: Part[], kept: Part[]): Part[] {
   return out;
 }
 
-function dropByPriority(parts: Part[], a: Appearance, level: Level, max: number, dropped: Part[]): string {
+function dropByPriority(
+  parts: Part[],
+  a: Appearance,
+  level: Level,
+  max: number,
+  dropped: Part[],
+  cut: Cut = truncate,
+): string {
   let alive = toUnits(parts);
   let kept = parts;
   let shown = parts;
@@ -537,7 +548,7 @@ function dropByPriority(parts: Part[], a: Appearance, level: Level, max: number,
   }
   const visible = new Set([...shown, ...order]);
   dropped.push(...order, ...parts.filter((p) => !visible.has(p)));
-  return visibleWidth(line) > max ? truncate(line, max) : line;
+  return visibleWidth(line) > max ? cut(line, max) : line;
 }
 
 export function renderLine(
@@ -572,20 +583,24 @@ export function renderLine(
   if (report) report.natural = visibleWidth(max === null ? line : compose(parts, a, level, null));
   if (max !== null && visibleWidth(line) > max) {
     const mode = overflowOf(ctx.config);
+    const cut: Cut = (s, m) => {
+      if (report) report.truncated = true;
+      return truncate(s, m);
+    };
     if (mode === 'wrap' && parts.filter((p) => !p.flex).length > 1)
-      return withBelow(wrapLine(parts, a, level, max));
+      return withBelow(wrapLine(parts, a, level, max, cut));
     if (mode === 'priority') {
       const dropped: Part[] = [];
-      line = dropByPriority(parts, a, level, max, dropped);
+      line = dropByPriority(parts, a, level, max, dropped, cut);
       if (report) report.dropped.push(...dropped.map((p) => p.item.id));
       return withBelow(line, new Set(dropped));
     }
-    line = truncate(line, max);
+    line = cut(line, max);
   }
   return withBelow(line);
 }
 
-function wrapLine(parts: Part[], a: Appearance, level: Level, max: number): string {
+function wrapLine(parts: Part[], a: Appearance, level: Level, max: number, cut: Cut = truncate): string {
   const items = parts.filter((p) => !p.flex);
   const rows: Part[][] = [[]];
   let offset = 0;
@@ -602,7 +617,7 @@ function wrapLine(parts: Part[], a: Appearance, level: Level, max: number): stri
     .map((r) => {
       const s = RENDERERS[a.style === 'tui' ? 'text' : a.style](r, a, level, offset);
       offset += r.length;
-      return visibleWidth(s) > max ? truncate(s, max) : s;
+      return visibleWidth(s) > max ? cut(s, max) : s;
     })
     .join('\n');
 }

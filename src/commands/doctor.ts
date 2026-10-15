@@ -255,7 +255,11 @@ export function printWidgetReport(cfgFile: string, loaded?: LoadResult): void {
       `\n  Width: ${data.width ?? 'unknown'} columns detected, ${lines[0]?.max ?? 'no'} usable after widthOffset`,
     );
     for (const l of lines.filter((x) => x.cut))
-      console.log(t('doctor.lineCut', { line: l.line + 1, need: l.width }));
+      console.log(
+        l.overflow
+          ? t('doctor.lineCutMode', { line: l.line + 1, need: l.width, mode: l.overflow })
+          : t('doctor.lineCut', { line: l.line + 1, need: l.width }),
+      );
     console.log(t('doctor.explainPointer'));
   } finally {
     data.cleanup();

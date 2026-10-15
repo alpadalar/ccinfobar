@@ -148,6 +148,8 @@ export const explainMessages = {
   'explain.row.warning': '      ⚠ {reason}',
   'explain.lineCut':
     '  ⚠ Line {line} needs {width} columns and is cut at {max}. Lower widthOffset, set "overflow": "priority" (drops low-priority widgets) or "wrap", or move widgets to another line.',
+  'explain.lineCutMode':
+    '  ⚠ Line {line} needs {width} columns and is still cut at {max} under "overflow": "{mode}". Move widgets to another line or lower widthOffset.',
   'explain.runDoctor': 'Run ccinfobar doctor for details',
   'explain.noMatch': 'No widget with the id or type "{id}"',
   'explain.idList': 'Widget ids on this config: {ids}',

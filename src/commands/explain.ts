@@ -795,6 +795,11 @@ function printExplain(
       if (r.warning) io.log(t('explain.row.warning', { reason: sanitizeText(r.warning.text) }));
     }
     const l = lines[line];
-    if (l?.cut) io.log(t('explain.lineCut', { line: line + 1, width: l.width, max: l.max ?? 0 }));
+    if (l?.cut)
+      io.log(
+        l.overflow
+          ? t('explain.lineCutMode', { line: line + 1, width: l.width, max: l.max ?? 0, mode: l.overflow })
+          : t('explain.lineCut', { line: line + 1, width: l.width, max: l.max ?? 0 }),
+      );
   });
 }

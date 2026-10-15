@@ -352,6 +352,19 @@ describe('lineReport', () => {
     expect(p.width).toBeGreaterThan(40);
     expect(p.dropped?.[0]).toBe('gsd-phase');
     expect(rep('truncate').dropped).toBeUndefined();
+    expect(rep('truncate').overflow).toBeUndefined();
+  });
+
+  it('flags a cut under wrap and priority too (IN-03)', () => {
+    const wide = [[item('text', { options: { text: 'x'.repeat(60) } })]];
+    const two = [[item('model'), item('text', { id: 't', options: { text: 'y'.repeat(60) } })]];
+    const rep = (overflow: 'wrap' | 'priority', lines: WidgetItem[][]) =>
+      withoutSideEffects(() =>
+        lineReport(ctxWith({ width: 40, config: { widthOffset: 0, overflow, lines } })),
+      )[0]!;
+    expect(rep('priority', wide)).toMatchObject({ cut: true, overflow: 'priority' });
+    expect(rep('wrap', wide)).toMatchObject({ cut: true, overflow: 'wrap' });
+    expect(rep('wrap', two)).toMatchObject({ cut: true, overflow: 'wrap' });
   });
 });
 
