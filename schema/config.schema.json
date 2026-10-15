@@ -79,6 +79,7 @@
                 "context-graph",
                 "usage-graph",
                 "cost-graph",
+                "activity-strip",
                 "todo-list",
                 "agents",
                 "agent-count",

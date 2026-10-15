@@ -243,8 +243,8 @@ export const thresholdOption: OptionSpec = {
   help: 'Green below 50%, yellow below 80%, red above',
 };
 
-const SPARK = '▁▂▃▄▅▆▇█';
-const SPARK_ASCII = '_.-=+*#';
+export const SPARK = '▁▂▃▄▅▆▇█';
+export const SPARK_ASCII = '_.-=+*#';
 
 export function sparkline(
   values: number[],

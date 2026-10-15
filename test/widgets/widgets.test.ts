@@ -379,6 +379,7 @@ describe('timeBased flag', () => {
         .map((w) => w.type)
         .sort(),
     ).toEqual([
+      'activity-strip',
       'cache-timer',
       'clock',
       'http',

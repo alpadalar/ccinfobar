@@ -73,7 +73,12 @@ const MONTH = /^\d{4}-\d{2}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const SLOT = /^\d{1,9}$/;
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-export const LEDGER_TYPES: ReadonlySet<string> = new Set(['cost-today', 'cost-week', 'cost-project']);
+export const LEDGER_TYPES: ReadonlySet<string> = new Set([
+  'cost-today',
+  'cost-week',
+  'cost-project',
+  'activity-strip',
+]);
 
 const map = <T>(): Record<string, T> => Object.create(null) as Record<string, T>;
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);

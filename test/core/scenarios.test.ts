@@ -293,19 +293,21 @@ const NEW_WIDGETS = [
   'provider',
   'service-status',
   'http',
+  'activity-strip',
 ];
 
 const raw = (id: string, type: string) =>
   withoutSideEffects(() => getWidget(type)!.render(ctxFor(id), { id: type, type }));
 
 const PHASE5 = ['workspace-repos', 'tool-activity', 'turn-timer', 'permission-wait', 'env-counts'];
-const OPT_IN = [...PHASE5, 'provider', 'service-status', 'http'];
+const OPT_IN = [...PHASE5, 'provider', 'service-status', 'http', 'activity-strip'];
 
 describe('new widgets across scenarios', () => {
   it('cover every live session widget', () => {
     expect(NEW_WIDGETS).toEqual(expect.arrayContaining(PHASE5));
     expect(NEW_WIDGETS).toContain('usage-projection');
     expect(NEW_WIDGETS).toContain('budget');
+    expect(NEW_WIDGETS).toContain('activity-strip');
   });
 
   it('are in no preset and no default layout', () => {

@@ -1,4 +1,5 @@
 import type { WidgetCategory, WidgetDef } from '../core/types.js';
+import { widgets as activity } from './activity.js';
 import { widgets as agents } from './agents.js';
 import { widgets as charts } from './charts.js';
 import { widgets as context } from './context.js';
@@ -39,6 +40,7 @@ export const ALL_WIDGETS: WidgetDef[] = [
   ...cost,
   ...limits,
   ...charts,
+  ...activity,
   ...agents,
   ...live,
   ...gsd,
