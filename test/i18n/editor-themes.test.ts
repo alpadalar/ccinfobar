@@ -312,3 +312,71 @@ describe('presets gallery text', () => {
     );
   });
 });
+
+describe('style tools text', () => {
+  it('copy, paste, groups and earlier styles are Turkish', async () => {
+    await init(true);
+    const { recentStyles, styleTools } = await import('../../src/editor/web/styles.js');
+    setLanguage('tr');
+    const list = [...texts(styleTools('a') as any), ...texts(recentStyles('a') as any)];
+    for (const s of [
+      'Kopyala',
+      'Stili kopyala (Ctrl+Alt+C)',
+      'Kaynak: Model',
+      'Renkler + metin',
+      'Kalın, soluk, italik',
+      'metin red, kalın, short true',
+      'Bu önceki stili kullan: metin red, kalın, short true',
+    ])
+      expect(list).toContain(s);
+    expect(foreign(list)).toEqual([]);
+    setLanguage('en');
+    const enList = [...texts(styleTools('a') as any), ...texts(recentStyles('a') as any)];
+    for (const s of [
+      'Copy',
+      'Paste style (Ctrl+Alt+V)',
+      'From Model',
+      'Colors + text',
+      'Bold, dim, italic',
+      'Label switches',
+      'text red, bold, short true',
+    ])
+      expect(enList).toContain(s);
+  });
+
+  it('chip menu is Turkish', async () => {
+    await init(true);
+    const { chipMenu } = await import('../../src/editor/web/styles.js');
+    const ev = { preventDefault() {}, clientX: 0, clientY: 0 } as any;
+    setLanguage('tr');
+    chipMenu(ev, 'a', 0);
+    const list = texts(body);
+    expect(list).toEqual(expect.arrayContaining(['Stili kopyala', 'Stili tüm satıra yapıştır']));
+    expect(foreign(list)).toEqual([]);
+    setLanguage('en');
+    chipMenu(ev, 'a', 0);
+    expect(texts(body)).toEqual(expect.arrayContaining(['Paint other widgets…', 'Reset to theme look']));
+  });
+});
+
+describe('terminal scheme names', () => {
+  it('picker shows translated display words and product names', async () => {
+    const { initTerminalPicker } = await import('../../src/editor/web/terminal-picker.js');
+    for (const lang of ['tr', 'en'] as const) {
+      const mount = new FakeEl('DIV');
+      setLanguage(lang);
+      initTerminalPicker(mount as any, { bg: '#101010', fg: null, palette: null });
+      (mount.children[1] as FakeEl).hidden = true;
+      (mount.children[0] as FakeEl).dispatch('click');
+      const list = texts(mount);
+      expect(list).toEqual(expect.arrayContaining(['Nord', 'Windows Terminal', 'Catppuccin Mocha']));
+      if (lang === 'tr') {
+        expect(list).toEqual(
+          expect.arrayContaining(['Koyu (varsayılan)', 'Lacivert', 'Terminalim (algılandı)']),
+        );
+        expect(foreign(list)).toEqual([]);
+      } else
+        expect(list).toEqual(expect.arrayContaining(['Dark (default)', 'Navy', 'My terminal (detected)']));
+    }
+  });
+});

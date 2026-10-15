@@ -1,3 +1,5 @@
+import { type MessageId, t } from '../../core/i18n/index.js';
+
 export interface TerminalProfile {
   id: string;
   name: string;
@@ -343,7 +345,21 @@ export function detectedProfile(d: DetectedColors): TerminalProfile {
     const v = d.palette?.[i];
     return v && HEX_RE.test(v) ? v : c;
   });
-  return { id: 'detected', name: 'My terminal (detected)', bg: d.bg, fg: d.fg ?? base.fg, palette, light };
+  return { id: 'detected', name: t('termName.detected'), bg: d.bg, fg: d.fg ?? base.fg, palette, light };
+}
+
+// display words by scheme id; product names stay
+const NAMES: Record<string, MessageId> = {
+  default: 'termName.default',
+  black: 'termName.black',
+  gray: 'termName.gray',
+  navy: 'termName.navy',
+  light: 'termName.light',
+  detected: 'termName.detected',
+};
+
+export function terminalName(p: TerminalProfile): string {
+  return Object.hasOwn(NAMES, p.id) ? t(NAMES[p.id]!) : p.name;
 }
 
 export interface TerminalChoice {

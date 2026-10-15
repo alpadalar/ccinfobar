@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { parseColorReplies } from '../../src/editor/terminal-colors.js';
-import { detectedProfile, isLight, resolveProfile, TERMINALS } from '../../src/editor/web/terminals.js';
+import {
+  detectedProfile,
+  isLight,
+  resolveProfile,
+  TERMINALS,
+  terminalName,
+} from '../../src/editor/web/terminals.js';
+import { withLang } from '../helpers.js';
 
 describe('parseColorReplies', () => {
   it('reads OSC 10, 11 and 4 replies in 16 and 8 bit forms', () => {
@@ -40,5 +47,26 @@ describe('terminal profiles', () => {
     expect(p.bg).toBe('#ffffff');
     expect(p.fg).toBe('#d8dee9');
     expect(p.light).toBe(true);
+  });
+
+  it('translates display words by id and keeps product names', () => {
+    const byId = (id: string) => TERMINALS.find((t) => t.id === id)!;
+    expect(terminalName(byId('default'))).toBe('Dark (default)');
+    expect(terminalName(byId('black'))).toBe('Black');
+    expect(terminalName(detectedProfile({ bg: '#000000', fg: null, palette: null }))).toBe(
+      'My terminal (detected)',
+    );
+    for (const t of TERMINALS) expect(terminalName(t)).toBe(t.name);
+    withLang('tr', () => {
+      expect(terminalName(byId('default'))).toBe('Koyu (varsayılan)');
+      expect(terminalName(byId('navy'))).toBe('Lacivert');
+      expect(terminalName(byId('nord'))).toBe('Nord');
+      expect(terminalName(byId('campbell'))).toBe('Windows Terminal');
+      const d = detectedProfile({ bg: '#000000', fg: null, palette: null });
+      expect(d.id).toBe('detected');
+      expect(terminalName(d)).toBe('Terminalim (algılandı)');
+      expect(resolveProfile({ id: 'gray' }, null).id).toBe('gray');
+      expect(TERMINALS.map((t) => t.id)).toContain('light');
+    });
   });
 });

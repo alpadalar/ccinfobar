@@ -45,6 +45,8 @@ const SWEPT: string[] = [
   'src/editor/web/theme-builder.ts',
   'src/editor/web/themes.ts',
   'src/editor/web/presets.ts',
+  'src/editor/web/styles.ts',
+  'src/editor/web/terminals.ts',
   'src/widgets/activity.ts',
   'src/widgets/agents.ts',
   'src/widgets/charts.ts',
@@ -133,6 +135,16 @@ const ALLOW: Record<string, string[]> = {
   'src/editor/web/theme-builder.ts': ['input mono mini-color-text', 'icon-btn sm danger', 'btn ghost sm'],
   'src/editor/web/themes.ts': ['input mono import-area', 'icon-btn sm danger'],
   'src/editor/web/presets.ts': ['icon-btn sm danger'],
+  // color scheme product names; display words go through terminalName
+  'src/editor/web/terminals.ts': [
+    'Windows Terminal',
+    'Solarized Dark',
+    'Solarized Light',
+    'Tokyo Night',
+    'Gruvbox Dark',
+    'Catppuccin Mocha',
+    'One Dark',
+  ],
   'src/editor/server.ts': [
     // developer-only (D-36)
     'Request body too large',

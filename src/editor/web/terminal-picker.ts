@@ -8,6 +8,7 @@ import {
   TERMINALS,
   type TerminalChoice,
   type TerminalProfile,
+  terminalName,
 } from './terminals.js';
 
 const KEY = 'ccinfobar.terminal';
@@ -68,7 +69,8 @@ export function initTerminalPicker(mount: HTMLElement, detectedColors: DetectedC
   const apply = () => {
     const p = resolveProfile(choice, detected);
     applyProfile(document.documentElement, p);
-    label.textContent = choice.bg || choice.fg ? t('web.term.custom', { name: p.name }) : p.name;
+    const name = terminalName(p);
+    label.textContent = choice.bg || choice.fg ? t('web.term.custom', { name }) : name;
     (button.querySelector('.term-picker-dot') as HTMLElement).style.cssText =
       `background:${p.bg};box-shadow:inset 0 0 0 0.1875rem ${p.palette[4]}, 0 0 0 0.0625rem var(--line)`;
     save(choice);
@@ -107,7 +109,7 @@ export function initTerminalPicker(mount: HTMLElement, detectedColors: DetectedC
             },
           },
           swatch(p),
-          h('span', { class: 'term-option-name' }, p.name),
+          h('span', { class: 'term-option-name' }, terminalName(p)),
           selected ? icon('check', 14) : null,
         ),
       );

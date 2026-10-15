@@ -55,6 +55,9 @@ export class FakeEl {
     for (const fn of this.listeners.get(type) ?? []) fn(e);
   }
   focus() {}
+  getBoundingClientRect() {
+    return { left: 0, top: 0, width: 0, height: 0 };
+  }
   remove() {
     const list = this.parent?.children;
     if (list) list.splice(list.indexOf(this), 1);

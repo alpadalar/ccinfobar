@@ -8,6 +8,9 @@ import {
   sameStyle,
   takeStyle,
 } from '../../core/edit.js';
+import { styleGroupName } from '../../core/i18n/catalog-text.js';
+import { type MessageId, t } from '../../core/i18n/index.js';
+import { widgetText } from '../../core/i18n/widget-text.js';
 import type { Config } from '../../core/types.js';
 import { api } from './api.js';
 import { colorToCss } from './colors.js';
@@ -16,20 +19,23 @@ import { commit, emit, S } from './store.js';
 import { toast } from './ui.js';
 
 const supported = (type: string) => (S.widgetMap.get(type)?.options ?? []).map((o) => o.key);
-const nameOf = (type: string) => S.widgetMap.get(type)?.name ?? type;
+const nameOf = (type: string) => {
+  const def = S.widgetMap.get(type);
+  return def ? widgetText(def, 'name') : type;
+};
 
 export function copyStyle(id: string | null = S.selectedId): void {
   const found = id ? findItem(S.config, id) : null;
   if (!found) return;
   S.clip = { snap: takeStyle(found.item), from: nameOf(found.item.type), type: found.item.type };
-  toast(`Copied the style of ${S.clip.from}`, 'info');
+  toast(t('styles.copied', { name: S.clip.from }), 'info');
   emit('selection');
 }
 
 export function pasteStyle(ids: string[], groups: StyleGroup[] = S.groups): void {
   if (!S.clip || !ids.length) return;
   if (!groups.length) {
-    toast('Pick what to paste first', 'error');
+    toast(t('styles.pickGroups'), 'error');
     return;
   }
   commit(applyStyle(S.config, ids, S.clip.snap, groups, supported));
@@ -40,7 +46,7 @@ export function setPainting(on: boolean): void {
   if (on && !S.clip) return;
   S.painting = on;
   document.body.classList.toggle('painting', on);
-  if (on) toast('Click widgets to paint the style. Esc to stop.', 'info');
+  if (on) toast(t('styles.painting'), 'info');
   emit('selection');
 }
 
@@ -66,18 +72,18 @@ export function styleSample(snap: StyleSnapshot, label = 'Aa'): HTMLElement {
 
 export function describeStyle(snap: StyleSnapshot): string {
   const parts = [
-    snap.color ? `text ${snap.color}` : '',
-    snap.background ? `background ${snap.background}` : '',
-    ...(['bold', 'dim', 'italic'] as const).filter((k) => snap[k]),
+    snap.color ? t('styles.descText', { color: snap.color }) : '',
+    snap.background ? t('styles.descBackground', { color: snap.background }) : '',
+    ...(['bold', 'dim', 'italic'] as const).filter((k) => snap[k]).map((k) => t(`styles.${k}`)),
     ...Object.entries(snap.options ?? {}).map(([k, v]) => `${k} ${v}`),
   ].filter(Boolean);
-  return parts.length ? parts.join(', ') : 'theme defaults';
+  return parts.length ? parts.join(', ') : t('styles.themeDefaults');
 }
 
-const QUICK: { label: string; groups: StyleGroup[] }[] = [
-  { label: 'Colors', groups: ['colors'] },
-  { label: 'Colors + text', groups: ['colors', 'text'] },
-  { label: 'All', groups: ['colors', 'text', 'bars', 'label'] },
+const QUICK: { label: MessageId; groups: StyleGroup[] }[] = [
+  { label: 'styles.quickColors', groups: ['colors'] },
+  { label: 'styles.quickColorsText', groups: ['colors', 'text'] },
+  { label: 'styles.quickAll', groups: ['colors', 'text', 'bars', 'label'] },
 ];
 
 export function styleTools(id: string): HTMLElement {
@@ -101,15 +107,9 @@ export function styleTools(id: string): HTMLElement {
     h(
       'div',
       { class: 'row-inline' },
-      btn('Copy', 'Copy style (Ctrl+Alt+C)', 'copy', () => copyStyle(id)),
-      btn('Paste', 'Paste style (Ctrl+Alt+V)', 'paste', () => pasteStyle([id]), false, !S.clip),
-      btn(
-        'Paint',
-        'Click other widgets to give them this style (Esc to stop)',
-        'brush',
-        () => setPainting(!S.painting),
-        S.painting,
-      ),
+      btn(t('styles.copy'), t('styles.copyTitle'), 'copy', () => copyStyle(id)),
+      btn(t('styles.paste'), t('styles.pasteTitle'), 'paste', () => pasteStyle([id]), false, !S.clip),
+      btn(t('styles.paint'), t('styles.paintTitle'), 'brush', () => setPainting(!S.painting), S.painting),
     ),
   );
   if (!S.clip) return wrap;
@@ -118,7 +118,12 @@ export function styleTools(id: string): HTMLElement {
     h(
       'div',
       { class: 'clip' },
-      h('div', { class: 'clip-head' }, styleSample(S.clip.snap), h('span', null, `From ${S.clip.from}`)),
+      h(
+        'div',
+        { class: 'clip-head' },
+        styleSample(S.clip.snap),
+        h('span', null, t('styles.from', { name: nameOf(S.clip.type) })),
+      ),
       h(
         'div',
         { class: 'clip-quick' },
@@ -133,7 +138,7 @@ export function styleTools(id: string): HTMLElement {
                 emit('selection');
               },
             },
-            q.label,
+            t(q.label),
           ),
         ),
       ),
@@ -153,7 +158,7 @@ export function styleTools(id: string): HTMLElement {
                 emit('selection');
               },
             }),
-            g.name,
+            styleGroupName(g),
           ),
         ),
       ),
@@ -175,7 +180,7 @@ export function recentStyles(id: string): HTMLElement | null {
         {
           type: 'button',
           class: 'recent-style',
-          title: `Use this earlier style: ${describeStyle(snap)}`,
+          title: t('styles.useEarlier', { style: describeStyle(snap) }),
           onClick: () =>
             commit(applyStyle(S.config, [id], snap, ['colors', 'text', 'bars', 'label'], supported)),
         },
@@ -237,15 +242,15 @@ export function chipMenu(e: MouseEvent, id: string, line: number): void {
   menu = h(
     'div',
     { class: 'menu', role: 'menu' },
-    item('Copy style', () => copyStyle(id)),
-    item('Paste style', () => pasteStyle([id]), !S.clip),
-    item('Paste style to whole line', () => pasteStyle(lineIds), !S.clip),
-    item('Paint other widgets…', () => {
+    item(t('styles.menuCopy'), () => copyStyle(id)),
+    item(t('styles.menuPaste'), () => pasteStyle([id]), !S.clip),
+    item(t('styles.menuPasteLine'), () => pasteStyle(lineIds), !S.clip),
+    item(t('styles.menuPaint'), () => {
       copyStyle(id);
       setPainting(true);
     }),
     h('div', { class: 'menu-sep' }),
-    item('Reset to theme look', () => commit(applyStyle(S.config, [id], {}, ['colors', 'text']))),
+    item(t('styles.menuReset'), () => commit(applyStyle(S.config, [id], {}, ['colors', 'text']))),
   );
   document.body.append(menu);
   const r = menu.getBoundingClientRect();
