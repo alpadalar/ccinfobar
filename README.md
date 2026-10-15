@@ -193,11 +193,11 @@ These show what Claude is doing right now. They are opt-in: no preset or default
 These are opt-in too and come from the network or `gh`. A background process fetches them after the status line has printed, so rendering never waits; the status line shows the cached result.
 
 - `service-status`: Claude's status page when something is wrong, `⚠ major: Elevated errors on Opus +1`; hidden while all is well
-- `http`: one value from any JSON endpoint, such as a relay balance, `$12.50`. Secrets for headers and query values come from env vars only (`Authorization=Bearer $RELAY_TOKEN`)
+- `http`: one value from any JSON endpoint, such as a relay balance, `$12.50`. Secrets for headers and query values come from env vars only (`Authorization=Bearer $RELAY_TOKEN`), are sent only over https or to localhost, and never include Claude, cloud or other tool credentials
 - `pr` option `ci`: the PR's CI checks from your own `gh`, `#128 approved ✗ 2`, `● 3` while running, `✓` when all pass
 - `provider`: who serves the session, `Bedrock`, `API key` or `GLM via api.z.ai`; nothing for a normal Claude login
 
-Gateway users can turn on `basis: "auto"` on `session-cost` and `profileLabel` on `model`: a built-in model profile table (GLM, Kimi, DeepSeek, MiniMax, Qwen) gives prices, names and context windows, and your own `profiles` entries extend it. Context widgets already use the profile's window when Claude Code reports the 200K default. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` stops the automatic checks (usage, update, `service-status`); `http` items and the CI part still run because you turned them on. Recipes and every rule are in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#external-data).
+Gateway users can turn on `basis: "auto"` on `session-cost` and `profileLabel` on `model`: a built-in model profile table (GLM, Kimi, DeepSeek, MiniMax, Qwen) gives prices, names and context windows, and your own `profiles` entries extend it. Context widgets already use the profile's window when Claude Code reports the 200K default; set `CLAUDE_CODE_MAX_CONTEXT_TOKENS` to the model's window so Claude Code compacts at it too, and the `usable` basis follows. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` stops the automatic checks (usage, update, `service-status`); `http` items and the CI part still run because you turned them on. Recipes and every rule are in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#external-data).
 
 ## Themes
 

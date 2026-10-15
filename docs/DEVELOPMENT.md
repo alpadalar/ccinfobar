@@ -442,6 +442,17 @@ Phase 6 (background jobs and external sources), 2026-10-15, same machine and met
 
 Cold medians: 135.7 before, 140.9 after. The default layout is about 2 ms slower warm and 5 ms slower cold, though still at or below the Phase 5 numbers above. The render reads no more files (bench sets `CCINFOBAR_NO_JOBS`), so the cost is code: the render path now loads about 447 KB of chunks instead of 370 KB. A build without the `scheduleJobs` import ran at 123.9 against 124.8 for this build and 123.4 for the one before, so about 1 ms comes from loading the job modules and the rest from the larger widget and config chunks. The new widgets cost about 1 ms over the placebo, and with no cached data yet `http` and `provider` show nothing. Moving each job's `run()` behind an `import()` (as `jobs/update.ts` does already) would take most of the job modules out of the render.
 
+After the Phase 6 review fixes, 2026-10-15, same machine and method, `nice -n -10` (priority 0), Node v22.23.1, load average about 0.7 to 2.0, cwd this git repo, default layout, N = 20, 10 interleaved rounds per build (means of the round medians, in ms). `before` is the build just before Phase 6 (5b208f3), `Phase 6` the build before the fixes (fe35f8a):
+
+| Row | before | Phase 6 | after fixes |
+|-----|-------:|--------:|------------:|
+| `node -e 0` | 67.0 | 67.2 | 67.5 |
+| cold | 137.9 | 143.5 | 141.0 |
+| warm | 124.7 | 127.4 | 126.1 |
+| warm p95 | 132.6 | 135.0 | 133.2 |
+
+100 alternating single warm renders per build (`test/fixtures/payload.json`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` and `CCINFOBAR_NO_UPDATE` set) gave 124.5 / 126.4 / 125.1 with `CCINFOBAR_NO_JOBS` and 124.2 / 126.3 / 124.9 with jobs on and nothing due, the path a real refresh takes. The fixes took back about half of Phase 6's cost: +1.4 ms warm in `bench` and +0.6 to +0.7 ms in the alternating runs, against +2.7 and +1.9 to +2.1 before. The ~0.5 ms target is met only in the alternating runs. The render loads 15 chunks again (Phase 6: 20, before: 15). An empty-module test on this machine costs about 0.3 ms per extra ESM module, more than the bytes did, so most of the saving is the five chunks. The remaining cost is code, 441 KB against 380 KB: `core/http-spec.ts`, `core/profiles.ts`, the `http` and `service-status` widgets, and the job registry and runner (about 20 KB), which scheduling needs on every refresh. Loading the registry with `import()` only when jobs are on made `bench` faster (it sets `CCINFOBAR_NO_JOBS`) but a real refresh about 1 ms slower, so it is not done.
+
 ## Releasing
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` under a new version heading.
