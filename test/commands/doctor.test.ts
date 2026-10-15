@@ -725,6 +725,12 @@ describe('usageLine', () => {
       'Usage limits: no data from the usage API',
       "Kullanım limitleri: kullanım API'sinden veri yok",
     ],
+    [
+      'a stored usage error',
+      [cfg, {}, { fetchedAt: now, error: 'rate limited by the usage API' }, now],
+      'Usage limits: no data from the usage API (last error: rate limited by the usage API)',
+      "Kullanım limitleri: kullanım API'sinden veri yok (son hata: kullanım API'si istekleri sınırladı)",
+    ],
   ];
 
   it.each(cases)('%s', (_name, args, english, turkish) => {

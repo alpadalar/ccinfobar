@@ -3,17 +3,19 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import { runThemes } from '../../src/commands/manage.js';
-import { listThemes } from '../../src/core/themes.js';
+import { tildify } from '../../src/core/paths.js';
+import { listThemes, themesDir } from '../../src/core/themes.js';
+import { withEnvLang } from '../helpers.js';
 
 const dir = path.join(process.env.CCINFOBAR_CONFIG_DIR!, 'themes-list');
 
-function capture(cfgFile: string): string[] {
+function capture(cfgFile: string, argv = ['themes', '--list']): string[] {
   const out: string[] = [];
   const spy = vi.spyOn(console, 'log').mockImplementation((...a: unknown[]) => {
     out.push(a.map(String).join(' '));
   });
   try {
-    runThemes(parseArgs(['themes', '--list']), cfgFile);
+    runThemes(parseArgs([...argv, '--width', '80']), cfgFile);
   } finally {
     spy.mockRestore();
   }
@@ -42,5 +44,26 @@ describe('themes --list', () => {
     fs.writeFileSync(cfg, JSON.stringify({ theme: other.id }));
     const current = capture(cfg).filter((l) => l.endsWith('  (current)'));
     expect(current).toEqual([`${other.id}  ${other.name}  (current)`]);
+  });
+
+  it('marks the current theme in Turkish with ids and names unchanged', () => {
+    const lines = withEnvLang('tr', () => capture(path.join(dir, 'missing.json')));
+    expect(lines).toHaveLength(listThemes().length);
+    const current = lines.filter((l) => l.endsWith('  (kullanımda)'));
+    expect(current).toHaveLength(1);
+    expect(lines.some((l) => l.includes('(current)'))).toBe(false);
+    for (const [i, th] of listThemes().entries())
+      expect(lines[i]!.startsWith(`${th.id}  ${th.name}`)).toBe(true);
+  });
+
+  it('prints the previews footer in English and Turkish', () => {
+    const cfg = path.join(dir, 'missing.json');
+    const dirText = tildify(themesDir());
+    expect(capture(cfg, ['themes']).at(-1)).toBe(
+      `Switch with \`ccinfobar theme <id>\`. Your themes live in ${dirText}`,
+    );
+    const tr = withEnvLang('tr', () => capture(cfg, ['themes']));
+    expect(tr.at(-1)).toBe(`\`ccinfobar theme <id>\` ile değiştirin. Temalarınızın yeri: ${dirText}`);
+    expect(tr.some((l) => l.includes(' (kullanımda)  '))).toBe(true);
   });
 });

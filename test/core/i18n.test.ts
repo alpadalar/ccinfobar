@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { benchMessages } from '../../src/core/i18n/en/bench.js';
 import { cliMessages } from '../../src/core/i18n/en/cli.js';
+import { commandsMessages } from '../../src/core/i18n/en/commands.js';
 import { configMessages } from '../../src/core/i18n/en/config.js';
 import { displayMessages } from '../../src/core/i18n/en/display.js';
 import { doctorMessages } from '../../src/core/i18n/en/doctor.js';
@@ -37,6 +38,7 @@ import {
 } from '../../src/core/i18n/languages.js';
 import { benchMessages as trBench } from '../../src/core/i18n/tr/bench.js';
 import { cliMessages as trCli } from '../../src/core/i18n/tr/cli.js';
+import { commandsMessages as trCommands } from '../../src/core/i18n/tr/commands.js';
 import { configMessages as trConfig } from '../../src/core/i18n/tr/config.js';
 import { displayMessages as trDisplay } from '../../src/core/i18n/tr/display.js';
 import { doctorMessages as trDoctor } from '../../src/core/i18n/tr/doctor.js';
@@ -225,6 +227,7 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['widgets', widgetMessages, trWidgets],
   ['fun', funMessages, trFun],
   ['cli', cliMessages, trCli],
+  ['commands', commandsMessages, trCommands],
 ];
 
 function forms(m: Message): string[] {
@@ -383,6 +386,7 @@ describe('en table', () => {
       displayMessages,
       funMessages,
       cliMessages,
+      commandsMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);

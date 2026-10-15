@@ -8,20 +8,26 @@ import {
   benchConfig,
   benchEnv,
   benchPayload,
+  benchTable,
   overhead,
   parseRuns,
+  type RowName,
   runBench,
   runBenchCommand,
+  type Stats,
   stats,
   syntheticTranscript,
 } from '../../src/commands/bench.js';
 import type { CliIo } from '../../src/commands/io.js';
 import { defaultConfig } from '../../src/core/config.js';
-import { t } from '../../src/core/i18n/index.js';
+import { benchMessages } from '../../src/core/i18n/en/bench.js';
+import { type LanguageDef, t } from '../../src/core/i18n/index.js';
 import { cacheDir, configDir } from '../../src/core/paths.js';
 import { samplePayload } from '../../src/core/sample.js';
 import { getScenario, SCENARIO_NOW } from '../../src/core/scenarios.js';
+import { visibleWidth } from '../../src/core/width.js';
 import { parseTranscriptText } from '../../src/data/transcript.js';
+import { withLang } from '../helpers.js';
 
 describe('stats', () => {
   it('computes median, nearest-rank p95, min and max', () => {
@@ -199,6 +205,61 @@ function listFiles(dir: string): string[] {
 
 afterEach(() => {
   process.exitCode = undefined;
+});
+
+describe('benchTable', () => {
+  const s = (median: number): Stats => ({ n: 20, median, p95: median * 2, min: 1.25, max: 1234.5 });
+  const rows: [RowName, Stats][] = [
+    ['control', s(67.3)],
+    ['cold', s(144.6)],
+    ['warm', s(125.6)],
+    ['warm-no-compile-cache', s(135.3)],
+    ['hook', s(77.7)],
+  ];
+
+  // visible end of each numeric column
+  const ends = (line: string) =>
+    [...line.matchAll(/\S+(?: \S+)*/g)]
+      .slice(1, 6)
+      .map((m) => visibleWidth(line.slice(0, m.index + m[0].length)));
+
+  const aligned = (lines: string[]) => {
+    const want = ends(lines[0]!);
+    expect(want).toHaveLength(5);
+    for (const line of lines.slice(1)) expect(ends(line)).toEqual(want);
+  };
+
+  it('prints the English table unchanged', () => {
+    const lines = benchTable(rows);
+    expect(lines).toEqual([
+      'row                       n  median    p95  min     max  (times in ms)',
+      'node -e 0                20    67.3  134.6  1.3  1234.5',
+      'cold                     20   144.6  289.2  1.3  1234.5',
+      'warm                     20   125.6  251.2  1.3  1234.5',
+      'warm, compile cache off  20   135.3  270.6  1.3  1234.5',
+      'hook UserPromptSubmit    20    77.7  155.4  1.3  1234.5',
+    ]);
+    aligned(lines);
+  });
+
+  it('aligns Turkish and fullwidth labels by visible width', () => {
+    aligned(withLang('tr', () => benchTable(rows)));
+    const wide: Record<string, string> = {
+      ...benchMessages,
+      'bench.col.row': 'ＲＯＷ',
+      'bench.col.median': 'ＭＥＤＩＡＮＮ',
+      'bench.row.control': 'ａ',
+      'bench.row.cold': 'ｂｂｂ x',
+      'bench.row.warm': 'cc',
+      'bench.row.warmNoCache': 'ｄｄｄｄｄｄ',
+    };
+    const zz: LanguageDef = { id: 'zz', name: 'Wide', aliases: [], locale: 'en', messages: wide };
+    const lines = withLang(zz, () => benchTable(rows));
+    expect(lines[0]!.startsWith('ＲＯＷ')).toBe(true);
+    const widths = lines.slice(1).map(visibleWidth);
+    expect(new Set(widths).size).toBe(1);
+    aligned(lines);
+  });
 });
 
 describe('runBench', () => {

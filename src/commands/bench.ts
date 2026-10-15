@@ -13,6 +13,7 @@ import { sanitizeText } from '../core/sanitize.js';
 import { getScenario, SCENARIO_NOW, scenarioConfig, scenarioEnv } from '../core/scenarios.js';
 import type { Config, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
+import { padVisible, visibleWidth } from '../core/width.js';
 import { writeAtomic } from '../data/store.js';
 import { type CliIo, cliIo, reportConfigIssue } from './io.js';
 
@@ -168,7 +169,7 @@ export interface BenchOptions {
   cwd?: string;
 }
 
-type RowName = 'control' | 'cold' | 'warm' | 'warm-no-compile-cache' | 'hook';
+export type RowName = 'control' | 'cold' | 'warm' | 'warm-no-compile-cache' | 'hook';
 
 const LABELS = {
   control: 'bench.row.control',
@@ -331,6 +332,26 @@ export function runBench(opts: BenchOptions, io: CliIo = cliIo()): number {
   }
 }
 
+const HEAD = ['bench.col.n', 'bench.col.median', 'bench.col.p95', 'bench.col.min', 'bench.col.max'] as const;
+
+// columns by visible width, so translated labels line up
+export function benchTable(rows: [RowName, Stats][]): string[] {
+  const labels = rows.map(([name]) => t(LABELS[name]));
+  const head = HEAD.map((h) => t(h));
+  const pad = Math.max(visibleWidth(t('bench.col.row')), ...labels.map(visibleWidth));
+  const cols = rows.map(([, s]) => [
+    String(s.n),
+    ...[s.median, s.p95, s.min, s.max].map((v) => v.toFixed(1)),
+  ]);
+  const widths = head.map((h, c) => Math.max(visibleWidth(h), ...cols.map((row) => row[c]!.length)));
+  const line = (label: string, cells: string[]) =>
+    [padVisible(label, pad), ...cells.map((v, c) => padVisible(v, widths[c]!, 'right'))].join('  ');
+  return [
+    `${line(t('bench.col.row'), head)}  ${t('bench.unit')}`,
+    ...rows.map((_, k) => line(labels[k]!, cols[k]!)),
+  ];
+}
+
 function report(
   io: CliIo,
   r: {
@@ -393,29 +414,7 @@ function report(
   if (prio !== null && prio > 0) io.log(t('bench.niceWarning'));
   if (process.platform === 'win32') io.log(t('bench.windowsNote'));
   io.log('');
-  const head = [
-    'bench.col.n',
-    'bench.col.median',
-    'bench.col.p95',
-    'bench.col.min',
-    'bench.col.max',
-  ] as const;
-  const labels = r.rows.map(([name]) => t(LABELS[name]));
-  const pad = Math.max(t('bench.col.row').length, ...labels.map((l) => l.length));
-  const cols = r.rows.map(([, s]) => [
-    String(s.n),
-    ...[s.median, s.p95, s.min, s.max].map((v) => v.toFixed(1)),
-  ]);
-  const widths = head.map((h, c) => Math.max(t(h).length, ...cols.map((row) => row[c]!.length)));
-  const line = (label: string, cells: string[]) =>
-    [label.padEnd(pad), ...cells.map((v, c) => v.padStart(widths[c]!))].join('  ');
-  io.log(
-    `${line(
-      t('bench.col.row'),
-      head.map((h) => t(h)),
-    )}  ${t('bench.unit')}`,
-  );
-  for (let k = 0; k < r.rows.length; k++) io.log(line(labels[k]!, cols[k]!));
+  for (const line of benchTable(r.rows)) io.log(line);
   io.log('');
   io.log(t('bench.overhead', { ms: r.overheadMs.toFixed(1) }));
   io.log(t('bench.hookOverhead', { ms: r.hookOverheadMs.toFixed(1) }));

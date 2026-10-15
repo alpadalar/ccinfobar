@@ -63,6 +63,7 @@ import {
   readManifest,
 } from './manifest.js';
 import { backupsDir } from './settings-file.js';
+import { usageErrorText } from './usage-error.js';
 
 export { hasReplies } from '../core/payload.js';
 
@@ -214,7 +215,7 @@ export function usageLine(
   if (usageApiDisabled(config)) return t('doctor.usage.off');
   if (!usage) return t('doctor.usage.notCalled');
   const age = Math.round((now - usage.fetchedAt) / 60_000);
-  const error = usage.error ? safe(usage.error) : '';
+  const error = usage.error ? usageErrorText(usage.error) : '';
   if (usage.rate_limits) return t(error ? 'doctor.usage.freshError' : 'doctor.usage.fresh', { age, error });
   return t(error ? 'doctor.usage.noDataError' : 'doctor.usage.noData', { error });
 }
@@ -369,9 +370,10 @@ function jobLine(
 ): string {
   const key = safe(e.key);
   const age = shortAge(now - e.fetchedAt);
+  const error = e.error && e.key.startsWith('usage-') ? usageErrorText(e.error) : safe(e.error ?? '');
   let line = e.ok
     ? t('doctor.jobs.ok', { key, age })
-    : t('doctor.jobs.error', { key, age, error: safe(e.error ?? '') || t('doctor.jobs.unknownError') });
+    : t('doctor.jobs.error', { key, age, error: error || t('doctor.jobs.unknownError') });
   if (e.blockedUntil !== undefined && e.blockedUntil > now)
     line += t('doctor.jobs.retry', { in: shortAge(e.blockedUntil - now) });
   if (e.key.startsWith('http-')) {

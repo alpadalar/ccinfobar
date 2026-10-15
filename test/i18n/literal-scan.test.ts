@@ -14,6 +14,9 @@ const SWEPT: string[] = [
   'src/importers/ccstatusline.ts',
   'src/importers/claude-powerline.ts',
   'src/commands/doctor.ts',
+  'src/commands/manage.ts',
+  'src/commands/bench.ts',
+  'src/commands/usage-error.ts',
 ];
 
 // left out on purpose, with the reason; 08-25 makes SWEPT + NOT_SWEPT cover src/
@@ -35,6 +38,10 @@ const ALLOW: Record<string, string[]> = {
     'ccinfobar config set <path> <value>',
     'ccinfobar config unset <path>',
   ],
+  // simulated payload data
+  'src/commands/bench.ts': ['Step X: refactor the status line renderer', 'Done with step X.'],
+  // persisted usage errors, matched and never shown as is
+  'src/commands/usage-error.ts': ['rate limited by the usage API', 'usage API sent no limits'],
 };
 
 type Lit = { text: string; at: number; end: number };
