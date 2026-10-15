@@ -9,6 +9,7 @@ import { readRepos } from '../data/repos.js';
 import { readTranscript } from '../data/transcript.js';
 import { effectiveUsage } from '../data/usage.js';
 import { createContext, lazy, resolveCwd } from './context.js';
+import { scenarioText } from './i18n/catalog-text.js';
 import { t } from './i18n/index.js';
 import { hasItemRules } from './metrics.js';
 import { lastPayloadPath } from './paths.js';
@@ -31,6 +32,7 @@ import { sanitizeText } from './sanitize.js';
 import { getScenario, SCENARIO_NOW, scenarioConfig, scenarioEnv, scenarioList } from './scenarios.js';
 import type { Theme } from './themes.js';
 import type { Config, RenderContext, StatusPayload } from './types.js';
+import { padVisible, visibleWidth } from './width.js';
 
 export type PreviewSource = 'sample' | 'last' | { scenario: string };
 
@@ -49,12 +51,12 @@ export function scenarioFlag(value: string | boolean | undefined): ScenarioFlag 
 export function scenarioListLines(): string[] {
   const list = scenarioList().map((s) => ({
     id: sanitizeText(s.id),
-    description: sanitizeText(s.description),
+    description: sanitizeText(scenarioText(s, 'description')),
   }));
-  const pad = Math.max(0, ...list.map((s) => s.id.length));
+  const pad = Math.max(0, ...list.map((s) => visibleWidth(s.id)));
   return [
     t('preview.scenariosHeader'),
-    ...list.map((s) => t('preview.scenarioLine', { id: s.id.padEnd(pad), description: s.description })),
+    ...list.map((s) => t('preview.scenarioLine', { id: padVisible(s.id, pad), description: s.description })),
   ];
 }
 

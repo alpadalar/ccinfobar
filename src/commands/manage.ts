@@ -6,6 +6,7 @@ import { stripAnsi, visibleWidth } from '../core/ansi.js';
 import { defaultConfig, GLYPH_MODES, type LoadResult, saveConfig } from '../core/config.js';
 import { keepLanguage } from '../core/edit.js';
 import { resolveGlyphMode } from '../core/glyphs.js';
+import { presetText, themeDescription } from '../core/i18n/catalog-text.js';
 import { formatDateTime } from '../core/i18n/format.js';
 import { languageLocale, t } from '../core/i18n/index.js';
 import { categoryText, widgetText } from '../core/i18n/widget-text.js';
@@ -126,7 +127,7 @@ export function runInit(args: Args, cfgFile: string): void {
   const backup = backupConfig(cfgFile);
   const built = keepGsd ? preset.build() : forGsd(preset.build(), gsdInstalled());
   saveConfig(keepLanguage(built, current), cfgFile, { overwriteBroken: true });
-  console.log(t('cmd.init.done', { name: clean(preset.name), file: tildify(cfgFile) }));
+  console.log(t('cmd.init.done', { name: clean(presetText(preset, 'name')), file: tildify(cfgFile) }));
   if (backup) console.log(t('cmd.init.previous', { file: tildify(backup) }));
 }
 
@@ -188,7 +189,7 @@ export function runThemes(args: Args, cfgFile: string): void {
     const mark = th.id === current.theme ? ` ${t('cmd.themes.current')}` : '';
     const origin = th.source === 'user' ? ` · ${t('cmd.themes.yours')}` : '';
     console.log(
-      `\n\x1b[1m${clean(th.name)}\x1b[0m  ${clean(th.id)}${mark}  \x1b[2m${clean(th.style)}${origin} · ${clean(th.description)}\x1b[0m`,
+      `\n\x1b[1m${clean(th.name)}\x1b[0m  ${clean(th.id)}${mark}  \x1b[2m${clean(th.style)}${origin} · ${clean(themeDescription(th))}\x1b[0m`,
     );
     const demo = {
       ...current,

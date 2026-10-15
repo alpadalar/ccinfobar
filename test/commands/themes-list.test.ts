@@ -56,6 +56,16 @@ describe('themes --list', () => {
       expect(lines[i]!.startsWith(`${th.id}  ${th.name}`)).toBe(true);
   });
 
+  it('prints built-in theme descriptions in the display language with names unchanged', () => {
+    const cfg = path.join(dir, 'missing.json');
+    const header = (lines: string[]) => lines.find((l) => l.includes('\u001b[1mClassic\u001b[0m  classic'))!;
+    const en = header(capture(cfg, ['themes']));
+    expect(en).toContain(' · Each widget in its own color, thin bar separators\u001b[0m');
+    const tr = header(withEnvLang('tr', () => capture(cfg, ['themes'])));
+    expect(tr).toContain(' · Her bileşen kendi renginde, ince çizgi ayraçlar\u001b[0m');
+    expect(tr).toContain('\u001b[2mtext · ');
+  });
+
   it('prints the previews footer in English and Turkish', () => {
     const cfg = path.join(dir, 'missing.json');
     const dirText = tildify(themesDir());

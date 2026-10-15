@@ -7,11 +7,13 @@ import type { CliIo } from '../../src/commands/io.js';
 import { runPreview } from '../../src/commands/manage.js';
 import { stripAnsi } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
+import { scenarioText } from '../../src/core/i18n/catalog-text.js';
 import { t } from '../../src/core/i18n/index.js';
 import { configDir, lastPayloadPath } from '../../src/core/paths.js';
 import { renderPreview, scenarioFlag, scenarioListLines } from '../../src/core/preview.js';
 import { SCENARIOS } from '../../src/core/scenarios.js';
-import { withoutSideEffects } from '../helpers.js';
+import { visibleWidth } from '../../src/core/width.js';
+import { withLang, withoutSideEffects } from '../helpers.js';
 
 const ESC = '\u001b';
 
@@ -51,6 +53,30 @@ describe('scenarioFlag', () => {
     expect(lines).toHaveLength(SCENARIOS.length + 1);
     for (const s of SCENARIOS)
       expect(lines.some((l) => l.includes(s.id) && l.includes(s.description))).toBe(true);
+  });
+
+  it('lists Turkish descriptions with ids unchanged and one description column', () => {
+    const en = scenarioListLines();
+    const tr = withLang('tr', () => scenarioListLines());
+    expect(tr[0]).toBe(withLang('tr', () => t('preview.scenariosHeader')));
+    expect(tr).toHaveLength(en.length);
+    const ids = (lines: string[]) => lines.slice(1).map((l) => l.trim().split(' ')[0]);
+    expect(ids(tr)).toEqual(SCENARIOS.map((s) => s.id));
+    expect(ids(en)).toEqual(ids(tr));
+    const start = (lines: string[]) =>
+      new Set(lines.slice(1).map((l) => visibleWidth(/^ {2}\S+ +/.exec(l)![0])));
+    expect(start(tr).size).toBe(1);
+    expect(start(tr)).toEqual(start(en));
+    for (const [i, s] of SCENARIOS.entries()) {
+      expect(en[i + 1]!.endsWith(`  ${s.description}`)).toBe(true);
+      expect(tr[i + 1]!.endsWith(`  ${withLang('tr', () => scenarioText(s, 'description'))}`)).toBe(true);
+      expect(tr[i + 1]).not.toContain(s.description);
+    }
+    expect(tr).toContain(
+      en
+        .find((l) => l.includes('context-full'))!
+        .replace(/The context.*$/, 'Bağlam penceresi yaklaşık %94 dolu'),
+    );
   });
 });
 

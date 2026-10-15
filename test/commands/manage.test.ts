@@ -71,13 +71,13 @@ describe('init', () => {
     expect(read(fresh)).not.toHaveProperty('language');
   });
 
-  it('prints English and Turkish with the preset name and paths unchanged', () => {
+  it('prints English and Turkish with the preset name translated and paths unchanged', () => {
     const f = file('words.json', '{}');
     const en = capture(() => init(f, 'default', '--force'));
     expect(en.out[0]).toBe(`✓ Wrote "Default" preset to ${tildify(f)}`);
     expect(en.out[1]).toMatch(/^ {2}Previous config: .+\.bak$/);
     const tr = withLang('tr', () => capture(() => init(f, 'default', '--force')));
-    expect(tr.out[0]).toBe(`✓ "Default" hazır ayarı ${tildify(f)} dosyasına yazıldı`);
+    expect(tr.out[0]).toBe(`✓ "Varsayılan" hazır ayarı ${tildify(f)} dosyasına yazıldı`);
     expect(tr.out[1]).toMatch(/^ {2}Önceki yapılandırma: .+\.bak$/);
   });
 
