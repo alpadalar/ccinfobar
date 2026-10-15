@@ -14,6 +14,13 @@ export const importMessages = {
     '{tool} segment "{name}": usage API options ({options}) were dropped, ccinfobar never sends your token to a custom host',
   'import.note.iconColor': '{tool} segment "{name}": icon color dropped, the widget has one color',
   'import.note.commandDir': 'read the {tool} config next to the status line command: {file}',
+  'import.note.themeFile': '{tool} theme "{name}" is set in the status line command, read from {file}',
+  'import.note.themeBuiltin':
+    '{tool} theme "{name}" is set in the status line command, imported its built-in theme',
+  'import.note.themeUnknown':
+    '{tool} theme "{name}" is set in the status line command but was not found, imported its default theme',
+  'import.note.themeUnsafe':
+    '{tool} theme "{name}" in the status line command is not a safe theme name and was ignored',
   'import.note.hideState': '{name}: hiding when "{state}" is not supported, it stays visible',
   'import.note.targetDropped': '{kind} "{target}" was dropped (not confirmed)',
   'import.note.unsafeLink': 'link "{url}" has an unsafe URL and was dropped',

@@ -1,0 +1,39 @@
+theme = "mytheme"
+
+[style]
+mode = "plain"
+separator = " » "
+
+[[segments]]
+id = "model"
+enabled = true
+
+[segments.icon]
+plain = "M"
+nerd_font = ""
+
+[segments.colors.text]
+c256 = 33
+
+[segments.styles]
+text_bold = true
+
+[[segments]]
+id = "cost"
+enabled = true
+
+[segments.icon]
+plain = "$"
+nerd_font = ""
+
+[segments.colors.text]
+r = 229
+g = 192
+b = 123
+
+[segments.colors.background]
+c16 = 0
+
+[[segments]]
+id = "git"
+enabled = false

@@ -6,7 +6,8 @@ import { t } from '../core/i18n/index.js';
 import { claudeDir, tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config } from '../core/types.js';
-import { CCLINE_DEFAULT, importCcometixline } from './ccometixline.js';
+import { CCLINE_DEFAULT, importCcometixline, parseCclineTheme } from './ccometixline.js';
+import { CCLINE_THEMES, type CclineTheme } from './ccometixline-themes.js';
 import { importCcstatusline } from './ccstatusline.js';
 import { importClaudePowerline, parsePowerlineArgs } from './claude-powerline.js';
 import { parseToml, TomlError } from './toml.js';
@@ -182,16 +183,52 @@ function readToml(file: string, tool: string): unknown {
   }
 }
 
-function importCcline(file: string | undefined, command: string): ImportResult {
-  const found = file ? { file, note: null } : ccometixlinePaths(command);
-  if (!found.file) return { ...importCcometixline(CCLINE_DEFAULT, { defaulted: true }), file: null };
-  const result = importCcometixline(readToml(found.file, 'CCometixLine'));
-  if (found.note === 'command-dir') {
+// a regular file, followed through symlinks (not a device or dir)
+function isFile(file: string): boolean {
+  try {
+    return fs.statSync(file).isFile();
+  } catch {
+    return false;
+  }
+}
+
+const CCLINE = 'CCometixLine';
+
+const safeThemeName = (name: string) => /^[\w.-]+$/.test(name) && !name.includes('..');
+
+function importCclineTheme(name: string, home: string): ImportResult | ImportNote {
+  const shown = sanitizeText(name);
+  if (!safeThemeName(name))
+    return { kind: 'info', text: t('import.note.themeUnsafe', { tool: CCLINE, name: shown }) };
+  const file = path.join(home, '.claude', 'ccline', 'themes', `${name}.toml`);
+  if (isFile(file)) {
+    const result = importCcometixline(readToml(file, CCLINE));
+    const text = t('import.note.themeFile', { tool: CCLINE, name: shown, file: sanitizeText(tildify(file)) });
+    result.notes.unshift({ kind: 'info', text });
+    return { ...result, file };
+  }
+  const builtin = Object.hasOwn(CCLINE_THEMES, name);
+  const result = importCcometixline(CCLINE_THEMES[(builtin ? name : 'default') as CclineTheme]);
+  const id = builtin ? 'import.note.themeBuiltin' : 'import.note.themeUnknown';
+  result.notes.unshift({ kind: 'info', text: t(id, { tool: CCLINE, name: shown }) });
+  return { ...result, file: null };
+}
+
+function importCcline(file: string | undefined, command: string, home = os.homedir()): ImportResult {
+  const theme = file ? null : parseCclineTheme(command);
+  const themed = theme === null ? null : importCclineTheme(theme, home);
+  if (themed && 'config' in themed) return themed;
+  const found = file ? { file, note: null } : ccometixlinePaths(command, home);
+  const result = found.file
+    ? importCcometixline(readToml(found.file, CCLINE))
+    : importCcometixline(CCLINE_DEFAULT, { defaulted: true });
+  if (found.note === 'command-dir' && found.file) {
     result.notes.unshift({
       kind: 'info',
-      text: t('import.note.commandDir', { tool: 'CCometixLine', file: sanitizeText(tildify(found.file)) }),
+      text: t('import.note.commandDir', { tool: CCLINE, file: sanitizeText(tildify(found.file)) }),
     });
   }
+  if (themed) result.notes.unshift(themed);
   return { ...result, file: found.file };
 }
 

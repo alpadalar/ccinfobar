@@ -11,7 +11,13 @@ import { tildify } from '../../src/core/paths.js';
 import { render } from '../../src/core/renderer.js';
 import { sampleGit, sampleGsd, samplePayload, sampleTranscript } from '../../src/core/sample.js';
 import type { Config } from '../../src/core/types.js';
-import { CCLINE_DEFAULT, importCcometixline, TARGETS } from '../../src/importers/ccometixline.js';
+import {
+  CCLINE_DEFAULT,
+  importCcometixline,
+  parseCclineTheme,
+  TARGETS,
+} from '../../src/importers/ccometixline.js';
+import { CCLINE_THEMES } from '../../src/importers/ccometixline-themes.js';
 import { sanitizeImport } from '../../src/importers/confirm.js';
 import {
   ccometixlinePaths,
@@ -397,5 +403,194 @@ describe('import ccline --dry-run', () => {
     expect(
       f.errors[0]!.startsWith(`✗ İçe aktarma başarısız oldu: ${tildify(bad)}:1:7 "]" bekleniyordu`),
     ).toBe(true);
+  });
+});
+
+describe('CCometixLine themes', () => {
+  const NAMES = [
+    'cometix',
+    'default',
+    'minimal',
+    'gruvbox',
+    'nord',
+    'powerline-dark',
+    'powerline-light',
+    'powerline-rose-pine',
+    'powerline-tokyo-night',
+  ];
+  const themeFile = (home: string, name: string) =>
+    path.join(home, '.claude', 'ccline', 'themes', `${name}.toml`);
+  const types = new Set(ALL_WIDGETS.map((w) => w.type));
+
+  it('parses -t, --theme and --theme= with quotes', () => {
+    expect(parseCclineTheme('ccline -t nord')).toBe('nord');
+    expect(parseCclineTheme('"/opt/my tools/ccline" --theme "powerline-dark"')).toBe('powerline-dark');
+    expect(parseCclineTheme("ccline --theme='a b'")).toBe('a b');
+    expect(parseCclineTheme('ccline --theme=x -t y')).toBe('x');
+    expect(parseCclineTheme('ccline -t')).toBeNull();
+    expect(parseCclineTheme('ccline --tx nord')).toBeNull();
+    expect(parseCclineTheme('ccline')).toBeNull();
+  });
+
+  it('carries all nine built-in themes', () => {
+    expect(Object.keys(CCLINE_THEMES).sort()).toEqual([...NAMES].sort());
+    expect(CCLINE_DEFAULT).toBe(CCLINE_THEMES.default);
+    for (const name of NAMES) {
+      const r = importCcometixline(CCLINE_THEMES[name as keyof typeof CCLINE_THEMES]);
+      const items = r.config.lines![0]!;
+      expect(items.map((i) => i.type)).toEqual([
+        'model',
+        'cwd',
+        'git-branch',
+        'git-status',
+        'context-percentage',
+      ]);
+      for (const it of items) expect(types.has(it.type), it.type).toBe(true);
+      expect(r.config.style === 'powerline', name).toBe(name.startsWith('powerline-'));
+      expect(r.config.icons).toBe(name === 'default' || name === 'minimal' ? 'emoji' : 'nerd');
+    }
+  });
+
+  it('transcribes theme colors, icons and separators', () => {
+    const items = (name: keyof typeof CCLINE_THEMES) => {
+      const r = importCcometixline(CCLINE_THEMES[name]);
+      return { r, items: r.config.lines![0]! };
+    };
+    const nord = items('nord');
+    expect(nord.r.config.separator).toBe('');
+    expect(nord.items[0]).toMatchObject({ label: '\ue26d', color: '#2e3440', background: '#88c0d0' });
+    const minimal = items('minimal');
+    expect(minimal.r.config.separator).toBe(' \u2502 ');
+    expect(minimal.items[0]).toMatchObject({ label: '\u273d', color: 'brightCyan' });
+    const gruvbox = items('gruvbox');
+    expect(gruvbox.items[0]).toMatchObject({ color: 'ansi256:208', bold: true });
+    expect(gruvbox.items.find((i) => i.type === 'context-percentage')).toMatchObject({ color: 'magenta' });
+    const dark = items('powerline-dark');
+    expect(dark.r.config.separator).toBeUndefined();
+    expect(dark.items[1]).toMatchObject({ color: '#ffffff', background: '#8b4513' });
+    const tokyo = CCLINE_THEMES['powerline-tokyo-night'].segments as Record<string, any>[];
+    expect(tokyo.find((s) => s.id === 'session')!.icon.nerd_font).toBe('\u{f1ad3}');
+    expect(tokyo.find((s) => s.id === 'usage')!.colors.background).toEqual({ r: 36, g: 40, b: 59 });
+  });
+
+  it('imports a theme file named by -t instead of config.toml', () => {
+    const home = tmp();
+    withHome(home);
+    write(homeConfig(home), MINI);
+    const file = write(
+      themeFile(home, 'mytheme'),
+      fs.readFileSync(path.join(FIXTURES, 'ccline-theme.toml'), 'utf8'),
+    );
+    const r = importFrom('ccometixline', { command: 'ccline -t mytheme' });
+    expect(r.file).toBe(file);
+    expect(r.config.separator).toBe(' \u00bb ');
+    expect(r.config.icons).toBe('emoji');
+    expect(r.config.lines).toEqual([
+      [
+        { id: 'model-model', type: 'model', label: 'M', color: 'ansi256:33', bold: true },
+        { id: 'cost-session-cost', type: 'session-cost', label: '$', color: '#e5c07b', background: 'black' },
+      ],
+    ]);
+    expect(r.notes).toEqual([
+      {
+        kind: 'info',
+        text: `CCometixLine theme "mytheme" is set in the status line command, read from ${tildify(file)}`,
+      },
+    ]);
+  });
+
+  it('falls back to the built-in theme when no theme file exists', () => {
+    const home = tmp();
+    withHome(home);
+    write(homeConfig(home), MINI);
+    const nord = importFrom('ccometixline', { command: 'ccline --theme nord' });
+    expect(nord.file).toBeNull();
+    expect(nord.config).toEqual(importCcometixline(CCLINE_THEMES.nord).config);
+    expect(nord.notes[0]).toEqual({
+      kind: 'info',
+      text: 'CCometixLine theme "nord" is set in the status line command, imported its built-in theme',
+    });
+    const dark = importFrom('ccometixline', { command: 'ccline --theme=powerline-dark' });
+    expect(dark.config.style).toBe('powerline');
+    fs.mkdirSync(themeFile(home, 'gruvbox'), { recursive: true });
+    expect(importFrom('ccometixline', { command: 'ccline -t gruvbox' }).config.lines![0]![0]!.color).toBe(
+      'ansi256:208',
+    );
+  });
+
+  it('imports the default theme for an unknown name', () => {
+    const home = tmp();
+    withHome(home);
+    write(homeConfig(home), MINI);
+    const r = importFrom('ccometixline', { command: 'ccline -t unknown' });
+    expect(r.file).toBeNull();
+    expect(r.config).toEqual(importCcometixline(CCLINE_THEMES.default).config);
+    expect(r.notes[0]).toEqual({
+      kind: 'info',
+      text: 'CCometixLine theme "unknown" is set in the status line command but was not found, imported its default theme',
+    });
+  });
+
+  it('ignores unsafe theme names and reads config.toml', () => {
+    const home = tmp();
+    withHome(home);
+    write(homeConfig(home), MINI);
+    write(path.join(home, '.claude', 'x.toml'), MINI.replace(' / ', ' # '));
+    for (const [command, name] of [
+      ['ccline -t ../../etc/x', '../../etc/x'],
+      ['ccline -t ../x', '../x'],
+      ['ccline -t ../../x', '../../x'],
+      ['ccline -t "a b"', 'a b'],
+      ['ccline -t ..', '..'],
+      ['ccline -t ""', ''],
+      [`ccline -t ${path.join(home, '.claude', 'x')}`, path.join(home, '.claude', 'x')],
+    ]) {
+      const r = importFrom('ccometixline', { command });
+      expect(r.file, command).toBe(homeConfig(home));
+      expect(r.config.separator, command).toBe(' / ');
+      expect(r.notes, command).toEqual([
+        {
+          kind: 'info',
+          text: `CCometixLine theme "${name}" in the status line command is not a safe theme name and was ignored`,
+        },
+      ]);
+    }
+    const r = importFrom('ccometixline', { command: 'ccline -t "\u001b[31mx"' });
+    expect(r.notes[0]!.text).not.toMatch(/\u001b/);
+  });
+
+  it('lets --file win over the theme flag', () => {
+    const home = tmp();
+    withHome(home);
+    write(themeFile(home, 'mytheme'), fs.readFileSync(path.join(FIXTURES, 'ccline-theme.toml'), 'utf8'));
+    const file = path.join(FIXTURES, 'ccometixline.toml');
+    const r = importFrom('ccometixline', { file, command: 'ccline -t mytheme' });
+    expect(r.file).toBe(file);
+    expect(r.config.lines).toEqual([ITEMS]);
+    expect(importFrom('ccometixline', { file, command: 'ccline -t nord' }).config.lines).toEqual([ITEMS]);
+  });
+
+  it('writes theme notes in Turkish', () => {
+    const home = tmp();
+    withHome(home);
+    const file = write(
+      themeFile(home, 'mytheme'),
+      fs.readFileSync(path.join(FIXTURES, 'ccline-theme.toml'), 'utf8'),
+    );
+    withLang('tr', () => {
+      const note = (command: string) => importFrom('ccometixline', { command }).notes[0]!.text;
+      expect(note('ccline -t mytheme')).toBe(
+        `CCometixLine teması "mytheme" durum satırı komutunda seçili, şu dosyadan okundu: ${tildify(file)}`,
+      );
+      expect(note('ccline -t nord')).toBe(
+        'CCometixLine teması "nord" durum satırı komutunda seçili, yerleşik tema içe aktarıldı',
+      );
+      expect(note('ccline -t yok')).toBe(
+        'CCometixLine teması "yok" durum satırı komutunda seçili ama bulunamadı, varsayılan tema içe aktarıldı',
+      );
+      expect(note('ccline -t ../x')).toBe(
+        'durum satırı komutundaki CCometixLine teması "../x" güvenli bir tema adı değil, yok sayıldı',
+      );
+    });
   });
 });

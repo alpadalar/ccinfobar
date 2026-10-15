@@ -275,7 +275,7 @@ Found ccstatusline as your current status line. Import its layout into ccinfobar
 | --- | --- |
 | [ccstatusline](https://github.com/sirmalloc/ccstatusline) | Lines, widgets, colors, labels (custom text), separators, merge, raw values, powerline mode and caps, `full-minus-40` width |
 | [claude-powerline](https://github.com/Owloops/claude-powerline) | Lines, segments, theme, style (`minimal`, `powerline`, `capsule`, `tui`), charset, auto wrap, width reserve, custom colors, and `--theme`/`--style` flags in the command |
-| [CCometixLine](https://github.com/Haleclipse/CCometixLine) (`ccline`) | Segments from `~/.claude/ccline/config.toml` (or its default layout), icons for the style mode as labels, text and background colors, bold, separator, and the powerline arrow separator as the powerline style. Usage API options and the `update` segment are dropped |
+| [CCometixLine](https://github.com/Haleclipse/CCometixLine) (`ccline`) | Segments from `~/.claude/ccline/config.toml` (or its default layout; a `-t`/`--theme` flag in the status line command imports that theme instead, from `~/.claude/ccline/themes/` or the nine built-in themes), icons for the style mode as labels, text and background colors, bold, separator, and the powerline arrow separator as the powerline style. Usage API options and the `update` segment are dropped |
 
 Every import prints a report: what was imported, what was approximated and what was dropped, with the reason. `--dry-run` prints the report and a preview with sample data and writes nothing. Run it later with `ccinfobar import ccstatusline` or `ccinfobar import claude-powerline --file <path>` (`ccline` works as a short name for `ccometixline`); your current ccinfobar config is backed up first.
 

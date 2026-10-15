@@ -17,6 +17,13 @@ export const importMessages = {
     '{tool} bölümü "{name}": kullanım API seçenekleri ({options}) atlandı, ccinfobar token\'ınızı asla özel bir sunucuya göndermez',
   'import.note.iconColor': '{tool} bölümü "{name}": simge rengi atlandı, bileşenin tek rengi var',
   'import.note.commandDir': '{tool} yapılandırması durum satırı komutunun yanındaki dosyadan okundu: {file}',
+  'import.note.themeFile': '{tool} teması "{name}" durum satırı komutunda seçili, şu dosyadan okundu: {file}',
+  'import.note.themeBuiltin':
+    '{tool} teması "{name}" durum satırı komutunda seçili, yerleşik tema içe aktarıldı',
+  'import.note.themeUnknown':
+    '{tool} teması "{name}" durum satırı komutunda seçili ama bulunamadı, varsayılan tema içe aktarıldı',
+  'import.note.themeUnsafe':
+    'durum satırı komutundaki {tool} teması "{name}" güvenli bir tema adı değil, yok sayıldı',
   'import.note.hideState': '{name}: "{state}" durumunda gizleme desteklenmiyor, bileşen görünür kalır',
   'import.note.targetDropped': '{kind} "{target}" onaylanmadığı için çıkarıldı',
   'import.note.unsafeLink': 'link "{url}" güvenli olmayan bir URL içeriyor, çıkarıldı',

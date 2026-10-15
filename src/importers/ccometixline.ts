@@ -1,6 +1,7 @@
 import { t } from '../core/i18n/index.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionValue, WidgetItem } from '../core/types.js';
+import { CCLINE_THEMES } from './ccometixline-themes.js';
 import { ansiColor } from './colors.js';
 import type { ImportNote, ImportResult } from './index.js';
 
@@ -10,32 +11,7 @@ const USAGE_API_OPTIONS = ['api_base_url', 'cache_duration', 'timeout'];
 
 type Raw = Record<string, unknown>;
 
-const segment = (id: string, enabled: boolean, plain: string, nerd: string, icon: number, text = icon) => ({
-  id,
-  enabled,
-  icon: { plain, nerd_font: nerd },
-  colors: { icon: { c16: icon }, text: { c16: text } },
-  styles: { text_bold: false },
-  options: {} as Raw,
-});
-
-export const CCLINE_DEFAULT: Record<string, unknown> = {
-  theme: 'default',
-  style: { mode: 'plain', separator: ' | ' },
-  segments: [
-    segment('model', true, '\u{1f916}', '\ue26d', 14),
-    segment('directory', true, '\u{1f4c1}', '\u{f024b}', 11, 10),
-    { ...segment('git', true, '\u{1f33f}', '\u{f02a2}', 12), options: { show_sha: false } },
-    segment('context_window', true, '\u26a1\ufe0f', '\uf49b', 13),
-    {
-      ...segment('usage', false, '\u{1f4ca}', '\u{f0a9e}', 14),
-      options: { api_base_url: 'https://api.anthropic.com', cache_duration: 180, timeout: 2 },
-    },
-    segment('cost', false, '\u{1f4b0}', '\ueec1', 3),
-    segment('session', false, '\u23f1\ufe0f', '\u{f19bb}', 2),
-    segment('output_style', false, '\u{1f3af}', '\u{f12f5}', 6),
-  ],
-};
+export const CCLINE_DEFAULT = CCLINE_THEMES.default;
 
 export const TARGETS: readonly string[] = [
   'model',
@@ -51,6 +27,18 @@ export const TARGETS: readonly string[] = [
   'lines-changed',
   'output-style',
 ];
+
+const unquote = (s: string) => s.replace(/"([^"]*)"|'([^']*)'/g, '$1$2');
+
+export function parseCclineTheme(command: string): string | null {
+  const args = [...command.matchAll(/(?:"[^"]*"|'[^']*'|[^\s"']+)+/g)].map((m) => unquote(m[0]));
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if ((a === '-t' || a === '--theme') && i + 1 < args.length) return args[i + 1]!;
+    if (a.startsWith('--theme=')) return a.slice(8);
+  }
+  return null;
+}
 
 const obj = (v: unknown): Raw => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Raw) : {});
 

@@ -81,6 +81,7 @@ const PURE = [
   'src/core/report-format.ts',
   'src/importers/toml.ts',
   'src/importers/colors.ts',
+  'src/importers/ccometixline-themes.ts',
   'src/core/jsonpath.ts',
   'src/core/http-spec.ts',
   'src/core/http-report.ts',
