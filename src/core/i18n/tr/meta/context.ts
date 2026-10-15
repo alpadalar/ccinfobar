@@ -5,17 +5,17 @@ export const context: MetaFile = {
     'context-percentage': {
       name: 'Bağlam yüzdesi',
       description: 'Bağlam penceresinin kullanılan ya da kalan kısmı, yüzde olarak',
-      label: 'Bğl ',
+      label: 'Bağlam ',
     },
     'context-bar': {
       name: 'Bağlam çubuğu',
       description: 'Bağlam penceresi kullanımını gösteren ilerleme çubuğu',
-      label: 'Bğl ',
+      label: 'Bağlam ',
     },
     'context-length': {
       name: 'Bağlam uzunluğu',
       description: 'Bağlam penceresinde şu an bulunan token',
-      label: 'Bğl ',
+      label: 'Bağlam ',
     },
     'context-window-size': {
       name: 'Bağlam penceresi boyutu',

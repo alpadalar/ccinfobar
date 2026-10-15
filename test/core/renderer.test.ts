@@ -288,7 +288,7 @@ describe('render language', () => {
 describe('render widget metadata', () => {
   const meta: MetaTable = {
     widgets: {
-      'context-percentage': { name: 'Bağlam yüzdesi', description: 'D', label: 'Bğl ' },
+      'context-percentage': { name: 'Bağlam yüzdesi', description: 'D', label: 'Bağlam ' },
       model: { name: 'İstatistik', description: 'D' },
     },
     options: {},
@@ -311,7 +311,7 @@ describe('render widget metadata', () => {
     const en = stripAnsi(render(ctx)[0]!);
     const out = withLang(zz, () => stripAnsi(render(ctx)[0]!));
     expect(en).toMatch(/^Ctx \S+ │ Ctx \S+$/);
-    expect(out).toBe(en.replace(/^Ctx /, 'Bğl '));
+    expect(out).toBe(en.replace(/^Ctx /, 'Bağlam '));
   });
 
   it('translates the empty hint with the language locale', () => {
@@ -348,13 +348,13 @@ describe('render Turkish default labels', () => {
     const tr = withLang('tr', () => stripAnsi(render(ctx())[0]!));
     expect(en).toMatch(/^Ctx \S+ │ In \S+ │ API \S+ │ Budget \S+$/);
     expect(tr).toBe(
-      en.replace(/^Ctx /, 'Bğl ').replace('│ In ', '│ Girdi ').replace('│ Budget ', '│ Bütçe '),
+      en.replace(/^Ctx /, 'Bağlam ').replace('│ In ', '│ Girdi ').replace('│ Budget ', '│ Bütçe '),
     );
   });
 
   it('uses the icon instead of the label', () => {
     const en = stripAnsi(render(ctx('nerd'))[0]!);
     expect(withLang('tr', () => stripAnsi(render(ctx('nerd'))[0]!))).toBe(en);
-    expect(en).not.toMatch(/Ctx|Bğl/);
+    expect(en).not.toMatch(/Ctx|Bağlam /);
   });
 });

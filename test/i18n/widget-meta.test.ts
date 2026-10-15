@@ -330,7 +330,7 @@ const meta: MetaTable = {
     'context-percentage': {
       name: 'İstatistik',
       description: 'Bağlam yüzdesi',
-      label: 'Bğl ',
+      label: 'Bağlam ',
       sample: '%34',
       options: { mode: { label: 'Kip', choices: { used: 'Kullanılan' } } },
     },
@@ -350,7 +350,7 @@ describe('widget text helpers with metadata', () => {
     withLang(zz, () => {
       expect(widgetText(def, 'name')).toBe('İstatistik');
       expect(widgetText(def, 'description')).toBe('Bağlam yüzdesi');
-      expect(widgetText(def, 'label')).toBe('Bğl ');
+      expect(widgetText(def, 'label')).toBe('Bağlam ');
       expect(widgetText(def, 'sample')).toBe('%34');
       const other = getWidget('model')!;
       expect(widgetText(other, 'name')).toBe(other.name);
