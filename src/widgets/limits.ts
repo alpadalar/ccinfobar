@@ -1,4 +1,5 @@
-import { t } from '../core/i18n/index.js';
+import { formatWeekday } from '../core/i18n/format.js';
+import { languageLocale, t } from '../core/i18n/index.js';
 import type {
   ModelWindow,
   OptionSpec,
@@ -206,7 +207,9 @@ function resetOf(ctx: RenderContext, item: WidgetItem, w: RateWindow | null): Wi
   if (opt(item, 'showClockTime', false)) {
     const d = new Date(at);
     const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    return left > 86_400_000 ? `at ${d.toLocaleDateString('en-US', { weekday: 'short' })} ${hm}` : `at ${hm}`;
+    return left > 86_400_000
+      ? t('widget.limit.atDay', { day: formatWeekday(d, languageLocale()), time: hm })
+      : t('widget.limit.at', { time: hm });
   }
   return formatDuration(left);
 }
@@ -364,7 +367,7 @@ export const widgets: WidgetDef[] = [
       const len = WINDOW_MS[w];
       const left = Math.max(0, Math.min(len, at - ctx.now.getTime()));
       const diff = Math.round(rw.used_percentage - (1 - left / len) * 100);
-      if (diff === 0) return { text: 'on pace', color: 'green' };
+      if (diff === 0) return { text: t('widget.limit.onPace'), color: 'green' };
       return diff > 0 ? { text: `⇡${diff}%`, color: 'red' } : { text: `⇣${-diff}%`, color: 'green' };
     },
   },
@@ -411,7 +414,7 @@ export const widgets: WidgetDef[] = [
       if (p.used >= 100) return { text: `${prefix}${t('widget.limit.reached')}`, color: 'red' };
       if (p.safe)
         return opt(item, 'hideWhenSafe', false) ? null : { text: t('widget.limit.safe'), color: 'green' };
-      return { text: `${prefix}100% in ${etaText(p.eta)}`, color: 'yellow' };
+      return { text: `${prefix}${t('widget.limit.eta', { time: etaText(p.eta) })}`, color: 'yellow' };
     },
   },
   {

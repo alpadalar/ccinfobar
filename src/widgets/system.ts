@@ -1,5 +1,6 @@
 import os from 'node:os';
-import { t } from '../core/i18n/index.js';
+import { formatMonthDay } from '../core/i18n/format.js';
+import { languageLocale, t } from '../core/i18n/index.js';
 import type { WidgetDef } from '../core/types.js';
 import { opt } from './shared.js';
 
@@ -57,7 +58,7 @@ export const widgets: WidgetDef[] = [
     render(ctx, item) {
       const d = ctx.now;
       if (opt<string>(item, 'format', 'iso') === 'short') {
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return formatMonthDay(d, languageLocale());
       }
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     },

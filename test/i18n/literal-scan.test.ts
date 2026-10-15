@@ -44,10 +44,13 @@ const SWEPT: string[] = [
   'src/widgets/http.ts',
   'src/widgets/index.ts',
   'src/widgets/layout.ts',
+  'src/widgets/limits.ts',
   'src/widgets/live.ts',
   'src/widgets/projection.ts',
   'src/widgets/session.ts',
+  'src/widgets/shared.ts',
   'src/widgets/status.ts',
+  'src/widgets/system.ts',
   'src/widgets/tokens.ts',
   'src/widgets/workspace.ts',
 ];
@@ -75,6 +78,19 @@ const ALLOW: Record<string, string[]> = {
   'src/commands/bench.ts': ['Step X: refactor the status line renderer', 'Done with step X.'],
   // persisted usage errors, matched and never shown as is
   'src/commands/usage-error.ts': ['rate limited by the usage API', 'usage API sent no limits'],
+  // generated WidgetDef names and descriptions (metadata, D-36)
+  'src/widgets/limits.ts': [
+    'Weekly X usage',
+    'Usage of the weekly X limit',
+    'Five-hour usage',
+    'Usage of the 5-hour rate limit',
+    'Five-hour reset',
+    'Weekly usage',
+    'Usage of the weekly rate limit',
+    'Weekly reset',
+  ],
+  // compact duration units stay ASCII (D-17)
+  'src/widgets/shared.ts': ['Xd Xh', 'Xh Xm'],
   // English catalog data, shown through styleGroupName (08-12)
   'src/core/edit.ts': ['Bold, dim, italic', 'Bar and graph options', 'Label switches'],
   'src/editor/server.ts': [
@@ -282,8 +298,8 @@ describe('literal scan', () => {
     for (const reason of Object.values(NOT_SWEPT)) expect(reason.length).toBeGreaterThan(0);
   });
 
-  it('covers every file in src/cli and src/importers', () => {
-    for (const dir of ['src/cli', 'src/importers']) {
+  it('covers every file in src/cli, src/importers and src/widgets', () => {
+    for (const dir of ['src/cli', 'src/importers', 'src/widgets']) {
       for (const name of fs.readdirSync(path.join(root, dir))) {
         const f = `${dir}/${name}`;
         expect(SWEPT.includes(f) || f in NOT_SWEPT, f).toBe(true);

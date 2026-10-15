@@ -4,7 +4,14 @@ import type { StatusPayload } from '../../src/core/types.js';
 import type { GsdInfo } from '../../src/data/gsd.js';
 import type { JobEnvelope, JobReader } from '../../src/data/jobs/runner.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
-import { ctxWith, NOW, renderWidget, withLang } from '../helpers.js';
+import {
+  formatCurrency,
+  formatDuration,
+  formatMoney,
+  formatPercent,
+  formatTokens,
+} from '../../src/widgets/shared.js';
+import { ctxWith, NOW, renderWidget, withLang, withTz } from '../helpers.js';
 
 const gsd = (patch: Partial<GsdInfo>) => ctxWith({ gsd: () => ({ ...sampleGsd(), ...patch }) });
 const both = (fn: () => string | null) => [withLang('en', fn), withLang('tr', fn)];
@@ -206,5 +213,81 @@ describe('widget value words in Turkish', () => {
         expect(renderWidget(type, broken), type).toBeNull();
       for (const def of ALL_WIDGETS) expect(() => renderWidget(def.type, broken), def.type).not.toThrow();
     });
+  });
+});
+
+describe('dates, limit words and neutral numbers', () => {
+  const resetIn = (ms: number) =>
+    ctxWith({ payload: { rate_limits: { five_hour: { resets_at: (NOW.getTime() + ms) / 1000 } } } });
+  const clock = (ms: number) =>
+    withTz('UTC', () =>
+      both(() => renderWidget('five-hour-reset', resetIn(ms), { options: { showClockTime: true } })),
+    );
+
+  it('date short uses the active language, iso stays', () => {
+    withTz('UTC', () => {
+      expect(both(() => renderWidget('date', ctxWith(), { options: { format: 'short' } }))).toEqual([
+        'Oct 12',
+        '12 Eki',
+      ]);
+      expect(both(() => renderWidget('date', ctxWith()))).toEqual(['2026-10-12', '2026-10-12']);
+    });
+  });
+
+  it('limit clock time follows the template and the weekday language', () => {
+    expect(clock(90 * 60_000)).toEqual(['at 13:30', 'saat 13:30']);
+    expect(clock(2 * 86_400_000 + 2 * 3_600_000)).toEqual(['at Wed 14:00', 'Çar 14:00']);
+    expect(clock(86_400_000 + 9 * 3_600_000 + 5 * 60_000)).toEqual(['at Tue 21:05', 'Sal 21:05']);
+    expect(withTz('UTC', () => both(() => renderWidget('five-hour-reset', resetIn(90 * 60_000))))).toEqual([
+      '1h 30m',
+      '1h 30m',
+    ]);
+  });
+
+  it('usage pace words', () => {
+    const pace = (used: number) =>
+      ctxWith({
+        payload: {
+          rate_limits: { five_hour: { used_percentage: used, resets_at: NOW.getTime() / 1000 + 2.5 * 3600 } },
+        },
+      });
+    expect(both(() => renderWidget('usage-pace', pace(50)))).toEqual(['on pace', 'dengeli']);
+    expect(both(() => renderWidget('usage-pace', pace(80)))).toEqual(['⇡30%', '⇡30%']);
+  });
+
+  it('numbers, percents, currency and units stay neutral in Turkish', () => {
+    withLang('tr', () => {
+      expect(formatPercent(50)).toBe('50%');
+      expect(formatPercent(12.5, 1)).toBe('12.5%');
+      expect(formatCurrency(4.1)).toBe('$4.10');
+      expect(formatMoney(1234.5, 'EUR')).not.toMatch(/\d,\d{2}$/);
+      expect(formatTokens(1200)).toBe('1.2k');
+      expect(formatTokens(1_500_000)).toBe('1.5M');
+      expect(formatDuration(72 * 60_000)).toBe('1h 12m');
+    });
+    const numeric = [
+      'context-percentage',
+      'context-bar',
+      'context-length',
+      'tokens-input',
+      'tokens-total',
+      'cache-hit-rate',
+      'output-speed',
+      'session-cost',
+      'cost-rate',
+      'session-duration',
+      'five-hour-usage',
+      'five-hour-reset',
+      'weekly-usage',
+      'weekly-reset',
+      'usage-projection',
+      'limit-risk',
+      'lines-changed',
+    ];
+    for (const type of numeric) {
+      const [en, tr] = both(() => renderWidget(type, ctxWith()));
+      expect(tr, type).toBe(en);
+      expect(tr ?? '', type).not.toMatch(/%\d|\d,\d/);
+    }
   });
 });

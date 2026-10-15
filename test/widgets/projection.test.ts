@@ -14,7 +14,7 @@ import {
   riskOn,
   WINDOW_LEN,
 } from '../../src/widgets/projection.js';
-import { ctxWith, NOW, renderWidget } from '../helpers.js';
+import { ctxWith, NOW, renderWidget, withLang } from '../helpers.js';
 
 const now = NOW.getTime();
 const MIN = 60_000;
@@ -235,6 +235,15 @@ describe('limit-eta', () => {
     const c = ctxWith({ payload: pay(near) });
     expect(def().render(c, eta())).toEqual({ text: '5h 100% in 24m', color: 'yellow' });
     expect(def().render(c, eta({ window: '5h' }))).toEqual({ text: '100% in 24m', color: 'yellow' });
+  });
+
+  it('keeps the window and the time compact in Turkish', () => {
+    const c = ctxWith({ payload: pay(near) });
+    withLang('tr', () => {
+      expect(def().render(c, eta())).toEqual({ text: '5h 24m içinde 100%', color: 'yellow' });
+      expect(renderWidget('limit-eta', c, { options: { window: '5h' } })).toBe('24m içinde 100%');
+      expect(renderWidget('limit-risk', ctxWith({ payload: pay(near) }))).toMatch(/^5h \d+%$/);
+    });
   });
 
   it('shows limit reached at 100%', () => {
