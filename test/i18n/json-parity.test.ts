@@ -1,12 +1,15 @@
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
+import { resetLanguageCache } from '../../src/cli/lang.js';
 import { runBench } from '../../src/commands/bench.js';
 import { runConfig } from '../../src/commands/config-cmd.js';
 import { runExplain } from '../../src/commands/explain.js';
 import type { CliIo } from '../../src/commands/io.js';
 import { configDir } from '../../src/core/paths.js';
+import { startEditor } from '../../src/editor/server.js';
 import { withEnvLang, withLang } from '../helpers.js';
 
 const LINES = [
@@ -116,4 +119,46 @@ describe('JSON output stays English', () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+});
+
+describe('editor API JSON stays English', () => {
+  const state = async (env: { lang?: string }, file: string): Promise<Record<string, unknown>> => {
+    const prev = process.env.CCINFOBAR_LANG;
+    if (env.lang === undefined) delete process.env.CCINFOBAR_LANG;
+    else process.env.CCINFOBAR_LANG = env.lang;
+    resetLanguageCache();
+    const handle = await startEditor({ configPath: file, open: false, port: 0 });
+    try {
+      const url = new URL('/api/state', handle.url);
+      const body = await new Promise<string>((resolve, reject) => {
+        const req = http.get(url, { headers: { 'x-ccinfobar-token': handle.token } }, (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c: Buffer) => chunks.push(c));
+          res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+        });
+        req.on('error', reject);
+      });
+      return JSON.parse(body);
+    } finally {
+      await handle.close();
+      if (prev === undefined) delete process.env.CCINFOBAR_LANG;
+      else process.env.CCINFOBAR_LANG = prev;
+      resetLanguageCache();
+    }
+  };
+
+  it.each([{ lines: LINES }, { language: 'tr', lines: LINES }])(
+    '/api/state is identical under CCINFOBAR_LANG=tr and LANG=C apart from language (%#)',
+    async (cfg) => {
+      const file = cfgFile(cfg);
+      const en = await state({}, file);
+      const tr = await state({ lang: 'tr' }, file);
+      expect(en.language).toEqual({ id: 'en', source: 'LC_ALL' });
+      expect(tr.language).toEqual({ id: 'tr', source: 'CCINFOBAR_LANG' });
+      delete en.language;
+      delete tr.language;
+      expect(JSON.stringify(tr)).toBe(JSON.stringify(en));
+      expect(JSON.stringify(en)).toContain('"name":"Model"');
+    },
+  );
 });

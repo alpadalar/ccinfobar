@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { t } from '../core/i18n/index.js';
 import { configDir } from '../core/paths.js';
 import { VERSION } from '../core/version.js';
 import { writeAtomic } from '../data/store.js';
@@ -84,8 +85,7 @@ export function readManifest(env: NodeJS.ProcessEnv = process.env): Manifest {
 }
 
 export function writeManifest(m: Manifest, env: NodeJS.ProcessEnv = process.env): void {
-  if (m.readOnly)
-    throw new Error(`${manifestFile(env)} is from a newer ccinfobar or damaged; not changing it`);
+  if (m.readOnly) throw new Error(t('install.manifestReadOnly', { file: manifestFile(env) }));
   const out = { version: 1, entries: m.entries };
   writeAtomic(manifestFile(env), `${JSON.stringify(out, null, 2)}\n`, { mode: 0o600, class: 'settings' });
 }

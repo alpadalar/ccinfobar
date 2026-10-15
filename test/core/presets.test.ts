@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig, saveConfig } from '../../src/core/config.js';
+import { t } from '../../src/core/i18n/index.js';
 import { loadForUse } from '../../src/core/load.js';
 import {
   applyGsdAutoLine,
@@ -15,6 +16,7 @@ import {
   saveUserPreset,
   starterConfig,
 } from '../../src/core/presets.js';
+import { withLang } from '../helpers.js';
 
 const types = (lines: { type: string }[][]) => lines.map((l) => l.map((i) => i.type));
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-presets-'));
@@ -63,7 +65,9 @@ describe('user presets', () => {
     expect(mine.name).toBe('Mine');
     expect(types(mine.build().lines)).toEqual(types(cockpitConfig().lines));
     expect(listPresets(dir).filter((p) => p.source === 'user')).toHaveLength(1);
-    expect(() => saveUserPreset({ id: '../x', config: {} }, dir)).toThrow();
+    expect(() => saveUserPreset({ id: '../x', config: {} }, dir)).toThrow(t('err.server.presetIdRule'));
+    const tr = withLang('tr', () => t('err.server.presetIdRule'));
+    expect(() => withLang('tr', () => saveUserPreset({ id: '../x', config: {} }, dir))).toThrow(tr);
     expect(deleteUserPreset('mine', dir)).toBe(true);
     expect(getPreset('mine', dir)).toBeUndefined();
   });

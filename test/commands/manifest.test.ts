@@ -20,6 +20,8 @@ import {
   refreshWrittenHash,
   writeManifest,
 } from '../../src/commands/manifest.js';
+import { t } from '../../src/core/i18n/index.js';
+import { withLang } from '../helpers.js';
 import { settingsFixture } from './fixtures.js';
 
 const tmpEnv = () => {
@@ -53,6 +55,8 @@ describe('manifest file', () => {
       expect(m.entries).toEqual([]);
       expect(owns(m, file, sl('ccinfobar'))).toBe(false);
       expect(() => writeManifest(recordStatusLine(m, entryFor(file)), env)).toThrow(/newer ccinfobar/);
+      const tr = withLang('tr', () => t('install.manifestReadOnly', { file: manifestFile(env) }));
+      expect(() => withLang('tr', () => writeManifest(m, env))).toThrow(tr);
       expect(fs.readFileSync(manifestFile(env), 'utf8')).toBe(text);
     }
   });

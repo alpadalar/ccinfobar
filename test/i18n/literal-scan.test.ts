@@ -73,9 +73,86 @@ const SWEPT: string[] = [
   'src/widgets/system.ts',
   'src/widgets/tokens.ts',
   'src/widgets/workspace.ts',
+  'src/bin.ts',
+  'src/cli.ts',
+  'src/commands/command.ts',
+  'src/commands/config-cmd.ts',
+  'src/commands/explain.ts',
+  'src/commands/hooks-doctor.ts',
+  'src/commands/io.ts',
+  'src/commands/manifest.ts',
+  'src/commands/repos.ts',
+  'src/commands/worker.ts',
+  'src/core/ansi.ts',
+  'src/core/builtins.ts',
+  'src/core/cache-rule.ts',
+  'src/core/conditions.ts',
+  'src/core/config.ts',
+  'src/core/context.ts',
+  'src/core/display-opts.ts',
+  'src/core/glyphs.ts',
+  'src/core/inspect.ts',
+  'src/core/job-values.ts',
+  'src/core/json-locate.ts',
+  'src/core/load.ts',
+  'src/core/metrics.ts',
+  'src/core/panel.ts',
+  'src/core/paths.ts',
+  'src/core/payload.ts',
+  'src/core/presets.ts',
+  'src/core/renderer.ts',
+  'src/core/sanitize.ts',
+  'src/core/themes/builtin.ts',
+  'src/core/themes/style.ts',
+  'src/core/time.ts',
+  'src/core/trace.ts',
+  'src/core/types.ts',
+  'src/core/version.ts',
+  'src/core/width.ts',
+  'src/data/agents.ts',
+  'src/data/cache.ts',
+  'src/data/environment.ts',
+  'src/data/git.ts',
+  'src/data/gsd.ts',
+  'src/data/history.ts',
+  'src/data/hook-line.ts',
+  'src/data/hooks.ts',
+  'src/data/jobs/fetch.ts',
+  'src/data/jobs/gh-exec.ts',
+  'src/data/jobs/gh.ts',
+  'src/data/jobs/http.ts',
+  'src/data/jobs/index.ts',
+  'src/data/jobs/keys.ts',
+  'src/data/jobs/repos.ts',
+  'src/data/jobs/runner.ts',
+  'src/data/jobs/status.ts',
+  'src/data/jobs/update.ts',
+  'src/data/jobs/usage.ts',
+  'src/data/ledger.ts',
+  'src/data/limits.ts',
+  'src/data/live.ts',
+  'src/data/progress-clear.ts',
+  'src/data/progress.ts',
+  'src/data/provider.ts',
+  'src/data/repos-dirty.ts',
+  'src/data/repos.ts',
+  'src/data/self-update.ts',
+  'src/data/store.ts',
+  'src/data/terminal.ts',
+  'src/data/transcript.ts',
+  'src/data/update-state.ts',
+  'src/data/usage.ts',
+  'src/editor/terminal-colors.ts',
+  'src/editor/web/ansi-html.ts',
+  'src/editor/web/dom.ts',
+  'src/editor/web/search.ts',
+  'src/tui/catalog.ts',
+  'src/tui/hits.ts',
+  'src/tui/keys.ts',
+  'src/tui/themeio.ts',
 ];
 
-// left out on purpose, with the reason; 08-25 makes SWEPT + NOT_SWEPT cover src/
+// left out on purpose, with the reason; SWEPT + NOT_SWEPT cover src/ outside src/core/i18n/
 const NOT_SWEPT: Record<string, string> = {
   'src/cli/hook.ts': 'hook closure, must not import i18n (D-04)',
   'src/cli/hook-stream.ts': 'hook closure, reads stdin only',
@@ -83,6 +160,10 @@ const NOT_SWEPT: Record<string, string> = {
   'src/cli/progress-tty.ts': 'tty lookup, no user-facing prose',
   'src/cli/silence.ts': 'stream plumbing, no user-facing prose',
   'src/cli/args.ts': 'argv parsing, no user-facing prose',
+  'src/core/sample.ts': 'simulated payload data for previews (D-36)',
+  'src/core/profiles.ts': 'vendor and model names, price notes translated in the editor by vendor id (08-19)',
+  'src/core/scenarios.ts': 'simulated payload data; labels and descriptions go through catalog-text (08-12)',
+  'src/core/eaw-table.ts': 'generated Unicode width table',
 };
 
 // exact literal texts allowed per file
@@ -149,6 +230,21 @@ const ALLOW: Record<string, string[]> = {
     'Gruvbox Dark',
     'Catppuccin Mocha',
     'One Dark',
+  ],
+  // preset widget labels are config values written to the user's config
+  'src/core/presets.ts': ['5h Limit: ', 'Weekly Limit: '],
+  // macOS managed settings dir
+  'src/core/paths.ts': ['/Library/Application Support/ClaudeCode'],
+  // STATE.md body keys the reader parses
+  'src/data/gsd.ts': ['Last activity', 'Stopped at'],
+  'src/data/usage.ts': [
+    // keychain service name and auth header
+    'Claude Code-credentials',
+    'Bearer X',
+    // persisted usage errors, translated at display by usageErrorText (08-09)
+    'rate limited by the usage API',
+    'usage API returned X',
+    'usage API sent no limits',
   ],
   'src/editor/server.ts': [
     // developer-only (D-36)
@@ -280,8 +376,13 @@ function prose(raw: string): boolean {
 
 // WidgetDef metadata stays English and is translated through widget-text (D-14)
 const META_KEY = /\b(?:name|description|label|help|sample)\s*:\s*$/;
+// theme, style and preset names and descriptions go through catalog-text (08-12)
+const CATALOG_KEY = /\b(?:name|description)\s*:\s*$/;
+const CATALOG = ['src/core/themes/builtin.ts', 'src/core/themes/style.ts', 'src/core/presets.ts'];
 function metadata(file: string, src: string, lit: Lit): boolean {
-  return file.startsWith('src/widgets/') && META_KEY.test(src.slice(Math.max(0, lit.at - 40), lit.at));
+  const before = src.slice(Math.max(0, lit.at - 40), lit.at);
+  if (CATALOG.includes(file)) return CATALOG_KEY.test(before);
+  return file.startsWith('src/widgets/') && META_KEY.test(before);
 }
 
 function hits(file: string, src: string): string[] {
@@ -346,6 +447,10 @@ describe('literal scan', () => {
     ].join('\n');
     expect(hits('src/widgets/x.ts', src)).toEqual(['src/widgets/x.ts:3 "Some value word"']);
     expect(hits('src/core/x.ts', src)).toHaveLength(4);
+    expect(hits('src/core/presets.ts', src)).toEqual([
+      'src/core/presets.ts:2 "Two words here"',
+      'src/core/presets.ts:3 "Some value word"',
+    ]);
   });
 
   it('lists files that exist, once', () => {
@@ -355,13 +460,15 @@ describe('literal scan', () => {
     for (const reason of Object.values(NOT_SWEPT)) expect(reason.length).toBeGreaterThan(0);
   });
 
-  it('covers every file in src/cli, src/importers and src/widgets', () => {
-    for (const dir of ['src/cli', 'src/importers', 'src/widgets']) {
-      for (const name of fs.readdirSync(path.join(root, dir))) {
-        const f = `${dir}/${name}`;
-        expect(SWEPT.includes(f) || f in NOT_SWEPT, f).toBe(true);
-      }
-    }
+  it('covers every file in src/ outside src/core/i18n/', () => {
+    const files = fs
+      .readdirSync(path.join(root, 'src'), { recursive: true, encoding: 'utf8' })
+      .map((f) => `src/${f.replace(/\\/g, '/')}`)
+      .filter((f) => f.endsWith('.ts') && !f.startsWith('src/core/i18n/'));
+    expect(files.length).toBeGreaterThan(100);
+    for (const f of files) expect(SWEPT.includes(f) || f in NOT_SWEPT, f).toBe(true);
+    for (const f of [...SWEPT, ...Object.keys(NOT_SWEPT)])
+      expect(f.startsWith('src/core/i18n/'), f).toBe(false);
   });
 
   it('keeps ALLOW entries current', () => {

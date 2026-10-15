@@ -3,6 +3,7 @@ import path from 'node:path';
 import { writeAtomic } from '../data/store.js';
 import { defaultConfig, normalizeConfig } from './config.js';
 import { uniqueId } from './edit.js';
+import { t } from './i18n/index.js';
 import { configDir } from './paths.js';
 import type { Config, WidgetItem } from './types.js';
 
@@ -252,7 +253,7 @@ export function saveUserPreset(
   input: { id: string; name?: string; description?: string; config: unknown },
   dir = presetsDir(),
 ): string {
-  if (!ID_RE.test(input.id)) throw new Error('Preset id must be letters, numbers, dot, dash or underscore');
+  if (!ID_RE.test(input.id)) throw new Error(t('err.server.presetIdRule'));
   const { $schema: _s, ...config } = normalizeConfig(input.config);
   const file = path.join(dir, `${input.id}.json`);
   const data = { name: input.name || input.id, description: input.description ?? '', config };
