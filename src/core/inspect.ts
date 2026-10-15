@@ -16,10 +16,13 @@ import { parsePath } from './jsonpath.js';
 import { hasItemRules, ruleDecision } from './metrics.js';
 import { hasReplies } from './payload.js';
 import {
+  effectivePriority,
   hiddenByWorkspace,
   hidesWhenEmpty,
+  type LineReport,
   maxLineWidth,
   normalizeResult,
+  overflowOf,
   renderLine,
   resolveAppearance,
   workspaceMode,
@@ -80,7 +83,8 @@ export type EmptyCode =
   | 'error'
   | 'no-data'
   | 'hidden-by-rule'
-  | 'invalid-rule';
+  | 'invalid-rule'
+  | 'dropped-by-priority';
 
 export interface EmptyReason {
   code: EmptyCode;
@@ -99,6 +103,7 @@ export interface InspectRow {
   sources: Source[];
   empty: EmptyReason | null;
   error: string | null;
+  priority?: number;
   note?: EmptyReason;
   ci?: EmptyReason;
   warning?: EmptyReason;
@@ -109,6 +114,7 @@ export interface LineRow {
   width: number;
   max: number | null;
   cut: boolean;
+  dropped?: string[];
 }
 
 const TRANSCRIPT_TYPES = new Set([
@@ -528,6 +534,7 @@ function inspectItem(
   if (item.type === 'flex') return { ...row, status: 'skipped' };
   const def = getWidget(item.type);
   if (!def) return { ...row, empty: emptyReason(ctx, item) };
+  if (def.category !== 'layout') row.priority = effectivePriority(item, def);
   const wctx = trace.forWidget(
     item.type === 'command' && opts.commandEnv ? { ...traced, env: opts.commandEnv } : traced,
   );
@@ -590,13 +597,31 @@ export function inspectRows(base: RenderContext, opts: InspectOptions = {}): Ins
   const trace = createTrace();
   const traced = trace.wrap(ctx);
   const out: InspectRow[] = [];
+  const dctx = opts.commandEnv ? { ...ctx, env: opts.commandEnv } : ctx;
   ctx.config.lines.forEach((items, line) => {
+    const drop = dropReport(dctx, items);
     items.forEach((item, index) => {
-      out.push(inspectItem(ctx, traced, trace, item, line, index, opts));
+      const row = inspectItem(ctx, traced, trace, item, line, index, opts);
+      out.push(drop?.dropped.includes(item.id) ? dropped(row, drop.width) : row);
     });
   });
   return out;
 }
+
+function dropReport(ctx: RenderContext, items: WidgetItem[]): LineReport | null {
+  if (overflowOf(ctx.config) !== 'priority' || maxLineWidth(ctx) === null) return null;
+  const a = resolveAppearance(ctx.config, ctx.theme, ctx.env);
+  if (a.style === 'tui') return null;
+  const report: LineReport = { dropped: [], width: null };
+  renderLine(ctx, items, 0, a, report);
+  return report;
+}
+
+const dropped = (row: InspectRow, width: number | null): InspectRow => ({
+  ...row,
+  status: 'hidden',
+  empty: reason('dropped-by-priority', undefined, { width: String(width) }),
+});
 
 export function sessionNotes(p: StatusPayload): string[] {
   const notes: string[] = [];
@@ -627,6 +652,9 @@ export function lineReport(base: RenderContext): LineRow[] {
       a,
     );
     const width = visibleWidth(full);
-    return { line, width, max, cut: max !== null && width > max && !ctx.config.autoWrap };
+    const over = max !== null && width > max;
+    const drop = over ? dropReport(ctx, items) : null;
+    const cut = over && overflowOf(ctx.config) === 'truncate';
+    return { line, width, max, cut, ...(drop?.dropped.length ? { dropped: drop.dropped } : {}) };
   });
 }

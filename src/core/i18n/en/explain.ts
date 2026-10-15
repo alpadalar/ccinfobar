@@ -60,6 +60,7 @@ export const explainMessages = {
   'explain.reason.no-data': 'no data for this widget in the current session',
   'explain.reason.hidden-by-rule': '{key} "{rule}" ({metric} = {value})',
   'explain.reason.invalid-rule': '{key} is ignored: {problem}',
+  'explain.reason.dropped-by-priority': 'dropped by priority at width {width}',
   'explain.value.noData': 'no data',
   'explain.value.yes': 'yes',
   'explain.value.no': 'no',

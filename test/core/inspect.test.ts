@@ -338,6 +338,50 @@ describe('lineReport', () => {
   it('is empty for the tui style', () => {
     expect(lineReport(ctxWith({ config: { style: 'tui' } }))).toEqual([]);
   });
+
+  it('cuts only under truncate and lists priority drops', () => {
+    const lines = [[item('model'), item('git-branch'), item('gsd-phase'), item('context-percentage')]];
+    const rep = (overflow: 'truncate' | 'wrap' | 'priority') =>
+      withoutSideEffects(() =>
+        lineReport(ctxWith({ width: 40, config: { widthOffset: 0, overflow, lines } })),
+      )[0]!;
+    expect(rep('truncate').cut).toBe(true);
+    expect(rep('wrap').cut).toBe(false);
+    const p = rep('priority');
+    expect(p.cut).toBe(false);
+    expect(p.width).toBeGreaterThan(40);
+    expect(p.dropped?.[0]).toBe('gsd-phase');
+    expect(rep('truncate').dropped).toBeUndefined();
+  });
+});
+
+describe('priority overflow rows', () => {
+  const lines = [[item('model'), item('git-branch'), item('gsd-phase'), item('context-percentage')]];
+
+  it('marks dropped rows and carries the effective priority', () => {
+    const rows = rowsFor(ctxWith({ width: 40, config: { widthOffset: 0, overflow: 'priority', lines } }));
+    const p = rows.find((r) => r.id === 'gsd-phase')!;
+    expect(p.status).toBe('hidden');
+    expect(p.empty).toEqual({ code: 'dropped-by-priority', text: 'dropped by priority at width 40' });
+    expect(rows.find((r) => r.id === 'model')!.status).toBe('shown');
+    expect(rows.map((r) => r.priority)).toEqual([70, 50, 30, 70]);
+  });
+
+  it('drops nothing when the line fits, wraps or uses the panel', () => {
+    for (const config of [
+      { overflow: 'priority' as const, lines },
+      { overflow: 'wrap' as const, lines, widthOffset: 0 },
+      { overflow: 'priority' as const, lines, style: 'tui' as const, widthOffset: 0 },
+    ]) {
+      const rows = rowsFor(ctxWith({ width: config.widthOffset === 0 ? 40 : null, config }));
+      expect(rows.some((r) => r.empty?.code === 'dropped-by-priority')).toBe(false);
+    }
+  });
+
+  it('leaves layout rows without a priority', () => {
+    const rows = rowsFor(ctxWith({ config: { lines: [[item('text', { options: { text: 'x' } })]] } }));
+    expect(rows[0]!.priority).toBeUndefined();
+  });
 });
 
 describe('emptyReason', () => {

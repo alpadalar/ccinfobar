@@ -23,6 +23,20 @@ describe('previewHidden', () => {
     expect(withoutSideEffects(() => previewHidden(c, 'sample', 120))).toEqual([]);
   });
 
+  it('returns the ids dropped by priority overflow', () => {
+    const items = [
+      { id: 'm', type: 'model' },
+      { id: 'g', type: 'git-branch' },
+      { id: 'p', type: 'gsd-phase' },
+      { id: 'c', type: 'context-percentage' },
+    ];
+    const c = normalizeConfig({ lines: [items], overflow: 'priority', widthOffset: 0 });
+    const hidden = withoutSideEffects(() => previewHidden(c, 'sample', 20));
+    expect(hidden).toContain('p');
+    expect(hidden).not.toContain('m');
+    expect(withoutSideEffects(() => previewHidden({ ...c, overflow: 'wrap' }, 'sample', 20))).toEqual([]);
+  });
+
   it('works for scenarios and leaves the lines alone', () => {
     const c = config([
       { id: 'x', type: 'model', hideWhen: 'context.pct >= 50' },

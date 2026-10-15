@@ -14,7 +14,7 @@ import { inspectRows } from './inspect.js';
 import { hasItemRules } from './metrics.js';
 import { lastPayloadPath } from './paths.js';
 import { ingestPayload } from './payload.js';
-import { render } from './renderer.js';
+import { overflowOf, render } from './renderer.js';
 import {
   sampleAgents,
   sampleEnvironment,
@@ -72,9 +72,9 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
 }
 
 export function previewHidden(config: Config, source: PreviewSource, width: number, theme?: Theme): string[] {
-  if (!config.lines.some((l) => l.some(hasItemRules))) return [];
+  if (overflowOf(config) !== 'priority' && !config.lines.some((l) => l.some(hasItemRules))) return [];
   return inspectRows(previewContext(config, source, width, theme))
-    .filter((r) => r.empty?.code === 'hidden-by-rule')
+    .filter((r) => r.empty?.code === 'hidden-by-rule' || r.empty?.code === 'dropped-by-priority')
     .map((r) => r.id);
 }
 
