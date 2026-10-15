@@ -72,6 +72,7 @@ const PURE = [
   'src/core/http-report.ts',
   'src/core/eaw-table.ts',
   'src/core/width.ts',
+  'src/core/conditions.ts',
   'src/data/live.ts',
 ];
 

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { benchMessages } from '../../src/core/i18n/en/bench.js';
 import { configMessages } from '../../src/core/i18n/en/config.js';
+import { displayMessages } from '../../src/core/i18n/en/display.js';
 import { doctorMessages } from '../../src/core/i18n/en/doctor.js';
 import { explainMessages } from '../../src/core/i18n/en/explain.js';
 import { hookMessages } from '../../src/core/i18n/en/hooks.js';
@@ -58,6 +59,7 @@ describe('en table', () => {
       widgetMessages,
       hookMessages,
       jobsMessages,
+      displayMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);
