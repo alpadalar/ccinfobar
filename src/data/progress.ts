@@ -93,9 +93,21 @@ function atLeast(version: string | undefined, min: readonly number[]): boolean {
   return true;
 }
 
+// tmux sets TERM_PROGRAM=tmux; these survive it (WR-04)
+function outerTerminal(env: NodeJS.ProcessEnv): boolean {
+  if (env.KITTY_WINDOW_ID) return false;
+  if (env.WEZTERM_EXECUTABLE || env.WEZTERM_PANE) return true;
+  // no version inside tmux
+  if (env.GHOSTTY_RESOURCES_DIR) return true;
+  if (env.LC_TERMINAL === 'iTerm2' || env.ITERM_SESSION_ID)
+    return atLeast(env.LC_TERMINAL_VERSION, [3, 6, 6]);
+  return false;
+}
+
 // OSC 9 is a notification elsewhere
 export function terminalAllowed(env: NodeJS.ProcessEnv, always: boolean): boolean {
   if (always || env.WT_SESSION || env.ConEmuPID || env.ConEmuANSI) return true;
+  if (env.TMUX) return outerTerminal(env);
   const prog = env.TERM_PROGRAM;
   if (prog === 'WezTerm') return true;
   if (prog === 'ghostty') return atLeast(env.TERM_PROGRAM_VERSION, [1, 2, 0]);

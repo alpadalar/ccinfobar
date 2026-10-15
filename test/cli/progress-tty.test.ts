@@ -181,6 +181,20 @@ describe('writeTty', () => {
     expect(e.written).toEqual([tmuxWrap(SEQ)]);
   });
 
+  it('passes Ghostty through tmux although TERM_PROGRAM says tmux (WR-04)', () => {
+    const env = {
+      TMUX: '/tmp/tmux-1/default,1,0',
+      TERM_PROGRAM: 'tmux',
+      GHOSTTY_RESOURCES_DIR: '/usr/share/ghostty',
+    };
+    const d = fake();
+    expect(writeTty(SEQ, env, { tmuxPassthrough: true, always: false }, d)).toBe(true);
+    expect(d.written).toEqual([tmuxWrap(SEQ)]);
+    expect(
+      writeTty(SEQ, { ...env, GHOSTTY_RESOURCES_DIR: '' }, { tmuxPassthrough: true, always: false }, fake()),
+    ).toBe(false);
+  });
+
   it('applies the terminal allowlist', () => {
     const xterm = { TERM: 'xterm-256color' };
     const d = fake();

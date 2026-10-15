@@ -66,6 +66,24 @@ describe('terminalAllowed', () => {
     expect(terminalAllowed({}, false)).toBe(false);
     expect(terminalAllowed({ TERM_PROGRAM: 'xterm' }, true)).toBe(true);
   });
+
+  it('finds the outer terminal inside tmux (WR-04)', () => {
+    const tmux = { TMUX: '/tmp/tmux-1/default,1,0', TERM_PROGRAM: 'tmux', TERM_PROGRAM_VERSION: '3.5a' };
+    expect(terminalAllowed(tmux, false)).toBe(false);
+    expect(terminalAllowed({ ...tmux, GHOSTTY_RESOURCES_DIR: '/usr/share/ghostty' }, false)).toBe(true);
+    expect(terminalAllowed({ ...tmux, WEZTERM_EXECUTABLE: '/usr/bin/wezterm-gui' }, false)).toBe(true);
+    expect(terminalAllowed({ ...tmux, WEZTERM_PANE: '3' }, false)).toBe(true);
+    expect(terminalAllowed({ ...tmux, WT_SESSION: 'x' }, false)).toBe(true);
+    expect(terminalAllowed({ ...tmux, ConEmuPID: '1' }, false)).toBe(true);
+    const iterm = { ...tmux, ITERM_SESSION_ID: 'w0t0p0:1', LC_TERMINAL: 'iTerm2' };
+    expect(terminalAllowed({ ...iterm, LC_TERMINAL_VERSION: '3.6.6' }, false)).toBe(true);
+    expect(terminalAllowed({ ...iterm, LC_TERMINAL_VERSION: '3.6.5' }, false)).toBe(false);
+    expect(terminalAllowed(iterm, false)).toBe(false);
+    const kitty = { ...tmux, KITTY_WINDOW_ID: '1', GHOSTTY_RESOURCES_DIR: '/x' };
+    expect(terminalAllowed(kitty, false)).toBe(false);
+    expect(terminalAllowed(kitty, true)).toBe(true);
+    expect(terminalAllowed({ ...tmux, TERM_PROGRAM: 'WezTerm' }, false)).toBe(false);
+  });
 });
 
 describe('progress files', () => {
