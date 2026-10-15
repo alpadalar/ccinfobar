@@ -2,7 +2,7 @@ import path from 'node:path';
 import { t } from '../core/i18n/index.js';
 import { configPath } from '../core/paths.js';
 import { JOBS } from '../data/jobs/index.js';
-import { parseArgs } from './args.js';
+import { type Args, parseArgs } from './args.js';
 import { applyLanguage } from './lang.js';
 import { runRender } from './render.js';
 
@@ -24,6 +24,17 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     return;
   }
 
+  try {
+    await run(args, cfgFile, argv);
+  } catch (err) {
+    // bin.ts stays quiet without a tty; a command must say why it failed
+    if (args.command === null) throw err;
+    console.error(`✗ ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+  }
+}
+
+async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
   switch (args.command) {
     case null: {
       if (process.stdin.isTTY && typeof args.flags.payload !== 'string') {

@@ -158,6 +158,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - For gateway providers, context widgets use the model profile's window when Claude Code reports the 200K default (or `CLAUDE_CODE_MAX_CONTEXT_TOKENS` when set), so GLM, Kimi and other 1M models show the right percentage; the `usable` and `reserve` bases keep the window Claude Code compacts at (`CLAUDE_CODE_MAX_CONTEXT_TOKENS`, else the reported size). Claude logins are unchanged and `profiles.builtIn: false` turns it off
 - Text widths match how Claude Code measures them: emoji ZWJ sequences (a family is 2 cells, not 6), flags (2, not 4), keycaps and emoji with a variation selector (2, not 1), combining marks and newer wide emoji are measured correctly, while text-style emoji without one (such as 🖥) count 1 and soft hyphens 0. Lines that contain them no longer misalign, wrap early or get cut short; ASCII lines are unchanged
 - Truncation no longer splits a flag, an emoji sequence or a letter from its accent
+- `install`, `uninstall` and other commands print why they failed (`✗ Cannot parse ~/.claude/settings.json: ...`) when they run without a terminal, such as from Claude Code or a script, instead of exiting 1 with no message
 
 ### Security
 

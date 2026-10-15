@@ -8,6 +8,7 @@ import { main } from '../../src/cli/main.js';
 import { runRender } from '../../src/cli/render.js';
 import { cliMessages } from '../../src/core/i18n/en/cli.js';
 import type { LanguageDef } from '../../src/core/i18n/index.js';
+import { claudeSettingsPath } from '../../src/core/paths.js';
 import { VERSION } from '../../src/core/version.js';
 import { visibleWidth } from '../../src/core/width.js';
 import { withLang } from '../helpers.js';
@@ -139,4 +140,31 @@ describe('cli messages', () => {
     vi.restoreAllMocks();
     expect(out).toBe(text);
   });
+});
+
+describe('command errors', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    process.exitCode = undefined;
+  });
+
+  it.each([[['install', '--command', '/bin/ccinfobar']], [['uninstall']]])(
+    'prints why %j failed without a terminal',
+    async (argv) => {
+      const file = claudeSettingsPath();
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, '{\n  "model": "opus",\n}\n');
+      expect(process.stdin.isTTY).toBeFalsy();
+      const err: string[] = [];
+      vi.spyOn(console, 'error').mockImplementation((s) => void err.push(String(s)));
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        await main(argv);
+        expect(process.exitCode).toBe(1);
+        expect(err.join('\n')).toMatch(/^✗ Cannot parse .*settings\.json/);
+      } finally {
+        fs.rmSync(file, { force: true });
+      }
+    },
+  );
 });
