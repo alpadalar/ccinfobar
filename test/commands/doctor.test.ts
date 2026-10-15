@@ -11,6 +11,7 @@ import { inspectConfigText } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
 import { cacheDir, claudeSettingsPath, configDir, lastPayloadPath, tildify } from '../../src/core/paths.js';
 import type { StatusPayload } from '../../src/core/types.js';
+import { httpKey } from '../../src/data/jobs/keys.js';
 import { failEnvelope, jobsDir, okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
 import { usageFile, usageKey } from '../../src/data/usage.js';
 
@@ -542,5 +543,103 @@ describe('runDoctor background jobs', () => {
     const out = capture(() => runDoctor(plain()));
     expect(out).toContain(t('doctor.tmpPruned', { count: 1 }));
     expect(fs.existsSync(stale)).toBe(false);
+  });
+});
+
+describe('runDoctor http checks', () => {
+  const TOKEN = 'tok-SECRET-abc';
+  const URL = 'https://api.x.com/v1?key=${API_KEY}';
+  const HEADERS = 'Authorization=Bearer $RELAY_TOKEN';
+  const http = (options: Record<string, unknown>) =>
+    cfgFile('http.json', JSON.stringify({ lines: [[{ type: 'model' }], [{ type: 'http', options }]] }));
+  const all = (options: Record<string, unknown>) => capture(() => runDoctor(http(options)));
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    fs.rmSync(jobsDir(), { recursive: true, force: true });
+  });
+
+  it('names a literal header without its value', () => {
+    const out = all({ url: 'https://api.example.com/x', headers: 'Authorization=Bearer lit-SECRET-abc' });
+    expect(out).toContain(
+      t('doctor.http.badHeader', {
+        line: 2,
+        error: "header 'Authorization': literal values are not allowed; use Name=$VAR",
+      }),
+    );
+    expect(out.join('\n')).not.toContain('lit-SECRET');
+  });
+
+  it('reports bad header entries, urls and paths', () => {
+    const out = all({ url: 'https://${H}.x.com', headers: 'X-Key', path: '$.foo-bar' });
+    expect(out).toContain(t('doctor.http.badHeader', { line: 2, error: 'header 1: expected Name=$VAR' }));
+    expect(out).toContain(
+      t('doctor.http.badUrl', { line: 2, error: 'placeholders are only allowed in query values' }),
+    );
+    expect(out).toContain(
+      t('doctor.http.badPath', { line: 2, error: "unexpected '-' at 5; use ['foo-bar']" }),
+    );
+    expect(all({}).join('\n')).toContain(t('doctor.http.noUrl', { line: 2 }));
+  });
+
+  it('warns about plain http unless the host is loopback', () => {
+    const plain = all({ url: 'http://api.example.com/x' });
+    expect(plain).toContain(t('doctor.http.plain', { line: 2, host: 'api.example.com' }));
+    for (const url of [
+      'http://localhost:8080/x',
+      'http://127.0.0.1/x',
+      'http://[::1]:9/x',
+      'https://a.b/x',
+    ]) {
+      expect(
+        all({ url }).some((l) => l.includes('plain http')),
+        url,
+      ).toBe(false);
+    }
+  });
+
+  it('lists each item with its redacted url and env var names, never values', () => {
+    vi.stubEnv('RELAY_TOKEN', TOKEN);
+    vi.stubEnv('API_KEY', '');
+    const out = all({ url: URL, headers: HEADERS, path: '$.data.balance' });
+    expect(out).toContain(
+      t('doctor.http.item', {
+        line: 2,
+        url: 'https://api.x.com/v1?key=\u2026',
+        env: 'Authorization=$RELAY_TOKEN (set), $API_KEY (unset)',
+      }),
+    );
+    expect(out.join('\n')).not.toContain(TOKEN);
+    const bare = all({ url: 'https://api.x.com/v1' });
+    expect(bare).toContain(
+      t('doctor.http.item', { line: 2, url: 'https://api.x.com/v1', env: t('doctor.http.noEnv') }),
+    );
+  });
+
+  it('maps http job keys to their redacted urls', () => {
+    vi.stubEnv('RELAY_TOKEN', TOKEN);
+    const key = httpKey(URL, HEADERS);
+    writeEnvelope(okEnvelope(key, { paths: {} }, Date.now() - 60_000));
+    writeEnvelope(failEnvelope('http-0123456789abcdef', null, 'env RELAY_TOKEN not set', Date.now()));
+    const out = all({ url: URL, headers: HEADERS });
+    const line = out.find((l) => l.includes(key)) ?? '';
+    expect(line).toBe(
+      t('doctor.jobs.ok', { key, age: '1m' }) +
+        t('doctor.jobs.httpUrl', { url: 'https://api.x.com/v1?key=\u2026' }),
+    );
+    expect(out.find((l) => l.includes('http-0123456789abcdef'))).toContain(t('doctor.jobs.httpUnused'));
+    expect(out.join('\n')).not.toContain(TOKEN);
+  });
+
+  it('notes the subprocess env scrub', () => {
+    expect(all({ url: URL })).not.toContain(t('doctor.jobs.scrub'));
+    vi.stubEnv('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB', '1');
+    expect(all({ url: URL })).toContain(t('doctor.jobs.scrub'));
+    expect(t('doctor.jobs.scrub')).toMatch(/secret-looking variables/);
+  });
+
+  it('strips terminal escapes from config text', () => {
+    const out = all({ url: 'https://a.b/x', path: '$.\u001b[31m' }).join('\n');
+    expect(out).not.toContain('\u001b');
   });
 });

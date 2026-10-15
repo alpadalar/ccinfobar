@@ -1,4 +1,6 @@
 import { clearColors, optionShown, removeItem, setOption, updateItem } from '../../core/edit.js';
+import { parseHeaderSpec, parseUrlTemplate } from '../../core/http-spec.js';
+import { parsePath } from '../../core/jsonpath.js';
 import type { Config, OptionSpec, OptionValue, WidgetItem } from '../../core/types.js';
 import { GLYPHS } from './ansi-html.js';
 import { colorPicker, colorToCss } from './colors.js';
@@ -153,7 +155,20 @@ export function numberInput(
   return input;
 }
 
-function optionControl(item: WidgetItem, spec: OptionSpec): HTMLElement {
+export function httpOptionError(key: string, value: string): string | null {
+  if (key === 'url') {
+    const r = value ? parseUrlTemplate(value) : null;
+    return r && !r.ok ? r.error : null;
+  }
+  if (key === 'path') {
+    const r = parsePath(value || '$');
+    return r.ok ? null : r.error;
+  }
+  if (key === 'headers') return parseHeaderSpec(value).errors.join('; ') || null;
+  return null;
+}
+
+export function optionControl(item: WidgetItem, spec: OptionSpec): HTMLElement {
   const stored = item.options?.[spec.key];
   const value: OptionValue = stored ?? spec.default;
   const set = (v: OptionValue | undefined, coalesce?: string) =>
@@ -185,12 +200,29 @@ function optionControl(item: WidgetItem, spec: OptionSpec): HTMLElement {
         }),
         spec.help,
       );
-    default:
-      return field(
+    default: {
+      const error =
+        item.type === 'http' ? h('div', { class: 'hint warn field-error', 'aria-live': 'polite' }) : null;
+      const check = (v: string) => {
+        if (!error) return;
+        const msg = httpOptionError(spec.key, v);
+        error.replaceChildren(msg ?? '');
+        error.hidden = !msg;
+      };
+      const f = field(
         spec.label,
-        textInput(String(value), (v) => set(same(v), `${item.id}:${spec.key}`)),
+        textInput(String(value), (v) => {
+          check(v);
+          set(same(v), `${item.id}:${spec.key}`);
+        }),
         spec.help,
       );
+      if (error) {
+        check(String(value));
+        f.append(error);
+      }
+      return f;
+    }
   }
 }
 

@@ -5,6 +5,14 @@ export const doctorMessages = {
   'doctor.columnNote': '  (columns count UTF-16 code units)',
   'doctor.unknownWidget': '⚠ Unknown widget type "{type}" on line {line}',
   'doctor.badOption': '⚠ {type}: option "{key}" has an unsupported value',
+  'doctor.http.item': '  http on line {line}: {url}, sends {env}',
+  'doctor.http.noEnv': 'no env vars',
+  'doctor.http.noUrl': '⚠ http on line {line}: no url set; the item shows nothing',
+  'doctor.http.badUrl': '⚠ http on line {line}: url: {error}; the item shows nothing',
+  'doctor.http.badHeader': '⚠ http on line {line}: {error} (this header is dropped)',
+  'doctor.http.badPath': '⚠ http on line {line}: path: {error}; the item shows nothing',
+  'doctor.http.plain':
+    '⚠ http on line {line}: {host} uses plain http, so headers are not sent and the reply can be read or changed on the way. Use https.',
   'doctor.gitHardeningOff': '  Git hardening off (gitHardening: false)',
   'doctor.noTraffic':
     '  Background update and usage checks off (CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC is set)',

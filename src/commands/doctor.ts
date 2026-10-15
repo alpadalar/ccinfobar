@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import type { LoadResult } from '../core/config.js';
 import { needsRefresh } from '../core/edit.js';
+import { describeHeaders, parseHeaderSpec, parseUrlTemplate, redactUrl } from '../core/http-spec.js';
 import { t } from '../core/i18n/index.js';
 import { type InspectRow, inspectRows, lineReport, sessionNotes } from '../core/inspect.js';
+import { parsePath } from '../core/jsonpath.js';
 import { loadForUse } from '../core/load.js';
 import { titleWidgets } from '../core/panel.js';
 import { cacheDir, claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
@@ -11,6 +13,8 @@ import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionSpec, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { readHookState } from '../data/hooks.js';
+import { isLoopback } from '../data/jobs/fetch.js';
+import { httpGroups } from '../data/jobs/http.js';
 import { jobFor } from '../data/jobs/index.js';
 import {
   blockedByTraffic,
@@ -87,6 +91,63 @@ export function configWarnings(raw: unknown): string[] {
         if (spec && !validOption(spec, v))
           out.push(t('doctor.badOption', { type: safe(type), key: safe(key) }));
       }
+    }
+  });
+  return out;
+}
+
+const text = (v: unknown): string => (typeof v === 'string' ? v : '');
+
+function plainHost(url: string): string | null {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' && !isLoopback(u.hostname) ? u.hostname : null;
+  } catch {
+    return null;
+  }
+}
+
+function httpItemLines(
+  opts: Record<string, unknown>,
+  line: number,
+  env: Record<string, string | undefined>,
+): string[] {
+  const url = text(opts.url);
+  const headers = text(opts.headers);
+  const checked = url ? parseUrlTemplate(url) : null;
+  const vars = [
+    ...describeHeaders(headers, env),
+    ...(checked?.ok ? checked.vars.map((v) => `$${v} (${env[v] ? 'set' : 'unset'})`) : []),
+  ];
+  const out = [
+    t('doctor.http.item', {
+      line,
+      url: safe(checked?.ok ? redactUrl(url) : '-'),
+      env: safe(vars.join(', ')) || t('doctor.http.noEnv'),
+    }),
+  ];
+  if (!url) out.push(t('doctor.http.noUrl', { line }));
+  else if (checked && !checked.ok) out.push(t('doctor.http.badUrl', { line, error: safe(checked.error) }));
+  else {
+    const host = plainHost(url);
+    if (host) out.push(t('doctor.http.plain', { line, host: safe(host) }));
+  }
+  for (const error of parseHeaderSpec(headers).errors)
+    out.push(t('doctor.http.badHeader', { line, error: safe(error) }));
+  const path = parsePath(text(opts.path) || '$');
+  if (!path.ok) out.push(t('doctor.http.badPath', { line, error: safe(path.error) }));
+  return out;
+}
+
+// raw config: normalize already dropped bad urls and literal headers
+export function httpReport(raw: unknown, env: Record<string, string | undefined> = process.env): string[] {
+  const out: string[] = [];
+  if (!isRecord(raw) || !Array.isArray(raw.lines)) return out;
+  raw.lines.forEach((items: unknown, index) => {
+    if (!Array.isArray(items)) return;
+    for (const item of items) {
+      if (!isRecord(item) || item.type !== 'http') continue;
+      out.push(...httpItemLines(isRecord(item.options) ? item.options : {}, index + 1, env));
     }
   });
   return out;
@@ -248,7 +309,12 @@ function readJobs(env: NodeJS.ProcessEnv): JobEnvelope<unknown>[] {
     .filter((e): e is JobEnvelope<unknown> => e !== null);
 }
 
-function jobLine(e: JobEnvelope<unknown>, env: NodeJS.ProcessEnv, now: number): string {
+function jobLine(
+  e: JobEnvelope<unknown>,
+  env: NodeJS.ProcessEnv,
+  now: number,
+  urls: Map<string, string>,
+): string {
   const key = safe(e.key);
   const age = shortAge(now - e.fetchedAt);
   let line = e.ok
@@ -256,19 +322,25 @@ function jobLine(e: JobEnvelope<unknown>, env: NodeJS.ProcessEnv, now: number): 
     : t('doctor.jobs.error', { key, age, error: safe(e.error ?? '') || t('doctor.jobs.unknownError') });
   if (e.blockedUntil !== undefined && e.blockedUntil > now)
     line += t('doctor.jobs.retry', { in: shortAge(e.blockedUntil - now) });
+  if (e.key.startsWith('http-')) {
+    const url = urls.get(e.key);
+    line += url ? t('doctor.jobs.httpUrl', { url: safe(redactUrl(url)) }) : t('doctor.jobs.httpUnused');
+  }
   const job = jobFor(e.key);
   if (jobsDisabled(env)) line += t('doctor.jobs.offAll');
   else if (job && blockedByTraffic(job.network, env)) line += t('doctor.jobs.offTraffic');
   return line;
 }
 
-function printJobs(env: NodeJS.ProcessEnv, now: number): void {
+function printJobs(config: Config, env: NodeJS.ProcessEnv, now: number): void {
   console.log(t('doctor.jobs.heading'));
   const jobs = readJobs(env);
+  const urls = new Map([...httpGroups(config)].map(([k, g]) => [k, g.url]));
   if (!jobs.length) console.log(t('doctor.jobs.none'));
-  for (const e of jobs) console.log(jobLine(e, env, now));
+  for (const e of jobs) console.log(jobLine(e, env, now, urls));
   if (jobsDisabled(env)) console.log(t('doctor.jobs.disabled'));
   else if (nonessentialTrafficOff(env)) console.log(t('doctor.jobs.nonessential'));
+  if (env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) console.log(t('doctor.jobs.scrub'));
 }
 
 export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {}): void {
@@ -295,7 +367,11 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
     console.log(t('doctor.configIssue', { ...loaded.issue }));
     console.log(t('doctor.columnNote'));
   } else if (loaded.error) console.log(`  ${safe(loaded.error)}`);
-  else if (loaded.exists) for (const w of configWarnings(rawConfig(loaded.path))) console.log(w);
+  else if (loaded.exists) {
+    const raw = rawConfig(loaded.path);
+    for (const w of configWarnings(raw)) console.log(w);
+    for (const l of httpReport(raw)) console.log(l);
+  }
   console.log(
     `${ok(usesUs)} Claude Code statusLine in ${tildify(settingsFile)}: ${sl?.command !== undefined ? safe(sl.command) : 'not set'}`,
   );
@@ -347,7 +423,7 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
     console.log(`✓ Up to date (${loaded.config.update} mode, ${installKind()} install, ${when})`);
   }
   if (upd?.error) console.log(`  Last update check failed: ${safe(upd.error)}`);
-  printJobs(process.env, Date.now());
+  printJobs(loaded.config, process.env, Date.now());
   printWidgetReport(cfgFile, loaded);
   if (!usesUs) console.log(`\nRun \`${selfCommand()} install\` to enable it in Claude Code.`);
 }
