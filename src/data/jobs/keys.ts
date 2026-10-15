@@ -9,3 +9,7 @@ export function hash16(text: string): string {
 export function httpKey(url: string, headers: string): string {
   return `http-${hash16(`${url}\0${normalizeHeaderSpec(parseHeaderSpec(headers).headers)}`)}`;
 }
+
+export function ghKey(param: string): string {
+  return `gh-${hash16(param)}`;
+}
