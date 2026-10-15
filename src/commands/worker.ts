@@ -1,0 +1,162 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import type { Args } from '../cli/args.js';
+import { defaultConfig } from '../core/config.js';
+import { loadForUse } from '../core/load.js';
+import type { Config, StatusPayload } from '../core/types.js';
+import { gsdInstalled } from '../data/gsd.js';
+import { JOBS, jobFor } from '../data/jobs/index.js';
+import {
+  type ExecFileLike,
+  executeJob,
+  type Job,
+  type JobRequest,
+  jobsDir,
+  parseArg,
+  readEnvelope,
+  releaseLock,
+  SAFE_KEY,
+} from '../data/jobs/runner.js';
+import { pruneTmp } from '../data/store.js';
+
+export interface WorkerDeps {
+  jobs?: Job<unknown>[];
+  env?: NodeJS.ProcessEnv;
+  fetch?: typeof fetch;
+  execFile?: ExecFileLike;
+  exit?: (code: number) => void;
+  now?: () => number;
+  silent?: boolean;
+}
+
+// longer than the update job's npm install budget
+export const WORKER_DEADLINE_MS = 330_000;
+const MAX_REQUESTS = 32;
+const MAX_ARG = 4200;
+const SWEEP_AGE = 7 * 86_400_000;
+const SWEEP_RE = /^((?:http|gh)-[0-9a-f]{16})\.json$/;
+
+// own copy: importing cli/silence.ts would split it out of bin.ts
+function quiet(): void {
+  const noop = (() => true) as typeof process.stdout.write;
+  process.stdout.write = noop;
+  process.stderr.write = noop;
+  process.removeAllListeners('warning');
+  const bye = () => process.exit(0);
+  process.on('uncaughtException', bye);
+  process.on('unhandledRejection', bye);
+  setTimeout(bye, WORKER_DEADLINE_MS).unref();
+}
+
+export function parseWorkerArgs(positional: string[]): JobRequest[] {
+  const out: JobRequest[] = [];
+  const seen = new Set<string>();
+  for (const a of positional) {
+    if (out.length >= MAX_REQUESTS) break;
+    if (a.length > MAX_ARG) continue;
+    const req = parseArg(a);
+    if (!SAFE_KEY.test(req.key) || seen.has(req.key)) continue;
+    seen.add(req.key);
+    out.push(req);
+  }
+  return out;
+}
+
+export function sweepJobs(env: NodeJS.ProcessEnv, keep: Set<string>, now: number): void {
+  const dir = jobsDir(env);
+  pruneTmp(dir, 3_600_000, now);
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    const key = SWEEP_RE.exec(name)?.[1];
+    if (!key || keep.has(key)) continue;
+    const p = path.join(dir, name);
+    try {
+      const st = fs.lstatSync(p);
+      if (st.isFile() && now - st.mtimeMs > SWEEP_AGE) fs.unlinkSync(p);
+    } catch {}
+  }
+}
+
+function accepted(job: Job<unknown> | undefined, req: JobRequest, ok: (job: Job<unknown>) => boolean) {
+  if (!job) return false;
+  if (job.paramRe ? req.param === undefined || !job.paramRe.test(req.param) : req.param !== undefined)
+    return false;
+  try {
+    return ok(job);
+  } catch {
+    return false;
+  }
+}
+
+function liveKeys(jobs: Job<unknown>[], config: Config, env: NodeJS.ProcessEnv, cwd: string, now: number) {
+  const keep = new Set<string>();
+  const payload = {} as StatusPayload;
+  for (const job of jobs) {
+    try {
+      for (const r of job.keys({ config, payload, env, cwd, now })) keep.add(r.key);
+    } catch {}
+  }
+  return keep;
+}
+
+export async function runWorker(args: Args, cfgFile: string, deps: WorkerDeps = {}): Promise<void> {
+  if (deps.silent !== false) quiet();
+  const exit = deps.exit ?? ((code: number) => process.exit(code));
+  try {
+    const env = deps.env ?? process.env;
+    const jobs = deps.jobs ?? JOBS;
+    const now = deps.now?.() ?? Date.now();
+    const file = typeof args.flags.config === 'string' ? path.resolve(args.flags.config) : cfgFile;
+    const cwdFlag = args.flags.cwd;
+    const cwd = typeof cwdFlag === 'string' && path.isAbsolute(cwdFlag) ? cwdFlag : process.cwd();
+    const loaded = loadForUse(file, () => gsdInstalled(env));
+    const broken = !!(loaded.issue || loaded.error);
+    const config = broken ? defaultConfig() : loaded.config;
+    const runs: Promise<unknown>[] = [];
+    for (const req of parseWorkerArgs(args.positional)) {
+      const job = jobFor(req.key, jobs);
+      const ok = accepted(
+        job,
+        req,
+        (j) => (!broken || j.id === 'update') && j.accepts(req, { config, env, cwd }) === true,
+      );
+      if (!ok || !job) {
+        releaseLock(req.key, env);
+        continue;
+      }
+      runs.push(
+        Promise.resolve().then(() => {
+          let prev = null;
+          try {
+            prev = job.readPrev?.(req.key, env) ?? readEnvelope(req.key, env);
+          } catch {}
+          return executeJob(
+            job,
+            req,
+            {
+              env,
+              config,
+              cwd,
+              prev,
+              fetch: deps.fetch ?? globalThis.fetch,
+              ...(deps.execFile ? { execFile: deps.execFile } : {}),
+              now,
+            },
+            env,
+          );
+        }),
+      );
+    }
+    await Promise.allSettled(runs);
+    const end = deps.now?.() ?? Date.now();
+    // a broken config would look like every http key is gone
+    if (broken) pruneTmp(jobsDir(env), 3_600_000, end);
+    else sweepJobs(env, liveKeys(jobs, config, env, cwd, end), end);
+  } catch {}
+  exit(0);
+}

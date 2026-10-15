@@ -50,6 +50,7 @@ const EXCLUDED_FILES = [
   'src/core/trace.ts',
   'src/commands/bench.ts',
   'src/commands/io.ts',
+  'src/commands/worker.ts',
 ];
 const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/'];
 
@@ -151,6 +152,7 @@ describe('import graph', () => {
       'manage',
       'update',
       'repos',
+      'worker',
       'doctor',
       'config-cmd',
       'explain',

@@ -101,6 +101,11 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       await runRepos(args, cfgFile);
       return;
     }
+    case 'worker': {
+      const { runWorker } = await import('../commands/worker.js');
+      await runWorker(args, cfgFile);
+      return;
+    }
     case 'usage': {
       const { runUsage } = await import('../commands/manage.js');
       await runUsage(args, cfgFile);
