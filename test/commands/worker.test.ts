@@ -127,6 +127,23 @@ describe('runWorker', () => {
     expect(s.exits).toEqual([0]);
   });
 
+  it('skips jobs that CCINFOBAR_NO_JOBS or the nonessential flag turn off', async () => {
+    for (const [extra, ran] of [
+      [{ CCINFOBAR_NO_JOBS: '1' }, []],
+      [{ CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' }, ['fake-b']],
+    ] as const) {
+      const s = setup();
+      Object.assign(s.env, extra);
+      const seen: Seen = { accepts: [], runs: [] };
+      const jobs = [fake('fake-a', { network: 'auto' }, seen), fake('fake-b', { network: 'explicit' }, seen)];
+      for (const k of ['fake-a', 'fake-b']) touchLock(s.env, k);
+      await runWorker(worker(['fake-a', 'fake-b']), s.cfgFile, s.deps(jobs));
+      expect(seen.runs.map((r) => r.key)).toEqual(ran);
+      expect(readEnvelope('fake-a', s.env)).toBeNull();
+      for (const k of ['fake-a', 'fake-b']) expect(fs.existsSync(lockFile(k, s.env))).toBe(false);
+    }
+  });
+
   it('skips unknown keys and rejected requests, and unlinks their locks', async () => {
     const s = setup();
     const seen: Seen = { accepts: [], runs: [] };

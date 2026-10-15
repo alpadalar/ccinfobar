@@ -331,6 +331,22 @@ describe('usageJob', () => {
     expect(walk(env.CCINFOBAR_CACHE_DIR!)).toEqual([]);
   });
 
+  it('usage --background does nothing when the nonessential flag is on', async () => {
+    vi.stubEnv('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', '1');
+    const f = vi.fn(OK());
+    vi.stubGlobal('fetch', f);
+    try {
+      const { runUsage } = await import('../../../src/commands/manage.js');
+      const { JOBS } = await import('../../../src/data/jobs/index.js');
+      const cfgFile = path.join(process.env.CCINFOBAR_CONFIG_DIR!, 'usage-bg-off.json');
+      await runUsage({ command: 'usage', positional: [], flags: { background: true } }, cfgFile, JOBS);
+      expect(f).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('usage --background runs the job through the runner', async () => {
     const env = process.env;
     creds(env.CLAUDE_CONFIG_DIR!, 'tok');

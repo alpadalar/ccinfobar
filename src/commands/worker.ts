@@ -10,6 +10,7 @@ import {
   executeJob,
   type Job,
   type JobRequest,
+  jobOff,
   jobsDir,
   parseArg,
   readEnvelope,
@@ -132,7 +133,10 @@ export async function runWorker(args: Args, cfgFile: string, deps: WorkerDeps): 
       const ok = accepted(
         job,
         req,
-        (j) => (!broken || j.id === 'update') && j.accepts(req, { config, env, cwd }) === true,
+        (j) =>
+          !jobOff(j.network, env) &&
+          (!broken || j.id === 'update') &&
+          j.accepts(req, { config, env, cwd }) === true,
       );
       if (!ok || !job) {
         releaseLock(req.key, env);

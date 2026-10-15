@@ -252,6 +252,11 @@ export function blockedByTraffic(network: JobNetwork, env: NodeJS.ProcessEnv = p
   return network === 'auto' && nonessentialTrafficOff(env);
 }
 
+// checked again where a job runs: a hand-run worker or an older binary skips the scheduler
+export function jobOff(network: JobNetwork, env: NodeJS.ProcessEnv = process.env): boolean {
+  return jobsDisabled(env) || blockedByTraffic(network, env);
+}
+
 // home, else temp: never a cwd that may hold a planted binary
 export function safeCwd(): string | undefined {
   for (const d of [os.homedir(), os.tmpdir()]) {

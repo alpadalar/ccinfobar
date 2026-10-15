@@ -6,7 +6,7 @@ import { loadForUse } from '../core/load.js';
 import { claudeSettingsPath } from '../core/paths.js';
 import type { Config } from '../core/types.js';
 import { VERSION } from '../core/version.js';
-import { executeJob, type JobEnvelope } from '../data/jobs/runner.js';
+import { executeJob, type JobEnvelope, jobOff } from '../data/jobs/runner.js';
 import { type UpdateValue, updateJob } from '../data/jobs/update.js';
 import { compareVersions, installKind, localPrefix, writeUpdateState } from '../data/update-state.js';
 import { currentStatusLine, takeOverProjects } from './install.js';
@@ -224,6 +224,7 @@ export async function manualUpdate(current: string, checkOnly: boolean): Promise
 export async function runUpdate(args: Args, cfgFile: string): Promise<void> {
   if (args.flags.background) {
     const env = process.env;
+    if (jobOff(updateJob.network, env)) return;
     const prev: JobEnvelope<UpdateValue> | null = updateJob.readPrev!('update', env);
     const req = prev?.param ? { key: 'update', param: prev.param } : { key: 'update' };
     const ctx = {
