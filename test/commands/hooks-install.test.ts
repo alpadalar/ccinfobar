@@ -17,6 +17,7 @@ import {
   parseClaudeVersion,
   planHookRewrites,
   planHooks,
+  realExecAsync,
 } from '../../src/commands/hooks-install.js';
 import { applyInstall, planInstall, projectSettingsPath } from '../../src/commands/install.js';
 import {
@@ -262,6 +263,21 @@ describe('detectClaudeCode', () => {
     expect(await detectClaudeCodeAsync({ exec: fail, platform: 'linux', env: payloadEnv('2.1.250') })).toBe(
       '2.1.250',
     );
+  });
+
+  it('rejects at once on abort and lets the probe finish on its own', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-probe-'));
+    const marker = path.join(dir, 'done');
+    const script = "setTimeout(() => require('fs').writeFileSync(process.argv[1], 'x'), 300)";
+    const ac = new AbortController();
+    const run = realExecAsync(process.execPath, ['-e', script, marker], ac.signal);
+    const t0 = Date.now();
+    ac.abort();
+    await expect(run).rejects.toThrow('aborted');
+    expect(Date.now() - t0).toBeLessThan(250);
+    for (let i = 0; i < 40 && !fs.existsSync(marker); i++) await new Promise((r) => setTimeout(r, 50));
+    expect(fs.existsSync(marker)).toBe(true);
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 
   it('falls back to the last payload version', () => {
