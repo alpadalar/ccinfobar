@@ -221,6 +221,46 @@ describe('readEnvironment', () => {
     expect(opened()).toEqual([file]);
   });
 
+  it('answers from the result cache with a few stats while nothing changed', () => {
+    json(path.join(claude, 'settings.json'), handlers(1));
+    put(path.join(proj, 'CLAUDE.md'));
+    const first = read();
+    const stats = vi.spyOn(fs, 'statSync');
+    const open = vi.spyOn(fs, 'openSync');
+    const cache = env.CCINFOBAR_CACHE_DIR!;
+    expect(read({ now: NOW + 1_000 })).toEqual(first);
+    const calls = stats.mock.calls.length;
+    expect(open.mock.calls.filter((c) => !String(c[0]).startsWith(cache))).toEqual([]);
+    stats.mockClear();
+    read({ now: NOW + 59_000 });
+    expect(stats.mock.calls.length).toBe(calls);
+    read({ now: NOW + 61_000 });
+    expect(stats.mock.calls.length).toBeGreaterThan(calls);
+  });
+
+  it('sees a memory file added or removed in an ancestor at once', () => {
+    expect(read().claudeMd).toBe(0);
+    const work = path.join(root, 'work');
+    put(path.join(work, 'CLAUDE.md'));
+    fs.utimesSync(work, new Date(NOW - 5_000), new Date(NOW - 5_000));
+    expect(read({ now: NOW + 1_000 }).claudeMd).toBe(1);
+    fs.rmSync(path.join(work, 'CLAUDE.md'));
+    fs.utimesSync(work, new Date(NOW - 4_000), new Date(NOW - 4_000));
+    expect(read({ now: NOW + 2_000 }).claudeMd).toBe(0);
+    put(path.join(proj, '.claude', 'CLAUDE.md'));
+    expect(read({ now: NOW + 3_000 }).claudeMd).toBe(1);
+  });
+
+  it('keeps the result when an ancestor changed but no probed name did', () => {
+    put(path.join(proj, 'CLAUDE.md'));
+    expect(read().claudeMd).toBe(1);
+    const write = vi.spyOn(fs, 'renameSync');
+    put(path.join(root, 'work', 'notes.txt'));
+    fs.utimesSync(path.join(root, 'work'), new Date(NOW - 5_000), new Date(NOW - 5_000));
+    expect(read({ now: NOW + 1_000 }).claudeMd).toBe(1);
+    expect(write).not.toHaveBeenCalled();
+  });
+
   it('never writes the cache when persist is false', () => {
     json(path.join(claude, 'settings.json'), handlers(1));
     expect(read({ persist: false }).hooks).toBe(1);

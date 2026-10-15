@@ -10,7 +10,7 @@ import {
 import { sanitizeText } from '../core/sanitize.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
 
-const VERSION = 2;
+const VERSION = 3;
 const MAX_UP = 20;
 const MAX_JSON = 1024 * 1024;
 const MAX_CLAUDE_JSON = 8 * 1024 * 1024;
@@ -68,6 +68,16 @@ interface RuleScan {
 interface Cached {
   files: Sig[];
   rules: RuleScan | null;
+}
+// a dir whose mtime moved re-checks only the names probed in it
+type Group = [string, number, [string, 0 | 1][] | null];
+interface Fast {
+  at: number;
+  exp: number;
+  key: string;
+  groups: Group[];
+  sigs: [string, number, number][];
+  counts: EnvCounts;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -282,6 +292,51 @@ function fromCache(raw: unknown): Cached | null {
   return { files, rules: { at: r.at, dirs: r.dirs as [string, number][], count: r.count as number } };
 }
 
+const isCount = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 0;
+
+function isCounts(v: unknown): v is EnvCounts {
+  return (
+    isObj(v) &&
+    isCount(v.claudeMd) &&
+    isCount(v.agentsMd) &&
+    isCount(v.rules) &&
+    isCount(v.mcp) &&
+    isCount(v.hooks) &&
+    typeof v.hooksDisabled === 'boolean' &&
+    Array.isArray(v.files) &&
+    v.files.every((f) => typeof f === 'string')
+  );
+}
+
+function sameStat(p: string, m: number, z: number): boolean {
+  const st = stat(p);
+  return st ? st.mtimeMs === m && (z < 0 || st.size === z) : m === -1;
+}
+
+// valid while no probed file, dir or name changed
+function fastHit(raw: unknown, key: string, now: number): EnvCounts | null {
+  if (!isObj(raw) || raw.v !== VERSION || !isObj(raw.fast)) return null;
+  const f = raw.fast as unknown as Fast;
+  if (f.key !== key || typeof f.at !== 'number' || typeof f.exp !== 'number') return null;
+  if (now < f.at || now >= f.exp || !isCounts(f.counts)) return null;
+  if (!Array.isArray(f.sigs) || !Array.isArray(f.groups)) return null;
+  for (const x of f.sigs) {
+    if (!Array.isArray(x) || typeof x[0] !== 'string' || !sameStat(x[0], x[1], x[2])) return null;
+  }
+  for (const g of f.groups) {
+    if (!Array.isArray(g) || typeof g[0] !== 'string' || typeof g[1] !== 'number') return null;
+    const [dir, m, names] = g;
+    const now = stat(dir)?.mtimeMs ?? -1;
+    if (now === m) continue;
+    if (!Array.isArray(names) || now === -1 || m === -1) return null;
+    for (const n of names) {
+      if (!Array.isArray(n) || typeof n[0] !== 'string') return null;
+      if ((stat(path.join(dir, n[0])) ? 1 : 0) !== n[1]) return null;
+    }
+  }
+  return { ...f.counts, files: [...f.counts.files] };
+}
+
 function scanRules(roots: string[], now: number): RuleScan {
   const dirs: [string, number][] = roots.map((r) => [r, stat(r)?.mtimeMs ?? -1]);
   const visited = new Set<string>();
@@ -329,9 +384,11 @@ export function mcpProjectKey(dir: string, platform: NodeJS.Platform): string {
   return platform === 'win32' ? dir.replace(/\\/g, '/') : dir;
 }
 
-function gitRoot(launch: string, stopAt?: string): { root: string; linked: boolean } {
+type Stat = (p: string) => fs.Stats | undefined;
+
+function gitRoot(launch: string, stopAt: string | undefined, st0: Stat): { root: string; linked: boolean } {
   for (const d of launchAncestors(launch, stopAt)) {
-    const st = stat(path.join(d, '.git'));
+    const st = st0(path.join(d, '.git'));
     if (st) return { root: d, linked: st.isFile() };
   }
   return { root: launch, linked: false };
@@ -349,21 +406,12 @@ function mainCheckout(root: string): string | null {
   return path.basename(dir) === '.git' ? path.dirname(dir) : null;
 }
 
-function projectRoot(launch: string, stopAt?: string): string {
+function projectRoot(launch: string, stopAt: string | undefined, st: Stat): string {
   for (const d of launchAncestors(launch, stopAt)) {
-    if (stat(path.join(d, '.git')) || stat(path.join(d, '.claude'))?.isDirectory()) return d;
+    if (st(path.join(d, '.git')) || st(path.join(d, '.claude'))?.isDirectory()) return d;
   }
   return launch;
 }
-
-const listManaged = (dir: string): string[] => {
-  if (!stat(dir)?.isDirectory()) return [];
-  try {
-    return fs.readdirSync(dir);
-  } catch {
-    return [];
-  }
-};
 
 const MD_CLAUDE = ['CLAUDE.md', 'CLAUDE.local.md', path.join('.claude', 'CLAUDE.md')];
 const MD_AGENTS = ['AGENTS.md', path.join('.claude', 'AGENTS.md')];
@@ -372,6 +420,19 @@ export function envCacheName(projectDir: string, cwd: string): string {
   return `env-${cacheKey(path.resolve(projectDir), path.resolve(cwd))}.json`;
 }
 
+interface Input {
+  platform: NodeJS.Platform;
+  now: number;
+  launch: string;
+  name: string;
+  cdir: string;
+  cjPath: string;
+  bases: string[];
+  fastKey: string;
+  raw: unknown;
+}
+
+// small on purpose: a cache hit never compiles the full read
 export function readEnvironment(
   projectDir: string,
   cwd: string,
@@ -383,11 +444,64 @@ export function readEnvironment(
     const now = opts.now ?? Date.now();
     const launch = path.resolve(projectDir);
     const name = envCacheName(launch, cwd);
-    const cached = fromCache(readCache<unknown>(name, env));
+    const cdir = claudeDir(env);
+    const cjPath = claudeJsonPath(env);
+    const bases = opts.managedDir ? [opts.managedDir] : managedDirs(platform, env);
+    const fastKey = JSON.stringify([launch, cdir, cjPath, bases, platform, opts.stopAt ?? null]);
+    const raw = readCache<unknown>(name, env);
+    return (
+      fastHit(raw, fastKey, now) ??
+      fullRead({ platform, now, launch, name, cdir, cjPath, bases, fastKey, raw }, env, opts)
+    );
+  } catch {
+    return null;
+  }
+}
+
+function fullRead(input: Input, env: NodeJS.ProcessEnv, opts: EnvOptions): EnvCounts | null {
+  try {
+    const { platform, now, launch, name, cdir, cjPath, bases, fastKey, raw } = input;
+    const cached = fromCache(raw);
     const prev = new Map<string, Sig>((cached?.files ?? []).map((f) => [f[0], f]));
-    let changed = !cached;
     const sigs: Sig[] = [];
     const files: string[] = [];
+    const live: [string, number, number][] = [];
+    let exp = now + RULE_TTL;
+
+    const memo = new Map<string, fs.Stats | undefined>();
+    const st0: Stat = (p) => {
+      if (memo.has(p)) return memo.get(p);
+      const v = stat(p);
+      memo.set(p, v);
+      return v;
+    };
+    const groups = new Map<string, Set<string>>();
+    const strict = new Set<string>();
+    // a missing parent is probed as a name in its own parent
+    const look = (file: string): void => {
+      const dir = path.dirname(file);
+      if (dir === file) return;
+      if (!st0(dir)?.isDirectory()) {
+        look(dir);
+        return;
+      }
+      const g = groups.get(dir) ?? new Set<string>();
+      groups.set(dir, g);
+      g.add(path.basename(file));
+    };
+    const exists: Stat = (p) => {
+      look(p);
+      return st0(p);
+    };
+    const listManaged = (dir: string): string[] => {
+      if (!exists(dir)?.isDirectory()) return [];
+      strict.add(dir);
+      try {
+        return fs.readdirSync(dir);
+      } catch {
+        return [];
+      }
+    };
 
     const fold = (f: string) => (platform === 'win32' ? path.resolve(f).toLowerCase() : path.resolve(f));
     // HOME as launch dir: project settings are the user settings
@@ -402,7 +516,8 @@ export function readEnvironment(
       const k = fold(file);
       if (read.has(k)) return null;
       read.add(k);
-      const st = stat(file);
+      const st = exists(file);
+      if (st?.isFile()) live.push([file, st.mtimeMs, st.size]);
       const old = prev.get(file);
       const keep = old !== undefined && old[3] !== null && fits(old[3]);
       // a big or busy file keeps its last facts until it settles
@@ -412,12 +527,12 @@ export function readEnvironment(
         settle &&
         (st.size > max || (now >= st.mtimeMs && now - st.mtimeMs < SETTLE_MS))
       ) {
+        if (st.size <= max) exp = Math.min(exp, st.mtimeMs + SETTLE_MS);
         sigs.push(old);
         files.push(file);
         return old[3];
       }
       if (!st?.isFile() || st.size > max) {
-        if (prev.has(file)) changed = true;
         return null;
       }
       let facts: Facts | null;
@@ -425,7 +540,6 @@ export function readEnvironment(
       else {
         const v = readJson(file, max);
         facts = v ? parse(v) : null;
-        changed = true;
       }
       sigs.push([file, st.mtimeMs, st.size, facts]);
       if (facts) files.push(file);
@@ -435,21 +549,19 @@ export function readEnvironment(
     const seen = new Set<string>();
     const md = (file: string): boolean => {
       const k = fold(file);
-      if (seen.has(k) || !stat(file)?.isFile()) return false;
+      if (seen.has(k) || !exists(file)?.isFile()) return false;
       seen.add(k);
       files.push(path.resolve(file));
       return true;
     };
 
-    const cdir = claudeDir(env);
-    const bases = opts.managedDir ? [opts.managedDir] : managedDirs(platform, env);
     const managed = bases.flatMap((b) => managedFilesIn(b, listManaged)).map((f) => json(f));
     const user = json(path.join(cdir, 'settings.json'));
     const project = json(projectSettingsPath(launch, false));
     const local = json(projectSettingsPath(launch, true));
     const dirs = launchAncestors(launch, opts.stopAt);
 
-    const { root, linked } = gitRoot(launch, opts.stopAt);
+    const { root, linked } = gitRoot(launch, opts.stopAt, exists);
     const main = linked ? mainCheckout(root) : null;
     const keys = [
       ...new Set([root, ...(main ? [main] : [])].flatMap((d) => [mcpProjectKey(d, platform), d])),
@@ -457,7 +569,7 @@ export function readEnvironment(
     const ci = platform === 'win32' || platform === 'darwin';
     const key = `${ci ? 'i' : ''}\n${keys.join('\n')}`;
     const cj = json(
-      claudeJsonPath(env),
+      cjPath,
       (v) => claudeJsonFacts(v, keys, ci),
       MAX_CLAUDE_JSON,
       (f) => !f || f.k === key,
@@ -519,7 +631,7 @@ export function readEnvironment(
       }
       const roots = [
         path.join(cdir, 'rules'),
-        path.join(projectRoot(launch, opts.stopAt), '.claude', 'rules'),
+        path.join(projectRoot(launch, opts.stopAt, exists), '.claude', 'rules'),
       ];
       const fresh =
         scan &&
@@ -529,14 +641,23 @@ export function readEnvironment(
         scan.dirs.every(([d, m]) => (stat(d)?.mtimeMs ?? -1) === m);
       if (!fresh) {
         scan = scanRules(roots, now);
-        changed = true;
       }
       rules = scan!.count;
     }
 
-    if (sigs.length !== prev.size) changed = true;
-    if (changed && opts.persist !== false) writeCache(name, { v: VERSION, files: sigs, rules: scan }, env);
-    return { claudeMd, agentsMd, rules, mcp: servers.size, hooks, hooksDisabled, files };
+    const counts: EnvCounts = { claudeMd, agentsMd, rules, mcp: servers.size, hooks, hooksDisabled, files };
+    if (opts.persist !== false) {
+      const rows: Group[] = [...groups].map(([d, names]) => [
+        d,
+        st0(d)?.mtimeMs ?? -1,
+        strict.has(d) ? null : [...names].map((n) => [n, st0(path.join(d, n)) ? 1 : 0]),
+      ]);
+      for (const d of strict) if (!groups.has(d)) rows.push([d, st0(d)?.mtimeMs ?? -1, null]);
+      for (const [d, m] of mode === 'managed-only' ? [] : (scan?.dirs ?? [])) rows.push([d, m, null]);
+      const fast: Fast = { at: now, exp, key: fastKey, groups: rows, sigs: live, counts };
+      writeCache(name, { v: VERSION, files: sigs, rules: scan, fast }, env);
+    }
+    return { ...counts, files: [...files] };
   } catch {
     return null;
   }
