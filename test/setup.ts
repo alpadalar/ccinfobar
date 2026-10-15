@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import util from 'node:util';
 import { beforeEach } from 'vitest';
+import { resetLanguageCache } from '../src/cli/lang.js';
 import { setLanguage } from '../src/core/i18n/index.js';
 
 declare global {
@@ -61,6 +62,7 @@ delete process.env.LC_MESSAGES;
 delete process.env.CCINFOBAR_LANG;
 
 beforeEach(() => {
+  resetLanguageCache();
   setLanguage('en');
 });
 
