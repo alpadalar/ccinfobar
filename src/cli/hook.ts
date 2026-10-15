@@ -4,6 +4,15 @@ import { fs } from '../core/builtins.js';
 import { configPath } from '../core/paths.js';
 import type { Config } from '../core/types.js';
 import { hookLine, hookLogPath, hooksDir, isHookEvent, SESSION_RE } from '../data/hook-line.js';
+import {
+  isProgressEvent,
+  markSent,
+  progressFiles,
+  progressSeq,
+  readSent,
+  readWant,
+  terminalAllowed,
+} from '../data/progress.js';
 import { appendLine } from '../data/store.js';
 import { parseArgs } from './args.js';
 
@@ -23,6 +32,7 @@ export interface HookDeps {
   schedule?: (sessionId: string, configFile: string) => void | Promise<void>;
   prune?: (dir: string, keep: string[], now: number) => number;
   debug?: (reason: string) => void;
+  writeOut?: (s: string) => void;
 }
 
 const DEBUG_CAP = 262_144;
@@ -153,7 +163,7 @@ export async function scheduleUpdate(
   scheduleCheck({ update } as Config, sessionId, env, extra);
 }
 
-const PRUNE_RE = /^([A-Za-z0-9_-]{1,128})(\.jsonl|\.fold\.json)$/;
+const PRUNE_RE = /^([A-Za-z0-9_-]{1,128})(\.jsonl|\.fold\.json|\.progress\.json|\.progress-sent\.json)$/;
 
 // bounded by deletions and time, not entries; regular files only
 export function pruneHookLogs(
@@ -208,6 +218,29 @@ function configFileOf(argv: string[], env: NodeJS.ProcessEnv): string {
   return typeof flag === 'string' ? path.resolve(flag) : configPath(env);
 }
 
+// one terminalSequence line per change, nothing else (D-42)
+function runProgress(d: HookDeps, input: Record<string, unknown>): string {
+  const at = d.argv.lastIndexOf('hook');
+  const event = typeof input.hook_event_name === 'string' ? input.hook_event_name : d.argv[at + 1];
+  if (!isProgressEvent(event)) return 'unknown-event';
+  const sid = input.session_id;
+  const files = typeof sid === 'string' && SESSION_RE.test(sid) ? progressFiles(sid, d.env) : null;
+  if (!files) return 'bad-session';
+  const want = readWant(files.want);
+  if (!want) return 'no-progress';
+  if (want.channel !== 'hook') return 'channel';
+  if (!terminalAllowed(d.env, want.always)) return 'terminal';
+  const sent = readSent(files.sent);
+  if (sent && sent.state === want.state && sent.pct === want.pct) return 'unchanged';
+  if (!d.writeOut) return 'no-out';
+  try {
+    d.writeOut(`${JSON.stringify({ terminalSequence: progressSeq(want.state, want.pct) })}\n`);
+  } catch {
+    return 'write-failed';
+  }
+  return markSent(files.sent, { state: want.state, pct: want.pct }) ? 'emitted' : 'emitted:mark-failed';
+}
+
 export async function runHook(d: HookDeps): Promise<void> {
   try {
     const debug = d.debug ?? debugLog(d.env, d.now);
@@ -221,6 +254,7 @@ export async function runHook(d: HookDeps): Promise<void> {
       : parseInput(raw.text);
     if (!input) return debug('bad-json');
     const at = d.argv.lastIndexOf('hook');
+    if (at > 0 && d.argv.slice(0, at).includes('--progress')) return debug(runProgress(d, input));
     const fromArgv = at < 0 ? undefined : d.argv[at + 1];
     const event = typeof input.hook_event_name === 'string' ? input.hook_event_name : fromArgv;
     if (!isHookEvent(event)) return debug('unknown-event');
@@ -238,7 +272,8 @@ export async function runHook(d: HookDeps): Promise<void> {
     if (event !== 'SessionStart' || line.s !== 'startup') return;
     const prune = d.prune ?? pruneHookLogs;
     try {
-      const n = prune(hooksDir(d.env), [`${sid}.jsonl`, `${sid}.fold.json`], d.now());
+      const keep = [`${sid}.jsonl`, `${sid}.fold.json`, `${sid}.progress.json`, `${sid}.progress-sent.json`];
+      const n = prune(hooksDir(d.env), keep, d.now());
       if (n > 0) debug(`pruned:${n}`);
     } catch {}
     try {
@@ -262,6 +297,9 @@ export async function hookMain(argv: string[]): Promise<void> {
       env: process.env,
       now: Date.now,
       append: appendLine,
+      writeOut: (s) => {
+        fs.writeSync(1, s);
+      },
     });
   } catch {}
   process.exit(0);

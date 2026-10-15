@@ -103,6 +103,7 @@ describe('import graph', () => {
       'src/cli/hook.ts',
       'src/cli/args.ts',
       'src/data/hook-line.ts',
+      'src/data/progress.ts',
       'src/data/store.ts',
       'src/core/builtins.ts',
       'src/core/paths.ts',

@@ -356,7 +356,13 @@ describe('SessionStart trigger', () => {
     await runHook(w.d);
     expect(w.order).toEqual(['append', 'prune', 'schedule']);
     expect(w.scheduled).toEqual([[SID, configPath(env)]]);
-    expect(w.pruned).toEqual([[hooksDir(env), [`${SID}.jsonl`, `${SID}.fold.json`], 1000]]);
+    expect(w.pruned).toEqual([
+      [
+        hooksDir(env),
+        [`${SID}.jsonl`, `${SID}.fold.json`, `${SID}.progress.json`, `${SID}.progress-sent.json`],
+        1000,
+      ],
+    ]);
     expect(w.reasons).toEqual(['scheduled']);
   });
 
