@@ -173,6 +173,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Boxed panel themes no longer draw the top border wider than the box when the title is cut short
 - With `ambiguousWidth: 2`, boxed panels and the editor's preview box fit the width and their borders line up
 - `context-graph` stops at 100% when the context window shrinks during a session (such as a switch from a 1M to a 200K model) instead of showing more than 100%, and the `context-full` scenario's graph now matches its 94%
+- Saving a preset or theme in the web editor under a name with accented or Turkish letters gives a readable id (`Çalışma Düzeni` becomes `calisma-duzeni`, not `al-ma-d-zeni`)
 - `ccinfobar --help` leaves at least two spaces between every command and its description (`uninstall --progress` touched its text)
 - The terminal editor's settings no longer cut long field labels at 80 columns; the label column widens when there is room, and four long option labels are shorter, with the rest moved to their help
 

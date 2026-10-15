@@ -9,9 +9,13 @@ import { confirmDialog, modal, toast } from './ui.js';
 
 const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 
+// Çalışma → calisma
 export function slug(name: string): string {
   return name
     .trim()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/ı/g, 'i')
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, '-')
     .replace(/^-+|-+$/g, '')
