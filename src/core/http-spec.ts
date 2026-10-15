@@ -186,10 +186,18 @@ export function resolveUrl(
   return url ? { ok: true, url } : { ok: false, error: 'not a valid url' };
 }
 
+const TOKENISH = /^[A-Za-z0-9_.:%+=~-]+$/;
+
+// webhook and bot urls keep their secret in the path
+const pathSegment = (seg: string): string =>
+  TOKENISH.test(seg) && (seg.length >= 24 || (seg.length >= 12 && /\d/.test(seg) && /[A-Za-z]/.test(seg)))
+    ? '\u2026'
+    : seg;
+
 export function redactUrl(raw: string): string {
   const url = typeof raw === 'string' && !URL_BAD.test(raw) ? parse(raw) : null;
   if (!url) return '(invalid url)';
-  const base = `${url.protocol}//${url.host}${url.pathname}`;
+  const base = `${url.protocol}//${url.host}${url.pathname.split('/').map(pathSegment).join('/')}`;
   const query = url.search.slice(1);
   if (!query) return base;
   const pairs = query.split('&').map((p) => {

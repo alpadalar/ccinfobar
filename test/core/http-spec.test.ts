@@ -212,6 +212,28 @@ describe('redactUrl', () => {
     expect(redactUrl('https://x.com:8443')).toBe('https://x.com:8443/');
   });
 
+  it('hides path segments that look like tokens', () => {
+    const cases: [string, string][] = [
+      [
+        'https://hooks.example.com/services/T0AB12CD3/B0AB12CD3EF/aBcDeFgHiJkLmNoPqRsTuVwX?x=1',
+        'https://hooks.example.com/services/T0AB12CD3/B0AB12CD3EF/\u2026?x=\u2026',
+      ],
+      [
+        'https://discord.com/api/webhooks/123456789012345678/Zx9_-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcdefGHIJ',
+        'https://discord.com/api/webhooks/123456789012345678/\u2026',
+      ],
+      [
+        'https://api.telegram.org/bot123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11/getMe',
+        'https://api.telegram.org/\u2026/getMe',
+      ],
+      ['https://api.telegram.org/bot123:SECRET/getMe', 'https://api.telegram.org/\u2026/getMe'],
+    ];
+    for (const [raw, want] of cases) expect(redactUrl(raw)).toBe(want);
+    const keep = 'https://status.claude.com/api/v2/summary.json';
+    expect(redactUrl(keep)).toBe(keep);
+    expect(redactUrl('https://x.com/v1/users/balance/2026')).toBe('https://x.com/v1/users/balance/2026');
+  });
+
   it('never returns an unparseable input', () => {
     expect(redactUrl('ht tp://bad?key=SECRET123')).not.toContain('SECRET123');
     expect(redactUrl(undefined as any)).not.toContain('undefined');
