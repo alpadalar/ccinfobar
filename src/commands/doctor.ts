@@ -407,6 +407,7 @@ const KINDS: Record<InstallKind, MessageId> = {
   'npm-global': 'doctor.installKind.npm-global',
   local: 'doctor.installKind.local',
   npx: 'doctor.installKind.npx',
+  brew: 'doctor.installKind.brew',
   source: 'doctor.installKind.source',
   unknown: 'doctor.installKind.unknown',
 };

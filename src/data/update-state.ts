@@ -84,13 +84,28 @@ export function updateNotice(
   config: Config,
   current: string,
   env: NodeJS.ProcessEnv = process.env,
+  kindOf: () => InstallKind = installKind,
 ): string | null {
-  if (config.update !== 'notify' || updatesDisabled(config, env) || installKind() === 'npx') return null;
+  if (config.update === 'off' || updatesDisabled(config, env)) return null;
+  const kind = kindOf();
+  if (effectiveUpdate(config, kind) !== 'notify' || kind === 'npx') return null;
   const latest = availableUpdate(current, env);
-  return latest ? `⬆ ccinfobar ${latest} · ccinfobar update` : null;
+  return latest ? `⬆ ccinfobar ${latest} · ${updateHint(kind)}` : null;
 }
 
-export type InstallKind = 'npm-global' | 'local' | 'npx' | 'source' | 'unknown';
+export type InstallKind = 'npm-global' | 'local' | 'npx' | 'brew' | 'source' | 'unknown';
+
+export const BREW_UPGRADE = 'brew upgrade ccinfobar';
+
+// package manager owns brew copies
+export function effectiveUpdate(config: Pick<Config, 'update'>, kind: InstallKind): Config['update'] {
+  if (config.update === 'off') return 'off';
+  return kind === 'brew' ? 'notify' : config.update;
+}
+
+export function updateHint(kind: InstallKind): string {
+  return kind === 'brew' ? BREW_UPGRADE : 'ccinfobar update';
+}
 
 // pinned copy when global install is not possible
 export function localPrefix(env: NodeJS.ProcessEnv = process.env): string {
@@ -105,9 +120,20 @@ export function installKind(entry = process.argv[1] ?? ''): InstallKind {
   const p = real.replace(/\\/g, '/');
   if (/\/_npx\//.test(p)) return 'npx';
   if (p.startsWith(`${localPrefix().replace(/\\/g, '/')}/`)) return 'local';
+  if (p.includes('/Cellar/ccinfobar/')) return 'brew';
   if (/\/node_modules\/ccinfobar\/dist\//.test(p)) return 'npm-global';
   if (fs.existsSync(path.join(path.dirname(path.dirname(real)), '.git'))) return 'source';
   return 'unknown';
+}
+
+// part of the realpath before /Cellar/
+export function brewPrefix(entry = process.argv[1] ?? ''): string | null {
+  let real = entry;
+  try {
+    real = fs.realpathSync(entry);
+  } catch {}
+  const i = real.replace(/\\/g, '/').indexOf('/Cellar/ccinfobar/');
+  return i > 0 ? real.slice(0, i) : null;
 }
 
 export function selfCommand(kind: InstallKind = installKind()): string {

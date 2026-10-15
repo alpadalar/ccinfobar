@@ -203,6 +203,8 @@ const ALLOW: Record<string, string[]> = {
     'Usage of the weekly rate limit',
     'Weekly reset',
   ],
+  // shell command in the render notice (10-01)
+  'src/data/update-state.ts': ['brew upgrade ccinfobar'],
   // compact duration units stay ASCII (D-17)
   'src/widgets/shared.ts': ['Xd Xh', 'Xh Xm'],
   // English catalog data, shown through styleGroupName (08-12)

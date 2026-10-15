@@ -108,6 +108,7 @@ export const doctorMessages = {
   'doctor.installKind.npm-global': 'global npm',
   'doctor.installKind.local': 'yerel',
   'doctor.installKind.npx': 'npx',
+  'doctor.installKind.brew': 'Homebrew',
   'doctor.installKind.source': 'kaynak kod',
   'doctor.installKind.unknown': 'bilinmiyor',
   'doctor.enableHint': "\nClaude Code'da etkinleştirmek için `{command} install` çalıştırın.",
