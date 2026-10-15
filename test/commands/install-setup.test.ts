@@ -22,7 +22,7 @@ vi.mock('../../src/data/self-update.js', async (orig) => ({
   },
 }));
 
-const { binVersion, localBin, setupCommand } = await import('../../src/commands/install.js');
+const { binState, binVersion, localBin, setupCommand } = await import('../../src/commands/install.js');
 const { localPrefix } = await import('../../src/data/update-state.js');
 const { withLang } = await import('../helpers.js');
 
@@ -68,6 +68,13 @@ function pinnedCopy(version: string, at: string): void {
 
 const slash = (p: string) => p.replace(/\\/g, '/');
 
+// a volta-style shell shim or a .cmd outside npm's layout
+function unfollowable(): string {
+  const shim = path.join(binDir, win ? 'ccinfobar.cmd' : 'ccinfobar');
+  fs.writeFileSync(shim, win ? '@echo off\r\n' : '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  return shim;
+}
+
 beforeEach(() => {
   dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-setup-')));
   prefix = path.join(dir, 'prefix');
@@ -90,6 +97,42 @@ describe('setupCommand under npx', () => {
   it('reads the version of a global copy', () => {
     expect(binVersion(globalCopy('0.6.2'))).toBe('0.6.2');
     expect(binVersion(path.join(dir, 'missing'))).toBeNull();
+  });
+
+  it('tells a shim it cannot follow from one whose target is gone', () => {
+    expect(binState(path.join(dir, 'missing'))).toEqual({ version: null, missing: true });
+    expect(binState(unfollowable())).toEqual({ version: null, missing: false });
+    if (win) {
+      fs.mkdirSync(path.join(prefix, 'node_modules'), { recursive: true });
+      const orphan = path.join(prefix, 'ccinfobar.cmd');
+      fs.writeFileSync(orphan, '@echo off\r\n');
+      expect(binState(orphan)).toEqual({ version: null, missing: true });
+    } else {
+      const dangling = path.join(dir, 'dangling');
+      fs.symlinkSync(path.join(dir, 'gone', 'dist', 'ccinfobar.js'), dangling);
+      expect(binState(dangling)).toEqual({ version: null, missing: true });
+    }
+  });
+
+  it('keeps a global shim it cannot follow', () => {
+    const shim = unfollowable();
+    const res = setupCommand('9.9.9');
+    expect(npm.calls).toEqual([]);
+    expect(slash(res.command ?? '')).toContain(slash(path.dirname(shim)));
+  });
+
+  it.runIf(win)('replaces a global shim whose package is gone', () => {
+    fs.mkdirSync(path.join(prefix, 'node_modules'), { recursive: true });
+    fs.writeFileSync(path.join(prefix, 'ccinfobar.cmd'), '@echo off\r\n');
+    const log: string[] = [];
+    npm.fail.global = true;
+    npm.fail.local = true;
+    expect(setupCommand('9.9.9', { log: (l) => log.push(l) }).command).toBeNull();
+    expect(npm.calls.map((c) => c[1] !== undefined)).toEqual([false, true]);
+    npm.calls = [];
+    log.length = 0;
+    setupCommand('9.9.9', { global: false, log: (l) => log.push(l) });
+    expect(log[0]).toContain('points to a missing file and is not used');
   });
 
   it('updates an older global copy instead of pointing Claude Code at it', () => {

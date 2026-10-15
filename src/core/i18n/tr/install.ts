@@ -63,6 +63,8 @@ export const installMessages = {
     '  {dir} PATH içinde değil; `ccinfobar` komutunu doğrudan yazabilmek için ekleyin.',
   'install.setup.updateFailed': '⚠ Global ccinfobar {old} güncellenemedi: {error}',
   'install.setup.globalFailed': '⚠ Global kurulum başarısız oldu: {error}',
+  'install.setup.missingGlobal':
+    '⚠ {bin} konumundaki global ccinfobar eksik bir dosyayı gösteriyor ve kullanılmıyor; `npm install -g ccinfobar@latest` ile yeniden kurun ya da `npm rm -g ccinfobar` ile kaldırın',
   'install.setup.staleGlobal':
     '⚠ Global ccinfobar {old}, {version} sürümünden eski ve kullanılmıyor; `npm install -g ccinfobar@latest` ile güncelleyin ya da `npm rm -g ccinfobar` ile kaldırın',
   'install.setup.pinned': 'ccinfobar {version} sürümünün sabit bir kopyası {dir} klasörüne kuruluyor ...',

@@ -763,18 +763,37 @@ export interface SetupOptions {
   log?: (line: string) => void;
 }
 
-// version of the package a global bin runs; null for shims we cannot follow
-export function binVersion(bin: string): string | null {
+export interface BinState {
+  version: string | null;
+  missing: boolean;
+}
+
+// version null: a shim we cannot follow; missing: the bin or what it runs is gone
+export function binState(bin: string): BinState {
+  const unknown = { version: null, missing: false };
+  let js: string;
   try {
-    const js = process.platform === 'win32' ? jsForWinBin(bin) : fs.realpathSync(bin);
-    if (!/[\\/]dist[\\/]ccinfobar\.js$/.test(js)) return null;
-    const pkg = JSON.parse(
-      fs.readFileSync(path.join(path.dirname(path.dirname(js)), 'package.json'), 'utf8'),
-    );
-    return pkg?.name === 'ccinfobar' && typeof pkg.version === 'string' ? pkg.version : null;
-  } catch {
-    return null;
+    if (process.platform === 'win32') {
+      if (!fs.existsSync(bin)) return { version: null, missing: true };
+      js = jsForWinBin(bin);
+      // an npm layout without the package is an orphan shim
+      if (!fs.existsSync(js)) return { version: null, missing: fs.existsSync(path.resolve(js, '../../..')) };
+    } else js = fs.realpathSync(bin);
+  } catch (err) {
+    return { version: null, missing: (err as NodeJS.ErrnoException).code === 'ENOENT' };
   }
+  if (!/[\\/]dist[\\/]ccinfobar\.js$/.test(js)) return unknown;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(js, '../../package.json'), 'utf8'));
+    const ok = pkg?.name === 'ccinfobar' && typeof pkg.version === 'string';
+    return ok ? { version: pkg.version, missing: false } : unknown;
+  } catch {
+    return unknown;
+  }
+}
+
+export function binVersion(bin: string): string | null {
+  return binState(bin).version;
 }
 
 function* setupSteps(version: string, opts: SetupOptions): Steps<Setup> {
@@ -783,13 +802,16 @@ function* setupSteps(version: string, opts: SetupOptions): Steps<Setup> {
   const existing = globalBinary();
   const useExisting = (bin: string) =>
     setup(acceptCommand(buildCommand({ kind: 'bin', bin, onPath: true }), log), true);
-  // an older global copy would run the status line and hooks
-  const old = existing ? binVersion(existing) : null;
+  // an older or broken global copy would run the status line and hooks
+  const state = existing ? binState(existing) : null;
+  const old = state?.version ?? null;
+  const missing = !!state?.missing;
   const stale = !!old && compareVersions(old, version) < 0;
-  if (existing && !stale) return useExisting(existing);
-  // --no-global never falls back to a stale copy
-  const reuse = opts.global !== false ? existing : null;
+  if (existing && !stale && !missing) return useExisting(existing);
+  // --no-global never falls back to a stale copy, nothing to a broken one
+  const reuse = opts.global !== false && !missing ? existing : null;
   if (opts.global === false && stale) log(t('install.setup.staleGlobal', { old: old ?? '', version }));
+  if (opts.global === false && missing) log(t('install.setup.missingGlobal', { bin: existing ?? '' }));
   if (opts.global !== false) {
     log(
       stale
