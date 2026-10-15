@@ -1,3 +1,4 @@
+import { ruleMetrics } from './conditions.js';
 import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
 import type {
   Align,
@@ -316,6 +317,16 @@ export function refreshReasons(
   for (const f of feeds) for (const r of f(config)) rules.add(r);
   return { widgets: needsRefresh(config, isTimeBased, extra), rules: [...rules].sort() };
 }
+
+export const timeRuleFeed: RefreshFeed = (config) => {
+  const out = new Set<string>();
+  for (const line of config.lines) {
+    for (const it of line) {
+      for (const m of ruleMetrics(it)) if (m.startsWith('time.')) out.add(it.id || it.type);
+    }
+  }
+  return [...out];
+};
 
 // drops invalid or default values; removes an empty budget
 export function setBudget(config: Config, key: keyof BudgetConfig, value: number | undefined): Config {

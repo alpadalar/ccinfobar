@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import { loadConfig, saveConfig } from '../core/config.js';
-import { needsRefresh } from '../core/edit.js';
+import { refreshReasons, timeRuleFeed } from '../core/edit.js';
 import { type MessageId, t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { titleWidgets } from '../core/panel.js';
@@ -212,13 +212,14 @@ function persistConfig(cfgFile: string): void {
 function refreshNotes(io: InstallIo, cfgFile: string, refresh: number | undefined, plan: InstallPlan): void {
   if (refresh === 1) io.log(t('install.refreshOne'));
   if (refresh !== undefined || plan.proposed.refreshInterval !== undefined) return;
-  let timed: string[] = [];
+  let why = { widgets: [] as string[], rules: [] as string[] };
   try {
     const { config } = loadForUse(cfgFile);
     const extra = config.tui ? titleWidgets(config.tui) : [];
-    timed = needsRefresh(config, (type) => getWidget(type)?.timeBased === true, extra);
+    why = refreshReasons(config, (type) => getWidget(type)?.timeBased === true, [timeRuleFeed], extra);
   } catch {}
-  if (timed.length) io.log(t('install.refreshHint', { widgets: timed.join(', ') }));
+  if (why.widgets.length) io.log(t('install.refreshHint', { widgets: why.widgets.join(', ') }));
+  if (why.rules.length) io.log(t('install.refreshHintRules', { items: sanitizeText(why.rules.join(', ')) }));
 }
 
 function userRefresh(): number | undefined {

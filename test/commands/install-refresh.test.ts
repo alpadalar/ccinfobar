@@ -129,6 +129,56 @@ describe('install refresh suggestion', () => {
     expect('refreshInterval' in statusLine()).toBe(false);
   });
 
+  it('names items with time rules and writes nothing', async () => {
+    saveConfig(
+      {
+        ...defaultConfig(),
+        lines: [
+          [
+            { id: 'clk2', type: 'model', showWhen: 'time.hour in 9..18' },
+            { id: 'g1', type: 'git-branch', hideWhen: '!git' },
+            { id: 'bad', type: 'cwd', showWhen: 'time.hour in 9..' },
+          ],
+        ],
+      },
+      cfg,
+    );
+    const before = fs.readFileSync(cfg, 'utf8');
+    const rules = t('install.refreshHintRules', { items: 'clk2' });
+    expect(rules).toContain('--refresh 5');
+    const d = fake();
+    await runInstall(args('--dry-run'), cfg, d.io);
+    expect(count(d.lines, rules)).toBe(1);
+    expect(d.lines.some((l) => l.startsWith('Time-based widgets'))).toBe(false);
+    expect(fs.existsSync(settings)).toBe(false);
+    expect(fs.readFileSync(cfg, 'utf8')).toBe(before);
+    const f = fake();
+    await runInstall(args(), cfg, f.io);
+    expect(count(f.lines, rules)).toBe(1);
+    expect('refreshInterval' in statusLine()).toBe(false);
+    const g = fake();
+    await runInstall(args('--refresh', '5'), cfg, g.io);
+    expect(statusLine().refreshInterval).toBe(5);
+    expect(g.lines.some((l) => l.includes('--refresh 5'))).toBe(false);
+    const h = fake();
+    await runInstall(args(), cfg, h.io);
+    expect(h.lines.some((l) => l.includes('--refresh 5'))).toBe(false);
+  });
+
+  it('prints both lines for timers and time rules', async () => {
+    saveConfig(
+      {
+        ...defaultConfig(),
+        lines: [[{ id: 'turn-timer', type: 'turn-timer', hideWhen: 'time.weekday in sat,sun' }]],
+      },
+      cfg,
+    );
+    const f = fake();
+    await runInstall(args('--dry-run'), cfg, f.io);
+    expect(count(f.lines, hint('turn-timer'))).toBe(1);
+    expect(count(f.lines, t('install.refreshHintRules', { items: 'turn-timer' }))).toBe(1);
+  });
+
   it('counts widgets used only in a tui title', async () => {
     layout(['model'], { style: 'tui', tui: { title: { left: '{model}', right: '{clock}' } } });
     const f = fake();

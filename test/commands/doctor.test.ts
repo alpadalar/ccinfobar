@@ -157,6 +157,32 @@ describe('runDoctor refresh hint', () => {
     });
     expect(capture(() => runDoctor(timed()))).not.toContain(hint);
   });
+
+  it('names items with time rules', () => {
+    const rules = t('doctor.refreshHintRules', { items: 'clk2' });
+    expect(rules).toContain('ccinfobar install --refresh 5');
+    const file = cfgFile(
+      'rules-r.json',
+      JSON.stringify({
+        lines: [
+          [
+            { id: 'clk2', type: 'model', showWhen: 'time.hour in 9..18' },
+            { id: 'g1', type: 'model', hideWhen: '!git' },
+          ],
+        ],
+      }),
+    );
+    applyInstall(planInstall({ file: claudeSettingsPath(), command: '/opt/bin/ccinfobar' }), {
+      confirmed: true,
+    });
+    const out = capture(() => runDoctor(file));
+    expect(out).toContain(rules);
+    expect(out.some((l) => l.includes('Time-based widgets'))).toBe(false);
+    applyInstall(planInstall({ file: claudeSettingsPath(), command: '/opt/bin/ccinfobar', refresh: 5 }), {
+      confirmed: true,
+    });
+    expect(capture(() => runDoctor(file))).not.toContain(rules);
+  });
 });
 
 describe('commandWarnings', () => {

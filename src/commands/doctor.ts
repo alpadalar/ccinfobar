@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { describeRuleError, validateRule } from '../core/conditions.js';
 import type { LoadResult } from '../core/config.js';
-import { needsRefresh } from '../core/edit.js';
+import { refreshReasons, timeRuleFeed } from '../core/edit.js';
 import { describeHeaders, redactUrl } from '../core/http-report.js';
 import { httpRefusal, isLoopback, parseHeaderSpec, parseUrlTemplate } from '../core/http-spec.js';
 import { t } from '../core/i18n/index.js';
@@ -391,8 +391,9 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
   if (sl?.refreshInterval === undefined) {
     const cfg = loaded.config;
     const extra = cfg.tui ? titleWidgets(cfg.tui) : [];
-    const timed = needsRefresh(cfg, (type) => getWidget(type)?.timeBased === true, extra);
-    if (timed.length) console.log(t('doctor.refreshHint', { widgets: timed.join(', ') }));
+    const why = refreshReasons(cfg, (type) => getWidget(type)?.timeBased === true, [timeRuleFeed], extra);
+    if (why.widgets.length) console.log(t('doctor.refreshHint', { widgets: why.widgets.join(', ') }));
+    if (why.rules.length) console.log(t('doctor.refreshHintRules', { items: safe(why.rules.join(', ')) }));
   }
   if (manifest.readOnly) console.log(`⚠ ${t('install.manifestReadOnly', { file: tildify(manifestFile()) })}`);
   else {

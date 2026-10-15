@@ -2,6 +2,8 @@ export const doctorMessages = {
   'doctor.configIssue': '  line {line}, column {column}: {message}',
   'doctor.refreshHint':
     '  Time-based widgets ({widgets}) only update when Claude Code re-runs the status line. Run `ccinfobar install --refresh 5` to refresh every 5 s; Claude Code does not re-run it on hook events or while a permission dialog is open.',
+  'doctor.refreshHintRules':
+    '  Time rules on {items} only change when Claude Code re-runs the status line. Run `ccinfobar install --refresh 5` to refresh every 5 s.',
   'doctor.columnNote': '  (columns count UTF-16 code units)',
   'doctor.unknownWidget': '⚠ Unknown widget type "{type}" on line {line}',
   'doctor.badOption': '⚠ {type}: option "{key}" has an unsupported value',

@@ -7,6 +7,8 @@ export const installMessages = {
   'install.refreshDiff': '  refreshInterval: {current} -> {proposed}',
   'install.refreshHint':
     'Time-based widgets ({widgets}) only update when Claude Code re-runs the status line. Add `--refresh 5` to refresh every 5 s; Claude Code does not re-run it on hook events or while a permission dialog is open.',
+  'install.refreshHintRules':
+    'Time rules on {items} only change when Claude Code re-runs the status line. Add `--refresh 5` to refresh every 5 s.',
   'install.refreshOne': 'refreshInterval 1 starts Node every second; 5 is usually enough.',
   'install.paddingDiff': '  padding: {current} -> {proposed}',
   'install.replacePrompt': 'Replace?',

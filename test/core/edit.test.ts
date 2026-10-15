@@ -21,6 +21,7 @@ import {
   setOption,
   setProfilesBuiltIn,
   takeStyle,
+  timeRuleFeed,
   updateItem,
   updateProfileOverride,
   upgradeOptions,
@@ -255,6 +256,27 @@ describe('needsRefresh', () => {
       widgets: ['clock'],
       rules: [],
     });
+  });
+
+  it('timeRuleFeed lists items whose valid rules read the time', () => {
+    const c: Config = {
+      ...defaultConfig(),
+      lines: [
+        [
+          { id: 'g1', type: 'git-branch', hideWhen: '!git' },
+          { id: 'clk2', type: 'model', showWhen: 'time.hour in 9..18' },
+          { id: 'bad', type: 'model', showWhen: 'time.hour in 9..' },
+        ],
+        [
+          { id: 'wk', type: 'cwd', hideWhen: ['git', 'time.weekday in sat,sun'] },
+          { id: 'clk2', type: 'model', showWhen: 'time.hour >= 9' },
+          { id: 'm', type: 'model' },
+        ],
+      ],
+    };
+    expect(timeRuleFeed(c)).toEqual(['clk2', 'wk']);
+    expect(timeRuleFeed(cfg([['model']]))).toEqual([]);
+    expect(refreshReasons(c, isTimed, [timeRuleFeed])).toEqual({ widgets: [], rules: ['clk2', 'wk'] });
   });
 });
 
