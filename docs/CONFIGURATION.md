@@ -218,7 +218,7 @@ The first non-empty variable decides, even when it names a language ccinfobar do
 ```
 
 ```sh
-ccinfobar config set language tr     # or en, or auto
+ccinfobar config set language tr     # or en, or auto (removes the key)
 CCINFOBAR_LANG=tr ccinfobar preview  # one run in Turkish
 LANG=C ccinfobar doctor              # English in scripts
 ```

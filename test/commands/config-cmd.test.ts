@@ -318,7 +318,6 @@ describe('config set language', () => {
       ['tr', 'tr'],
       ['TR', 'tr'],
       ['"En"', 'en'],
-      ['auto', 'auto'],
     ]) {
       expect(run(['set', 'language', v!], file)).toEqual({
         out: [t('cfg.set', { path: 'language' })],
@@ -347,6 +346,21 @@ describe('config set language', () => {
       process.exitCode = undefined;
     }
     expect(fs.readFileSync(file, 'utf8')).toBe(bytes);
+  });
+
+  it('removes the key for auto, like the editors', () => {
+    const file = withFile({ ...SAMPLE, language: 'tr' });
+    for (const v of ['auto', 'AUTO', '"Auto"']) {
+      expect(run(['set', 'language', v], file)).toEqual({
+        out: [t('cfg.set', { path: 'language' })],
+        err: [],
+        code: 0,
+      });
+      expect('language' in read(file)).toBe(false);
+      expect(read(file).lines).toEqual(SAMPLE.lines);
+    }
+    expect(run(['get', 'language'], file).code).toBe(1);
+    process.exitCode = undefined;
   });
 
   it('removes the key on unset', () => {

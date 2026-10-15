@@ -123,6 +123,13 @@ export function runConfig(args: Args, cfgFile: string, io: ConfigIo = STD_IO): v
       const isLanguage = path.length === 1 && path[0] === 'language';
       const parsed = parseValue(valueText!);
       const value = isLanguage && typeof parsed === 'string' ? asciiLower(parsed) : parsed;
+      // auto is the absent key, as in the editors (D-07)
+      if (isLanguage && value === 'auto') {
+        const removed = unsetPath(raw, path);
+        saveConfig(normalizeConfig(removed.found ? removed.value : raw), cfgFile);
+        io.out(t('cfg.set', { path: pathText }));
+        return;
+      }
       const normalized = normalizeConfig(setPath(raw, path, value));
       const got = getPath(normalized, path);
       if (!got.found || !isDeepStrictEqual(plain(got.value), plain(value))) {
