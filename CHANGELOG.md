@@ -15,13 +15,13 @@ All notable changes to this project are documented here. The format follows [Kee
 - Plan-limit widgets show `loading…` until Claude Code sends usage limits, only in Claude subscription sessions
 - `ccinfobar doctor` shows the line and column of a broken config and warns about unknown widgets and unsupported option values
 - `ccinfobar doctor` lists the install manifest, where backups are kept and whether git hardening is off, warns on Windows about a backslash or quoted first token in the statusLine command, and removes stale temp files
-- `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` (when set and non-empty) stops the background update check and the background usage fetch; `ccinfobar update` and `ccinfobar usage` still work on demand, and `ccinfobar doctor` says when it is on
+- `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` (when set and non-empty) stops the automatic background checks: the update check, the usage fetch and `service-status`. `http` items and the `pr` CI part, which you turn on yourself, still run. `ccinfobar update` and `ccinfobar usage` still work on demand, and `ccinfobar doctor` says when it is on
 - `-y` as a short form of `--yes`, and `--` to end option parsing (for example `-- -1`)
 - `ccinfobar explain [widget-id]` lists every widget with its current value, where it came from (payload field, cache and its age, git, GSD or another data source) and why it is empty, including which payload field Claude Code did not send and which Claude Code version adds it (`prompt_cache` 2.1.251+, `last_miss_cause` 2.1.260+); a widget id prints details for one widget
 - `ccinfobar explain --json` prints one sanitized JSON object for bug reports, with `env`, `command` and `tool-activity` widget values replaced by `<redacted N chars>`; `--scenario <name>` or `--payload <file>` picks the input (not both), and a broken config, a bare `--payload` or a `--width` that is not a positive number makes it exit 1
 - `ccinfobar doctor` also shows `env`, `command` and `tool-activity` widget values as `<redacted N chars>` in its widget list
 - `explain` also redacts `env`, `command` and `tool-activity` values in its text output, and `explain <widget-id>` prints text options (such as a `command` string or a `link` URL) as `<N chars>`; `--show-values` shows them, only in a terminal and never in `--json`
-- `ccinfobar preview --scenario <name>` renders eleven named situations (fresh session, context nearly full, near 5h limit, near weekly limit, many subagents, GSD project, no git repo, API key user, over budget, workspace folder, waiting for permission); a bare `--scenario` lists them, and `explain`, `bench` and the editor use the same list
+- `ccinfobar preview --scenario <name>` renders fifteen named situations (fresh session, context nearly full, near 5h limit, near weekly limit, many subagents, GSD project, no git repo, API key user, Bedrock user (`bedrock-user`), GLM gateway (`gateway-glm`), over budget, workspace folder, waiting for permission, service incident (`service-incident`), PR with failing CI (`pr-ci-failing`)); a bare `--scenario` lists them, and `explain`, `bench` and the editor use the same list
 - The web editor's preview has a Scenario picker next to Sample data / Last session
 - `ccinfobar bench` measures cold and warm render time (median, p95) against a `node -e 0` control (`--runs <n>`, where a missing or non-numeric value is an error, `--scenario <name>` for a scenario's payload and env, `--json`); the method and a baseline are in docs/DEVELOPMENT.md
 - CI installs the packed package into an empty profile on Linux, macOS and Windows, renders through the exact settings command in every shell, and checks that uninstall restores the settings file byte for byte and leaves no process behind
@@ -55,8 +55,20 @@ All notable changes to this project are documented here. The format follows [Kee
 - `workspace-repos` widget: the git repos inside a folder that is not a repo, with their branches (`repos: api (main) · web (dev)`), from `.git/HEAD` files without running git (opt-in); it hides itself inside a repo or when no child folder is a repo, and `hideEmpty: false` shows `repos: —` instead
 - In a workspace folder, `workspace-repos` hides the empty git widgets instead of showing `—` (option `hideGitPlaceholders`); `explain` and `doctor` say why
 - `workspace-repos` option `dirty` marks repos with uncommitted changes (`api (main*)`), checked by a background job with hardened git about once a minute, never in the render path
-- `install` and `doctor` suggest `--refresh 5` when time-based widgets (`turn-timer`, `permission-wait`, `tool-activity`, `clock` and others) are on the layout and no refresh interval is set; nothing is set automatically
+- `install` and `doctor` suggest `--refresh 5` when time-based widgets (`turn-timer`, `permission-wait`, `tool-activity`, `clock`, `service-status`, `http` and others) are on the layout and no refresh interval is set; nothing is set automatically
 - The web editor's Settings warns when time-based widgets have no refresh interval and offers a 5 s refresh that installs after you confirm
+- `service-status` widget: Claude's status page indicator and the active incident (`⚠ major: Elevated errors on Opus +1`), checked in the background every 3 minutes (opt-in; `interval`, `showName`, `maxLength`); hidden when all is well (`showOk` shows `✓ Claude OK`), `components` filters by component name, and an old result gets a ` ?` for up to 30 minutes after a failed check, then hides
+- `http` widget: a value from any JSON endpoint (`url`, a JSON `path` such as `$.data.balance`, `format`, `interval`, `timeout`, `decimals`), fetched in the background (opt-in). Headers and URL query values take secrets only from env vars (`Authorization=Bearer $RELAY_TOKEN`, `?key=${API_KEY}`), headers are sent only over https or to localhost, cross-origin redirects are refused, replies are capped at 256 KB, items with the same URL share one fetch, and the last good value stays on screen when the endpoint fails
+- `pr` option `ci` adds the CI checks from `gh pr checks` (`#128 approved ✗ 2`, `● 3` while running, `✓`), refreshed in the background (every minute while checks run); skipped for GitLab merge requests and when gh is missing or not logged in; gh only runs for github.com, *.ghe.com or hosts you logged in to with gh, so `GH_ENTERPRISE_TOKEN` never reaches another host
+- `provider` widget: Bedrock, Vertex, Foundry, Mantle, AWS, API key or the gateway (`GLM via api.z.ai`), from which env vars are set, never their values (opt-in; off for Claude logins unless `showFirstParty`)
+- Model profiles: a built-in table (updated 2026-10-14) gives names, context windows, prices and currency for GLM (Z.ai, BigModel), Kimi, DeepSeek, MiniMax and Qwen models. Built-in prices apply only on the vendor's own API host; stored prices are DeepSeek's peak price, MiniMax up to 512K input and Qwen's International list price. The new `profiles` config key adds or overrides entries (`profiles.models`) or turns the built-ins off (`profiles.builtIn: false`)
+- `session-cost` option `basis` (`payload`, `profile`, `auto`) shows the cost from model profile prices in the profile's currency; `auto` is recommended for gateway users, and the default `payload` keeps today's number
+- `model` option `profileLabel` shows a model profile's name instead of a raw gateway model id
+- The web editor's Settings has a Model profiles group (the built-in list with its date, an on/off switch and your own entries); the TUI has the on/off switch
+- `ccinfobar doctor` lists background jobs (usage, update and the new sources) with their age, last error and retry time, and says when `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` or `CCINFOBAR_NO_JOBS` turns them off
+- `ccinfobar doctor` checks `http` items: literal header values (refused), plain-http URLs, bad JSON paths, and which env vars each item sends (set or unset, never the value)
+- `ccinfobar explain` names the background job behind a value (`job status, 30s old, ok`), redacts `http` values, shows `http` URLs with query values hidden and headers as `Name=$VAR (set)`, and prints a `CI:` line saying why the `pr` CI part is missing (merge request, no checks, gh missing, not logged in, host not in gh, not fetched yet)
+- `CCINFOBAR_NO_JOBS=1` turns off every background check (used by `ccinfobar bench` and tests)
 
 ### Changed
 
@@ -90,6 +102,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `install --hooks` warns when the status line command runs through `npx`, `bunx` or a `dlx` runner, because every hook event would start it
 - The web editor checks the Claude Code version in the background instead of freezing for up to 4 s on its first request, and turning Permission requests off writes settings.json once
 - `agents` and `agent-count` use the exact subagent start, stop and type from hooks when they are installed; without hooks nothing changes
+- Background checks (the update check, usage limits, the `workspace-repos` dirty marker and the new sources) run in one background process per refresh instead of one per check, and keep their results in `jobs/` in the cache dir; older cache files are still read. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` stops usage, update and `service-status`, while `http` items and the `pr` CI part (which you turned on) still run
 
 ### Fixed
 
@@ -127,6 +140,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Two Claude config dirs (`CLAUDE_CONFIG_DIR`) no longer share one usage cache, so their limits never mix
 - `cache-timer` shows `off` instead of `cold` when Claude Code saw no caching
 - The web editor's settings switches have accessible names for screen readers
+- For gateway providers, context widgets use the model profile's window when Claude Code reports the 200K default (or `CLAUDE_CODE_MAX_CONTEXT_TOKENS` when set), so GLM, Kimi and other 1M models show the right percentage; Claude logins are unchanged and `profiles.builtIn: false` turns it off
 
 ### Security
 

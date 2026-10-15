@@ -426,6 +426,16 @@ After the Phase 5 review fixes, 2026-10-15, same machine and method, `nice -n -1
 
 80 alternating single renders per layout gave the same picture: live − default went from +3.0 to +2.4 ms in this repo and from +3.8 to +2.3 ms in the workspace folder, and `env-counts` alone from about +1.9 to +0.3 ms. The default layout did not change (120 alternating runs per build, within 0.7 ms). The saving is `env-counts`' result cache (about 64 stats down to 18 for a 14-level cwd; first call in a fresh process 3.4 → 1.7 ms in-process). `workspace-repos` now also hides itself inside a repo, so the repo row renders one widget less.
 
+Phase 6 (background jobs and external sources), 2026-10-15, same machine and method, `nice -n -10` (priority 0), load average about 0.5 to 1.3, cwd this git repo, N = 20, warm medians in ms (mean of interleaved rounds). `before` is the build just before Phase 6 (5b208f3). `ext` is the default plus `service-status`, `http` (a loopback URL), `pr` with `ci`, `provider` and `session-cost` with `basis: "auto"` on line 1; `placebo` is the default plus five `text` widgets:
+
+| Layout | before | after | after p95 |
+|--------|-------:|------:|----------:|
+| default (6 rounds) | 123.3 | 125.1 | 131.9 |
+| placebo (3 rounds) | | 127.5 | 134.4 |
+| ext (6 rounds) | | 128.9 | 138.2 |
+
+Cold medians: 135.7 before, 140.9 after. The default layout is about 2 ms slower warm and 5 ms slower cold, though still at or below the Phase 5 numbers above. The render reads no more files (bench sets `CCINFOBAR_NO_JOBS`), so the cost is code: the render path now loads about 447 KB of chunks instead of 370 KB. A build without the `scheduleJobs` import ran at 123.9 against 124.8 for this build and 123.4 for the one before, so about 1 ms comes from loading the job modules and the rest from the larger widget and config chunks. The new widgets cost about 1 ms over the placebo, and with no cached data yet `http` and `provider` show nothing. Moving each job's `run()` behind an `import()` (as `jobs/update.ts` does already) would take most of the job modules out of the render.
+
 ## Releasing
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` under a new version heading.
