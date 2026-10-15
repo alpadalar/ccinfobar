@@ -10,11 +10,16 @@ import {
   scheduleRequests,
   type spawnSelf,
 } from './runner.js';
+import { statusJob } from './status.js';
 import { updateJob } from './update.js';
 import { usageJob } from './usage.js';
 
-// later plans register status, http, gh and repos here
-export const JOBS: Job<unknown>[] = [updateJob as Job<unknown>, usageJob as Job<unknown>];
+// later plans register http, gh and repos here
+export const JOBS: Job<unknown>[] = [
+  updateJob as Job<unknown>,
+  usageJob as Job<unknown>,
+  statusJob as Job<unknown>,
+];
 
 export function jobFor(key: string, jobs: Job<unknown>[] = JOBS): Job<unknown> | undefined {
   return jobs.find((j) => j.keyRe.test(key));
