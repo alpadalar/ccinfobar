@@ -4,7 +4,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import { help } from '../../src/cli/help.js';
 import type { PromptIo } from '../../src/commands/io.js';
-import { type ImportFlags, runImport, runImportCommand } from '../../src/commands/manage.js';
+import {
+  type ImportFlags,
+  rerunCommand,
+  runImport,
+  runImportCommand,
+  shellArg,
+} from '../../src/commands/manage.js';
 import { t } from '../../src/core/i18n/index.js';
 import { tildify } from '../../src/core/paths.js';
 import type { Config } from '../../src/core/types.js';
@@ -108,6 +114,79 @@ describe('importTargets, dropTargets, sanitizeImport', () => {
   });
 });
 
+const quoted = (p: string) => (process.platform === 'win32' ? `"${p}"` : `'${p}'`);
+
+describe('rerun hint quoting', () => {
+  const posix = (s: string) => shellArg(s, 'linux');
+  const win = (s: string) => shellArg(s, 'win32');
+
+  it('leaves plain paths alone', () => {
+    expect(posix('/home/a/.config/ccstatusline/settings.json')).toBe(
+      '/home/a/.config/ccstatusline/settings.json',
+    );
+    expect(win('C:\\Users\\RUNNER~1\\cc.json')).toBe('C:\\Users\\RUNNER~1\\cc.json');
+  });
+
+  it('single-quotes anything else on POSIX so nothing expands', () => {
+    expect(posix('/tmp/$(touch x)/cc.json')).toBe("'/tmp/$(touch x)/cc.json'");
+    expect(posix('/tmp/a`id`b.json')).toBe("'/tmp/a`id`b.json'");
+    expect(posix('/tmp/$HOME/a\\b.json')).toBe("'/tmp/$HOME/a\\b.json'");
+    expect(posix("/tmp/it's here.json")).toBe("'/tmp/it'\\''s here.json'");
+    expect(posix('/tmp/with space.json')).toBe("'/tmp/with space.json'");
+    expect(posix('~/cc.json')).toBe("'~/cc.json'");
+    expect(posix('-rf')).toBe("'-rf'");
+  });
+
+  it('double-quotes on Windows and refuses what cmd or PowerShell would expand', () => {
+    expect(win('C:\\a b\\cc.json')).toBe('"C:\\a b\\cc.json"');
+    expect(win("C:\\it's\\cc.json")).toBe('"C:\\it\'s\\cc.json"');
+    for (const bad of [
+      'C:\\$(touch x)\\cc.json',
+      'C:\\a`b.json',
+      'C:\\%PATH%.json',
+      'C:\\a!b.json',
+      'C:\\a"b.json',
+    ])
+      expect(win(bad), bad).toBeNull();
+  });
+
+  it('refuses paths that sanitizing would change', () => {
+    expect(posix('/tmp/a\u001b[2Jb.json')).toBeNull();
+    expect(win('C:\\a\u202eb.json')).toBeNull();
+  });
+
+  it('asks to add --file when the path is refused', () => {
+    expect(rerunCommand('ccstatusline', 'C:\\$(x).json', false, 'win32')).toEqual({
+      command: 'ccinfobar import ccstatusline --allow-commands --force',
+      addFile: true,
+    });
+    expect(rerunCommand('ccstatusline', '/tmp/$(touch x).json', true, 'linux')).toEqual({
+      command:
+        "ccinfobar import ccstatusline --allow-commands --force --file '/tmp/$(touch x).json' --dry-run",
+      addFile: false,
+    });
+    expect(rerunCommand('claude-powerline', null, false, 'linux')).toEqual({
+      command: 'ccinfobar import claude-powerline --allow-commands --force',
+      addFile: false,
+    });
+  });
+
+  it('prints the add --file hint for a refused path', async () => {
+    const dir = process.platform === 'win32' ? 'a%b' : 'a\u001bb';
+    const f = fake(false);
+    const ok = await runImport(
+      'ccstatusline',
+      { file: source(dir), command: '', flags: flags() },
+      path.join(root, 'cfg.json'),
+      f.io,
+    );
+    expect(ok).toBe(true);
+    expect(f.lines).toContain(
+      t('import.rerunAddFile', { command: 'ccinfobar import ccstatusline --allow-commands --force' }),
+    );
+  });
+});
+
 interface Fake {
   io: PromptIo;
   lines: string[];
@@ -204,7 +283,7 @@ describe('runImport confirmation', () => {
       const src = path.join(root, ' with space', 'cc.json');
       expect(f.lines).toContain(
         t('import.rerun', {
-          command: `ccinfobar import ccstatusline --allow-commands --force --file "${src}"`,
+          command: `ccinfobar import ccstatusline --allow-commands --force --file ${quoted(src)}`,
         }),
       );
       expect(items(cfg)).toEqual(['text']);

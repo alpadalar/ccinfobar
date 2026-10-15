@@ -22,6 +22,8 @@ export const importMessages = {
     other: '{count} komut/URL öğesi çıkarıldı.',
   },
   'import.rerun': 'Korumak için şunu çalıştırın: {command}',
+  'import.rerunAddFile':
+    'Korumak için şunu çalıştırın: {command} (kaynak dosyanın yolunu --file ile ekleyin)',
   'import.approxHeader': 'Yaklaşık eşlenenler:',
   'import.dropHeader': 'Atlananlar:',
   'import.infoHeader': 'Notlar:',

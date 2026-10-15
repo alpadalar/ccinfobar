@@ -19,6 +19,7 @@ export const importMessages = {
     other: 'Dropped {count} command/URL items.',
   },
   'import.rerun': 'To keep them, run: {command}',
+  'import.rerunAddFile': 'To keep them, run: {command} (add --file with the path of the source file)',
   'import.approxHeader': 'Approximated:',
   'import.dropHeader': 'Dropped:',
   'import.infoHeader': 'Notes:',

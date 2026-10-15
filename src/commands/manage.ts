@@ -79,13 +79,34 @@ export interface ImportFlags {
 
 const NO_FLAGS: ImportFlags = { allowCommands: false, yes: false, dryRun: false };
 
-const shellArg = (s: string) => (/^[\w@%+=:,./\\~-]+$/.test(s) ? s : `"${s.replace(/"/g, '\\"')}"`);
+const POSIX_SAFE = /^[\w@%+=:,./][\w@%+=:,./~-]*$/;
+const WIN_SAFE = /^[\w@+=:,./\\~-]+$/;
+// cmd and PowerShell expand these inside double quotes
+const WIN_BAD = /["%!`$]/;
 
-function rerunCommand(source: ImportSource, file: string | null | undefined, dryRun: boolean): string {
+// null when the path cannot be pasted safely
+export function shellArg(s: string, platform: NodeJS.Platform = process.platform): string | null {
+  if (!s || sanitizeText(s) !== s) return null;
+  if (platform === 'win32') return WIN_SAFE.test(s) ? s : WIN_BAD.test(s) ? null : `"${s}"`;
+  return POSIX_SAFE.test(s) ? s : `'${s.replace(/'/g, "'\\''")}'`;
+}
+
+export interface Rerun {
+  command: string;
+  addFile: boolean;
+}
+
+export function rerunCommand(
+  source: ImportSource,
+  file: string | null | undefined,
+  dryRun: boolean,
+  platform: NodeJS.Platform = process.platform,
+): Rerun {
   const parts = ['ccinfobar', 'import', source, '--allow-commands', '--force'];
-  if (file) parts.push('--file', shellArg(file));
+  const arg = file ? shellArg(file, platform) : null;
+  if (arg) parts.push('--file', arg);
   if (dryRun) parts.push('--dry-run');
-  return sanitizeText(parts.join(' '));
+  return { command: sanitizeText(parts.join(' ')), addFile: !!file && !arg };
 }
 
 // D-29: commands and URLs stay only with consent
@@ -93,7 +114,7 @@ async function confirmTargets(
   result: ImportResult,
   flags: ImportFlags,
   io: PromptIo,
-  rerun: string,
+  rerun: Rerun,
 ): Promise<ImportResult> {
   const targets = importTargets(result.config);
   if (!targets.length) return result;
@@ -106,7 +127,7 @@ async function confirmTargets(
     !flags.yes && io.tty && (await io.ask(t('import.keepPrompt', { count: targets.length }), false));
   if (keep) return result;
   io.log(t('import.targetsDropped', { count: targets.length }));
-  io.log(t('import.rerun', { command: rerun }));
+  io.log(t(rerun.addFile ? 'import.rerunAddFile' : 'import.rerun', { command: rerun.command }));
   const dropped: ImportNote[] = targets.map((x) => ({
     kind: 'drop',
     text: t('import.note.targetDropped', { kind: x.kind, target: shortTarget(x.target) }),
