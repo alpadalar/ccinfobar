@@ -119,7 +119,7 @@ Rendering flow:
 2. `cli/render.ts` sanitizes the payload with `ingestPayload`, loads the config and builds a `RenderContext`. Git, transcript and GSD data are read lazily, only if a widget asks for them.
 3. Each widget's `render(ctx, item)` returns a string, `{ text, color }` or `null` to hide itself.
 4. `renderer.ts` checks each widget's visibility rules before rendering it, adds labels, colors and separators, fills `flex` space and then wraps, truncates or drops widgets by priority to fit the terminal width.
-5. Spaces become non-breaking spaces and every line starts with a reset code, so Claude Code's dim style and whitespace trimming don't alter the output.
+5. Spaces become non-breaking spaces and every line starts with a reset code, so Claude Code's dim style and whitespace trimming don't alter the output. This holds in every glyph mode; `paste-safe` gets plain spaces and stripped links only in `ccinfobar preview` (`finalizeLine(line, { pasteSafe: true })`).
 
 The transcript reader keeps an incremental cache in the cache directory, so only newly appended bytes are parsed on each refresh. After stdout, `syncProgress` records the terminal progress value when `progress` is configured (see [Terminal progress](#terminal-progress)), and `scheduleJobs` starts at most one detached worker for the background jobs that are due (see [Background jobs](#background-jobs)).
 

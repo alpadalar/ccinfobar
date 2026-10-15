@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { detectLevel, style } from '../core/ansi.js';
 import { createContext, lazy, resolveCwd } from '../core/context.js';
-import { resolveGlyphMode } from '../core/glyphs.js';
 import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { lastPayloadPath } from '../core/paths.js';
@@ -137,10 +136,8 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
     const level = detectLevel(config.colorLevel);
     lines[lines.length - 1] += ` ${style(notice, { fg: 'yellow' }, level)}`;
   }
-  const pasteSafe = resolveGlyphMode(config, process.env) === 'paste-safe';
-  process.stdout.write(
-    lines.map((l) => finalizeLine(l, { pasteSafe })).join('\n') + (lines.length ? '\n' : ''),
-  );
+  // NBSP in every mode: Claude Code trims and collapses plain spaces (WR-05)
+  process.stdout.write(lines.map((l) => finalizeLine(l)).join('\n') + (lines.length ? '\n' : ''));
   try {
     if (eff.limitsOn) recordLimits(process.env, payload, eff.captureAt, Date.now());
     if (ledgerUsed) {

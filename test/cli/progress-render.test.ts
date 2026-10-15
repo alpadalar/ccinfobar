@@ -142,7 +142,7 @@ describe('syncProgress', () => {
 describe('render wiring', () => {
   it('syncs after the stdout write, inside the post-stdout try', () => {
     const text = fs.readFileSync(path.resolve(__dirname, '../../src/cli/render.ts'), 'utf8');
-    const out = text.indexOf('process.stdout.write(\n    lines');
+    const out = text.indexOf('process.stdout.write(lines');
     const sync = text.indexOf('syncProgress(');
     expect(out).toBeGreaterThan(0);
     expect(sync).toBeGreaterThan(out);

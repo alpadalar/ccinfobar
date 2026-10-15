@@ -3,11 +3,13 @@ import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import { stripAnsi, visibleWidth } from '../core/ansi.js';
 import { GLYPH_MODES, type LoadResult, saveConfig } from '../core/config.js';
+import { resolveGlyphMode } from '../core/glyphs.js';
 import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { tildify } from '../core/paths.js';
 import { forGsd, listPresets } from '../core/presets.js';
 import { type PreviewSource, renderPreview, scenarioFlag, scenarioListLines } from '../core/preview.js';
+import { finalizeLine } from '../core/renderer.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from '../core/themes.js';
 import { gsdInstalled } from '../data/gsd.js';
@@ -142,8 +144,11 @@ export function runPreview(args: Args, cfgFile: string, io: CliIo = cliIo()): vo
   const env = process.env;
   const forced = env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '0';
   const plain = (!io.tty && !forced) || !!env.NO_COLOR || env.FORCE_COLOR === '0';
-  const config = loadForUse(cfgFile).config;
-  for (const line of renderPreview(glyphMode ? { ...config, glyphMode } : config, source, width)) {
+  const loaded = loadForUse(cfgFile).config;
+  const config = glyphMode ? { ...loaded, glyphMode } : loaded;
+  const pasteSafe = resolveGlyphMode(config, env) === 'paste-safe';
+  for (const raw of renderPreview(config, source, width)) {
+    const line = pasteSafe ? finalizeLine(raw, { pasteSafe }) : raw;
     io.log(plain ? stripAnsi(line) : line);
   }
 }

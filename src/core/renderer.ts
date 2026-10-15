@@ -654,6 +654,7 @@ export function alignLine(line: string, width: number | null, align: Align): str
   return ' '.repeat(align === 'center' ? Math.floor(free / 2) : free) + line;
 }
 
+// live line: NBSP so Claude Code keeps the spacing; pasteSafe is for preview and copy output
 export function finalizeLine(line: string, opts: { pasteSafe?: boolean } = {}): string {
   if (opts.pasteSafe) return `${RESET}${stripLinks(line)}`;
   return `${RESET}${line.replace(/ /g, '\u00a0')}`;

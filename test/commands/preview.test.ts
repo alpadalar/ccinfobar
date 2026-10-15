@@ -227,6 +227,7 @@ describe('runPreview --glyph-mode', () => {
     expect(text).not.toMatch(PUA);
     expect(text).not.toContain(`${ESC}]8;`);
     expect(text).not.toContain('\u00A0');
+    expect(out.every((l) => l.startsWith(`${ESC}[0m`))).toBe(true);
     expect(fs.readFileSync(path.join(configDir(), 'preview-test.json'), 'utf8')).toBe(JSON.stringify(NERD));
     expect(process.exitCode).toBeUndefined();
   });
