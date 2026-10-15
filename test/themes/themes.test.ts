@@ -12,6 +12,7 @@ import {
   resolveTheme,
   STYLES,
   saveUserTheme,
+  type Theme,
   themeToInput,
 } from '../../src/core/themes.js';
 import type { WidgetItem } from '../../src/core/types.js';
@@ -46,6 +47,17 @@ describe('built-in themes', () => {
 
   it('falls back to classic for unknown ids', () => {
     expect(resolveTheme('nope', tmp()).id).toBe('classic');
+  });
+
+  it('keeps the pinned built-in themes unchanged', () => {
+    const pinned = JSON.parse(
+      fs.readFileSync(new URL('../fixtures/themes-builtin.json', import.meta.url), 'utf8'),
+    ) as Theme[];
+    expect(pinned.length).toBeGreaterThanOrEqual(23);
+    for (const t of pinned) expect(BUILTIN_THEMES.find((b) => b.id === t.id)).toEqual(t);
+    const ids = listThemes(tmp()).map((t) => t.id);
+    const order = pinned.map((t) => ids.indexOf(t.id));
+    expect(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1]!))).toBe(true);
   });
 });
 

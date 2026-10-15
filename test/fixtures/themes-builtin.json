@@ -1,0 +1,1075 @@
+[
+  {
+    "id": "classic",
+    "name": "Classic",
+    "description": "Each widget in its own color, thin bar separators",
+    "author": "ccinfobar",
+    "style": "text",
+    "separator": " \u2502 ",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "",
+      "endCap": ""
+    },
+    "colors": {
+      "mode": "widget",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {},
+      "cycle": []
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "minimal",
+    "name": "Minimal",
+    "description": "Quiet gray text, values in white, wide spacing",
+    "author": "ccinfobar",
+    "style": "text",
+    "separator": "   ",
+    "padding": 1,
+    "bold": false,
+    "statusColors": false,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "",
+      "endCap": ""
+    },
+    "colors": {
+      "mode": "cycle",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {},
+      "cycle": ["white", "brightBlack"]
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "mono",
+    "name": "Mono",
+    "description": "No colors at all, dot separators",
+    "author": "ccinfobar",
+    "style": "text",
+    "separator": " \u00b7 ",
+    "padding": 1,
+    "bold": false,
+    "statusColors": false,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "",
+      "endCap": ""
+    },
+    "colors": {
+      "mode": "cycle",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "default",
+      "categories": {},
+      "cycle": ["default"]
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "neon",
+    "name": "Neon",
+    "description": "Vivid truecolor text per category, bold",
+    "author": "ccinfobar",
+    "style": "text",
+    "separator": " \u276f ",
+    "padding": 1,
+    "bold": true,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "",
+      "endCap": ""
+    },
+    "colors": {
+      "mode": "category",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "#5c5f77",
+      "categories": {
+        "session": "#00e5ff",
+        "context": "#39ff14",
+        "tokens": "#b388ff",
+        "cost": "#ffd600",
+        "limits": "#ff9100",
+        "gsd": "#ff2bd6",
+        "git": "#ff4081",
+        "workspace": "#40c4ff",
+        "system": "#9e9e9e",
+        "custom": "#00e5ff",
+        "layout": "#9e9e9e",
+        "charts": "#b388ff",
+        "agents": "#00e5ff"
+      },
+      "cycle": []
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "pastel",
+    "name": "Pastel",
+    "description": "Soft pastel text per category",
+    "author": "ccinfobar",
+    "style": "text",
+    "separator": " \u2022 ",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "",
+      "endCap": ""
+    },
+    "colors": {
+      "mode": "category",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "#6c7086",
+      "categories": {
+        "session": "#89dceb",
+        "context": "#a6e3a1",
+        "tokens": "#cba6f7",
+        "cost": "#f9e2af",
+        "limits": "#fab387",
+        "gsd": "#f5c2e7",
+        "git": "#f38ba8",
+        "workspace": "#89b4fa",
+        "system": "#9399b2",
+        "custom": "#89dceb",
+        "layout": "#9399b2",
+        "charts": "#cba6f7",
+        "agents": "#89dceb"
+      },
+      "cycle": []
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "amber",
+    "name": "Amber",
+    "description": "Retro amber terminal",
+    "author": "ccinfobar",
+    "style": "text",
+    "separator": " : ",
+    "padding": 1,
+    "bold": false,
+    "statusColors": false,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "",
+      "endCap": ""
+    },
+    "colors": {
+      "mode": "cycle",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "#7a5500",
+      "categories": {},
+      "cycle": ["#ffb000", "#ffcc66"]
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "matrix",
+    "name": "Matrix",
+    "description": "Green phosphor shades",
+    "author": "ccinfobar",
+    "style": "text",
+    "separator": " \u258f",
+    "padding": 1,
+    "bold": false,
+    "statusColors": false,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "",
+      "endCap": ""
+    },
+    "colors": {
+      "mode": "cycle",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "#005f0b",
+      "categories": {},
+      "cycle": ["#00ff41", "#00c832", "#008f11"]
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "blocks",
+    "name": "Blocks",
+    "description": "Solid colored blocks per category",
+    "author": "ccinfobar",
+    "style": "blocks",
+    "separator": " ",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "",
+      "endCap": ""
+    },
+    "colors": {
+      "mode": "category",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {
+        "session": "cyan",
+        "context": "green",
+        "tokens": "magenta",
+        "cost": "yellow",
+        "limits": "brightYellow",
+        "gsd": "brightMagenta",
+        "git": "blue",
+        "workspace": "brightCyan",
+        "system": "brightBlack",
+        "custom": "white",
+        "layout": "brightBlack",
+        "charts": "magenta",
+        "agents": "cyan"
+      },
+      "cycle": []
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "slate",
+    "name": "Slate",
+    "description": "Colored text on one dark slate background",
+    "author": "ccinfobar",
+    "style": "blocks",
+    "separator": "",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "",
+      "endCap": ""
+    },
+    "colors": {
+      "mode": "category",
+      "fg": "white",
+      "bg": "#303446",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {
+        "session": {
+          "fg": "#99d1db"
+        },
+        "context": {
+          "fg": "#a6d189"
+        },
+        "tokens": {
+          "fg": "#ca9ee6"
+        },
+        "cost": {
+          "fg": "#e5c890"
+        },
+        "limits": {
+          "fg": "#ef9f76"
+        },
+        "gsd": {
+          "fg": "#f4b8e4"
+        },
+        "git": {
+          "fg": "#e78284"
+        },
+        "workspace": {
+          "fg": "#8caaee"
+        },
+        "system": {
+          "fg": "#a5adce"
+        },
+        "custom": {
+          "fg": "#99d1db"
+        },
+        "layout": {
+          "fg": "#a5adce"
+        },
+        "charts": {
+          "fg": "#ca9ee6"
+        },
+        "agents": {
+          "fg": "#99d1db"
+        }
+      },
+      "cycle": []
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "paper",
+    "name": "Paper",
+    "description": "Dark text on light blocks, for light terminals",
+    "author": "ccinfobar",
+    "style": "blocks",
+    "separator": " ",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "",
+      "endCap": ""
+    },
+    "colors": {
+      "mode": "cycle",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "#2e3440",
+      "muted": "brightBlack",
+      "categories": {},
+      "cycle": ["#e5e9f0", "#d8dee9"]
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "powerline",
+    "name": "Powerline",
+    "description": "Classic powerline arrows in the 16 terminal colors",
+    "author": "ccinfobar",
+    "style": "powerline",
+    "separator": "",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "\ue0b0",
+      "thin": "\ue0b1",
+      "startCap": "",
+      "endCap": "\ue0b0"
+    },
+    "colors": {
+      "mode": "cycle",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {},
+      "cycle": [
+        {
+          "fg": "brightWhite",
+          "bg": "blue"
+        },
+        {
+          "fg": "black",
+          "bg": "cyan"
+        },
+        {
+          "fg": "black",
+          "bg": "green"
+        },
+        {
+          "fg": "black",
+          "bg": "yellow"
+        },
+        {
+          "fg": "brightWhite",
+          "bg": "magenta"
+        },
+        {
+          "fg": "brightWhite",
+          "bg": "brightBlack"
+        }
+      ]
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "nord",
+    "name": "Nord",
+    "description": "Arctic blues, powerline",
+    "author": "ccinfobar",
+    "style": "powerline",
+    "separator": "",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "\ue0b0",
+      "thin": "\ue0b1",
+      "startCap": "",
+      "endCap": "\ue0b0"
+    },
+    "colors": {
+      "mode": "cycle",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {},
+      "cycle": [
+        {
+          "fg": "#eceff4",
+          "bg": "#5e81ac"
+        },
+        {
+          "fg": "#2e3440",
+          "bg": "#88c0d0"
+        },
+        {
+          "fg": "#2e3440",
+          "bg": "#a3be8c"
+        },
+        {
+          "fg": "#2e3440",
+          "bg": "#ebcb8b"
+        },
+        {
+          "fg": "#eceff4",
+          "bg": "#b48ead"
+        },
+        {
+          "fg": "#eceff4",
+          "bg": "#4c566a"
+        }
+      ]
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "dracula",
+    "name": "Dracula",
+    "description": "Dracula palette, powerline",
+    "author": "ccinfobar",
+    "style": "powerline",
+    "separator": "",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "\ue0b0",
+      "thin": "\ue0b1",
+      "startCap": "",
+      "endCap": "\ue0b0"
+    },
+    "colors": {
+      "mode": "cycle",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {},
+      "cycle": [
+        {
+          "fg": "#f8f8f2",
+          "bg": "#6272a4"
+        },
+        {
+          "fg": "#282a36",
+          "bg": "#8be9fd"
+        },
+        {
+          "fg": "#282a36",
+          "bg": "#50fa7b"
+        },
+        {
+          "fg": "#282a36",
+          "bg": "#f1fa8c"
+        },
+        {
+          "fg": "#282a36",
+          "bg": "#ff79c6"
+        },
+        {
+          "fg": "#282a36",
+          "bg": "#bd93f9"
+        }
+      ]
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "gruvbox",
+    "name": "Gruvbox",
+    "description": "Warm retro groove, powerline",
+    "author": "ccinfobar",
+    "style": "powerline",
+    "separator": "",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "\ue0b0",
+      "thin": "\ue0b1",
+      "startCap": "",
+      "endCap": "\ue0b0"
+    },
+    "colors": {
+      "mode": "cycle",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {},
+      "cycle": [
+        {
+          "fg": "#fbf1c7",
+          "bg": "#458588"
+        },
+        {
+          "fg": "#282828",
+          "bg": "#83a598"
+        },
+        {
+          "fg": "#282828",
+          "bg": "#b8bb26"
+        },
+        {
+          "fg": "#282828",
+          "bg": "#fabd2f"
+        },
+        {
+          "fg": "#fbf1c7",
+          "bg": "#b16286"
+        },
+        {
+          "fg": "#fbf1c7",
+          "bg": "#504945"
+        }
+      ]
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "tokyo-night",
+    "name": "Tokyo Night",
+    "description": "Neon city night, powerline",
+    "author": "ccinfobar",
+    "style": "powerline",
+    "separator": "",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "\ue0b0",
+      "thin": "\ue0b1",
+      "startCap": "",
+      "endCap": "\ue0b0"
+    },
+    "colors": {
+      "mode": "cycle",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {},
+      "cycle": [
+        {
+          "fg": "#1a1b26",
+          "bg": "#7aa2f7"
+        },
+        {
+          "fg": "#1a1b26",
+          "bg": "#7dcfff"
+        },
+        {
+          "fg": "#1a1b26",
+          "bg": "#9ece6a"
+        },
+        {
+          "fg": "#1a1b26",
+          "bg": "#e0af68"
+        },
+        {
+          "fg": "#1a1b26",
+          "bg": "#bb9af7"
+        },
+        {
+          "fg": "#c0caf5",
+          "bg": "#414868"
+        }
+      ]
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "solarized",
+    "name": "Solarized",
+    "description": "Solarized accents, powerline",
+    "author": "ccinfobar",
+    "style": "powerline",
+    "separator": "",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "\ue0b0",
+      "thin": "\ue0b1",
+      "startCap": "",
+      "endCap": "\ue0b0"
+    },
+    "colors": {
+      "mode": "cycle",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {},
+      "cycle": [
+        {
+          "fg": "#fdf6e3",
+          "bg": "#268bd2"
+        },
+        {
+          "fg": "#fdf6e3",
+          "bg": "#2aa198"
+        },
+        {
+          "fg": "#fdf6e3",
+          "bg": "#859900"
+        },
+        {
+          "fg": "#002b36",
+          "bg": "#b58900"
+        },
+        {
+          "fg": "#fdf6e3",
+          "bg": "#6c71c4"
+        },
+        {
+          "fg": "#93a1a1",
+          "bg": "#073642"
+        }
+      ]
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "monochrome",
+    "name": "Monochrome",
+    "description": "Shades of gray, powerline",
+    "author": "ccinfobar",
+    "style": "powerline",
+    "separator": "",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "\ue0b0",
+      "thin": "\ue0b1",
+      "startCap": "",
+      "endCap": "\ue0b0"
+    },
+    "colors": {
+      "mode": "cycle",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {},
+      "cycle": [
+        {
+          "fg": "#ffffff",
+          "bg": "#3a3a3a"
+        },
+        {
+          "fg": "#ffffff",
+          "bg": "#4e4e4e"
+        },
+        {
+          "fg": "#ffffff",
+          "bg": "#626262"
+        }
+      ]
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "dark",
+    "name": "Dark",
+    "description": "Dark grays with a rust directory, from claude-powerline",
+    "author": "ccinfobar",
+    "style": "powerline",
+    "separator": "",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "\ue0b0",
+      "thin": "\ue0b1",
+      "startCap": "",
+      "endCap": "\ue0b0"
+    },
+    "colors": {
+      "mode": "category",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {
+        "session": {
+          "fg": "#ffffff",
+          "bg": "#2d2d2d"
+        },
+        "context": {
+          "fg": "#cbd5e0",
+          "bg": "#4a5568"
+        },
+        "tokens": {
+          "fg": "#d1d5db",
+          "bg": "#374151"
+        },
+        "cost": {
+          "fg": "#00ffff",
+          "bg": "#202020"
+        },
+        "limits": {
+          "fg": "#87ceeb",
+          "bg": "#2a2a2a"
+        },
+        "gsd": {
+          "fg": "#b0a8e0",
+          "bg": "#2a2a4a"
+        },
+        "git": {
+          "fg": "#ffffff",
+          "bg": "#404040"
+        },
+        "workspace": {
+          "fg": "#ffffff",
+          "bg": "#8b4513"
+        },
+        "system": {
+          "fg": "#90ee90",
+          "bg": "#2f4f2f"
+        },
+        "custom": {
+          "fg": "#d0a0d0",
+          "bg": "#2d2d3d"
+        },
+        "layout": {
+          "fg": "#90ee90",
+          "bg": "#2f4f2f"
+        },
+        "charts": {
+          "fg": "#d1d5db",
+          "bg": "#374151"
+        },
+        "agents": {
+          "fg": "#ffffff",
+          "bg": "#2d2d2d"
+        }
+      },
+      "cycle": []
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "light",
+    "name": "Light",
+    "description": "Bright segments for light terminals, from claude-powerline",
+    "author": "ccinfobar",
+    "style": "powerline",
+    "separator": "",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "\ue0b0",
+      "thin": "\ue0b1",
+      "startCap": "",
+      "endCap": "\ue0b0"
+    },
+    "colors": {
+      "mode": "category",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {
+        "session": {
+          "fg": "#000000",
+          "bg": "#87ceeb"
+        },
+        "context": {
+          "fg": "#ffffff",
+          "bg": "#718096"
+        },
+        "tokens": {
+          "fg": "#ffffff",
+          "bg": "#6b7280"
+        },
+        "cost": {
+          "fg": "#ffffff",
+          "bg": "#da70d6"
+        },
+        "limits": {
+          "fg": "#ffffff",
+          "bg": "#6366f1"
+        },
+        "gsd": {
+          "fg": "#ffffff",
+          "bg": "#7c3aed"
+        },
+        "git": {
+          "fg": "#ffffff",
+          "bg": "#4fb3d9"
+        },
+        "workspace": {
+          "fg": "#ffffff",
+          "bg": "#ff6b47"
+        },
+        "system": {
+          "fg": "#ffffff",
+          "bg": "#32cd32"
+        },
+        "custom": {
+          "fg": "#ffffff",
+          "bg": "#d45dbf"
+        },
+        "layout": {
+          "fg": "#ffffff",
+          "bg": "#32cd32"
+        },
+        "charts": {
+          "fg": "#ffffff",
+          "bg": "#6b7280"
+        },
+        "agents": {
+          "fg": "#000000",
+          "bg": "#87ceeb"
+        }
+      },
+      "cycle": []
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "rose-pine",
+    "name": "Ros\u00e9 Pine",
+    "description": "Muted pine and rose tones, from claude-powerline",
+    "author": "ccinfobar",
+    "style": "powerline",
+    "separator": "",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "\ue0b0",
+      "thin": "\ue0b1",
+      "startCap": "",
+      "endCap": "\ue0b0"
+    },
+    "colors": {
+      "mode": "category",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {
+        "session": {
+          "fg": "#ebbcba",
+          "bg": "#191724"
+        },
+        "context": {
+          "fg": "#e0def4",
+          "bg": "#393552"
+        },
+        "tokens": {
+          "fg": "#e0def4",
+          "bg": "#524f67"
+        },
+        "cost": {
+          "fg": "#f6c177",
+          "bg": "#26233a"
+        },
+        "limits": {
+          "fg": "#eb6f92",
+          "bg": "#2a273f"
+        },
+        "gsd": {
+          "fg": "#c4a7e7",
+          "bg": "#2a273f"
+        },
+        "git": {
+          "fg": "#9ccfd8",
+          "bg": "#1f1d2e"
+        },
+        "workspace": {
+          "fg": "#c4a7e7",
+          "bg": "#26233a"
+        },
+        "system": {
+          "fg": "#908caa",
+          "bg": "#26233a"
+        },
+        "custom": {
+          "fg": "#eb6f92",
+          "bg": "#21202e"
+        },
+        "layout": {
+          "fg": "#908caa",
+          "bg": "#26233a"
+        },
+        "charts": {
+          "fg": "#e0def4",
+          "bg": "#524f67"
+        },
+        "agents": {
+          "fg": "#ebbcba",
+          "bg": "#191724"
+        }
+      },
+      "cycle": []
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "panel",
+    "name": "Panel",
+    "description": "Rounded box panel with category colors",
+    "author": "ccinfobar",
+    "style": "tui",
+    "separator": "  ",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "",
+      "endCap": ""
+    },
+    "colors": {
+      "mode": "category",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "#5c6370",
+      "categories": {
+        "session": "#61afef",
+        "context": "#98c379",
+        "tokens": "#c678dd",
+        "cost": "#e5c07b",
+        "limits": "#d19a66",
+        "gsd": "#f2b36b",
+        "git": "#e06c75",
+        "workspace": "#56b6c2",
+        "system": "#abb2bf",
+        "custom": "#61afef",
+        "layout": "#abb2bf",
+        "charts": "#c678dd",
+        "agents": "#61afef"
+      },
+      "cycle": []
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "catppuccin",
+    "name": "Catppuccin",
+    "description": "Mocha pastels in rounded capsules",
+    "author": "ccinfobar",
+    "style": "capsule",
+    "separator": " ",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "\ue0b6",
+      "endCap": "\ue0b4"
+    },
+    "colors": {
+      "mode": "category",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "#1e1e2e",
+      "muted": "brightBlack",
+      "categories": {
+        "session": "#89dceb",
+        "context": "#a6e3a1",
+        "tokens": "#cba6f7",
+        "cost": "#f9e2af",
+        "limits": "#fab387",
+        "gsd": "#f5c2e7",
+        "git": "#f38ba8",
+        "workspace": "#89b4fa",
+        "system": {
+          "fg": "#cdd6f4",
+          "bg": "#45475a"
+        },
+        "custom": "#89dceb",
+        "layout": {
+          "fg": "#cdd6f4",
+          "bg": "#45475a"
+        },
+        "charts": "#cba6f7",
+        "agents": "#89dceb"
+      },
+      "cycle": []
+    },
+    "source": "builtin"
+  },
+  {
+    "id": "bubblegum",
+    "name": "Bubblegum",
+    "description": "Bright capsules in the 16 terminal colors",
+    "author": "ccinfobar",
+    "style": "capsule",
+    "separator": " ",
+    "padding": 1,
+    "bold": false,
+    "statusColors": true,
+    "glyphs": {
+      "separator": "",
+      "thin": "",
+      "startCap": "\ue0b6",
+      "endCap": "\ue0b4"
+    },
+    "colors": {
+      "mode": "category",
+      "fg": "white",
+      "bg": "brightBlack",
+      "on": "black",
+      "muted": "brightBlack",
+      "categories": {
+        "session": "brightCyan",
+        "context": "brightGreen",
+        "tokens": "brightMagenta",
+        "cost": "brightYellow",
+        "limits": "yellow",
+        "gsd": "magenta",
+        "git": "brightRed",
+        "workspace": "brightBlue",
+        "system": "white",
+        "custom": "brightCyan",
+        "layout": "white",
+        "charts": "brightMagenta",
+        "agents": "brightCyan"
+      },
+      "cycle": []
+    },
+    "source": "builtin"
+  }
+]
