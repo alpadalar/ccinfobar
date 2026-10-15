@@ -54,6 +54,14 @@ import { findHookEntries, readManifest } from './manifest.js';
 import { readSettings } from './settings-file.js';
 import { installKind } from './update.js';
 
+export const promptMarker = (fallback: boolean) => t(fallback ? 'install.prompt.yes' : 'install.prompt.no');
+
+// y/yes and e/evet in any language
+export function isYes(raw: string, fallback: boolean): boolean {
+  const answer = raw.trim().toLowerCase();
+  return answer === '' ? fallback : answer.startsWith('y') || answer.startsWith('e');
+}
+
 export async function ask(question: string, fallback: boolean): Promise<boolean> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) return fallback;
   const rl = (await import('node:readline/promises')).createInterface({
@@ -61,8 +69,7 @@ export async function ask(question: string, fallback: boolean): Promise<boolean>
     output: process.stdout,
   });
   try {
-    const answer = (await rl.question(`${question} ${fallback ? '[Y/n]' : '[y/N]'} `)).trim().toLowerCase();
-    return answer === '' ? fallback : answer.startsWith('y') || answer.startsWith('e');
+    return isYes(await rl.question(`${question} ${promptMarker(fallback)} `), fallback);
   } finally {
     rl.close();
   }
@@ -100,14 +107,14 @@ export async function offerImport(
   io: InstallIo = defaultIo(),
 ): Promise<void> {
   if (!tool.importable) {
-    io.log(`Found ${tool.name} as your current status line. Its settings cannot be imported automatically.`);
+    io.log(t('install.importManual', { tool: tool.name }));
     return;
   }
   if (args.flags.import === false) return;
   const yes =
     args.flags.import === true ||
     args.flags.yes === true ||
-    (await io.ask(`Found ${tool.name} as your current status line. Import its layout into ccinfobar?`, true));
+    (await io.ask(t('install.importPrompt', { tool: tool.name }), true));
   if (yes) runImport(tool.tool as ImportSource, { command: tool.command }, cfgFile);
 }
 
@@ -338,7 +345,7 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     if (setup.onPath) hint = 'ccinfobar';
   }
   if (!command) {
-    io.error('✗ No ccinfobar install to point Claude Code at. Install it with: npm install -g ccinfobar');
+    io.error(t('install.noCommand'));
     process.exitCode = 1;
     return;
   }
@@ -427,12 +434,13 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   refreshNotes(io, cfgFile, refresh, plan);
 
   if (project) {
-    if (shadowed) io.log(`  It now wins over "${show(shadowed.command)}" from ${tildify(shadowed.file)}.`);
-    io.log('  settings.local.json stays out of git; `ccinfobar uninstall --project` undoes it.');
+    if (shadowed)
+      io.log(t('install.projectWins', { command: show(shadowed.command), file: tildify(shadowed.file) }));
+    io.log(t('install.projectLocal'));
     return;
   }
-  io.log(`  Config: ${tildify(cfgFile)}`);
-  if (tool) io.log(`  \`ccinfobar uninstall\` brings back ${tool.name}.`);
+  io.log(t('install.config', { file: tildify(cfgFile) }));
+  if (tool) io.log(t('install.bringsBack', { tool: tool.name }));
   const taken = takeOverProjects(command, userRefresh());
   if (taken.length) {
     io.log(t('install.projectsTaken', { count: taken.length }));
@@ -440,10 +448,10 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   }
   const other = projectOverride(process.cwd());
   if (other) {
-    io.log(`⚠ ${tildify(other.file)} sets its own statusLine, which wins in this project.`);
-    io.log(`  Run \`${selfCommand()} install --project\` here to use ccinfobar in it too.`);
+    io.log(t('install.projectOwn', { file: tildify(other.file) }));
+    io.log(t('install.projectHint', { command: selfCommand() }));
   }
-  io.log(`  Customize with \`${hint} edit\` (browser) or \`${hint} tui\` (terminal).`);
+  io.log(t('install.customize', { command: hint }));
 }
 
 export function uninstallMessage(res: UninstallResult): string {
@@ -528,7 +536,7 @@ export async function runUninstall(args: Args, cfgFile: string, io: InstallIo = 
     return;
   }
   const released = releaseProjects();
-  if (released.length) io.log(`✓ Gave ${released.length} project(s) their own status line back`);
+  if (released.length) io.log(t('uninstall.releasedProjects', { count: released.length }));
   const res = await uninstallAsking(claudeSettingsPath(), io);
   io.log(uninstallMessage(res));
   hooksRemoved(io, res.hooks);

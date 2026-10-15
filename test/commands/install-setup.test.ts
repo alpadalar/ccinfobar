@@ -23,6 +23,8 @@ vi.mock('../../src/data/self-update.js', async (orig) => ({
 }));
 
 const { binVersion, localBin, setupCommand } = await import('../../src/commands/install.js');
+const { localPrefix } = await import('../../src/data/update-state.js');
+const { withLang } = await import('../helpers.js');
 
 const win = process.platform === 'win32';
 let dir: string;
@@ -146,5 +148,49 @@ describe('setupCommand under npx', () => {
     const res = setupCommand('9.9.9');
     expect(slash(res.command ?? '')).toContain(slash(prefix));
     expect(res.onPath).toBe(true);
+  });
+
+  it('logs the update and the pinned fallback in English and Turkish', () => {
+    globalCopy('0.6.2');
+    npm.fail.global = true;
+    const run = () => {
+      const log: string[] = [];
+      setupCommand('9.9.9', { log: (l) => log.push(l) });
+      return log;
+    };
+    expect(run()).toEqual([
+      'Updating the global ccinfobar 0.6.2 to 9.9.9 ...',
+      "⚠ Could not update the global ccinfobar 0.6.2: no permission to write to npm's global folder (EACCES)",
+      `Installing a pinned copy of ccinfobar 9.9.9 in ${localPrefix()} ...`,
+      `✓ Installed ${localBin()}`,
+    ]);
+    fs.rmSync(path.dirname(path.dirname(path.dirname(localBin()))), { recursive: true, force: true });
+    expect(withLang('tr', run)).toEqual([
+      'Global ccinfobar 0.6.2 sürümünden 9.9.9 sürümüne güncelleniyor ...',
+      "⚠ Global ccinfobar 0.6.2 güncellenemedi: npm'in global klasörüne yazma izni yok (EACCES)",
+      `ccinfobar 9.9.9 sürümünün sabit bir kopyası ${localPrefix()} klasörüne kuruluyor ...`,
+      `✓ Kuruldu: ${localBin()}`,
+    ]);
+  });
+
+  it('logs a fresh global install in English and Turkish', () => {
+    // no ccinfobar from the machine on PATH
+    if (!win) process.env.PATH = [binDir, '/usr/bin', '/bin'].join(path.delimiter);
+    const run = () => {
+      const log: string[] = [];
+      setupCommand('9.9.9', { log: (l) => log.push(l) });
+      fs.rmSync(prefix, { recursive: true, force: true });
+      fs.mkdirSync(binDir, { recursive: true });
+      return log;
+    };
+    const bin = path.join(binDir, win ? 'ccinfobar.cmd' : 'ccinfobar');
+    expect(run()).toEqual([
+      'Installing ccinfobar 9.9.9 globally (skip with --no-global) ...',
+      `✓ Installed ${bin}`,
+    ]);
+    expect(withLang('tr', run)).toEqual([
+      'ccinfobar 9.9.9 global olarak kuruluyor (atlamak için --no-global) ...',
+      `✓ Kuruldu: ${bin}`,
+    ]);
   });
 });

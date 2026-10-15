@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
+import { resetLanguageCache } from '../../src/cli/lang.js';
 import {
   applyInstall,
   InstallNeedsConfirmError,
@@ -18,7 +19,7 @@ import {
   uninstallMessage,
 } from '../../src/commands/install-cli.js';
 import { findStatusLineEntry, manifestFile, readManifest } from '../../src/commands/manifest.js';
-import { runUpdate } from '../../src/commands/update.js';
+import { runUpdate, selfCommand } from '../../src/commands/update.js';
 import { loadConfig, saveConfig } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
 import { tildify } from '../../src/core/paths.js';
@@ -408,6 +409,43 @@ describe('runInstall and runUninstall', () => {
     await runInstall(parseArgs(['install', '--dry-run']), cfg, g.io);
     expect(g.setup).not.toHaveBeenCalled();
     expect(snapshot(dir)).toEqual(before);
+  });
+
+  it('prints the closing lines of an install', async () => {
+    const f = fake(false);
+    await runInstall(args(), cfg, f.io);
+    const hint = selfCommand();
+    expect(f.lines).toContain(`  Config: ${tildify(cfg)}`);
+    expect(f.lines).toContain(`  Customize with \`${hint} edit\` (browser) or \`${hint} tui\` (terminal).`);
+  });
+
+  it('prints a Turkish dry run with the path and command unchanged', async () => {
+    writeJson(settings, {});
+    process.env.CCINFOBAR_LANG = 'tr';
+    resetLanguageCache();
+    const before = snapshot(dir);
+    const f = fake(false);
+    await runInstall(args('--dry-run'), cfg, f.io);
+    expect(f.lines[0]).toBe(`ccinfobar ${VERSION} kuruluyor`);
+    expect(f.lines).toContain(`${tildify(settings)} dosyasında statusLine ayarlanacak`);
+    expect(f.lines).toContain('  önerilen: /bin/ccinfobar');
+    expect(f.lines.at(-1)).toBe('Deneme çalıştırması: hiçbir şey yazılmadı.');
+    expect(snapshot(dir)).toEqual(before);
+  });
+
+  it('prints the Turkish closing lines of an install', async () => {
+    process.env.CCINFOBAR_LANG = 'tr';
+    resetLanguageCache();
+    const f = fake(false);
+    await runInstall(args(), cfg, f.io);
+    const hint = selfCommand();
+    expect(f.lines).toContain(
+      `✓ ${tildify(settings)} dosyasında statusLine "/bin/ccinfobar" olarak ayarlandı`,
+    );
+    expect(f.lines).toContain(`  Yapılandırma: ${tildify(cfg)}`);
+    expect(f.lines).toContain(
+      `  \`${hint} edit\` (tarayıcı) veya \`${hint} tui\` (terminal) ile özelleştirin.`,
+    );
   });
 
   it('says it would install with npm on a dry run from npx', async () => {

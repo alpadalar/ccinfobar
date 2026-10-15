@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { t } from '../core/i18n/index.js';
 import { claudeSettingsPath, configDir } from '../core/paths.js';
 import { renameWithRetry, resolveReal, writeAtomic, writeTmp } from '../data/store.js';
 
@@ -55,7 +56,7 @@ export class SettingsParseError extends Error {
     readonly file: string,
     reason: string,
   ) {
-    super(`Cannot parse ${file}: ${reason}`);
+    super(t('install.settings.cannotParse', { file, reason }));
     this.name = 'SettingsParseError';
   }
 }
@@ -141,7 +142,7 @@ export function readSettings(file: string): SettingsRead {
     throw new SettingsParseError(file, (e as Error).message);
   }
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    throw new SettingsParseError(file, 'not a JSON object');
+    throw new SettingsParseError(file, t('install.settings.notObject'));
   }
   return { ...raw, data: data as Record<string, unknown>, format };
 }
@@ -311,7 +312,7 @@ export function patchSettings(
     if (backup === false) continue;
     return { ...result, changed: true, afterHash: hashBytes(after), backup };
   }
-  throw new Error(`${file} changed while writing; try again`);
+  throw new Error(t('install.settings.changed', { file }));
 }
 
 // byte-exact restore
@@ -319,7 +320,7 @@ export function writeSettingsBytes(file: string, bytes: Uint8Array, opts: PatchO
   const cur = readRaw(file);
   if (cur.exists && cur.bytes.equals(bytes)) return { changed: false, real: cur.real, backup: null };
   const backup = commit(cur, bytes, opts);
-  if (backup === false) throw new Error(`${file} changed while writing; try again`);
+  if (backup === false) throw new Error(t('install.settings.changed', { file }));
   return { changed: true, real: cur.real, backup };
 }
 

@@ -17,6 +17,10 @@ const SWEPT: string[] = [
   'src/commands/manage.ts',
   'src/commands/bench.ts',
   'src/commands/usage-error.ts',
+  'src/commands/install-cli.ts',
+  'src/commands/install.ts',
+  'src/commands/settings-file.ts',
+  'src/commands/hooks-install.ts',
 ];
 
 // left out on purpose, with the reason; 08-25 makes SWEPT + NOT_SWEPT cover src/

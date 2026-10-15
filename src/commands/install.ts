@@ -706,7 +706,7 @@ function runSync<T>(g: Steps<T>): T {
     try {
       installVersion(r.value.version, r.value.prefix);
     } catch (err) {
-      failed = err ?? new Error('npm install failed');
+      failed = err ?? new Error(t('install.setup.npmFailed'));
     }
     r = failed ? g.throw(failed) : g.next();
   }
@@ -719,7 +719,7 @@ async function runAsync<T>(g: Steps<T>): Promise<T> {
     try {
       await installVersionAsync(r.value.version, r.value.prefix);
     } catch (err) {
-      failed = err ?? new Error('npm install failed');
+      failed = err ?? new Error(t('install.setup.npmFailed'));
     }
     r = failed ? g.throw(failed) : g.next();
   }
@@ -732,7 +732,7 @@ function* globalSteps(version: string): Steps<GlobalInstall> {
     const msg = (err as Error).message;
     return {
       ok: false,
-      error: /EACCES|EPERM/.test(msg) ? "no permission to write to npm's global folder (EACCES)" : msg,
+      error: /EACCES|EPERM/.test(msg) ? t('install.setup.noPermission') : msg,
     };
   }
   const onPath = globalBinary();
@@ -741,9 +741,7 @@ function* globalSteps(version: string): Steps<GlobalInstall> {
   if (onPath && !(shadow && compareVersions(shadow, version) < 0))
     return { ok: true, bin: onPath, onPath: true };
   const bin = npmGlobalBin();
-  return bin
-    ? { ok: true, bin, onPath: false }
-    : { ok: false, error: 'npm finished but ccinfobar was not found' };
+  return bin ? { ok: true, bin, onPath: false } : { ok: false, error: t('install.setup.notFound') };
 }
 
 // npx runs from a cache; keep a real copy
@@ -792,36 +790,35 @@ function* setupSteps(version: string, opts: SetupOptions): Steps<Setup> {
   if (opts.global !== false) {
     log(
       stale
-        ? `Updating the global ccinfobar ${old} to ${version} ...`
-        : `Installing ccinfobar ${version} globally (skip with --no-global) ...`,
+        ? t('install.setup.updating', { old: old ?? '', version })
+        : t('install.setup.global', { version }),
     );
     const g = yield* globalSteps(version);
     if (g.ok) {
-      log(`✓ Installed ${g.bin}`);
-      if (!g.onPath)
-        log(`  ${path.dirname(g.bin)} is not on your PATH; add it to type \`ccinfobar\` directly.`);
+      log(t('install.setup.installed', { bin: g.bin }));
+      if (!g.onPath) log(t('install.setup.notOnPath', { dir: path.dirname(g.bin) }));
       return setup(acceptCommand(buildCommand({ kind: 'bin', bin: g.bin, onPath: g.onPath }), log), g.onPath);
     }
     log(
       stale
-        ? `⚠ Could not update the global ccinfobar ${old}: ${g.error}`
-        : `⚠ Global install failed: ${g.error}`,
+        ? t('install.setup.updateFailed', { old: old ?? '', error: g.error })
+        : t('install.setup.globalFailed', { error: g.error }),
     );
   }
-  log(`Installing a pinned copy of ccinfobar ${version} in ${localPrefix()} ...`);
+  log(t('install.setup.pinned', { version, dir: localPrefix() }));
   try {
     yield { version, prefix: localPrefix() };
   } catch (err) {
-    log(`✗ Could not install ccinfobar: ${(err as Error).message}`);
+    log(t('install.setup.failed', { error: (err as Error).message }));
     if (existing) return useExisting(existing);
     return { command: null, onPath: false };
   }
   if (!fs.existsSync(localBin())) {
-    log('✗ npm finished but ccinfobar was not found');
+    log(`✗ ${t('install.setup.notFound')}`);
     if (existing) return useExisting(existing);
     return { command: null, onPath: false };
   }
-  log(`✓ Installed ${localBin()}`);
+  log(t('install.setup.installed', { bin: localBin() }));
   return setup(acceptCommand(buildCommand({ kind: 'bin', bin: localBin(), onPath: false }), log), false);
 }
 

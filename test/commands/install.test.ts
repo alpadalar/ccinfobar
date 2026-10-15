@@ -18,10 +18,12 @@ import {
   takeOverProjects,
   uninstall,
 } from '../../src/commands/install.js';
+import { ask, isYes, promptMarker } from '../../src/commands/install-cli.js';
 import { findStatusLineEntry, readManifest } from '../../src/commands/manifest.js';
-import { backupsDir, hashBytes } from '../../src/commands/settings-file.js';
+import { backupsDir, hashBytes, readSettings } from '../../src/commands/settings-file.js';
 import { t } from '../../src/core/i18n/index.js';
 import { claudeSettingsPath } from '../../src/core/paths.js';
+import { withLang } from '../helpers.js';
 
 const settingsFile = (data: object | null) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-install-'));
@@ -323,5 +325,51 @@ describe('install and uninstall', () => {
     ).toBe(true);
     expect(isTransientBin('/home/u/.npm-global/bin/ccinfobar')).toBe(false);
     expect(isTransientBin('/opt/homebrew/bin/ccinfobar')).toBe(false);
+  });
+});
+
+describe('install prompt and messages', () => {
+  it('shows the yes/no marker in the display language', () => {
+    expect([promptMarker(true), promptMarker(false)]).toEqual(['[Y/n]', '[y/N]']);
+    expect(withLang('tr', () => [promptMarker(true), promptMarker(false)])).toEqual(['[E/h]', '[e/H]']);
+  });
+
+  it('reads y, yes, e and evet as yes in any language', () => {
+    for (const lang of ['en', 'tr'] as const)
+      withLang(lang, () => {
+        for (const a of ['y', 'yes', 'Y', ' YES ', 'e', 'evet', 'E', 'Evet', 'EVET'])
+          expect(isYes(a, false), a).toBe(true);
+        for (const a of ['n', 'no', 'N', 'h', 'hayır', 'Hayır', 'HAYIR', 'x'])
+          expect(isYes(a, true), a).toBe(false);
+        expect(isYes('', true)).toBe(true);
+        expect(isYes('  ', false)).toBe(false);
+      });
+  });
+
+  it('gives the fallback without a terminal', async () => {
+    if (process.stdin.isTTY && process.stdout.isTTY) return;
+    expect(await ask('Replace?', true)).toBe(true);
+    expect(await ask('Replace?', false)).toBe(false);
+  });
+
+  it('counts released projects', () => {
+    expect(t('uninstall.releasedProjects', { count: 1 })).toBe('✓ Gave 1 project its own status line back');
+    expect(t('uninstall.releasedProjects', { count: 2 })).toBe(
+      '✓ Gave 2 projects their own status line back',
+    );
+    expect(withLang('tr', () => t('uninstall.releasedProjects', { count: 2 }))).toBe(
+      '✓ 2 projenin kendi durum satırı geri verildi',
+    );
+  });
+
+  it('wraps the parse error of a settings file in the display language', () => {
+    const file = settingsFile(null);
+    fs.writeFileSync(file, '[1]');
+    expect(() => readSettings(file)).toThrow(`Cannot parse ${file}: not a JSON object`);
+    expect(() => withLang('tr', () => readSettings(file))).toThrow(
+      `${file} ayrıştırılamıyor: bir JSON nesnesi değil`,
+    );
+    fs.writeFileSync(file, '{"model": ');
+    expect(() => withLang('tr', () => readSettings(file))).toThrow(/ayrıştırılamıyor: .*JSON/);
   });
 });
