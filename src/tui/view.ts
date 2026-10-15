@@ -6,7 +6,7 @@ import { renderPreview } from '../core/preview.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { resolveTheme } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
-import { padVisible as pad } from '../core/width.js';
+import { padVisible as pad, setWidthMode, widthMode } from '../core/width.js';
 import { getWidget } from '../widgets/index.js';
 import { categoryName, pickerItems } from './catalog.js';
 import { displayValue, type Field, listEntries } from './fields.js';
@@ -38,23 +38,27 @@ const bold = (t: string) => `${ESC}1m${t}${ESC}22m`;
 const under = (t: string) => `${ESC}4m${t}${ESC}24m`;
 const fg = (t: string, color: string | undefined) => (color ? style(t, { fg: color }, 3) : t);
 
+// box lines are two columns under ambiguousWidth 2
+const lineW = () => visibleWidth('─');
+const dashes = (width: number) => '─'.repeat(Math.max(0, Math.floor(width / lineW())));
+
 function rule(title: string, cols: number): string {
-  const head = `── ${title} `;
-  return (
-    dim('──') +
-    bold(` ${truncate(title, cols - 6)} `) +
-    dim('─'.repeat(Math.max(0, cols - visibleWidth(head) - 1)))
-  );
+  const head = ` ${truncate(title, cols - 4 - 2 * lineW())} `;
+  return dim('──') + bold(head) + dim(dashes(cols - visibleWidth(`── ${title} `) - 1));
 }
 
+const boxInner = (cols: number) => cols - 2 - 2 * lineW();
+
 function box(title: string, content: string[], cols: number): string[] {
-  const inner = cols - 4;
-  const head = ` ${truncate(title, cols - 6)} `;
-  const top = `┌─${head}${'─'.repeat(Math.max(0, cols - 3 - visibleWidth(head)))}┐`;
+  const cw = lineW();
+  const inner = boxInner(cols);
+  const name = ` ${truncate(title, cols - 3 - 3 * cw)} `;
+  const fill = Math.max(0, cols - 3 * cw - visibleWidth(name));
+  const head = name + ' '.repeat(fill % cw);
   return [
-    dim(top),
-    ...content.map((l) => `${dim('│')} ${pad(truncate(l, inner), inner)} ${dim('│')}`),
-    dim(`└${'─'.repeat(cols - 2)}┘`),
+    dim(`┌─${head}${dashes(fill)}┐`),
+    ...content.map((l) => `${dim('│')} ${pad(l, inner)} ${dim('│')}`),
+    dim(`└${dashes(cols - 2 * cw)}┘`),
   ];
 }
 
@@ -100,13 +104,15 @@ function editorRows(state: State, cols: number): { rows: Row[]; selRow: number }
     items.forEach((item, i) => {
       const label = `[${truncate(itemLabel(item), 28)}]`;
       const w = visibleWidth(label);
-      if (x + 1 + w > cols - 1 && x > 4) {
+      const dropHere = state.drag?.to?.line === l && state.drag.to.index === i;
+      const gap = dropHere ? mark : ' ';
+      const gw = visibleWidth(gap);
+      if (x + gw + w > cols - 1 && x > 4) {
         flush();
         text = '    ';
         x = 4;
         hits = [];
       }
-      const dropHere = state.drag?.to?.line === l && state.drag.to.index === i;
       const selected = cur && i === state.sel.index;
       const dragged = state.drag?.from.line === l && state.drag.from.index === i;
       let chip: string;
@@ -114,9 +120,9 @@ function editorRows(state: State, cols: number): { rows: Row[]; selRow: number }
       else if (dragged) chip = dim(under(label));
       else chip = fg(label, item.color ?? getWidget(item.type)?.color);
       if (selected) selRow = rows.length;
-      text += (dropHere ? mark : ' ') + chip;
-      hits.push({ kind: 'chip', line: l, index: i, x: x + 1, y: 0, w });
-      x += 1 + w;
+      text += gap + chip;
+      hits.push({ kind: 'chip', line: l, index: i, x: x + gw, y: 0, w });
+      x += gw + w;
     });
     if (state.drag?.to?.line === l && state.drag.to.index >= items.length && x < cols) text += mark;
     flush();
@@ -312,10 +318,11 @@ function settingsModal(state: State, mode: Extract<Mode, { kind: 'settings' }>, 
   }
   let right: string[] = [];
   if (mode.sub && field) {
-    const panelW = sideBySide ? w - LW - 3 : w;
+    const bar = visibleWidth('│') + 2;
+    const panelW = sideBySide ? w - LW - bar : w;
     const panel = subPanel(field, mode, panelW, listH);
     right = panel.lines;
-    const dx = sideBySide ? LW + 3 : 0;
+    const dx = sideBySide ? LW + bar : 0;
     for (const hit of panel.hits) if (hit.kind === 'item') hits.push({ ...hit, x: hit.x + dx, y: hit.y + 1 });
   }
   for (let i = 0; i < listH; i++) {
@@ -394,8 +401,9 @@ function themesModal(state: State, mode: Extract<Mode, { kind: 'themes' }>, w: n
   }
   if (!items.length) lines.push(` ${dim(t('tui.view.noThemes'))}`);
   while (lines.length < h - 1) lines.push('');
+  const count = t('tui.view.themeCount', { count: items.length });
   lines.push(
-    dim(` ${t('tui.view.themeCount', { count: items.length })} · ${truncate(t('tui.view.saveTip'), w - 16)}`),
+    dim(` ${count} · ${truncate(t('tui.view.saveTip'), Math.min(w - 16, w - 4 - visibleWidth(count)))}`),
   );
   return { lines: lines.slice(0, h), hits };
 }
@@ -428,7 +436,10 @@ function centered(rows: string[], w: number, h: number, title: string): Modal {
   const lines = [rule(title, w)];
   const top = Math.max(0, Math.floor((h - 1 - rows.length) / 2));
   for (let i = 0; i < top; i++) lines.push('');
-  for (const r of rows) lines.push(' '.repeat(Math.max(0, Math.floor((w - visibleWidth(r)) / 2))) + r);
+  for (const row of rows) {
+    const r = truncate(row, w);
+    lines.push(' '.repeat(Math.max(0, Math.floor((w - visibleWidth(r)) / 2))) + r);
+  }
   return { lines, hits: [] };
 }
 
@@ -640,12 +651,24 @@ function cachedPreview(state: State, width: number): string[] {
 }
 
 export function renderScreen(state: State, cols: number, rows: number): Screen {
+  const prev = widthMode();
+  const ambiguous = state.config.ambiguousWidth === 2 ? 2 : 1;
+  if (prev.ambiguous === ambiguous) return drawScreen(state, cols, rows);
+  setWidthMode({ ...prev, ambiguous });
+  try {
+    return drawScreen(state, cols, rows);
+  } finally {
+    setWidthMode(prev);
+  }
+}
+
+function drawScreen(state: State, cols: number, rows: number): Screen {
   if (cols < MIN_COLS || rows < MIN_ROWS) return tooSmall(cols, rows);
   const body = rows - 3;
   const hits: Hit[] = [];
   let previewLines: string[];
   try {
-    previewLines = cachedPreview(state, cols - 4 + state.config.widthOffset);
+    previewLines = cachedPreview(state, boxInner(cols) + state.config.widthOffset);
   } catch {
     previewLines = [dim(t('tui.view.previewUnavailable'))];
   }

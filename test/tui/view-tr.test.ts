@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { stripAnsi } from '../../src/core/ansi.js';
+import { stripAnsi, visibleWidth } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { presetText, themeDescription } from '../../src/core/i18n/catalog-text.js';
 import { PRESETS } from '../../src/core/presets.js';
 import type { Config } from '../../src/core/types.js';
+import { visibleWidthIn, widthMode } from '../../src/core/width.js';
 import { type Action, initialState, reduce, type State, themeItems } from '../../src/tui/state.js';
 import { renderScreen } from '../../src/tui/view.js';
 import { withLang } from '../helpers.js';
@@ -100,5 +101,62 @@ describe('Turkish TUI view', () => {
     const desc = withLang('tr', () => themeDescription(first));
     expect(desc).not.toBe(first.description);
     expect(themes).toContain(desc.slice(0, 20));
+  });
+});
+
+describe('Turkish TUI width', () => {
+  const SIZES = [
+    [100, 30],
+    [80, 24],
+    [60, 20],
+  ] as const;
+  const SCREENS: Record<string, Action[]> = {
+    normal: [],
+    picker: [{ type: 'openPicker' }],
+    help: [{ type: 'help' }],
+    presets: [{ type: 'openPresets' }],
+    themes: [{ type: 'openThemes' }],
+    naming: [{ type: 'openThemes' }, { type: 'saveTheme' }],
+    global: [{ type: 'openGlobal' }],
+    props: [{ type: 'openProps' }, { type: 'enter' }],
+    quit: [{ type: 'removeChip' }, { type: 'quit' }],
+    deleteLine: [{ type: 'deleteLine' }],
+  };
+  const WIDE = { emoji: 2, ambiguous: 2 } as const;
+
+  it.each([1, 2] as const)('every screen fits its width with ambiguousWidth %i', (amb) => {
+    const config: Config = {
+      ...defaultConfig(),
+      language: 'tr',
+      ...(amb === 2 ? { ambiguousWidth: 2 } : {}),
+    };
+    const width = (l: string) => (amb === 2 ? visibleWidthIn(l, WIDE) : visibleWidth(l));
+    withLang('tr', () => {
+      for (const [name, actions] of Object.entries(SCREENS)) {
+        const s = build(config, ...actions);
+        for (const [cols, rows] of SIZES) {
+          const lines = renderScreen(s, cols, rows).lines;
+          expect(lines, `${name} ${cols}x${rows}`).toHaveLength(rows);
+          for (const l of lines)
+            expect(width(l), `${name} ${cols}x${rows}: ${stripAnsi(l)}`).toBeLessThanOrEqual(cols);
+          const plain = lines.map(stripAnsi);
+          const top = plain.findIndex((l) => l.startsWith('┌'));
+          expect(plain[top]!.endsWith('┐'), `${name} ${cols}x${rows}`).toBe(true);
+          for (let i = top + 1; plain[i]!.startsWith('│'); i++) expect(plain[i]!.endsWith('│')).toBe(true);
+          expect(plain.at(-1)!.endsWith('…')).toBe(false);
+        }
+      }
+    });
+  });
+
+  it('measures with the configured ambiguous width and restores the mode', () => {
+    const config: Config = { ...defaultConfig(), language: 'tr', ambiguousWidth: 2 };
+    const before = widthMode();
+    const lines = withLang('tr', () => renderScreen(build(config), 80, 24).lines.map(stripAnsi));
+    expect(widthMode()).toBe(before);
+    const top = lines.find((l) => l.startsWith('┌'))!;
+    expect(visibleWidthIn(top, WIDE)).toBeLessThanOrEqual(80);
+    expect(visibleWidthIn(top, WIDE)).toBeGreaterThanOrEqual(79);
+    expect(visibleWidth(top)).toBeLessThan(60);
   });
 });
