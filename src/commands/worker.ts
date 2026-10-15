@@ -93,8 +93,16 @@ function accepted(job: Job<unknown> | undefined, req: JobRequest, ok: (job: Job<
   }
 }
 
-function liveKeys(jobs: Job<unknown>[], config: Config, env: NodeJS.ProcessEnv, cwd: string, now: number) {
-  const keep = new Set<string>();
+// ran keys too: gh keys need the payload, which the worker never gets
+function liveKeys(
+  jobs: Job<unknown>[],
+  config: Config,
+  env: NodeJS.ProcessEnv,
+  cwd: string,
+  now: number,
+  ran: string[],
+) {
+  const keep = new Set<string>(ran);
   const payload = {} as StatusPayload;
   for (const job of jobs) {
     try {
@@ -118,6 +126,7 @@ export async function runWorker(args: Args, cfgFile: string, deps: WorkerDeps = 
     const broken = !!(loaded.issue || loaded.error);
     const config = broken ? defaultConfig() : loaded.config;
     const runs: Promise<unknown>[] = [];
+    const ran: string[] = [];
     for (const req of parseWorkerArgs(args.positional)) {
       const job = jobFor(req.key, jobs);
       const ok = accepted(
@@ -129,6 +138,7 @@ export async function runWorker(args: Args, cfgFile: string, deps: WorkerDeps = 
         releaseLock(req.key, env);
         continue;
       }
+      ran.push(req.key);
       runs.push(
         Promise.resolve().then(() => {
           let prev = null;
@@ -156,7 +166,7 @@ export async function runWorker(args: Args, cfgFile: string, deps: WorkerDeps = 
     const end = deps.now?.() ?? Date.now();
     // a broken config would look like every http key is gone
     if (broken) pruneTmp(jobsDir(env), 3_600_000, end);
-    else sweepJobs(env, liveKeys(jobs, config, env, cwd, end), end);
+    else sweepJobs(env, liveKeys(jobs, config, env, cwd, end, ran), end);
   } catch {}
   exit(0);
 }

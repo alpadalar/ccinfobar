@@ -6,7 +6,10 @@ import { parseArgs } from '../../src/cli/args.js';
 import { parseWorkerArgs, runWorker, sweepJobs, type WorkerDeps } from '../../src/commands/worker.js';
 import { defaultConfig } from '../../src/core/config.js';
 import type { Config } from '../../src/core/types.js';
+import { ghJob } from '../../src/data/jobs/gh.js';
+import { ghKey } from '../../src/data/jobs/keys.js';
 import {
+  type ExecFileLike,
   type Job,
   type JobId,
   jobsDir,
@@ -270,5 +273,26 @@ describe('sweepJobs', () => {
     expect(fs.existsSync(p)).toBe(true);
     await runWorker(worker([]), s.cfgFile, s.deps([fake('other', { id: 'http', keys: () => [] })]));
     expect(fs.existsSync(p)).toBe(false);
+  });
+
+  it('keeps the gh envelope of a pr ci item it just ran', async () => {
+    const s = setup(JSON.stringify({ lines: [[{ id: 'p', type: 'pr', options: { ci: true } }]] }));
+    const param = 'github.com/o/r#7';
+    const key = ghKey(param);
+    const later = Date.now() + 8 * 86_400_000;
+    const execFile: ExecFileLike = async () => ({
+      code: 0,
+      stdout: JSON.stringify([{ name: 'ci', state: 'SUCCESS', bucket: 'pass' }]),
+      stderr: '',
+    });
+    await runWorker(
+      worker([`${key}=${param}`]),
+      s.cfgFile,
+      s.deps([ghJob as Job<unknown>], {
+        execFile,
+        now: () => later,
+      }),
+    );
+    expect(readEnvelope(key, s.env)?.ok).toBe(true);
   });
 });
