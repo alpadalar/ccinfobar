@@ -116,6 +116,25 @@ function readJson(file: string, max: number): Record<string, unknown> | null {
   }
 }
 
+function readText(file: string): string | null {
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(file, RD);
+    const st = fs.fstatSync(fd);
+    if (!st.isFile() || st.size > 4096) return null;
+    const buf = Buffer.alloc(st.size);
+    return buf.toString('utf8', 0, fs.readSync(fd, buf, 0, st.size, 0));
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+  }
+}
+
 function countHooks(v: unknown): number {
   if (!isObj(v)) return 0;
   let n = 0;
@@ -185,10 +204,20 @@ const settingsFacts = (v: Record<string, unknown>): Facts =>
 const mcpFacts = (v: Record<string, unknown>): Facts =>
   withLists(NONE, { s: serverNames(v.mcpServers) }, false);
 
-function claudeJsonFacts(v: Record<string, unknown>, key: string, alt: string): Facts {
-  const projects = v.projects;
-  const k = isObj(projects) && !Object.hasOwn(projects, key) ? alt : key;
-  const entry = isObj(projects) && Object.hasOwn(projects, k) ? projects[k] : null;
+const loose = (k: string) => k.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+
+// exact keys first, then a case-insensitive match where the filesystem is
+function projectEntry(projects: unknown, keys: string[], fold: boolean): unknown {
+  if (!isObj(projects)) return null;
+  for (const k of keys) if (Object.hasOwn(projects, k)) return projects[k];
+  if (!fold) return null;
+  const want = keys.map(loose);
+  for (const w of want) for (const k of Object.keys(projects)) if (loose(k) === w) return projects[k];
+  return null;
+}
+
+function claudeJsonFacts(v: Record<string, unknown>, keys: string[], fold: boolean): Facts {
+  const entry = projectEntry(v.projects, keys, fold);
   const p: Record<string, unknown> = isObj(entry) ? entry : {};
   return {
     ...withLists(
@@ -196,7 +225,7 @@ function claudeJsonFacts(v: Record<string, unknown>, key: string, alt: string): 
       { ...approvals(p), s: serverNames(v.mcpServers), p: serverNames(p.mcpServers) },
       p.enableAllProjectMcpServers === true,
     ),
-    k: key,
+    k: `${fold ? 'i' : ''}\n${keys.join('\n')}`,
   };
 }
 
@@ -300,9 +329,24 @@ export function mcpProjectKey(dir: string, platform: NodeJS.Platform): string {
   return platform === 'win32' ? dir.replace(/\\/g, '/') : dir;
 }
 
-function gitRoot(launch: string, stopAt?: string): string {
-  for (const d of launchAncestors(launch, stopAt)) if (stat(path.join(d, '.git'))) return d;
-  return launch;
+function gitRoot(launch: string, stopAt?: string): { root: string; linked: boolean } {
+  for (const d of launchAncestors(launch, stopAt)) {
+    const st = stat(path.join(d, '.git'));
+    if (st) return { root: d, linked: st.isFile() };
+  }
+  return { root: launch, linked: false };
+}
+
+// a linked worktree's main checkout, from .git and commondir
+function mainCheckout(root: string): string | null {
+  const ref = readText(path.join(root, '.git'));
+  const m = ref === null ? null : /^gitdir:\s*(.+?)\s*$/m.exec(ref);
+  if (!m) return null;
+  const gitdir = path.resolve(root, m[1]!);
+  const common = readText(path.join(gitdir, 'commondir'))?.trim();
+  if (!common) return null;
+  const dir = path.resolve(gitdir, common);
+  return path.basename(dir) === '.git' ? path.dirname(dir) : null;
 }
 
 function projectRoot(launch: string, stopAt?: string): string {
@@ -405,11 +449,16 @@ export function readEnvironment(
     const local = json(projectSettingsPath(launch, true));
     const dirs = launchAncestors(launch, opts.stopAt);
 
-    const root = gitRoot(launch, opts.stopAt);
-    const key = mcpProjectKey(root, platform);
+    const { root, linked } = gitRoot(launch, opts.stopAt);
+    const main = linked ? mainCheckout(root) : null;
+    const keys = [
+      ...new Set([root, ...(main ? [main] : [])].flatMap((d) => [mcpProjectKey(d, platform), d])),
+    ];
+    const ci = platform === 'win32' || platform === 'darwin';
+    const key = `${ci ? 'i' : ''}\n${keys.join('\n')}`;
     const cj = json(
       claudeJsonPath(env),
-      (v) => claudeJsonFacts(v, key, root),
+      (v) => claudeJsonFacts(v, keys, ci),
       MAX_CLAUDE_JSON,
       (f) => !f || f.k === key,
       true,

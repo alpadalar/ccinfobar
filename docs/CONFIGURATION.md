@@ -221,6 +221,7 @@ Not covered:
 
 - plugin MCP servers and claude.ai connectors, which are not in config files
 - plugin hooks and settings passed with `--settings`
+- a `.claude.json` project entry keyed by a folder other than the git root, or the main checkout for a linked worktree (keys match case-insensitively on macOS and Windows)
 - `claudeMdExcludes` (excluded files are still counted) and an inline managed `claudeMd`
 - MCP health: `mcpHealth` is reserved because Claude Code does not expose MCP status to the status line, so it does nothing today and `ccinfobar explain` says so
 

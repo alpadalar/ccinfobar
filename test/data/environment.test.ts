@@ -321,6 +321,25 @@ describe('readEnvironment mcp', () => {
     expect(mcpProjectKey('/a/b', 'linux')).toBe('/a/b');
   });
 
+  it('falls back to the main checkout of a linked worktree', () => {
+    const main = path.join(root, 'main');
+    const admin = path.join(main, '.git', 'worktrees', 'proj');
+    fs.mkdirSync(admin, { recursive: true });
+    put(path.join(admin, 'commondir'), '../..\n');
+    fs.rmSync(path.join(proj, '.git'), { recursive: true });
+    put(path.join(proj, '.git'), `gitdir: ${admin}\n`);
+    json(cj(), { projects: { [main]: servers('db') } });
+    expect(read().mcp).toBe(1);
+    json(cj(), { projects: { [main]: servers('db'), [proj]: servers('x', 'y') } });
+    expect(read({ now: NOW + 1_000 }, proj).mcp).toBe(2);
+  });
+
+  it('matches the project key case-insensitively on macOS and Windows only', () => {
+    json(cj(), { projects: { [proj.toUpperCase()]: servers('db') } });
+    expect(read({ platform: 'darwin' }).mcp).toBe(1);
+    expect(read({ platform: 'linux', persist: false }).mcp).toBe(0);
+  });
+
   it('skips an oversized or invalid .claude.json', () => {
     json(path.join(proj, '.mcp.json'), servers('web'));
     json(path.join(proj, '.claude', 'settings.local.json'), { enabledMcpjsonServers: ['web'] });
