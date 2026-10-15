@@ -276,7 +276,16 @@ export function sampleLimits(
   return { windows, expired: [] };
 }
 
+// 9 h of 15-minute slots, oldest first; 0 is idle
+const SAMPLE_SLOTS = [
+  0, 0, 0.08, 0.21, 0.34, 0.18, 0, 0, 0, 0.05, 0.12, 0.27, 0.41, 0.36, 0.22, 0.09, 0, 0, 0, 0, 0, 0.11, 0.19,
+  0.3, 0.25, 0.14, 0.06, 0, 0, 0.04, 0.16, 0.28, 0.33, 0.2, 0.1, 0.07,
+];
+
 export function sampleLedger(now = Date.now()): LedgerView {
+  const last = Math.floor(now / 900_000);
+  const slots: Record<number, number> = {};
+  for (const [i, v] of SAMPLE_SLOTS.entries()) if (v > 0) slots[last - SAMPLE_SLOTS.length + 1 + i] = v;
   return {
     today: 4.12,
     week: 18.4,
@@ -285,6 +294,7 @@ export function sampleLedger(now = Date.now()): LedgerView {
     since: now - 40 * 86_400_000,
     at: now - 5_000,
     partial: false,
+    slots,
   };
 }
 

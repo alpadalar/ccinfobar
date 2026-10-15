@@ -31,6 +31,7 @@ export interface Summary {
   days: Record<string, DayRows>;
   projects: Record<string, Record<string, DayRows>>;
   since: Record<string, number>;
+  slots: Record<string, Record<string, number>>;
   at: number;
   built: boolean;
 }
@@ -49,6 +50,7 @@ export interface LedgerView {
   since: number | null;
   at: number | null;
   partial: boolean;
+  slots: Record<number, number>;
 }
 
 const ZERO = 0.005;
@@ -63,10 +65,13 @@ const KEEP_MONTHS = 13;
 const KEEP_DAYS = 400;
 const KEEP_SESSION_DAYS = 30;
 const DAY_MS = 86_400_000;
+const KEEP_SLOT_MS = 7 * DAY_MS;
+export const SLOT_MS = 900_000;
 export const LEDGER_FILE = /^\d{4}-\d{2}\.jsonl$/;
 const ID = /^[\w-]{1,80}$/;
 const MONTH = /^\d{4}-\d{2}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const SLOT = /^\d{1,9}$/;
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 export const LEDGER_TYPES: ReadonlySet<string> = new Set(['cost-today', 'cost-week', 'cost-project']);
 
@@ -90,6 +95,8 @@ export function credit(highs: number[] | undefined, c: number): { highs: number[
   const delta = c <= ZERO ? c : 0;
   return { highs: [c, ...highs].slice(0, SEGMENTS), delta };
 }
+
+export const slotKey = (t: number): number => Math.floor(t / SLOT_MS);
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -120,6 +127,7 @@ export function emptySummary(): Summary {
     days: map(),
     projects: map(),
     since: map(),
+    slots: map(),
     at: 0,
     built: false,
   };
@@ -155,6 +163,8 @@ function foldLine(s: Summary, text: string): void {
   const day = dayKey(e.t);
   add(child(s.days, e.a), day, delta);
   add(child(child(s.projects, e.a), e.p), day, delta);
+  const k = slotKey(e.t);
+  if (k < 1e9) add(child(s.slots, e.a), String(k), delta);
 }
 
 // complete lines only; a torn tail waits for its newline
@@ -180,6 +190,8 @@ function parseSummary(raw: unknown): Summary {
   if (!raw || typeof raw !== 'object') return s;
   const r = raw as Record<string, unknown>;
   if (r.v !== 1) return s;
+  // older summaries lack slots: rebuild once
+  if (!('slots' in r)) return s;
   const obj = (v: unknown) => (v && typeof v === 'object' ? Object.entries(v) : []);
   for (const [k, n] of obj(r.files))
     if (MONTH.test(k) && Number.isSafeInteger(n) && (n as number) >= 0) s.files[k] = n as number;
@@ -197,6 +209,12 @@ function parseSummary(raw: unknown): Summary {
     s.projects[a] = projects;
   }
   for (const [a, t] of obj(r.since)) if (idOk(a) && num(t)) s.since[a] = t;
+  for (const [a, v] of obj(r.slots)) {
+    if (!idOk(a)) continue;
+    const rows = map<number>();
+    for (const [k, n] of obj(v)) if (SLOT.test(k) && costOk(n)) rows[k] = n;
+    s.slots[a] = rows;
+  }
   if (num(r.at)) s.at = r.at;
   if (r.built === true) s.built = true;
   return s;
@@ -327,7 +345,10 @@ function foldFiles(env: NodeJS.ProcessEnv, start: Summary, now: number, total: n
     summary = emptySummary();
     moved = true;
   }
-  if (moved) summary.at = now;
+  if (moved) {
+    summary.at = now;
+    dropSlots(summary, now);
+  }
   return { summary, moved, more };
 }
 
@@ -353,6 +374,14 @@ export function readLedger(
 
 function dropOld(rows: DayRows, first: string): void {
   for (const day in rows) if (day < first) delete rows[day];
+}
+
+function dropSlots(summary: Summary, now: number): void {
+  const first = slotKey(now - KEEP_SLOT_MS);
+  for (const a in summary.slots) {
+    const rows = summary.slots[a]!;
+    for (const k in rows) if (Number(k) < first) delete rows[k];
+  }
 }
 
 // D-21; month files by name only
@@ -382,6 +411,7 @@ export function pruneLedger(env: NodeJS.ProcessEnv, summary: Summary, now = Date
   }
   const seen = now - KEEP_SESSION_DAYS * DAY_MS;
   for (const id in summary.sessions) if (summary.sessions[id]!.seen < seen) delete summary.sessions[id];
+  dropSlots(summary, now);
 }
 
 function sums(rows: DayRows | undefined, today: string, monday: string, sunday: string, month: string) {
@@ -418,7 +448,16 @@ export function ledgerView(
   const month = `${monthKey(now)}-`;
   const all = sums(summary.days[account], today, monday, sunday, month);
   const proj = sums(summary.projects[account]?.[project], today, monday, sunday, month);
+  const slots = map<number>() as Record<number, number>;
+  const first = slotKey(now - KEEP_SLOT_MS);
+  const cur = slotKey(now);
+  const rows = summary.slots[account];
+  for (const k in rows) {
+    const n = Number(k);
+    if (n >= first && n <= cur) slots[n] = rows[k]!;
+  }
   if (extra > 0) {
+    slots[cur] = (slots[cur] ?? 0) + extra;
     all.today += extra;
     all.week += extra;
     all.month += extra;
@@ -435,6 +474,7 @@ export function ledgerView(
     since: since ?? null,
     at: summary.at > 0 ? summary.at : null,
     partial: !summary.built,
+    slots,
   };
 }
 

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { sampleLedger } from '../../src/core/sample.js';
 import type { StatusPayload } from '../../src/core/types.js';
 import {
   credit,
@@ -16,7 +17,9 @@ import {
   RENDER_BUDGET,
   readLedger,
   recordLedger,
+  SLOT_MS,
   type Summary,
+  slotKey,
 } from '../../src/data/ledger.js';
 import { accountKey } from '../../src/data/limits.js';
 
@@ -548,6 +551,7 @@ describe('cold fold byte budget', () => {
     expect(ledgerView(last.summary, A, P, T)?.partial).toBe(false);
     expect(last.summary.days).toEqual(ref.days);
     expect(last.summary.projects).toEqual(ref.projects);
+    expect(last.summary.slots).toEqual(ref.slots);
     expect(readLedger(env, T, { budget }).moved).toBe(false);
   });
 
@@ -593,5 +597,166 @@ describe('cold fold byte budget', () => {
     }
     expect(reads.length).toBeGreaterThan(0);
     expect(reads.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(1000);
+  });
+});
+
+describe('activity slots', () => {
+  const DAY = 86_400_000;
+  const k = slotKey(T);
+  let dir = '';
+  let env: NodeJS.ProcessEnv = {};
+  const ledger = () => path.join(dir, 'ledger');
+  const month = () => path.join(ledger(), `${monthKey(T)}.jsonl`);
+  const summary = () => path.join(ledger(), 'summary.json');
+  const rows = (r: Record<string, number> | undefined) =>
+    Object.fromEntries(Object.entries(r ?? {}).map(([key, v]) => [key, close(v)]));
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-ledger-'));
+    env = { CCINFOBAR_CACHE_DIR: dir, CLAUDE_CONFIG_DIR: path.join(dir, 'claude') };
+    fs.mkdirSync(ledger(), { recursive: true });
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('uses UTC 15-minute keys', () => {
+    expect(SLOT_MS).toBe(900_000);
+    expect(slotKey(0)).toBe(0);
+    expect(slotKey(SLOT_MS - 1)).toBe(0);
+    expect(slotKey(SLOT_MS)).toBe(1);
+  });
+
+  it('credits each delta to the slot of its observation', () => {
+    const s = fold(
+      line('s1', 0, T),
+      line('s1', 1, T + 30_000),
+      line('s1', 1.5, T + 60_000),
+      line('s1', 2, T + 20 * 60_000),
+    );
+    expect(rows(s.slots[A])).toEqual({ [k]: 1.5, [k + 1]: 0.5 });
+  });
+
+  it('keeps slots per account', () => {
+    const s = fold(line('a', 0), line('a', 1), line('b', 0, T, 'acct2'), line('b', 2, T, 'acct2'));
+    expect(rows(s.slots[A])).toEqual({ [k]: 1 });
+    expect(rows(s.slots.acct2)).toEqual({ [k]: 2 });
+  });
+
+  it('re-folds cold once when a built summary has no slots', () => {
+    fs.writeFileSync(month(), line('s1', 0) + line('s1', 1));
+    const size = fs.statSync(month()).size;
+    fs.writeFileSync(
+      summary(),
+      JSON.stringify({
+        v: 1,
+        built: true,
+        files: { [monthKey(T)]: size },
+        days: { [A]: { '2026-10-14': 9 } },
+      }),
+    );
+    const r = readLedger(env, T, { persist: true });
+    expect(r.moved).toBe(true);
+    expect(close(r.summary.days[A]?.['2026-10-14'])).toBe(1);
+    expect(rows(r.summary.slots[A])).toEqual({ [k]: 1 });
+    expect(readLedger(env, T).moved).toBe(false);
+  });
+
+  it('restarts an unfinished cold fold that has no slots', () => {
+    fs.writeFileSync(month(), line('s1', 0) + line('s1', 1) + line('s1', 2));
+    const part = line('s1', 0).length + line('s1', 1).length;
+    fs.writeFileSync(
+      summary(),
+      JSON.stringify({
+        v: 1,
+        built: false,
+        files: { [monthKey(T)]: part },
+        sessions: { s1: { h: [1], seen: T } },
+      }),
+    );
+    const s = readLedger(env, T).summary;
+    expect(close(s.days[A]?.['2026-10-14'])).toBe(2);
+    expect(rows(s.slots[A])).toEqual({ [k]: 2 });
+  });
+
+  it('drops invalid slot entries from a stored summary', () => {
+    fs.writeFileSync(
+      summary(),
+      `{"v":1,"built":true,"files":{},"slots":{"__proto__":{"1":1},"bad id":{"1":1},` +
+        `"${A}":{"__proto__":1,"abc":2,"123":-1,"1e3":1,"1234567890":1,"456":2,"789":"x"}}}`,
+    );
+    const s = readLedger(env, T).summary;
+    expect(Object.keys(s.slots)).toEqual([A]);
+    expect(Object.entries(s.slots[A]!)).toEqual([['456', 2]]);
+    expect(Object.getPrototypeOf(s.slots[A]!)).toBeNull();
+    expect(({} as Record<string, unknown>)['1']).toBeUndefined();
+  });
+
+  it('keeps seven days of slots when pruning', () => {
+    const s = fold(
+      line('s1', 0, T - 8 * DAY),
+      line('s1', 1, T - 8 * DAY),
+      line('s1', 2, T - 6 * DAY),
+      line('s1', 3, T),
+    );
+    expect(Object.keys(s.slots[A]!)).toHaveLength(3);
+    pruneLedger(env, s, T);
+    expect(rows(s.slots[A])).toEqual({ [slotKey(T - 6 * DAY)]: 1, [k]: 1 });
+  });
+
+  it('keeps only seven days of slots after a cold fold', () => {
+    fs.writeFileSync(month(), line('s1', 0, T - 9 * DAY) + line('s1', 1, T - 9 * DAY) + line('s1', 2));
+    const s = readLedger(env, T).summary;
+    expect(close(s.days[A]?.[dayKey(T - 9 * DAY)])).toBe(1);
+    expect(rows(s.slots[A])).toEqual({ [k]: 1 });
+  });
+
+  it('shows the last seven days plus the pending delta in the current slot', () => {
+    const s = fold(
+      line('s1', 0, T - 8 * DAY),
+      line('s1', 1, T - 8 * DAY),
+      line('s1', 2, T - 3_600_000),
+      line('s1', 3, T),
+    );
+    const h = slotKey(T - 3_600_000);
+    expect(rows(ledgerView(s, A, P, T)?.slots)).toEqual({ [h]: 1, [k]: 1 });
+    expect(rows(ledgerView(s, A, P, T, { session: 's1', c: 3.25 })?.slots)).toEqual({ [h]: 1, [k]: 1.25 });
+    expect(rows(ledgerView(s, A, P, T, { session: 's1', c: 'x' })?.slots)).toEqual({ [h]: 1, [k]: 1 });
+    expect(Object.keys(s.slots[A]!)).toHaveLength(3);
+  });
+
+  it('puts a pending-only delta in the current slot', () => {
+    const s = fold(line('s1', 0, T - 7_200_000), line('s1', 1, T - 7_200_000));
+    const v = ledgerView(s, A, P, T, { session: 's1', c: 1.5 })!;
+    expect(rows(v.slots)).toEqual({ [slotKey(T - 7_200_000)]: 1, [k]: 0.5 });
+    expect(rows(ledgerView(fold(line('s1', 0)), A, P, T)?.slots)).toEqual({});
+  });
+
+  it('writes no summary on a read without byte movement', () => {
+    fs.writeFileSync(month(), line('s1', 0) + line('s1', 1));
+    readLedger(env, T, { persist: true });
+    const saved = JSON.parse(fs.readFileSync(summary(), 'utf8')) as Summary;
+    expect(rows(saved.slots[A])).toEqual({ [k]: 1 });
+    const old = new Date(2020, 0, 1);
+    fs.utimesSync(summary(), old, old);
+    const stamp = fs.statSync(summary()).mtimeMs;
+    expect(readLedger(env, T + 60_000, { persist: true }).moved).toBe(false);
+    const payload = { session_id: 's1', cost: { total_cost_usd: 1 } } as StatusPayload;
+    recordLedger(env, payload, readLedger(env, T + 60_000), T + 60_000);
+    expect(fs.statSync(summary()).mtimeMs).toBe(stamp);
+  });
+
+  it('samples a 9 h pattern with idle stretches and nothing in the future', () => {
+    const now = T + 7 * 60_000;
+    const slots = sampleLedger(now).slots;
+    const keys = Object.keys(slots).map(Number);
+    expect(keys.length).toBeGreaterThan(8);
+    expect(keys.length).toBeLessThan(36);
+    for (const key of keys) {
+      expect(key).toBeLessThanOrEqual(slotKey(now));
+      expect(key).toBeGreaterThan(slotKey(now) - 36);
+      expect(slots[key]).toBeGreaterThan(0);
+    }
+    expect(sampleLedger(now)).toEqual(sampleLedger(now));
   });
 });
