@@ -20,6 +20,10 @@ export const importMessages = {
   },
   'import.rerun': 'To keep them, run: {command}',
   'import.rerunAddFile': 'To keep them, run: {command} (add --file with the path of the source file)',
+  'import.spaces': '\u27e8{count} spaces\u27e9',
+  'import.targetLong': '  {kind}: {count} characters, too long to review, dropped',
+  'import.note.targetTooLong':
+    '{kind} with {count} characters was dropped (too long to review, --allow-commands keeps it)',
   'import.approxHeader': 'Approximated:',
   'import.dropHeader': 'Dropped:',
   'import.infoHeader': 'Notes:',

@@ -24,6 +24,10 @@ export const importMessages = {
   'import.rerun': 'Korumak için şunu çalıştırın: {command}',
   'import.rerunAddFile':
     'Korumak için şunu çalıştırın: {command} (kaynak dosyanın yolunu --file ile ekleyin)',
+  'import.spaces': '\u27e8{count} boşluk\u27e9',
+  'import.targetLong': '  {kind}: {count} karakter, incelenemeyecek kadar uzun, çıkarıldı',
+  'import.note.targetTooLong':
+    '{count} karakterlik {kind} çıkarıldı (incelenemeyecek kadar uzun, --allow-commands ile korunur)',
   'import.approxHeader': 'Yaklaşık eşlenenler:',
   'import.dropHeader': 'Atlananlar:',
   'import.infoHeader': 'Notlar:',

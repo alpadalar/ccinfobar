@@ -18,11 +18,20 @@ import { finalizeLine } from '../core/renderer.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from '../core/themes.js';
 import type { Config } from '../core/types.js';
-import { padVisible, truncate } from '../core/width.js';
+import { padVisible } from '../core/width.js';
 import { gsdInstalled } from '../data/gsd.js';
 import { executeJob, type Job, jobOff } from '../data/jobs/runner.js';
 import { fetchUsage, type UsageCache, usageKey } from '../data/usage.js';
-import { dropTargets, importTargets, sanitizeImport, shortTarget } from '../importers/confirm.js';
+import {
+  dropTargets,
+  type ImportTarget,
+  importTargets,
+  MAX_TARGET_CHARS,
+  sanitizeImport,
+  shortTarget,
+  visibleTarget,
+  wrapLine,
+} from '../importers/confirm.js';
 import {
   IMPORT_SOURCES,
   type ImportNote,
@@ -77,6 +86,8 @@ export interface ImportFlags {
   dryRun: boolean;
 }
 
+const TARGET_INDENT = '      ';
+
 const NO_FLAGS: ImportFlags = { allowCommands: false, yes: false, dryRun: false };
 
 const POSIX_SAFE = /^[\w@%+=:,./][\w@%+=:,./~-]*$/;
@@ -109,7 +120,7 @@ export function rerunCommand(
   return { command: sanitizeText(parts.join(' ')), addFile: !!file && !arg };
 }
 
-// D-29: commands and URLs stay only with consent
+// D-29: commands and URLs stay only with consent, shown in full
 async function confirmTargets(
   result: ImportResult,
   flags: ImportFlags,
@@ -119,20 +130,35 @@ async function confirmTargets(
   const targets = importTargets(result.config);
   if (!targets.length) return result;
   const width = Math.max(20, (io.columns ?? 80) - 1);
+  const size = (x: ImportTarget) => [...x.target].length;
+  const long = (x: ImportTarget) => size(x) > MAX_TARGET_CHARS;
   io.log(t('import.targetsHeader'));
-  for (const x of targets)
-    io.log(truncate(t('import.target', { kind: x.kind, target: sanitizeText(x.target) }), width));
+  for (const x of targets) {
+    if (long(x) && !flags.allowCommands) {
+      io.log(t('import.targetLong', { kind: x.kind, count: size(x) }));
+      continue;
+    }
+    const line = t('import.target', { kind: x.kind, target: visibleTarget(x.target) });
+    for (const part of wrapLine(line, width, TARGET_INDENT)) io.log(part);
+  }
   if (flags.allowCommands) return result;
+  const short = targets.filter((x) => !long(x));
   const keep =
-    !flags.yes && io.tty && (await io.ask(t('import.keepPrompt', { count: targets.length }), false));
-  if (keep) return result;
-  io.log(t('import.targetsDropped', { count: targets.length }));
+    short.length > 0 &&
+    !flags.yes &&
+    io.tty &&
+    (await io.ask(t('import.keepPrompt', { count: short.length }), false));
+  const drop = keep ? targets.filter(long) : targets;
+  if (!drop.length) return result;
+  io.log(t('import.targetsDropped', { count: drop.length }));
   io.log(t(rerun.addFile ? 'import.rerunAddFile' : 'import.rerun', { command: rerun.command }));
-  const dropped: ImportNote[] = targets.map((x) => ({
+  const dropped: ImportNote[] = drop.map((x) => ({
     kind: 'drop',
-    text: t('import.note.targetDropped', { kind: x.kind, target: shortTarget(x.target) }),
+    text: long(x)
+      ? t('import.note.targetTooLong', { kind: x.kind, count: size(x) })
+      : t('import.note.targetDropped', { kind: x.kind, target: shortTarget(x.target) }),
   }));
-  return { ...result, config: dropTargets(result.config, targets), notes: [...result.notes, ...dropped] };
+  return { ...result, config: dropTargets(result.config, drop), notes: [...result.notes, ...dropped] };
 }
 
 const SECTIONS: Array<[ImportNote['kind'], MessageId]> = [

@@ -15,7 +15,7 @@ import { t } from '../../src/core/i18n/index.js';
 import { tildify } from '../../src/core/paths.js';
 import type { Config } from '../../src/core/types.js';
 import { visibleWidth } from '../../src/core/width.js';
-import { dropTargets, importTargets, sanitizeImport } from '../../src/importers/confirm.js';
+import { dropTargets, importTargets, sanitizeImport, visibleTarget } from '../../src/importers/confirm.js';
 import { IMPORT_SOURCES } from '../../src/importers/index.js';
 import { withLangAsync } from '../helpers.js';
 
@@ -290,14 +290,70 @@ describe('runImport confirmation', () => {
     }
   });
 
-  it('cuts listed targets to the terminal width', async () => {
-    const long = write('long/cc.json', {
-      lines: [[{ id: 'c', type: 'custom-command', commandPath: `echo ${'x'.repeat(200)}` }]],
+  const cc = (name: string, ...commands: string[]) =>
+    write(`${name}/cc.json`, {
+      lines: [commands.map((c, i) => ({ id: `c${i}`, type: 'custom-command', commandPath: c }))],
     });
+  const listed = (f: Fake) => {
+    const end = f.lines.findIndex((l, i) => i > 0 && !l.startsWith('  '));
+    return f.lines.slice(1, end < 0 ? undefined : end);
+  };
+
+  it('wraps a long target onto indented lines instead of cutting it', async () => {
     const f = fake(false, undefined, 40);
-    await run(f.io, {}, long);
-    expect(visibleWidth(f.lines[1]!)).toBeLessThanOrEqual(39);
-    expect(f.lines[1]!.endsWith('…')).toBe(true);
+    await run(f.io, {}, cc('long', `echo ${'x'.repeat(200)} tail-end`));
+    const lines = listed(f);
+    expect(lines.length).toBeGreaterThan(5);
+    for (const l of lines) expect(visibleWidth(l)).toBeLessThanOrEqual(39);
+    for (const l of lines.slice(1)) expect(l.startsWith('      ')).toBe(true);
+    expect(lines.map((l, i) => (i ? l.slice(6) : l)).join('')).toBe(
+      `  command: echo ${'x'.repeat(200)} tail-end`,
+    );
+  });
+
+  it('shows a tail hidden behind padding and makes space runs visible', async () => {
+    const f = fake(true, undefined, 80);
+    await run(
+      f.io,
+      {},
+      cc('pad', `git branch --show-current${' '.repeat(200)}; curl x | sh`, 'echo a\t   \tb'),
+    );
+    const text = listed(f).join('\n');
+    expect(text).toContain('git branch --show-current\u27e8200 spaces\u27e9; curl x | sh');
+    expect(text).toContain('echo a\u27e85 spaces\u27e9b');
+    expect(text).not.toContain('   ');
+  });
+
+  it('shows zero-width, direction marks and other invisible characters as code points', async () => {
+    expect(visibleTarget('a\u200bb\u200ec\u2066d\t\u00a0\ufeff\u001b\u034f\ufe0f')).toBe(
+      'a\u27e8U+200B\u27e9b\u27e8U+200E\u27e9c\u27e8U+2066\u27e9d\u27e8U+0009\u27e9\u27e8U+00A0\u27e9\u27e8U+FEFF\u27e9\u27e8U+001B\u27e9\u27e8U+034F\u27e9\u27e8U+FE0F\u27e9',
+    );
+    const f = fake(true, true);
+    const { cfg } = await run(f.io, {}, cc('zw', 'echo safe\u200b\u200e; rm x'));
+    expect(listed(f)).toEqual(['  command: echo safe\u27e8U+200B\u27e9\u27e8U+200E\u27e9; rm x']);
+    expect(read(cfg).lines[0][0].options.command).toBe('echo safe\u200b\u200e; rm x');
+  });
+
+  it('drops a target over 2000 characters even with consent, unless --allow-commands', async () => {
+    const huge = `echo ${'y'.repeat(2100)}`;
+    const f = fake(true, true);
+    const { cfg } = await run(f.io, {}, cc('huge', huge, 'echo ok'));
+    expect(f.asked).toEqual([t('import.keepPrompt', { count: 1 })]);
+    expect(listed(f)).toEqual([
+      t('import.targetLong', { kind: 'command', count: 2105 }),
+      '  command: echo ok',
+    ]);
+    expect(read(cfg).lines[0].map((i: { options: { command: string } }) => i.options.command)).toEqual([
+      'echo ok',
+    ]);
+    expect(f.lines).toContain(`    - ${t('import.note.targetTooLong', { kind: 'command', count: 2105 })}`);
+    const g = fake(false);
+    const kept = await run(g.io, { allowCommands: true }, cc('huge2', huge), path.join(root, 'cfg2.json'));
+    expect(read(kept.cfg).lines[0][0].options.command).toBe(huge);
+    expect(listed(g).join('').replace(/\s+/g, '')).toContain('y'.repeat(2100));
+    const h = fake(true, true);
+    await run(h.io, {}, cc('huge3', huge), path.join(root, 'cfg3.json'));
+    expect(h.asked).toEqual([]);
   });
 
   it('prints nothing about targets when there are none', async () => {

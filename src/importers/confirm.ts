@@ -2,7 +2,7 @@ import { externalTargets } from '../core/http-report.js';
 import { t } from '../core/i18n/index.js';
 import { deepSanitize, safeConfigUrl, sanitizeText } from '../core/sanitize.js';
 import type { Config, WidgetItem } from '../core/types.js';
-import { truncate } from '../core/width.js';
+import { charWidth, truncate, visibleWidth } from '../core/width.js';
 import type { ImportResult } from './index.js';
 
 export interface ImportTarget {
@@ -41,7 +41,39 @@ export function dropTargets(config: Partial<Config>, targets: ImportTarget[]): P
   return { ...config, lines };
 }
 
-export const shortTarget = (s: string, max = 60): string => truncate(sanitizeText(s), max);
+export const MAX_TARGET_CHARS = 2000;
+
+// characters a terminal shows as nothing or as a plain space
+const INVISIBLE =
+  /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\u115f\u1160\u3164\uffa0\u2800]|\u034f|[\u180b-\u180f]|[\ufe00-\ufe0f]|[\u{e0100}-\u{e01ef}]/gu;
+
+const codePoint = (c: string) =>
+  `\u27e8U+${c.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}\u27e9`;
+
+export function visibleTarget(s: string): string {
+  return s.replace(INVISIBLE, codePoint).replace(/ {3,}/g, (m) => t('import.spaces', { count: m.length }));
+}
+
+export function wrapLine(text: string, width: number, indent: string): string[] {
+  const max = Math.max(visibleWidth(indent) + 4, width);
+  const out: string[] = [];
+  let line = '';
+  let w = 0;
+  for (const ch of text) {
+    const cw = charWidth(ch);
+    if (w + cw > max && line.trim()) {
+      out.push(line);
+      line = indent;
+      w = visibleWidth(indent);
+    }
+    line += ch;
+    w += cw;
+  }
+  out.push(line);
+  return out;
+}
+
+export const shortTarget = (s: string, max = 60): string => truncate(visibleTarget(sanitizeText(s)), max);
 
 export function sanitizeImport(result: ImportResult): ImportResult {
   const config = deepSanitize(result.config);
