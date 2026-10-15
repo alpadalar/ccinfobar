@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
+import { envelopeFile, lockFile } from '../../src/data/jobs/runner.js';
 import { limitsOn, readLimitsStore, recordLimits, resolveLimits } from '../../src/data/limits.js';
 import {
   effectiveUsage,
@@ -14,6 +15,7 @@ import {
   scheduleUsage,
   usageDue,
   usageFile,
+  usageKey,
 } from '../../src/data/usage.js';
 
 const NOW = Date.parse('2026-10-12T12:00:00Z');
@@ -134,9 +136,12 @@ describe('usage api', () => {
     const b = { ...sandbox('tok-b'), CCINFOBAR_CACHE_DIR: a.CCINFOBAR_CACHE_DIR };
     await fetchUsage(a, reply(200, { five_hour: { utilization: 11 }, seven_day: { utilization: 1 } }));
     await fetchUsage(b, reply(200, { five_hour: { utilization: 22 }, seven_day: { utilization: 2 } }));
-    expect(usageFile(a)).not.toBe(usageFile(b));
-    expect(path.basename(usageFile(a))).toMatch(/^usage-[0-9a-f]{16}\.json$/);
-    expect(fs.existsSync(usageFile(a)) && fs.existsSync(usageFile(b))).toBe(true);
+    expect(usageKey(a)).not.toBe(usageKey(b));
+    expect(path.basename(envelopeFile(usageKey(a), a))).toMatch(/^usage-[0-9a-f]{16}\.json$/);
+    expect(fs.existsSync(envelopeFile(usageKey(a), a)) && fs.existsSync(envelopeFile(usageKey(b), b))).toBe(
+      true,
+    );
+    expect(fs.existsSync(usageFile(a)) || fs.existsSync(usageFile(b))).toBe(false);
     expect(readUsageCache(a)?.rate_limits?.five_hour?.used_percentage).toBe(11);
     expect(readUsageCache(b)?.rate_limits?.five_hour?.used_percentage).toBe(22);
   });
@@ -161,8 +166,9 @@ describe('usage api', () => {
 
   it('schedules no usage fetch when nonessential traffic is off', () => {
     const env = sandbox(null);
-    const lock = `${usageFile(env)}.lock`;
-    expect(path.basename(lock)).toMatch(/^usage-[0-9a-f]{16}\.json\.lock$/);
+    const lock = lockFile(usageKey(env), env);
+    expect(path.basename(path.dirname(lock))).toBe('jobs');
+    expect(path.basename(lock)).toMatch(/^usage-[0-9a-f]{16}\.lock$/);
     scheduleUsage({ ...env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' });
     expect(fs.existsSync(lock)).toBe(false);
     scheduleUsage({ ...env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '' });

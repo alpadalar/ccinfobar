@@ -510,7 +510,7 @@ function workerProof(ctx) {
   const missing = [];
   if (!jobNames.includes('update.json')) missing.push('jobs/update.json');
   // usage cache is keyed per account
-  if (!names.some((f) => /^usage-[0-9a-f]{16}\.json$/.test(f))) missing.push('usage-<account>.json');
+  if (!jobNames.some((f) => /^usage-[0-9a-f]{16}\.json$/.test(f))) missing.push('jobs/usage-<account>.json');
   if (missing.length) {
     const found = fs.existsSync(dir)
       ? [...names, ...jobNames.map((f) => `jobs/${f}`)].join(', ')

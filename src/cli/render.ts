@@ -3,7 +3,7 @@ import { detectLevel, style } from '../core/ansi.js';
 import { createContext, lazy, resolveCwd } from '../core/context.js';
 import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
-import { lastPayloadPath } from '../core/paths.js';
+import { configPath, lastPayloadPath } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
 import { finalizeLine, render } from '../core/renderer.js';
 import type { Config, DataSources, StatusPayload } from '../core/types.js';
@@ -125,8 +125,10 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
       const read = ledger();
       if (read) recordLedger(process.env, payload, read, Date.now());
     }
-    scheduleCheck(config, payload.session_id);
-    if (eff.usageOn && usageDue(eff.usage)) scheduleUsage();
+    // the worker loads the same config
+    const extra = cfgFile === configPath() ? [] : [`--config=${cfgFile}`];
+    scheduleCheck(config, payload.session_id, process.env, extra);
+    if (eff.usageOn && usageDue(eff.usage)) scheduleUsage(process.env, Date.now(), extra);
     if (repoDirtyWanted(config)) scheduleRepoDirty(cwd, repos(), process.env, Date.now());
   } catch {}
 }

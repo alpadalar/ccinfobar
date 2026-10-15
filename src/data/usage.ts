@@ -7,6 +7,14 @@ import { deepSanitize } from '../core/sanitize.js';
 import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
 import {
+  type JobEnvelope,
+  nonessentialTrafficOff,
+  okEnvelope,
+  readEnvelope,
+  scheduleRequests,
+  writeEnvelope,
+} from './jobs/runner.js';
+import {
   accountKey,
   captureTime,
   type LimitsView,
@@ -16,9 +24,7 @@ import {
   resolveLimits,
 } from './limits.js';
 import { detectProvider } from './provider.js';
-import { acquireLock, writeAtomic } from './store.js';
 import type { TranscriptInfo } from './transcript.js';
-import { nonessentialTrafficOff, spawnSelf } from './update-state.js';
 
 type RateLimits = NonNullable<StatusPayload['rate_limits']>;
 
@@ -38,6 +44,16 @@ export interface UsageCache {
   legacy?: boolean;
 }
 
+export interface UsageValue {
+  rate_limits?: RateLimits;
+  account?: string;
+}
+
+export function usageKey(env: NodeJS.ProcessEnv = process.env): string {
+  return `usage-${accountKey(env)}`;
+}
+
+// read-only fallback from before the runner
 export function usageFile(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(cacheDir(env), `usage-${accountKey(env)}.json`);
 }
@@ -60,8 +76,51 @@ function readUsageText(env: NodeJS.ProcessEnv): { text: string; legacy: boolean 
   }
 }
 
-// cached API text reaches widgets after payload ingest
-export function readUsageCache(env: NodeJS.ProcessEnv = process.env): UsageCache | null {
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+
+export function toUsageCache(e: JobEnvelope<UsageValue>): UsageCache {
+  const v = isObject(e.value) ? e.value : isObject(e.lastGood) ? e.lastGood : null;
+  const rate = isObject(v?.rate_limits) ? (v.rate_limits as RateLimits) : undefined;
+  // shown limits keep the time they were observed
+  const at = rate && !e.ok ? (e.lastGoodAt ?? e.fetchedAt) : e.fetchedAt;
+  return {
+    fetchedAt: at,
+    ...(rate ? { rate_limits: rate } : {}),
+    ...(typeof v?.account === 'string' ? { account: v.account } : {}),
+    ...(typeof e.error === 'string' ? { error: e.error } : {}),
+    ...(e.blockedUntil ? { blockedUntil: e.blockedUntil } : {}),
+  };
+}
+
+export function fromUsageCache(
+  key: string,
+  cache: UsageCache,
+  prev: JobEnvelope<UsageValue> | null,
+  now: number = cache.fetchedAt,
+): JobEnvelope<UsageValue> {
+  const value: UsageValue = {
+    ...(cache.rate_limits ? { rate_limits: cache.rate_limits } : {}),
+    ...(cache.account ? { account: cache.account } : {}),
+  };
+  if (!cache.error) return okEnvelope(key, value, cache.fetchedAt);
+  // no limits means none to keep (account changes included)
+  const rate = !!cache.rate_limits;
+  return {
+    v: 1,
+    key,
+    fetchedAt: rate ? now : cache.fetchedAt,
+    ok: false,
+    value: null,
+    error: cache.error,
+    attempts: Math.min((prev?.attempts ?? 0) + 1, 16),
+    ...(cache.blockedUntil ? { blockedUntil: cache.blockedUntil } : {}),
+    lastGood: rate || cache.account ? value : null,
+    ...(rate ? { lastGoodAt: cache.fetchedAt } : {}),
+  };
+}
+
+function readLegacyCache(env: NodeJS.ProcessEnv): UsageCache | null {
   try {
     const read = readUsageText(env);
     if (read === null) return null;
@@ -75,8 +134,13 @@ export function readUsageCache(env: NodeJS.ProcessEnv = process.env): UsageCache
   }
 }
 
-function writeUsageCache(cache: UsageCache, env: NodeJS.ProcessEnv): void {
-  writeAtomic(usageFile(env), JSON.stringify(cache), { mode: 0o600 });
+// cached API text reaches widgets after payload ingest
+export function readUsageCache(env: NodeJS.ProcessEnv = process.env): UsageCache | null {
+  try {
+    const e = readEnvelope<UsageValue>(usageKey(env), env);
+    if (e) return toUsageCache(e);
+  } catch {}
+  return readLegacyCache(env);
 }
 
 export function usageApiDisabled(config: Config, env: NodeJS.ProcessEnv = process.env): boolean {
@@ -268,13 +332,12 @@ export function usageDue(cache: UsageCache | null, now = Date.now()): boolean {
   return now - cache.fetchedAt >= (cache.error ? RETRY_MS : FRESH_MS);
 }
 
-export async function fetchUsage(
-  env: NodeJS.ProcessEnv = process.env,
-  fetcher: typeof fetch = fetch,
-): Promise<UsageCache> {
-  const now = Date.now();
-  const read = readUsageCache(env);
-  const prev = read?.legacy ? null : read;
+export async function fetchUsageEnvelope(
+  prev: UsageCache | null,
+  env: NodeJS.ProcessEnv,
+  fetcher: typeof fetch,
+  now: number,
+): Promise<{ cache: UsageCache; account?: string }> {
   const known = prev?.account ? { account: prev.account } : {};
   const keep = (extra: Partial<UsageCache>): UsageCache => ({
     ...(prev?.rate_limits ? { rate_limits: prev.rate_limits } : {}),
@@ -318,19 +381,50 @@ export async function fetchUsage(
       cache = { ...rest, fetchedAt: now, account };
     }
   }
-  cache = deepSanitize(cache);
-  writeUsageCache(cache, env);
-  const changed = !!account && !!prev?.account && prev.account !== account;
-  if (account && (cache.rate_limits || changed)) recordUsageApi(env, cache, changed, now);
-  return cache;
+  return account ? { cache: deepSanitize(cache), account } : { cache: deepSanitize(cache) };
+}
+
+// the Phase 3 limits store, fed as before
+export function recordUsage(
+  env: NodeJS.ProcessEnv,
+  prev: UsageCache | null,
+  r: { cache: UsageCache; account?: string },
+  now: number,
+): void {
+  const changed = !!r.account && !!prev?.account && prev.account !== r.account;
+  if (r.account && (r.cache.rate_limits || changed)) recordUsageApi(env, r.cache, changed, now);
+}
+
+// previous state for a fetch; the shared usage.json may belong to another config dir
+export function usagePrev(env: NodeJS.ProcessEnv): {
+  cache: UsageCache | null;
+  envelope: JobEnvelope<UsageValue> | null;
+} {
+  const envelope = readEnvelope<UsageValue>(usageKey(env), env);
+  if (envelope) return { cache: toUsageCache(envelope), envelope };
+  const read = readLegacyCache(env);
+  return { cache: read?.legacy ? null : read, envelope: null };
+}
+
+export async function fetchUsage(
+  env: NodeJS.ProcessEnv = process.env,
+  fetcher: typeof fetch = fetch,
+): Promise<UsageCache> {
+  const now = Date.now();
+  const prev = usagePrev(env);
+  const r = await fetchUsageEnvelope(prev.cache, env, fetcher, now);
+  writeEnvelope(fromUsageCache(usageKey(env), r.cache, prev.envelope, now), env);
+  recordUsage(env, prev.cache, r, now);
+  return r.cache;
 }
 
 const LOCK_MS = 30_000;
 
-export function scheduleUsage(env: NodeJS.ProcessEnv = process.env, now = Date.now()): void {
+export function scheduleUsage(
+  env: NodeJS.ProcessEnv = process.env,
+  now = Date.now(),
+  extra: string[] = [],
+): void {
   if (nonessentialTrafficOff(env)) return;
-  if (!acquireLock(`${usageFile(env)}.lock`, LOCK_MS, now)) return;
-  try {
-    spawnSelf(['usage', '--background'], env);
-  } catch {}
+  scheduleRequests([{ req: { key: usageKey(env) }, lockMs: LOCK_MS }], env, extra, { now });
 }

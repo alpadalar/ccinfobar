@@ -11,7 +11,9 @@ import { type PreviewSource, renderPreview, scenarioFlag, scenarioListLines } fr
 import { sanitizeText } from '../core/sanitize.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from '../core/themes.js';
 import { gsdInstalled } from '../data/gsd.js';
-import { fetchUsage } from '../data/usage.js';
+import { executeJob } from '../data/jobs/runner.js';
+import { usageJob } from '../data/jobs/usage.js';
+import { fetchUsage, usageKey } from '../data/usage.js';
 import { type ImportSource, importFrom, toConfig } from '../importers/index.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import { currentStatusLine } from './install.js';
@@ -228,9 +230,24 @@ export function runWidgets(_args: Args, _cfgFile: string): void {
   }
 }
 
-export async function runUsage(args: Args, _cfgFile: string): Promise<void> {
+export async function runUsage(args: Args, cfgFile: string): Promise<void> {
+  if (args.flags.background) {
+    const key = usageKey();
+    await executeJob(
+      usageJob,
+      { key },
+      {
+        env: process.env,
+        config: loadForUse(cfgFile).config,
+        cwd: process.cwd(),
+        prev: usageJob.readPrev!(key, process.env),
+        fetch,
+        now: Date.now(),
+      },
+    );
+    return;
+  }
   const cache = await fetchUsage();
-  if (args.flags.background) return;
   if (cache.error) console.log(`✗ ${clean(cache.error)}`);
   const r = cache.rate_limits;
   if (!r) {
