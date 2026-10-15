@@ -18,6 +18,7 @@ import { inspectorMessages } from '../../src/core/i18n/en/inspector.js';
 import { installMessages } from '../../src/core/i18n/en/install.js';
 import { jobsMessages } from '../../src/core/i18n/en/jobs.js';
 import { previewMessages } from '../../src/core/i18n/en/preview.js';
+import { reportMessages } from '../../src/core/i18n/en/report.js';
 import { staticMessages } from '../../src/core/i18n/en/static.js';
 import { themeEditorMessages } from '../../src/core/i18n/en/theme-editor.js';
 import { tuiMessages } from '../../src/core/i18n/en/tui.js';
@@ -59,6 +60,7 @@ import { inspectorMessages as trInspector } from '../../src/core/i18n/tr/inspect
 import { installMessages as trInstall } from '../../src/core/i18n/tr/install.js';
 import { jobsMessages as trJobs } from '../../src/core/i18n/tr/jobs.js';
 import { previewMessages as trPreview } from '../../src/core/i18n/tr/preview.js';
+import { reportMessages as trReport } from '../../src/core/i18n/tr/report.js';
 import { staticMessages as trStatic } from '../../src/core/i18n/tr/static.js';
 import { themeEditorMessages as trThemeEditor } from '../../src/core/i18n/tr/theme-editor.js';
 import { tuiMessages as trTui } from '../../src/core/i18n/tr/tui.js';
@@ -249,6 +251,7 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['theme-editor', themeEditorMessages, trThemeEditor],
   ['static', staticMessages, trStatic],
   ['tui', tuiMessages, trTui],
+  ['report', reportMessages, trReport],
 ];
 
 function forms(m: Message): string[] {
@@ -414,6 +417,7 @@ describe('en table', () => {
       themeEditorMessages,
       staticMessages,
       tuiMessages,
+      reportMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);

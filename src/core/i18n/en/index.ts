@@ -13,6 +13,7 @@ import { inspectorMessages } from './inspector.js';
 import { installMessages } from './install.js';
 import { jobsMessages } from './jobs.js';
 import { previewMessages } from './preview.js';
+import { reportMessages } from './report.js';
 import { staticMessages } from './static.js';
 import { themeEditorMessages } from './theme-editor.js';
 import { tuiMessages } from './tui.js';
@@ -38,4 +39,5 @@ export const en = {
   ...themeEditorMessages,
   ...staticMessages,
   ...tuiMessages,
+  ...reportMessages,
 } as const;
