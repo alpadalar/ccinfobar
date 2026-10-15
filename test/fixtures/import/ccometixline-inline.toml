@@ -1,0 +1,75 @@
+# same layout as ccometixline.toml, inline tables
+theme = "custom"
+style = { mode = "nerd_font", separator = " | " }
+
+[[segments]]
+id = "model"
+enabled = true
+icon = { plain = "🤖", nerd_font = "" }
+colors = { text = { c16 = 14 } }
+styles = { text_bold = true }
+options = {}
+
+[[segments]]
+id = "directory"
+enabled = true
+icon = { plain = "📁", nerd_font = "\U000F024B" }
+colors = { text = { c256 = 208 }, background = { r = 40, g = 44, b = 52 } }
+styles = { text_bold = false }
+options = {}
+
+[[segments]]
+id = "git"
+enabled = true
+icon = { plain = "🌿", nerd_font = "\U000F02A2" }
+colors = { icon = { c16 = 12 }, text = { c16 = 12 } }
+styles = { text_bold = false }
+options = { show_sha = true }
+
+[[segments]]
+id = "context_window"
+enabled = true
+icon = { plain = "⚡", nerd_font = "\uF49B" }
+colors = {}
+styles = { text_bold = false }
+options = {}
+
+[[segments]]
+id = "usage"
+enabled = false
+icon = { plain = "📊", nerd_font = "\U000F0A9E" }
+colors = { text = { c16 = 14 } }
+styles = { text_bold = false }
+options = { api_base_url = "https://api.example.com", cache_duration = 180, timeout = 2 }
+
+[[segments]]
+id = "cost"
+enabled = true
+icon = { plain = "💰", nerd_font = "\uEEC1" }
+colors = { text = { c16 = 3 } }
+styles = { text_bold = false }
+options = { api_base_url = "https://x.example" }
+
+[[segments]]
+id = "session"
+enabled = true
+icon = { plain = "⏱", nerd_font = "\U000F19BB" }
+colors = { text = { c16 = 2 }, icon = { c16 = 3 } }
+styles = { text_bold = false }
+options = {}
+
+[[segments]]
+id = "output_style"
+enabled = true
+icon = { plain = "🎯", nerd_font = "\U000F12F5" }
+colors = {}
+styles = { text_bold = false }
+options = {}
+
+[[segments]]
+id = "update"
+enabled = true
+icon = { plain = "🔄", nerd_font = "\uF021" }
+colors = {}
+styles = { text_bold = false }
+options = {}

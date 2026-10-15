@@ -13,6 +13,7 @@ const SWEPT: string[] = [
   'src/importers/index.ts',
   'src/importers/ccstatusline.ts',
   'src/importers/claude-powerline.ts',
+  'src/importers/ccometixline.ts',
   'src/importers/toml.ts',
   'src/importers/colors.ts',
   'src/importers/confirm.ts',

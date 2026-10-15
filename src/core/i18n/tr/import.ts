@@ -4,6 +4,7 @@ import type { Message } from '../types.js';
 export const importMessages = {
   'import.cannotRead': '{file} konumundaki ccstatusline ayarları okunamıyor',
   'import.cannotParse': '{file} konumundaki claude-powerline yapılandırması ayrıştırılamıyor',
+  'import.cannotReadTool': '{file} konumundaki {tool} yapılandırması okunamıyor',
   'import.tooLarge': '{file} 1 MB sınırından büyük, okunmadı',
   'import.tool.gsd': 'GSD durum satırı',
   'import.tool.custom': 'özel bir durum satırı',
@@ -11,6 +12,11 @@ export const importMessages = {
   'import.note.noSegment': '{tool} bölümü "{name}" için ccinfobar karşılığı yok, atlandı',
   'import.note.customColors': 'özel {tool} renkleri her bileşene ayrı ayrı kopyalandı',
   'import.note.defaultLayout': '{tool} yapılandırma dosyası bulunamadı, varsayılan düzeni içe aktarıldı',
+  'import.note.selfUpdate': '{tool} bölümü "{name}" atlandı: ccinfobar kendini günceller',
+  'import.note.usageApi':
+    '{tool} bölümü "{name}": kullanım API seçenekleri ({options}) atlandı, ccinfobar token\'ınızı asla özel bir sunucuya göndermez',
+  'import.note.iconColor': '{tool} bölümü "{name}": simge rengi atlandı, bileşenin tek rengi var',
+  'import.note.commandDir': '{tool} yapılandırması durum satırı komutunun yanındaki dosyadan okundu: {file}',
   'import.note.hideState': '{name}: "{state}" durumunda gizleme desteklenmiyor, bileşen görünür kalır',
   'import.note.targetDropped': '{kind} "{target}" onaylanmadığı için çıkarıldı',
   'import.note.unsafeLink': 'link "{url}" güvenli olmayan bir URL içeriyor, çıkarıldı',

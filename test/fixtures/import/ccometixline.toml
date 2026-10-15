@@ -1,0 +1,162 @@
+theme = "custom"
+
+[style]
+mode = "nerd_font"
+separator = " | "
+
+[[segments]]
+id = "model"
+enabled = true
+
+[segments.icon]
+plain = "🤖"
+nerd_font = ""
+
+[segments.colors.text]
+c16 = 14
+
+[segments.styles]
+text_bold = true
+
+[segments.options]
+
+[[segments]]
+id = "directory"
+enabled = true
+
+[segments.icon]
+plain = "📁"
+nerd_font = "\U000F024B"
+
+[segments.colors.text]
+c256 = 208
+
+[segments.colors.background]
+r = 40
+g = 44
+b = 52
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+
+[[segments]]
+id = "git"
+enabled = true
+
+[segments.icon]
+plain = "🌿"
+nerd_font = "\U000F02A2"
+
+[segments.colors.icon]
+c16 = 12
+
+[segments.colors.text]
+c16 = 12
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+show_sha = true
+
+[[segments]]
+id = "context_window"
+enabled = true
+
+[segments.icon]
+plain = "⚡"
+nerd_font = "\uF49B"
+
+[segments.colors]
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+
+[[segments]]
+id = "usage"
+enabled = false
+
+[segments.icon]
+plain = "📊"
+nerd_font = "\U000F0A9E"
+
+[segments.colors.text]
+c16 = 14
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+api_base_url = "https://api.example.com"
+cache_duration = 180
+timeout = 2
+
+[[segments]]
+id = "cost"
+enabled = true
+
+[segments.icon]
+plain = "💰"
+nerd_font = "\uEEC1"
+
+[segments.colors.text]
+c16 = 3
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+api_base_url = "https://x.example"
+
+[[segments]]
+id = "session"
+enabled = true
+
+[segments.icon]
+plain = "⏱"
+nerd_font = "\U000F19BB"
+
+[segments.colors.icon]
+c16 = 2
+
+[segments.colors.text]
+c16 = 2
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+
+[[segments]]
+id = "output_style"
+enabled = true
+
+[segments.icon]
+plain = "🎯"
+nerd_font = "\U000F12F5"
+
+[segments.colors]
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+
+[[segments]]
+id = "update"
+enabled = true
+
+[segments.icon]
+plain = "🔄"
+nerd_font = "\uF021"
+
+[segments.colors]
+
+[segments.styles]
+text_bold = false
+
+[segments.options]

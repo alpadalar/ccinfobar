@@ -16,7 +16,7 @@ Kullanım
                                   `npm rm -g ccinfobar` öncesinde çalıştırın: hook'lar ccinfobar komutunu çağırır
   ccinfobar uninstall --hooks     Yalnızca ccinfobar'ın hook'larını kaldırır
   ccinfobar uninstall --progress  Yalnızca terminal ilerleme işleyicilerini kaldırır
-  ccinfobar import <tool>         Bir ccstatusline veya claude-powerline düzenini içe aktarır
+  ccinfobar import <tool>         Bir ccstatusline, claude-powerline veya ccometixline düzenini içe aktarır
   ccinfobar import <tool> --dry-run
                                   Eşleme raporunu ve önizlemeyi gösterir, hiçbir şey yazmaz
   ccinfobar themes                Tüm temaları önizler

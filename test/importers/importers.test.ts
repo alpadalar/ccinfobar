@@ -138,7 +138,8 @@ describe('detectTool', () => {
       tool: 'claude-powerline',
       importable: true,
     });
-    expect(detectTool('ccline')).toMatchObject({ tool: 'ccometixline', importable: false });
+    expect(detectTool('ccline')).toMatchObject({ tool: 'ccometixline', importable: true });
+    expect(detectTool('~/.claude/ccline/ccline')).toMatchObject({ tool: 'ccometixline', importable: true });
     expect(detectTool('node ~/.claude/hooks/gsd-statusline.js')).toMatchObject({
       tool: 'gsd',
       importable: false,
@@ -235,7 +236,7 @@ describe('import notes', () => {
 
 describe('import sources', () => {
   it('resolves tool names case-insensitively', () => {
-    expect(IMPORT_SOURCES).toEqual(['ccstatusline', 'claude-powerline']);
+    expect(IMPORT_SOURCES).toEqual(['ccstatusline', 'claude-powerline', 'ccometixline']);
     expect(resolveSource('ccstatusline')).toBe('ccstatusline');
     expect(resolveSource('CLAUDE-POWERLINE')).toBe('claude-powerline');
     for (const bad of ['nope', '', undefined, 'constructor', '__proto__', 'toString', ' ccstatusline']) {

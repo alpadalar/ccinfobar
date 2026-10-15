@@ -104,6 +104,20 @@ describe('install import offer', () => {
     expect(types()).toEqual(['command', 'model']);
   });
 
+  it('offers the CCometixLine import too', async () => {
+    const bin = path.join(dir, 'tools', 'ccline');
+    fs.mkdirSync(bin, { recursive: true });
+    fs.writeFileSync(
+      path.join(bin, 'config.toml'),
+      '[style]\nmode = "plain"\nseparator = " | "\n\n[[segments]]\nid = "git"\nenabled = true\n',
+    );
+    const f = fake(false);
+    const tool = detectTool(`"${path.join(bin, 'ccline')}"`)!;
+    await offerImport(tool, parseArgs(['install', '--yes']), cfg, f.io);
+    expect(types()).toEqual(['git-branch', 'git-status']);
+    expect(read(cfg).separator).toBe(' | ');
+  });
+
   it('skips everything with --no-import', async () => {
     const f = fake(true);
     await offer(f.io, '--no-import', '--allow-commands');
