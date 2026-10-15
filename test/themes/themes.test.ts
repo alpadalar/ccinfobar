@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { stripAnsi } from '../../src/core/ansi.js';
+import { contrastRatio, parseColor, stripAnsi } from '../../src/core/ansi.js';
 import { normalizeConfig } from '../../src/core/config.js';
 import { render, resolveAppearance } from '../../src/core/renderer.js';
 import {
@@ -58,6 +58,74 @@ describe('built-in themes', () => {
     const ids = listThemes(tmp()).map((t) => t.id);
     const order = pinned.map((t) => ids.indexOf(t.id));
     expect(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1]!))).toBe(true);
+  });
+});
+
+describe('new built-in themes', () => {
+  const NEW = {
+    'catppuccin-latte': 'powerline',
+    'catppuccin-frappe': 'powerline',
+    'catppuccin-macchiato': 'powerline',
+    'catppuccin-mocha': 'powerline',
+    everforest: 'powerline',
+    kanagawa: 'powerline',
+    'one-dark': 'capsule',
+  } as const;
+
+  it.each(Object.entries(NEW))('%s resolves with its style and a 4-stop gradient', (id, style) => {
+    const t = resolveTheme(id, tmp());
+    expect(t.id).toBe(id);
+    expect(t.source).toBe('builtin');
+    expect(t.style).toBe(style);
+    expect(t.colors.mode).toBe('category');
+    expect(t.gradient).toHaveLength(4);
+    for (const c of t.gradient!) expect(parseColor(c)).not.toBeNull();
+    expect(listThemes(tmp()).some((x) => x.id === id)).toBe(true);
+  });
+
+  it.each(Object.keys(NEW))('%s keeps every category swatch at contrast 4.5 or more', (id) => {
+    const t = resolveTheme(id, tmp());
+    const entries = Object.entries(t.colors.categories);
+    expect(entries.length).toBeGreaterThanOrEqual(10);
+    for (const [cat, sw] of entries) {
+      const bg = typeof sw === 'string' ? sw : (sw?.bg ?? t.colors.bg);
+      const fg = typeof sw === 'object' && sw.fg ? sw.fg : t.colors.on;
+      const ratio = contrastRatio(fg, bg);
+      expect(ratio, `${id} ${cat} ${fg} on ${bg}`).not.toBeNull();
+      expect(ratio!, `${id} ${cat} ${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('uses each flavour ramp from green to red', () => {
+    expect(resolveTheme('catppuccin-mocha', tmp()).gradient).toEqual([
+      '#a6e3a1',
+      '#f9e2af',
+      '#fab387',
+      '#f38ba8',
+    ]);
+    expect(resolveTheme('catppuccin-latte', tmp()).gradient).toEqual([
+      '#40a02b',
+      '#df8e1d',
+      '#fe640b',
+      '#d20f39',
+    ]);
+    expect(resolveTheme('one-dark', tmp()).gradient).toEqual(['#98c379', '#e5c07b', '#d19a66', '#e06c75']);
+  });
+
+  it('leaves the capsule catppuccin theme as it was', () => {
+    const t = resolveTheme('catppuccin', tmp());
+    expect(t.style).toBe('capsule');
+    expect('gradient' in t).toBe(false);
+  });
+
+  it('paints category blocks in the theme colors', () => {
+    const line = render(
+      ctxWith({
+        config: { colorLevel: 3, theme: 'catppuccin-mocha', lines: [[{ id: 'g', type: 'git-branch' }]] },
+      }),
+    )[0]!;
+    expect(line).toContain('48;2;243;139;168');
+    expect(line).toContain('38;2;30;30;46');
   });
 });
 

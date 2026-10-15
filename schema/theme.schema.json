@@ -40,9 +40,16 @@
         "dark",
         "light",
         "rose-pine",
+        "catppuccin-latte",
+        "catppuccin-frappe",
+        "catppuccin-macchiato",
+        "catppuccin-mocha",
+        "everforest",
+        "kanagawa",
         "panel",
         "catppuccin",
-        "bubblegum"
+        "bubblegum",
+        "one-dark"
       ]
     },
     "style": {

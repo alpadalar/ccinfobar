@@ -210,8 +210,8 @@ ccinfobar theme dracula   # switch
 | --- | --- |
 | Colored text | `classic` (default), `minimal`, `mono`, `neon`, `pastel`, `amber`, `matrix` |
 | Colored blocks | `blocks`, `slate`, `paper` |
-| Powerline | `powerline`, `nord`, `dracula`, `gruvbox`, `tokyo-night`, `solarized`, `monochrome`, `dark`, `light`, `rose-pine` |
-| Capsules | `catppuccin`, `bubblegum` |
+| Powerline | `powerline`, `nord`, `dracula`, `gruvbox`, `tokyo-night`, `solarized`, `monochrome`, `dark`, `light`, `rose-pine`, `catppuccin-latte`, `catppuccin-frappe`, `catppuccin-macchiato`, `catppuccin-mocha`, `everforest`, `kanagawa` |
+| Capsules | `catppuccin`, `bubblegum`, `one-dark` |
 | Panel (box with optional grid) | `panel` |
 
 ![Theme gallery](docs/images/themes.png)

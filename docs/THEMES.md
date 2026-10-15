@@ -35,8 +35,15 @@ Named colors such as `red` or `brightBlue` look different in every terminal colo
 | `dark` | powerline | Dark grays with a rust directory (from claude-powerline) |
 | `light` | powerline | Bright segments for light terminals (from claude-powerline) |
 | `rose-pine` | powerline | Muted pine and rose tones (from claude-powerline) |
+| `catppuccin-latte` | powerline | Catppuccin Latte, for light terminals |
+| `catppuccin-frappe` | powerline | Catppuccin Frappé |
+| `catppuccin-macchiato` | powerline | Catppuccin Macchiato |
+| `catppuccin-mocha` | powerline | Catppuccin Mocha in powerline arrows |
+| `everforest` | powerline | Soft forest greens |
+| `kanagawa` | powerline | Kanagawa wave inks |
 | `catppuccin` | capsule | Mocha pastels in rounded pills |
 | `bubblegum` | capsule | Bright pills in the 16 terminal colors |
+| `one-dark` | capsule | One Dark pills |
 | `panel` | tui | Rounded box panel with category colors |
 
 Powerline arrows and capsule caps come from [Nerd Fonts](https://www.nerdfonts.com/). Without one, use `"charset": "unicode"` (plain colored blocks and half-block caps) or `"text"` (ASCII). The default `"auto"` already does this in Apple Terminal. Themes using hex colors look best in a truecolor terminal; ccinfobar converts them to the nearest 256 or 16 colors otherwise.
@@ -191,6 +198,8 @@ A theme only needs the fields that differ from the theme it `extends` (default `
 
 A file with the same name as a built-in theme (e.g. `nord.json`) replaces it and extends it automatically.
 
+A theme can also set `gradient`, a list of up to 8 colors from low to high that gradient bars blend through, e.g. `"gradient": ["#a6e3a1", "#f9e2af", "#f38ba8"]`. The Catppuccin flavours, `everforest`, `kanagawa` and `one-dark` ship one.
+
 ### Theme fields
 
 | Field | Description |
@@ -202,6 +211,7 @@ A file with the same name as a built-in theme (e.g. `nord.json`) replaces it and
 | `padding` | Spaces inside blocks, 0 to 4 |
 | `bold` | Make all widgets bold |
 | `statusColors` | In text style, let widgets such as `context-bar` turn green, yellow or red by threshold (default `true`) |
+| `gradient` | Up to 8 colors, low to high, for gradient bars |
 | `glyphs.separator`, `glyphs.thin` | Powerline arrows between different and same colors |
 | `glyphs.startCap`, `glyphs.endCap` | Line or pill caps |
 | `colors.mode` | `widget`: each widget's default color. `category`: one color per widget category. `cycle`: rotate through `colors.cycle`. |
