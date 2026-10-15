@@ -13,15 +13,25 @@ export type SourceKind =
   | 'repos'
   | 'hooks'
   | 'environment'
+  | 'job'
   | 'env'
   | 'config'
   | 'clock'
   | 'system';
 
+export interface JobSource {
+  key: string;
+  ok: boolean;
+  error?: string;
+  blockedUntil?: number;
+}
+
 export interface TraceRead {
   kind: SourceKind;
   path?: string;
   absent?: boolean;
+  age?: number;
+  job?: JobSource;
 }
 
 export interface Trace {
@@ -118,6 +128,26 @@ export function createTrace(): Trace {
     if (hooks) data.hooks = via('hooks', () => hooks());
     const environment = d.environment;
     if (environment) data.environment = via('environment', () => environment());
+    const jobs = d.jobs;
+    if (jobs) {
+      const now = ctx.now.getTime();
+      data.jobs = () => {
+        const r = jobs();
+        return {
+          job(key) {
+            const e = r?.job(key) ?? null;
+            if (!e) rec({ kind: 'job', path: key, absent: true });
+            else {
+              const job: JobSource = { key, ok: e.ok };
+              if (typeof e.error === 'string') job.error = e.error;
+              if (typeof e.blockedUntil === 'number') job.blockedUntil = e.blockedUntil;
+              rec({ kind: 'job', path: key, age: Math.max(0, now - e.fetchedAt), job });
+            }
+            return e as never;
+          },
+        };
+      };
+    }
     return { ...ctx, payload: deep(ctx.payload, ''), env: envProxy(ctx.env), data };
   }
 

@@ -388,6 +388,7 @@ export function sourceText(src: Source): string {
     case 'payload':
     case 'env':
     case 'config':
+    case 'job':
       return path ? t(`explain.source.${src.kind}`, { path }) : src.kind;
     case 'gsd':
       return t('explain.source.gsd', { path: path || '.planning/STATE.md' });

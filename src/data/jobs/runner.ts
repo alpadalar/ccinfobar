@@ -126,6 +126,22 @@ export function readEnvelope<V>(key: string, env: NodeJS.ProcessEnv = process.en
   }
 }
 
+export function createJobReader(env: NodeJS.ProcessEnv = process.env): JobReader {
+  const seen = new Map<string, JobEnvelope<unknown> | null>();
+  return {
+    job<V = unknown>(key: string): JobEnvelope<V> | null {
+      if (!seen.has(key)) {
+        let e: JobEnvelope<unknown> | null = null;
+        try {
+          e = readEnvelope(key, env);
+        } catch {}
+        seen.set(key, e);
+      }
+      return (seen.get(key) ?? null) as JobEnvelope<V> | null;
+    },
+  };
+}
+
 export function writeEnvelope<V>(e: JobEnvelope<V>, env: NodeJS.ProcessEnv = process.env): boolean {
   if (!SAFE_KEY.test(e.key)) return false;
   try {

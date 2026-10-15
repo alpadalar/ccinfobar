@@ -89,6 +89,7 @@ export const explainMessages = {
   'explain.source.repos': 'workspace repos scan',
   'explain.source.hooks': 'hook log',
   'explain.source.environment': 'memory files, rules and settings',
+  'explain.source.job': 'job {path}',
   'explain.source.env': 'env: {path}',
   'explain.source.config': 'config {path}',
   'explain.source.clock': 'clock',

@@ -3,6 +3,7 @@ import { readEnvironment } from '../data/environment.js';
 import { readGit } from '../data/git.js';
 import { readGsd } from '../data/gsd.js';
 import { readHookState } from '../data/hooks.js';
+import { createJobReader } from '../data/jobs/runner.js';
 import { hookTurnStart } from '../data/live.js';
 import { readRepos } from '../data/repos.js';
 import { readTranscript } from '../data/transcript.js';
@@ -72,6 +73,7 @@ export function createContext(opts: ContextOptions): RenderContext {
         opts.data?.repos ??
         lazy(() => readRepos(cwd, env, { persist: !(opts.preview ?? false), now: now.getTime() })),
       hooks,
+      jobs: opts.data?.jobs ?? lazy(() => createJobReader(env)),
       environment:
         opts.data?.environment ??
         lazy(() =>

@@ -18,7 +18,7 @@ import {
   workspaceMode,
 } from './renderer.js';
 import { sanitizeText } from './sanitize.js';
-import { createTrace, leaves, type SourceKind, type Trace, type TraceRead } from './trace.js';
+import { createTrace, type JobSource, leaves, type SourceKind, type Trace, type TraceRead } from './trace.js';
 import type { RenderContext, StatusPayload, WidgetDef, WidgetItem, WidgetResult } from './types.js';
 
 export type { SourceKind } from './trace.js';
@@ -30,6 +30,7 @@ export interface Source {
   path?: string;
   age?: number;
   origin?: LimitOrigin;
+  job?: JobSource;
 }
 
 export type EmptyCode =
@@ -293,6 +294,14 @@ function toSources(item: WidgetItem, reads: TraceRead[], meta: InspectMeta): Sou
         out.push({ kind: r.kind, ...(age !== undefined ? { age } : {}) });
         break;
       }
+      case 'job':
+        out.push({
+          kind: 'job',
+          ...(r.path ? { path: r.path } : {}),
+          ...(r.age !== undefined ? { age: r.age } : {}),
+          ...(r.job ? { job: { ...r.job } } : {}),
+        });
+        break;
       case 'gsd':
         out.push({ kind: 'gsd', path: meta.gsdPath ?? '.planning/STATE.md' });
         break;

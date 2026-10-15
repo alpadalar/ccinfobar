@@ -46,6 +46,7 @@ function base(now: number): ScenarioBundle {
       repos: () => null,
       hooks: () => sampleHooks(now),
       environment: sampleEnvironment,
+      jobs: () => ({ job: () => null }),
     },
     env: {},
   };
