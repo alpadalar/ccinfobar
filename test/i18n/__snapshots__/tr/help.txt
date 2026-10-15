@@ -3,9 +3,9 @@ Claude Code için özelleştirilebilir, GSD uyumlu durum satırı
 
 Kullanım
   ccinfobar                       Durum satırını görüntüler (Claude Code JSON'unu stdin'den okur)
-  ccinfobar edit                  Sürükle-bırak düzenleyiciyi tarayıcınızda açar
-  ccinfobar edit --detach         Düzenleyiciyi arka planda başlatır, URL'sini yazar ve çıkar
-  ccinfobar tui                   Terminal düzenleyicisini açar
+  ccinfobar edit                  Sürükle-bırak editörü tarayıcınızda açar
+  ccinfobar edit --detach         Editörü arka planda başlatır, URL'sini yazar ve çıkar
+  ccinfobar tui                   Terminal editörünü açar
   ccinfobar install               Claude Code'un statusLine ayarını ccinfobar'a yönlendirir
   ccinfobar install --project     Bu projenin kendi statusLine ayarını da devralır (örn. GSD'ninkini)
   ccinfobar install --no-global   npx ile: ccinfobar komutunu global olarak kurmaz

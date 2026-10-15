@@ -114,7 +114,7 @@ export const displayMessages = {
     'Claude Code\'un kendi çubuğu bununla birlikte titremesin diye Claude Code ayarlarında "terminalProgressBarEnabled": false ayarlayın.',
   'prog.hintLatency':
     'Her istemden önce küçük bir hook çalıştırır (yaklaşık 60-110 ms). tty kanalı (Linux, macOS) buna gerek duymaz.',
-  'prog.tuiHelp': 'Hook işleyicileri `ccinfobar install --progress` ya da web düzenleyici ile eklenir.',
+  'prog.tuiHelp': 'Hook işleyicileri `ccinfobar install --progress` ya da web editörü ile eklenir.',
   'prog.tuiChannelHelp':
     "auto ve hook, Claude Code hook'unu kullanır; tty doğrudan durum satırından yazar (Linux, macOS) ve işleyici gerektirmez. Değiştirdikten sonra işleyicilerin eşleşmesi için `ccinfobar install --progress` çalıştırın",
   'prog.on': 'Terminal ilerlemesi açık (kaydedildi).',
