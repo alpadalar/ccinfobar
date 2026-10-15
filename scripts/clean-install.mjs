@@ -317,7 +317,7 @@ function installStep(ctx, tgz) {
 function installCcinfobar(ctx) {
   const pj = installedPackageJson(ctx.d);
   const before = fs.statSync(pj).mtimeMs;
-  const r = ccinfobar(ctx, ['install', '--yes']);
+  const r = ccinfobar(ctx, ['install', '--yes'], { timeout: 90_000 });
   const problems = [];
   if (r.status !== 0) problems.push(`exit ${r.status}`);
   if (!r.stdout.includes(`Installing ccinfobar ${pkg.version}`))
@@ -589,7 +589,7 @@ function hookRun(ctx, shell, command, log) {
 
 function hooksCycle(ctx) {
   const seeded = seed(ctx);
-  const r = ccinfobar(ctx, ['install', '--hooks', '--yes']);
+  const r = ccinfobar(ctx, ['install', '--hooks', '--yes'], { timeout: 90_000 });
   if (r.status !== 0) return failRun(ctx, 'hooks', r, `install --hooks exit ${r.status}`);
   let hooks;
   try {
