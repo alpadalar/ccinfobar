@@ -105,6 +105,8 @@ describe('scheduleJobs', () => {
     );
     const other = path.resolve(os.tmpdir(), 'other.json');
     expect(run(tmpEnv(), [fake('c-none', 'none')], other).calls[0]).toContain(`--config=${other}`);
+    const rel = run(tmpEnv(), [fake('c-none', 'none')], 'rel/config.json').calls[0];
+    expect(rel).toContain(`--config=${path.resolve('rel/config.json')}`);
   });
 
   it('passes no --cwd for a relative cwd', () => {

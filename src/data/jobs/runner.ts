@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { cacheDir } from '../../core/paths.js';
 import { deepSanitize, sanitizeText } from '../../core/sanitize.js';
@@ -255,6 +256,39 @@ export function blockedByTraffic(network: JobNetwork, env: NodeJS.ProcessEnv = p
   return network === 'auto' && nonessentialTrafficOff(env);
 }
 
+// home, else temp: never a cwd that may hold a planted binary
+export function safeCwd(): string | undefined {
+  for (const d of [os.homedir(), os.tmpdir()]) {
+    try {
+      if (fs.statSync(d).isDirectory()) return d;
+    } catch {}
+  }
+  return undefined;
+}
+
+const PATH_VARS = [
+  'CCINFOBAR_CONFIG',
+  'CCINFOBAR_CONFIG_DIR',
+  'CCINFOBAR_CACHE_DIR',
+  'CLAUDE_CONFIG_DIR',
+  'XDG_CONFIG_HOME',
+  'XDG_CACHE_HOME',
+  'APPDATA',
+  'LOCALAPPDATA',
+];
+
+// the worker runs elsewhere, so relative dirs must not move
+export function absoluteEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  let out = env;
+  for (const k of PATH_VARS) {
+    const v = env[k];
+    if (!v || path.isAbsolute(v)) continue;
+    if (out === env) out = { ...env };
+    out[k] = path.resolve(v);
+  }
+  return out;
+}
+
 function launch(args: string[], env: NodeJS.ProcessEnv, cwd?: string, onError?: () => void) {
   const entry = process.argv[1];
   if (!entry || !/ccinfobar(\.js)?$/.test(entry)) return null;
@@ -276,7 +310,7 @@ export function spawnSelf(
   env: NodeJS.ProcessEnv = process.env,
   onError?: () => void,
 ): boolean {
-  return launch(args, env, undefined, onError) !== null;
+  return launch(args, absoluteEnv(env), safeCwd(), onError) !== null;
 }
 
 export function spawnSelfDetached(

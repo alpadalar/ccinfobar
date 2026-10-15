@@ -60,7 +60,8 @@ export function scheduleJobs(
   if (!kept.length) return [];
   const extra: string[] = [];
   // the worker loads the same config
-  if (typeof cfgFile === 'string' && cfgFile !== configPath(env)) extra.push(`--config=${cfgFile}`);
+  if (typeof cfgFile === 'string' && path.resolve(cfgFile) !== path.resolve(configPath(env)))
+    extra.push(`--config=${path.resolve(cfgFile)}`);
   if (path.isAbsolute(cwd)) extra.push(`--cwd=${cwd}`);
   return scheduleRequests(kept, env, extra, { now, ...(opts.spawn ? { spawn: opts.spawn } : {}) });
 }

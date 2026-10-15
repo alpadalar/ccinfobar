@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { configDir } from '../core/paths.js';
 import type { Config, StatusPayload } from '../core/types.js';
@@ -22,7 +21,7 @@ import {
   updatesDisabled,
 } from './jobs/update.js';
 
-export { nonessentialTrafficOff, spawnSelf, spawnSelfDetached } from './jobs/runner.js';
+export { nonessentialTrafficOff, safeCwd, spawnSelf, spawnSelfDetached } from './jobs/runner.js';
 export { type UpdateState, updatesDisabled } from './jobs/update.js';
 
 // legacy path, read only
@@ -129,14 +128,4 @@ export function scheduleCheck(
     if (!req || !updateJob.due(updateJob.readPrev!('update', env), now, req)) return;
     scheduleRequests([{ req, lockMs: UPDATE_LOCK_MS }], env, extra, { now });
   } catch {}
-}
-
-// home, else temp: never a cwd that may hold a planted binary
-export function safeCwd(): string | undefined {
-  for (const d of [os.homedir(), os.tmpdir()]) {
-    try {
-      if (fs.statSync(d).isDirectory()) return d;
-    } catch {}
-  }
-  return undefined;
 }

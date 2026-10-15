@@ -11,6 +11,7 @@ import {
   type JobEnvelope,
   okEnvelope,
   readEnvelope,
+  safeCwd,
   writeEnvelope,
 } from './runner.js';
 
@@ -41,6 +42,8 @@ const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 export const defaultExecFile: ExecFileLike = (file, args, opts) =>
   new Promise((resolve) => {
     try {
+      // Windows looks up gh in the cwd first
+      const cwd = safeCwd();
       const child = execFile(
         file,
         args,
@@ -50,6 +53,7 @@ export const defaultExecFile: ExecFileLike = (file, args, opts) =>
           maxBuffer: opts.maxBuffer,
           windowsHide: true,
           encoding: 'utf8',
+          ...(cwd ? { cwd } : {}),
         },
         (e, stdout, stderr) => {
           const code = (e as NodeJS.ErrnoException | null)?.code as unknown;
