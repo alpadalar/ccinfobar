@@ -119,6 +119,48 @@ describe.skipIf(!fs.existsSync(bin))('ccinfobar hook (built cli)', () => {
     expect(got[0]).toMatchObject({ e: 'UserPromptSubmit', p: 'p1' });
   });
 
+  const want = (s: ReturnType<typeof sandbox>, o: Record<string, unknown> = {}) => {
+    fs.mkdirSync(path.join(s.cache, 'hooks'), { recursive: true });
+    fs.writeFileSync(
+      path.join(s.cache, 'hooks', `${SID}.progress.json`),
+      JSON.stringify({ v: 1, state: 1, pct: 42, channel: 'hook', always: false, ...o }),
+    );
+  };
+  const LINE = '{"terminalSequence":"\\u001b]9;4;1;42\\u0007"}\n';
+
+  it('prints one terminalSequence line for --progress hook, then nothing', () => {
+    const s = sandbox();
+    want(s);
+    const r = s.run(['--progress', 'hook', 'UserPromptSubmit'], ups(), { WT_SESSION: '1' });
+    expect(r.stdout).toBe(LINE);
+    expect(JSON.parse(r.stdout).terminalSequence).toBe('\u001b]9;4;1;42\u0007');
+    expect(r.stderr).toBe('');
+    expect(r.status).toBe(0);
+    expect(s.lines()).toEqual([]);
+    quiet(s.run(['--progress', 'hook', 'UserPromptSubmit'], ups(), { WT_SESSION: '1' }));
+    const sent = path.join(s.cache, 'hooks', `${SID}.progress-sent.json`);
+    expect(JSON.parse(fs.readFileSync(sent, 'utf8'))).toEqual({ state: 1, pct: 42 });
+  });
+
+  it('accepts --config before --progress hook Stop', () => {
+    const s = sandbox();
+    const cfg = path.join(s.dir, 'x.json');
+    fs.writeFileSync(cfg, '{}');
+    want(s);
+    const input = JSON.stringify({ session_id: SID, hook_event_name: 'Stop', prompt_id: 'p3' });
+    const r = s.run(['--config', cfg, '--progress', 'hook', 'Stop'], input, { WT_SESSION: '1' });
+    expect(r.stdout).toBe(LINE);
+    expect(r.stderr).toBe('');
+    expect(r.status).toBe(0);
+  });
+
+  it('prints nothing for --progress outside an allowlisted terminal', () => {
+    const s = sandbox();
+    want(s);
+    const env = { WT_SESSION: '', ConEmuPID: '', ConEmuANSI: '', TERM_PROGRAM: 'xterm' };
+    quiet(s.run(['--progress', 'hook', 'UserPromptSubmit'], ups(), env));
+  });
+
   const silent: Array<[string, string[], string, (s: ReturnType<typeof sandbox>) => NodeJS.ProcessEnv]> = [
     ['malformed JSON', ['hook', 'Stop'], '{"session_id": "x", ', () => ({})],
     ['empty stdin', ['hook', 'Stop'], '', () => ({})],
