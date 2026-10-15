@@ -83,6 +83,11 @@ All notable changes to this project are documented here. The format follows [Kee
 - `progress.channel: "tty"` (Linux and macOS) writes the progress bar from the status line itself, with no hook and no prompt latency; `install --progress` and the web editor add no handlers on it (and remove earlier ones), and `doctor` warns about leftover ones; inside tmux it needs `allow-passthrough` and `progress.tmuxPassthrough` (the hook channel needs `allow-passthrough` too). Inside tmux the terminal is recognised from `GHOSTTY_RESOURCES_DIR`, `WEZTERM_PANE`, `LC_TERMINAL_VERSION` (iTerm2), `WT_SESSION` or `ConEmuPID`, because tmux replaces `TERM_PROGRAM`
 - `doctor` checks terminal progress: Claude Code's own bar (`terminalProgressBarEnabled`), missing or leftover handlers, unsupported terminals, the Claude Code version and tmux; `explain` shows the current progress value
 - The web editor's Settings has a Terminal progress section (on/off, source, scale, warning levels, channel), and the TUI has the same options. The web switch saves `progress.enabled` together with the hook handlers and is not part of undo
+- Turkish: the status line, the CLI (`--help`, `doctor`, `explain`, `preview` and the other commands), the web editor and the terminal editor, including widget names and options, themes, presets and scenarios. JSON output stays English
+- `language` setting (`auto`, `en`, `tr`; default `auto`), also settable with `ccinfobar config set language tr`; `ccinfobar init --force`, preset apply and import keep it
+- `CCINFOBAR_LANG` forces the display language for one run while `language` is `auto`
+- A Language select in the web editor's Settings (Auto, English, Türkçe) and a Language field in the terminal editor (`ccinfobar tui`); both switch the editor at once
+- `doctor` shows the display language and where it came from, and warns about an unsupported `language` value
 
 ### Changed
 
@@ -118,6 +123,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `agents` and `agent-count` use the exact subagent start, stop and type from hooks when they are installed; without hooks nothing changes
 - Background checks (the update check, usage limits, the `workspace-repos` dirty marker and the new sources) run in one background process per refresh instead of one per check, and keep their results in `jobs/` in the cache dir; older cache files are still read. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` stops usage, update and `service-status`, while `http` items and the `pr` CI part (which you turned on) still run. Fetch and exec code loads only in that process, so the status line loads no more modules than before
 - The editors' Auto wrap switch is now an Overflow choice (Cut, Wrap, Drop by priority); it still writes `autoWrap`, so an older ccinfobar reading the same config behaves the same
+- The status line, CLI and editors follow your locale (English and Turkish): with the default `language: auto`, a Turkish locale shows Turkish. Set `"language": "en"` to keep English
 
 ### Fixed
 
@@ -162,6 +168,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - `uninstall` removes the `npx -y ccinfobar@latest` status line that ccinfobar 0.5.1 to 0.5.5 wrote, instead of leaving it as another tool's, and `install` over it no longer keeps it as the status line to bring back
 - `npx ccinfobar@latest install` updates an older global `ccinfobar` instead of pointing the status line and hooks at it (an old copy without the `hook` command made every hook fail); if npm cannot update it, a pinned copy is installed, and the old copy is only used when nothing else installs
 - `uninstall` also gives back the status line of projects where you ran `install --project` but that Claude Code's project list does not include, so removing ccinfobar afterwards no longer leaves them running a missing command
+- `doctor`, `ccinfobar usage` and the editor's Settings showed dates in the system locale's format; they now follow the display language with 24-hour times (`Oct 14, 2026, 21:07`)
+- `uninstall` says "1 project" or "2 projects" instead of "project(s)"
+- Boxed panel themes no longer draw the top border wider than the box when the title is cut short
+- With `ambiguousWidth: 2`, boxed panels and the editor's preview box fit the width and their borders line up
 
 ### Security
 
