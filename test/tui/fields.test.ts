@@ -2,9 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import { resolveAppearance } from '../../src/core/renderer.js';
 import type { Config } from '../../src/core/types.js';
-import { cycled, displayValue, globalFields, listEntries, widgetFields } from '../../src/tui/fields.js';
+import {
+  cycled,
+  displayValue,
+  type Field,
+  globalFields,
+  listEntries,
+  widgetFields,
+} from '../../src/tui/fields.js';
 import { themeInputFromConfig } from '../../src/tui/themeio.js';
 import { getWidget } from '../../src/widgets/index.js';
+import { withLang } from '../helpers.js';
 
 const field = (id: string) => globalFields().find((f) => f.id === id)!;
 
@@ -453,3 +461,104 @@ describe('visibility fields', () => {
     expect(displayValue(vis(c, 'vis.showWhen'), c).text).not.toContain('\u001b');
   });
 });
+
+describe('language field', () => {
+  const lang = (auto?: 'en' | 'tr') => globalFields(defaultConfig(), auto).find((f) => f.id === 'language')!;
+
+  it('sits after glyphMode and lists Auto, English and Türkçe', () => {
+    const ids = globalFields().map((f) => f.id);
+    expect(ids.indexOf('language')).toBe(ids.indexOf('glyphMode') + 1);
+    expect(lang('tr').choices).toEqual([
+      { value: 'auto', label: 'Auto (Türkçe)' },
+      { value: 'en', label: 'English' },
+      { value: 'tr', label: 'Türkçe' },
+    ]);
+    expect(lang().choices![0]!.label).toBe('Auto (English)');
+    expect(withLang('tr', () => lang('en').choices!.map((c) => c.label))).toEqual([
+      'Otomatik (English)',
+      'English',
+      'Türkçe',
+    ]);
+  });
+
+  it('writes the key and removes it for auto', () => {
+    const f = lang();
+    const c = f.set(defaultConfig(), 'tr');
+    expect(c.language).toBe('tr');
+    expect(f.get(c)).toBe('tr');
+    expect(displayValue(f, c).text).toBe('Türkçe');
+    const back = f.set(c, 'auto');
+    expect('language' in back).toBe(false);
+    expect(f.get(back)).toBe('auto');
+    expect('language' in f.set(c, 'klingon')).toBe(false);
+    expect(cycled(f, c, 1)).toBe('auto');
+  });
+});
+
+describe('Turkish field text', () => {
+  const panel = () => ({ ...defaultConfig(), style: 'tui' as const });
+
+  it('translates labels, help and parse errors, ids unchanged', () => {
+    const en = globalFields(panel());
+    const tr = withLang('tr', () => globalFields(panel()));
+    expect(tr.map((f) => f.id)).toEqual(en.map((f) => f.id));
+    const byId = (list: typeof tr, id: string) => list.find((f) => f.id === id)!;
+    expect(byId(tr, 'theme').label).toBe('Tema');
+    expect(byId(tr, 'theme').help).toBe('Enter tema seçiciyi açar');
+    expect(byId(tr, 'usageApi').label).toBe("Claude'dan kullanım");
+    expect(byId(tr, 'tui.box').label).toBe('Panel: çerçeve');
+    expect(byId(tr, 'language').label).toBe('Dil');
+    expect(byId(en, 'theme').label).toBe('Theme');
+    expect(byId(en, 'tui.box').label).toBe('Panel: box');
+    const same = (a: Field[], b: Field[]) =>
+      a.filter((f, i) => f.label === b[i]!.label || (f.help !== undefined && f.help === b[i]!.help));
+    expect(same(tr, en).map((f) => f.id)).toEqual([]);
+    const w = (): Field[] => widgetFields(getWidget('model'), 'x');
+    expect(same(withLang('tr', w), w()).map((f) => f.id)).toEqual([]);
+    withLang('tr', () => {
+      expect(byId(tr, 'padding').parse('x')).toEqual({ ok: false, error: 'Bir sayı girin' });
+      expect(byId(tr, 'separatorColor').parse('nope')).toEqual({
+        ok: false,
+        error: 'Bir renk adı, #rrggbb ya da ansi256:N kullanın',
+      });
+      expect(byId(tr, 'separatorColor').parse('varsayılan')).toEqual({ ok: true, value: undefined });
+      expect(byId(tr, 'budget.warnAt').parse('1')).toEqual({
+        ok: false,
+        error: '5 ile 100 arasında bir tam sayı girin',
+      });
+      expect(byId(tr, 'maxWidth').parse('-1')).toEqual({
+        ok: false,
+        error: "'auto' ya da pozitif bir sayı girin",
+      });
+      expect(byId(tr, 'tui.breakpoints').parse('{}')).toEqual({
+        ok: false,
+        error: 'Kırılma noktalarından oluşan bir JSON dizisi bekleniyordu',
+      });
+    });
+    expect(byId(en, 'padding').parse('x')).toEqual({ ok: false, error: 'Enter a number' });
+  });
+
+  it('shows Turkish values and style names', () => {
+    const c = defaultConfig();
+    withLang('tr', () => {
+      const fields = globalFields(c);
+      const usage = fields.find((f) => f.id === 'usageApi')!;
+      expect(displayValue(usage, { ...c, usageApi: true }).text).toBe('açık');
+      expect(displayValue(usage, { ...c, usageApi: false }).text).toBe('kapalı');
+      const pad = fields.find((f) => f.id === 'padding')!;
+      expect(displayValue(pad, c).text).toMatch(/ {2}\(tema\)$/);
+      const style = listEntries(fields.find((f) => f.id === 'style')!);
+      expect(style[0]!.label).toBe('tema varsayılanı');
+      expect(style.find((e) => e.value === 'blocks')!.label).toBe('Bloklar');
+      const color = listEntries(widgetFields(getWidget('model'), 'x').find((f) => f.id === 'color')!);
+      expect(color[0]!.label).toBe('varsayılan');
+      expect(color.at(-1)!.label).toBe('özel…');
+    });
+    const grid = globalFields(panelCfg()).find((f) => f.id === 'tui.breakpoints')!;
+    const one = { ...panelCfg(), tui: { breakpoints: [{ minWidth: 0, areas: ['model'] }] } } as Config;
+    expect(displayValue(grid, one).text).toBe('1 breakpoint');
+    expect(withLang('tr', () => displayValue(grid, one).text)).toBe('1 kırılma noktası');
+  });
+});
+
+const panelCfg = (): Config => ({ ...defaultConfig(), style: 'tui' });

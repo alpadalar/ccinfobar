@@ -172,7 +172,8 @@ function settingValue(field: Field, config: Config, width: number): string {
   const { text, isDefault } = displayValue(field, config);
   const sw = field.kind === 'color' && parseColor(text.split(' ')[0]) ? swatch(text.split(' ')[0]) : '';
   const shown = truncate(text, Math.max(1, width - visibleWidth(sw)));
-  if (field.kind === 'bool') return isDefault ? dim(shown) : fg(shown, text === 'on' ? 'green' : undefined);
+  if (field.kind === 'bool')
+    return isDefault ? dim(shown) : fg(shown, text === t('tui.value.on') ? 'green' : undefined);
   return sw + (isDefault ? dim(shown) : shown);
 }
 

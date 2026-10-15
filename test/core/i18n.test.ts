@@ -20,6 +20,7 @@ import { jobsMessages } from '../../src/core/i18n/en/jobs.js';
 import { previewMessages } from '../../src/core/i18n/en/preview.js';
 import { staticMessages } from '../../src/core/i18n/en/static.js';
 import { themeEditorMessages } from '../../src/core/i18n/en/theme-editor.js';
+import { tuiMessages } from '../../src/core/i18n/en/tui.js';
 import { widgetMessages } from '../../src/core/i18n/en/widgets.js';
 import {
   activeLanguage,
@@ -60,6 +61,7 @@ import { jobsMessages as trJobs } from '../../src/core/i18n/tr/jobs.js';
 import { previewMessages as trPreview } from '../../src/core/i18n/tr/preview.js';
 import { staticMessages as trStatic } from '../../src/core/i18n/tr/static.js';
 import { themeEditorMessages as trThemeEditor } from '../../src/core/i18n/tr/theme-editor.js';
+import { tuiMessages as trTui } from '../../src/core/i18n/tr/tui.js';
 import { widgetMessages as trWidgets } from '../../src/core/i18n/tr/widgets.js';
 import { renderPreview } from '../../src/core/preview.js';
 import { saveUserTheme, type ThemeInput } from '../../src/core/themes.js';
@@ -246,6 +248,7 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['editor', editorMessages, trEditor],
   ['theme-editor', themeEditorMessages, trThemeEditor],
   ['static', staticMessages, trStatic],
+  ['tui', tuiMessages, trTui],
 ];
 
 function forms(m: Message): string[] {
@@ -410,6 +413,7 @@ describe('en table', () => {
       editorMessages,
       themeEditorMessages,
       staticMessages,
+      tuiMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);
