@@ -50,7 +50,7 @@ export const reposJob: Job<ReposDirtyValue> = {
   async run(req, ctx) {
     const root = req.param;
     if (!root) return failEnvelope(req.key, ctx.prev, 'failed', ctx.now, { retryMs: RETRY_MS });
-    const { checkRepos } = await import('../../commands/repos.js');
+    const { checkRepos } = await import('../repos-dirty.js');
     const dirty = await checkRepos(root, ctx.config, ctx.env);
     try {
       fs.unlinkSync(legacyDirtyFile(root, ctx.env));

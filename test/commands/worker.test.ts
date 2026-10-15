@@ -127,6 +127,17 @@ describe('runWorker', () => {
     expect(s.exits).toEqual([0]);
   });
 
+  it('takes over project status lines only after the update job ran', async () => {
+    const s = setup();
+    const took: unknown[] = [];
+    await runWorker(
+      worker(['fake-a']),
+      s.cfgFile,
+      s.deps([fake('fake-a')], { takeOver: (e) => took.push(e) }),
+    );
+    expect(took).toEqual([]);
+  });
+
   it('skips jobs that CCINFOBAR_NO_JOBS or the nonessential flag turn off', async () => {
     for (const [extra, ran] of [
       [{ CCINFOBAR_NO_JOBS: '1' }, []],
@@ -179,8 +190,11 @@ describe('runWorker', () => {
         return new Response(null, { status: 302, headers: { location: '/releases/tag/v0.0.1' } });
       }) as typeof fetch;
       touchLock(env, 'update');
-      await runWorker(worker(argv), cfgFile, deps([updateJob as Job<unknown>], { fetch: f }));
+      const took: NodeJS.ProcessEnv[] = [];
+      const takeOver = (e: NodeJS.ProcessEnv) => took.push(e);
+      await runWorker(worker(argv), cfgFile, deps([updateJob as Job<unknown>], { fetch: f, takeOver }));
       expect(calls, argv[0]).toBe(1);
+      expect(took).toEqual([env]);
       expect(readEnvelope('update', env)).toMatchObject({ ok: true, value: { latest: '0.0.1' } });
       expect(fs.existsSync(lockFile('update', env))).toBe(false);
     }

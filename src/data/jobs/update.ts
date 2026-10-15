@@ -121,19 +121,15 @@ export const updateJob: Job<UpdateValue> = {
     const s = readLegacyUpdate(env);
     return s ? fromUpdateState(s) : null;
   },
+  // the worker and update --background take over project status lines afterwards
   async run(req, ctx) {
-    const m = await import('../../commands/update.js');
+    const m = await import('../self-update.js');
     const p = req.param !== undefined ? { param: req.param } : {};
-    let out: JobEnvelope<UpdateValue>;
     try {
       const value = await m.checkForUpdate(ctx.config, undefined, ctx.env, { fetch: ctx.fetch });
-      out = okEnvelope('update', value, ctx.now, req.param);
+      return okEnvelope('update', value, ctx.now, req.param);
     } catch (err) {
-      out = failEnvelope('update', ctx.prev, (err as Error)?.message ?? 'failed', ctx.now, p);
+      return failEnvelope('update', ctx.prev, (err as Error)?.message ?? 'failed', ctx.now, p);
     }
-    try {
-      m.takeOverAfterUpdate(ctx.env);
-    } catch {}
-    return out;
   },
 };

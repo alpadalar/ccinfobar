@@ -122,7 +122,15 @@ describe('import graph', () => {
     expect(files.has('src/data/jobs/update.ts')).toBe(true);
     expect([...files].filter((f) => !allowed.has(f))).toEqual([]);
     const lazy = fs.readFileSync(path.join(src, 'data/jobs/update.ts'), 'utf8');
-    expect(lazy).toContain("await import('../../commands/update.js')");
+    expect(lazy).toContain("await import('../self-update.js')");
+  });
+
+  // D-02: data never reaches up into commands, not even with import()
+  it('keeps src/data free of command imports', () => {
+    const files = walk(path.join(src, 'data')).filter((f) =>
+      /from '[./]+commands\/|import\('[./]+commands\//.test(fs.readFileSync(f, 'utf8')),
+    );
+    expect(files.map((f) => path.relative(root, f))).toEqual([]);
   });
 
   // fetch, exec and json path code load only in the worker; each extra chunk costs about 0.3 ms

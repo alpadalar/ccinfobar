@@ -28,6 +28,7 @@ export interface WorkerDeps {
   exit?: (code: number) => void;
   now?: () => number;
   silent?: boolean;
+  takeOver?: (env: NodeJS.ProcessEnv) => void;
 }
 
 // longer than the update job's npm install budget
@@ -167,6 +168,12 @@ export async function runWorker(args: Args, cfgFile: string, deps: WorkerDeps): 
       );
     }
     await Promise.allSettled(runs);
+    // the update job may have moved the binary; keep project status lines on it
+    if (ran.includes('update')) {
+      try {
+        (deps.takeOver ?? (await import('./update.js')).takeOverAfterUpdate)(env);
+      } catch {}
+    }
     const end = deps.now?.() ?? Date.now();
     // a broken config would look like every http key is gone
     if (broken) pruneTmp(jobsDir(env), 3_600_000, end);
