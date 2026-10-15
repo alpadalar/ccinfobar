@@ -10,7 +10,10 @@ import type {
   Align,
   BoxChars,
   Config,
+  GlyphMode,
   GlyphOverrides,
+  OverflowMode,
+  ProgressConfig,
   ThemeStyle,
   TuiBreakpoint,
   TuiConfig,
@@ -85,6 +88,17 @@ function normalizeItem(raw: unknown, index: number): WidgetItem | null {
   }
   for (const key of ['bold', 'dim', 'italic', 'raw', 'merge', 'hideEmpty'] as const) {
     if (typeof raw[key] === 'boolean') out[key] = raw[key] as boolean;
+  }
+  for (const key of ['showWhen', 'hideWhen'] as const) {
+    const v = raw[key];
+    if (typeof v === 'string') out[key] = v;
+    else if (Array.isArray(v)) {
+      const list = v.filter((x): x is string => typeof x === 'string');
+      if (list.length) out[key] = list;
+    }
+  }
+  if (typeof raw.priority === 'number' && Number.isFinite(raw.priority)) {
+    out.priority = Math.min(100, Math.max(0, Math.round(raw.priority)));
   }
   if (isObject(raw.options)) {
     const opts: Record<string, string | number | boolean> = {};
@@ -235,6 +249,29 @@ export function normalizeBudget(raw: unknown): Config['budget'] | undefined {
   return compact({ daily: usd(raw.daily), session: usd(raw.session), warnAt });
 }
 
+const oneOf = <T>(v: unknown, list: readonly T[]): T | undefined =>
+  list.includes(v as T) ? (v as T) : undefined;
+const bool = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? v : undefined);
+const pct = (v: unknown): number | undefined =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.min(100, Math.max(1, Math.round(v))) : undefined;
+
+export function normalizeProgress(raw: unknown): ProgressConfig | undefined {
+  if (!isObject(raw)) return undefined;
+  return compact({
+    enabled: bool(raw.enabled),
+    source: oneOf(raw.source, ['context', 'usage5h'] as const),
+    scaleTo: oneOf(raw.scaleTo, ['full', 'autocompact'] as const),
+    warnAt: pct(raw.warnAt),
+    errorAt: pct(raw.errorAt),
+    channel: oneOf(raw.channel, ['auto', 'hook', 'tty'] as const),
+    tmuxPassthrough: bool(raw.tmuxPassthrough),
+    terminals: oneOf(raw.terminals, ['allowlist', 'always'] as const),
+  });
+}
+
+const OVERFLOW_MODES: readonly OverflowMode[] = ['truncate', 'wrap', 'priority'];
+const GLYPH_MODES: readonly GlyphMode[] = ['normal', 'single-width', 'paste-safe', 'jetbrains', 'auto'];
+
 export function normalizeProfiles(raw: unknown): Config['profiles'] | undefined {
   if (!isObject(raw)) return undefined;
   const models = Array.isArray(raw.models)
@@ -287,6 +324,11 @@ export function normalizeConfig(raw: unknown): Config {
   if (['auto', 'nerd', 'unicode', 'text'].includes(raw.charset as string))
     cfg.charset = raw.charset as Config['charset'];
   if (typeof raw.autoWrap === 'boolean') cfg.autoWrap = raw.autoWrap;
+  const overflow = oneOf(raw.overflow, OVERFLOW_MODES);
+  if (overflow) cfg.overflow = overflow;
+  const glyphMode = oneOf(raw.glyphMode, GLYPH_MODES);
+  if (glyphMode) cfg.glyphMode = glyphMode;
+  if (raw.ambiguousWidth === 1 || raw.ambiguousWidth === 2) cfg.ambiguousWidth = raw.ambiguousWidth;
   if (isAlign(raw.align) && raw.align !== 'left') cfg.align = raw.align;
   if (Array.isArray(raw.lineAlign)) {
     const list = raw.lineAlign.slice(0, cfg.lines.length).map((a) => (isAlign(a) ? a : null));
@@ -302,6 +344,8 @@ export function normalizeConfig(raw: unknown): Config {
   if (budget) cfg.budget = budget;
   const profiles = normalizeProfiles(raw.profiles);
   if (profiles) cfg.profiles = profiles;
+  const progress = normalizeProgress(raw.progress);
+  if (progress) cfg.progress = progress;
   const tui = normalizeTui(raw.tui);
   if (tui) cfg.tui = tui;
   if (typeof raw.style === 'string' && STYLE_IDS.includes(raw.style)) cfg.style = raw.style as ThemeStyle;

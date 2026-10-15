@@ -7,6 +7,7 @@ import {
   loadConfig,
   normalizeConfig,
   normalizeHttpOptions,
+  normalizeProgress,
   saveConfig,
 } from '../../src/core/config.js';
 
@@ -154,5 +155,79 @@ describe('http options', () => {
     const cfg = { ...defaultConfig(), lines: [[item]] };
     saveConfig(cfg, file);
     expect(loadConfig(file).config.lines).toEqual([[item]]);
+  });
+});
+
+describe('display keys', () => {
+  const itemOf = (extra: Record<string, unknown>) =>
+    normalizeConfig({ lines: [[{ id: 'm', type: 'model', ...extra }]] }).lines[0]![0]!;
+
+  it('keeps rule strings raw and never validates them', () => {
+    expect(itemOf({ showWhen: 'context.pct >= 70' }).showWhen).toBe('context.pct >= 70');
+    expect(itemOf({ hideWhen: 'contxt.pct > 5' }).hideWhen).toBe('contxt.pct > 5');
+    expect(itemOf({ showWhen: ['!git', 5, 'gsd'] }).showWhen).toEqual(['!git', 'gsd']);
+    expect('hideWhen' in itemOf({ hideWhen: [] })).toBe(false);
+    expect('hideWhen' in itemOf({ hideWhen: [1, null] })).toBe(false);
+    expect('showWhen' in itemOf({ showWhen: 7 })).toBe(false);
+  });
+
+  it('clamps priority to an integer 0-100', () => {
+    expect(itemOf({ priority: 101 }).priority).toBe(100);
+    expect(itemOf({ priority: -3 }).priority).toBe(0);
+    expect(itemOf({ priority: 42.7 }).priority).toBe(43);
+    expect('priority' in itemOf({ priority: '50' })).toBe(false);
+    expect('priority' in itemOf({ priority: Number.NaN })).toBe(false);
+  });
+
+  it('keeps only known enum values', () => {
+    const ok = normalizeConfig({ overflow: 'priority', glyphMode: 'paste-safe', ambiguousWidth: 2 });
+    expect([ok.overflow, ok.glyphMode, ok.ambiguousWidth]).toEqual(['priority', 'paste-safe', 2]);
+    const bad = normalizeConfig({ overflow: 'bogus', glyphMode: 'wide', ambiguousWidth: 3 });
+    for (const k of ['overflow', 'glyphMode', 'ambiguousWidth']) expect(k in bad).toBe(false);
+  });
+
+  it('keeps only valid progress keys', () => {
+    expect(
+      normalizeConfig({ progress: { enabled: true, warnAt: 200, channel: 'x', foo: 1 } }).progress,
+    ).toEqual({ enabled: true, warnAt: 100 });
+    expect('progress' in normalizeConfig({ progress: {} })).toBe(false);
+    expect(normalizeProgress({ warnAt: 0, errorAt: 79.6, source: 'usage5h', terminals: 'always' })).toEqual({
+      warnAt: 1,
+      errorAt: 80,
+      source: 'usage5h',
+      terminals: 'always',
+    });
+    expect(normalizeProgress({ enabled: 'yes', tmuxPassthrough: 1, scaleTo: 'half' })).toBeUndefined();
+    expect(normalizeProgress('on')).toBeUndefined();
+    expect(normalizeProgress(JSON.parse('{"__proto__":{"enabled":true}}'))).toBeUndefined();
+  });
+
+  it('keeps autoWrap as written next to overflow', () => {
+    const cfg = normalizeConfig({ autoWrap: false, overflow: 'wrap' });
+    expect([cfg.autoWrap, cfg.overflow]).toEqual([false, 'wrap']);
+  });
+
+  it('leaves the default config unchanged', () => {
+    const before = {
+      $schema: 'https://raw.githubusercontent.com/alpadalar/ccinfobar/main/schema/config.schema.json',
+      version: 1,
+      lines: [
+        ['model', 'effort', 'cwd', 'git-branch', 'git-changes', 'context-bar'],
+        ['gsd-milestone', 'gsd-milestone-progress', 'gsd-phase', 'gsd-plans', 'gsd-next'],
+        ['session-cost', 'five-hour-usage', 'five-hour-reset', 'weekly-usage'],
+      ].map((line) => line.map((type) => ({ id: `${type}-1`, type }))),
+      theme: 'classic',
+      charset: 'auto',
+      autoWrap: true,
+      update: 'auto',
+      usageApi: true,
+      colorLevel: 'auto',
+      icons: 'text',
+      maxWidth: 'auto',
+      widthOffset: 10,
+      savePayload: true,
+    };
+    expect(defaultConfig()).toStrictEqual(before);
+    expect(normalizeConfig({})).toStrictEqual(before);
   });
 });

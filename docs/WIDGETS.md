@@ -4,7 +4,7 @@
 
 ccinfobar ships 107 widgets. A widget without data shows its label and `—`; set `hideEmpty: true` on it to hide it instead (handy for a GSD line outside GSD projects). `workspace-repos`, `service-status` hide themselves when empty; set `hideEmpty: false` on one to show `—` instead.
 
-Common fields for every widget in `config.json`: `color`, `background`, `bold`, `dim`, `italic`, `label`, `raw` (value only, no label), `merge` (no separator after it), `hideEmpty` (hide instead of showing `—` when there is no data) and `options`.
+Common fields for every widget in `config.json`: `color`, `background`, `bold`, `dim`, `italic`, `label`, `raw` (value only, no label), `merge` (no separator after it), `hideEmpty` (hide instead of showing `—` when there is no data), `showWhen` and `hideWhen` (rules for when it shows), `priority` (0-100, kept longer with `overflow: priority`) and `options`.
 
 ## Categories
 

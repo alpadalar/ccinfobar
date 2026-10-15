@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { normalizeConfig, SCHEMA_URL } from '../../src/core/config.js';
-import type { Config, TuiConfig, WidgetItem } from '../../src/core/types.js';
+import type { Config, ProgressConfig, TuiConfig, WidgetItem } from '../../src/core/types.js';
 
 const ITEM_KEYS = [
   'id',
@@ -16,6 +16,9 @@ const ITEM_KEYS = [
   'merge',
   'hideEmpty',
   'options',
+  'showWhen',
+  'hideWhen',
+  'priority',
 ] as const;
 
 const CONFIG_KEYS = [
@@ -45,6 +48,10 @@ const CONFIG_KEYS = [
   'maxWidth',
   'widthOffset',
   'savePayload',
+  'overflow',
+  'glyphMode',
+  'ambiguousWidth',
+  'progress',
 ] as const;
 
 const TUI_KEYS = [
@@ -63,6 +70,17 @@ const TUI_KEYS = [
   'breakpoints',
 ] as const;
 
+const PROGRESS_KEYS = [
+  'enabled',
+  'source',
+  'scaleTo',
+  'warnAt',
+  'errorAt',
+  'channel',
+  'tmuxPassthrough',
+  'terminals',
+] as const;
+
 // compile-time: fails typecheck unless T is never
 function none<T extends never>(): T | undefined {
   return undefined;
@@ -73,6 +91,8 @@ none<Exclude<keyof Config, (typeof CONFIG_KEYS)[number]>>();
 none<Exclude<(typeof CONFIG_KEYS)[number], keyof Config>>();
 none<Exclude<keyof TuiConfig, (typeof TUI_KEYS)[number]>>();
 none<Exclude<(typeof TUI_KEYS)[number], keyof TuiConfig>>();
+none<Exclude<keyof ProgressConfig, (typeof PROGRESS_KEYS)[number]>>();
+none<Exclude<(typeof PROGRESS_KEYS)[number], keyof ProgressConfig>>();
 
 const FULL_ITEM: Required<WidgetItem> = {
   id: 'model-main',
@@ -87,6 +107,9 @@ const FULL_ITEM: Required<WidgetItem> = {
   merge: true,
   hideEmpty: true,
   options: { format: 'short', width: 12, compact: false },
+  showWhen: 'context.pct >= 70',
+  hideWhen: ['!git', 'contxt.pct > 5'],
+  priority: 80,
 };
 
 const HTTP_ITEM: WidgetItem = {
@@ -120,6 +143,17 @@ const FULL_TUI: Required<TuiConfig> = {
   breakpoints: [
     { minWidth: 80, areas: ['top', 'bottom'], columns: ['1fr', 'auto'], align: ['left', 'right'] },
   ],
+};
+
+const FULL_PROGRESS: Required<ProgressConfig> = {
+  enabled: true,
+  source: 'usage5h',
+  scaleTo: 'autocompact',
+  warnAt: 60,
+  errorAt: 90,
+  channel: 'hook',
+  tmuxPassthrough: true,
+  terminals: 'always',
 };
 
 const FULL_CONFIG: Required<Config> = {
@@ -164,6 +198,10 @@ const FULL_CONFIG: Required<Config> = {
   maxWidth: 140,
   widthOffset: 40,
   savePayload: false,
+  overflow: 'priority',
+  glyphMode: 'paste-safe',
+  ambiguousWidth: 2,
+  progress: FULL_PROGRESS,
 };
 
 const sorted = (keys: Iterable<string>) => [...keys].sort();
@@ -179,6 +217,7 @@ describe('config round-trip', () => {
     expect(sorted(Object.keys(FULL_ITEM))).toEqual(sorted(ITEM_KEYS));
     expect(sorted(Object.keys(FULL_CONFIG))).toEqual(sorted(CONFIG_KEYS));
     expect(sorted(Object.keys(FULL_TUI))).toEqual(sorted(TUI_KEYS));
+    expect(sorted(Object.keys(FULL_PROGRESS))).toEqual(sorted(PROGRESS_KEYS));
   });
 
   it('keeps every item and config key through normalizeConfig', () => {
@@ -203,5 +242,9 @@ describe('config round-trip', () => {
 
   it('matches the schema tui property set', () => {
     expect(sorted(Object.keys(schema.properties.tui?.properties ?? {}))).toEqual(sorted(TUI_KEYS));
+  });
+
+  it('matches the schema progress property set', () => {
+    expect(sorted(Object.keys(schema.properties.progress?.properties ?? {}))).toEqual(sorted(PROGRESS_KEYS));
   });
 });

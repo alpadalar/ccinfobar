@@ -40,7 +40,7 @@ function widgetsMarkdown(): string {
     '',
     `ccinfobar ships ${ALL_WIDGETS.length} widgets. A widget without data shows its label and \`—\`; set \`hideEmpty: true\` on it to hide it instead (handy for a GSD line outside GSD projects). ${selfHiding()}`,
     '',
-    'Common fields for every widget in `config.json`: `color`, `background`, `bold`, `dim`, `italic`, `label`, `raw` (value only, no label), `merge` (no separator after it), `hideEmpty` (hide instead of showing `—` when there is no data) and `options`.',
+    'Common fields for every widget in `config.json`: `color`, `background`, `bold`, `dim`, `italic`, `label`, `raw` (value only, no label), `merge` (no separator after it), `hideEmpty` (hide instead of showing `—` when there is no data), `showWhen` and `hideWhen` (rules for when it shows), `priority` (0-100, kept longer with `overflow: priority`) and `options`.',
     '',
     '## Categories',
     '',
@@ -79,6 +79,13 @@ function widgetsMarkdown(): string {
 const color = {
   type: 'string',
   description: 'Named color (red, brightBlue...), ansi256:N, #rrggbb or default',
+};
+
+const rule = {
+  anyOf: [
+    { type: 'string', maxLength: 256 },
+    { type: 'array', items: { type: 'string', maxLength: 256 }, maxItems: 8 },
+  ],
 };
 
 const glyphs = {
@@ -254,6 +261,15 @@ function schema(): object {
                   'Hide the widget when it has no data instead of showing —; false shows — for widgets that hide themselves',
               },
               options: { type: 'object', additionalProperties: { type: ['string', 'number', 'boolean'] } },
+              showWhen: { ...rule, description: 'Show the widget only when the rule holds' },
+              hideWhen: { ...rule, description: 'Hide the widget when the rule holds' },
+              priority: {
+                type: 'integer',
+                minimum: 0,
+                maximum: 100,
+                description:
+                  'With overflow: priority, lower values are dropped first (default: from the category)',
+              },
             },
           },
         },
@@ -290,6 +306,20 @@ function schema(): object {
         type: 'boolean',
         default: true,
         description: 'Move widgets that do not fit to a new line instead of truncating',
+      },
+      overflow: {
+        enum: ['truncate', 'wrap', 'priority'],
+        description:
+          'What happens when a line is too wide: cut it, wrap to a new line, or drop low-priority widgets (default: from autoWrap)',
+      },
+      glyphMode: {
+        enum: ['normal', 'single-width', 'paste-safe', 'jetbrains', 'auto'],
+        description:
+          'single-width folds emoji and fullwidth text to narrow glyphs, paste-safe also drops Nerd Font glyphs and links so pasted text stays aligned, jetbrains counts emoji as one column, auto picks jetbrains in JetBrains terminals (default: normal)',
+      },
+      ambiguousWidth: {
+        enum: [1, 2],
+        description: 'Width of East Asian ambiguous characters; 2 for CJK-locale terminals (default: 1)',
       },
       update: {
         enum: ['auto', 'notify', 'off'],
@@ -328,6 +358,45 @@ function schema(): object {
             maximum: 1,
             default: 0.8,
             description: 'Fraction of the budget where the widget turns yellow',
+          },
+        },
+        additionalProperties: false,
+      },
+      progress: {
+        type: 'object',
+        description: 'Terminal progress bar (OSC 9;4) driven by context or 5-hour usage',
+        properties: {
+          enabled: { type: 'boolean', default: false },
+          source: { enum: ['context', 'usage5h'], default: 'context' },
+          scaleTo: {
+            enum: ['full', 'autocompact'],
+            default: 'full',
+            description: 'autocompact shows the auto-compact point as 100%',
+          },
+          warnAt: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 100,
+            default: 50,
+            description: 'Percent for warning state',
+          },
+          errorAt: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 100,
+            default: 80,
+            description: 'Percent for error state',
+          },
+          channel: {
+            enum: ['auto', 'hook', 'tty'],
+            default: 'auto',
+            description: 'hook sends it through Claude Code hooks, tty writes to the terminal (POSIX only)',
+          },
+          tmuxPassthrough: { type: 'boolean', default: false, description: 'Wrap the sequence for tmux' },
+          terminals: {
+            enum: ['allowlist', 'always'],
+            default: 'allowlist',
+            description: 'allowlist emits only in terminals known to draw it',
           },
         },
         additionalProperties: false,

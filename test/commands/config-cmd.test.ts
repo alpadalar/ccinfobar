@@ -267,6 +267,48 @@ describe('config profiles', () => {
   });
 });
 
+describe('config display keys', () => {
+  it('sets overflow, glyph, progress and item keys', () => {
+    const file = withFile();
+    for (const argv of [
+      ['set', 'overflow', 'priority'],
+      ['set', 'glyphMode', 'paste-safe'],
+      ['set', 'ambiguousWidth', '2'],
+      ['set', 'progress.enabled', 'true'],
+      ['set', 'lines.0.0.priority', '80'],
+      ['set', 'lines.0.0.hideWhen', '!git'],
+    ]) {
+      expect(run(argv, file)).toEqual({ out: [t('cfg.set', { path: argv[1]! })], err: [], code: 0 });
+    }
+    const cfg = read(file);
+    expect([cfg.overflow, cfg.glyphMode, cfg.ambiguousWidth, cfg.progress]).toEqual([
+      'priority',
+      'paste-safe',
+      2,
+      { enabled: true },
+    ]);
+    expect(cfg.lines[0][0]).toEqual({ id: 'm', type: 'model', priority: 80, hideWhen: '!git' });
+    expect(run(['get', 'lines.0.0.hideWhen'], file).out).toEqual(['!git']);
+  });
+
+  it('rejects invalid enums without writing', () => {
+    const file = withFile();
+    const bytes = fs.readFileSync(file, 'utf8');
+    for (const argv of [
+      ['set', 'overflow', 'bogus'],
+      ['set', 'progress.channel', 'x'],
+      ['set', 'glyphMode', 'wide'],
+      ['set', 'ambiguousWidth', '3'],
+    ]) {
+      const r = run(argv, file);
+      expect(r.err).toEqual([t('cfg.rejected', { path: argv[1]! })]);
+      expect(r.code).toBe(1);
+      process.exitCode = undefined;
+    }
+    expect(fs.readFileSync(file, 'utf8')).toBe(bytes);
+  });
+});
+
 describe('broken config', () => {
   for (const argv of [
     ['get', 'theme'],

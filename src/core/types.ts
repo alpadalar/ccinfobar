@@ -114,6 +114,9 @@ export interface WidgetItem {
   merge?: boolean;
   hideEmpty?: boolean;
   options?: Record<string, OptionValue>;
+  showWhen?: string | string[];
+  hideWhen?: string | string[];
+  priority?: number;
 }
 
 export type ColorLevel = 'auto' | 0 | 1 | 2 | 3;
@@ -177,6 +180,20 @@ export interface BudgetConfig {
   warnAt?: number;
 }
 
+export type OverflowMode = 'truncate' | 'wrap' | 'priority';
+export type GlyphMode = 'normal' | 'single-width' | 'paste-safe' | 'jetbrains' | 'auto';
+
+export interface ProgressConfig {
+  enabled?: boolean;
+  source?: 'context' | 'usage5h';
+  scaleTo?: 'full' | 'autocompact';
+  warnAt?: number;
+  errorAt?: number;
+  channel?: 'auto' | 'hook' | 'tty';
+  tmuxPassthrough?: boolean;
+  terminals?: 'allowlist' | 'always';
+}
+
 export interface ProfileOverride {
   match: string;
   label?: string;
@@ -220,6 +237,10 @@ export interface Config {
   maxWidth: 'auto' | number;
   widthOffset: number;
   savePayload: boolean;
+  overflow?: OverflowMode;
+  glyphMode?: GlyphMode;
+  ambiguousWidth?: 1 | 2;
+  progress?: ProgressConfig;
 }
 
 export type WidgetCategory =
