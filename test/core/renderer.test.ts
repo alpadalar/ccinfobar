@@ -201,6 +201,8 @@ describe('workspace mode', () => {
     );
     expect(out[0]).toContain('—');
     expect(out[0]).toContain('repos: api (main)');
+    const str = { lines: layout({ hideGitPlaceholders: 'false' }) };
+    expect(render(ctxWith({ git: () => null, repos, config: str }))[0]).toContain('—');
   });
 
   it('keeps placeholders inside a repo or without workspace-repos', () => {

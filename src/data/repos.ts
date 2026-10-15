@@ -258,9 +258,12 @@ export function readDirty(
   return { at, dirty };
 }
 
+// same parsing as opt(): true or 'true'
+const flag = (v: unknown) => v === true || v === 'true';
+
 export function repoDirtyWanted(config: Config): boolean {
   return config.lines.some((line) =>
-    line.some((it) => it.type === 'workspace-repos' && it.options?.dirty === true),
+    line.some((it) => it.type === 'workspace-repos' && flag(it.options?.dirty)),
   );
 }
 

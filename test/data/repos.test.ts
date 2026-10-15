@@ -310,6 +310,8 @@ describe('dirty cache', () => {
       ({ ...defaultConfig(), lines: [[{ id: 'r', type: 'workspace-repos', options }]] }) as Config;
     expect(repoDirtyWanted(cfg({ dirty: true }))).toBe(true);
     expect(repoDirtyWanted(cfg({}))).toBe(false);
+    expect(repoDirtyWanted(cfg({ dirty: 'true' }))).toBe(true);
+    expect(repoDirtyWanted(cfg({ dirty: 'false' }))).toBe(false);
     expect(
       repoDirtyWanted({
         ...cfg({ dirty: true }),

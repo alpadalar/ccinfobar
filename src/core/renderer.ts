@@ -1,5 +1,6 @@
 import { contextPercent } from '../widgets/context.js';
 import { getWidget } from '../widgets/index.js';
+import { opt } from '../widgets/shared.js';
 import {
   contrastRatio,
   detectLevel,
@@ -146,7 +147,7 @@ export function normalizeResult(def: WidgetDef, result: WidgetResult): WidgetOut
 
 export function workspaceMode(ctx: RenderContext): boolean {
   for (const item of ctx.config.lines.flat()) {
-    if (item.type !== 'workspace-repos' || item.options?.hideGitPlaceholders === false) continue;
+    if (item.type !== 'workspace-repos' || !opt(item, 'hideGitPlaceholders', true)) continue;
     const def = getWidget(item.type);
     if (def && renderValue(ctx, def, item)) return true;
   }
