@@ -537,9 +537,9 @@ function inspectItem(
   const def = getWidget(item.type);
   if (!def) return { ...row, empty: emptyReason(ctx, item) };
   if (def.category !== 'layout') row.priority = effectivePriority(item, def);
-  const wctx = trace.forWidget(
-    item.type === 'command' && opts.commandEnv ? { ...traced, env: opts.commandEnv } : traced,
-  );
+  const base = item.type === 'command' && opts.commandEnv ? { ...traced, env: opts.commandEnv } : traced;
+  // own data object, so the metric memo records this item's reads too (IN-02)
+  const wctx = trace.forWidget({ ...base, data: { ...base.data } });
   let ruleReads: TraceRead[] = [];
   let warning: EmptyReason | null = null;
   if (hasItemRules(item)) {

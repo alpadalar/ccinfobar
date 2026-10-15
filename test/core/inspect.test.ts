@@ -985,6 +985,26 @@ describe('rule rows', () => {
     expect(r.warning).toBeUndefined();
   });
 
+  it('lists the metric sources for every widget that reads it (IN-02)', () => {
+    const rows = rowsFor(
+      ctxWith({
+        payload: atPct(42),
+        config: {
+          lines: [
+            [
+              item('probe', { id: 'a', showWhen: 'context.pct >= 70' }),
+              item('probe', { id: 'b', showWhen: 'context.pct >= 70' }),
+            ],
+          ],
+        },
+      }),
+    );
+    const ctxSources = (r: (typeof rows)[number]) =>
+      r.sources.filter((s) => s.kind === 'payload' && s.path?.startsWith('context_window'));
+    expect(ctxSources(rows[0]!).length).toBeGreaterThan(0);
+    expect(ctxSources(rows[1]!)).toEqual(ctxSources(rows[0]!));
+  });
+
   it('shows the row when the rule passes', () => {
     const r = one(item('probe', { showWhen: 'context.pct >= 70' }), atPct(80));
     expect(r).toMatchObject({ status: 'shown', value: 'p' });
