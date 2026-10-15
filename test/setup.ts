@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import util from 'node:util';
+import { beforeEach } from 'vitest';
+import { setLanguage } from '../src/core/i18n/index.js';
 
 declare global {
   var __ccibRenderGuard: boolean | undefined;
@@ -53,6 +55,14 @@ setDir('CLAUDE_CONFIG_DIR', 'claude');
 process.env.CCINFOBAR_NO_UPDATE = '1';
 process.env.CCINFOBAR_NO_USAGE_API = '1';
 delete process.env.CCINFOBAR_CONFIG;
+process.env.LANG = 'C';
+process.env.LC_ALL = 'C';
+delete process.env.LC_MESSAGES;
+delete process.env.CCINFOBAR_LANG;
+
+beforeEach(() => {
+  setLanguage('en');
+});
 
 const win = process.platform === 'win32';
 const norm = (p: string) => (win ? p.toLowerCase() : p);

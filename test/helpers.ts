@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterAll, beforeAll } from 'vitest';
 import { defaultConfig } from '../src/core/config.js';
 import { createContext } from '../src/core/context.js';
+import { type LanguageDef, type LanguageId, withLanguage } from '../src/core/i18n/index.js';
 import {
   sampleAgents,
   sampleEnvironment,
@@ -21,6 +22,21 @@ import type { Config, RenderContext, StatusPayload, WidgetItem } from '../src/co
 import { getWidget } from '../src/widgets/index.js';
 
 export const NOW = new Date('2026-10-12T12:00:00Z');
+
+export function withLang<T>(lang: LanguageId | LanguageDef, fn: () => T): T {
+  return withLanguage(lang, fn);
+}
+
+export function withTz<T>(tz: string, fn: () => T): T {
+  const prev = process.env.TZ;
+  process.env.TZ = tz;
+  try {
+    return fn();
+  } finally {
+    if (prev === undefined) delete process.env.TZ;
+    else process.env.TZ = prev;
+  }
+}
 
 export function ctxWith(
   overrides: {

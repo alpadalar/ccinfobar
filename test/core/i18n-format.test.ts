@@ -8,6 +8,7 @@ import {
   formatMonthDay,
   formatWeekday,
 } from '../../src/core/i18n/format.js';
+import { withTz } from '../helpers.js';
 
 const OCT_12 = new Date(2026, 9, 12, 12, 0);
 const WED = new Date(2026, 9, 14, 9, 5);
@@ -27,6 +28,13 @@ describe('dates', () => {
     expect(formatDateTime(new Date(2026, 9, 14, 21, 7), 'en')).toBe('Oct 14, 2026, 21:07');
     expect(formatDateTime(WED, 'en')).toMatch(/09:05$/);
     expect(formatDateTime(new Date(2026, 9, 14, 0, 30), 'tr')).toBe('14 Eki 2026 00:30');
+  });
+
+  it('follows the time zone after the formatter is cached', () => {
+    const at = new Date('2026-10-14T23:30:00Z');
+    expect(withTz('UTC', () => formatDateTime(at, 'en'))).toBe('Oct 14, 2026, 23:30');
+    expect(withTz('Europe/Istanbul', () => formatDateTime(at, 'en'))).toBe('Oct 15, 2026, 02:30');
+    expect(withTz('Europe/Istanbul', () => formatWeekday(at, 'en'))).toBe('Thu');
   });
 
   it('bad input never throws', () => {

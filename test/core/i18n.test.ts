@@ -32,6 +32,7 @@ import {
   matchLanguage,
   nativeName,
 } from '../../src/core/i18n/languages.js';
+import { withLang } from '../helpers.js';
 
 const dir = path.resolve(__dirname, '../../src/core/i18n');
 
@@ -253,5 +254,30 @@ describe('en table', () => {
       expect(src, f).not.toMatch(/from ['"]node:/);
       expect(src, f).not.toMatch(/\bprocess\./);
     }
+  });
+});
+
+describe('test pins', () => {
+  it('pin the process locale to C', () => {
+    expect(process.env.LANG).toBe('C');
+    expect(process.env.LC_ALL).toBe('C');
+    expect(process.env.LC_MESSAGES).toBeUndefined();
+    expect(process.env.CCINFOBAR_LANG).toBeUndefined();
+  });
+
+  it('leave a language active for the next test', () => {
+    setLanguage({ id: 'xx', name: 'Test', aliases: [], locale: 'en', messages: {} });
+    expect(language()).toBe('xx');
+  });
+
+  it('start every test in English', () => {
+    expect(language()).toBe('en');
+  });
+
+  it('withLang restores the language', () => {
+    expect(withLang({ id: 'yy', name: 'Y', aliases: [], locale: 'en', messages: {} }, () => language())).toBe(
+      'yy',
+    );
+    expect(language()).toBe('en');
   });
 });
