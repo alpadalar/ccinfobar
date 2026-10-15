@@ -351,6 +351,48 @@ describe('executeJob', () => {
     expect(readEnvelope('status', env)).toMatchObject({ error: 'failed', lastGood: 'up' });
   });
 
+  it('aborts the run signal when the job times out', async () => {
+    const env = tmpEnv();
+    let seen: AbortSignal | undefined;
+    const aborted = new Promise<boolean>((resolve) => {
+      void executeJob(
+        job((_req, c) => {
+          seen = c.signal;
+          c.signal?.addEventListener('abort', () => resolve(true));
+          return new Promise(() => {});
+        }),
+        { key: 'status' },
+        ctx(env),
+      );
+    });
+    expect(await aborted).toBe(true);
+    expect(seen?.aborted).toBe(true);
+    expect(readEnvelope('status', env)).toMatchObject({ ok: false, error: 'timeout' });
+  });
+
+  it('stamps the envelope when the run ends', async () => {
+    const env = tmpEnv();
+    const later = { ...ctx(env), clock: () => NOW + 5000 };
+    const ok = await executeJob(
+      job(async (req, c) => okEnvelope(req.key, 'up', c.now)),
+      { key: 'status' },
+      later,
+    );
+    expect(ok).toMatchObject({ fetchedAt: NOW + 5000, lastGoodAt: NOW + 5000 });
+    const failed = await executeJob(
+      job(async (req, c) => failEnvelope(req.key, null, 'http-503', c.now, { retryMs: 60_000 })),
+      { key: 'status' },
+      later,
+    );
+    expect(failed).toMatchObject({ fetchedAt: NOW + 5000, blockedUntil: NOW + 65_000 });
+    const kept = await executeJob(
+      job(async (req) => okEnvelope(req.key, 'old', NOW - 1000)),
+      { key: 'status' },
+      later,
+    );
+    expect(kept.fetchedAt).toBe(NOW - 1000);
+  });
+
   it('times out a slow run', async () => {
     const env = tmpEnv();
     const out = await executeJob(

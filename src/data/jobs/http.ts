@@ -107,6 +107,7 @@ export const httpJob: Job<HttpValue> = {
         timeoutMs: group.timeoutMs,
         headers,
         now: ctx.now,
+        ...(ctx.signal ? { signal: ctx.signal } : {}),
       });
       return okEnvelope(req.key, { paths: extract(body, group.paths, jp) }, ctx.now);
     } catch (err) {

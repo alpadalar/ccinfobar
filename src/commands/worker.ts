@@ -161,6 +161,7 @@ export async function runWorker(args: Args, cfgFile: string, deps: WorkerDeps): 
               fetch: deps.fetch ?? globalThis.fetch,
               ...(deps.execFile ? { execFile: deps.execFile } : {}),
               now,
+              clock: deps.now ?? Date.now,
             },
             env,
           );

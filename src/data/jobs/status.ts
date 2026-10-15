@@ -97,7 +97,12 @@ export const statusJob: Job<StatusValue> = {
     // fetch code loads only in the worker
     const { errorCode, fetchJson, JobFetchError } = await import('./fetch.js');
     try {
-      const body = await fetchJson(new URL(STATUS_URL), { fetch: ctx.fetch, timeoutMs: 5000, now: ctx.now });
+      const body = await fetchJson(new URL(STATUS_URL), {
+        fetch: ctx.fetch,
+        timeoutMs: 5000,
+        now: ctx.now,
+        ...(ctx.signal ? { signal: ctx.signal } : {}),
+      });
       const value = parseSummary(body);
       if (value) return okEnvelope(req.key, value, ctx.now);
       return failEnvelope(req.key, ctx.prev, 'bad-json', ctx.now, { retryMs: RETRY_MS });

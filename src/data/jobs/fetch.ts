@@ -29,6 +29,7 @@ export interface FetchJsonOpts {
   capBytes?: number;
   maxRedirects?: number;
   now?: number;
+  signal?: AbortSignal;
 }
 
 async function discard(res: Response): Promise<void> {
@@ -76,11 +77,23 @@ async function readCapped(res: Response, cap: number): Promise<Buffer> {
   return Buffer.concat(parts);
 }
 
+// AbortSignal.any needs Node 20.3
+function anySignal(a: AbortSignal, b?: AbortSignal): AbortSignal {
+  if (!b) return a;
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([a, b]);
+  const c = new AbortController();
+  for (const s of [a, b]) {
+    if (s.aborted) c.abort(s.reason);
+    else s.addEventListener('abort', () => c.abort(s.reason), { once: true });
+  }
+  return c.signal;
+}
+
 export async function fetchJson(url: URL, opts: FetchJsonOpts): Promise<unknown> {
   const cap = opts.capBytes ?? CAP_BYTES;
   const max = opts.maxRedirects ?? 3;
-  // one timeout covers every hop and the body
-  const signal = AbortSignal.timeout(opts.timeoutMs);
+  // one timeout covers every hop and the body; the job's signal stops it early
+  const signal = anySignal(AbortSignal.timeout(opts.timeoutMs), opts.signal);
   // lower case, or fetch would send both Accept and accept
   const headers: Record<string, string> = {};
   for (const [k, v] of Object.entries(opts.headers ?? {})) headers[k.toLowerCase()] = v;

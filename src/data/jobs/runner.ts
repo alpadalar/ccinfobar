@@ -52,7 +52,7 @@ export interface AcceptInput {
 export type ExecFileLike = (
   file: string,
   args: string[],
-  opts: { timeout: number; env: NodeJS.ProcessEnv; maxBuffer: number; cwd?: string },
+  opts: { timeout: number; env: NodeJS.ProcessEnv; maxBuffer: number; cwd?: string; signal?: AbortSignal },
 ) => Promise<{ code: number | null; stdout: string; stderr: string; errno?: string }>;
 
 export interface JobCtx<V> {
@@ -63,6 +63,10 @@ export interface JobCtx<V> {
   fetch: typeof fetch;
   execFile?: ExecFileLike;
   now: number;
+  // aborted when the job times out, so a run never outlives its envelope
+  signal?: AbortSignal;
+  // the worker's clock: an envelope is stamped when its run ends
+  clock?: () => number;
 }
 
 export interface Job<V> {
@@ -376,6 +380,16 @@ export function scheduleRequests(
 
 const TIMEOUT = Symbol('timeout');
 
+// envelopes built with the start time move to the end of the run
+function stampEnd<V>(e: JobEnvelope<V>, ctx: JobCtx<V>): JobEnvelope<V> {
+  const shift = (ctx.clock?.() ?? ctx.now) - ctx.now;
+  if (!(shift > 0) || e.fetchedAt !== ctx.now) return e;
+  const out = { ...e, fetchedAt: e.fetchedAt + shift };
+  if (e.ok && e.lastGoodAt === ctx.now) out.lastGoodAt = out.fetchedAt;
+  if (finite(e.blockedUntil)) out.blockedUntil = e.blockedUntil + shift;
+  return out;
+}
+
 function validResult<V>(e: unknown): e is JobEnvelope<V> {
   if (!e || typeof e !== 'object' || Array.isArray(e)) return false;
   const o = e as Record<string, unknown>;
@@ -389,6 +403,8 @@ export async function executeJob<V>(
   env: NodeJS.ProcessEnv = ctx.env,
 ): Promise<JobEnvelope<V>> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const abort = new AbortController();
+  const runCtx: JobCtx<V> = { ...ctx, signal: abort.signal };
   const fail = (error: string) =>
     failEnvelope(req.key, ctx.prev, error, ctx.now, {
       ...(job.retryMs > 0 ? { retryMs: job.retryMs } : {}),
@@ -396,14 +412,16 @@ export async function executeJob<V>(
     });
   let out: JobEnvelope<V>;
   try {
-    const run = Promise.resolve().then(() => job.run(req, ctx));
+    const run = Promise.resolve().then(() => job.run(req, runCtx));
     run.catch(() => {});
     const timeout = new Promise<typeof TIMEOUT>((resolve) => {
       timer = setTimeout(() => resolve(TIMEOUT), job.timeoutMs);
     });
     const res = await Promise.race([run, timeout]);
-    if (res === TIMEOUT) out = fail('timeout');
-    else if (!validResult<V>(res)) out = fail('failed');
+    if (res === TIMEOUT) {
+      abort.abort();
+      out = fail('timeout');
+    } else if (!validResult<V>(res)) out = fail('failed');
     else {
       const { param: _, ...rest } = res;
       out = { ...rest, key: req.key, ...(req.param !== undefined ? { param: req.param } : {}) };
@@ -413,6 +431,7 @@ export async function executeJob<V>(
   } finally {
     if (timer) clearTimeout(timer);
   }
+  out = stampEnd(out, ctx);
   try {
     out = deepSanitize(out);
     writeEnvelope(out, env);

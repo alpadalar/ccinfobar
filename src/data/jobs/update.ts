@@ -126,7 +126,10 @@ export const updateJob: Job<UpdateValue> = {
     const m = await import('../self-update.js');
     const p = req.param !== undefined ? { param: req.param } : {};
     try {
-      const value = await m.checkForUpdate(ctx.config, undefined, ctx.env, { fetch: ctx.fetch });
+      const value = await m.checkForUpdate(ctx.config, undefined, ctx.env, {
+        fetch: ctx.fetch,
+        ...(ctx.signal ? { signal: ctx.signal } : {}),
+      });
       return okEnvelope('update', value, ctx.now, req.param);
     } catch (err) {
       return failEnvelope('update', ctx.prev, (err as Error)?.message ?? 'failed', ctx.now, p);

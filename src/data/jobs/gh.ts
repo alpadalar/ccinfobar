@@ -205,6 +205,7 @@ export const ghJob: Job<GhValue> = {
         env: childEnv(ctx.env, stored),
         maxBuffer: 1 << 20,
         ...(cwd ? { cwd } : {}),
+        ...(ctx.signal ? { signal: ctx.signal } : {}),
       },
     );
     const c = classifyGh(r);

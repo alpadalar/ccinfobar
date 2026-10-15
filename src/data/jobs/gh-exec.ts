@@ -16,6 +16,7 @@ export const defaultExecFile: ExecFileLike = (file, args, opts) =>
           encoding: 'utf8',
           // Windows looks up gh in the cwd first; callers pass safeCwd()
           ...(opts.cwd ? { cwd: opts.cwd } : {}),
+          ...(opts.signal ? { signal: opts.signal } : {}),
         },
         (e, stdout, stderr) => {
           const code = (e as NodeJS.ErrnoException | null)?.code as unknown;

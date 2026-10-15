@@ -117,15 +117,24 @@ export function installVersion(version: string, prefix?: string): void {
 }
 
 // does not block the event loop
-export async function installVersionAsync(version: string, prefix?: string): Promise<void> {
+// an aborted signal kills npm, so a timed-out job cannot leave an install running
+export async function installVersionAsync(
+  version: string,
+  prefix?: string,
+  signal?: AbortSignal,
+): Promise<void> {
   const { file, runs, opts } = npmInstall(version, prefix);
   let last: unknown;
   for (const args of runs) {
+    if (signal?.aborted) throw new Error('install cancelled');
     const err = await new Promise<Error | null>((resolve) => {
-      const child = execFile(file, args, opts, (e, _out, stderr) => resolve(e ? npmError(e, stderr) : null));
+      const child = execFile(file, args, { ...opts, ...(signal ? { signal } : {}) }, (e, _out, stderr) =>
+        resolve(e ? npmError(e, stderr) : null),
+      );
       child.stdin?.end();
     });
     if (!err) return;
+    if (signal?.aborted) throw new Error('install cancelled');
     last = err;
   }
   throw last;
@@ -135,7 +144,7 @@ export async function checkForUpdate(
   config: Config,
   current: string = VERSION,
   env: NodeJS.ProcessEnv = process.env,
-  deps: { fetch?: typeof fetch } = {},
+  deps: { fetch?: typeof fetch; signal?: AbortSignal } = {},
 ): Promise<{ latest: string; installed?: string }> {
   const latest = await fetchLatest(undefined, deps.fetch);
   const kind = installKind();
@@ -144,7 +153,7 @@ export async function checkForUpdate(
     compareVersions(latest, current) > 0 &&
     (kind === 'npm-global' || kind === 'local')
   ) {
-    await installVersionAsync(latest, kind === 'local' ? localPrefix(env) : undefined);
+    await installVersionAsync(latest, kind === 'local' ? localPrefix(env) : undefined, deps.signal);
     return { latest, installed: latest };
   }
   return { latest };

@@ -186,6 +186,23 @@ describe('update job run', () => {
     expect(e).toMatchObject({ ok: true, value: { latest: '9.9.9', installed: '9.9.9' } });
   });
 
+  it('kills npm and tries no other source once the signal aborts', async () => {
+    const { installVersionAsync } = await import('../../../src/data/self-update.js');
+    const ac = new AbortController();
+    mocks.execFile.mockImplementation(
+      (_f: string, _a: string[], o: { signal?: AbortSignal }, cb: (e: Error) => void) => {
+        expect(o.signal).toBe(ac.signal);
+        ac.abort();
+        cb(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }));
+        return { stdin: { end() {} } };
+      },
+    );
+    await expect(installVersionAsync('9.9.9', undefined, ac.signal)).rejects.toThrow('install cancelled');
+    expect(mocks.execFile).toHaveBeenCalledTimes(1);
+    await expect(installVersionAsync('9.9.9', undefined, ac.signal)).rejects.toThrow('install cancelled');
+    expect(mocks.execFile).toHaveBeenCalledTimes(1);
+  });
+
   it('update --background runs the job and keeps the legacy session', async () => {
     const env = process.env;
     legacy(env, { checkedAt: 1, latest: '1.0.0', session: 's7' });
