@@ -39,10 +39,11 @@
 ## Why ccinfobar
 
 - **Drag-and-drop editor.** `ccinfobar edit` opens a local web editor with a live terminal preview. Drag widgets in from the palette, reorder them within or across lines, and style them in an inspector. It scales cleanly from 1080p to 4K.
-- **24 themes, or your own.** Colored text, colored blocks, powerline arrows, rounded capsules or a bordered panel with a responsive grid, from classic to Nord, Dracula, Rosé Pine, Tokyo Night and Catppuccin. ASCII mode for terminals without a Nerd Font. Preview them all with `ccinfobar themes` and write your own in a few lines of JSON.
+- **30 themes, or your own.** Colored text, colored blocks, powerline arrows, rounded capsules or a bordered panel with a responsive grid, from classic to Nord, Dracula, Rosé Pine, Tokyo Night, Kanagawa and all four Catppuccin flavours. ASCII mode for terminals without a Nerd Font. Preview them all with `ccinfobar themes` and write your own in a few lines of JSON.
 - **Terminal editor too.** `ccinfobar tui` does the same from the keyboard (or mouse) when you are on SSH or prefer to stay in the terminal.
 - **First-class GSD support.** Milestone progress, the current phase, plan completion inside the phase, the next command to run, blockers, requirements and more, as separate widgets you can arrange freely. See [docs/GSD.md](docs/GSD.md).
-- **107 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, the running tool and turn time, git with PR CI checks, workspace, system, Claude's service status, your provider or gateway, any JSON endpoint and custom commands.
+- **111 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, the running tool and turn time, an activity strip across sessions, git with PR CI checks, workspace, system, Claude's service status, your provider or gateway, any JSON endpoint, custom commands and a few just for fun.
+- **Shows what matters when it matters.** Rules show or hide any widget by context, usage, git, time or provider, narrow terminals drop the least important widgets first, and glyph modes keep lines aligned in JetBrains terminals and GitHub comments. All of it is opt-in.
 - **Uses the current Claude Code payload.** Rate limits, prompt cache statistics, PR status and repository info come straight from the status line JSON, without extra API calls.
 - **Fast, dependency-free, self-updating.** Zero runtime dependencies, lazy data loading, an incremental transcript cache, and network checks that run in one background process, so the status line never waits on the network.
 - **Cross-platform.** Linux, macOS and Windows, tested in CI on all three with Node 20, 22, 24 and 26.
@@ -155,13 +156,14 @@ Mouse works too: click to select, drag a chip to move it.
 | Tokens & cache | input, output, cached, total, cache hit rate, cache expiry countdown, last cache miss cause, output speed, performance (`performance`: hit rate and average response time) |
 | Cost & time | session cost, cost per hour, estimated cost today, this week and per project across sessions (`cost-today`, `cost-week`, `cost-project`), budget, session and API duration, lines changed, message count |
 | Usage limits | 5-hour and weekly usage (percent or 13 bar styles, with an even-pace marker), reset countdowns, per-model weekly limits such as Fable, spend limit, usage pace, projected usage at the reset (`usage-projection`), time until 100% (`limit-eta`), an at-risk chip (`limit-risk`) |
-| Charts | moving sparklines of tokens per minute, context fill, 5-hour or weekly usage and dollars per hour over the session |
+| Charts | moving sparklines of tokens per minute, context fill, 5-hour or weekly usage and dollars per hour over the session, activity across all your sessions in 15-minute slots (`activity-strip`) |
 | Agents & tasks | Claude's task list, a table of the turn's subagents (type, job, last tool, tokens per minute, share, tokens, time, model), subagent count, the running tool and the turn's tool counts (`tool-activity`) |
 | GSD | milestone, milestone progress, phase, status, plans, plan progress, next step, workstream, blockers, todos, requirements, last command, update notice, current task, summary |
 | Git | branch, sha, changes, status, staged, unstaged, untracked, ahead/behind, conflicts, stash, in-progress operation, repo, worktree, pull request with optional CI check status (`pr` option `ci`), child repos of a workspace folder (`workspace-repos`) |
 | Workspace | current directory (5 styles), project directory |
 | System | clock, date, hostname, username, memory, load average, terminal width, platform, CLAUDE.md files, rules, MCP servers and hooks in effect (`env-counts`), Claude's status page (`service-status`) |
 | Custom | shell command output, a value from any JSON endpoint (`http`), clickable link, environment variable |
+| Fun | a small pet that reacts to context, usage and idle time (`pet`), a kaomoji face (`kaomoji`), a short quip about the context or 5h window (`quip`) |
 | Layout | text, separator, flex space |
 
 A widget without data (a new chat, a folder that is not a git repo or GSD project) shows its label and `—`, so every line you add is always visible. Turn on **Hide when no data** (`hideEmpty`) for any widget you would rather hide. The full list with options and examples is in [docs/WIDGETS.md](docs/WIDGETS.md), or run `ccinfobar widgets`.
@@ -198,6 +200,20 @@ These are opt-in too and come from the network or `gh`. A background process fet
 - `provider`: who serves the session, `Bedrock`, `API key` or `GLM via api.z.ai`; nothing for a normal Claude login
 
 Gateway users can turn on `basis: "auto"` on `session-cost` and `profileLabel` on `model`: a built-in model profile table (GLM, Kimi, DeepSeek, MiniMax, Qwen) gives prices, names and context windows, and your own `profiles` entries extend it. Context widgets already use the profile's window when Claude Code reports the 200K default; set `CLAUDE_CODE_MAX_CONTEXT_TOKENS` to the model's window so Claude Code compacts at it too, and the `usable` basis follows. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` stops the automatic checks (usage, update, `service-status`); `http` items and the CI part still run because you turned them on. Recipes and every rule are in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#external-data).
+
+### Display options
+
+These change how the line looks and behaves. All are off until you turn them on, in the editors (the widget's Visibility section, the Global tab and Settings) or in the config:
+
+- **Visibility rules.** `"showWhen": "context.pct >= 70"` or `"hideWhen": "!git"` on any widget, by context, usage, cost, tokens, running agents, git repo, GSD project, time of day, weekday or provider. A rule with a typo is ignored, never blanks the line, and `ccinfobar doctor` points at it.
+- **Priority overflow.** `"overflow": "priority"` drops the least important widgets first when a line does not fit, instead of wrapping or cutting it; set `priority` (0-100) on the ones you want to keep.
+- **Glyph modes.** `"glyphMode": "jetbrains"` for JetBrains terminals, `single-width` for one-column emoji, and `paste-safe` for lines that stay aligned in a GitHub code block (`ccinfobar preview --glyph-mode paste-safe`). `ambiguousWidth: 2` is for CJK-locale terminals.
+- **Gradient and Braille bars.** `"barColor": "gradient"` on any bar, colored by the theme's ramp, and the `ring` (one-cell gauge) and `matrix` (dot-matrix) bar styles.
+- **Activity strip.** `activity-strip` shows when any of your sessions was busy over the last 9 hours, `··▂▅▇▄···▁▃▆██▅▂`, from the local cost ledger.
+- **Fun widgets.** `pet`, `kaomoji` and `quip`. No network, no telemetry and no files written.
+- **Terminal progress.** `ccinfobar install --progress` shows the context fill as the terminal tab's progress bar in Windows Terminal, Ghostty, WezTerm, ConEmu and iTerm2. It adds about 60-110 ms before each prompt; the `tty` channel (`progress.channel`) avoids that on Linux and macOS. Set Claude Code's `terminalProgressBarEnabled` to `false`, or the two bars flicker.
+
+Every rule, metric and mode is in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#visibility-rules).
 
 ## Themes
 
@@ -388,7 +404,7 @@ All sessions of one account share the same limits: the newest value wins, so an 
 
 ## Estimated cost and budgets
 
-`cost-today`, `cost-week` and `cost-project` add up the cost of all your sessions from a small local ledger. Counting starts when the first of these widgets (or a daily `budget` widget) is on your status line, so earlier sessions are not included. The numbers are Claude Code's own estimates and will differ from your bill. Set a budget with `ccinfobar config set budget.daily 10` (or in the editor or TUI) and add the `budget` widget; it turns yellow at 80% and red when you are over. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#budget) for details.
+`cost-today`, `cost-week` and `cost-project` add up the cost of all your sessions from a small local ledger, and `activity-strip` shows when they were busy. Counting starts when the first of these widgets (or a daily `budget` widget) is on your status line, so earlier sessions are not included. The numbers are Claude Code's own estimates and will differ from your bill. Set a budget with `ccinfobar config set budget.daily 10` (or in the editor or TUI) and add the `budget` widget; it turns yellow at 80% and red when you are over. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#budget) for details.
 
 ## Platform notes
 
@@ -408,7 +424,10 @@ All sessions of one account share the same limits: the newest value wins, so an 
 | Odd boxes instead of arrows or icons | Install a Nerd Font, or set `charset` to `unicode` or `text`. |
 | GSD widgets show `—` | You are outside a GSD project, or `.planning/STATE.md` / `ROADMAP.md` doesn't exist yet. Set `hideEmpty` on them to hide the line elsewhere. |
 | Context, cache or token widgets show `—` | Claude Code sends these only after Claude's first reply in the session. If your usage limit is at 100%, Claude cannot reply, so they stay empty; `ccinfobar doctor` tells you which case you are in. |
-| `cost-today`, `cost-week` or `cost-project` show `—` | Nothing has been recorded yet. They count only from when one of them was added, and a session that was already running counts from that point on. `ccinfobar explain` shows the ledger age. |
+| `cost-today`, `cost-week`, `cost-project` or `activity-strip` show `—` | Nothing has been recorded yet. They count only from when one of them was added, and a session that was already running counts from that point on. `ccinfobar explain` shows the ledger age. |
+| A widget disappears now and then | A `showWhen`/`hideWhen` rule or `overflow: "priority"` hid it. `ccinfobar explain` names the rule or says `dropped by priority`. |
+| The tab's progress bar flickers | Claude Code draws its own bar too. Set `"terminalProgressBarEnabled": false` in `~/.claude/settings.json`; `ccinfobar doctor` checks it. |
+| Emoji make the line misaligned in a JetBrains IDE | Set `"glyphMode": "jetbrains"` (or `auto`); `ccinfobar doctor` suggests it there. |
 | `usage-projection`, `limit-eta` or `limit-risk` show nothing | They wait until 15 minutes into the 5-hour window (about 8 hours into the week), so an early burst does not look like a runaway. `limit-risk` only appears when a limit is projected to run out before it resets. |
 | Usage limit widgets show `—` | Usage needs a Claude Pro or Max login. ccinfobar fills it from Claude when Claude Code sends none; run `ccinfobar usage` to see the reply or the error. |
 | Preview in the editor doesn't match | Use **Last session** in the preview, after Claude Code has rendered the status line at least once. |

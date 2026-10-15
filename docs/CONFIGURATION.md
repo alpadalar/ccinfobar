@@ -71,7 +71,11 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
 | `charset` | `auto` \| `nerd` \| `unicode` \| `text` | `"auto"` | Which characters may be printed. `nerd`: everything, including powerline arrows, capsule caps and Nerd Font icons. `unicode`: no Nerd Font needed; arrows become plain blocks, caps become half blocks (`▐ ▌`), Nerd icons fall back to text. `text`: ASCII only (bars `=-`, boxes `+-\|`). `auto`: `unicode` in Apple Terminal, `nerd` elsewhere. |
 | `align` | `left` \| `center` \| `right` | `left` | Where lines sit in the terminal. In the panel style it places the box when the box is narrower than the terminal |
 | `lineAlign` | array | | Alignment per line by index (`["right", null, "center"]`); `null` follows `align`. In the panel style it aligns the row inside the box |
-| `autoWrap` | boolean | `true` | Move widgets that do not fit onto a new line instead of truncating with `…` |
+| `autoWrap` | boolean | `true` | Move widgets that do not fit onto a new line instead of truncating with `…`. `overflow` wins when both are set |
+| `overflow` | `truncate` \| `wrap` \| `priority` | from `autoWrap` | What happens when a line does not fit, see [Overflow and priority](#overflow-and-priority) |
+| `glyphMode` | `normal` \| `single-width` \| `paste-safe` \| `jetbrains` \| `auto` | `"normal"` | Which characters are printed and how wide they count, see [Glyph mode](#glyph-mode) |
+| `ambiguousWidth` | 1 \| 2 | `1` | Width of East Asian ambiguous characters such as `●`, `▓` and box drawing. Set `2` only when your terminal draws them double-width, see [Glyph mode](#glyph-mode) |
+| `progress` | object | | The terminal tab's progress bar (OSC 9;4), off by default, see [Terminal progress](#terminal-progress) |
 | `tui` | object | | Settings for the panel (`tui`) style, see [Panel style](THEMES.md#panel-style) |
 | `colorLevel` | `auto` \| 0 \| 1 \| 2 \| 3 | `"auto"` | 0 no color, 1 basic 16, 2 256 colors, 3 truecolor. `auto` honors `NO_COLOR`, `FORCE_COLOR` and `COLORTERM`. |
 | `maxWidth` | `auto` \| number | `"auto"` | Lines longer than this are truncated with `…`. `auto` uses the detected terminal width. |
@@ -102,7 +106,96 @@ Every entry in `lines` is a widget instance:
 | `raw` | boolean | Value only, no label or icon |
 | `merge` | boolean | Glue the next widget directly to this one, with no separator |
 | `hideEmpty` | boolean | Hide the widget when it has no data. By default it shows its label and `—` (unlabelled widgets add a short name, e.g. `branch —`). |
+| `showWhen`, `hideWhen` | string or string[] | Show or hide the widget by a rule, see [Visibility rules](#visibility-rules) |
+| `priority` | 0 to 100 | With `overflow: "priority"`, higher stays longer. Default from the widget category, see [Overflow and priority](#overflow-and-priority) |
 | `options` | object | Widget specific options, listed in [WIDGETS.md](WIDGETS.md) |
+
+## Visibility rules
+
+`showWhen` and `hideWhen` show or hide a widget by what is going on. A widget shows when `showWhen` is absent or holds, and `hideWhen` is absent or does not hold.
+
+```json
+"showWhen": "context.pct >= 70"
+"hideWhen": ["!git"]
+"showWhen": ["provider != firstParty", "time.hour in 9..18"]
+"showWhen": "usage.5h >= 80 || usage.7d >= 90"
+```
+
+- A rule is one string or an array of strings. Every string in an array must hold (AND); inside one string, `||` separates alternatives (OR). There are no parentheses.
+- A term is a flag (`git`, `!git`), a number comparison (`context.pct >= 70`, with `>`, `>=`, `<`, `<=`, `==` or `!=`), a word comparison (`provider == bedrock`, `!=`), a range (`time.hour in 9..18`, inclusive) or a list (`time.weekday in sat,sun`). Hour and weekday ranges wrap: `time.hour in 22..6`, `time.weekday in fri..mon`.
+- Up to 8 strings of up to 256 characters, each with up to 8 terms.
+
+| Metric | Kind | Meaning |
+| --- | --- | --- |
+| `context.pct` | number 0..100 | Context used, as `context-percentage` shows it |
+| `context.usable` | number 0..100 | Context used against the point where Claude Code compacts |
+| `usage.5h`, `usage.7d` | number 0..100 | 5-hour and weekly plan usage |
+| `cost.session` | number | This session's cost in USD |
+| `cost.today` | number | Today's cost across sessions, only when the [cost ledger](#estimated-cost) is on |
+| `tokens.total` | number | Total tokens of the session |
+| `agents.running` | number | Running subagents |
+| `time.hour` | number 0..23 | Local hour |
+| `time.weekday` | `mon`..`sun` | Local weekday |
+| `provider` | word | `firstParty`, `apiKey`, `bedrock`, `mantle`, `anthropicAws`, `vertex`, `foundry` or `gateway` |
+| `git` | flag | Inside a git repo (found by looking for `.git`; git is never run for this) |
+| `gsd` | flag | Inside a GSD project (a `.planning/` folder) |
+| `agents` | flag | A subagent is running |
+| `limit-risk` | flag | A limit is projected to run out before it resets, like the `limit-risk` chip |
+| `permission.waiting` | flag | A permission prompt was shown (needs [hooks](../README.md#hooks)) |
+
+Numbers are compared as you see them: percentages rounded to whole numbers, costs to cents. A metric with no data makes every comparison false, so `context.pct >= 70` hides before the first reply and `!git` holds outside a repo.
+
+A `~N` band stops a widget from flickering at the threshold: `usage.5h >= 80 ~5` turns on at 80 and stays on until usage drops below 75. It works on `>`, `>=`, `<` and `<=` for `usage.5h` and `usage.7d` (from the shared limits samples) and `context.pct` (when the session chart history is recorded); elsewhere the plain threshold applies. Nothing new is stored for it.
+
+A hidden widget leaves nothing behind, not even `—`, and `hideEmpty` applies after the rules. Rules work in every style, panel cells included.
+
+**A broken rule never blanks the line.** A rule that does not parse (an unknown metric, a bad operator or number) is ignored and the widget shows as if it had no rule. `ccinfobar doctor` and `ccinfobar explain` name the widget and the problem (`⚠ Widget ctx1: showWhen is ignored (bad operator at 13)`), the editors show it next to the field, and `ccinfobar config set` refuses it. `explain` also says which rule hid a widget: `hidden, showWhen "context.pct >= 70" (context.pct = 42)`.
+
+In the editors, the widget's Visibility section has one-click rules (only in git repos, only in GSD projects, only while agents run, context and 5h thresholds, hide on a provider, an hours range) and a text field for any rule; there, `; ` separates the strings of an array.
+
+**Time rules need a refresh interval.** Claude Code only re-runs the status line on its own triggers (see [Refresh interval](#refresh-interval)), so a `time.*` rule changes late without one. `install` and `doctor` suggest `ccinfobar install --refresh 5` when a rule uses `time.*`; nothing is set for you.
+
+## Overflow and priority
+
+`overflow` decides what happens when a line is wider than the terminal:
+
+| `overflow` | What happens |
+| --- | --- |
+| `truncate` | The line is cut with `…` |
+| `wrap` | Widgets that do not fit move to a new line |
+| `priority` | The least important widgets are dropped until the line fits |
+
+Without `overflow`, `autoWrap` decides as before (`true` is `wrap`, `false` is `truncate`). When both are set, `overflow` wins. The editors write both (`autoWrap` is `true` only for `wrap`), so an older ccinfobar reading the same file behaves the same.
+
+With `priority`, each widget has a `priority` from 0 to 100; higher stays longer. Without one it comes from the widget's category:
+
+| Category | Default priority |
+| --- | --- |
+| Context window, Usage limits, Session & model | 70 |
+| Git, Workspace, Cost & time, Tokens & cache | 50 |
+| Everything else (GSD, Agents, Charts, System, Custom, Fun) | 30 |
+
+- The lowest one goes first; on a tie the rightmost goes first. Separators and `flex` space are worked out again after each drop.
+- Widgets joined with `merge: true` drop together and count as their highest member. Layout items (`text`, `separator`, `flex`) are never dropped on their own, but a `text` merged into a widget goes with it. Text a widget prints below the line goes with it too.
+- The last widget left is never dropped; if it still does not fit it is cut with `…`.
+- `ccinfobar explain` shows each widget's priority and `dropped by priority at width N`, and the web editor marks dropped widgets on the canvas.
+- The panel (`tui`) style keeps its own breakpoints and cuts cells to fit; `priority` does not apply there, and `doctor` says so.
+
+## Glyph mode
+
+`glyphMode` changes which characters ccinfobar prints and how it counts their width:
+
+| `glyphMode` | What it does |
+| --- | --- |
+| `normal` (default) | Today's output |
+| `single-width` | Emoji icons become text, emoji ccinfobar prints get a one-column form where one exists (`✅` becomes `✔`), emoji with a variation selector become their text form and fullwidth letters become ASCII. CJK text cannot be folded and counts as 2 |
+| `paste-safe` | Everything `single-width` does, plus no Nerd Font glyphs (separators and caps fall back as with `charset: "text"`), no links and plain spaces instead of non-breaking ones. Colors stay. Use it for status lines you paste into a GitHub issue or code block |
+| `jetbrains` | Emoji count as one column, the way JetBrains terminals draw them |
+| `auto` | `jetbrains` when `TERMINAL_EMULATOR` contains `JetBrains`, else `normal` |
+
+`ccinfobar preview --glyph-mode paste-safe` prints one line in a mode without saving it. `ccinfobar doctor` suggests `jetbrains` in a JetBrains terminal, and `explain` shows the mode in use.
+
+`ambiguousWidth: 2` counts East Asian ambiguous characters (`●`, `▓`, `…`, box drawing) as two columns, for CJK-locale terminals that draw them wide. Claude Code itself measures them as narrow, so keep the default `1` unless your terminal really draws them double-width. Nerd Font icons always count as 1.
 
 ## Colors
 
@@ -197,7 +290,7 @@ Resuming or forking a session, `/clear`, compaction, `/login` and two terminals 
 
 Claude Code runs the status line on a new assistant message, on token, permission mode, model, effort or vim changes, and on its `refreshInterval` timer (`statusLine.refreshInterval` in Claude Code's settings, not in this config). It does not run it on hook events or tool results, and not while a permission dialog is open, so time-based widgets only move on those triggers.
 
-The time-based widgets are `turn-timer`, `permission-wait`, `tool-activity`, `usage-projection`, `limit-eta`, `limit-risk`, `cache-timer`, `clock`, `service-status` and `http`. When one of them is on your layout and no interval is set:
+The time-based widgets are `turn-timer`, `permission-wait`, `tool-activity`, `usage-projection`, `limit-eta`, `limit-risk`, `cache-timer`, `clock`, `service-status`, `http`, `activity-strip`, `pet` and `kaomoji`. When one of them is on your layout and no interval is set:
 
 - `ccinfobar install` (also with `--dry-run` and `--hooks`) and `ccinfobar doctor` print a hint to run `ccinfobar install --refresh 5`
 - the web editor's Settings (Claude Code) shows a warning with a **Use 5 s refresh** button, which installs only after you confirm
@@ -371,6 +464,51 @@ Prices change, and they are never fetched; add your own entries to fix or extend
 | `currency` | Three capital letters, default `USD` |
 
 Your entries win over the built-ins and the first match wins; they apply to every provider. Set them with `ccinfobar config set profiles.builtIn false` or `ccinfobar config set profiles.models '[{"match":"glm-*","contextWindow":500000}]'`, or in the web editor's Settings (Model profiles), which also lists the built-ins. The TUI has the on/off switch only.
+
+## Terminal progress
+
+Some terminals show a progress bar in the tab or taskbar (OSC 9;4). ccinfobar can show your context fill, or 5-hour usage, there. It is off by default.
+
+```sh
+ccinfobar install --progress     # turn it on
+ccinfobar uninstall --progress   # turn it off and clear the bar
+```
+
+`install --progress` adds three synchronous hook handlers (`UserPromptSubmit`, `Stop`, `StopFailure`) to `~/.claude/settings.json`, records them in the manifest and sets `progress.enabled` to `true`. It needs Claude Code 2.1.141 or newer and refuses when the version is older or unknown; `--dry-run` shows the change. The web editor's Settings (Terminal progress) has the same switch (click Save afterwards), and the TUI has every option below.
+
+How it works: each render writes the value it wants in a small file in the cache dir (`hooks/<session id>.progress.json`, only when the value changes), and the handler hands it to Claude Code as a `terminalSequence` when it differs from the last one sent. The bar therefore moves when you send a prompt and when a turn ends.
+
+**Cost.** Claude Code waits for synchronous hooks, so this adds about 60-110 ms before each prompt while it is on. `ccinfobar explain` says so next to the current value. The `tty` channel below has no such cost.
+
+```json
+{ "progress": { "enabled": true, "source": "context", "warnAt": 50, "errorAt": 80 } }
+```
+
+| Field | Default | Description |
+| --- | --- | --- |
+| `enabled` | `false` | Turn it on (`install --progress` sets it) |
+| `source` | `context` | `context` (context used) or `usage5h` (5-hour usage) |
+| `scaleTo` | `full` | `full` (the whole window) or `autocompact` (the point where Claude Code compacts is 100%) |
+| `warnAt` | `50` | From this percent the bar shows the warning state (usually yellow), 1..100 |
+| `errorAt` | `80` | From this percent the bar shows the error state (usually red), 1..100 |
+| `channel` | `auto` | `hook` (through Claude Code's hooks), `tty` (straight to the terminal, Linux and macOS only) or `auto`, which is `hook` |
+| `terminals` | `allowlist` | `allowlist` writes only in terminals known to draw the bar; `always` writes everywhere |
+| `tmuxPassthrough` | `false` | Let the `tty` channel write inside tmux |
+
+**Terminals.** By default the bar is only sent to Windows Terminal, ConEmu, WezTerm, Ghostty 1.2+ and iTerm2 3.6.6+. Other terminals may show OSC 9 as a desktop notification on every turn, so they need `terminals: "always"`.
+
+**Claude Code's own bar.** Claude Code shows its own busy bar in the same terminals and clears the bar at the end of each turn, so the two fight and flicker. Set `"terminalProgressBarEnabled": false` in Claude Code's settings. ccinfobar never writes that setting; `ccinfobar doctor` warns and names the file to change.
+
+**The tty channel.** With `"channel": "tty"` on Linux or macOS, the status line writes the bar straight to Claude Code's terminal whenever the value changes, so there is no hook and no prompt latency. It needs no handlers:
+
+```sh
+ccinfobar config set progress.channel tty
+ccinfobar config set progress.enabled true
+```
+
+If you already ran `install --progress` (or used the editor switch), run `ccinfobar uninstall --progress` first to remove the handlers, which would otherwise still cost their 60-110 ms; it also turns `progress.enabled` off, so set it again afterwards. The bar moves only when Claude Code re-runs the status line. On Windows `tty` falls back to the hook. Inside tmux the tty channel writes nothing unless tmux passes it through: add `set -g allow-passthrough on` to `~/.tmux.conf` and set `progress.tmuxPassthrough` to `true`. The hook channel needs neither, because Claude Code handles tmux itself.
+
+**Turning it off.** `uninstall --progress` removes only these handlers, sets `progress.enabled` to `false` and clears the bar when run in a terminal; `ccinfobar uninstall` removes them too. Setting `enabled: false` by hand while the handlers are installed clears the bar on the next prompt. `ccinfobar doctor` checks Claude Code's own bar, missing or leftover handlers, unsupported terminals, the Claude Code version, and the tty channel on Windows or in tmux.
 
 ## Layout tips
 

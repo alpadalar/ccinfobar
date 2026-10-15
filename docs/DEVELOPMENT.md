@@ -39,7 +39,9 @@ src/
 ├── bin.ts               entry point; sends `… hook <Event>` to cli/hook.ts before anything else loads
 ├── cli.ts               re-exports cli/main.ts
 ├── cli/                 main.ts (dispatch), args.ts, render.ts (status line), help.ts
-│   └── hook.ts          `ccinfobar hook <Event>`: silent, append one line, exit 0
+│   ├── hook.ts          `ccinfobar hook <Event>`: silent, append one line, exit 0
+│   ├── progress.ts      syncProgress: the wanted OSC 9;4 value after stdout
+│   └── progress-tty.ts  the tty progress channel: find and write the parent's terminal
 ├── commands/            install, update, doctor, manage, config-cmd; loaded with import() per command
 │   ├── install.ts       planInstall / applyInstall / uninstall
 │   ├── hooks-install.ts hook planner, version floor, applyHooks / uninstallHooks
@@ -60,9 +62,15 @@ src/
 │   ├── json-locate.ts   line and column of a JSON error or key
 │   ├── config-path.ts   dotted paths for `ccinfobar config`
 │   ├── i18n/            t() and the English message tables
-│   ├── renderer.ts      lines → ANSI text (styles, separators, flex, truncation)
-│   ├── themes.ts        built-in themes, user theme loading and resolution
-│   ├── ansi.ts          colors, width measurement, truncation
+│   ├── renderer.ts      lines → ANSI text (styles, separators, flex, rules, priority, truncation)
+│   ├── themes.ts        theme logic, user theme loading and resolution
+│   ├── themes/          builtin.ts (theme data) and style.ts (types and style tables), both pure
+│   ├── ansi.ts          colors, gradient stops and style(); re-exports the width functions
+│   ├── width.ts         grapheme-aware width and truncation (pure)
+│   ├── eaw-table.ts     generated Unicode width ranges (scripts/gen-eaw.mjs)
+│   ├── conditions.ts    showWhen/hideWhen parser and evaluator (pure)
+│   ├── metrics.ts       rule metrics, computed lazily on the render side
+│   ├── glyphs.ts        glyph mode resolution and folding (pure)
 │   ├── context.ts       render context with lazy data sources
 │   ├── inspect.ts       per-widget value, source and empty reason
 │   ├── trace.ts         records what a widget read during render
@@ -84,9 +92,12 @@ src/
 │   ├── repos-dirty.ts   the dirty check the repos job runs
 │   ├── self-update.ts   latest-release check and npm install for the update job and `ccinfobar update`
 │   ├── jobs/            background job runner, registry and one module per job
+│   ├── progress.ts      progress sequence, terminal allowlist and want files (hook-safe)
 │   └── hooks.ts         hook log line format, fold and reader
 ├── widgets/             one file per category, registered in index.ts
 │   ├── live.ts          tool-activity, turn-timer, permission-wait
+│   ├── activity.ts      activity-strip
+│   ├── fun.ts           pet, kaomoji, quip
 │   └── projection.ts    usage projection, ETA and risk math (pure)
 ├── editor/              web editor: HTTP server + browser app (web/)
 │   └── detach.ts        `edit --detach`: reuse or spawn a background editor
@@ -98,6 +109,7 @@ plugin/                  the ccinfobar plugin
 └── skills/              edit, doctor, theme, install, uninstall (one SKILL.md each)
 scripts/
 ├── clean-install.mjs    pack, install, render and uninstall in an empty profile
+├── gen-eaw.mjs          regenerate src/core/eaw-table.ts by hand from pinned Unicode data
 └── sync-plugin-version.mjs  copy the package version into plugin.json and INSTALL.md
 ```
 
@@ -106,10 +118,10 @@ Rendering flow:
 1. Claude Code pipes a JSON payload to `ccinfobar` on stdin.
 2. `cli/render.ts` sanitizes the payload with `ingestPayload`, loads the config and builds a `RenderContext`. Git, transcript and GSD data are read lazily, only if a widget asks for them.
 3. Each widget's `render(ctx, item)` returns a string, `{ text, color }` or `null` to hide itself.
-4. `renderer.ts` adds labels, colors and separators, fills `flex` space and truncates to the terminal width.
+4. `renderer.ts` checks each widget's visibility rules before rendering it, adds labels, colors and separators, fills `flex` space and then wraps, truncates or drops widgets by priority to fit the terminal width.
 5. Spaces become non-breaking spaces and every line starts with a reset code, so Claude Code's dim style and whitespace trimming don't alter the output.
 
-The transcript reader keeps an incremental cache in the cache directory, so only newly appended bytes are parsed on each refresh. After stdout, `scheduleJobs` starts at most one detached worker for the background jobs that are due (see [Background jobs](#background-jobs)).
+The transcript reader keeps an incremental cache in the cache directory, so only newly appended bytes are parsed on each refresh. After stdout, `syncProgress` records the terminal progress value when `progress` is configured (see [Terminal progress](#terminal-progress)), and `scheduleJobs` starts at most one detached worker for the background jobs that are due (see [Background jobs](#background-jobs)).
 
 ### Writing files
 
@@ -132,6 +144,37 @@ Text from outside is sanitized where it enters, not in each widget: the stdin pa
 ### Broken config
 
 `inspectConfigText` in `core/config.ts` reports a config that does not parse, or whose `lines` is not an array, with its line and column (from `core/json-locate.ts`). The status line then shows `config error at line N` instead of the default layout, and `saveConfig` throws `ConfigBrokenError`, so the editor, TUI, `theme`, `install` and `config set` never overwrite the file. Only `init --force` and `import` replace it, after a backup. `doctor` prints the line, column and message. Rendering never writes the config.
+
+### Width engine
+
+`src/core/width.ts` measures text the way Claude Code does (string-width rules) and is pure: it imports only `eaw-table.ts` and reads no env. `ansi.ts` re-exports `visibleWidth`, `truncate`, `charWidth` and `stripAnsi`, so callers did not change. Three tiers:
+
+1. Every code unit below U+0300 (below U+00A1 with `ambiguousWidth: 2`): a plain loop, so ASCII lines cost what they did before.
+2. No grapheme-joining code point (ZWJ, variation selectors, skin tones, regional indicators, keycap, combining marks): one table lookup per code point. Box drawing, blocks, Braille, CJK and Nerd Font icons stay here; the segmenter is the slow part.
+3. Anything else: one cached `Intl.Segmenter`, summing cluster widths. An RGI emoji or a pictograph with VS16 counts as the emoji width (2, or 1 in jetbrains mode); a cluster otherwise takes the width of its first non-zero code point.
+
+Tier 2 must give the same result as tier 3; a seeded property test in `test/core/width.test.ts` checks it in every mode, next to a fixture table of about 150 rows. `truncate` cuts only between clusters, keeps escapes inside a cluster with it, closes open links and resets SGR.
+
+The width mode (`{ emoji, ambiguous }`) is a module default: `render()` sets it with `setWidthMode(widthModeFor(...))` and restores the previous one in `finally`, and `inspect` does the same, so editor previews with different configs never leak into each other. `visibleWidth` keeps one argument (it is passed to `map()`); measure in an explicit mode with `visibleWidthIn(text, mode)`.
+
+`src/core/eaw-table.ts` (WIDE, AMBIGUOUS, ZERO and JOIN ranges, Unicode 16.0.0) is generated by `node scripts/gen-eaw.mjs`, which is run by hand, never by a build or CI. It downloads four Unicode data files, checks each against a pinned sha256 and fails on any mismatch; `--from <dir>` reads local copies instead. `string-width` is not a dependency, and the import-graph test fails if `src/` imports it.
+
+### Visibility rules
+
+- `src/core/conditions.ts` is pure (in the PURE list) and shared with both editors: a sticky-regex tokenizer, `parseRule` (an AND of ORs, never `eval`; 256 characters, 8 terms and 8 strings at most), error codes with positions, `formatRule`, and `evaluate(rule, get, prev?)`, where a `null` value makes every comparison false and `~N` bands use the previous value. `itemRules` memoizes the parse per rule value. `itemVisible` fails open: an invalid rule counts as absent and is reported.
+- `src/core/metrics.ts` is the render side: a `Map` of getters, each run only when a rule names its metric, wrapped in `try` and memoized per `ctx.data` in a `WeakMap`, so the `{ ...ctx }` copies the renderer makes share one memo. Percentages are rounded and costs kept to cents, like the widgets show them. `git` and `gsd` presence is a stat walk for `.git` or `.planning` (`findUp` in `data/repos.ts`), never a git call. `metricPrev` reads the limits samples and the session history for bands; nothing is written.
+- `visible(ctx, item)` in `renderer.ts` runs at the top of `renderPart`, before the widget renders, so a hidden widget does no I/O of its own; items without rules skip all metric work. The workspace pre-pass uses it too. `inspect` runs `ruleDecision` on the traced context, so `explain` lists the rule's reads as sources.
+- `edit.ts` has the editor helpers (`ruleQuickState`, `setRuleQuick`, `setItemRule`, `RULE_PRESETS`) and `timeRuleFeed`, which adds items with `time.*` rules to the refresh hint.
+
+### Priority overflow
+
+`compose(parts, a, level, max)` groups the rendered parts, runs the style renderer and fills `flex` space; `renderLine` calls it once and, when `overflowOf(config)` is `priority` and the line is too wide, runs the drop loop. `toUnits` turns the parts into units (a run joined by `merge` is one unit with the highest member's priority; layout parts belong to the chain they are merged into and never form a unit of their own), and `dropByPriority` removes the lowest unit (the rightmost on a tie) and composes again, without rendering any widget again, until the line fits or one unit is left; then the line is truncated. Below-lines go with their part. `overflowOf` is `overflow ?? (autoWrap ? 'wrap' : 'truncate')`; the other modes take the old path untouched. `CATEGORY_PRIORITY` holds the category defaults. The panel style does not use this loop. `renderLine` can report the dropped ids, which `explain` (`dropped-by-priority`) and the web editor's badge use.
+
+### Glyph modes
+
+`src/core/glyphs.ts` is pure: `resolveGlyphMode(config, env)` (the caller passes the env, for `auto`), `widthModeFor`, `foldText` (VS16 after a pictograph, fullwidth ASCII, then the `NARROW` table of one-column forms) and `pasteSafeText`. `render()` resolves the mode once and passes `glyphMode` on the context. `normalizeResult` folds widget text after sanitizing it and `renderPart` folds labels; `paste-safe` also resolves the charset to `text`, strips Nerd Font private-use glyphs and OSC 8 links, and `finalizeLine({ pasteSafe })` keeps plain spaces. Defaults are byte-identical to before, which a fixture rendered from the code before glyph modes checks.
+
+Bars: `gradientColor(pct, stops)` in `ansi.ts` takes the theme's `gradient` stops (or the built-in ones) and caches per array. A gradient bar emits only foreground codes and ends with `\x1b[39m`; `style()` swaps that 39 for the part's own foreground, so backgrounds and part colors survive in every style.
 
 ### Explain and inspect
 
@@ -171,6 +214,7 @@ Text from outside is sanitized where it enters, not in each widget: the stdin pa
 - Fold (`credit`): per session up to 16 segments, each with its high-water total. The first sighting is a baseline and credits nothing. A total at or above a segment high credits the difference to the closest high below it, raises that high and moves the segment to the front; a seventeenth segment drops the least recently updated one. A total below every high starts a new segment and credits nothing (only a reset to about 0, such as `/login`, credits its few cents), so two processes interleaving or a restored older total never count twice.
 - `summary.json` holds per-file byte offsets, per-session segments, and per-day and per-project totals by account. `readLedger` folds only the bytes after the stored offsets, up to the last newline, skips invalid lines, and rebuilds when a file shrank. A cold rebuild folds month files oldest first, so a session that spans two months keeps its high across the boundary; the render reads at most 256 KB before stdout (`RENDER_BUDGET`), `recordLedger` continues an unfinished fold after stdout with up to 16 MB (`BYTE_BUDGET`), and the view is `partial` (the cost widgets add `…`) until the build is done.
 - Widgets get `ledgerView`: today, ISO week, month and project totals for the current account, plus this render's pending delta.
+- Activity slots (`activity-strip`): `summary.slots` holds, per account, the credited delta per UTC 15-minute slot (`slotKey(t) = floor(t / 900000)`, which lines up with local quarter-hours in every real offset), filled in `foldLine`, so it rebuilds from the month files like everything else. `parseSummary` keeps only valid accounts, numeric keys and finite costs. Slots older than 7 days are dropped by `pruneLedger` and whenever a fold moved (the summary is written then anyway), so the render never parses months of slots. `ledgerView(...).slots` covers the last 7 days, with this render's pending delta in the current slot. A summary without `slots` (written before slots existed) triggers one cold re-fold, which recovers the history since the ledger started. An older pinned ccinfobar that keeps rewriting `summary.json` without `slots` makes this version re-fold after each such write; that is accepted, because the reads stay bounded by `RENDER_BUDGET` before stdout and `BYTE_BUDGET` after it.
 - Retention (`pruneLedger`, when an append creates a new month file): month files older than 13 months, day and project rows older than 400 days, and sessions not seen for 30 days.
 - `explain` and `preview` read with `persist: false` and never call `recordLedger`. `test/data/ledger-concurrency.test.ts` checks that 8 processes appending at once never tear a line.
 
@@ -181,7 +225,7 @@ Every new `DataSources` member (`limits`, `ledger`) has a sample injector in `co
 Hooks are optional. The render path never loads the hook writer; it reads the folded state through `DataSources.hooks` (see [Live session data](#live-session-data)).
 
 - **Entry.** `bin.ts` takes the hook path only for `hook …` or `[--flags] [--config <file>] hook <Event>` (the event matches `/^[A-Z][A-Za-z]+$/`), so `ccinfobar --config X hook Stop` and a bare `ccinfobar hook` match but `ccinfobar config set hook 1` is a normal command. Before the first import it calls `silence()` (`cli/silence.ts`, no imports, inlined into the entry chunk): stdout and stderr become no-op sinks through `Object.defineProperty`, so the real streams are never created; it drops the warning listeners, exits 0 on any uncaught error and starts a 2 s self-exit timer, then imports `cli/hook.js`. `main.ts` also has a `hook` case for `main()` callers; it does not silence.
-- **Closure.** `cli/hook.ts` may only reach `cli/args.ts`, `data/hook-line.ts` (the event list, line format and paths: the writer half of `data/hooks.ts`, which re-exports it), `data/store.ts`, `core/builtins.ts`, `core/paths.ts` and `core/sanitize.ts`; `test/foundations/import-graph.test.ts` fails on anything else, and checks that bin.ts imports `./cli/hook.js` before `./cli.js`. It also fails on a static `node:fs` or `node:crypto` import or `process.stdin` in that closure and, after a build, in the hook chunk and the chunks it imports: a static ESM `node:fs` import costs about 8 ms at startup, so `core/builtins.ts` loads it through `process.getBuiltinModule` (`createRequire` on older Node 20), and `store.ts` loads `node:crypto` only when it names a temp file. The update check is a dynamic `import('../data/update-state.js')`, loaded only on `SessionStart` with source `startup`, which also prunes `<sid>.jsonl` and `<sid>.fold.json` files older than 7 days (at most 200 deletions and 15 ms per run, so stale files behind many fresh ones are still reached).
+- **Closure.** `cli/hook.ts` may only reach `cli/args.ts`, `data/hook-line.ts` (the event list, line format and paths: the writer half of `data/hooks.ts`, which re-exports it), `data/progress.ts` (for `--progress hook`, see [Terminal progress](#terminal-progress)), `data/store.ts`, `core/builtins.ts`, `core/paths.ts` and `core/sanitize.ts`; `test/foundations/import-graph.test.ts` fails on anything else, and checks that bin.ts imports `./cli/hook.js` before `./cli.js`. It also fails on a static `node:fs` or `node:crypto` import or `process.stdin` in that closure and, after a build, in the hook chunk and the chunks it imports: a static ESM `node:fs` import costs about 8 ms at startup, so `core/builtins.ts` loads it through `process.getBuiltinModule` (`createRequire` on older Node 20), and `store.ts` loads `node:crypto` only when it names a temp file. The update check is a dynamic `import('../data/update-state.js')`, loaded only on `SessionStart` with source `startup`, which also prunes `<sid>.jsonl` and `<sid>.fold.json` files older than 7 days (at most 200 deletions and 15 ms per run, so stale files behind many fresh ones are still reached).
 - **Input.** stdin is read with `fs.read` on fd 0 instead of the `process.stdin` stream (about 9 ms), except on Windows, where `cli/hook-stream.ts` keeps the stream because the pipe may be overlapped. It is capped at 1 MB with a 1 s deadline, and reading stops as soon as the bytes so far parse as a JSON object. Node joins its thread pool on exit, so an `fs.read` still waiting holds the process: a partial payload whose writer never closes keeps it alive until the writer closes or Claude Code's 5 s hook timeout ends it. On overflow the fields come from a regex scan of the first 64 KB and then the last 64 KB (so a `prompt_id` after a huge prompt is still found); the head wins, and nested keys can match but escaped keys inside strings cannot. The stdin `hook_event_name` wins over argv. The event must be on the allowlist and `session_id` must match `/^[A-Za-z0-9_-]{1,128}$/`, else nothing is written. `CCINFOBAR_DEBUG` writes fixed reason codes (never payload content) to `hooks/debug.log`, up to 256 KB.
 - **Line format.** One `appendLine` per event to `<cacheDir>/hooks/<session_id>.jsonl` (mode 0600; missing dirs are created 0700), with only allowlisted fields, each sanitized and capped at 256 chars (1024 for the transcript path):
 
@@ -208,6 +252,15 @@ Hooks are optional. The render path never loads the hook writer; it reads the fo
 - **Doctor.** `hooks-doctor.ts` lists the entries and their state, hook commands whose first token no longer resolves (no spawn), and `disableAllHooks` / `allowManagedHooksOnly` in user, project, local and file-based managed settings, plus the last event age from `readHookState(…, { persist: false })`.
 
 Tests: `test/cli/hook.test.ts`, `test/data/hooks.test.ts`, `test/commands/hooks-*.test.ts`, `test/editor/hooks-route.test.ts` and `test/integration/hook-*.test.ts` and `install-hooks-cli.test.ts` (built CLI, parallel appends, SessionStart).
+
+### Terminal progress
+
+OSC 9;4 printed to the status line's stdout is stripped by Claude Code, and `/dev/tty` fails with ENXIO in the status line child, so there are two channels: a synchronous hook `terminalSequence` (async hooks and `SessionStart` never emit one) and, on POSIX, the parent's terminal device by path.
+
+- **Render side.** After stdout, `cli/render.ts` calls `syncProgress(ctx, env)` (`cli/progress.ts`) in its own `try`. It returns before any I/O when `config.progress` is absent. Otherwise it computes the state and percent with `progressTarget` (through `metricGetter`: `context.pct`, `context.usable` for `scaleTo: autocompact`, or `usage.5h`; state 1, 4 from `warnAt`, 2 from `errorAt`) and writes `<cacheDir>/hooks/<session id>.progress.json` (`{ v, state, pct, channel, always }`, 0600) only when it changed. Turning `enabled` off writes state 0 once.
+- **tty channel.** When the value changed and the channel is `tty` (never on win32), `writeTty` in `cli/progress-tty.ts` finds the Claude Code parent's terminal: on Linux `/proc/<ppid>/fd/0`, walking up at most 3 ancestors, on macOS one `ps -o tty= -p <ppid>` (fixed argv, 500 ms timeout). The path must match `TTY_RE` (`/dev/pts/N` or `/dev/ttyXXX`, never `/dev/tty`) and be a character device; it opens with `O_WRONLY | O_NOCTTY | O_NONBLOCK` (no `O_CREAT`), writes once and closes, DCS-wrapped under tmux only with `tmuxPassthrough`, and only for allowlisted terminals unless `terminals: "always"`. Every failure is silent.
+- **Hook side.** `<command> --progress hook UserPromptSubmit|Stop|StopFailure` takes the silent hook path (`bin.ts`), and `runProgress` in `cli/hook.ts` reads the want file through `src/data/progress.ts`, which, like the rest of the hook closure, imports no config, widgets, renderer or crypto. On the hook channel, in an allowlisted terminal (`terminalAllowed`: `WT_SESSION`, ConEmu, WezTerm, Ghostty 1.2+, iTerm2 3.6.6+), when the value differs from `<session id>.progress-sent.json`, it prints exactly one `{"terminalSequence":"\u001b]9;4;S;P\u0007"}` line with `fs.writeSync(1, …)` and records it. It never appends to the hook log and always exits 0. `progressSeq` builds the body from integers only, and a test checks it against Claude Code's validator `^4;[0-4](;(100|\d{1,2})?)?$`. Claude Code wraps it for tmux itself. Session cleanup prunes both files with the hook logs.
+- **Install.** `planHooks({ progress: true })` adds three synchronous groups (`timeout: 5`, no `async`) with the floor `HOOK_FLOOR.terminalSequence` (2.1.141), recorded in the manifest with `role: 'progress'`; ownership and removal key on file, event and role, so the Phase 4 async hooks and the progress handlers never touch each other. `uninstall --progress` removes only that role, the full uninstall both. The editor's `POST /api/progress` uses the same planner. Nothing writes `terminalProgressBarEnabled`; `progressWarnings` in `hooks-doctor.ts` reports it, missing or stray handlers, the terminal, the Claude Code version and tmux, and `explain` shows the value from `progressTarget` without calling `syncProgress`.
 
 ### Live session data
 
@@ -280,7 +333,7 @@ Adding a job:
 
 ### Messages and providers
 
-User-facing messages go through `t(id, params)` from `core/i18n/`. Each area has its own table in `src/core/i18n/en/` (`install.ts`, `config.ts`, `doctor.ts`, `widgets.ts`, `explain.ts`, `preview.ts`, `bench.ts`). `data/provider.ts` detects API-key, Bedrock, Vertex, Foundry, Mantle, Anthropic AWS and gateway sessions from the environment (presence only), so plan-limit widgets and the OAuth usage fetch only run for Claude subscriptions.
+User-facing messages go through `t(id, params)` from `core/i18n/`. Each area has its own table in `src/core/i18n/en/` (`install.ts`, `config.ts`, `doctor.ts`, `widgets.ts`, `explain.ts`, `preview.ts`, `bench.ts`, `hooks.ts`, `jobs.ts`, `display.ts` for rules, overflow, glyph modes and progress, and `fun.ts` for the quips). `data/provider.ts` detects API-key, Bedrock, Vertex, Foundry, Mantle, Anthropic AWS and gateway sessions from the environment (presence only), so plan-limit widgets and the OAuth usage fetch only run for Claude subscriptions.
 
 ## Adding a widget
 
