@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeModelId, PRICES, PRICES_UPDATED, priceFor } from '../../src/core/prices.js';
+import {
+  normalizeModelId,
+  PRICES,
+  PRICES_UPDATED,
+  priceFor,
+  requestCost,
+  type Usage,
+} from '../../src/core/prices.js';
 import type { ProfilesConfig } from '../../src/core/types.js';
 
 const none = {};
@@ -173,5 +180,66 @@ describe('priceFor', () => {
   it('never prices a claude id through built-in profiles', () => {
     expect(priceFor('claude-opus-4-9', none)).toBeNull();
     expect(priceFor('us.anthropic.claude-opus-5-5', none)?.source).toBe('builtin');
+  });
+});
+
+const M = 1e6;
+const use = (u: Partial<Usage>): Usage => ({
+  in: 0,
+  out: 0,
+  cr: 0,
+  w5: 0,
+  w1: 0,
+  fast: false,
+  big: false,
+  ...u,
+});
+const all = (extra: Partial<Usage> = {}) => use({ in: M, out: M, cr: M, w5: M, w1: M, ...extra });
+
+describe('requestCost', () => {
+  const opus = PRICES['claude-opus-5-5']!;
+  const haiku = PRICES['claude-haiku-5-5']!;
+
+  it('prices every token class separately', () => {
+    expect(requestCost(opus, all())).toBeCloseTo(4 + 20 + 0.2 + 5 + 8, 10);
+    expect(requestCost(opus, use({}))).toBe(0);
+    expect(requestCost(opus, use({ out: 1000 }))).toBeCloseTo(0.02, 10);
+  });
+
+  it('uses fast prices and scales cache prices', () => {
+    expect(requestCost(opus, use({ in: M, fast: true }))).toBeCloseTo(8, 10);
+    expect(requestCost(opus, use({ out: M, fast: true }))).toBeCloseTo(40, 10);
+    expect(requestCost(opus, use({ cr: M, fast: true }))).toBeCloseTo(0.4, 10);
+    expect(requestCost(opus, use({ w5: M, fast: true }))).toBeCloseTo(10, 10);
+    expect(requestCost(opus, use({ w1: M, fast: true }))).toBeCloseTo(16, 10);
+    const o5 = PRICES['claude-opus-5']!;
+    expect(requestCost(o5, use({ w5: M, w1: M, cr: M, fast: true }))).toBeCloseTo(12.5 + 20 + 1, 10);
+  });
+
+  it('bills fast at standard prices without a fast price', () => {
+    const o47 = PRICES['claude-opus-4-7']!;
+    expect(requestCost(o47, all({ fast: true }))).toBeCloseTo(requestCost(o47, all())!, 10);
+  });
+
+  it('switches the Haiku 5.5 tier per request', () => {
+    expect(requestCost(haiku, use({ in: M, out: M }))).toBeCloseTo(0.6, 10);
+    expect(requestCost(haiku, use({ in: M, out: M, cr: M, big: true }))).toBeCloseTo(0.5 + 2.5 + 0.05, 10);
+    expect(requestCost(haiku, use({ w5: M, w1: M, big: true }))).toBeCloseTo(0.625 + 1, 10);
+  });
+
+  it('never applies a tier the table does not have', () => {
+    const s45 = PRICES['claude-sonnet-4-5']!;
+    expect(requestCost(s45, all({ big: true }))).toBeCloseTo(3 + 15 + 0.3 + 3.75 + 6, 10);
+  });
+
+  it('returns null when a used class has no price', () => {
+    const p = priceFor('glm-5.3', {})!.price;
+    expect(requestCost(p, use({ in: M, out: M, cr: M }))).toBeCloseTo(1.4 + 4.4 + 0.26, 10);
+    expect(requestCost(p, use({ in: M, w5: 1 }))).toBeNull();
+    const bare = { input: 1, output: 2, cacheRead: null, cacheWrite5m: null, cacheWrite1h: null };
+    expect(requestCost(bare, use({ in: M, cr: 1 }))).toBeNull();
+    expect(requestCost(bare, use({ in: M, out: M }))).toBeCloseTo(3, 10);
+    expect(requestCost({ ...bare, input: null }, use({ out: M }))).toBeCloseTo(2, 10);
+    expect(requestCost({ ...bare, input: null }, use({ in: 1 }))).toBeNull();
   });
 });

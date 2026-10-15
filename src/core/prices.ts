@@ -140,3 +140,24 @@ export function priceFor(model: string, config: Pick<Config, 'profiles'>): Resol
     ? { source: 'builtin', currency: 'USD', vendor: null, price: PRICES[id]! }
     : null;
 }
+
+// USD for one request, or null when a used token class has no price
+export function requestCost(p: Price, u: Usage): number | null {
+  const tier = u.big && p.over ? p.over : p;
+  const fast = u.fast && p.fast && typeof tier.input === 'number' && tier.input > 0 ? p.fast : null;
+  const k = fast ? fast.input / tier.input! : 1;
+  const parts: [number, number | null][] = [
+    [u.in, fast ? fast.input : tier.input],
+    [u.out, fast ? fast.output : tier.output],
+    [u.cr, tier.cacheRead === null ? null : tier.cacheRead * k],
+    [u.w5, tier.cacheWrite5m === null ? null : tier.cacheWrite5m * k],
+    [u.w1, tier.cacheWrite1h === null ? null : tier.cacheWrite1h * k],
+  ];
+  let sum = 0;
+  for (const [n, price] of parts) {
+    if (!(n > 0)) continue;
+    if (price === null) return null;
+    sum += n * price;
+  }
+  return sum / 1e6;
+}
