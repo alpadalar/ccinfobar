@@ -13,6 +13,7 @@ import { explainMessages } from '../../src/core/i18n/en/explain.js';
 import { funMessages } from '../../src/core/i18n/en/fun.js';
 import { hookMessages } from '../../src/core/i18n/en/hooks.js';
 import { en } from '../../src/core/i18n/en/index.js';
+import { inspectorMessages } from '../../src/core/i18n/en/inspector.js';
 import { installMessages } from '../../src/core/i18n/en/install.js';
 import { jobsMessages } from '../../src/core/i18n/en/jobs.js';
 import { previewMessages } from '../../src/core/i18n/en/preview.js';
@@ -49,6 +50,7 @@ import { explainMessages as trExplain } from '../../src/core/i18n/tr/explain.js'
 import { funMessages as trFun } from '../../src/core/i18n/tr/fun.js';
 import { hookMessages as trHooks } from '../../src/core/i18n/tr/hooks.js';
 import { tr } from '../../src/core/i18n/tr/index.js';
+import { inspectorMessages as trInspector } from '../../src/core/i18n/tr/inspector.js';
 import { installMessages as trInstall } from '../../src/core/i18n/tr/install.js';
 import { jobsMessages as trJobs } from '../../src/core/i18n/tr/jobs.js';
 import { previewMessages as trPreview } from '../../src/core/i18n/tr/preview.js';
@@ -234,6 +236,7 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['cli', cliMessages, trCli],
   ['commands', commandsMessages, trCommands],
   ['errors', errorMessages, trErrors],
+  ['inspector', inspectorMessages, trInspector],
 ];
 
 function forms(m: Message): string[] {
@@ -394,6 +397,7 @@ describe('en table', () => {
       cliMessages,
       commandsMessages,
       errorMessages,
+      inspectorMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);

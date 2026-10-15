@@ -24,6 +24,7 @@ import {
   updateItem,
 } from '../../core/edit.js';
 import { httpRefusal, parseHeaderSpec } from '../../core/http-spec.js';
+import { styleText, themeDescription } from '../../core/i18n/catalog-text.js';
 import { type MessageId, t } from '../../core/i18n/index.js';
 import { choiceLabel, optionHelp, optionLabel, widgetText } from '../../core/i18n/widget-text.js';
 import { parsePath } from '../../core/jsonpath.js';
@@ -112,13 +113,18 @@ export function segmented<T extends string | number>(
   return wrap;
 }
 
-function styleToggle(label: string, title: string, on: boolean, onChange: (v: boolean) => void): HTMLElement {
+function styleToggle(
+  key: 'bold' | 'dim' | 'italic',
+  on: boolean,
+  onChange: (v: boolean) => void,
+): HTMLElement {
+  const label = t(`insp.${key}`);
   return h(
     'button',
     {
       type: 'button',
-      class: `style-btn style-${label.toLowerCase()}${on ? ' on' : ''}`,
-      title,
+      class: `style-btn style-${key}${on ? ' on' : ''}`,
+      title: label,
       'aria-pressed': String(on),
       onClick: () => onChange(!on),
     },
@@ -135,10 +141,10 @@ function glyphChoices(values: string[], current: string, onPick: (v: string) => 
         {
           type: 'button',
           class: `glyph${v === current ? ' on' : ''}`,
-          title: v ? `U+${v.codePointAt(0)!.toString(16).toUpperCase()}` : 'none',
+          title: v ? `U+${v.codePointAt(0)!.toString(16).toUpperCase()}` : t('insp.none'),
           onClick: () => onPick(v),
         },
-        GLYPHS.has(v) ? h('span', { class: `pl pl-${v.codePointAt(0)!.toString(16)}` }) : v || 'none',
+        GLYPHS.has(v) ? h('span', { class: `pl pl-${v.codePointAt(0)!.toString(16)}` }) : v || t('insp.none'),
       ),
     );
   }
@@ -383,7 +389,13 @@ function visibilitySection(id: string): HTMLElement[] {
           hoursSw.querySelector('.switch-label')!.textContent = hoursLabel();
           quick({ hours: { ...hours } }, `${id}:vis:hours`);
         },
-        { min: 0, max: 23, step: 1, disabled: showLocked || !q.hours, 'aria-label': `hours ${k}` },
+        {
+          min: 0,
+          max: 23,
+          step: 1,
+          disabled: showLocked || !q.hours,
+          'aria-label': t(k === 'from' ? 'insp.hoursFrom' : 'insp.hoursTo'),
+        },
       );
 
     const timed =
@@ -473,8 +485,8 @@ function widgetTab(): HTMLElement {
         'div',
         { class: 'empty-state' },
         icon('info', 22),
-        h('strong', null, 'No widget selected'),
-        h('p', null, 'Click a widget in the canvas to style it and tweak its options.'),
+        h('strong', null, t('insp.noWidget')),
+        h('p', null, t('insp.noWidgetHelp')),
       ),
     );
     return root;
@@ -506,17 +518,13 @@ function widgetTab(): HTMLElement {
         {
           class: 'icon-btn danger',
           type: 'button',
-          title: 'Remove widget (Delete)',
+          title: t('insp.removeWidget'),
           onClick: () => commit(removeItem(S.config, item.id), { select: null }),
         },
         icon('trash'),
       ),
     ),
-    h(
-      'p',
-      { class: 'insp-desc' },
-      info ? widgetText(info, 'description') : 'Unknown widget type. It is kept as-is.',
-    ),
+    h('p', { class: 'insp-desc' }, info ? widgetText(info, 'description') : t('insp.unknownWidget')),
   );
 
   const section = (title: string, ...body: Child[]) =>
@@ -524,33 +532,33 @@ function widgetTab(): HTMLElement {
 
   root.append(
     section(
-      'Label',
+      t('insp.label'),
       field(
-        'Label override',
+        t('insp.labelOverride'),
         textInput(item.label ?? '', (v) => patch({ label: v === '' ? undefined : v }, `${item.id}:label`), {
-          placeholder: defaultLabel ? `Default: ${defaultLabel}` : 'Default label',
+          placeholder: defaultLabel
+            ? t('insp.labelDefault', { label: defaultLabel })
+            : t('insp.labelDefaultEmpty'),
           disabled: !!item.raw,
         }),
-        'Leave empty to use the default label.',
+        t('insp.labelHelp'),
       ),
       field(
-        'Hide label',
+        t('insp.hideLabel'),
         toggle(!!item.raw, (v) => patch({ raw: v || undefined })),
-        'Shows only the value.',
+        t('insp.hideLabelHelp'),
         true,
       ),
       field(
-        'Merge with next',
+        t('insp.merge'),
         toggle(!!item.merge, (v) => patch({ merge: v || undefined })),
-        'Joins this widget to the next one without a separator.',
+        t('insp.mergeHelp'),
         true,
       ),
       field(
-        'Hide when no data',
+        t('insp.hideEmpty'),
         toggle(item.hideEmpty ?? hideDefault, (v) => patch({ hideEmpty: v === hideDefault ? undefined : v })),
-        hideDefault
-          ? 'On by default for this widget. Off: shows the label and — when there is nothing to show.'
-          : 'Off: shows the label and — when there is nothing to show. On: hides the widget.',
+        t(hideDefault ? 'insp.hideEmptyOn' : 'insp.hideEmptyOff'),
         true,
       ),
     ),
@@ -581,16 +589,16 @@ function widgetTab(): HTMLElement {
 
   if (info?.options.length) {
     const shown = info.options.filter((o) => optionShown(o, info.options, item.options));
-    root.append(section('Options', ...shown.map((o) => optionControl(item, o))));
+    root.append(section(t('insp.options'), ...shown.map((o) => optionControl(item, o))));
   }
   const recent = recentStyles(item.id);
   root.append(
     section(
-      'Appearance',
+      t('insp.appearance'),
       styleTools(item.id),
-      ...(recent ? [field('Earlier styles', recent, 'Kept when you save; click one to bring it back.')] : []),
+      ...(recent ? [field(t('insp.earlierStyles'), recent, t('insp.earlierStylesHelp'))] : []),
       field(
-        'Text color',
+        t('insp.textColor'),
         colorPicker({
           value: item.color,
           fallback: defColor,
@@ -598,20 +606,20 @@ function widgetTab(): HTMLElement {
         }),
       ),
       field(
-        'Background',
+        t('insp.background'),
         colorPicker({
           value: item.background,
           onChange: (v, live) => patch({ background: v }, live ? `${item.id}:bg` : undefined),
         }),
       ),
       field(
-        'Style',
+        t('insp.textStyle'),
         h(
           'div',
           { class: 'style-row' },
-          styleToggle('Bold', 'Bold', !!item.bold, (v) => patch({ bold: v || undefined })),
-          styleToggle('Dim', 'Dim', !!item.dim, (v) => patch({ dim: v || undefined })),
-          styleToggle('Italic', 'Italic', !!item.italic, (v) => patch({ italic: v || undefined })),
+          styleToggle('bold', !!item.bold, (v) => patch({ bold: v || undefined })),
+          styleToggle('dim', !!item.dim, (v) => patch({ dim: v || undefined })),
+          styleToggle('italic', !!item.italic, (v) => patch({ italic: v || undefined })),
         ),
       ),
     ),
@@ -644,10 +652,10 @@ export function resetLink(show: boolean, onClick: () => void): HTMLElement | nul
         {
           class: 'reset-link',
           type: 'button',
-          title: 'Remove the override and use the theme value',
+          title: t('insp.resetTitle'),
           onClick,
         },
-        'Reset to theme',
+        t('insp.reset'),
       )
     : null;
 }
@@ -668,8 +676,8 @@ function glyphField(label: string, key: GlyphKey, choices: string[], themeValue:
   const override = S.config.glyphs?.[key];
   const input = textInput(override ?? '', (v) => setGlyph(key, v, `glyph:${key}`), {
     class: 'input mono',
-    placeholder: themeValue ? `Theme: ${showGlyph(themeValue)}` : 'Theme: none',
-    'aria-label': `${label} glyph`,
+    placeholder: themeValue ? t('insp.themeValue', { value: showGlyph(themeValue) }) : t('insp.themeNone'),
+    'aria-label': t('insp.glyph', { label }),
   });
   return fieldWithReset(
     label,
@@ -717,7 +725,7 @@ function globalTab(): HTMLElement {
   };
   const sepInput = textInput(sepValue ?? '', (v) => setSep(v, 'sep'), {
     class: 'input mono',
-    placeholder: `Theme: ${JSON.stringify(theme?.separator ?? ' │ ')}`,
+    placeholder: t('insp.themeValue', { value: JSON.stringify(theme?.separator ?? ' │ ') }),
   });
   const sepChoices = h('div', { class: 'glyphs' });
   for (const sp of SEPARATORS) {
@@ -730,7 +738,7 @@ function globalTab(): HTMLElement {
           onClick: () => setSep(sp),
           title: JSON.stringify(sp),
         },
-        h('span', { class: 'glyph-sp' }, sp.replace(/ /g, ' ') || 'none'),
+        h('span', { class: 'glyph-sp' }, sp.replace(/ /g, ' ') || t('insp.none')),
       ),
     );
   }
@@ -740,47 +748,41 @@ function globalTab(): HTMLElement {
   const root = h('div', { class: 'pane' });
   root.append(
     section(
-      'Rendering',
+      t('insp.rendering'),
       field(
-        'Alignment',
+        t('insp.alignment'),
         segmented(
           [
-            { value: 'left', label: 'Left' },
-            { value: 'center', label: 'Center' },
-            { value: 'right', label: 'Right' },
+            { value: 'left', label: t('insp.align.left') },
+            { value: 'center', label: t('insp.align.center') },
+            { value: 'right', label: t('insp.align.right') },
           ] as const,
           c.align ?? 'left',
           (v) => setOverride('align', v === 'left' ? undefined : v),
         ),
-        style === 'tui'
-          ? 'Where the panel sits when it is narrower than the terminal. Lines can override it with the buttons next to them.'
-          : 'Where the lines sit in the terminal. Each line can override it with the buttons next to it.',
+        t(style === 'tui' ? 'insp.alignHelpPanel' : 'insp.alignHelp'),
       ),
       field(
-        'Icons',
+        t('insp.icons'),
         segmented(
           [
-            { value: 'nerd', label: 'Nerd', title: 'Nerd Font glyphs' },
+            { value: 'nerd', label: 'Nerd', title: t('insp.icons.nerdTitle') },
             { value: 'emoji', label: 'Emoji' },
-            { value: 'text', label: 'Text' },
-            { value: 'none', label: 'None' },
+            { value: 'text', label: t('insp.icons.text') },
+            { value: 'none', label: t('insp.icons.none') },
           ] as const,
           c.icons,
           (v) => set({ icons: v }),
         ),
       ),
       field(
-        'Charset',
+        t('insp.charset'),
         segmented(
           [
-            { value: 'auto', label: 'Auto', title: 'Nerd Font glyphs, except in Apple Terminal' },
-            {
-              value: 'nerd',
-              label: 'Nerd Font',
-              title: 'Powerline arrows, capsule caps and Nerd Font icons',
-            },
-            { value: 'unicode', label: 'Unicode', title: 'Standard characters only, no Nerd Font needed' },
-            { value: 'text', label: 'ASCII', title: 'Plain ASCII characters only' },
+            { value: 'auto', label: t('insp.auto'), title: t('insp.charset.autoTitle') },
+            { value: 'nerd', label: 'Nerd Font', title: t('insp.charset.nerdTitle') },
+            { value: 'unicode', label: 'Unicode', title: t('insp.charset.unicodeTitle') },
+            { value: 'text', label: 'ASCII', title: t('insp.charset.textTitle') },
           ] as const,
           c.charset,
           (v) => set({ charset: v }),
@@ -809,29 +811,29 @@ function globalTab(): HTMLElement {
         t('opt.ambiguousWidthHelp'),
       ),
       field(
-        'Color level',
+        t('insp.colorLevel'),
         segmented(
           [
-            { value: 'auto', label: 'Auto' },
-            { value: 0, label: '0', title: 'No colors' },
-            { value: 1, label: '1', title: '16 colors' },
-            { value: 2, label: '2', title: '256 colors' },
-            { value: 3, label: '3', title: 'True color' },
+            { value: 'auto', label: t('insp.auto') },
+            { value: 0, label: '0', title: t('insp.colorLevel.0') },
+            { value: 1, label: '1', title: t('insp.colorLevel.1') },
+            { value: 2, label: '2', title: t('insp.colorLevel.2') },
+            { value: 3, label: '3', title: t('insp.colorLevel.3') },
           ] as const,
           c.colorLevel as string | number,
           (v) => set({ colorLevel: v as Config['colorLevel'] }),
         ),
-        'The preview shows true color when set to auto.',
+        t('insp.colorLevelHelp'),
       ),
       field(
-        'Max width',
+        t('insp.maxWidth'),
         h(
           'div',
           { class: 'row-inline' },
           segmented(
             [
-              { value: 'auto', label: 'Auto' },
-              { value: 'fixed', label: 'Fixed' },
+              { value: 'auto', label: t('insp.auto') },
+              { value: 'fixed', label: t('insp.fixed') },
             ],
             maxAuto ? 'auto' : 'fixed',
             (v) => set({ maxWidth: v === 'auto' ? 'auto' : 120 }),
@@ -845,16 +847,16 @@ function globalTab(): HTMLElement {
         ),
       ),
       field(
-        'Width offset',
+        t('insp.widthOffset'),
         numberInput(c.widthOffset, (v) => v !== null && set({ widthOffset: Math.max(0, v) }, 'woff'), {
           min: 0,
           step: 1,
         }),
-        'Columns reserved at the right edge.',
+        t('insp.widthOffsetHelp'),
       ),
     ),
     section(
-      'Theme',
+      t('insp.theme'),
       h(
         'div',
         { class: 'theme-current' },
@@ -863,13 +865,17 @@ function globalTab(): HTMLElement {
           { class: 'theme-current-info' },
           h('strong', null, theme?.name ?? c.theme),
           h('span', { class: `theme-tag style-${style}` }, style),
-          theme?.source === 'user' ? h('span', { class: 'theme-tag yours' }, 'yours') : null,
+          theme?.source === 'user' ? h('span', { class: 'theme-tag yours' }, t('insp.yours')) : null,
         ),
-        h('div', { class: 'hint' }, theme?.description ?? 'Unknown theme, using Classic'),
+        h('div', { class: 'hint' }, theme ? themeDescription(theme) : t('insp.unknownTheme')),
         h(
           'div',
           { class: 'row-inline' },
-          h('button', { class: 'btn', type: 'button', onClick: () => void openGallery() }, 'Change theme'),
+          h(
+            'button',
+            { class: 'btn', type: 'button', onClick: () => void openGallery() },
+            t('insp.changeTheme'),
+          ),
           h(
             'button',
             {
@@ -880,42 +886,46 @@ function globalTab(): HTMLElement {
                 if (id) applyTheme(id, await askThemeColors());
               },
             },
-            'New theme',
+            t('insp.newTheme'),
           ),
         ),
       ),
     ),
     section(
-      'Style',
+      t('insp.style'),
       fieldWithReset(
-        'Style',
+        t('insp.style'),
         segmented(
-          S.api.styles.map((st) => ({ value: st.id, label: st.name, title: st.description })),
+          S.api.styles.map((st) => ({
+            value: st.id,
+            label: styleText(st, 'name'),
+            title: styleText(st, 'description'),
+          })),
           style,
           (v) => setOverride('style', v === theme?.style ? undefined : v),
         ),
         resetLink(c.style !== undefined, () => setOverride('style', undefined)),
-        'Powerline and Capsule need a Nerd Font.',
+        t('insp.styleHelp'),
       ),
       ...(style === 'tui'
         ? []
         : [
             field(
-              'Colors from',
-              themeChips(c.theme || 'classic', async (t) => {
+              t('insp.colorsFrom'),
+              themeChips(c.theme || 'classic', async (th) => {
                 const base = (await askThemeColors()) ? clearColors(S.config) : S.config;
-                commit({ ...base, theme: t.id, style: style === t.style ? undefined : style });
+                commit({ ...base, theme: th.id, style: style === th.style ? undefined : style });
               }),
-              'Keeps your style and takes the colors of another theme.',
+              t('insp.colorsFromHelp'),
             ),
           ]),
       fieldWithReset(
-        'Separator',
+        t('insp.separator'),
         h('div', { class: 'stack' }, sepChoices, sepInput),
         resetLink(sepValue !== undefined, () => setSep(undefined)),
       ),
       fieldWithReset(
-        'Separator color',
+        t('insp.separatorColor'),
         colorPicker({
           value: c.separatorColor,
           fallback: typeof mutedFallback === 'string' ? mutedFallback : undefined,
@@ -924,14 +934,14 @@ function globalTab(): HTMLElement {
         resetLink(c.separatorColor !== undefined, () => setOverride('separatorColor', undefined)),
       ),
       fieldWithReset(
-        'Padding',
+        t('insp.padding'),
         numberInput(
           c.padding ?? '',
           (v) => setOverride('padding', v === null ? undefined : Math.max(0, Math.min(4, v)), 'pad'),
           { min: 0, max: 4, step: 1, placeholder: String(theme?.padding ?? 1) },
         ),
         resetLink(c.padding !== undefined, () => setOverride('padding', undefined)),
-        'Spaces around each widget (0 to 4).',
+        t('insp.paddingHelp'),
       ),
     ),
     ...(style === 'tui' ? [panelSection()] : []),
@@ -939,15 +949,15 @@ function globalTab(): HTMLElement {
     ...(style === 'powerline' || style === 'capsule'
       ? [
           section(
-            'Glyphs',
+            t('insp.glyphs'),
             ...(style === 'powerline'
               ? [
-                  glyphField('Separator', 'separator', PL_SEPARATORS, theme?.glyphs.separator ?? ''),
-                  glyphField('Thin separator', 'thin', PL_THIN, theme?.glyphs.thin ?? ''),
+                  glyphField(t('insp.separator'), 'separator', PL_SEPARATORS, theme?.glyphs.separator ?? ''),
+                  glyphField(t('insp.thinSeparator'), 'thin', PL_THIN, theme?.glyphs.thin ?? ''),
                 ]
               : []),
-            glyphField('Start cap', 'startCap', PL_START, theme?.glyphs.startCap ?? ''),
-            glyphField('End cap', 'endCap', PL_END, theme?.glyphs.endCap ?? ''),
+            glyphField(t('insp.startCap'), 'startCap', PL_START, theme?.glyphs.startCap ?? ''),
+            glyphField(t('insp.endCap'), 'endCap', PL_END, theme?.glyphs.endCap ?? ''),
           ),
         ]
       : []),

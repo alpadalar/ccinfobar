@@ -32,6 +32,7 @@ const SWEPT: string[] = [
   'src/editor/server.ts',
   'src/editor/detach.ts',
   'src/editor/web/api.ts',
+  'src/editor/web/inspector.ts',
   'src/widgets/activity.ts',
   'src/widgets/agents.ts',
   'src/widgets/charts.ts',
@@ -93,6 +94,14 @@ const ALLOW: Record<string, string[]> = {
   'src/widgets/shared.ts': ['Xd Xh', 'Xh Xm'],
   // English catalog data, shown through styleGroupName (08-12)
   'src/core/edit.ts': ['Bold, dim, italic', 'Bar and graph options', 'Label switches'],
+  'src/editor/web/inspector.ts': [
+    // CSS classes
+    'hint warn field-error',
+    // rule syntax placeholder (D-13)
+    'provider in bedrock,vertex',
+    // product name as a choice label
+    'Nerd Font',
+  ],
   'src/editor/server.ts': [
     // developer-only (D-36)
     'Request body too large',

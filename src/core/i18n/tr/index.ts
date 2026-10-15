@@ -8,6 +8,7 @@ import { errorMessages } from './errors.js';
 import { explainMessages } from './explain.js';
 import { funMessages } from './fun.js';
 import { hookMessages } from './hooks.js';
+import { inspectorMessages } from './inspector.js';
 import { installMessages } from './install.js';
 import { jobsMessages } from './jobs.js';
 import { previewMessages } from './preview.js';
@@ -28,4 +29,5 @@ export const tr = {
   ...cliMessages,
   ...commandsMessages,
   ...errorMessages,
+  ...inspectorMessages,
 } as const;
