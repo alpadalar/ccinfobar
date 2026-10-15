@@ -381,6 +381,7 @@ describe('timeBased flag', () => {
     ).toEqual([
       'cache-timer',
       'clock',
+      'http',
       'limit-eta',
       'limit-risk',
       'permission-wait',

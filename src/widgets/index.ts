@@ -6,6 +6,7 @@ import { widgets as cost } from './cost.js';
 import { widgets as custom } from './custom.js';
 import { widgets as git } from './git.js';
 import { widgets as gsd } from './gsd.js';
+import { widgets as http } from './http.js';
 import { widgets as layout } from './layout.js';
 import { widgets as limits } from './limits.js';
 import { widgets as live } from './live.js';
@@ -46,6 +47,7 @@ export const ALL_WIDGETS: WidgetDef[] = [
   ...system,
   ...status,
   ...custom,
+  ...http,
   ...layout,
 ];
 
