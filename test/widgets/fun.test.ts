@@ -5,6 +5,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import { createContext } from '../../src/core/context.js';
+import { en } from '../../src/core/i18n/en/index.js';
+import { LANGUAGES, TR } from '../../src/core/i18n/languages.js';
 import { PRESETS, starterConfig } from '../../src/core/presets.js';
 import { colorsFor, type Part, resolveAppearance } from '../../src/core/renderer.js';
 import { sampleTranscript } from '../../src/core/sample.js';
@@ -14,7 +16,7 @@ import type { RenderContext, StatusPayload, WidgetItem } from '../../src/core/ty
 import { NORMAL_WIDTH, visibleWidthIn, type WidthMode } from '../../src/core/width.js';
 import { FACES, fnv1a, moodTier, PETS } from '../../src/widgets/fun.js';
 import { getWidget } from '../../src/widgets/index.js';
-import { ctxWith, NOW, renderWidget, withoutSideEffects } from '../helpers.js';
+import { ctxWith, NOW, renderWidget, withLang, withoutSideEffects } from '../helpers.js';
 
 const MIN = 60_000;
 const t0 = NOW.getTime();
@@ -167,6 +169,25 @@ describe('determinism', () => {
     expect(out('quip', c, { basis: 'usage' })).not.toBeNull();
     expect(out('quip', ctx({ payload: payload({ rate_limits: {} }) }), { basis: 'usage' })).toBeNull();
     expect(out('quip', c, { maxLength: 6 })!.length).toBeLessThanOrEqual(6);
+  });
+
+  it.each(LANGUAGES.map((l) => [l.id, l] as const))('%s quips fit 32 columns', (_id, l) => {
+    const ids = Object.keys(en).filter((k) => k.startsWith('fun.quip.'));
+    expect(ids.length).toBe(24);
+    const table = l.messages as Record<string, unknown>;
+    for (const id of ids) {
+      const q = table[id];
+      expect(typeof q, id).toBe('string');
+      expect(visibleWidthIn(q as string, NORMAL_WIDTH), id).toBeLessThanOrEqual(32);
+      expect(q, id).not.toContain('!');
+    }
+  });
+
+  it('quips follow the language', () => {
+    const c = ctx({ payload: payload() });
+    const q = withLang('tr', () => out('quip', c))!;
+    expect(Object.values(TR.messages)).toContain(q);
+    expect(q).not.toBe(out('quip', c));
   });
 });
 

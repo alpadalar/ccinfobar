@@ -39,11 +39,13 @@ import { configMessages as trConfig } from '../../src/core/i18n/tr/config.js';
 import { displayMessages as trDisplay } from '../../src/core/i18n/tr/display.js';
 import { doctorMessages as trDoctor } from '../../src/core/i18n/tr/doctor.js';
 import { explainMessages as trExplain } from '../../src/core/i18n/tr/explain.js';
+import { funMessages as trFun } from '../../src/core/i18n/tr/fun.js';
 import { hookMessages as trHooks } from '../../src/core/i18n/tr/hooks.js';
 import { tr } from '../../src/core/i18n/tr/index.js';
 import { installMessages as trInstall } from '../../src/core/i18n/tr/install.js';
 import { jobsMessages as trJobs } from '../../src/core/i18n/tr/jobs.js';
 import { previewMessages as trPreview } from '../../src/core/i18n/tr/preview.js';
+import { widgetMessages as trWidgets } from '../../src/core/i18n/tr/widgets.js';
 import { withLang } from '../helpers.js';
 
 const dir = path.resolve(__dirname, '../../src/core/i18n');
@@ -218,6 +220,8 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['preview', previewMessages, trPreview],
   ['explain', explainMessages, trExplain],
   ['display', displayMessages, trDisplay],
+  ['widgets', widgetMessages, trWidgets],
+  ['fun', funMessages, trFun],
 ];
 
 function forms(m: Message): string[] {
@@ -232,6 +236,15 @@ function edges(f: string): [string, string, string] {
   return [/^\s*/.exec(f)![0], /\s*$/.exec(f)![0], /[~:]?$/.exec(f.trimEnd())![0]];
 }
 
+function literals(m: Message): string[] {
+  const text = forms(m).join('\n');
+  return [
+    ...text.matchAll(
+      /`[^`]+`|\b[a-z][\w-]*\.[a-z0-9][\w.-]*|\b[a-z]+[A-Z]\w*|--[a-z][\w-]*|\b[A-Z][A-Z0-9]*_[A-Z0-9_]+/g,
+    ),
+  ].map((x) => x[0]);
+}
+
 const CONTROL = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069]/;
 
 describe('tr table', () => {
@@ -239,6 +252,13 @@ describe('tr table', () => {
     const sum = AREA_PAIRS.reduce((n, [, , a]) => n + Object.keys(a).length, 0);
     expect(Object.keys(tr).length).toBe(sum);
     expect(TR.messages).toBe(tr);
+  });
+
+  it('keeps compact units and acronyms in widget words', () => {
+    expect(trWidgets['widget.provider.anthropicAws']).toBe('AWS');
+    expect(trWidgets['widget.provider.apiKey']).toMatch(/^API /);
+    expect(trWidgets['widget.status.ok'].startsWith('✓ ')).toBe(true);
+    expect(trExplain['explain.ageShort.minutes']).toBe('{n}m');
   });
 
   it('hook messages take versions as params', () => {
@@ -263,6 +283,13 @@ describe.each(AREA_PAIRS)('tr %s table', (_name, enArea, trArea) => {
     }
   });
 
+  it('keeps code, keys and metric names literal', () => {
+    for (const [id, msg] of Object.entries(trArea)) {
+      const text = forms(msg).join('\n');
+      for (const tok of literals(enArea[id]!)) expect(text, `${id} ${tok}`).toContain(tok);
+    }
+  });
+
   it('is clean text', () => {
     for (const [id, msg] of Object.entries(trArea)) {
       for (const f of forms(msg)) {
@@ -271,6 +298,12 @@ describe.each(AREA_PAIRS)('tr %s table', (_name, enArea, trArea) => {
         expect(f, id).not.toMatch(CONTROL);
       }
     }
+  });
+});
+
+describe.each(LANGUAGES.map((l) => [l.id, l] as const))('%s messages', (_id, l) => {
+  it('have every English id and no other', () => {
+    expect(Object.keys(l.messages).sort()).toEqual(Object.keys(en).sort());
   });
 });
 
