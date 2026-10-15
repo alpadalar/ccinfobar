@@ -4,7 +4,9 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import { type InstallIo, offerImport, runInstall } from '../../src/commands/install-cli.js';
+import { shellArg } from '../../src/commands/manage.js';
 import { t } from '../../src/core/i18n/index.js';
+import { tildify } from '../../src/core/paths.js';
 import { ccstatuslinePath, detectTool, hudPaths } from '../../src/importers/index.js';
 
 const writeJson = (file: string, data: unknown) => {
@@ -57,8 +59,10 @@ describe('install import offer', () => {
     });
   });
 
+  // in place, so os.homedir() keeps following HOME
   afterEach(() => {
-    process.env = saved;
+    for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+    Object.assign(process.env, saved);
     process.exitCode = undefined;
     fs.rmSync(dir, { recursive: true, force: true });
   });
@@ -159,5 +163,97 @@ describe('install import offer', () => {
     expect(read(settings).statusLine.command).toBe('/bin/ccinfobar');
     expect(types()).toEqual(['model']);
     expect(f.lines).toContain(t('import.targetsDropped', { count: 1 }));
+  });
+
+  describe('the three newer tools', () => {
+    const home = () => path.join(dir, 'home');
+    const ccline = () => path.join(home(), '.claude', 'ccline', 'config.toml');
+    const cship = () => path.join(dir, 'tools', 'cship.toml');
+    const hudCmd = 'node ~/.claude/plugins/claude-hud/dist/index.js --extra-cmd "echo hi"';
+
+    beforeEach(() => {
+      process.env.HOME = home();
+      process.env.USERPROFILE = home();
+      fs.mkdirSync(path.dirname(ccline()), { recursive: true });
+      fs.writeFileSync(
+        ccline(),
+        '[style]\nmode = "plain"\nseparator = " | "\n\n[[segments]]\nid = "model"\n\n[[segments]]\nid = "directory"\n',
+      );
+      fs.mkdirSync(path.dirname(cship()), { recursive: true });
+      fs.writeFileSync(cship(), '[cship]\nlines = ["$cship.cost $git_branch"]\n');
+      writeJson(hudPaths(process.env).config, {
+        elementOrder: ['project'],
+        gitStatus: { enabled: false },
+        display: { showProject: false },
+      });
+    });
+
+    const cases = [
+      {
+        cmd: () => 'ccline',
+        tool: 'ccometixline',
+        name: 'CCometixLine',
+        file: ccline,
+        first: ['model', 'cwd'],
+      },
+      {
+        cmd: () => `/usr/local/bin/cship --config "${cship()}"`,
+        tool: 'cship',
+        name: 'cship',
+        file: cship,
+        first: ['session-cost', 'git-branch'],
+      },
+      {
+        cmd: () => hudCmd,
+        tool: 'claude-hud',
+        name: 'claude-hud',
+        file: () => hudPaths(process.env).config,
+        first: ['model'],
+      },
+    ];
+
+    it.each(cases)('detects $tool as importable', ({ cmd, tool, name }) => {
+      expect(detectTool(cmd())).toEqual({ tool, name, importable: true, command: cmd() });
+    });
+
+    it.each(cases)('imports $tool from its temp config with --yes', async ({ cmd, tool, file, first }) => {
+      const f = fake(false);
+      await offerImport(detectTool(cmd())!, parseArgs(['install', '--yes']), cfg, f.io);
+      expect(f.asked).toEqual([]);
+      expect((read(cfg).lines[0] as { type: string }[]).map((i) => i.type)).toEqual(first);
+      const count = (read(cfg).lines as unknown[][]).flat().length;
+      expect(f.lines).toContain(t('cmd.import.doneFile', { count, source: tool, file: tildify(file()) }));
+    });
+
+    it.each(cases)('writes nothing when the $tool import is declined', async ({ cmd, name }) => {
+      const f = fake(true, [false]);
+      await offerImport(detectTool(cmd())!, parseArgs(['install']), cfg, f.io);
+      expect(f.asked).toEqual([{ q: t('install.importPrompt', { tool: name }), fallback: true }]);
+      expect(f.lines).toEqual([]);
+      expect(fs.existsSync(path.dirname(cfg))).toBe(false);
+    });
+
+    it('drops the claude-hud extra command on --yes and prints the re-run hint', async () => {
+      const f = fake(false);
+      await offerImport(detectTool(hudCmd)!, parseArgs(['install', '--yes']), cfg, f.io);
+      expect(types()).toEqual(['model']);
+      const file = shellArg(hudPaths(process.env).config)!;
+      expect(f.lines).toContain(
+        t('import.rerun', { command: `ccinfobar import claude-hud --allow-commands --force --file ${file}` }),
+      );
+      expect(f.lines.find((l) => l.startsWith('To keep them, run: '))).toContain('--allow-commands');
+    });
+
+    it('keeps the claude-hud extra command with --yes --allow-commands', async () => {
+      const f = fake(false);
+      await offerImport(detectTool(hudCmd)!, parseArgs(['install', '--yes', '--allow-commands']), cfg, f.io);
+      expect(types()).toEqual(['model', 'command']);
+      const cmd = (read(cfg).lines as { type: string; options?: { command?: string } }[][])
+        .flat()
+        .find((i) => i.type === 'command');
+      expect(cmd?.options?.command).toBe('echo hi');
+      expect(f.lines).toContain('  command: echo hi');
+      expect(f.lines.some((l) => l.startsWith('To keep them, run: '))).toBe(false);
+    });
   });
 });
