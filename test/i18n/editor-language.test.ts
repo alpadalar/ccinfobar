@@ -44,7 +44,7 @@ describe('language carry-over', () => {
     expect(keepLanguage(cfg(), cfg('tr')).language).toBe('tr');
   });
 
-  it('an import keeps the current language, with or without its own', () => {
+  it('keepLanguage keeps the current language, with or without its own', () => {
     expect(keepLanguage(cfg(), cfg('tr')).language).toBe('tr');
     expect(keepLanguage(cfg('en'), cfg('tr')).language).toBe('tr');
     expect('language' in keepLanguage(cfg('tr'), cfg())).toBe(false);
@@ -281,17 +281,39 @@ describe('web editor language', () => {
     expect(texts(app.byId('canvas'))).toContain('Satır 1');
   });
 
-  it('import keeps the current language', async () => {
-    const app = await boot({ config: { ...config, language: 'tr' }, server: 'en' });
+  const importJson = async (app: Awaited<ReturnType<typeof boot>>, json: object, label: string) => {
     app.byId('import').dispatch('click');
     const dlg = overlay(app);
     const area = dlg.all((e) => e.tagName === 'TEXTAREA')[0]!;
-    area.value = JSON.stringify({ lines: [[{ id: 'x', type: 'git-branch' }]], language: 'en' });
-    button(dlg, 'İçe aktar').dispatch('click');
+    area.value = JSON.stringify(json);
+    button(dlg, label).dispatch('click');
     await flush();
+  };
+
+  it('import keeps the current language when the config has none', async () => {
+    const app = await boot({ config: { ...config, language: 'tr' }, server: 'en' });
+    await importJson(app, { lines: [[{ id: 'x', type: 'git-branch' }]] }, 'İçe aktar');
     expect(app.S().config.lines[0]![0]!.type).toBe('git-branch');
     expect(app.S().config.language).toBe('tr');
     expect(app.html.lang).toBe('tr');
+  });
+
+  it('import takes the language of a config that has one, and undo brings the old one back', async () => {
+    const app = await boot({ config: { ...config, language: 'tr' }, server: 'en' });
+    await importJson(app, { lines: [[{ id: 'x', type: 'git-branch' }]], language: 'en' }, 'İçe aktar');
+    expect(app.S().config.lines[0]![0]!.type).toBe('git-branch');
+    expect(app.S().config.language).toBe('en');
+    expect(app.html.lang).toBe('en');
+    app.byId('undo').dispatch('click');
+    expect(app.S().config.language).toBe('tr');
+    expect(app.html.lang).toBe('tr');
+    app.byId('redo').dispatch('click');
+    expect(app.S().config.language).toBe('en');
+
+    const auto = await boot({ config, server: 'en' });
+    await importJson(auto, { lines: [[{ id: 'x', type: 'model' }]], language: 'tr' }, 'Import');
+    expect(auto.S().config.language).toBe('tr');
+    expect(auto.html.lang).toBe('tr');
   });
 
   it('preset apply keeps the current language', async () => {

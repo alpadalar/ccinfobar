@@ -555,7 +555,8 @@ async function importJson(): Promise<void> {
                 throw new Error(t('web.app.importBad'));
               }
               const { config } = await api.normalize(parsed);
-              replaceAll(keepLanguage(config, S.config));
+              // a pasted ccinfobar config brings its own language
+              replaceAll('language' in parsed ? config : keepLanguage(config, S.config));
               close();
               toast(t('web.app.imported'));
             } catch (e) {

@@ -230,7 +230,7 @@ What does not change with the language:
 - JSON output (`explain --json`, `bench --json`, `config get` and the editor API) stays English.
 - Numbers, units, costs and compact durations look the same as in English (`12.4/31.0 GB`, `$1.87`, `2h 13m`). Dates use the language's month and day names with 24-hour times (`Oct 14, 2026, 21:07`, `14 Eki 2026 21:07`).
 - Widget ids, theme ids, config keys, commands and flags never change. Labels and text you wrote in your config show as written.
-- `ccinfobar init --force`, presets and import keep your `language` setting.
+- `ccinfobar init --force`, presets and `ccinfobar import` keep your `language` setting. The web editor's Import config uses the pasted config's `language` when it has one.
 
 ## Colors
 
