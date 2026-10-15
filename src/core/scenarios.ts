@@ -7,6 +7,7 @@ import {
   sampleGsd,
   sampleHistory,
   sampleHooks,
+  sampleJobs,
   sampleLedger,
   sampleLimits,
   samplePayload,
@@ -43,10 +44,10 @@ function base(now: number): ScenarioBundle {
       // follows the bundle's rate_limits
       limits: () => sampleLimits(now, b.payload.rate_limits ?? null),
       ledger: () => sampleLedger(now),
+      jobs: () => sampleJobs(now),
       repos: () => null,
       hooks: () => sampleHooks(now),
       environment: sampleEnvironment,
-      jobs: () => ({ job: () => null }),
     },
     env: {},
   };

@@ -7,6 +7,7 @@ import {
   sampleGsd,
   sampleHistory,
   sampleHooks,
+  sampleJobs,
   sampleLedger,
   sampleLimits,
   samplePayload,
@@ -31,6 +32,7 @@ export function ctxWith(
     repos?: RenderContext['data']['repos'];
     hooks?: RenderContext['data']['hooks'];
     environment?: RenderContext['data']['environment'];
+    jobs?: RenderContext['data']['jobs'];
     width?: number | null;
     env?: NodeJS.ProcessEnv;
   } = {},
@@ -52,6 +54,7 @@ export function ctxWith(
       repos: overrides.repos ?? (() => null),
       hooks: overrides.hooks ?? (() => sampleHooks(NOW.getTime())),
       environment: overrides.environment ?? sampleEnvironment,
+      jobs: overrides.jobs ?? (() => sampleJobs(NOW.getTime())),
     },
   });
 }

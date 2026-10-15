@@ -20,6 +20,7 @@ import {
   sampleGsd,
   sampleHistory,
   sampleHooks,
+  sampleJobs,
   sampleLedger,
   sampleLimits,
   samplePayload,
@@ -151,6 +152,7 @@ export function renderPreview(config: Config, source: PreviewSource, width: numb
         repos: () => null,
         hooks: () => sampleHooks(now),
         environment: sampleEnvironment,
+        jobs: () => sampleJobs(now),
       },
     }),
   );

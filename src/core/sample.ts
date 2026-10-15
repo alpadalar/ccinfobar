@@ -4,10 +4,12 @@ import type { GitInfo } from '../data/git.js';
 import type { GsdInfo } from '../data/gsd.js';
 import type { HistorySample } from '../data/history.js';
 import type { HookState } from '../data/hooks.js';
+import type { JobEnvelope, JobReader } from '../data/jobs/runner.js';
 import type { LedgerView } from '../data/ledger.js';
 import type { LimitsView, ResolvedWindow } from '../data/limits.js';
 import type { WorkspaceRepos } from '../data/repos.js';
 import type { TranscriptInfo } from '../data/transcript.js';
+import type { GhValue, HttpValue, StatusValue } from './job-values.js';
 import { toEpochMs } from './time.js';
 import type { StatusPayload } from './types.js';
 
@@ -283,6 +285,26 @@ export function sampleLedger(now = Date.now()): LedgerView {
     since: now - 40 * 86_400_000,
     at: now - 5_000,
     partial: false,
+  };
+}
+
+function sampleJobValue(key: string): StatusValue | HttpValue | GhValue | null {
+  if (key === 'status') return { indicator: 'none', description: 'All Systems Operational', incidents: [] };
+  if (key.startsWith('http-')) return { paths: {}, any: { ok: true, v: 42.5 } };
+  if (key.startsWith('gh-')) {
+    return { pass: 12, fail: 0, pending: 0, skipped: 1, cancelled: 0, total: 13, names: [] };
+  }
+  return null;
+}
+
+export function sampleJobs(now = Date.now()): JobReader {
+  return {
+    job<V = unknown>(key: string): JobEnvelope<V> | null {
+      const value = sampleJobValue(key) as V | null;
+      if (value === null) return null;
+      const at = now - 30_000;
+      return { v: 1, key, fetchedAt: at, ok: true, value, attempts: 0, lastGood: value, lastGoodAt: at };
+    },
   };
 }
 

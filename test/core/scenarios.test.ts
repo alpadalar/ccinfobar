@@ -4,11 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import { createContext } from '../../src/core/context.js';
 import { t } from '../../src/core/i18n/index.js';
+import type { GhValue, HttpValue, StatusValue } from '../../src/core/job-values.js';
 import { lastPayloadPath } from '../../src/core/paths.js';
 import { isFreshSession } from '../../src/core/payload.js';
 import { PRESETS, starterConfig } from '../../src/core/presets.js';
 import { renderPreview } from '../../src/core/preview.js';
-import { sampleHooks, sampleLimits, samplePayload } from '../../src/core/sample.js';
+import { sampleHooks, sampleJobs, sampleLimits, samplePayload } from '../../src/core/sample.js';
 import {
   getScenario,
   SCENARIO_NOW,
@@ -68,10 +69,36 @@ describe('scenarios', () => {
   it('supplies every data source', () => {
     for (const s of SCENARIOS) {
       const { data } = s.build(SCENARIO_NOW);
-      for (const k of ['git', 'transcript', 'gsd', 'history', 'agents', 'limits', 'ledger'] as const) {
+      for (const k of [
+        'git',
+        'transcript',
+        'gsd',
+        'history',
+        'agents',
+        'limits',
+        'ledger',
+        'repos',
+        'hooks',
+        'environment',
+        'jobs',
+      ] as const) {
         expect(typeof data[k], `${s.id}.${k}`).toBe('function');
       }
+      expect(typeof data.jobs().job, `${s.id}.jobs`).toBe('function');
     }
+  });
+
+  it('gives sample job values', () => {
+    const jobs = sampleJobs(SCENARIO_NOW);
+    const status = jobs.job<StatusValue>('status');
+    expect(status?.ok).toBe(true);
+    expect(status?.fetchedAt).toBe(SCENARIO_NOW - 30_000);
+    expect(status?.value?.indicator).toBe('none');
+    expect(status?.value?.incidents).toEqual([]);
+    expect(jobs.job<HttpValue>('http-0000000000000000')?.value?.any).toEqual({ ok: true, v: 42.5 });
+    expect(jobs.job<GhValue>('gh-0000000000000000')?.value?.total).toBe(13);
+    expect(jobs.job('usage-0000000000000000')).toBeNull();
+    expect(jobs.job('update')).toBeNull();
   });
 
   it('carries limits that follow each bundle', () => {
