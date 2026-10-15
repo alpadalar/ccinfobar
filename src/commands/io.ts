@@ -17,6 +17,42 @@ export function cliIo(): CliIo {
   };
 }
 
+export const promptMarker = (fallback: boolean) => t(fallback ? 'install.prompt.yes' : 'install.prompt.no');
+
+// y/yes and e/evet in any language
+export function isYes(raw: string, fallback: boolean): boolean {
+  const answer = raw.trim().toLowerCase();
+  return answer === '' ? fallback : answer.startsWith('y') || answer.startsWith('e');
+}
+
+export async function ask(question: string, fallback: boolean): Promise<boolean> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return fallback;
+  const rl = (await import('node:readline/promises')).createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  try {
+    return isYes(await rl.question(`${question} ${promptMarker(fallback)} `), fallback);
+  } finally {
+    rl.close();
+  }
+}
+
+export interface PromptIo extends CliIo {
+  ask(question: string, fallback: boolean): Promise<boolean>;
+  columns?: number;
+}
+
+export function promptIo(): PromptIo {
+  return {
+    tty: !!process.stdin.isTTY && !!process.stdout.isTTY,
+    ask,
+    log: (line) => console.log(line),
+    error: (line) => console.error(line),
+    ...(process.stdout.columns ? { columns: process.stdout.columns } : {}),
+  };
+}
+
 export function reportConfigIssue(loaded: LoadResult, io: CliIo): boolean {
   if (!loaded.issue) return false;
   const { line, column, message } = loaded.issue;

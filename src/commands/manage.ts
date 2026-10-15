@@ -8,7 +8,7 @@ import { keepLanguage } from '../core/edit.js';
 import { resolveGlyphMode } from '../core/glyphs.js';
 import { presetText, themeDescription } from '../core/i18n/catalog-text.js';
 import { formatDateTime } from '../core/i18n/format.js';
-import { languageLocale, t } from '../core/i18n/index.js';
+import { languageLocale, type MessageId, t } from '../core/i18n/index.js';
 import { categoryText, widgetText } from '../core/i18n/widget-text.js';
 import { loadForUse } from '../core/load.js';
 import { tildify } from '../core/paths.js';
@@ -18,12 +18,15 @@ import { finalizeLine } from '../core/renderer.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from '../core/themes.js';
 import type { Config } from '../core/types.js';
-import { padVisible } from '../core/width.js';
+import { padVisible, truncate } from '../core/width.js';
 import { gsdInstalled } from '../data/gsd.js';
 import { executeJob, type Job, jobOff } from '../data/jobs/runner.js';
 import { fetchUsage, type UsageCache, usageKey } from '../data/usage.js';
+import { dropTargets, importTargets, sanitizeImport, shortTarget } from '../importers/confirm.js';
 import {
   IMPORT_SOURCES,
+  type ImportNote,
+  type ImportResult,
   type ImportSource,
   importFrom,
   resolveSource,
@@ -31,7 +34,7 @@ import {
 } from '../importers/index.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import { currentStatusLine } from './install.js';
-import { type CliIo, cliIo } from './io.js';
+import { type CliIo, cliIo, type PromptIo, promptIo } from './io.js';
 import { usageErrorText } from './usage-error.js';
 
 const DEMO_LINE = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gsd-plans', 'session-cost'].map(
@@ -68,48 +71,145 @@ function currentConfig(cfgFile: string): Config {
   return loaded.issue || loaded.error ? defaultConfig() : loaded.config;
 }
 
-export function runImport(
+export interface ImportFlags {
+  allowCommands: boolean;
+  yes: boolean;
+  dryRun: boolean;
+}
+
+const NO_FLAGS: ImportFlags = { allowCommands: false, yes: false, dryRun: false };
+
+const shellArg = (s: string) => (/^[\w@%+=:,./\\~-]+$/.test(s) ? s : `"${s.replace(/"/g, '\\"')}"`);
+
+function rerunCommand(source: ImportSource, file: string | null | undefined, dryRun: boolean): string {
+  const parts = ['ccinfobar', 'import', source, '--allow-commands', '--force'];
+  if (file) parts.push('--file', shellArg(file));
+  if (dryRun) parts.push('--dry-run');
+  return sanitizeText(parts.join(' '));
+}
+
+// D-29: commands and URLs stay only with consent
+async function confirmTargets(
+  result: ImportResult,
+  flags: ImportFlags,
+  io: PromptIo,
+  rerun: string,
+): Promise<ImportResult> {
+  const targets = importTargets(result.config);
+  if (!targets.length) return result;
+  const width = Math.max(20, (io.columns ?? 80) - 1);
+  io.log(t('import.targetsHeader'));
+  for (const x of targets)
+    io.log(truncate(t('import.target', { kind: x.kind, target: sanitizeText(x.target) }), width));
+  if (flags.allowCommands) return result;
+  const keep =
+    !flags.yes && io.tty && (await io.ask(t('import.keepPrompt', { count: targets.length }), false));
+  if (keep) return result;
+  io.log(t('import.targetsDropped', { count: targets.length }));
+  io.log(t('import.rerun', { command: rerun }));
+  const dropped: ImportNote[] = targets.map((x) => ({
+    kind: 'drop',
+    text: t('import.note.targetDropped', { kind: x.kind, target: shortTarget(x.target) }),
+  }));
+  return { ...result, config: dropTargets(result.config, targets), notes: [...result.notes, ...dropped] };
+}
+
+const SECTIONS: Array<[ImportNote['kind'], MessageId]> = [
+  ['approx', 'import.approxHeader'],
+  ['drop', 'import.dropHeader'],
+  ['info', 'import.infoHeader'],
+];
+
+function importReport(io: PromptIo, result: ImportResult, backup: string | null): void {
+  const count = (result.config.lines ?? []).reduce((n, l) => n + l.length, 0);
+  const source = result.source;
+  io.log(
+    result.file
+      ? t('cmd.import.doneFile', { count, source, file: sanitizeText(tildify(result.file)) })
+      : t('cmd.import.done', { count, source }),
+  );
+  if (backup) io.log(t('cmd.import.previous', { file: tildify(backup) }));
+  for (const [kind, id] of SECTIONS) {
+    const notes = result.notes.filter((n) => n.kind === kind);
+    if (!notes.length) continue;
+    io.log(`  ${t(id)}`);
+    for (const n of notes) io.log(`    - ${n.text}`);
+  }
+}
+
+const plainOutput = (tty: boolean, env: NodeJS.ProcessEnv = process.env): boolean => {
+  const forced = env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '0';
+  return (!tty && !forced) || !!env.NO_COLOR || env.FORCE_COLOR === '0';
+};
+
+// a dry run never runs imported commands
+function dryRunPreview(config: Config, io: PromptIo): string[] {
+  const def = ALL_WIDGETS.find((w) => w.type === 'command');
+  const text = def ? widgetText(def, 'sample') : '';
+  const lines = config.lines.map((items) =>
+    items.map((item) => (item.type === 'command' ? { ...item, type: 'text', options: { text } } : item)),
+  );
+  const plain = plainOutput(io.tty);
+  return renderPreview({ ...config, lines }, 'sample', io.columns ?? 100).map((l) =>
+    plain ? stripAnsi(l) : l,
+  );
+}
+
+export async function runImport(
   source: ImportSource,
-  opts: { file?: string | undefined; command: string },
+  opts: { file?: string | undefined; command: string; flags?: ImportFlags },
   cfgFile: string,
-): boolean {
+  io: PromptIo = promptIo(),
+): Promise<boolean> {
+  const flags = opts.flags ?? NO_FLAGS;
   try {
-    const result = importFrom(
-      source,
-      opts.file ? { file: opts.file, command: opts.command } : { command: opts.command },
+    const raw = sanitizeImport(
+      importFrom(source, opts.file ? { file: opts.file, command: opts.command } : { command: opts.command }),
     );
+    const rerun = rerunCommand(source, opts.file ?? raw.file, flags.dryRun);
+    const result = await confirmTargets(raw, flags, io, rerun);
+    if (flags.dryRun) {
+      importReport(io, result, null);
+      io.log(t('import.dryRunHeader'));
+      for (const line of dryRunPreview(toConfig(result), io)) io.log(line);
+      io.log(t('import.dryRunDone'));
+      return true;
+    }
     const current = currentConfig(cfgFile);
     const backup = backupConfig(cfgFile);
     saveConfig(keepLanguage(toConfig(result), current), cfgFile, { overwriteBroken: true });
-    const count = (result.config.lines ?? []).reduce((n, l) => n + l.length, 0);
-    console.log(
-      result.file
-        ? t('cmd.import.doneFile', { count, source, file: tildify(result.file) })
-        : t('cmd.import.done', { count, source }),
-    );
-    if (backup) console.log(t('cmd.import.previous', { file: tildify(backup) }));
-    for (const n of result.notes) console.log(`  ⚠ ${n.text}`);
+    importReport(io, result, backup);
     return true;
   } catch (err) {
-    console.error(t('cmd.import.failed', { error: (err as Error).message }));
+    io.error(t('cmd.import.failed', { error: sanitizeText((err as Error).message) }));
     return false;
   }
 }
 
-export function runImportCommand(args: Args, cfgFile: string): void {
+export async function runImportCommand(
+  args: Args,
+  cfgFile: string,
+  io: PromptIo = promptIo(),
+): Promise<void> {
   const source = resolveSource(args.positional[0]);
   if (!source) {
-    console.error(t('cmd.import.usage', { sources: IMPORT_SOURCES.join('|') }));
+    io.error(t('cmd.import.usage', { sources: IMPORT_SOURCES.join('|') }));
     process.exitCode = 1;
     return;
   }
-  if (fs.existsSync(cfgFile) && !args.flags.force) {
-    console.error(t('cmd.import.exists', { file: tildify(cfgFile) }));
+  const flags: ImportFlags = {
+    allowCommands: args.flags['allow-commands'] === true,
+    yes: args.flags.yes === true,
+    dryRun: args.flags['dry-run'] === true,
+  };
+  if (!flags.dryRun && fs.existsSync(cfgFile) && !args.flags.force) {
+    io.error(t('cmd.import.exists', { file: tildify(cfgFile) }));
     process.exitCode = 1;
     return;
   }
   const file = typeof args.flags.file === 'string' ? path.resolve(args.flags.file) : undefined;
-  if (!runImport(source, { file, command: currentCommandSafe() }, cfgFile)) process.exitCode = 1;
+  const ok = await runImport(source, { file, command: currentCommandSafe(), flags }, cfgFile, io);
+  if (!ok) process.exitCode = 1;
 }
 
 export function runInit(args: Args, cfgFile: string): void {
@@ -166,8 +266,7 @@ export function runPreview(args: Args, cfgFile: string, io: CliIo = cliIo()): vo
   const source: PreviewSource =
     flag.kind === 'scenario' ? { scenario: flag.id } : args.flags.last ? 'last' : 'sample';
   const env = process.env;
-  const forced = env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '0';
-  const plain = (!io.tty && !forced) || !!env.NO_COLOR || env.FORCE_COLOR === '0';
+  const plain = plainOutput(io.tty, env);
   const loaded = loadForUse(cfgFile);
   if (!loaded.issue) applyLanguage(loaded.config);
   const config = glyphMode ? { ...loaded.config, glyphMode } : loaded.config;

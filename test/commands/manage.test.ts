@@ -14,7 +14,7 @@ import { usageErrorText } from '../../src/commands/usage-error.js';
 import { tildify } from '../../src/core/paths.js';
 import { listPresets } from '../../src/core/presets.js';
 import type { UsageCache } from '../../src/data/usage.js';
-import { withEnvLang, withLang } from '../helpers.js';
+import { withEnvLang, withLang, withLangAsync } from '../helpers.js';
 
 const root = path.join(process.env.CCINFOBAR_CONFIG_DIR!, 'manage');
 const fixture = path.join(__dirname, '../fixtures/import/ccstatusline-settings.json');
@@ -43,6 +43,25 @@ const capture = (fn: () => void) => {
     process.exitCode = undefined;
   }
   return { out, err };
+};
+
+const captureAsync = async (fn: () => Promise<unknown>) => {
+  const out: string[] = [];
+  const err: string[] = [];
+  const log = vi.spyOn(console, 'log').mockImplementation((...a: unknown[]) => void out.push(a.join(' ')));
+  const error = vi
+    .spyOn(console, 'error')
+    .mockImplementation((...a: unknown[]) => void err.push(a.join(' ')));
+  let code: typeof process.exitCode;
+  try {
+    await fn();
+    code = process.exitCode;
+  } finally {
+    log.mockRestore();
+    error.mockRestore();
+    process.exitCode = undefined;
+  }
+  return { out, err, code };
 };
 
 afterEach(() => {
@@ -100,20 +119,20 @@ describe('init', () => {
 });
 
 describe('import', () => {
-  it('reports in English and Turkish and keeps the language', () => {
+  it('reports in English and Turkish and keeps the language', async () => {
     const f = file('import.json', JSON.stringify({ language: 'tr', lines: [] }));
-    const en = capture(() => runImport('ccstatusline', { file: fixture, command: '' }, f));
+    const en = await captureAsync(() => runImport('ccstatusline', { file: fixture, command: '' }, f));
     expect(en.out[0]).toMatch(/^✓ Imported \d+ widgets from ccstatusline \(.+ccstatusline-settings\.json\)$/);
     expect(en.out[1]).toMatch(/^ {2}Previous ccinfobar config: .+\.bak$/);
     expect(read(f).language).toBe('tr');
-    const tr = withLang('tr', () =>
-      capture(() => runImport('ccstatusline', { file: fixture, command: '' }, f)),
+    const tr = await withLangAsync('tr', () =>
+      captureAsync(() => runImport('ccstatusline', { file: fixture, command: '' }, f)),
     );
     expect(tr.out[0]).toMatch(/^✓ ccstatusline kaynağından \d+ bileşen içe aktarıldı \(.+\.json\)$/);
     expect(tr.out[1]).toMatch(/^ {2}Önceki ccinfobar yapılandırması: /);
   });
 
-  it('prints notes after the imported line and resolves tool names', () => {
+  it('prints notes after the imported line and resolves tool names', async () => {
     const src = file(
       'cc.json',
       JSON.stringify({
@@ -126,44 +145,46 @@ describe('import', () => {
       }),
     );
     const f = path.join(root, 'notes.json');
-    const out = capture(() => runImport('ccstatusline', { file: src, command: '' }, f)).out;
+    const { out } = await captureAsync(() => runImport('ccstatusline', { file: src, command: '' }, f));
     expect(out).toEqual([
       `✓ Imported 1 widgets from ccstatusline (${tildify(src)})`,
-      '  ⚠ git-branch: hiding when "zero" is not supported, it stays visible',
-      '  ⚠ ccstatusline widget "jj-revision" has no ccinfobar equivalent and was skipped',
+      '  Approximated:',
+      '    - git-branch: hiding when "zero" is not supported, it stays visible',
+      '  Dropped:',
+      '    - ccstatusline widget "jj-revision" has no ccinfobar equivalent and was skipped',
     ]);
     const g = path.join(root, 'upper.json');
-    const upper = capture(() => runImportCommand(parseArgs(['import', 'CCSTATUSLINE', '--file', src]), g));
+    const upper = await captureAsync(() =>
+      runImportCommand(parseArgs(['import', 'CCSTATUSLINE', '--file', src]), g),
+    );
     expect(upper.err).toEqual([]);
     expect(read(g).lines[0]).toEqual([{ id: '1', type: 'git-branch' }]);
   });
 
-  it('translates the failure, usage and exists lines', () => {
+  it('translates the failure, usage and exists lines', async () => {
     const f = file('fail.json');
     const missing = path.join(root, 'none.json');
-    const en = capture(() => runImport('ccstatusline', { file: missing, command: '' }, f));
+    const en = await captureAsync(() => runImport('ccstatusline', { file: missing, command: '' }, f));
     expect(en.err[0]).toBe(`✗ Import failed: Cannot read ccstatusline settings at ${missing}`);
-    const tr = withLang('tr', () =>
-      capture(() => runImport('ccstatusline', { file: missing, command: '' }, f)),
+    const tr = await withLangAsync('tr', () =>
+      captureAsync(() => runImport('ccstatusline', { file: missing, command: '' }, f)),
     );
     expect(tr.err[0]).toMatch(/^✗ İçe aktarma başarısız oldu: /);
     const cmd = (...argv: string[]) => runImportCommand(parseArgs(['import', ...argv]), f);
-    expect(capture(() => cmd('nope')).err).toEqual([
-      'Usage: ccinfobar import <ccstatusline|claude-powerline> [--file <path>] [--force]',
+    expect((await captureAsync(() => cmd('nope'))).err).toEqual([
+      'Usage: ccinfobar import <ccstatusline|claude-powerline> [--file <path>] [--force] [--dry-run] [--allow-commands]',
     ]);
-    expect(withLang('tr', () => capture(() => cmd('nope')).err)).toEqual([
-      'Kullanım: ccinfobar import <ccstatusline|claude-powerline> [--file <path>] [--force]',
+    expect((await withLangAsync('tr', () => captureAsync(() => cmd('nope')))).err).toEqual([
+      'Kullanım: ccinfobar import <ccstatusline|claude-powerline> [--file <path>] [--force] [--dry-run] [--allow-commands]',
     ]);
-    let code: typeof process.exitCode;
-    capture(() => {
-      runImportCommand(parseArgs(['import', 'ccstatusline', '--file', missing]), path.join(root, 'n.json'));
-      code = process.exitCode;
-    });
-    expect(code).toBe(1);
+    const failed = await captureAsync(() =>
+      runImportCommand(parseArgs(['import', 'ccstatusline', '--file', missing]), path.join(root, 'n.json')),
+    );
+    expect(failed.code).toBe(1);
     const old = file('old.json', '{}');
-    expect(capture(() => runImportCommand(parseArgs(['import', 'ccstatusline']), old)).err).toEqual([
-      `${tildify(old)} already exists. Use --force to replace it (a backup is kept).`,
-    ]);
+    expect(
+      (await captureAsync(() => runImportCommand(parseArgs(['import', 'ccstatusline']), old))).err,
+    ).toEqual([`${tildify(old)} already exists. Use --force to replace it (a backup is kept).`]);
   });
 });
 

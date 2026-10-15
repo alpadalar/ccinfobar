@@ -17,6 +17,8 @@ Usage
   ccinfobar uninstall --hooks     Remove only ccinfobar's hooks
   ccinfobar uninstall --progress  Remove only the terminal progress handlers
   ccinfobar import <tool>         Import a ccstatusline or claude-powerline layout
+  ccinfobar import <tool> --dry-run
+                                  Show the mapping report and a preview, write nothing
   ccinfobar themes                Preview every theme
   ccinfobar themes --list         List theme ids and names only
   ccinfobar theme <id>            Switch theme
@@ -66,13 +68,14 @@ Options
   --format table|csv|json         report: output format (default table)
   --import / --no-import          install: import the previous status line's layout without asking
   --file <path>                   import: read this settings file
+  --allow-commands                import, install: keep imported commands and URLs without asking
   --command <cmd>                 install: command to write (default: auto)
   --hooks[=permission]            install: add hooks (=permission adds PermissionRequest);
                                   uninstall: remove only ccinfobar's hooks
   --progress                      install: add the terminal progress handlers (Claude Code 2.1.141+);
                                   uninstall: remove only them
   -y, --yes                       install: replace another tool's statusLine without asking
-  --dry-run                       install: print the plan and write nothing
+  --dry-run                       install, import: print the plan and write nothing
   --port <n>                      edit: port to listen on
   --detach                        edit: run in the background; stops after 30 min idle
   --no-open                       edit: do not open a browser

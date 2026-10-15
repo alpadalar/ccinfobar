@@ -17,6 +17,8 @@ Kullanım
   ccinfobar uninstall --hooks     Yalnızca ccinfobar'ın hook'larını kaldırır
   ccinfobar uninstall --progress  Yalnızca terminal ilerleme işleyicilerini kaldırır
   ccinfobar import <tool>         Bir ccstatusline veya claude-powerline düzenini içe aktarır
+  ccinfobar import <tool> --dry-run
+                                  Eşleme raporunu ve önizlemeyi gösterir, hiçbir şey yazmaz
   ccinfobar themes                Tüm temaları önizler
   ccinfobar themes --list         Yalnızca tema id'lerini ve adlarını listeler
   ccinfobar theme <id>            Temayı değiştirir
@@ -66,13 +68,14 @@ Seçenekler
   --format table|csv|json         report: çıktı biçimi (varsayılan table)
   --import / --no-import          install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz
   --file <path>                   import: bu ayar dosyasını okur
+  --allow-commands                import, install: içe aktarılan komutları ve URL'leri sormadan korur
   --command <cmd>                 install: yazılacak komut (varsayılan: auto)
   --hooks[=permission]            install: hook'ları ekler (=permission, PermissionRequest de ekler);
                                   uninstall: yalnızca ccinfobar'ın hook'larını kaldırır
   --progress                      install: terminal ilerleme işleyicilerini ekler (Claude Code 2.1.141+);
                                   uninstall: yalnızca bunları kaldırır
   -y, --yes                       install: başka bir aracın statusLine ayarını sormadan değiştirir
-  --dry-run                       install: planı gösterir, hiçbir şey yazmaz
+  --dry-run                       install, import: planı gösterir, hiçbir şey yazmaz
   --port <n>                      edit: dinlenecek port
   --detach                        edit: arka planda çalışır; 30 dakika boşta kalınca durur
   --no-open                       edit: tarayıcı açmaz

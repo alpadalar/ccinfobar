@@ -84,7 +84,7 @@ async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
     }
     case 'import': {
       const { runImportCommand } = await import('../commands/manage.js');
-      runImportCommand(args, cfgFile);
+      await runImportCommand(args, cfgFile);
       return;
     }
     case 'uninstall': {

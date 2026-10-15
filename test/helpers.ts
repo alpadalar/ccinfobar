@@ -5,7 +5,13 @@ import { afterAll, beforeAll } from 'vitest';
 import { resetLanguageCache } from '../src/cli/lang.js';
 import { defaultConfig } from '../src/core/config.js';
 import { createContext } from '../src/core/context.js';
-import { activeLanguage, type LanguageDef, type LanguageId, withLanguage } from '../src/core/i18n/index.js';
+import {
+  activeLanguage,
+  type LanguageDef,
+  type LanguageId,
+  setLanguage,
+  withLanguage,
+} from '../src/core/i18n/index.js';
 import {
   sampleAgents,
   sampleEnvironment,
@@ -26,6 +32,16 @@ export const NOW = new Date('2026-10-12T12:00:00Z');
 
 export function withLang<T>(lang: LanguageId | LanguageDef, fn: () => T): T {
   return withLanguage(lang, fn);
+}
+
+// keeps the language across awaits
+export async function withLangAsync<T>(lang: LanguageId | LanguageDef, fn: () => Promise<T>): Promise<T> {
+  const prev = setLanguage(lang);
+  try {
+    return await fn();
+  } finally {
+    setLanguage(prev);
+  }
 }
 
 // CCINFOBAR_LANG for code that resolves the env language itself

@@ -15,6 +15,7 @@ const SWEPT: string[] = [
   'src/importers/claude-powerline.ts',
   'src/importers/toml.ts',
   'src/importers/colors.ts',
+  'src/importers/confirm.ts',
   'src/commands/doctor.ts',
   'src/commands/manage.ts',
   'src/commands/bench.ts',

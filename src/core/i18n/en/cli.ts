@@ -18,6 +18,7 @@ export const cliMessages = {
   'help.cmd.uninstallHooks': "Remove only ccinfobar's hooks",
   'help.cmd.uninstallProgress': 'Remove only the terminal progress handlers',
   'help.cmd.import': 'Import a ccstatusline or claude-powerline layout',
+  'help.cmd.importDryRun': 'Show the mapping report and a preview, write nothing',
   'help.cmd.themes': 'Preview every theme',
   'help.cmd.themesList': 'List theme ids and names only',
   'help.cmd.theme': 'Switch theme',
@@ -60,13 +61,14 @@ export const cliMessages = {
   'help.opt.format': 'report: output format (default table)',
   'help.opt.import': "install: import the previous status line's layout without asking",
   'help.opt.file': 'import: read this settings file',
+  'help.opt.allowCommands': 'import, install: keep imported commands and URLs without asking',
   'help.opt.command': 'install: command to write (default: auto)',
   'help.opt.hooks':
     "install: add hooks (=permission adds PermissionRequest);\nuninstall: remove only ccinfobar's hooks",
   'help.opt.progress':
     'install: add the terminal progress handlers (Claude Code 2.1.141+);\nuninstall: remove only them',
   'help.opt.yes': "install: replace another tool's statusLine without asking",
-  'help.opt.dryRun': 'install: print the plan and write nothing',
+  'help.opt.dryRun': 'install, import: print the plan and write nothing',
   'help.opt.port': 'edit: port to listen on',
   'help.opt.detach': 'edit: run in the background; stops after 30 min idle',
   'help.opt.noOpen': 'edit: do not open a browser',

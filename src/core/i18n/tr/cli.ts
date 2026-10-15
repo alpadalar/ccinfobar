@@ -21,6 +21,7 @@ export const cliMessages = {
   'help.cmd.uninstallHooks': "Yalnızca ccinfobar'ın hook'larını kaldırır",
   'help.cmd.uninstallProgress': 'Yalnızca terminal ilerleme işleyicilerini kaldırır',
   'help.cmd.import': 'Bir ccstatusline veya claude-powerline düzenini içe aktarır',
+  'help.cmd.importDryRun': 'Eşleme raporunu ve önizlemeyi gösterir, hiçbir şey yazmaz',
   'help.cmd.themes': 'Tüm temaları önizler',
   'help.cmd.themesList': "Yalnızca tema id'lerini ve adlarını listeler",
   'help.cmd.theme': 'Temayı değiştirir',
@@ -63,13 +64,14 @@ export const cliMessages = {
   'help.opt.format': 'report: çıktı biçimi (varsayılan table)',
   'help.opt.import': 'install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz',
   'help.opt.file': 'import: bu ayar dosyasını okur',
+  'help.opt.allowCommands': "import, install: içe aktarılan komutları ve URL'leri sormadan korur",
   'help.opt.command': 'install: yazılacak komut (varsayılan: auto)',
   'help.opt.hooks':
     "install: hook'ları ekler (=permission, PermissionRequest de ekler);\nuninstall: yalnızca ccinfobar'ın hook'larını kaldırır",
   'help.opt.progress':
     'install: terminal ilerleme işleyicilerini ekler (Claude Code 2.1.141+);\nuninstall: yalnızca bunları kaldırır',
   'help.opt.yes': 'install: başka bir aracın statusLine ayarını sormadan değiştirir',
-  'help.opt.dryRun': 'install: planı gösterir, hiçbir şey yazmaz',
+  'help.opt.dryRun': 'install, import: planı gösterir, hiçbir şey yazmaz',
   'help.opt.port': 'edit: dinlenecek port',
   'help.opt.detach': 'edit: arka planda çalışır; 30 dakika boşta kalınca durur',
   'help.opt.noOpen': 'edit: tarayıcı açmaz',

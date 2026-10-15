@@ -3,7 +3,8 @@ export const commandsMessages = {
   'cmd.import.doneFile': '✓ Imported {count} widgets from {source} ({file})',
   'cmd.import.previous': '  Previous ccinfobar config: {file}',
   'cmd.import.failed': '✗ Import failed: {error}',
-  'cmd.import.usage': 'Usage: ccinfobar import <{sources}> [--file <path>] [--force]',
+  'cmd.import.usage':
+    'Usage: ccinfobar import <{sources}> [--file <path>] [--force] [--dry-run] [--allow-commands]',
   'cmd.import.exists': '{file} already exists. Use --force to replace it (a backup is kept).',
   'cmd.init.unknownPreset': 'Unknown preset "{id}". Available: {ids}',
   'cmd.init.exists': '{file} already exists. Use --force to overwrite.',

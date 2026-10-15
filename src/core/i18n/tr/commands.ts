@@ -6,7 +6,8 @@ export const commandsMessages = {
   'cmd.import.doneFile': '✓ {source} kaynağından {count} bileşen içe aktarıldı ({file})',
   'cmd.import.previous': '  Önceki ccinfobar yapılandırması: {file}',
   'cmd.import.failed': '✗ İçe aktarma başarısız oldu: {error}',
-  'cmd.import.usage': 'Kullanım: ccinfobar import <{sources}> [--file <path>] [--force]',
+  'cmd.import.usage':
+    'Kullanım: ccinfobar import <{sources}> [--file <path>] [--force] [--dry-run] [--allow-commands]',
   'cmd.import.exists': '{file} zaten var. Değiştirmek için --force kullanın (yedek tutulur).',
   'cmd.init.unknownPreset': 'Bilinmeyen hazır ayar "{id}". Mevcut olanlar: {ids}',
   'cmd.init.exists': '{file} zaten var. Üzerine yazmak için --force kullanın.',

@@ -49,31 +49,13 @@ import {
   type UninstallResult,
   uninstall,
 } from './install.js';
+import { ask } from './io.js';
 import { runImport } from './manage.js';
 import { findHookEntries, readManifest } from './manifest.js';
 import { readSettings } from './settings-file.js';
 import { installKind } from './update.js';
 
-export const promptMarker = (fallback: boolean) => t(fallback ? 'install.prompt.yes' : 'install.prompt.no');
-
-// y/yes and e/evet in any language
-export function isYes(raw: string, fallback: boolean): boolean {
-  const answer = raw.trim().toLowerCase();
-  return answer === '' ? fallback : answer.startsWith('y') || answer.startsWith('e');
-}
-
-export async function ask(question: string, fallback: boolean): Promise<boolean> {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) return fallback;
-  const rl = (await import('node:readline/promises')).createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-  try {
-    return isYes(await rl.question(`${question} ${promptMarker(fallback)} `), fallback);
-  } finally {
-    rl.close();
-  }
-}
+export { ask, isYes, promptMarker } from './io.js';
 
 export interface InstallIo {
   tty: boolean;
@@ -115,7 +97,13 @@ export async function offerImport(
     args.flags.import === true ||
     args.flags.yes === true ||
     (await io.ask(t('install.importPrompt', { tool: tool.name }), true));
-  if (yes) runImport(tool.tool as ImportSource, { command: tool.command }, cfgFile);
+  if (!yes) return;
+  const flags = {
+    allowCommands: args.flags['allow-commands'] === true,
+    yes: args.flags.yes === true,
+    dryRun: false,
+  };
+  await runImport(tool.tool as ImportSource, { command: tool.command, flags }, cfgFile, io);
 }
 
 function showPlan(io: InstallIo, plan: InstallPlan): void {
