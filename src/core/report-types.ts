@@ -88,3 +88,69 @@ export interface ScanResult {
   files: number;
   bytesRead: number;
 }
+
+export type Period = 'day' | 'week' | 'month';
+
+export const LEDGER_ZERO_USD = 0.005;
+
+export type CostSource = 'ledger' | 'transcript' | 'mixed' | null;
+
+export interface Tokens {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  total: number;
+}
+
+export interface ReportRow {
+  period: string;
+  project: string;
+  approx: boolean;
+  sessions: number;
+  tokens: Tokens | null;
+  costUsd: number | null;
+  costSource: CostSource;
+  partial: boolean;
+  activeMs: number | null;
+  costOther?: Record<string, number>;
+}
+
+export type NoteCode =
+  | 'estimate'
+  | 'ledger-since'
+  | 'unpriced'
+  | 'non-usd'
+  | 'partial'
+  | 'profile-price'
+  | 'approx-project'
+  | 'ledger-only'
+  | ScanNoteCode;
+
+export interface ReportNote {
+  code: NoteCode;
+  params?: Record<string, string | number>;
+}
+
+// subtotal rows have project '', the total row has period '' and project ''
+export interface Report {
+  period: Period;
+  since: string | null;
+  until: string | null;
+  rows: ReportRow[];
+  subtotals: ReportRow[];
+  total: ReportRow | null;
+  unpriced: { models: string[]; requests: number };
+  ledgerSince: string | null;
+  pricesUpdated: string;
+  notes: ReportNote[];
+}
+
+export type ProjectFilter = { kind: 'substring'; text: string } | { kind: 'root'; root: string };
+
+export interface RangeInput {
+  period?: string | boolean;
+  since?: string | boolean;
+  until?: string | boolean;
+  all?: boolean;
+}

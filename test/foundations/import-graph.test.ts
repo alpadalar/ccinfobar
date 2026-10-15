@@ -73,6 +73,7 @@ const PURE = [
   'src/core/profiles.ts',
   'src/core/prices.ts',
   'src/core/report-types.ts',
+  'src/core/report-model.ts',
   'src/core/jsonpath.ts',
   'src/core/http-spec.ts',
   'src/core/http-report.ts',
