@@ -526,8 +526,16 @@ function turnEnd(s: State): number | null {
   return end !== null && s.promptStart !== null && end < s.promptStart ? null : end;
 }
 
-function counts(list: [string, number][]): [string, number][] {
-  return list.map(([name, n]) => [sanitizeText(name), n]);
+// the cache is trusted only after this
+function counts(list: unknown): [string, number][] {
+  if (!Array.isArray(list)) return [];
+  const out: [string, number][] = [];
+  for (const x of list) {
+    if (!Array.isArray(x) || typeof x[0] !== 'string' || typeof x[1] !== 'number' || !Number.isFinite(x[1]))
+      continue;
+    out.push([sanitizeText(x[0]), x[1]]);
+  }
+  return out;
 }
 
 function toInfo(s: State): TranscriptInfo {

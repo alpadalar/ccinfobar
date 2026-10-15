@@ -469,4 +469,18 @@ describe('transcript tool activity', () => {
     expect(again?.sessionToolCounts).toEqual([['Read', 1]]);
     expect(again?.turnToolCounts).toEqual([['Read', 1]]);
   });
+
+  it('drops cached tool counts that are not numbers', () => {
+    const file = path.join(dir, 'tools.jsonl');
+    fs.writeFileSync(file, `${[prompt(0, 'go', 'p1'), use(1, 't1', 'Read')].join('\n')}\n`);
+    readTranscript(file, env);
+    const cdir = path.join(dir, 'cache');
+    const f = path.join(cdir, fs.readdirSync(cdir)[0]!);
+    const st = JSON.parse(fs.readFileSync(f, 'utf8'));
+    const bad = [['Read', '\u001b[31m9'], ['Edit', 2], 'x', ['Bash', null]];
+    fs.writeFileSync(f, JSON.stringify({ ...st, sessionTools: bad, turnTools: 5 }));
+    const again = readTranscript(file, env);
+    expect(again?.sessionToolCounts).toEqual([['Edit', 2]]);
+    expect(again?.turnToolCounts).toEqual([]);
+  });
 });
