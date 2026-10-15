@@ -1,0 +1,21 @@
+ccinfobar X.Y.Z
+✓ Node.js N.N.N (20+ gerekir)
+✓ Yapılandırma <tmp>/config/snapshots.json
+✗ <tmp>/claude/settings.json içindeki Claude Code statusLine: ayarlı değil
+  Dil: Türkçe (tr, kaynak: yapılandırma)
+  Manifest <tmp>/config/manifest.json: 0 kayıtlı değişiklik
+  Hook'lar: kapalı. Tur, izin ve alt ajan durumunu tam görmek için `ccinfobar install --hooks` çalıştırın.
+  Yalnızca dosya tabanlı yönetilen ayarlar denetlendi (MDM veya kayıt defteri politikaları değil)
+  Yedekler <tmp>/config/backups
+✗ Son payload <tmp>/cache/last-payload.json
+  Önbellek dizini <tmp>/cache
+  Algılanan genişlik bilinmiyor
+  Güncelleme denetimleri kapalı
+
+Arka plan işleri
+  Henüz arka plan verisi yok
+
+Bileşenler
+  Henüz payload yok. ccinfobar kuruluyken Claude Code'u bir kez kullanın ya da `ccinfobar explain --scenario <name>` deneyin.
+
+Claude Code'da etkinleştirmek için `ccinfobar install` çalıştırın.

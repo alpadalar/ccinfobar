@@ -1,0 +1,27 @@
+## preview --scenario
+Senaryolar (--scenario <name> ile kullanın):
+  fresh-session       İlk yanıttan önce yeni bir oturum
+  context-full        Bağlam penceresi yaklaşık %94 dolu
+  near-5h-limit       Beş saatlik limitin %92'si kullanıldı, 25 dakika içinde sıfırlanır
+  near-7d-limit       Haftalık limitin %80'i kullanıldı, 1 gün içinde sıfırlanır
+  many-subagents      Sekiz alt ajan: beşi çalışıyor, üçü bitti
+  gsd-project         GSD planlaması süren bir proje
+  no-git              Git deposu olmayan bir klasör
+  api-key-user        API anahtarıyla faturalandırılıyor, bu yüzden plan limiti yok
+  bedrock-user        Amazon Bedrock üzerinde Claude, bu yüzden plan limiti yok
+  gateway-glm         Z.ai Anthropic ağ geçidi üzerinden GLM-5.3, profil penceresi ve fiyatlarıyla
+  over-budget         Günlük $3 bütçe aşıldı
+  workspace-folder    Kendisi depo olmayan, birkaç depo içeren bir klasör
+  waiting-permission  Bu turdaki son izin istemi 42 sn bekledi
+  service-incident    Claude'da büyük bir sorun var: Claude Opus'ta hatalar arttı
+  pr-ci-failing       #128 numaralı pull request onaylı ama 2 CI denetimi başarısız (ci seçeneğiyle pr gösterir)
+
+## preview
+Opus 5.5 │ Çaba high │ acme-app │ feat/statusline │ +148 -37 │ Bağlam ███░░░░░░░ 34%
+v1.2 Billing │ █████░░░░░ 50% │ Aşama 4/6 Invoice export │ plan 3/5 │ sıradaki: /gsd-execute-phase 4
+$1.87 │ 5h 42% │ Sıfırlanma 2h 14m │ 7d 61%
+
+## preview --scenario near-5h-limit
+Opus 5.5 │ Çaba high │ acme-app │ feat/statusline │ +148 -37 │ Bağlam ███░░░░░░░ 34%
+kilometre taşı — │ kilometre taşı ilerlemesi — │ Aşama — │ plan — │ sıradaki: —
+$1.87 │ 5h 92% │ Sıfırlanma 25m │ 7d 61%

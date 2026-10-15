@@ -1,0 +1,63 @@
+## normal
+ ccinfobar  /tmp/cc/config.json                                                          kaydedildi
+┌─ Önizleme · örnek veri ──────────────────────────────────────────────────────────────────────────┐
+│ Opus 5.5 │ Çaba high │ acme-app │ feat/statusline │ +148 -37 │ Bağlam ███░░░░░░░ 34%             │
+│ v1.2 Billing │ █████░░░░░ 50% │ Aşama 4/6 Invoice export │ plan 3/5                              │
+│ sıradaki: /gsd-execute-phase 4                                                                   │
+│ $1.87 │ 5h 42% │ Sıfırlanma 2h 14m │ 7d 61%                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+── Satırlar · 3 satır ─────────────────────────────────────────────────────────────────────────────
+▸ 1  [Model] [Çaba] [Geçerli dizin] [Git dalı] [Git değişiklikleri] [Bağlam çubuğu]
+  2  [GSD kilometre taşı] [GSD kilometre taşı ilerleme…] [GSD aşaması] [GSD planları]
+     [GSD sıradaki adım]
+  3  [Oturum maliyeti] [Beş saatlik kullanım] [Beş saatlik sıfırlanma] [Haftalık kullanım]
+
+
+
+
+
+
+
+
+
+
+
+── Seçili ─────────────────────────────────────────────────────────────────────────────────────────
+ Model (model · Oturum ve model)
+ Geçerli modelin görünen adı
+ varsayılan stil
+ id model-1
+
+ ←→↑↓ seç  S-arrows taşı  a ekle  e düzenle  d sil  s kaydet  q çık  ? yardım  n yeni satır
+
+## picker
+ ccinfobar  /tmp/cc/config.json                                                          kaydedildi
+┌─ Önizleme · örnek veri ──────────────────────────────────────────────────────────────────────────┐
+│ Opus 5.5 │ Çaba high │ acme-app │ feat/statusline │ +148 -37 │ Bağlam ███░░░░░░░ 34%             │
+│ v1.2 Billing │ █████░░░░░ 50% │ Aşama 4/6 Invoice export │ plan 3/5                              │
+│ sıradaki: /gsd-execute-phase 4                                                                   │
+│ $1.87 │ 5h 42% │ Sıfırlanma 2h 14m │ 7d 61%                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+── Bileşen ekle ───────────────────────────────────────────────────────────────────────────────────
+ Filtre:
+ Oturum ve model
+   Model                    model                      Geçerli modelin görünen adı
+   Sağlayıcı                provider                   API sağlayıcısı: Bedrock, Vertex, bir API an…
+   Çaba                     effort                     Akıl yürütme çabası düzeyi
+   Düşünme                  thinking                   Genişletilmiş düşünmenin açık olup olmadığı
+   Hızlı mod                fast-mode                  Hızlı mod etkinken görünür
+   Çıktı stili              output-style               Etkin çıktı stili
+   Oturum adı               session-name               /rename ile verilen ya da transkriptten alın…
+   Oturum kimliği           session-id                 Oturum tanımlayıcısı
+   Claude sürümü            claude-version             Claude Code sürümü
+   Vim modu                 vim-mode                   Vim düzenleme açıkken geçerli vim modu
+   Ajan adı                 agent-name                 Etkin ajanın adı (claude --agent)
+   Beceriler                skills                     Bu oturumda kullanılan beceriler: sonuncusu,…
+   Tur süresi               turn-timer                 Geçerli turun şu ana kadarki süresi ya da so…
+   İzin bekleme             permission-wait            Bu turdaki son izin isteminin ne kadar bekle…
+ Bağlam penceresi
+   Bağlam yüzdesi           context-percentage         Bağlam penceresinin kullanılan ya da kalan k…
+   Bağlam çubuğu            context-bar                Bağlam penceresi kullanımını gösteren ilerle…
+ Geçerli modelin görünen adı
+
+ yaz filtrele  ↑↓ seç  Enter seçimden sonra ekle  Esc iptal

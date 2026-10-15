@@ -1,0 +1,111 @@
+model: Opus 5.5
+provider: (empty)
+effort: high
+thinking: açık
+fast-mode: (empty)
+output-style: (empty)
+session-name: statusline refactor
+session-id: 3f2a9c1e-7b4d-4e8a-9c2f-1a2b3c4d5e6f
+claude-version: v2.1.300
+vim-mode: INSERT
+agent-name: (empty)
+skills: (empty)
+context-percentage: yükleniyor…
+context-bar: yükleniyor…
+context-length: yükleniyor…
+context-window-size: 200k
+compactions: (empty)
+tokens-input: yükleniyor…
+tokens-output: yükleniyor…
+tokens-cached: yükleniyor…
+tokens-total: yükleniyor…
+cache-hit-rate: yükleniyor…
+cache-timer: (empty)
+cache-miss-cause: (empty)
+performance: yükleniyor…
+output-speed: (empty)
+session-cost: $0.00
+cost-today: (empty)
+cost-week: (empty)
+cost-project: (empty)
+budget: (empty)
+cost-rate: (empty)
+session-duration: 0s
+api-duration: 0s
+lines-changed: +0 -0
+message-count: (empty)
+five-hour-usage: yükleniyor…
+five-hour-reset: yükleniyor…
+weekly-usage: yükleniyor…
+weekly-reset: yükleniyor…
+weekly-model-usage: yükleniyor…
+weekly-model-reset: yükleniyor…
+spend-limit: yükleniyor…
+usage-pace: yükleniyor…
+usage-projection: yükleniyor…
+limit-eta: yükleniyor…
+limit-risk: yükleniyor…
+token-rate-graph: (empty)
+output-speed-graph: (empty)
+context-graph: (empty)
+usage-graph: (empty)
+cost-graph: (empty)
+activity-strip: (empty)
+todo-list: (empty)
+agents: (empty)
+agent-count: (empty)
+tool-activity: (empty)
+turn-timer: (empty)
+permission-wait: (empty)
+gsd-milestone: (empty)
+gsd-milestone-progress: (empty)
+gsd-phase: (empty)
+gsd-status: (empty)
+gsd-plans: (empty)
+gsd-plan-progress: (empty)
+gsd-next: (empty)
+gsd-workstream: (empty)
+gsd-blockers: (empty)
+gsd-todos: (empty)
+gsd-requirements: (empty)
+gsd-last-command: (empty)
+gsd-update: (empty)
+gsd-task: (empty)
+gsd-summary: (empty)
+git-branch: feat/statusline
+git-sha: a1b2c3d
+git-changes: +148 -37
+git-status: ● +3 ~2 ?1
+git-staged: 3
+git-unstaged: 2
+git-untracked: 1
+git-ahead-behind: ↑2 ↓0
+git-conflicts: 0
+git-stash: 1
+git-operation: (empty)
+git-repo: acme/acme-app
+git-worktree: (empty)
+pr: #128 pending
+workspace-repos: (empty)
+cwd: acme-app
+project-dir: acme-app
+clock: 12:00
+date: 2026-10-12
+hostname: (system)
+username: (system)
+memory: (system)
+env-counts: CLAUDE.md 2 · kural 3 · MCP 4 · hook 5
+load-average: (system)
+terminal-width: 120
+platform: (system)
+service-status: (empty)
+command: (empty)
+link: link
+env: (empty)
+http: (empty)
+pet: =(^·^)=
+kaomoji: (^_^)
+quip: Düşünecek bol yer var
+text: (empty)
+separator: |
+flex:

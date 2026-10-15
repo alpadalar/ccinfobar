@@ -80,7 +80,9 @@ function rootsOf(dir: string): string[] {
   return [...new Set(out.map(norm))];
 }
 
-const allowed = [...rootsOf(root), ...rootsOf(os.tmpdir())];
+// file snapshots of test/i18n/snapshots.test.ts
+const snapshots = path.join(path.dirname(fileURLToPath(import.meta.url)), 'i18n', '__snapshots__');
+const allowed = [...rootsOf(root), ...rootsOf(os.tmpdir()), ...rootsOf(snapshots)];
 
 function toPath(p: unknown): string | null {
   if (typeof p === 'string') return p;

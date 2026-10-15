@@ -1,0 +1,25 @@
+ccinfobar X.Y.Z explain
+Girdi: örnek veri (henüz kayıtlı payload yok; ccinfobar kuruluyken Claude Code'u bir kez kullanın ya da --payload veya --scenario verin)
+Genişlik: 120 sütun
+Glif modu: normal, overflow: wrap
+
+1. satır
+  ✓ model-1 (model): Opus 5.5 ← payload: model.display_name
+  ✓ effort-1 (effort): high ← payload: effort.level
+  ✓ cwd-1 (cwd): acme-app ← payload: workspace.current_dir
+  ✓ git-branch-1 (git-branch): feat/statusline ← git (canlı)
+  ✓ git-changes-1 (git-changes): +148 -37 ← git (canlı)
+  ✓ context-bar-1 (context-bar): ███░░░░░░░ 34% ← transkript, payload: context_window.context_window_size, env: provider, payload: context_window.current_usage.input_tokens, payload: context_window.current_usage.cache_creation_input_tokens, payload: context_window.current_usage.cache_read_input_tokens, payload: context_window.used_percentage
+
+2. satır
+  ✓ gsd-milestone-1 (gsd-milestone): v1.2 Billing ← GSD .planning/STATE.md
+  ✓ gsd-milestone-progress-1 (gsd-milestone-progress): █████░░░░░ 50% ← GSD .planning/STATE.md
+  ✓ gsd-phase-1 (gsd-phase): 4/6 Invoice export ← GSD .planning/STATE.md
+  ✓ gsd-plans-1 (gsd-plans): 3/5 ← GSD .planning/STATE.md
+  ✓ gsd-next-1 (gsd-next): /gsd-execute-phase 4 ← GSD .planning/STATE.md
+
+3. satır
+  ✓ session-cost-1 (session-cost): $1.87 ← payload: cost.total_cost_usd
+  ✓ five-hour-usage-1 (five-hour-usage): 42% ← payload: rate_limits.five_hour.used_percentage
+  ✓ five-hour-reset-1 (five-hour-reset): 2h 14m ← payload: rate_limits.five_hour.resets_at, saat
+  ✓ weekly-usage-1 (weekly-usage): 61% ← payload: rate_limits.seven_day.used_percentage
