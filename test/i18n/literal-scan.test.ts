@@ -33,6 +33,7 @@ const SWEPT: string[] = [
   'src/editor/detach.ts',
   'src/editor/web/api.ts',
   'src/editor/web/inspector.ts',
+  'src/editor/web/panel-inspector.ts',
   'src/widgets/activity.ts',
   'src/widgets/agents.ts',
   'src/widgets/charts.ts',
@@ -101,6 +102,12 @@ const ALLOW: Record<string, string[]> = {
     'provider in bedrock,vertex',
     // product name as a choice label
     'Nerd Font',
+  ],
+  'src/editor/web/panel-inspector.ts': [
+    // CSS classes
+    'input mono areas',
+    // grid areas example, widget types (D-13)
+    'model cwd cwd\\n---\\ngit git .',
   ],
   'src/editor/server.ts': [
     // developer-only (D-36)

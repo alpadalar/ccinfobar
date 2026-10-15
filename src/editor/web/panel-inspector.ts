@@ -1,4 +1,5 @@
 import { compareIds } from '../../core/i18n/format.js';
+import { t } from '../../core/i18n/index.js';
 import type { Config, TuiBreakpoint, TuiConfig } from '../../core/types.js';
 import { api } from './api.js';
 import { h } from './dom.js';
@@ -56,8 +57,7 @@ function validate(): void {
       const { config } = await api.normalize(S.config);
       const sent = stable(S.config.tui);
       const got = stable(config.tui);
-      note.textContent =
-        sent === got ? '' : 'Some panel values were adjusted by the validator (invalid or out of range).';
+      note.textContent = sent === got ? '' : t('pinsp.adjusted');
       note.classList.toggle('on', sent !== got);
     } catch (e) {
       note.textContent = (e as Error).message;
@@ -98,7 +98,7 @@ function tokens(): string {
     }
   }
   const all = [...new Set([...types, ...ids])].slice(0, 24);
-  return all.length ? all.map((t) => `{${t}}`).join(' ') : 'No widgets yet';
+  return all.length ? all.map((x) => `{${x}}`).join(' ') : t('pinsp.noWidgets');
 }
 
 function splitList(text: string): string[] {
@@ -120,7 +120,7 @@ function breakpointEditor(bp: TuiBreakpoint, index: number, all: TuiBreakpoint[]
     spellcheck: false,
     value: bp.areas.join('\n'),
     placeholder: 'model cwd cwd\n---\ngit git .',
-    'aria-label': 'Grid areas',
+    'aria-label': t('pinsp.gridAreas'),
     onInput: () =>
       update(
         {
@@ -135,12 +135,12 @@ function breakpointEditor(bp: TuiBreakpoint, index: number, all: TuiBreakpoint[]
   const cols = textInput((bp.columns ?? []).join(', '), (v) => update({ columns: splitList(v) }, 'cols'), {
     class: 'input mono',
     placeholder: '1fr, 2fr, auto',
-    'aria-label': 'Columns',
+    'aria-label': t('pinsp.columns'),
   });
   const align = textInput(
     (bp.align ?? []).join(', '),
     (v) => update({ align: splitList(v) as TuiBreakpoint['align'] }, 'align'),
-    { class: 'input mono', placeholder: 'left, center, right', 'aria-label': 'Align' },
+    { class: 'input mono', placeholder: 'left, center, right', 'aria-label': t('pinsp.align') },
   );
   return h(
     'div',
@@ -148,7 +148,7 @@ function breakpointEditor(bp: TuiBreakpoint, index: number, all: TuiBreakpoint[]
     h(
       'div',
       { class: 'bp-head' },
-      h('strong', null, `Breakpoint ${index + 1}`),
+      h('strong', null, t('pinsp.breakpoint', { n: index + 1 })),
       h('span', { class: 'spacer' }),
       h(
         'button',
@@ -158,20 +158,16 @@ function breakpointEditor(bp: TuiBreakpoint, index: number, all: TuiBreakpoint[]
           onClick: () =>
             setTui({ breakpoints: (S.config.tui?.breakpoints ?? all).filter((_, i) => i !== index) }),
         },
-        'Remove',
+        t('pinsp.remove'),
       ),
     ),
     field(
-      'Min width (columns)',
+      t('pinsp.minWidthColumns'),
       numberInput(bp.minWidth, (v) => update({ minWidth: Math.max(0, v ?? 0) }, 'min'), { min: 0, step: 1 }),
     ),
-    field(
-      'Areas',
-      areas,
-      'One grid row per line. Use widget types or ids, "." for empty, "---" for a divider.',
-    ),
-    field('Columns', cols, 'Comma or space separated, for example 1fr 2fr.'),
-    field('Align', align, 'left, center or right per column.'),
+    field(t('pinsp.areas'), areas, t('pinsp.areasHelp')),
+    field(t('pinsp.columns'), cols, t('pinsp.columnsHelp')),
+    field(t('pinsp.align'), align, t('pinsp.alignHelp')),
   );
 }
 
@@ -205,7 +201,7 @@ export function panelSection(): HTMLElement {
     spellcheck: false,
     value: tui.templates ? JSON.stringify(tui.templates, null, 2) : '',
     placeholder: '{ "stats": { "items": ["{session-cost}", "{five-hour-usage}"], "gap": 2 } }',
-    'aria-label': 'Templates JSON',
+    'aria-label': t('pinsp.templatesAria'),
   });
   const tplErr = h('div', { class: 'form-error', role: 'alert' });
   templates.addEventListener('input', () => {
@@ -218,7 +214,7 @@ export function panelSection(): HTMLElement {
     try {
       const parsed = JSON.parse(text) as unknown;
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-        throw new Error('Expected an object of templates');
+        throw new Error(t('pinsp.templatesObject'));
       }
       tplErr.textContent = '';
       setTui({ templates: parsed }, 'tpl');
@@ -227,46 +223,42 @@ export function panelSection(): HTMLElement {
     }
   });
 
-  const tokenHint = `Tokens: ${tokens()}`;
+  const tokenHint = t('pinsp.tokens', { list: tokens() });
   const root = h(
     'section',
     { class: 'section panel-section' },
-    h('h4', null, 'Panel'),
+    h('h4', null, t('pinsp.panel')),
     fieldWithReset(
-      'Box',
+      t('pinsp.box'),
       boxes,
       resetLink(tui.box !== undefined, () => setTui({ box: undefined })),
-      boxId
-        ? undefined
-        : typeof tui.box === 'object'
-          ? 'Custom box characters (edit the JSON config).'
-          : 'Using the theme default.',
+      boxId ? undefined : typeof tui.box === 'object' ? t('pinsp.boxCustom') : t('pinsp.boxTheme'),
     ),
     h('div', { id: 'tui-note', class: 'tui-note', role: 'status' }),
     field(
-      'Width',
+      t('pinsp.width'),
       segmented(
         [
-          { value: 'auto', label: 'Auto', title: 'Content width for line layouts, full width for grids' },
-          { value: 'content', label: 'Content', title: 'As wide as the widest line' },
-          { value: 'full', label: 'Full', title: 'As wide as the terminal allows' },
+          { value: 'auto', label: t('insp.auto'), title: t('pinsp.width.autoTitle') },
+          { value: 'content', label: t('pinsp.width.content'), title: t('pinsp.width.contentTitle') },
+          { value: 'full', label: t('pinsp.width.full'), title: t('pinsp.width.fullTitle') },
         ] as const,
         tui.fitContent === true ? 'content' : tui.fitContent === false ? 'full' : 'auto',
         (v) => setTui({ fitContent: v === 'content' ? true : v === 'full' ? false : undefined }),
       ),
-      'Auto measures the widgets as if nothing filled its cell; bars and graphs with Fill the cell then stretch inside that width.',
+      t('pinsp.widthHelp'),
     ),
     field(
-      'Dividers',
+      t('pinsp.dividers'),
       toggle(tui.dividers ?? true, (v) => setTui({ dividers: v ? undefined : false })),
-      'Draw a rule between lines.',
+      t('pinsp.dividersHelp'),
       true,
     ),
     h(
       'div',
       { class: 'two-col' },
       fieldWithReset(
-        'Min width',
+        t('pinsp.minWidth'),
         numberInput(
           tui.minWidth ?? '',
           (v) => setTui({ minWidth: v === null ? undefined : Math.max(10, v) }, 'minw'),
@@ -278,20 +270,20 @@ export function panelSection(): HTMLElement {
         resetLink(tui.minWidth !== undefined, () => setTui({ minWidth: undefined })),
       ),
       fieldWithReset(
-        'Max width',
+        t('insp.maxWidth'),
         numberInput(
           tui.maxWidth ?? '',
           (v) => setTui({ maxWidth: v === null ? undefined : Math.max(10, v) }, 'maxw'),
           {
             min: 10,
-            placeholder: 'none',
+            placeholder: t('insp.none'),
           },
         ),
         resetLink(tui.maxWidth !== undefined, () => setTui({ maxWidth: undefined })),
       ),
     ),
     fieldWithReset(
-      'Padding',
+      t('insp.padding'),
       numberInput(
         tui.padding ?? '',
         (v) => setTui({ padding: v === null ? undefined : Math.max(0, Math.min(8, v)) }, 'pad'),
@@ -302,20 +294,20 @@ export function panelSection(): HTMLElement {
         },
       ),
       resetLink(tui.padding !== undefined, () => setTui({ padding: undefined })),
-      'Spaces inside the left and right borders.',
+      t('pinsp.paddingHelp'),
     ),
     h(
       'div',
       { class: 'two-col' },
       field(
-        'Title left',
+        t('pinsp.titleLeft'),
         textInput(tui.title?.left ?? '', (v) => setTui({ title: pair('title', 'left', v) }, 'tl'), {
           class: 'input mono',
           placeholder: '{model}',
         }),
       ),
       field(
-        'Title right',
+        t('pinsp.titleRight'),
         textInput(
           typeof tui.title?.right === 'string' ? tui.title.right : '',
           (v) => setTui({ title: pair('title', 'right', v) }, 'tr'),
@@ -324,7 +316,7 @@ export function panelSection(): HTMLElement {
       ),
     ),
     field(
-      'Hide right title',
+      t('pinsp.hideRightTitle'),
       toggle(tui.title?.right === false, (v) =>
         setTui({ title: pair('title', 'right', v ? false : undefined) }),
       ),
@@ -335,14 +327,14 @@ export function panelSection(): HTMLElement {
       'div',
       { class: 'two-col' },
       field(
-        'Footer left',
+        t('pinsp.footerLeft'),
         textInput(tui.footer?.left ?? '', (v) => setTui({ footer: pair('footer', 'left', v) }, 'fl'), {
           class: 'input mono',
           placeholder: '{session-cost}',
         }),
       ),
       field(
-        'Footer right',
+        t('pinsp.footerRight'),
         textInput(tui.footer?.right ?? '', (v) => setTui({ footer: pair('footer', 'right', v) }, 'fr'), {
           class: 'input mono',
           placeholder: '{five-hour-usage}',
@@ -353,12 +345,8 @@ export function panelSection(): HTMLElement {
     h(
       'div',
       { class: 'subsection' },
-      h('h5', null, 'Grid layout'),
-      h(
-        'p',
-        { class: 'hint' },
-        'Optional responsive grid. Lines still decide which widgets render; areas decide where they sit.',
-      ),
+      h('h5', null, t('pinsp.grid')),
+      h('p', { class: 'hint' }, t('pinsp.gridHelp')),
       ...bps.map((b, i) => breakpointEditor(b, i, bps)),
       h(
         'button',
@@ -376,9 +364,9 @@ export function panelSection(): HTMLElement {
             setTui({ breakpoints: [...bps, next] });
           },
         },
-        'Add breakpoint',
+        t('pinsp.addBreakpoint'),
       ),
-      field('Templates (JSON)', templates, 'Named groups of items you can reference as areas.'),
+      field(t('pinsp.templates'), templates, t('pinsp.templatesHelp')),
       tplErr,
     ),
   );

@@ -182,6 +182,8 @@ const CASES: [string, Config, 'widget' | 'global'][] = [
   ['global tab', cfg(), 'global'],
   ['global powerline', cfg({ style: 'powerline' }), 'global'],
   ['global capsule', cfg({ style: 'capsule' }), 'global'],
+  ['global panel', cfg({ style: 'tui', tui: { breakpoints: [{ minWidth: 0, areas: ['w1'] }] } }), 'global'],
+  ['global panel, custom box', cfg({ style: 'tui', tui: { box: { tl: '+' } as any } }), 'global'],
 ];
 
 const english = new Set(
@@ -205,6 +207,14 @@ describe('web inspector text', () => {
     for (const s of ['Rendering', 'Color level', 'Reset to theme', 'Theme: " │ "', 'Change theme'])
       expect(global).toContain(s);
     expect(global).toContain('Each widget in its own color, thin bar separators');
+    for (const s of [
+      'Panel',
+      'Grid layout',
+      'Add breakpoint',
+      'Using the theme default.',
+      'Tokens: {git-branch} {w1}',
+    ])
+      expect(global).toContain(s);
   });
 
   it('uses the catalog for theme descriptions and style names', async () => {
