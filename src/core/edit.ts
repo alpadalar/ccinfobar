@@ -1,4 +1,12 @@
-import { ruleMetrics } from './conditions.js';
+import {
+  type Clause,
+  describeRuleError,
+  formatClause,
+  parseRule,
+  type RuleKey,
+  ruleMetrics,
+} from './conditions.js';
+import type { MessageId } from './i18n/index.js';
 import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
 import type {
   Align,
@@ -383,4 +391,184 @@ export function removeProfileOverride(config: Config, index: number): Config {
   const models = config.profiles?.models ?? [];
   if (!models[index]) return config;
   return withProfiles(config, { ...config.profiles, models: models.filter((_, i) => i !== index) });
+}
+
+export interface Threshold {
+  mode: 'show' | 'hide';
+  at: number;
+}
+
+export interface RuleQuick {
+  git: boolean;
+  gsd: boolean;
+  agents: boolean;
+  context: Threshold | null;
+  usage5h: Threshold | null;
+  hideProviders: string[];
+  hours: { from: number; to: number } | null;
+}
+
+export interface RuleQuickState {
+  quick: RuleQuick;
+  custom: Record<RuleKey, boolean>;
+  invalid: Record<RuleKey, string | null>;
+}
+
+export type RulePresetId = 'none' | 'git' | 'gsd' | 'agents' | 'context70' | 'usage80';
+
+export const RULE_PRESETS: readonly { id: RulePresetId; rule: string | null; label: MessageId }[] = [
+  { id: 'none', rule: null, label: 'vis.preset.none' },
+  { id: 'git', rule: 'git', label: 'vis.preset.git' },
+  { id: 'gsd', rule: 'gsd', label: 'vis.preset.gsd' },
+  { id: 'agents', rule: 'agents', label: 'vis.preset.agents' },
+  { id: 'context70', rule: 'context.pct >= 70', label: 'vis.preset.context70' },
+  { id: 'usage80', rule: 'usage.5h >= 80', label: 'vis.preset.usage80' },
+];
+
+const RULE_KEYS: RuleKey[] = ['showWhen', 'hideWhen'];
+const FLAGS = ['git', 'gsd', 'agents'] as const;
+const THRESHOLDS = [
+  ['context', 'context.pct'],
+  ['usage5h', 'usage.5h'],
+] as const;
+
+const noQuick = (): RuleQuick => ({
+  git: false,
+  gsd: false,
+  agents: false,
+  context: null,
+  usage5h: null,
+  hideProviders: [],
+  hours: null,
+});
+
+const entries = (v: unknown): string[] => (typeof v === 'string' ? [v] : Array.isArray(v) ? v : []);
+
+// true when the clause was taken into q
+function own(q: RuleQuick, key: RuleKey, c: Clause): boolean {
+  if (c.length !== 1) return false;
+  const x = c[0]!;
+  const show = key === 'showWhen';
+  if (x.kind === 'flag' && show && !x.negate) {
+    const f = FLAGS.find((n) => n === x.metric);
+    if (!f || q[f]) return false;
+    q[f] = true;
+    return true;
+  }
+  if (x.kind === 'cmp' && x.op === '>=' && x.band === undefined) {
+    const th = THRESHOLDS.find(([, m]) => m === x.metric);
+    if (!th || q[th[0]]) return false;
+    q[th[0]] = { mode: show ? 'show' : 'hide', at: x.value };
+    return true;
+  }
+  if (x.kind === 'range' && show && x.metric === 'time.hour' && !q.hours) {
+    if (typeof x.from !== 'number' || typeof x.to !== 'number') return false;
+    q.hours = { from: x.from, to: x.to };
+    return true;
+  }
+  if (!show && x.metric === 'provider' && !q.hideProviders.length) {
+    if (x.kind === 'list') q.hideProviders = [...x.values];
+    else if (x.kind === 'str' && x.op === '==') q.hideProviders = [x.value];
+    else return false;
+    return true;
+  }
+  return false;
+}
+
+function readRules(item: WidgetItem): RuleQuickState & { kept: Record<RuleKey, string[]> } {
+  const out = {
+    quick: noQuick(),
+    custom: { showWhen: false, hideWhen: false },
+    invalid: { showWhen: null, hideWhen: null } as Record<RuleKey, string | null>,
+    kept: { showWhen: [] as string[], hideWhen: [] as string[] },
+  };
+  for (const key of RULE_KEYS) {
+    if (item[key] === undefined) continue;
+    const r = parseRule(item[key]);
+    if (!r.ok) {
+      out.invalid[key] = describeRuleError(r.error);
+      continue;
+    }
+    const raw = entries(item[key]);
+    r.rule.forEach((c, i) => {
+      if (own(out.quick, key, c)) return;
+      out.custom[key] = true;
+      out.kept[key].push(raw[i]!);
+    });
+  }
+  return out;
+}
+
+export function ruleQuickState(item: WidgetItem): RuleQuickState {
+  const { quick, custom, invalid } = readRules(item);
+  return { quick, custom, invalid };
+}
+
+function ownedClauses(q: RuleQuick, key: RuleKey): string[] {
+  const mode = key === 'showWhen' ? 'show' : 'hide';
+  const out: Clause[] = [];
+  if (mode === 'show')
+    for (const f of FLAGS) if (q[f]) out.push([{ kind: 'flag', metric: f, negate: false }]);
+  for (const [k, metric] of THRESHOLDS) {
+    const th = q[k];
+    if (th?.mode === mode) out.push([{ kind: 'cmp', metric, op: '>=', value: clampInt(th.at, 0, 100) }]);
+  }
+  if (mode === 'show' && q.hours) {
+    const { from, to } = q.hours;
+    out.push([{ kind: 'range', metric: 'time.hour', from: clampInt(from, 0, 23), to: clampInt(to, 0, 23) }]);
+  }
+  if (mode === 'hide' && q.hideProviders.length) {
+    out.push([{ kind: 'list', metric: 'provider', values: q.hideProviders }]);
+  }
+  return out.map(formatClause);
+}
+
+const clampInt = (n: number, lo: number, hi: number): number =>
+  Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : lo;
+
+const ruleValue = (list: string[]): string | string[] | undefined =>
+  list.length === 0 ? undefined : list.length === 1 ? list[0] : list;
+
+export function setRuleQuick(config: Config, itemId: string, patch: Partial<RuleQuick>): Config {
+  const found = findItem(config, itemId);
+  if (!found) return config;
+  const cur = readRules(found.item);
+  const next: RuleQuick = { ...cur.quick, ...patch };
+  const update: Partial<WidgetItem> = {};
+  for (const key of RULE_KEYS) {
+    const owned = ownedClauses(next, key);
+    if (owned.join('\n') === ownedClauses(cur.quick, key).join('\n')) continue;
+    if (cur.invalid[key] !== null) return config;
+    const value = ruleValue([...owned, ...cur.kept[key]]);
+    if (value !== undefined && !parseRule(value).ok) return config;
+    update[key] = value;
+  }
+  return Object.keys(update).length ? updateItem(config, itemId, update) : config;
+}
+
+export function setItemRule(
+  config: Config,
+  itemId: string,
+  key: RuleKey,
+  text: string | string[] | undefined,
+): { ok: true; config: Config } | { ok: false; error: string } {
+  const empty = text === undefined || (typeof text === 'string' ? !text.trim() : !text.length);
+  if (empty) return { ok: true, config: updateItem(config, itemId, { [key]: undefined }) };
+  const r = parseRule(text);
+  if (!r.ok) return { ok: false, error: describeRuleError(r.error) };
+  return { ok: true, config: updateItem(config, itemId, { [key]: Array.isArray(text) ? [...text] : text }) };
+}
+
+// one line of text; ; separates entries that must all hold
+export function ruleToText(rule: unknown): string {
+  return entries(rule).join('; ');
+}
+
+export function ruleFromText(text: string): string | string[] | undefined {
+  return ruleValue(
+    text
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
 }

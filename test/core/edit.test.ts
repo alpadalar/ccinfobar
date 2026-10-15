@@ -11,15 +11,21 @@ import {
   moveLine,
   needsRefresh,
   REFRESH_SUGGEST,
+  RULE_PRESETS,
   recordStyles,
   refreshReasons,
   removeItem,
   removeLine,
   removeProfileOverride,
+  ruleFromText,
+  ruleQuickState,
+  ruleToText,
   setBudget,
+  setItemRule,
   setLineAlign,
   setOption,
   setProfilesBuiltIn,
+  setRuleQuick,
   takeStyle,
   timeRuleFeed,
   updateItem,
@@ -311,5 +317,145 @@ describe('profile edits', () => {
     let c = base;
     for (let i = 0; i < 101; i++) c = addProfileOverride(c, { match: `m${i}` });
     expect(c.profiles?.models).toHaveLength(100);
+  });
+});
+
+describe('rule edits', () => {
+  const withItem = (extra: Partial<WidgetItem>): Config => ({
+    ...defaultConfig(),
+    lines: [[{ id: 'w', type: 'text', ...extra }]],
+  });
+  const item = (c: Config) => c.lines[0]![0]!;
+  const quick = (extra: Partial<WidgetItem>) => ruleQuickState(item(withItem(extra)));
+
+  it('reads owned clauses back', () => {
+    const s = quick({ showWhen: ['git', 'context.pct >= 70'] });
+    expect(s.quick.git).toBe(true);
+    expect(s.quick.context).toEqual({ mode: 'show', at: 70 });
+    expect(s.custom).toEqual({ showWhen: false, hideWhen: false });
+    expect(s.invalid).toEqual({ showWhen: null, hideWhen: null });
+  });
+
+  it('reads hidden providers, hours and hide thresholds', () => {
+    expect(quick({ hideWhen: 'provider in bedrock,vertex' }).quick.hideProviders).toEqual([
+      'bedrock',
+      'vertex',
+    ]);
+    expect(quick({ hideWhen: 'provider == vertex' }).quick.hideProviders).toEqual(['vertex']);
+    expect(quick({ showWhen: 'time.hour in 9..18' }).quick.hours).toEqual({ from: 9, to: 18 });
+    expect(quick({ hideWhen: 'usage.5h >= 80' }).quick.usage5h).toEqual({ mode: 'hide', at: 80 });
+  });
+
+  it('marks clauses it cannot represent as custom', () => {
+    const s = quick({ showWhen: 'usage.5h >= 80 || usage.7d >= 90' });
+    expect(s.custom.showWhen).toBe(true);
+    expect(s.quick.usage5h).toBeNull();
+    expect(quick({ showWhen: '!git' }).custom.showWhen).toBe(true);
+    expect(quick({ showWhen: 'usage.5h >= 80 ~5' }).custom.showWhen).toBe(true);
+    expect(quick({ showWhen: ['git', 'git'] }).custom.showWhen).toBe(true);
+  });
+
+  it('reports an invalid rule and gives no quick values for it', () => {
+    const s = quick({ showWhen: 'contxt > 1' });
+    expect(s.invalid.showWhen).toBe('unknown metric "contxt"');
+    expect(s.custom.showWhen).toBe(false);
+  });
+
+  it('writes and removes quick clauses', () => {
+    let c = setRuleQuick(withItem({}), 'w', { git: true });
+    expect(item(c).showWhen).toBe('git');
+    c = setRuleQuick(c, 'w', { context: { mode: 'show', at: 70 } });
+    expect(item(c).showWhen).toEqual(['git', 'context.pct >= 70']);
+    c = setRuleQuick(c, 'w', { git: false, context: null });
+    expect('showWhen' in item(c)).toBe(false);
+  });
+
+  it('keeps custom clauses verbatim after the owned ones', () => {
+    const c = setRuleQuick(withItem({ showWhen: ['usage.5h >= 80   ||  usage.7d >= 90'] }), 'w', {
+      git: true,
+    });
+    expect(item(c).showWhen).toEqual(['git', 'usage.5h >= 80   ||  usage.7d >= 90']);
+  });
+
+  it('leaves an invalid key byte-identical', () => {
+    const start = withItem({ showWhen: 'contxt > 1' });
+    const c = setRuleQuick(start, 'w', { git: true });
+    expect(item(c).showWhen).toBe('contxt > 1');
+    expect(c).toEqual(start);
+  });
+
+  it('does not rewrite a key the patch does not change', () => {
+    const c = setRuleQuick(withItem({ showWhen: '  git ', hideWhen: 'gsd' }), 'w', {
+      hideProviders: ['bedrock'],
+    });
+    expect(item(c).showWhen).toBe('  git ');
+    expect(item(c).hideWhen).toEqual(['provider in bedrock', 'gsd']);
+  });
+
+  it('writes hide thresholds, providers and hours', () => {
+    let c = setRuleQuick(withItem({}), 'w', { context: { mode: 'hide', at: 90 } });
+    expect(item(c).hideWhen).toBe('context.pct >= 90');
+    expect('showWhen' in item(c)).toBe(false);
+    c = setRuleQuick(c, 'w', { context: { mode: 'show', at: 90 }, hours: { from: 9, to: 18 } });
+    expect(item(c).showWhen).toEqual(['context.pct >= 90', 'time.hour in 9..18']);
+    expect('hideWhen' in item(c)).toBe(false);
+    c = setRuleQuick(c, 'w', { hideProviders: ['bedrock', 'vertex'] });
+    expect(item(c).hideWhen).toBe('provider in bedrock,vertex');
+  });
+
+  it('round-trips through formatRule', () => {
+    const c = setRuleQuick(withItem({}), 'w', {
+      git: true,
+      gsd: true,
+      agents: true,
+      context: { mode: 'show', at: 70 },
+      usage5h: { mode: 'hide', at: 80 },
+      hideProviders: ['vertex'],
+      hours: { from: 22, to: 6 },
+    });
+    const s = ruleQuickState(item(c));
+    expect(s.quick).toEqual({
+      git: true,
+      gsd: true,
+      agents: true,
+      context: { mode: 'show', at: 70 },
+      usage5h: { mode: 'hide', at: 80 },
+      hideProviders: ['vertex'],
+      hours: { from: 22, to: 6 },
+    });
+    expect(s.custom).toEqual({ showWhen: false, hideWhen: false });
+  });
+
+  it('stores raw rule text only when it parses', () => {
+    const start = withItem({ hideWhen: 'gsd' });
+    const ok = setItemRule(start, 'w', 'showWhen', 'context.pct  >= 70');
+    expect(ok.ok && item(ok.config).showWhen).toBe('context.pct  >= 70');
+    const list = setItemRule(start, 'w', 'showWhen', ['git', 'gsd']);
+    expect(list.ok && item(list.config).showWhen).toEqual(['git', 'gsd']);
+    const bad = setItemRule(start, 'w', 'showWhen', 'contxt > 1');
+    expect(bad).toEqual({ ok: false, error: 'unknown metric "contxt"' });
+    expect(start).toEqual(withItem({ hideWhen: 'gsd' }));
+    for (const empty of ['', '  ', [], undefined]) {
+      const r = setItemRule(start, 'w', 'hideWhen', empty);
+      expect(r.ok && 'hideWhen' in item(r.config)).toBe(false);
+    }
+  });
+
+  it('converts rule text to entries and back', () => {
+    expect(ruleFromText('git;  context.pct >= 70 ;')).toEqual(['git', 'context.pct >= 70']);
+    expect(ruleFromText(' git ')).toBe('git');
+    expect(ruleFromText(' ; ')).toBeUndefined();
+    expect(ruleToText(['git', 'gsd'])).toBe('git; gsd');
+    expect(ruleToText('git')).toBe('git');
+    expect(ruleToText(undefined)).toBe('');
+  });
+
+  it('presets are valid canonical rules', () => {
+    expect(RULE_PRESETS.map((p) => p.id)).toEqual(['none', 'git', 'gsd', 'agents', 'context70', 'usage80']);
+    for (const p of RULE_PRESETS) {
+      if (p.rule === null) continue;
+      const r = setItemRule(withItem({}), 'w', 'showWhen', p.rule);
+      expect(r.ok).toBe(true);
+    }
   });
 });
