@@ -645,14 +645,14 @@ export function takeOverProjects(
 
 const fileKey = (f: string) => (process.platform === 'win32' ? realKey(f).toLowerCase() : realKey(f));
 
-// --project installs in folders .claude.json does not list
+// --project installs in folders .claude.json does not list, the home folder too
 function recordedProjects(m: Manifest, env: NodeJS.ProcessEnv): string[] {
-  const own = fileKey(claudeDir(env));
+  const user = fileKey(claudeSettingsPath(env));
   return m.entries.flatMap((e) => {
     if (e.kind !== 'statusLine' || typeof e.file !== 'string') return [];
     const dir = path.dirname(e.file);
     const local = path.basename(e.file) === 'settings.local.json' && path.basename(dir) === '.claude';
-    return local && fileKey(dir) !== own ? [path.dirname(dir)] : [];
+    return local && fileKey(e.file) !== user ? [path.dirname(dir)] : [];
   });
 }
 

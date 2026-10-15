@@ -264,6 +264,30 @@ describe('install and uninstall', () => {
     expect(read(own).statusLine.command).toBe('/bin/ccinfobar');
   });
 
+  it('releases a --project install made in the home folder and leaves user settings', () => {
+    const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-home-')));
+    const home = path.join(base, 'home');
+    const claude = path.join(home, '.claude');
+    const env = {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      CLAUDE_CONFIG_DIR: claude,
+      CCINFOBAR_CONFIG_DIR: path.join(base, 'cfg'),
+    };
+    fs.mkdirSync(claude, { recursive: true });
+    fs.writeFileSync(path.join(claude, '.claude.json'), JSON.stringify({ projects: {} }));
+    const user = claudeSettingsPath(env);
+    const local = projectSettingsPath(home);
+    for (const file of [user, local]) {
+      fs.writeFileSync(file, JSON.stringify({ statusLine: { type: 'command', command: 'my-line' } }));
+      applyInstall(planInstall({ file, command: '/bin/ccinfobar', env }), { confirmed: true, env });
+    }
+    expect(releaseProjects(env)).toEqual([home]);
+    expect(read(local).statusLine.command).toBe('my-line');
+    expect(read(user).statusLine.command).toBe('/bin/ccinfobar');
+  });
+
   it('never releases or shadows by substring', () => {
     const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-own-')));
     const claude = path.join(base, 'claude');
