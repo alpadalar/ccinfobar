@@ -49,14 +49,25 @@ export function ancestors(start: string, p: path.PlatformPath = path): string[] 
   return out;
 }
 
-// ignores GIT_DIR and GIT_WORK_TREE on purpose; follows a symlinked .git like readHead
-export function insideRepo(start: string, p: path.PlatformPath = path): string | null {
+// follows symlinks; never spawns git
+export function findUp(
+  start: string,
+  name: string,
+  kind: 'any' | 'dir',
+  p: path.PlatformPath = path,
+): string | null {
   for (const d of ancestors(start, p)) {
     try {
-      if (fs.statSync(p.join(d, '.git'), { throwIfNoEntry: false })) return d;
+      const st = fs.statSync(p.join(d, name), { throwIfNoEntry: false });
+      if (st && (kind === 'any' || st.isDirectory())) return d;
     } catch {}
   }
   return null;
+}
+
+// ignores GIT_DIR and GIT_WORK_TREE on purpose; follows a symlinked .git like readHead
+export function insideRepo(start: string, p: path.PlatformPath = path): string | null {
+  return findUp(start, '.git', 'any', p);
 }
 
 // nonblocking open, so a FIFO never hangs the render

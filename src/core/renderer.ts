@@ -12,6 +12,7 @@ import {
   truncate,
   visibleWidth,
 } from './ansi.js';
+import { hasItemRules, ruleDecision } from './metrics.js';
 import { renderPanel } from './panel.js';
 import {
   resolveTheme,
@@ -149,7 +150,7 @@ export function workspaceMode(ctx: RenderContext): boolean {
   for (const item of ctx.config.lines.flat()) {
     if (item.type !== 'workspace-repos' || !opt(item, 'hideGitPlaceholders', true)) continue;
     const def = getWidget(item.type);
-    if (def && renderValue(ctx, def, item)) return true;
+    if (def && visible(ctx, item) && renderValue(ctx, def, item)) return true;
   }
   return false;
 }
@@ -162,9 +163,13 @@ export function hidesWhenEmpty(def: WidgetDef, item: WidgetItem): boolean {
   return item.hideEmpty ?? def.hideWhenEmpty === true;
 }
 
+export function visible(ctx: RenderContext, item: WidgetItem): boolean {
+  return !hasItemRules(item) || ruleDecision(ctx, item).visible;
+}
+
 export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
   const def = getWidget(item.type);
-  if (!def) return null;
+  if (!def || !visible(ctx, item)) return null;
   const flex = def.type === 'flex';
   let out = renderValue(ctx, def, item);
   let empty = false;
