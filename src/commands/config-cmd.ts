@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
 import type { Args } from '../cli/args.js';
+import { applyLanguage } from '../cli/lang.js';
 import { describeRuleError, validateRule } from '../core/conditions.js';
 import {
   ConfigBrokenError,
@@ -104,6 +105,7 @@ export function runConfig(args: Args, cfgFile: string, io: ConfigIo = STD_IO): v
       broken(loaded.issue);
       return;
     }
+    applyLanguage(loaded.config);
     // no file yet: start from what the user sees
     const raw = inspected ? inspected.raw : plain(loaded.config);
 

@@ -16,6 +16,11 @@ export const doctorMessages = {
   'doctor.priorityTui':
     '  "overflow": "priority" tui stiline uygulanmaz; panel hücreleri kendi kırılma noktalarını kullanır.',
   'doctor.columnNote': '  (sütunlar UTF-16 kod birimi olarak sayılır)',
+  'doctor.language': '  Dil: {name} ({id}, kaynak: {source})',
+  'doctor.languageFrom.config': 'yapılandırma',
+  'doctor.languageFrom.Intl': 'sistem yerel ayarı',
+  'doctor.languageFrom.default': 'varsayılan',
+  'doctor.languageDropped': '⚠ language "{value}" desteklenmiyor ve yok sayılıyor ({values} kullanın)',
   'doctor.unknownWidget': '⚠ {line}. satırda bilinmeyen bileşen türü "{type}"',
   'doctor.badOption': '⚠ {type}: "{key}" seçeneğinin değeri desteklenmiyor',
   'doctor.badRule': '⚠ Bileşen {id}: {key} yok sayıldı ({problem})',

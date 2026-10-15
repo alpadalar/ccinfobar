@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll } from 'vitest';
+import { resetLanguageCache } from '../src/cli/lang.js';
 import { defaultConfig } from '../src/core/config.js';
 import { createContext } from '../src/core/context.js';
-import { type LanguageDef, type LanguageId, withLanguage } from '../src/core/i18n/index.js';
+import { activeLanguage, type LanguageDef, type LanguageId, withLanguage } from '../src/core/i18n/index.js';
 import {
   sampleAgents,
   sampleEnvironment,
@@ -25,6 +26,20 @@ export const NOW = new Date('2026-10-12T12:00:00Z');
 
 export function withLang<T>(lang: LanguageId | LanguageDef, fn: () => T): T {
   return withLanguage(lang, fn);
+}
+
+// CCINFOBAR_LANG for code that resolves the env language itself
+export function withEnvLang<T>(lang: string, fn: () => T): T {
+  const prev = process.env.CCINFOBAR_LANG;
+  process.env.CCINFOBAR_LANG = lang;
+  resetLanguageCache();
+  try {
+    return withLanguage(activeLanguage(), fn);
+  } finally {
+    if (prev === undefined) delete process.env.CCINFOBAR_LANG;
+    else process.env.CCINFOBAR_LANG = prev;
+    resetLanguageCache();
+  }
 }
 
 export function withTz<T>(tz: string, fn: () => T): T {

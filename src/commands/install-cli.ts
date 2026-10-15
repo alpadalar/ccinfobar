@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
+import { applyLanguage } from '../cli/lang.js';
 import { loadConfig, saveConfig } from '../core/config.js';
 import { refreshReasons, timeRuleFeed } from '../core/edit.js';
 import { type MessageId, t } from '../core/i18n/index.js';
@@ -291,7 +292,13 @@ function badPositional(args: Args, io: InstallIo): boolean {
   return true;
 }
 
+function configLanguage(cfgFile: string): void {
+  const loaded = loadConfig(cfgFile);
+  if (!loaded.issue) applyLanguage(loaded.config);
+}
+
 export async function runInstall(args: Args, cfgFile: string, io: InstallIo = defaultIo()): Promise<void> {
+  configLanguage(cfgFile);
   if (badPositional(args, io)) return;
   const dryRun = args.flags['dry-run'] === true;
   const project = !!args.flags.project;
@@ -493,6 +500,7 @@ const hasProgressHandlers = (file: string) =>
   findHookEntries(readManifest(), file).some((e) => e.role === 'progress');
 
 export async function runUninstall(args: Args, cfgFile: string, io: InstallIo = defaultIo()): Promise<void> {
+  configLanguage(cfgFile);
   if (badPositional(args, io)) return;
   const hooksOnly = args.flags.hooks !== undefined && args.flags.hooks !== false;
   const progressOnly = args.flags.progress === true;

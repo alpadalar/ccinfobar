@@ -1,4 +1,5 @@
 import type { Args } from '../cli/args.js';
+import { applyLanguage } from '../cli/lang.js';
 import { loadForUse } from '../core/load.js';
 import { claudeSettingsPath } from '../core/paths.js';
 import { VERSION } from '../core/version.js';
@@ -90,6 +91,8 @@ export async function manualUpdate(current: string, checkOnly: boolean): Promise
 }
 
 export async function runUpdate(args: Args, cfgFile: string): Promise<void> {
+  const loaded = loadForUse(cfgFile);
+  if (!loaded.issue) applyLanguage(loaded.config);
   if (args.flags.background) {
     const env = process.env;
     if (jobOff(updateJob.network, env)) return;
@@ -97,7 +100,7 @@ export async function runUpdate(args: Args, cfgFile: string): Promise<void> {
     const req = prev?.param ? { key: 'update', param: prev.param } : { key: 'update' };
     const ctx = {
       env,
-      config: loadForUse(cfgFile).config,
+      config: loaded.config,
       cwd: process.cwd(),
       prev,
       fetch: globalThis.fetch,

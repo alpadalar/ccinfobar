@@ -14,7 +14,7 @@ import type { StatusPayload } from '../../src/core/types.js';
 import { httpKey } from '../../src/data/jobs/keys.js';
 import { failEnvelope, jobsDir, okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
 import { usageFile, usageKey } from '../../src/data/usage.js';
-import { withLang } from '../helpers.js';
+import { withEnvLang, withLang } from '../helpers.js';
 
 const cfgFile = (name: string, text: string) => {
   const dir = configDir();
@@ -217,6 +217,64 @@ describe('commandWarnings', () => {
   });
 });
 
+describe('runDoctor language', () => {
+  const lines = (file: string, lang = 'tr') => withEnvLang(lang, () => capture(() => runDoctor(file)));
+
+  it('follows CCINFOBAR_LANG and says where the language came from', () => {
+    const out = lines(cfgFile('lang-auto.json', JSON.stringify({ lines: [[{ type: 'model' }]] })));
+    expect(out).toContain('  Dil: Türkçe (tr, kaynak: CCINFOBAR_LANG)');
+    expect(out).toContain(withLang('tr', () => t('doctor.backups', { dir: tildify(backupsDir()) })));
+  });
+
+  it('lets the config language win over the env', () => {
+    const out = lines(
+      cfgFile('lang-en.json', JSON.stringify({ language: 'en', lines: [[{ type: 'model' }]] })),
+    );
+    expect(out).toContain('  Language: English (en, from config)');
+    expect(out).toContain(t('doctor.backups', { dir: tildify(backupsDir()) }));
+  });
+
+  it('names LC_ALL and the system locale', () => {
+    const file = cfgFile('lang-c.json', JSON.stringify({ lines: [] }));
+    expect(capture(() => runDoctor(file))).toContain('  Language: English (en, from LC_ALL)');
+    vi.stubEnv('LANG', '');
+    vi.stubEnv('LC_ALL', '');
+    try {
+      const out = withEnvLang('', () => capture(() => runDoctor(file)));
+      expect(out.some((l) => /^ {2}Language: English \(en, from (system locale|default)\)$/.test(l))).toBe(
+        true,
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('reports a dropped language value, sanitized', () => {
+    const bad = (value: unknown) =>
+      lines(cfgFile('lang-bad.json', JSON.stringify({ language: value, lines: [] })), '').filter((l) =>
+        l.startsWith('⚠ language'),
+      );
+    expect(bad('klingon')).toEqual([
+      '⚠ language "klingon" is not supported and is ignored (use auto, en, tr)',
+    ]);
+    const [esc] = bad('x\u001b]0;pwn\u0007y');
+    expect(esc).toBeDefined();
+    expect(esc).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/);
+    expect(bad(5)).toEqual(['⚠ language "5" is not supported and is ignored (use auto, en, tr)']);
+    expect(bad('TR')).toEqual([]);
+    expect(
+      lines(cfgFile('lang-none.json', JSON.stringify({ lines: [] })), '').some((l) =>
+        l.startsWith('⚠ language'),
+      ),
+    ).toBe(false);
+  });
+
+  it('prints the dropped value in Turkish under a Turkish env', () => {
+    const out = lines(cfgFile('lang-bad-tr.json', JSON.stringify({ language: 'xx', lines: [] })));
+    expect(out).toContain('⚠ language "xx" desteklenmiyor ve yok sayılıyor (auto, en, tr kullanın)');
+  });
+});
+
 describe('runDoctor install report', () => {
   const plain = () => cfgFile('plain.json', JSON.stringify({ lines: [[{ type: 'model' }]] }));
 
@@ -293,7 +351,7 @@ describe('runDoctor install report', () => {
     try {
       const line = () => capture(() => runDoctor(plain())).find((l) => l.startsWith('✓ Up to date')) ?? '';
       expect(line()).toContain('last checked Oct 14, 2026, 21:07)');
-      expect(withLang('tr', line)).toContain('last checked 14 Eki 2026 21:07)');
+      expect(withEnvLang('tr', line)).toContain('last checked 14 Eki 2026 21:07)');
     } finally {
       vi.unstubAllEnvs();
       fs.rmSync(upd, { force: true });

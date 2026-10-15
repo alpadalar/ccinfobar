@@ -1,11 +1,13 @@
 import fs from 'node:fs';
+import { applyLanguage } from '../cli/lang.js';
 import { describeRuleError, validateRule } from '../core/conditions.js';
 import type { LoadResult } from '../core/config.js';
 import { refreshReasons, timeRuleFeed } from '../core/edit.js';
 import { describeHeaders, redactUrl } from '../core/http-report.js';
 import { httpRefusal, isLoopback, parseHeaderSpec, parseUrlTemplate } from '../core/http-spec.js';
 import { formatDateTime } from '../core/i18n/format.js';
-import { languageLocale, t } from '../core/i18n/index.js';
+import { languageLocale, type MessageId, type Resolved, t } from '../core/i18n/index.js';
+import { LANGUAGE_SETTINGS, nativeName } from '../core/i18n/languages.js';
 import { type InspectRow, inspectRows, lineReport, sessionNotes } from '../core/inspect.js';
 import { parsePath } from '../core/jsonpath.js';
 import { loadForUse } from '../core/load.js';
@@ -75,6 +77,22 @@ function validOption(spec: OptionSpec, v: unknown): boolean {
 }
 
 const safe = (v: unknown): string => sanitizeText(typeof v === 'string' ? v : String(JSON.stringify(v)));
+
+const FROM: Partial<Record<Resolved['source'], MessageId>> = {
+  config: 'doctor.languageFrom.config',
+  Intl: 'doctor.languageFrom.Intl',
+  default: 'doctor.languageFrom.default',
+};
+
+export function languageLine(r: Resolved): string {
+  const id = FROM[r.source];
+  return t('doctor.language', { name: nativeName(r.id), id: r.id, source: id ? t(id) : r.source });
+}
+
+export function droppedLanguage(raw: unknown, config: Config): string | null {
+  if (!isRecord(raw) || raw.language === undefined || config.language !== undefined) return null;
+  return t('doctor.languageDropped', { value: safe(raw.language), values: LANGUAGE_SETTINGS.join(', ') });
+}
 
 export function configWarnings(raw: unknown): string[] {
   const out: string[] = [];
@@ -371,6 +389,7 @@ function printJobs(config: Config, env: NodeJS.ProcessEnv, now: number): void {
 export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {}): void {
   const ok = (b: boolean) => (b ? '✓' : '✗');
   const loaded = loadForUse(cfgFile);
+  const lang = applyLanguage(loaded.issue ? undefined : loaded.config);
   const sl = (() => {
     try {
       return currentStatusLine();
@@ -395,6 +414,8 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
   else if (loaded.exists) {
     const raw = rawConfig(loaded.path);
     for (const w of configWarnings(raw)) console.log(w);
+    const dropped = droppedLanguage(raw, loaded.config);
+    if (dropped) console.log(dropped);
     for (const l of httpReport(raw)) console.log(l);
   }
   console.log(
@@ -413,6 +434,7 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
     console.log(t('doctor.priorityTui'));
   if (/JetBrains/.test(process.env.TERMINAL_EMULATOR ?? '') && (cfg.glyphMode ?? 'normal') === 'normal')
     console.log(t('doctor.jetbrains'));
+  console.log(languageLine(lang));
   if (manifest.readOnly) console.log(`⚠ ${t('install.manifestReadOnly', { file: tildify(manifestFile()) })}`);
   else {
     console.log(t('doctor.manifest', { file: tildify(manifestFile()), count: manifest.entries.length }));

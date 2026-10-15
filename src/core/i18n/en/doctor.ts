@@ -13,6 +13,11 @@ export const doctorMessages = {
   'doctor.priorityTui':
     '  "overflow": "priority" does not apply to the tui style; panel cells use their own breakpoints.',
   'doctor.columnNote': '  (columns count UTF-16 code units)',
+  'doctor.language': '  Language: {name} ({id}, from {source})',
+  'doctor.languageFrom.config': 'config',
+  'doctor.languageFrom.Intl': 'system locale',
+  'doctor.languageFrom.default': 'default',
+  'doctor.languageDropped': '⚠ language "{value}" is not supported and is ignored (use {values})',
   'doctor.unknownWidget': '⚠ Unknown widget type "{type}" on line {line}',
   'doctor.badOption': '⚠ {type}: option "{key}" has an unsupported value',
   'doctor.badRule': '⚠ Widget {id}: {key} is ignored ({problem})',

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
+import { applyLanguage } from '../cli/lang.js';
 import { loadForUse } from '../core/load.js';
 import { executeJob, type Job, jobOff, releaseLock } from '../data/jobs/runner.js';
 import { legacyDirtyFile, reposKey } from '../data/repos.js';
@@ -17,6 +18,7 @@ export async function runRepos(args: Args, cfgFile: string, jobs: Job<unknown>[]
   try {
     const loaded = loadForUse(cfgFile);
     if (loaded.issue || loaded.error) return;
+    applyLanguage(loaded.config);
     const input = { config: loaded.config, env, cwd: root };
     const reposJob = jobs.find((j) => j.keyRe.test(req.key));
     if (!reposJob?.paramRe?.test(root) || jobOff(reposJob.network, env) || !reposJob.accepts(req, input))

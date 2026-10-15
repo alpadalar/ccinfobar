@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
-import { t } from '../core/i18n/index.js';
+import { applyLanguage } from '../cli/lang.js';
+import { t, withLanguage } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { configDir } from '../core/paths.js';
 import { scenarioFlag, scenarioListLines } from '../core/preview.js';
@@ -246,6 +247,7 @@ export function runBench(opts: BenchOptions, io: CliIo = cliIo()): number {
   }
   const loaded = loadForUse(opts.cfgFile);
   if (reportConfigIssue(loaded, io)) return 1;
+  applyLanguage(loaded.config);
   const entry = opts.entry ?? process.argv[1];
   if (!entry) {
     io.error(t('bench.noEntry'));
@@ -347,27 +349,29 @@ function report(
   const sys = { type: os.type(), platform: process.platform, arch: process.arch, release: os.release() };
   if (r.json) {
     io.log(
-      JSON.stringify({
-        schema: 1,
-        version: VERSION,
-        node: process.version,
-        os: sys,
-        cpu,
-        priority: prio,
-        scenario: r.scenario,
-        runs: r.runs,
-        gitRepo: r.gitRepo,
-        rows: r.rows.map(([name, s]) => ({
-          name,
-          n: s.n,
-          median: round(s.median),
-          p95: round(s.p95),
-          min: round(s.min),
-          max: round(s.max),
-        })),
-        overheadMs: round(r.overheadMs),
-        hookOverheadMs: round(r.hookOverheadMs),
-      }),
+      withLanguage('en', () =>
+        JSON.stringify({
+          schema: 1,
+          version: VERSION,
+          node: process.version,
+          os: sys,
+          cpu,
+          priority: prio,
+          scenario: r.scenario,
+          runs: r.runs,
+          gitRepo: r.gitRepo,
+          rows: r.rows.map(([name, s]) => ({
+            name,
+            n: s.n,
+            median: round(s.median),
+            p95: round(s.p95),
+            min: round(s.min),
+            max: round(s.max),
+          })),
+          overheadMs: round(r.overheadMs),
+          hookOverheadMs: round(r.hookOverheadMs),
+        }),
+      ),
     );
     return;
   }

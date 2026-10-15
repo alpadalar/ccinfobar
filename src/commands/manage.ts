@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
+import { applyLanguage } from '../cli/lang.js';
 import { stripAnsi, visibleWidth } from '../core/ansi.js';
 import { GLYPH_MODES, type LoadResult, saveConfig } from '../core/config.js';
 import { resolveGlyphMode } from '../core/glyphs.js';
@@ -145,8 +146,9 @@ export function runPreview(args: Args, cfgFile: string, io: CliIo = cliIo()): vo
   const env = process.env;
   const forced = env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '0';
   const plain = (!io.tty && !forced) || !!env.NO_COLOR || env.FORCE_COLOR === '0';
-  const loaded = loadForUse(cfgFile).config;
-  const config = glyphMode ? { ...loaded, glyphMode } : loaded;
+  const loaded = loadForUse(cfgFile);
+  if (!loaded.issue) applyLanguage(loaded.config);
+  const config = glyphMode ? { ...loaded.config, glyphMode } : loaded.config;
   const pasteSafe = resolveGlyphMode(config, env) === 'paste-safe';
   for (const raw of renderPreview(config, source, width)) {
     const line = pasteSafe ? finalizeLine(raw, { pasteSafe }) : raw;
@@ -159,7 +161,9 @@ const clean = (v: unknown): string => sanitizeText(String(v ?? ''));
 export function runThemes(args: Args, cfgFile: string): void {
   const width =
     typeof args.flags.width === 'string' ? Number(args.flags.width) : (process.stdout.columns ?? 120);
-  const current = loadForUse(cfgFile).config;
+  const loaded = loadForUse(cfgFile);
+  if (!loaded.issue) applyLanguage(loaded.config);
+  const current = loaded.config;
   if (args.flags.list === true) {
     for (const t of listThemes()) {
       console.log(`${clean(t.id)}  ${clean(t.name)}${t.id === current.theme ? '  (current)' : ''}`);
@@ -198,6 +202,7 @@ export function reportIssue(loaded: LoadResult): boolean {
 export function runTheme(args: Args, cfgFile: string): void {
   const loaded = loadForUse(cfgFile);
   if (reportIssue(loaded)) return;
+  applyLanguage(loaded.config);
   if (args.positional[0] === 'new' || args.positional[0] === 'create') {
     const id = args.positional[1];
     if (!id) {
@@ -244,6 +249,8 @@ export function runWidgets(_args: Args, _cfgFile: string): void {
 }
 
 export async function runUsage(args: Args, cfgFile: string, jobs: Job<unknown>[]): Promise<void> {
+  const loaded = loadForUse(cfgFile);
+  if (!loaded.issue) applyLanguage(loaded.config);
   if (args.flags.background) {
     const key = usageKey();
     const job = jobs.find((j) => j.keyRe.test(key));
@@ -253,7 +260,7 @@ export async function runUsage(args: Args, cfgFile: string, jobs: Job<unknown>[]
       { key },
       {
         env: process.env,
-        config: loadForUse(cfgFile).config,
+        config: loaded.config,
         cwd: process.cwd(),
         prev: job.readPrev?.(key, process.env) ?? null,
         fetch,

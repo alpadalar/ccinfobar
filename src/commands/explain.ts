@@ -2,12 +2,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
+import { applyLanguage } from '../cli/lang.js';
 import { progressChannel, progressTarget } from '../cli/progress.js';
 import type { LoadResult } from '../core/config.js';
 import { createContext, lazy, resolveCwd } from '../core/context.js';
 import { resolveGlyphMode } from '../core/glyphs.js';
 import { describeHeaders, redactUrl } from '../core/http-report.js';
-import { t } from '../core/i18n/index.js';
+import { t, withLanguage } from '../core/i18n/index.js';
 import {
   type InspectMeta,
   type InspectRow,
@@ -657,6 +658,7 @@ export function runExplain(args: Args, cfgFile: string, io: CliIo = cliIo()): vo
     process.exitCode = 1;
     return;
   }
+  applyLanguage(loaded.config);
   let data: InspectInput | null;
   try {
     data = loadInspectInput({
@@ -737,6 +739,11 @@ function detailLines(data: InspectInput, r: InspectRow, reveal: boolean): string
   return out;
 }
 
+function englishCtx(ctx: RenderContext): RenderContext {
+  const { language, ...config } = ctx.config;
+  return language === undefined ? ctx : { ...ctx, config };
+}
+
 function printExplain(
   data: InspectInput,
   io: CliIo,
@@ -744,11 +751,15 @@ function printExplain(
   json: boolean,
   reveal: boolean,
 ): void {
-  const rows = inspectRows(data.ctx, {
-    meta: data.meta,
-    ...(data.commandEnv ? { commandEnv: data.commandEnv } : {}),
+  const ctx = json ? englishCtx(data.ctx) : data.ctx;
+  const compute = () => ({
+    rows: inspectRows(ctx, { meta: data.meta, ...(data.commandEnv ? { commandEnv: data.commandEnv } : {}) }),
+    lines: lineReport(data.commandEnv ? { ...ctx, env: data.commandEnv } : ctx),
+    modes: explainModes(ctx),
+    progress: explainProgress(ctx),
   });
-  const lines = lineReport(data.commandEnv ? { ...data.ctx, env: data.commandEnv } : data.ctx);
+  // json stays English (D-13)
+  const { rows, lines, modes, progress } = json ? withLanguage('en', compute) : compute();
   const picked = id === undefined ? rows : pick(rows, id);
   if (id !== undefined && !picked.length) {
     io.error(t('explain.noMatch', { id: sanitizeText(id) }));
@@ -756,8 +767,6 @@ function printExplain(
     process.exitCode = 1;
     return;
   }
-  const modes = explainModes(data.ctx);
-  const progress = explainProgress(data.ctx);
   if (json) {
     io.log(JSON.stringify(explainJson(data.input, picked, lines, data.width, modes, progress), null, 2));
     return;
