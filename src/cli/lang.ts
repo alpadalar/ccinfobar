@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { inspectConfigText } from '../core/config.js';
 import { type Resolved, setLanguage } from '../core/i18n/index.js';
 import { asciiLower, isLanguageId, loadLanguage } from '../core/i18n/languages.js';
-import { resolveLanguage } from '../core/i18n/resolve.js';
+import { languageOf, resolveLanguage } from '../core/i18n/resolve.js';
 import type { Config } from '../core/types.js';
 
 type Env = Record<string, string | undefined>;
@@ -10,8 +10,14 @@ type LanguagePick = Pick<Config, 'language'>;
 
 let envResult: Resolved | null = null;
 
+// auto or a value naming no language leaves the locale chain
+function ownHint(v: string | undefined): string | undefined {
+  const s = v?.trim();
+  return s && asciiLower(s) !== 'auto' && languageOf(s) ? s : undefined;
+}
+
 export function envHints(env: Env = process.env): (string | undefined)[] {
-  return [env.CCINFOBAR_LANG, env.LC_ALL, env.LC_MESSAGES, env.LANG];
+  return [ownHint(env.CCINFOBAR_LANG), env.LC_ALL, env.LC_MESSAGES, env.LANG];
 }
 
 // Intl.DateTimeFormat() costs ~12 ms cold; PluralRules gives the same default in ~0.2 ms

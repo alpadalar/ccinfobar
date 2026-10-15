@@ -234,6 +234,19 @@ describe('runDoctor language', () => {
     expect(out).toContain(withLang('tr', () => t('doctor.backups', { dir: tildify(backupsDir()) })));
   });
 
+  it('reads past CCINFOBAR_LANG=auto to LANG', () => {
+    const file = cfgFile('lang-auto-env.json', JSON.stringify({ lines: [] }));
+    vi.stubEnv('LC_ALL', '');
+    vi.stubEnv('LANG', 'tr_TR.UTF-8');
+    try {
+      for (const v of ['auto', 'AUTO', '!!']) {
+        expect(lines(file, v)).toContain('  Dil: Türkçe (tr, kaynak: LANG)');
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('lets the config language win over the env', () => {
     const out = lines(
       cfgFile('lang-en.json', JSON.stringify({ language: 'en', lines: [[{ type: 'model' }]] })),

@@ -14,8 +14,24 @@ afterEach(() => {
 
 describe('envHints', () => {
   it('reads the four variables in order', () => {
-    const env = { LANG: 'd', LC_MESSAGES: 'c', LC_ALL: 'b', CCINFOBAR_LANG: 'a', OTHER: 'x' };
-    expect(envHints(env)).toEqual(['a', 'b', 'c', 'd']);
+    const env = { LANG: 'd', LC_MESSAGES: 'c', LC_ALL: 'b', CCINFOBAR_LANG: 'tr', OTHER: 'x' };
+    expect(envHints(env)).toEqual(['tr', 'b', 'c', 'd']);
+  });
+
+  it.each(['auto', 'AUTO', ' Auto ', '', '  ', '!!', 'a'])('treats CCINFOBAR_LANG=%j as unset', (v) => {
+    expect(envHints({ CCINFOBAR_LANG: v, LANG: 'tr_TR.UTF-8' })[0]).toBeUndefined();
+    expect(envLanguage({ CCINFOBAR_LANG: v, LANG: 'tr_TR.UTF-8' })).toEqual({ id: 'tr', source: 'LANG' });
+  });
+
+  it('keeps an explicit language or C in CCINFOBAR_LANG', () => {
+    expect(envLanguage({ CCINFOBAR_LANG: 'C', LANG: 'tr_TR.UTF-8' })).toEqual({
+      id: 'en',
+      source: 'CCINFOBAR_LANG',
+    });
+    expect(envLanguage({ CCINFOBAR_LANG: 'de', LANG: 'tr_TR.UTF-8' })).toEqual({
+      id: 'en',
+      source: 'CCINFOBAR_LANG',
+    });
   });
 });
 

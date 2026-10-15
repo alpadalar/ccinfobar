@@ -85,7 +85,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The web editor's Settings has a Terminal progress section (on/off, source, scale, warning levels, channel), and the TUI has the same options. The web switch saves `progress.enabled` together with the hook handlers and is not part of undo
 - Turkish: the status line, the CLI (`--help`, `doctor`, `explain`, `preview` and the other commands), the web editor and the terminal editor, including widget names and options, themes, presets and scenarios. JSON output stays English
 - `language` setting (`auto`, `en`, `tr`; default `auto`), also settable with `ccinfobar config set language tr`; `ccinfobar init --force`, preset apply and import keep it
-- `CCINFOBAR_LANG` forces the display language for one run while `language` is `auto`
+- `CCINFOBAR_LANG` forces the display language for one run while `language` is `auto`; `CCINFOBAR_LANG=auto` leaves it to the locale
 - A Language select in the web editor's Settings (Auto, English, Türkçe) and a Language field in the terminal editor (`ccinfobar tui`); both switch the editor at once
 - `doctor` shows the display language and where it came from, and warns about an unsupported `language` value
 

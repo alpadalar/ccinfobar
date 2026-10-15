@@ -211,7 +211,7 @@ With `auto` (or no `language` key) ccinfobar picks the language from the first o
 5. the system locale
 6. English
 
-The first non-empty variable decides, even when it names a language ccinfobar does not have; then you get English. `C` and `POSIX` mean English. Tags such as `tr`, `tr_TR.UTF-8` or `tr-TR` select Turkish.
+The first non-empty variable decides, even when it names a language ccinfobar does not have; then you get English. `CCINFOBAR_LANG=auto`, or a value that names no language, counts as not set. `C` and `POSIX` mean English. Tags such as `tr`, `tr_TR.UTF-8` or `tr-TR` select Turkish.
 
 ```json
 { "language": "tr" }
