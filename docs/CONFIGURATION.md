@@ -188,7 +188,7 @@ With `priority`, each widget has a `priority` from 0 to 100; higher stays longer
 | `glyphMode` | What it does |
 | --- | --- |
 | `normal` (default) | Today's output |
-| `single-width` | Emoji icons become text, emoji ccinfobar prints get a one-column form where one exists (`✅` becomes `✔`), emoji with a variation selector become their text form and fullwidth letters become ASCII. CJK text cannot be folded and counts as 2 |
+| `single-width` | Emoji icons become text, emoji ccinfobar prints get a one-column form where one exists (`✅` becomes `✔`), a single emoji with a variation selector becomes its text form (joined sequences such as the rainbow flag and keycaps stay whole and count as 2) and fullwidth letters become ASCII. CJK text cannot be folded and counts as 2 |
 | `paste-safe` | Everything `single-width` does, plus no Nerd Font glyphs (separators and caps fall back as with `charset: "text"`), and no links. `ccinfobar preview` then prints plain spaces; the live status line keeps non-breaking spaces in every mode, because Claude Code trims and collapses plain ones. Colors stay. Use it for status lines you paste into a GitHub issue or code block |
 | `jetbrains` | Emoji count as one column, the way JetBrains terminals draw them |
 | `auto` | `jetbrains` when `TERMINAL_EMULATOR` contains `JetBrains`, else `normal` |

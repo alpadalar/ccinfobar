@@ -144,6 +144,23 @@ describe('foldText', () => {
     for (const [k, v] of NARROW) expect(visibleWidthIn(v, NORMAL_WIDTH), k).toBe(1);
   });
 
+  it('keeps VS16 inside ZWJ sequences and keycaps (WR-07)', () => {
+    const seqs = [
+      '\u{1F3F3}\uFE0F\u200D\u{1F308}',
+      '\u2764\uFE0F\u200D\u{1F525}',
+      '\u{1F3F3}\uFE0F\u200D\u26A7\uFE0F',
+      '\u{1F441}\uFE0F\u200D\u{1F5E8}\uFE0F',
+      '#\uFE0F\u20E3',
+    ];
+    for (const m of ['single-width', 'paste-safe'] as const) {
+      for (const s of seqs) {
+        expect(foldText(s, m), s).toBe(s);
+        expect(visibleWidthIn(foldText(s, m), widthModeFor(m, 1)), s).toBe(2);
+      }
+      expect(foldText(`\u2764\uFE0F ${seqs[0]} \u26A0\uFE0F`, m)).toBe(`\u2764 ${seqs[0]} \u26A0`);
+    }
+  });
+
   it('never produces control characters', () => {
     let all = '';
     for (let c = 0xff01; c <= 0xff5e; c++) all += String.fromCharCode(c);

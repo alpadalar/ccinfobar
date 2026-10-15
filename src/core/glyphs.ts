@@ -50,7 +50,8 @@ export const NARROW: ReadonlyMap<string, string> = new Map([
   ['\u{1F4C9}', '\u2198'],
 ]);
 
-const VS16 = /(\p{Extended_Pictographic})\uFE0F/gu;
+// standalone only: ZWJ chains and keycaps keep theirs (WR-07)
+const VS16 = /(?<!\u200D)(\p{Extended_Pictographic})\uFE0F(?![\u200D\u20E3])/gu;
 const FULL = /[\uFF01-\uFF5E\u3000]/g;
 const NARROW_RE = new RegExp([...NARROW.keys()].join('|'), 'gu');
 const LINK = /\x1b\]8;[^\x07\x1b]*;[^\x07\x1b]*(?:\x07|\x1b\\)/g;
