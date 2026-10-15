@@ -1,12 +1,16 @@
-export type ProviderKind =
-  | 'firstParty'
-  | 'apiKey'
-  | 'bedrock'
-  | 'mantle'
-  | 'anthropicAws'
-  | 'vertex'
-  | 'foundry'
-  | 'gateway';
+// the union comes from this list, so it is always complete
+export const PROVIDER_KINDS = [
+  'firstParty',
+  'apiKey',
+  'bedrock',
+  'mantle',
+  'anthropicAws',
+  'vertex',
+  'foundry',
+  'gateway',
+] as const;
+
+export type ProviderKind = (typeof PROVIDER_KINDS)[number];
 
 export interface Provider {
   kind: ProviderKind;

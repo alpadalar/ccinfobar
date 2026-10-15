@@ -6,7 +6,7 @@ import { sanitizeText } from '../core/sanitize.js';
 import { toEpochMs } from '../core/time.js';
 import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
-import { detectProvider } from './provider.js';
+import { detectProvider, PROVIDER_KINDS, type ProviderKind } from './provider.js';
 import { writeAtomic } from './store.js';
 import type { TranscriptInfo } from './transcript.js';
 
@@ -87,12 +87,20 @@ export function modelKey(name: unknown): { key: string; model: string } | null {
   return { key: MODEL + low, model };
 }
 
-export function accountKey(env: NodeJS.ProcessEnv = process.env): string {
+export function accountKeyFor(kind: ProviderKind, env: NodeJS.ProcessEnv = process.env): string {
   let dir = path.resolve(claudeDir(env)).normalize('NFC');
   if (process.platform === 'win32') dir = dir.toLowerCase();
-  const kind = detectProvider(env).kind;
   const secure = env.CLAUDE_SECURESTORAGE_CONFIG_DIR ?? '';
   return createHash('sha256').update(`${kind}\u0000${dir}\u0000${secure}`).digest('hex').slice(0, 16);
+}
+
+export function accountKey(env: NodeJS.ProcessEnv = process.env): string {
+  return accountKeyFor(detectProvider(env).kind, env);
+}
+
+// every provider Claude Code may have used with this config dir
+export function accountKeysForDir(env: NodeJS.ProcessEnv = process.env): Set<string> {
+  return new Set(PROVIDER_KINDS.map((k) => accountKeyFor(k, env)));
 }
 
 export function limitsFile(env: NodeJS.ProcessEnv = process.env): string {

@@ -4,6 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   accountKey,
+  accountKeyFor,
+  accountKeysForDir,
   addSample,
   captureTime,
   type LimitObs,
@@ -18,6 +20,7 @@ import {
   recordUsageApi,
   resolveLimits,
 } from '../../src/data/limits.js';
+import { detectProvider, PROVIDER_KINDS, type ProviderKind } from '../../src/data/provider.js';
 import type { TranscriptInfo } from '../../src/data/transcript.js';
 
 const NOW = Date.parse('2026-10-12T12:00:00Z');
@@ -62,6 +65,42 @@ describe('account key', () => {
   it('names the file after the key only', () => {
     const env = { CCINFOBAR_CACHE_DIR: '/c', CLAUDE_CONFIG_DIR: '/x' };
     expect(limitsFile(env)).toBe(path.join('/c', 'limits', `${accountKey(env)}.json`));
+  });
+
+  const envs: NodeJS.ProcessEnv[] = [
+    { CLAUDE_CONFIG_DIR: '/x' },
+    { CLAUDE_CONFIG_DIR: '/x', ANTHROPIC_API_KEY: 'k' },
+    { CLAUDE_CONFIG_DIR: '/x', CLAUDE_CODE_USE_BEDROCK: '1' },
+    { CLAUDE_CONFIG_DIR: '/x', ANTHROPIC_BASE_URL: 'https://gateway.example.com' },
+  ];
+
+  it('builds the key from the detected provider kind', () => {
+    for (const env of envs) expect(accountKey(env)).toBe(accountKeyFor(detectProvider(env).kind, env));
+  });
+
+  it('lists the keys of every provider kind for one config dir', () => {
+    const keys = accountKeysForDir({ CLAUDE_CONFIG_DIR: '/x' });
+    expect(keys.size).toBe(8);
+    for (const env of envs) expect(keys.has(accountKey(env))).toBe(true);
+    const other = accountKeysForDir({ CLAUDE_CONFIG_DIR: '/y' });
+    for (const k of other) expect(keys.has(k)).toBe(false);
+    const secure = accountKeysForDir({ CLAUDE_CONFIG_DIR: '/x', CLAUDE_SECURESTORAGE_CONFIG_DIR: '/s' });
+    for (const k of secure) expect(keys.has(k)).toBe(false);
+  });
+
+  it('lists every provider kind once', () => {
+    const all: Record<ProviderKind, true> = {
+      firstParty: true,
+      apiKey: true,
+      bedrock: true,
+      mantle: true,
+      anthropicAws: true,
+      vertex: true,
+      foundry: true,
+      gateway: true,
+    };
+    expect([...PROVIDER_KINDS].sort()).toEqual(Object.keys(all).sort());
+    expect(new Set(PROVIDER_KINDS).size).toBe(PROVIDER_KINDS.length);
   });
 });
 
