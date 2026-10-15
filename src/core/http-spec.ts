@@ -128,7 +128,8 @@ function parse(u: string): URL | null {
   }
 }
 
-const hasPlaceholder = (s: string): boolean => s.includes('$') || /%7b/i.test(s);
+// ${ or an encoded one; a bare $ is fine, as in /odata/$metadata
+const hasPlaceholder = (s: string): boolean => /\$(\{|%7b)/i.test(s);
 
 export function parseUrlTemplate(
   raw: string,

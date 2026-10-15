@@ -111,6 +111,8 @@ describe('parseUrlTemplate', () => {
     expect(parseUrlTemplate('https://x.com/')).toMatchObject({ ok: true, vars: [] });
     expect(parseUrlTemplate('https://x.com/?$top=5')).toMatchObject({ ok: true, vars: [] });
     expect(parseUrlTemplate('http://X.com/')).toEqual({ ok: true, vars: [], plain: true, hostname: 'x.com' });
+    for (const raw of ['https://x.com/odata/$metadata', 'https://x.com/$batch?k=${K}', 'https://x.com/a%7Bb'])
+      expect(parseUrlTemplate(raw).ok, raw).toBe(true);
   });
 
   it.each([
@@ -119,8 +121,8 @@ describe('parseUrlTemplate', () => {
     'https://x.com/#${H}',
     'https://x.com/?${K}=1',
     'https://x.com/?a=1#${H}',
-    'https://x.com/a$b',
-    'https://x.com/a%7Bb',
+    'https://x.com/a$%7BH%7D',
+    'https://x.com/#$%7BH%7D',
     'https://x.com/?a=${1A}',
     'https://x.com/?a=${A',
   ])('rejects misplaced or bad placeholders in %s', (raw) => {
