@@ -133,6 +133,7 @@ const SPEED_WINDOW = 10;
 const CHUNK = 8 * 1024 * 1024;
 const RUNNING = 8;
 const TOOL_NAMES = 50;
+const TOOL_NAMES_KEPT = 200;
 const COUNTED = 64;
 const ARG_MAX = 32;
 const FINAL = new Set(['end_turn', 'stop_sequence', 'max_tokens']);
@@ -308,12 +309,21 @@ function shortArg(input: unknown): string {
   return '';
 }
 
+// kept longer than shown; a full list drops its oldest lowest count
 function bump(list: [string, number][], name: string) {
   const hit = list.find((x) => x[0] === name);
   if (hit) hit[1]++;
-  else list.push([name, 1]);
+  else {
+    if (list.length >= TOOL_NAMES_KEPT) {
+      const low = list[list.length - 1]![1];
+      list.splice(
+        list.findIndex((x) => x[1] === low),
+        1,
+      );
+    }
+    list.push([name, 1]);
+  }
   list.sort(byCount);
-  if (list.length > TOOL_NAMES) list.length = TOOL_NAMES;
 }
 
 function trackTool(s: State, block: Json, ts: number | null) {
@@ -534,6 +544,7 @@ function counts(list: unknown): [string, number][] {
     if (!Array.isArray(x) || typeof x[0] !== 'string' || typeof x[1] !== 'number' || !Number.isFinite(x[1]))
       continue;
     out.push([sanitizeText(x[0]), x[1]]);
+    if (out.length >= TOOL_NAMES) break;
   }
   return out;
 }

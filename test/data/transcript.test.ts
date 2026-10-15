@@ -328,6 +328,17 @@ describe('transcript tool activity', () => {
     expect(arg('npm test -- --reporter=dot')).toBe('npm test -- --reporter=dot');
   });
 
+  it('keeps counting a new tool name once 50 names are known', () => {
+    const lines = [prompt(0, 'go', 'p1')];
+    for (let i = 0; i < 50; i++) lines.push(use(1, `a${i}`, `T${i}`));
+    lines.push(use(2, 'n1', 'New'), use(3, 'n2', 'New'), use(4, 'n3', 'New'));
+    const t = parse(lines);
+    expect(t.sessionToolCounts).toHaveLength(50);
+    expect(t.sessionToolCounts[0]).toEqual(['New', 3]);
+    expect(t.sessionToolCounts.map((x) => x[0])).toContain('T0');
+    expect(t.sessionToolCounts.map((x) => x[0])).not.toContain('T49');
+  });
+
   it('counts a streamed rewrite of the same tool_use once', () => {
     const t = parse([prompt(0, 'go', 'p1'), use(1, 't1', 'Bash'), use(1, 't1', 'Bash')]);
     expect(t.turnToolCounts).toEqual([['Bash', 1]]);
