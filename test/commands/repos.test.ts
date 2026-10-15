@@ -152,7 +152,12 @@ describe.skipIf(!available || tmpRepo)('repos dirty job', () => {
 
   it('checks at most 50 repos', async () => {
     const names = fs.readdirSync(many).sort();
-    const out = await computeDirty(many, names.map(entry), { harden: true, env: gitEnv });
+    const out = await computeDirty(many, names.map(entry), {
+      harden: true,
+      perRepoMs: 30_000,
+      budgetMs: 55_000,
+      env: gitEnv,
+    });
     expect(Object.keys(out)).toEqual(names.slice(0, 50));
     expect(Object.values(out).every((v) => v === true)).toBe(true);
   }, 60_000);
