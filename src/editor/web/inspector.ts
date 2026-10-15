@@ -215,6 +215,7 @@ function widgetTab(): HTMLElement {
   const patch = (p: Partial<WidgetItem>, coalesce?: string) =>
     commit(updateItem(S.config, item.id, p), coalesce ? { coalesce, inspector: false } : {});
   const defColor = info?.color;
+  const hideDefault = info?.hideWhenEmpty === true;
 
   root.append(
     h(
@@ -267,8 +268,10 @@ function widgetTab(): HTMLElement {
       ),
       field(
         'Hide when no data',
-        toggle(!!item.hideEmpty, (v) => patch({ hideEmpty: v || undefined })),
-        'Off: shows the label and — when there is nothing to show. On: hides the widget.',
+        toggle(item.hideEmpty ?? hideDefault, (v) => patch({ hideEmpty: v === hideDefault ? undefined : v })),
+        hideDefault
+          ? 'On by default for this widget. Off: shows the label and — when there is nothing to show.'
+          : 'Off: shows the label and — when there is nothing to show. On: hides the widget.',
         true,
       ),
     ),

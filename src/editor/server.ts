@@ -184,6 +184,7 @@ function widgetCatalog() {
     sample: w.sample,
     hidden: w.hidden ?? false,
     timeBased: w.timeBased === true,
+    hideWhenEmpty: w.hideWhenEmpty === true,
   }));
 }
 

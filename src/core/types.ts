@@ -256,6 +256,8 @@ export interface WidgetDef {
   hidden?: boolean;
   fill?: boolean;
   timeBased?: true;
+  // hidden instead of — unless the item sets hideEmpty: false
+  hideWhenEmpty?: true;
   sources?: string[];
   render(ctx: RenderContext, item: WidgetItem): WidgetResult;
 }

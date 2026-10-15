@@ -13,6 +13,7 @@ export interface WidgetInfo {
   sample?: string;
   hidden?: boolean;
   timeBased?: boolean;
+  hideWhenEmpty?: boolean;
 }
 
 export type StyleId = 'text' | 'blocks' | 'powerline' | 'capsule' | 'tui';

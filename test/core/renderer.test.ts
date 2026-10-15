@@ -217,6 +217,22 @@ describe('workspace mode', () => {
     expect(out.join('\n')).not.toContain('—');
   });
 
+  it('hides an empty workspace-repos unless hideEmpty is false', () => {
+    const lines = [
+      [
+        { id: 'm', type: 'model' },
+        { id: 'r', type: 'workspace-repos' },
+      ],
+    ];
+    const inside = render(ctxWith({ git: () => null, repos: () => null, config: { lines } }));
+    expect(inside[0]).not.toContain('repos');
+    expect(inside[0]).not.toContain('—');
+    const shown = [[{ id: 'r', type: 'workspace-repos', hideEmpty: false }]];
+    expect(render(ctxWith({ git: () => null, repos: () => null, config: { lines: shown } }))[0]).toContain(
+      'repos: —',
+    );
+  });
+
   it('exports the pre-pass', () => {
     expect(workspaceMode(ctxWith({ git: () => null, repos, config: { lines: layout() } }))).toBe(true);
     expect(workspaceMode(ctxWith({ git: () => null, config: { lines: layout() } }))).toBe(false);

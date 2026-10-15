@@ -174,6 +174,7 @@ export function widgetFields(def: WidgetDef | undefined, itemId: string, config?
   const base = (
     ['color', 'background', 'bold', 'dim', 'italic', 'label', 'raw', 'merge', 'hideEmpty'] as const
   ).map((k) => baseField(k, itemId));
+  if (def?.hideWhenEmpty) for (const f of base) if (f.id === 'hideEmpty') f.fallback = true;
   const specs = def?.options ?? [];
   const options = config?.lines.flat().find((i) => i.id === itemId)?.options;
   const shown = specs.filter((o) => optionShown(o, specs, options));
@@ -606,7 +607,10 @@ const STYLE_FLAGS = ['bold', 'dim', 'italic', 'raw', 'merge', 'hideEmpty'];
 
 export function toggled(field: Field, config: Config): OptionValue | undefined {
   const cur = field.get(config);
-  if (STYLE_FLAGS.includes(field.id)) return cur === true ? undefined : true;
+  if (STYLE_FLAGS.includes(field.id)) {
+    const next = !(cur ?? field.fallback ?? false);
+    return next === (field.fallback ?? false) ? undefined : next;
+  }
   return !(cur ?? field.fallback ?? false);
 }
 

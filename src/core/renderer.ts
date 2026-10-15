@@ -158,6 +158,10 @@ export function hiddenByWorkspace(ctx: RenderContext, def: WidgetDef): boolean {
   return ctx.workspaceMode === true && def.category === 'git' && def.type !== 'workspace-repos';
 }
 
+export function hidesWhenEmpty(def: WidgetDef, item: WidgetItem): boolean {
+  return item.hideEmpty ?? def.hideWhenEmpty === true;
+}
+
 export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
   const def = getWidget(item.type);
   if (!def) return null;
@@ -165,7 +169,7 @@ export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
   let out = renderValue(ctx, def, item);
   let empty = false;
   if (!out) {
-    if (item.hideEmpty || def.category === 'layout' || hiddenByWorkspace(ctx, def)) return null;
+    if (hidesWhenEmpty(def, item) || def.category === 'layout' || hiddenByWorkspace(ctx, def)) return null;
     out = { text: EMPTY_VALUE };
     empty = true;
   }

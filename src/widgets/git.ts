@@ -235,6 +235,7 @@ export const widgets: WidgetDef[] = [
     type: 'workspace-repos',
     name: 'Workspace repos',
     category: 'git',
+    hideWhenEmpty: true,
     description: 'Child folders that are git repos, when the folder itself is not a repo',
     label: 'repos: ',
     icon: { nerd: '', emoji: '📦' },

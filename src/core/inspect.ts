@@ -10,6 +10,7 @@ import { t } from './i18n/index.js';
 import { hasReplies } from './payload.js';
 import {
   hiddenByWorkspace,
+  hidesWhenEmpty,
   maxLineWidth,
   normalizeResult,
   renderLine,
@@ -357,7 +358,7 @@ function inspectItem(
   if (!item.hideEmpty && hiddenByWorkspace(ctx, def)) {
     return { ...row, status: 'hidden', sources, empty: reason('workspace-mode') };
   }
-  const status = item.hideEmpty || def.category === 'layout' ? 'hidden' : 'empty';
+  const status = hidesWhenEmpty(def, item) || def.category === 'layout' ? 'hidden' : 'empty';
   const empty = emptyReason(ctx, item, def.sources ? undefined : reads, opts.meta);
   return { ...row, status, sources, empty };
 }

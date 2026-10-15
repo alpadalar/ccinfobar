@@ -164,7 +164,7 @@
             },
             "hideEmpty": {
               "type": "boolean",
-              "description": "Hide the widget when it has no data instead of showing —"
+              "description": "Hide the widget when it has no data instead of showing —; false shows — for widgets that hide themselves"
             },
             "options": {
               "type": "object",

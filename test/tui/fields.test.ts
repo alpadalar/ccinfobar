@@ -218,3 +218,28 @@ describe('budget fields', () => {
     expect(f.set(c, undefined).budget).toEqual({ daily: 10 });
   });
 });
+
+describe('hideEmpty default per widget', () => {
+  const cfg = (extra: object = {}) => ({
+    ...defaultConfig(),
+    lines: [[{ id: 'r', type: 'workspace-repos', ...extra }]],
+  });
+  const hide = (c: ReturnType<typeof cfg>) =>
+    widgetFields(getWidget('workspace-repos'), 'r', c).find((f) => f.id === 'hideEmpty')!;
+
+  it('shows workspace-repos as hidden when empty and toggles to an explicit false', () => {
+    const c = cfg();
+    expect(displayValue(hide(c), c)).toEqual({ text: 'on', isDefault: true });
+    expect(cycled(hide(c), c, 1)).toBe(false);
+    const off = cfg({ hideEmpty: false });
+    expect(cycled(hide(off), off, 1)).toBeUndefined();
+  });
+
+  it('keeps the plain toggle for other widgets', () => {
+    const c = { ...defaultConfig(), lines: [[{ id: 'm', type: 'model' }]] };
+    const f = widgetFields(getWidget('model'), 'm', c).find((x) => x.id === 'hideEmpty')!;
+    expect(cycled(f, c, 1)).toBe(true);
+    const on = { ...c, lines: [[{ id: 'm', type: 'model', hideEmpty: true }]] };
+    expect(cycled(f, on, 1)).toBeUndefined();
+  });
+});

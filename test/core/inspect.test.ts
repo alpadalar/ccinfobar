@@ -560,11 +560,14 @@ describe('workspace mode rows', () => {
     const git = vi.fn(() => null);
     const lines = [[item('workspace-repos')]];
     const inside = rowsFor(ctxWith({ git, repos: () => null, config: { lines } }));
-    expect(inside[0]).toMatchObject({ status: 'empty', empty: { code: 'inside-repo' } });
+    expect(inside[0]).toMatchObject({ status: 'hidden', empty: { code: 'inside-repo' } });
     const none = rowsFor(
       ctxWith({ git, repos: () => ({ root: '/w', repos: [], total: 0 }), config: { lines } }),
     );
-    expect(none[0]).toMatchObject({ status: 'empty', empty: { code: 'no-child-repos' } });
+    expect(none[0]).toMatchObject({ status: 'hidden', empty: { code: 'no-child-repos' } });
+    const shown = [[item('workspace-repos', { hideEmpty: false })]];
+    const placeholder = rowsFor(ctxWith({ git, repos: () => null, config: { lines: shown } }));
+    expect(placeholder[0]).toMatchObject({ status: 'empty', empty: { code: 'inside-repo' } });
     expect(git).not.toHaveBeenCalled();
   });
 
