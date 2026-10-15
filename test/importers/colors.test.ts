@@ -1,0 +1,108 @@
+import { describe, expect, it } from 'vitest';
+import { parseColor } from '../../src/core/ansi.js';
+import { ansiColor, hudColor, starshipStyle } from '../../src/importers/colors.js';
+
+describe('ansiColor', () => {
+  it('maps c16, c256 and rgb', () => {
+    expect(ansiColor({ c16: 0 })).toBe('black');
+    expect(ansiColor({ c16: 7 })).toBe('white');
+    expect(ansiColor({ c16: 9 })).toBe('brightRed');
+    expect(ansiColor({ c16: 15 })).toBe('brightWhite');
+    expect(ansiColor({ c256: 208 })).toBe('ansi256:208');
+    expect(ansiColor({ r: 255, g: 136, b: 0 })).toBe('#ff8800');
+    expect(ansiColor({ r: 0, g: 0, b: 0 })).toBe('#000000');
+  });
+
+  it('rejects anything else', () => {
+    for (const v of [
+      { c16: 16 },
+      { c16: -1 },
+      { c16: 1.5 },
+      { c256: 256 },
+      { c256: '1' },
+      { r: 256, g: 0, b: 0 },
+      { r: 1, g: 2 },
+      'red',
+      null,
+      undefined,
+      3,
+    ]) {
+      expect(ansiColor(v), JSON.stringify(v)).toBeUndefined();
+    }
+  });
+});
+
+describe('starshipStyle', () => {
+  it('maps fg, bg and attributes', () => {
+    expect(starshipStyle('bold fg:#ff8800 bg:blue')).toEqual({
+      color: '#ff8800',
+      background: 'blue',
+      bold: true,
+      unknown: [],
+    });
+    expect(starshipStyle('italic dimmed purple')).toEqual({
+      color: 'magenta',
+      italic: true,
+      dim: true,
+      unknown: [],
+    });
+  });
+
+  it('maps bright names, numbers and short hex', () => {
+    expect(starshipStyle('bright-cyan').color).toBe('brightCyan');
+    expect(starshipStyle('bg:bright-purple').background).toBe('brightMagenta');
+    expect(starshipStyle('fg:208').color).toBe('ansi256:208');
+    expect(starshipStyle('fg:#ABC').color).toBe('#aabbcc');
+    expect(starshipStyle('Bold RED')).toEqual({ color: 'red', bold: true, unknown: [] });
+  });
+
+  it('returns unknown tokens as written', () => {
+    expect(starshipStyle('underline blink')).toEqual({ unknown: ['underline', 'blink'] });
+    expect(starshipStyle('fg:256 bg:#12 constructor bright-gray fg:prev_bg').unknown).toEqual([
+      'fg:256',
+      'bg:#12',
+      'constructor',
+      'bright-gray',
+      'fg:prev_bg',
+    ]);
+    expect(starshipStyle('')).toEqual({ unknown: [] });
+    expect(starshipStyle('  ')).toEqual({ unknown: [] });
+  });
+});
+
+describe('hudColor', () => {
+  it('maps claude-hud colors', () => {
+    expect(hudColor('dim')).toEqual({ dim: true });
+    expect(hudColor('brightBlue')).toEqual({ color: 'brightBlue' });
+    expect(hudColor('red')).toEqual({ color: 'red' });
+    expect(hudColor(208)).toEqual({ color: 'ansi256:208' });
+    expect(hudColor(0)).toEqual({ color: 'ansi256:0' });
+    expect(hudColor('#a1b2c3')).toEqual({ color: '#a1b2c3' });
+    expect(hudColor('#A1B2C3')).toEqual({ color: '#a1b2c3' });
+  });
+
+  it('rejects what claude-hud rejects', () => {
+    for (const v of [300, -1, 1.5, '208', 'chartreuse', '#abc', 'brightRed', 'constructor', null, {}]) {
+      expect(hudColor(v), String(v)).toBeUndefined();
+    }
+  });
+});
+
+describe('color output', () => {
+  it('is always a color parseColor accepts', () => {
+    const colors = [
+      ...[{ c16: 0 }, { c16: 8 }, { c16: 15 }, { c256: 0 }, { c256: 255 }, { r: 1, g: 2, b: 3 }].map(
+        ansiColor,
+      ),
+      ...['black', 'purple', 'bright-white', 'bright-black', '0', '255', '#fff', '#123456'].flatMap((s) => [
+        starshipStyle(s).color,
+        starshipStyle(`bg:${s}`).background,
+      ]),
+      ...['red', 'brightMagenta', 17, '#00ff00'].map((v) => hudColor(v)?.color),
+    ];
+    for (const c of colors) {
+      expect(c).toBeTypeOf('string');
+      expect(parseColor(c), c).not.toBeNull();
+    }
+  });
+});
