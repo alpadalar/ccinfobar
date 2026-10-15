@@ -1,12 +1,19 @@
 import type { Args } from '../cli/args.js';
 import { applyLanguage } from '../cli/lang.js';
+import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { claudeSettingsPath } from '../core/paths.js';
 import { VERSION } from '../core/version.js';
 import { executeJob, type JobEnvelope, jobOff } from '../data/jobs/runner.js';
 import { type UpdateValue, updateJob } from '../data/jobs/update.js';
 import { fetchLatest, installVersion } from '../data/self-update.js';
-import { compareVersions, installKind, localPrefix, writeUpdateState } from '../data/update-state.js';
+import {
+  compareVersions,
+  type InstallKind,
+  installKind,
+  localPrefix,
+  writeUpdateState,
+} from '../data/update-state.js';
 import { currentStatusLine, takeOverProjects } from './install.js';
 import { classifyOwner, owns, readManifest } from './manifest.js';
 
@@ -53,39 +60,62 @@ export function takeOverAfterUpdate(env: NodeJS.ProcessEnv = process.env): void 
   } catch {}
 }
 
-export async function manualUpdate(current: string, checkOnly: boolean): Promise<number> {
+export interface UpdateDeps {
+  fetchLatest: (timeoutMs: number) => Promise<string>;
+  installVersion: (version: string, prefix?: string) => void;
+  installKind: () => InstallKind;
+  writeState: typeof writeUpdateState;
+  log: (line: string) => void;
+  error: (line: string) => void;
+}
+
+const DEPS: UpdateDeps = {
+  fetchLatest,
+  installVersion,
+  installKind,
+  writeState: writeUpdateState,
+  log: (line) => console.log(line),
+  error: (line) => console.error(line),
+};
+
+export async function manualUpdate(
+  current: string,
+  checkOnly: boolean,
+  deps: Partial<UpdateDeps> = {},
+): Promise<number> {
+  const d = { ...DEPS, ...deps };
   let latest: string;
   try {
-    latest = await fetchLatest(8000);
+    latest = await d.fetchLatest(8000);
   } catch (err) {
-    console.error(`✗ Could not reach GitHub: ${(err as Error).message}`);
+    d.error(t('cmd.update.unreachable', { message: (err as Error).message }));
     return 1;
   }
-  writeUpdateState({ checkedAt: Date.now(), latest });
+  d.writeState({ checkedAt: Date.now(), latest });
   if (compareVersions(latest, current) <= 0) {
-    console.log(`✓ ccinfobar ${current} is the latest version`);
+    d.log(t('cmd.update.latest', { version: current }));
     return 0;
   }
-  console.log(`New version available: ${current} → ${latest}`);
+  d.log(t('cmd.update.available', { version: current, latest }));
   if (checkOnly) return 0;
-  const kind = installKind();
+  const kind = d.installKind();
   if (kind === 'source') {
-    console.log('  This is a source checkout; update it with git pull && npm run build.');
+    d.log(t('cmd.update.source'));
     return 0;
   }
   if (kind === 'npx') {
-    console.log('  Running through npx: run `npx ccinfobar@latest install` to set up the newest release.');
+    d.log(t('cmd.update.npx'));
     return 0;
   }
   try {
-    console.log(`  Installing ccinfobar@${latest} ...`);
-    installVersion(latest, kind === 'local' ? localPrefix() : undefined);
-    writeUpdateState({ checkedAt: Date.now(), latest, installed: latest });
-    console.log(`✓ Updated to ${latest}`);
+    d.log(t('cmd.update.installing', { version: latest }));
+    d.installVersion(latest, kind === 'local' ? localPrefix() : undefined);
+    d.writeState({ checkedAt: Date.now(), latest, installed: latest });
+    d.log(t('cmd.update.updated', { version: latest }));
     return 0;
   } catch (err) {
-    console.error(`✗ npm install failed: ${(err as Error).message}`);
-    console.error(`  Run it yourself: npm install -g ccinfobar@${latest}`);
+    d.error(t('cmd.update.npmFailed', { message: (err as Error).message }));
+    d.error(t('cmd.update.manual', { version: latest }));
     return 1;
   }
 }

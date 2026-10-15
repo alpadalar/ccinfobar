@@ -6,12 +6,14 @@ import {
   availableUpdate,
   compareVersions,
   installKind,
+  manualUpdate,
   scheduleCheck,
   updateFile,
   updateNotice,
   updatesDisabled,
 } from '../../src/commands/update.js';
 import { defaultConfig } from '../../src/core/config.js';
+import { setLanguage } from '../../src/core/i18n/index.js';
 import { useIdleEntry } from '../helpers.js';
 
 const envWith = () =>
@@ -195,5 +197,122 @@ describe('update', () => {
     ).toBe('npm-global');
     expect(installKind('/home/u/.npm/_npx/abc/node_modules/ccinfobar/dist/ccinfobar.js')).toBe('npx');
     expect(installKind(path.resolve(__dirname, '../../dist/ccinfobar.js'))).toBe('source');
+  });
+});
+
+describe('manual update output', () => {
+  type Kind = ReturnType<typeof installKind>;
+  async function run(opts: {
+    latest?: string;
+    kind?: Kind;
+    check?: boolean;
+    fail?: string;
+    offline?: string;
+  }) {
+    const out: string[] = [];
+    const installs: Array<[string, string | undefined]> = [];
+    const code = await manualUpdate('1.0.0', opts.check === true, {
+      fetchLatest: async () => {
+        if (opts.offline) throw new Error(opts.offline);
+        return opts.latest ?? '1.0.0';
+      },
+      installVersion: (v, prefix) => {
+        installs.push([v, prefix]);
+        if (opts.fail) throw new Error(opts.fail);
+      },
+      installKind: () => opts.kind ?? 'npm-global',
+      writeState: () => {},
+      log: (l) => out.push(l),
+      error: (l) => out.push(`E ${l}`),
+    });
+    return { code, out, installs };
+  }
+
+  const CASES: Array<[string, Parameters<typeof run>[0], string[], string[], number]> = [
+    ['latest', {}, ['✓ ccinfobar 1.0.0 is the latest version'], ['✓ ccinfobar 1.0.0 en son sürüm'], 0],
+    [
+      'check only',
+      { latest: '1.1.0', check: true },
+      ['New version available: 1.0.0 → 1.1.0'],
+      ['Yeni sürüm var: 1.0.0 → 1.1.0'],
+      0,
+    ],
+    [
+      'source checkout',
+      { latest: '1.1.0', kind: 'source' },
+      [
+        'New version available: 1.0.0 → 1.1.0',
+        '  This is a source checkout; update it with git pull && npm run build.',
+      ],
+      [
+        'Yeni sürüm var: 1.0.0 → 1.1.0',
+        '  Bu bir kaynak kod kopyası; git pull && npm run build ile güncelleyin.',
+      ],
+      0,
+    ],
+    [
+      'npx',
+      { latest: '1.1.0', kind: 'npx' },
+      [
+        'New version available: 1.0.0 → 1.1.0',
+        '  Running through npx: run `npx ccinfobar@latest install` to set up the newest release.',
+      ],
+      [
+        'Yeni sürüm var: 1.0.0 → 1.1.0',
+        '  npx üzerinden çalışıyor: en yeni sürümü kurmak için `npx ccinfobar@latest install` çalıştırın.',
+      ],
+      0,
+    ],
+    [
+      'installed',
+      { latest: '1.1.0' },
+      ['New version available: 1.0.0 → 1.1.0', '  Installing ccinfobar@1.1.0 ...', '✓ Updated to 1.1.0'],
+      ['Yeni sürüm var: 1.0.0 → 1.1.0', '  ccinfobar@1.1.0 kuruluyor ...', '✓ 1.1.0 sürümüne güncellendi'],
+      0,
+    ],
+    [
+      'npm failed',
+      { latest: '1.1.0', fail: 'EACCES' },
+      [
+        'New version available: 1.0.0 → 1.1.0',
+        '  Installing ccinfobar@1.1.0 ...',
+        'E ✗ npm install failed: EACCES',
+        'E   Run it yourself: npm install -g ccinfobar@1.1.0',
+      ],
+      [
+        'Yeni sürüm var: 1.0.0 → 1.1.0',
+        '  ccinfobar@1.1.0 kuruluyor ...',
+        'E ✗ npm install başarısız oldu: EACCES',
+        'E   Kendiniz çalıştırın: npm install -g ccinfobar@1.1.0',
+      ],
+      1,
+    ],
+    [
+      'offline',
+      { offline: 'fetch failed' },
+      ['E ✗ Could not reach GitHub: fetch failed'],
+      ["E ✗ GitHub'a ulaşılamadı: fetch failed"],
+      1,
+    ],
+  ];
+
+  it.each(CASES)('%s in English and Turkish', async (_name, opts, en, tr, code) => {
+    const a = await run(opts);
+    expect(a.out).toEqual(en);
+    expect(a.code).toBe(code);
+    // run is async, so no withLang
+    const prev = setLanguage('tr');
+    try {
+      expect((await run(opts)).out).toEqual(tr);
+    } finally {
+      setLanguage(prev);
+    }
+  });
+
+  it('installs the latest version into the local prefix for a local install', async () => {
+    expect((await run({ latest: '1.1.0' })).installs).toEqual([['1.1.0', undefined]]);
+    const local = await run({ latest: '1.1.0', kind: 'local' });
+    expect(local.installs[0]?.[1]).toBeTruthy();
+    expect(local.code).toBe(0);
   });
 });

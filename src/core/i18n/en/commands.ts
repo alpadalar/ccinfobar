@@ -29,4 +29,13 @@ export const commandsMessages = {
   'cmd.usage.err.rateLimited': 'rate limited by the usage API',
   'cmd.usage.err.status': 'usage API returned {status}',
   'cmd.usage.err.noLimits': 'usage API sent no limits',
+  'cmd.update.unreachable': '✗ Could not reach GitHub: {message}',
+  'cmd.update.latest': '✓ ccinfobar {version} is the latest version',
+  'cmd.update.available': 'New version available: {version} → {latest}',
+  'cmd.update.source': '  This is a source checkout; update it with git pull && npm run build.',
+  'cmd.update.npx': '  Running through npx: run `npx ccinfobar@latest install` to set up the newest release.',
+  'cmd.update.installing': '  Installing ccinfobar@{version} ...',
+  'cmd.update.updated': '✓ Updated to {version}',
+  'cmd.update.npmFailed': '✗ npm install failed: {message}',
+  'cmd.update.manual': '  Run it yourself: npm install -g ccinfobar@{version}',
 } as const;

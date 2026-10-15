@@ -32,4 +32,14 @@ export const commandsMessages = {
   'cmd.usage.err.rateLimited': "kullanım API'si istekleri sınırladı",
   'cmd.usage.err.status': "kullanım API'si {status} döndürdü",
   'cmd.usage.err.noLimits': "kullanım API'si limit bilgisi göndermedi",
+  'cmd.update.unreachable': "✗ GitHub'a ulaşılamadı: {message}",
+  'cmd.update.latest': '✓ ccinfobar {version} en son sürüm',
+  'cmd.update.available': 'Yeni sürüm var: {version} → {latest}',
+  'cmd.update.source': '  Bu bir kaynak kod kopyası; git pull && npm run build ile güncelleyin.',
+  'cmd.update.npx':
+    '  npx üzerinden çalışıyor: en yeni sürümü kurmak için `npx ccinfobar@latest install` çalıştırın.',
+  'cmd.update.installing': '  ccinfobar@{version} kuruluyor ...',
+  'cmd.update.updated': '✓ {version} sürümüne güncellendi',
+  'cmd.update.npmFailed': '✗ npm install başarısız oldu: {message}',
+  'cmd.update.manual': '  Kendiniz çalıştırın: npm install -g ccinfobar@{version}',
 } satisfies Record<keyof typeof enCommands, Message>;
