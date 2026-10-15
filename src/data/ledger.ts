@@ -2,9 +2,12 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { cacheDir } from '../core/paths.js';
+import { addDays, dayKey, mondayOf, monthKey } from '../core/time.js';
 import type { Config, StatusPayload } from '../core/types.js';
 import { accountKey } from './limits.js';
 import { appendLine, readJsonSafe, writeAtomic } from './store.js';
+
+export { dayKey, monthKey };
 
 export interface LedgerLine {
   v: 1;
@@ -102,18 +105,6 @@ export function credit(highs: number[] | undefined, c: number): { highs: number[
 }
 
 export const slotKey = (t: number): number => Math.floor(t / SLOT_MS);
-
-const pad = (n: number) => String(n).padStart(2, '0');
-
-export function dayKey(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-export function monthKey(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
-}
 
 export function projectRoot(payload: StatusPayload, platform: NodeJS.Platform = process.platform): string {
   const p = platform === 'win32' ? path.win32 : path.posix;
@@ -443,10 +434,9 @@ export function ledgerView(
   }
   const since = summary.since[account];
   if (since === undefined && !(extra > 0)) return null;
-  const d = new Date(now);
-  const dow = (d.getDay() + 6) % 7;
-  const monday = dayKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow, 12).getTime());
-  const sunday = dayKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow + 6, 12).getTime());
+  const mon = mondayOf(now);
+  const monday = dayKey(mon);
+  const sunday = dayKey(addDays(mon, 6));
   const today = dayKey(now);
   const month = `${monthKey(now)}-`;
   const all = sums(summary.days[account], today, monday, sunday, month);
