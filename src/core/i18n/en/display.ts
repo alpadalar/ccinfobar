@@ -109,6 +109,11 @@ export const displayMessages = {
   'prog.hintLatency':
     'Runs a small hook before each prompt (about 60-110 ms). The tty channel (Linux, macOS) avoids it.',
   'prog.tuiHelp': 'Hook handlers are added with `ccinfobar install --progress` or the web editor.',
-  'prog.on': 'Terminal progress on. Save to apply.',
-  'prog.off': 'Terminal progress off. Save to apply.',
+  'prog.on': 'Terminal progress on (saved).',
+  'prog.off': 'Terminal progress off (saved).',
+  'prog.offHeld':
+    'Terminal progress off (saved). The bar clears at the next prompt; remove the handlers after that.',
+  'prog.leftover': 'Progress is off, but its hook handlers are still installed and run before each prompt.',
+  'prog.removeHandlers': 'Remove handlers',
+  'prog.saved': 'This switch saves at once and is not part of undo.',
 } as const;

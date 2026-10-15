@@ -82,7 +82,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Terminal progress (OSC 9;4): `ccinfobar install --progress` shows the context fill (or 5h usage) as the terminal tab's progress bar in Windows Terminal, Ghostty, WezTerm, ConEmu and iTerm2, through synchronous Claude Code hooks (2.1.141+). It adds about 60-110 ms before each prompt while it is on, and `uninstall --progress` turns it off and clears the bar (while a bar is still showing, the handlers stay until the next prompt has cleared it; run it again to remove them). Turning it off in an editor or by hand also clears the bar at the next prompt. Set Claude Code's `terminalProgressBarEnabled` to `false`, or the two bars flicker; ccinfobar never changes that setting
 - `progress.channel: "tty"` (Linux and macOS) writes the progress bar from the status line itself, with no hook and no prompt latency; inside tmux it needs `allow-passthrough` and `progress.tmuxPassthrough`
 - `doctor` checks terminal progress: Claude Code's own bar (`terminalProgressBarEnabled`), missing or leftover handlers, unsupported terminals, the Claude Code version and tmux; `explain` shows the current progress value
-- The web editor's Settings has a Terminal progress section (on/off, source, scale, warning levels, channel), and the TUI has the same options
+- The web editor's Settings has a Terminal progress section (on/off, source, scale, warning levels, channel), and the TUI has the same options. The web switch saves `progress.enabled` together with the hook handlers and is not part of undo
 
 ### Changed
 

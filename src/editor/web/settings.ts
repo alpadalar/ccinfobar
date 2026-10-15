@@ -19,7 +19,7 @@ import { api } from './api.js';
 import { clear, h, icon } from './dom.js';
 import { field, numberInput, segmented, textInput, toggle } from './inspector.js';
 import { installDialog } from './install-dialog.js';
-import { commit, S } from './store.js';
+import { applySaved, commit, S } from './store.js';
 import { modal, toast } from './ui.js';
 
 const KIND: Record<string, string> = {
@@ -284,9 +284,9 @@ export async function openSettings(): Promise<void> {
     busy = true;
     render();
     try {
-      await api.progress(enabled);
-      commit(setProgress(S.config, { enabled }));
-      toast(t(enabled ? 'prog.on' : 'prog.off'));
+      const r = await api.progress(enabled);
+      applySaved((c) => setProgress(c, { enabled }));
+      toast(t(enabled ? 'prog.on' : r.held ? 'prog.offHeld' : 'prog.off'));
     } catch (e) {
       toast((e as Error).message, 'error');
     }
@@ -324,11 +324,24 @@ export async function openSettings(): Promise<void> {
         toggle(on, (v) => void runProgress(v), undefined, {
           disabled: busy || !hk || (!hk.available && !installed && !on),
         }),
-        hk && !hk.available ? hk.reason : undefined,
+        hk && !hk.available ? hk.reason : t('prog.saved'),
         true,
       ),
       h('div', { class: 'hint' }, t('prog.hintBar')),
     ];
+    if (!on && installed)
+      out.push(
+        h('div', { class: 'hint warn' }, t('prog.leftover')),
+        h(
+          'div',
+          { class: 'row-inline' },
+          h(
+            'button',
+            { class: 'btn', type: 'button', disabled: busy, onClick: () => void runProgress(false) },
+            t('prog.removeHandlers'),
+          ),
+        ),
+      );
     if (channel !== 'tty') out.push(h('div', { class: 'hint' }, t('prog.hintLatency')));
     out.push(
       field(t('prog.source'), pick('source'), t('prog.sourceHelp')),

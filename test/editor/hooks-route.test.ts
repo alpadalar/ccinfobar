@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
+import { markSent, progressFiles, readWant } from '../../src/data/progress.js';
+import { writeSmall } from '../../src/data/store.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
 
 const CMD = '/opt/ccib/bin/ccinfobar';
@@ -321,6 +323,49 @@ describe('editor progress route', () => {
     const evil = { origin: 'http://evil.example' };
     expect((await request('POST', '/api/progress', { enabled: true }, evil)).status).toBe(403);
     expect(readSettings().hooks).toBeUndefined();
+  });
+
+  const readConfig = () => JSON.parse(fs.readFileSync(configFile, 'utf8')) as Record<string, any>;
+
+  it('writes progress.enabled to the config file with the handlers (WR-03)', async () => {
+    await startInstalled('2.1.300');
+    const cfg = readConfig();
+    fs.writeFileSync(configFile, JSON.stringify({ ...cfg, theme: 'nord', progress: { warnAt: 60 } }));
+    const on = await request('POST', '/api/progress', { enabled: true });
+    expect(on.json().progress).toEqual({ enabled: true, warnAt: 60 });
+    expect(readConfig().progress).toEqual({ enabled: true, warnAt: 60 });
+    expect(readConfig().theme).toBe('nord');
+    const off = await request('POST', '/api/progress', { enabled: false });
+    expect(off.json()).toMatchObject({ held: false, progress: { enabled: false, warnAt: 60 } });
+    expect(readConfig().progress).toEqual({ enabled: false, warnAt: 60 });
+    expect(progressGroups(readSettings())).toEqual([]);
+  });
+
+  it('refuses a broken config before touching settings', async () => {
+    await startInstalled('2.1.300');
+    fs.writeFileSync(configFile, '{ "lines": [');
+    const before = fs.readFileSync(settings);
+    const res = await request('POST', '/api/progress', { enabled: true });
+    expect(res.status).toBe(409);
+    expect(fs.readFileSync(settings).equals(before)).toBe(true);
+    expect(fs.readFileSync(configFile, 'utf8')).toBe('{ "lines": [');
+  });
+
+  it('keeps the handlers once while a bar is showing (CR-01)', async () => {
+    await startInstalled('2.1.300');
+    await request('POST', '/api/progress', { enabled: true });
+    const files = progressFiles('route-live', process.env)!;
+    writeSmall(files.want, JSON.stringify({ v: 1, state: 4, pct: 70, channel: 'hook', always: false }));
+    markSent(files.sent, { state: 4, pct: 70 });
+    const first = await request('POST', '/api/progress', { enabled: false });
+    expect(first.json().held).toBe(true);
+    expect(first.json().hooks.progress).toEqual(PROGRESS);
+    expect(readConfig().progress).toEqual({ enabled: false });
+    expect(readWant(files.want)).toMatchObject({ state: 0 });
+    const second = await request('POST', '/api/progress', { enabled: false });
+    expect(second.json().held).toBe(false);
+    expect(second.json().hooks.progress).toEqual([]);
+    expect(progressGroups(readSettings())).toEqual([]);
   });
 
   it('never writes terminalProgressBarEnabled', async () => {

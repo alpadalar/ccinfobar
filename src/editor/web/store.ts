@@ -210,6 +210,15 @@ export function fixSelection(): void {
   S.selectedLine = Math.max(0, Math.min(S.selectedLine, lines.length - 1));
 }
 
+// already saved on disk: not undoable and not dirty
+export function applySaved(fn: (c: Config) => Config): void {
+  S.undo = S.undo.map(fn);
+  S.redo = S.redo.map(fn);
+  S.saved = JSON.stringify(fn(JSON.parse(S.saved) as Config));
+  lastKey = null;
+  apply(fn(S.config), {});
+}
+
 export function undo(): void {
   const prev = S.undo.pop();
   if (!prev) return;

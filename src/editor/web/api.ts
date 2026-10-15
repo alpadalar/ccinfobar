@@ -1,5 +1,5 @@
 import type { StyleHistory } from '../../core/edit.js';
-import type { Config } from '../../core/types.js';
+import type { Config, ProgressConfig } from '../../core/types.js';
 import type { ApiState, ClaudeInfo, HooksInfo, PresetInfo, Store, ThemeInfo } from './store.js';
 
 export type PreviewSrc = { source: 'sample' | 'last' | 'scenario'; scenario?: string };
@@ -96,7 +96,13 @@ export const api = {
       permission,
     }),
   progress: (enabled: boolean) =>
-    call<{ ok: boolean; hooks: HooksInfo; backup: string | null }>('POST', '/api/progress', { enabled }),
+    call<{
+      ok: boolean;
+      hooks: HooksInfo;
+      backup: string | null;
+      progress: ProgressConfig | null;
+      held: boolean;
+    }>('POST', '/api/progress', { enabled }),
   update: (install: boolean) =>
     call<{ current: string; latest: string; newer: boolean; kind: string; installed?: string }>(
       'POST',

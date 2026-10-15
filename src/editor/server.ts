@@ -36,8 +36,8 @@ import {
   readUpdateState,
   writeUpdateState,
 } from '../commands/update.js';
-import { ConfigBrokenError, normalizeConfig, saveConfig } from '../core/config.js';
-import { applyStyle, type StyleHistory, upgradeOptions } from '../core/edit.js';
+import { ConfigBrokenError, loadConfig, normalizeConfig, saveConfig } from '../core/config.js';
+import { applyStyle, type StyleHistory, setProgress, upgradeOptions } from '../core/edit.js';
 import { t } from '../core/i18n/index.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
@@ -58,6 +58,7 @@ import {
 import type { Config, WidgetItem } from '../core/types.js';
 import { gsdInstalled } from '../data/gsd.js';
 import { PROGRESS_EVENTS } from '../data/progress.js';
+import { requestClear } from '../data/progress-clear.js';
 import { writeAtomic } from '../data/store.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import type { TerminalColors } from './terminal-colors.js';
@@ -623,8 +624,14 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       case 'POST /api/progress': {
         const { enabled } = asObject(await readBody(req));
         if (typeof enabled !== 'boolean') throw new HttpError(400, t('hooks.badBody'));
+        // config and handlers change together (WR-03)
+        const loaded = loadConfig(opts.configPath);
+        if (loaded.error)
+          throw new HttpError(409, t('config.refuseBroken', { file: tildify(opts.configPath) }));
         const file = claudeSettingsPath();
         let backup: string | null = null;
+        let held = false;
+        const next = setProgress(loaded.config, { enabled });
         if (enabled) {
           const active = activeCommand(command);
           if (!active)
@@ -644,10 +651,15 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
               hooks: await hooksInfo(command),
             });
           backup = applyHooks(file, plan).backup;
+          saveConfig(next, opts.configPath);
         } else {
-          backup = uninstallHooks(file, process.env, undefined, 'progress').backup;
+          saveConfig(next, opts.configPath);
+          // a showing bar needs one more hook event (D-36)
+          held = requestClear(process.env) > 0 && installedHooks(true).length > 0;
+          if (!held) backup = uninstallHooks(file, process.env, undefined, 'progress').backup;
         }
-        send(res, 200, { ok: true, hooks: await hooksInfo(command), backup });
+        const progress = normalizeConfig(next).progress ?? null;
+        send(res, 200, { ok: true, hooks: await hooksInfo(command), backup, progress, held });
         return;
       }
       case 'GET /api/system': {
