@@ -74,6 +74,8 @@ const PURE = [
   'src/core/width.ts',
   'src/core/conditions.ts',
   'src/core/glyphs.ts',
+  'src/core/themes/builtin.ts',
+  'src/core/themes/style.ts',
   'src/data/live.ts',
 ];
 
@@ -233,6 +235,17 @@ describe('import graph', () => {
     for (const f of files) {
       const text = fs.readFileSync(f, 'utf8');
       expect(text, path.relative(root, f)).not.toMatch(/['"]node:|require\(/);
+    }
+  });
+
+  // D-28: theme data never imports the logic module
+  it('keeps src/core/themes/ free of a cycle with themes.ts', () => {
+    for (const f of walk(path.join(src, 'core/themes'))) {
+      const specs = [...fs.readFileSync(f, 'utf8').matchAll(/from '([^']+)'/g)].map((m) => m[1]);
+      expect(
+        specs.every((s) => s === './style.js' || s === '../types.js'),
+        path.relative(root, f),
+      ).toBe(true);
     }
   });
 
