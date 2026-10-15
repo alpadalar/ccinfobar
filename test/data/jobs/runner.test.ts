@@ -66,6 +66,14 @@ describe('envelopes', () => {
   it('prefers Retry-After and an explicit block, and has no block without opts', () => {
     const after = failEnvelope('status', null, 'http-429', NOW, { retryMs: 60_000, retryAfterMs: 300_000 });
     expect(after.blockedUntil).toBe(NOW + 300_000);
+    const short = failEnvelope('status', null, 'http-503', NOW, { retryMs: 60_000, retryAfterMs: 1000 });
+    expect(short.blockedUntil).toBe(NOW + 60_000);
+    const third = failEnvelope('status', { ...short, attempts: 2 }, 'http-503', NOW, {
+      retryMs: 60_000,
+      retryAfterMs: 1000,
+    });
+    expect(third.blockedUntil).toBe(NOW + 240_000);
+    expect(defaultDue(short, NOW + 2000, 180_000)).toBe(false);
     const garbage = failEnvelope('status', null, 'http-429', NOW, { retryMs: 60_000, retryAfterMs: null });
     expect(garbage.blockedUntil).toBe(NOW + 60_000);
     const block = failEnvelope('usage-0123456789abcdef', null, 'no token', NOW, { blockMs: 600_000 });

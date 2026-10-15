@@ -188,10 +188,12 @@ export function failEnvelope<V>(
   const lastGood = prev ? (prev.value ?? prev.lastGood ?? null) : null;
   const lastGoodAt = lastGood === null ? undefined : prev?.ok ? prev.fetchedAt : prev?.lastGoodAt;
   const attempts = Math.min((prev?.attempts ?? 0) + 1, MAX_ATTEMPTS);
+  const backoff = finite(opts.retryMs) ? backoffMs(opts.retryMs, attempts, opts.maxBackoffMs) : undefined;
   let wait: number | undefined;
   if (finite(opts.blockMs)) wait = opts.blockMs;
-  else if (finite(opts.retryAfterMs) && opts.retryAfterMs > 0) wait = opts.retryAfterMs;
-  else if (finite(opts.retryMs)) wait = backoffMs(opts.retryMs, attempts, opts.maxBackoffMs);
+  // a floor: a short Retry-After never undercuts the backoff
+  else if (finite(opts.retryAfterMs) && opts.retryAfterMs > 0) wait = Math.max(opts.retryAfterMs, backoff ?? 0);
+  else wait = backoff;
   return {
     v: 1,
     key,
