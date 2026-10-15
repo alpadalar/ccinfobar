@@ -165,9 +165,10 @@ function words(cmd: string): string[] | null {
 
 const base = (p: string) => p.replace(/\\/g, '/').split('/').pop() ?? '';
 
-// the forms 0.6.x wrote: the binary, or node + dist/ccinfobar.js
+// the forms 0.6.x wrote: the binary, or node + dist/ccinfobar.js; 0.5.x wrote npx
 export function isLegacyCcinfobarCommand(cmd: string): boolean {
   const w = words(cmd);
+  if (w?.join(' ') === 'npx -y ccinfobar@latest') return true;
   if (!w || w.length === 0 || w.length > 2) return false;
   const [first, second] = w as [string, string | undefined];
   if (second === undefined) return /^ccinfobar(\.cmd|\.ps1|\.exe)?$/i.test(base(first));

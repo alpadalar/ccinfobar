@@ -159,6 +159,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Text widths match how Claude Code measures them: emoji ZWJ sequences (a family is 2 cells, not 6), flags (2, not 4), keycaps and emoji with a variation selector (2, not 1), combining marks and newer wide emoji are measured correctly, while text-style emoji without one (such as 🖥) count 1 and soft hyphens 0. Lines that contain them no longer misalign, wrap early or get cut short; ASCII lines are unchanged
 - Truncation no longer splits a flag, an emoji sequence or a letter from its accent
 - `install`, `uninstall` and other commands print why they failed (`✗ Cannot parse ~/.claude/settings.json: ...`) when they run without a terminal, such as from Claude Code or a script, instead of exiting 1 with no message
+- `uninstall` removes the `npx -y ccinfobar@latest` status line that ccinfobar 0.5.1 to 0.5.5 wrote, instead of leaving it as another tool's, and `install` over it no longer keeps it as the status line to bring back
 
 ### Security
 

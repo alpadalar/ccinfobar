@@ -158,6 +158,21 @@ describe('uninstall through the manifest', () => {
   const bytes = (f: string) => fs.readFileSync(f);
   const json = (f: string) => JSON.parse(fs.readFileSync(f, 'utf8'));
 
+  it('removes the npx command 0.5.x wrote instead of restoring it', () => {
+    const old = { type: 'command', command: 'npx -y ccinfobar@latest', padding: 0 };
+    expect(isLegacyCcinfobarCommand(old.command)).toBe(true);
+    expect(isLegacyCcinfobarCommand('npx -y ccinfobar@latest --x')).toBe(false);
+    const fx = settingsFixture({ data: { model: 'opus', statusLine: old } });
+    expect(uninstall(fx.file)).toMatchObject({ status: 'removed', removed: true });
+    expect(json(fx.file)).toEqual({ model: 'opus' });
+    fs.writeFileSync(fx.file, JSON.stringify({ model: 'opus', statusLine: old }));
+    const plan = planInstall({ file: fx.file, command: '/bin/ccinfobar' });
+    expect(plan).toMatchObject({ owner: 'legacy-ours', needsConfirm: false });
+    applyInstall(plan, { confirmed: true });
+    expect(uninstall(fx.file)).toMatchObject({ removed: true, restored: null });
+    expect(json(fx.file)).toEqual({ model: 'opus' });
+  });
+
   it('restores the pre-install bytes exactly when the file is untouched', () => {
     const fx = settingsFixture({ data: { model: 'opus', statusLine: foreign }, indent: '    ', eol: '\r\n' });
     const before = bytes(fx.file);
