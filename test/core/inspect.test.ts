@@ -756,3 +756,57 @@ describe('job empty reasons', () => {
     expect(off.text).toBe(t('explain.reason.job-pending') + t('explain.job.noJobs'));
   });
 });
+
+describe('service-status explain', () => {
+  const now = NOW.getTime();
+  const env = (value: unknown, ok = true, at = now - 30_000): JobEnvelope<unknown> => ({
+    v: 1,
+    key: 'status',
+    fetchedAt: ok ? at : now - 1000,
+    ok,
+    value: ok ? value : null,
+    ...(ok ? {} : { error: 'timeout' }),
+    lastGood: value,
+    lastGoodAt: at,
+  });
+  const none = { indicator: 'none', description: 'All Systems Operational', incidents: [] };
+  const why = (e: JobEnvelope<unknown> | null, options: WidgetItem['options'] = {}, extra = {}) =>
+    withoutSideEffects(() =>
+      emptyReason(ctxWith({ jobs: () => ({ job: () => e as never }), ...extra }), {
+        id: 's',
+        type: 'service-status',
+        options,
+      }),
+    );
+
+  it('reports job states first', () => {
+    expect(why(null).code).toBe('job-pending');
+    expect(why(null, {}, { env: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' } }).code).toBe(
+      'nonessential-traffic-off',
+    );
+    expect(why(env(none), {}, { env: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' } }).code).toBe(
+      'nonessential-traffic-off',
+    );
+    expect(why(env(null, false)).code).toBe('job-error');
+    expect(why(env(none, true, now - 31 * 60_000)).code).toBe('stale');
+  });
+
+  it('says all systems operational when all is well', () => {
+    expect(why(env(none))).toEqual({ code: 'no-data', text: t('explain.reason.serviceOk') });
+    expect(why(env(none), { components: 'Claude Code' }).text).toBe(
+      t('explain.reason.serviceOkFiltered', { components: 'Claude Code' }),
+    );
+    expect(why(env(none, false, now - 60_000)).text).toBe(t('explain.reason.serviceStaleOk'));
+  });
+
+  it('is hidden in rows with the reason', () => {
+    const ctx = ctxWith({
+      config: { lines: [[{ id: 's', type: 'service-status' }]] },
+      jobs: () => ({ job: () => env(none) as never }),
+    });
+    const [row] = rowsFor(ctx);
+    expect(row?.status).toBe('hidden');
+    expect(row?.empty?.text).toBe(t('explain.reason.serviceOk'));
+    expect(row?.sources).toContainEqual(expect.objectContaining({ kind: 'job', path: 'status' }));
+  });
+});

@@ -6,6 +6,7 @@ import { budgetPeriod } from '../widgets/cost.js';
 import { getWidget } from '../widgets/index.js';
 import { projectionState } from '../widgets/projection.js';
 import { isLoadingOutput } from '../widgets/shared.js';
+import { STATUS_STALE_MS, serviceState } from '../widgets/status.js';
 import { stripAnsi, visibleWidth } from './ansi.js';
 import { t } from './i18n/index.js';
 import { hasReplies } from './payload.js';
@@ -190,6 +191,19 @@ export function jobEmpty(
   return reason(code);
 }
 
+function serviceReason(ctx: RenderContext, item: WidgetItem): EmptyReason {
+  if (ctx.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC) return reason('nonessential-traffic-off');
+  const e = ctx.data.jobs?.()?.job('status') ?? null;
+  const job = jobEmpty(e, 'auto', ctx.env, ctx.now.getTime(), STATUS_STALE_MS);
+  if (job) return job;
+  const s = serviceState(ctx, item);
+  if (!s) return reason('no-data');
+  if (s.stale) return reason('no-data', t('explain.reason.serviceStaleOk'));
+  const filter = sanitizeText(String(item.options?.components ?? '')).trim();
+  if (filter) return reason('no-data', t('explain.reason.serviceOkFiltered', { components: filter }));
+  return reason('no-data', t('explain.reason.serviceOk'));
+}
+
 const PROJECTION_TYPES = new Set(['usage-projection', 'limit-eta', 'limit-risk']);
 const BELOW = { 'limit-risk': 'explain.reason.belowRisk', 'limit-eta': 'explain.reason.limitSafe' } as const;
 
@@ -205,6 +219,7 @@ export function emptyReason(
     return reason('missing-option', undefined, { key: 'command' });
   }
   if (item.type === 'env' && !item.options?.name) return reason('missing-option', undefined, { key: 'name' });
+  if (item.type === 'service-status') return serviceReason(ctx, item);
   const p = ctx.payload;
   if (def.category === 'gsd') {
     return ctx.data.gsd() ? reason('no-data', t('explain.reason.gsdNothing')) : reason('no-gsd');

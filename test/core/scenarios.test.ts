@@ -37,6 +37,7 @@ const IDS = [
   'over-budget',
   'workspace-folder',
   'waiting-permission',
+  'service-incident',
 ];
 
 function ctxFor(id: string): RenderContext {
@@ -287,13 +288,14 @@ const NEW_WIDGETS = [
   'permission-wait',
   'env-counts',
   'provider',
+  'service-status',
 ];
 
 const raw = (id: string, type: string) =>
   withoutSideEffects(() => getWidget(type)!.render(ctxFor(id), { id: type, type }));
 
 const PHASE5 = ['workspace-repos', 'tool-activity', 'turn-timer', 'permission-wait', 'env-counts'];
-const OPT_IN = [...PHASE5, 'provider'];
+const OPT_IN = [...PHASE5, 'provider', 'service-status'];
 
 describe('new widgets across scenarios', () => {
   it('cover every live session widget', () => {
@@ -337,6 +339,14 @@ describe('new widgets across scenarios', () => {
     expect(widget('waiting-permission', 'permission-wait')).toBe('Bash 42s');
     for (const id of IDS.filter((x) => x !== 'waiting-permission'))
       expect(widget(id, 'permission-wait'), id).toBeNull();
+  });
+
+  it('service-incident shows the major incident, other scenarios nothing', () => {
+    expect(widget('service-incident', 'service-status')).toBe('⚠ major: Elevated errors on Claude Opus');
+    const b = getScenario('service-incident')!.build(SCENARIO_NOW);
+    expect(b.data.jobs().job('gh-x')).toEqual(sampleJobs(SCENARIO_NOW).job('gh-x'));
+    for (const id of IDS.filter((x) => x !== 'service-incident'))
+      expect(widget(id, 'service-status'), id).toBeNull();
   });
 
   it('api-key-user shows no limits or projection', () => {

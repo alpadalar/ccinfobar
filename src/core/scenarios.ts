@@ -1,5 +1,7 @@
 import type { AgentInfo } from '../data/agents.js';
+import type { JobEnvelope } from '../data/jobs/runner.js';
 import type { AgentCall } from '../data/transcript.js';
+import type { StatusValue } from './job-values.js';
 import {
   sampleAgents,
   sampleEnvironment,
@@ -231,6 +233,38 @@ function waitingPermission(now: number): ScenarioBundle {
   return b;
 }
 
+function serviceIncident(now: number): ScenarioBundle {
+  const b = base(now);
+  const at = now - 30_000;
+  const value: StatusValue = {
+    indicator: 'major',
+    description: 'Partial System Outage',
+    incidents: [
+      {
+        name: 'Elevated errors on Claude Opus',
+        impact: 'major',
+        components: ['Claude API (api.anthropic.com)'],
+        updatedAt: new Date(now - 12 * 60_000).toISOString(),
+      },
+    ],
+  };
+  const status: JobEnvelope<StatusValue> = {
+    v: 1,
+    key: 'status',
+    fetchedAt: at,
+    ok: true,
+    value,
+    attempts: 0,
+    lastGood: value,
+    lastGoodAt: at,
+  };
+  const jobs = sampleJobs(now);
+  b.data.jobs = () => ({
+    job: <V>(key: string) => (key === 'status' ? (status as JobEnvelope<V>) : jobs.job<V>(key)),
+  });
+  return b;
+}
+
 export const SCENARIOS: readonly Scenario[] = [
   {
     id: 'fresh-session',
@@ -309,6 +343,12 @@ export const SCENARIOS: readonly Scenario[] = [
     label: 'Permission wait',
     description: 'The last permission prompt in this turn waited 42 s',
     build: waitingPermission,
+  },
+  {
+    id: 'service-incident',
+    label: 'Service incident',
+    description: 'Claude has a major incident: elevated errors on Claude Opus',
+    build: serviceIncident,
   },
 ];
 
