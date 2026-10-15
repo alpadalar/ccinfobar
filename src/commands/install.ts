@@ -11,7 +11,7 @@ import {
 } from '../core/paths.js';
 import { HARDEN } from '../data/git.js';
 import type { HookEvent } from '../data/hooks.js';
-import { type BuiltCommand, buildCommand, type CommandTarget } from './command.js';
+import { type BuiltCommand, buildCommand, type CommandTarget, jsForWinBin } from './command.js';
 import {
   appliedItems,
   type HookFloor,
@@ -56,6 +56,7 @@ import {
   writeSettingsBytes,
 } from './settings-file.js';
 import {
+  compareVersions,
   type InstallKind,
   installKind,
   installVersion,
@@ -718,7 +719,10 @@ function* globalSteps(version: string): Steps<GlobalInstall> {
     };
   }
   const onPath = globalBinary();
-  if (onPath) return { ok: true, bin: onPath, onPath: true };
+  // an older copy earlier on PATH shadows the one npm just wrote
+  const shadow = onPath ? binVersion(onPath) : null;
+  if (onPath && !(shadow && compareVersions(shadow, version) < 0))
+    return { ok: true, bin: onPath, onPath: true };
   const bin = npmGlobalBin();
   return bin
     ? { ok: true, bin, onPath: false }
@@ -744,14 +748,36 @@ export interface SetupOptions {
   log?: (line: string) => void;
 }
 
+// version of the package a global bin runs; null for shims we cannot follow
+export function binVersion(bin: string): string | null {
+  try {
+    const js = process.platform === 'win32' ? jsForWinBin(bin) : fs.realpathSync(bin);
+    if (!/[\\/]dist[\\/]ccinfobar\.js$/.test(js)) return null;
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(path.dirname(path.dirname(js)), 'package.json'), 'utf8'),
+    );
+    return pkg?.name === 'ccinfobar' && typeof pkg.version === 'string' ? pkg.version : null;
+  } catch {
+    return null;
+  }
+}
+
 function* setupSteps(version: string, opts: SetupOptions): Steps<Setup> {
   const log = opts.log ?? (() => {});
   if (installKind() !== 'npx') return setup(defaultCommand(undefined, log), !!globalBinary());
   const existing = globalBinary();
-  if (existing)
-    return setup(acceptCommand(buildCommand({ kind: 'bin', bin: existing, onPath: true }), log), true);
+  const useExisting = (bin: string) =>
+    setup(acceptCommand(buildCommand({ kind: 'bin', bin, onPath: true }), log), true);
+  // an older global copy would run the status line and hooks
+  const old = existing && opts.global !== false ? binVersion(existing) : null;
+  const stale = !!old && compareVersions(old, version) < 0;
+  if (existing && !stale) return useExisting(existing);
   if (opts.global !== false) {
-    log(`Installing ccinfobar ${version} globally (skip with --no-global) ...`);
+    log(
+      stale
+        ? `Updating the global ccinfobar ${old} to ${version} ...`
+        : `Installing ccinfobar ${version} globally (skip with --no-global) ...`,
+    );
     const g = yield* globalSteps(version);
     if (g.ok) {
       log(`✓ Installed ${g.bin}`);
@@ -759,17 +785,23 @@ function* setupSteps(version: string, opts: SetupOptions): Steps<Setup> {
         log(`  ${path.dirname(g.bin)} is not on your PATH; add it to type \`ccinfobar\` directly.`);
       return setup(acceptCommand(buildCommand({ kind: 'bin', bin: g.bin, onPath: g.onPath }), log), g.onPath);
     }
-    log(`⚠ Global install failed: ${g.error}`);
+    log(
+      stale
+        ? `⚠ Could not update the global ccinfobar ${old}: ${g.error}`
+        : `⚠ Global install failed: ${g.error}`,
+    );
   }
   log(`Installing a pinned copy of ccinfobar ${version} in ${localPrefix()} ...`);
   try {
     yield { version, prefix: localPrefix() };
   } catch (err) {
     log(`✗ Could not install ccinfobar: ${(err as Error).message}`);
+    if (existing) return useExisting(existing);
     return { command: null, onPath: false };
   }
   if (!fs.existsSync(localBin())) {
     log('✗ npm finished but ccinfobar was not found');
+    if (existing) return useExisting(existing);
     return { command: null, onPath: false };
   }
   log(`✓ Installed ${localBin()}`);
