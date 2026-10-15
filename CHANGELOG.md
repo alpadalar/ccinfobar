@@ -161,6 +161,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `install`, `uninstall` and other commands print why they failed (`✗ Cannot parse ~/.claude/settings.json: ...`) when they run without a terminal, such as from Claude Code or a script, instead of exiting 1 with no message
 - `uninstall` removes the `npx -y ccinfobar@latest` status line that ccinfobar 0.5.1 to 0.5.5 wrote, instead of leaving it as another tool's, and `install` over it no longer keeps it as the status line to bring back
 - `npx ccinfobar@latest install` updates an older global `ccinfobar` instead of pointing the status line and hooks at it (an old copy without the `hook` command made every hook fail); if npm cannot update it, a pinned copy is installed, and the old copy is only used when nothing else installs
+- `uninstall` also gives back the status line of projects where you ran `install --project` but that Claude Code's project list does not include, so removing ccinfobar afterwards no longer leaves them running a missing command
 
 ### Security
 

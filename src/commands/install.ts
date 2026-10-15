@@ -643,14 +643,31 @@ export function takeOverProjects(
   return done;
 }
 
+const fileKey = (f: string) => (process.platform === 'win32' ? realKey(f).toLowerCase() : realKey(f));
+
+// --project installs in folders .claude.json does not list
+function recordedProjects(m: Manifest, env: NodeJS.ProcessEnv): string[] {
+  const own = fileKey(claudeDir(env));
+  return m.entries.flatMap((e) => {
+    if (e.kind !== 'statusLine' || typeof e.file !== 'string') return [];
+    const dir = path.dirname(e.file);
+    const local = path.basename(e.file) === 'settings.local.json' && path.basename(dir) === '.claude';
+    return local && fileKey(dir) !== own ? [path.dirname(dir)] : [];
+  });
+}
+
 export function releaseProjects(env: NodeJS.ProcessEnv = process.env): string[] {
   const done: string[] = [];
-  const m = readManifest();
-  for (const root of knownProjects(env)) {
+  const m = readManifest(env);
+  const seen = new Set<string>();
+  for (const root of [...knownProjects(env), ...recordedProjects(m, env)]) {
     const file = projectSettingsPath(root);
+    const key = fileKey(file);
+    if (seen.has(key)) continue;
+    seen.add(key);
     try {
       if (!ownedHere(m, file, currentStatusLine(file))) continue;
-      if (uninstall(file).removed) done.push(root);
+      if (uninstall(file, { env }).removed) done.push(root);
     } catch {}
   }
   return done;

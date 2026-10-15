@@ -171,6 +171,7 @@ describe('install and uninstall', () => {
       expect(recorded).toMatchObject([{ line: '/.claude/settings.local.json' }]);
     } finally {
       process.env = saved;
+      fs.rmSync(root, { recursive: true, force: true });
     }
   });
 
@@ -238,6 +239,27 @@ describe('install and uninstall', () => {
     fs.rmSync(original ?? '');
     applyInstall(planInstall({ file, command: '/opt/ccinfobar' }), { confirmed: true });
     expect(fs.existsSync(original ?? '')).toBe(false);
+  });
+
+  it('releases --project installs the manifest knows but .claude.json does not', () => {
+    const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-rel-')));
+    const claude = path.join(base, 'claude');
+    const env = { ...process.env, CLAUDE_CONFIG_DIR: claude };
+    fs.mkdirSync(claude);
+    fs.writeFileSync(path.join(claude, '.claude.json'), JSON.stringify({ projects: {} }));
+    const root = path.join(base, 'proj');
+    const gone = path.join(base, 'gone');
+    const own = path.join(claude, 'settings.local.json');
+    for (const file of [projectSettingsPath(root), projectSettingsPath(gone), own]) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify({ statusLine: { type: 'command', command: 'my-line' } }));
+      applyInstall(planInstall({ file, command: '/bin/ccinfobar', env }), { confirmed: true, env });
+    }
+    fs.rmSync(gone, { recursive: true });
+    expect(releaseProjects(env)).toEqual([root]);
+    expect(read(projectSettingsPath(root)).statusLine.command).toBe('my-line');
+    expect(fs.existsSync(gone)).toBe(false);
+    expect(read(own).statusLine.command).toBe('/bin/ccinfobar');
   });
 
   it('never releases or shadows by substring', () => {
