@@ -8,6 +8,7 @@ import {
   explainJson,
   formatAge,
   loadInspectInput,
+  redactValue,
   runExplain,
   shortAge,
   sourceText,
@@ -692,6 +693,24 @@ describe('explain redacts env and command values', () => {
     expect(err).toEqual([]);
     expect(out.join('\n')).toContain(SECRET);
     expect(out.join('\n')).toContain(CMD_OUT);
+  });
+});
+
+describe('redactValue', () => {
+  it('redacts tool-activity, whose value can hold command arguments', () => {
+    const row = (type: string, value: string): InspectRow => ({
+      line: 0,
+      index: 0,
+      id: type,
+      type,
+      status: 'shown',
+      value,
+      sources: [],
+      empty: null,
+      error: null,
+    });
+    expect(redactValue(row('tool-activity', 'Bash npm test'))).toBe(t('explain.redacted', { n: 13 }));
+    expect(redactValue(row('model', 'Opus'))).toBe('Opus');
   });
 });
 

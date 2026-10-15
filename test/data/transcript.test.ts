@@ -318,6 +318,16 @@ describe('transcript tool activity', () => {
     expect(t.toolResultTimes[63]).toBe(T0 + 70_000);
   });
 
+  it('masks secrets in the running tool argument', () => {
+    const arg = (command: string) =>
+      parse([prompt(0, 'go', 'p1'), use(1, 't1', 'Bash', { command })]).runningTools[0]?.arg;
+    expect(arg('export GITHUB_TOKEN=ghp_abcdef123')).toBe('export GITHUB_TOKEN=…');
+    expect(arg('curl -H "auth: Bearer sk-abc123456"')).toBe('curl -H "auth: Bearer …"');
+    expect(arg('mysql --password=hunter2 db')).toBe('mysql --password=… db');
+    expect(arg('git clone https://me:pw@host/x')).toBe('git clone https://me:…@host/x');
+    expect(arg('npm test -- --reporter=dot')).toBe('npm test -- --reporter=dot');
+  });
+
   it('counts a streamed rewrite of the same tool_use once', () => {
     const t = parse([prompt(0, 'go', 'p1'), use(1, 't1', 'Bash'), use(1, 't1', 'Bash')]);
     expect(t.turnToolCounts).toEqual([['Bash', 1]]);

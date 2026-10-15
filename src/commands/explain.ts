@@ -446,7 +446,8 @@ function statusLine(r: InspectRow): string {
   }
 }
 
-const REDACT = new Set(['env', 'command']);
+// tool-activity shows command arguments
+const REDACT = new Set(['env', 'command', 'tool-activity']);
 
 export function redactValue(r: InspectRow): string | null {
   return r.value !== null && REDACT.has(r.type) ? t('explain.redacted', { n: r.value.length }) : r.value;

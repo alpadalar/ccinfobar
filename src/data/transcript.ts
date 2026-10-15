@@ -284,14 +284,24 @@ function baseName(p: string): string {
   return parts[parts.length - 1] ?? p;
 }
 
+const SECRET_VAR =
+  /\b(\w*(?:token|secret|passw(?:or)?d|pwd|api_?key|access_?key|private_?key|auth|credential)\w*)=("[^"]*"|'[^']*'|\S+)/gi;
+const SECRET_SCHEME = /\b(bearer|basic|token)\s+[\w.~+/=-]{6,}/gi;
+const URL_USER = /(\w+:\/\/[^\s/:@]+):[^\s/@]+@/g;
+
+function maskSecrets(s: string): string {
+  return s.replace(SECRET_VAR, '$1=…').replace(SECRET_SCHEME, '$1 …').replace(URL_USER, '$1:…@');
+}
+
 function shortArg(input: unknown): string {
   if (!input || typeof input !== 'object') return '';
   for (const key of ARG_KEYS) {
     const v = (input as Json)[key];
     if (typeof v !== 'string') continue;
     const raw = key === 'file_path' || key === 'path' ? baseName(v) : v;
-    const one = sanitizeText(raw.slice(0, 1024)).replace(/\s+/g, ' ').trim();
-    if (!one) continue;
+    const flat = sanitizeText(raw.slice(0, 1024)).replace(/\s+/g, ' ').trim();
+    if (!flat) continue;
+    const one = maskSecrets(Array.from(flat).slice(0, 256).join(''));
     const chars = Array.from(one);
     return chars.length > ARG_MAX ? `${chars.slice(0, ARG_MAX - 1).join('')}…` : one;
   }

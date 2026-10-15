@@ -201,7 +201,7 @@ Nothing is set for you. 5 s is a good balance; `--refresh 1` works but runs ccin
 
 ### tool-activity and turn-timer
 
-Both read the transcript and need no hooks. With hooks, `turn-timer` uses the exact prompt and stop times, unless the transcript shows a missed prompt, a missed stop or another prompt id; then it falls back to the transcript. A tool running longer than 10 minutes is no longer shown as running. `tool-activity` cuts the command or file name at 32 characters; set `showArgs: false` to hide it.
+Both read the transcript and need no hooks. With hooks, `turn-timer` uses the exact prompt and stop times, unless the transcript shows a missed prompt, a missed stop or another prompt id; then it falls back to the transcript. A tool running longer than 10 minutes is no longer shown as running. `tool-activity` cuts the command or file name at 32 characters and masks values after names such as `GITHUB_TOKEN=` or `--password=`, `Bearer` tokens and passwords in URLs; set `showArgs: false` to hide the argument.
 
 ### permission-wait
 
