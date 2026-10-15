@@ -44,6 +44,9 @@ export interface FileEntry {
   horizon: number;
   recent: RecentReq[];
   skipped: number;
+  // first entry timestamp and birth time decide which copy owns a request
+  first: number | null;
+  born: number;
 }
 
 // files keyed by relPath with / separators; owners maps key hash to the owning relPath

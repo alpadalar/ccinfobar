@@ -1,14 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { buildReport } from '../../src/core/report-model.js';
 import { dayKey } from '../../src/core/time.js';
 import { accountKeyFor } from '../../src/data/limits.js';
 import { readReportData } from '../../src/data/report-index.js';
 import {
   assistantLine,
+  bornAfter,
   type LedgerOpts,
   ledgerLine,
   scratch,
+  userLine,
   writeLedger,
   writeTranscript,
 } from '../fixtures/report/build.js';
@@ -166,5 +169,40 @@ describe('report ledger fold', () => {
     ]);
     expect([fs.readFileSync(month), fs.readFileSync(summary)]).toEqual(snap);
     expect(fs.readdirSync(path.join(cache, 'ledger')).sort()).toEqual(['2026-10.jsonl', 'summary.json']);
+  });
+
+  it('costs a fork once whatever the file times, cold, warm or rebuilt', (ctx) => {
+    const { root, cache, line, run } = setup('fork-cost');
+    writeLedger(
+      '2026-10',
+      [line({ s: 'S9', c: 0.001, t: D1 }), line({ s: 'S9', c: 15, t: D1 + 600_000 })],
+      cache,
+    );
+    const reqs = [1, 2, 3].map((i) =>
+      assistantLine({ id: `m${i}`, requestId: `r${i}`, ts: D1 + i * 60_000, in: 1, costUSD: 5 }),
+    );
+    const orig = writeTranscript(
+      'projects/-w-a/S9.jsonl',
+      [userLine({ ts: D1, cwd: '/w/a' }), ...reqs],
+      root,
+    );
+    const own = assistantLine({ id: 'm4', requestId: 'r4', ts: D1 + 1_200_000, in: 1, costUSD: 5 });
+    const copy = bornAfter(
+      orig,
+      'projects/-w-a/S1.jsonl',
+      [userLine({ ts: D1, cwd: '/w/a' }), ...reqs, own],
+      root,
+    );
+    if (!copy) return ctx.skip();
+    fs.utimesSync(copy, new Date(D2), new Date(D2));
+    fs.utimesSync(orig, new Date(D2 + 60_000), new Date(D2 + 60_000));
+    const cost = (r: ReturnType<typeof run>) =>
+      buildReport(r, { period: 'day', since: null, until: null, filter: null, config: {} }).total!.costUsd;
+    const cold = run();
+    expect(cost(cold)).toBeCloseTo(19.999, 6);
+    expect(cost(run())).toBeCloseTo(19.999, 6);
+    const rebuilt = run({ rebuild: true });
+    expect(cost(rebuilt)).toBeCloseTo(19.999, 6);
+    expect(rebuilt.sessions).toEqual(cold.sessions);
   });
 });

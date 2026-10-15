@@ -8,6 +8,7 @@ import { keyHash, scanTree, sessionsOf, walkTranscripts } from '../../src/data/r
 import {
   appendTranscript,
   assistantLine,
+  bornAfter,
   metaLine,
   scratch,
   userLine,
@@ -166,6 +167,50 @@ describe('scanTree requests', () => {
     const s = scan(root);
     expect(total(s.S1).n).toBe(3);
     expect(total(s.S9).n).toBe(1);
+  });
+
+  it('counts copied fork requests for the original after it was resumed', (ctx) => {
+    const root = scratch('fork-resumed');
+    const reqs = [1, 2, 3].map((i) => ({ id: `m${i}`, requestId: `r${i}`, ts: min(i), in: 1, out: 10 }));
+    const orig = writeTranscript('projects/-w-a/S9.jsonl', reqs.map(assistantLine), root);
+    const fork = [...reqs, { id: 'm4', requestId: 'r4', ts: min(20), in: 1, out: 10 }];
+    const copy = bornAfter(orig, 'projects/-w-a/S1.jsonl', fork.map(assistantLine), root);
+    if (!copy) return ctx.skip();
+    age(copy, T0 + 60_000);
+    age(orig, T0 + 120_000);
+    const s = scan(root);
+    expect(total(s.S9).n).toBe(3);
+    expect(total(s.S1).n).toBe(1);
+  });
+
+  it('gives copied requests to the file whose entries start first', () => {
+    const root = scratch('fork-first');
+    const reqs = [1, 2, 3].map((i) => ({ id: `m${i}`, requestId: `r${i}`, ts: min(i), in: 1, out: 10 }));
+    const orig = writeTranscript(
+      'projects/-w-a/S9.jsonl',
+      [userLine({ ts: min(0) }), ...reqs.map(assistantLine)],
+      root,
+    );
+    const fork = [...reqs.slice(1), { id: 'm4', requestId: 'r4', ts: min(20), in: 1, out: 10 }];
+    const copy = writeTranscript('projects/-w-a/S1.jsonl', fork.map(assistantLine), root);
+    age(copy, T0);
+    age(orig, T0 + 60_000);
+    const s = scan(root);
+    expect(total(s.S9).n).toBe(3);
+    expect(total(s.S1).n).toBe(1);
+  });
+
+  it('moves copied requests to an older original that shows up later', () => {
+    const root = scratch('fork-late');
+    const reqs = [1, 2, 3].map((i) => ({ id: `m${i}`, requestId: `r${i}`, ts: min(i), in: 1, out: 10 }));
+    const fork = [...reqs, { id: 'm4', requestId: 'r4', ts: min(20), in: 1, out: 10 }];
+    writeTranscript('projects/-w-a/S1.jsonl', fork.map(assistantLine), root);
+    const first = scanTree(root, null);
+    expect(total(sessionsOf(first.state).S1).n).toBe(4);
+    writeTranscript('projects/-w-a/S9.jsonl', [userLine({ ts: min(0) }), ...reqs.map(assistantLine)], root);
+    const s = sessionsOf(scanTree(root, first.state).state);
+    expect(total(s.S9)).toMatchObject({ n: 3, out: 30 });
+    expect(total(s.S1)).toMatchObject({ n: 1, out: 10 });
   });
 
   it('ignores tool result usage and synthetic messages', () => {
@@ -410,6 +455,30 @@ describe('scanTree active time', () => {
     expect(minutes(s.S9)).toBe(15);
     expect(total(s.S1).n).toBe(11);
     expect(total(s.S9).n).toBe(6);
+  });
+
+  it('skips the copied history of a fork that was older on disk', (ctx) => {
+    const root = scratch('fork-time-resumed');
+    const history: string[] = [];
+    for (let i = 0; i <= 10; i++) {
+      if (i > 0) history.push(userLine({ ts: min(3 * i - 2) }));
+      history.push(assistantLine({ id: `m${i}`, requestId: `r${i}`, ts: min(3 * i), in: 1, out: 1 }));
+    }
+    const orig = writeTranscript('projects/-w-a/S9.jsonl', history, root);
+    const fresh: string[] = [];
+    for (let i = 0; i <= 5; i++) {
+      fresh.push(userLine({ ts: min(40 + 2 * i) }));
+      fresh.push(assistantLine({ id: `n${i}`, requestId: `q${i}`, ts: min(40 + 2 * i), out: 1 }));
+    }
+    const copy = bornAfter(orig, 'projects/-w-a/S1.jsonl', [...history, ...fresh], root);
+    if (!copy) return ctx.skip();
+    age(copy, T0 + 60_000);
+    age(orig, T0 + 120_000);
+    const s = scan(root);
+    expect(minutes(s.S9)).toBe(30);
+    expect(minutes(s.S1)).toBe(15);
+    expect(total(s.S9).n).toBe(11);
+    expect(total(s.S1).n).toBe(6);
   });
 
   it('keeps the time of a main file that copies its own set-aside transcript', () => {

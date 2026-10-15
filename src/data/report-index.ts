@@ -158,6 +158,8 @@ function newEntry(f: WalkedFile): FileEntry {
     horizon: 0,
     recent: [],
     skipped: 0,
+    first: null,
+    born: 0,
   };
 }
 
@@ -233,8 +235,23 @@ function applyAssistant(sc: Scan, e: Json, ts: number | null): void {
     return;
   }
   if (owner !== rel) {
+    const o = st.files[owner];
+    const main = f.kind === 'main' && o?.kind === 'main' && e.isSidechain !== true;
+    if (main && rank(f, rel, o, owner) < 0) {
+      // the older copy owns it, even when read later
+      const old = o.recent.find((x) => x.k === k);
+      if (old) {
+        addTo(o, old.b, old, -1);
+        o.recent = o.recent.filter((x) => x !== old);
+      } else addTo(o, b, r, -1);
+      st.owners.set(k, rel);
+      addTo(f, b, r, 1);
+      f.recent.push({ k, b, ...r });
+      if (f.recent.length > RECENT) f.recent.shift();
+      return;
+    }
     // copies of another session's main file form this file's prefix
-    if (ts !== null && ts >= f.horizon && e.isSidechain !== true && st.files[owner]?.kind === 'main') {
+    if (ts !== null && ts >= f.horizon && main) {
       f.horizon = ts;
       f.time = map();
     }
@@ -262,6 +279,7 @@ function applyLine(sc: Scan, line: string): void {
   if (e) {
     const t = typeof e.timestamp === 'string' ? Date.parse(e.timestamp) : Number.NaN;
     ts = Number.isNaN(t) ? null : t;
+    if (f.first === null && ts !== null) f.first = ts;
     side = e.isSidechain === true;
     applyAssistant(sc, e, ts);
   } else {
@@ -390,6 +408,8 @@ function resetEntry(f: FileEntry): void {
     horizon: 0,
     recent: [],
     skipped: 0,
+    first: null,
+    born: 0,
   });
 }
 
@@ -438,17 +458,55 @@ export interface ScanOut {
   keysLoaded: boolean;
 }
 
-function statOf(abs: string): { id: string | null; size: number; mtime: number } | null {
+function statOf(abs: string): { id: string | null; size: number; mtime: number; born: number } | null {
   try {
     const s = fs.statSync(abs, { bigint: true });
     return {
       id: s.ino === 0n ? null : `${s.dev}:${s.ino}`,
       size: Number(s.size),
       mtime: Number(s.mtimeMs) + Number(s.mtimeNs % 1_000_000n) / 1e6,
+      born: Number(s.birthtimeMs) + Number(s.birthtimeNs % 1_000_000n) / 1e6,
     };
   } catch {
     return null;
   }
+}
+
+const PEEK = 64 * 1024;
+
+// top-level timestamp of the first complete line that has one
+function peekFirst(abs: string, size: number): number | null {
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(abs, 'r');
+    const b = Buffer.alloc(Math.min(PEEK, size));
+    const n = fs.readSync(fd, b, 0, b.length, 0);
+    let start = 0;
+    for (let nl = b.indexOf(10, start); nl !== -1 && nl < n; nl = b.indexOf(10, start)) {
+      const e = parse(b.toString('utf8', start, nl));
+      const t = typeof e?.timestamp === 'string' ? Date.parse(e.timestamp) : Number.NaN;
+      if (!Number.isNaN(t)) return t;
+      start = nl + 1;
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+  }
+}
+
+const INF = Number.POSITIVE_INFINITY;
+
+// content order: first entry, then birth time, then path
+function rank(a: FileEntry, ar: string, b: FileEntry, br: string): number {
+  const first = (a.first ?? INF) - (b.first ?? INF);
+  const born = (a.born > 0 ? a.born : INF) - (b.born > 0 ? b.born : INF);
+  return first || born || (ar < br ? -1 : ar > br ? 1 : 0);
 }
 
 function plan(
@@ -489,6 +547,10 @@ function plan(
     f.gone = false;
     f.id = s.id;
     f.mtimeMs = s.mtime;
+    if (f.offset === 0) {
+      f.born = s.born;
+      f.first = s.size > 0 ? peekFirst(w.abs, s.size) : null;
+    }
     if (s.size > f.offset) todo.push({ w, f, size: s.size, hist });
     else f.size = s.size;
   }
@@ -508,7 +570,7 @@ function plan(
       changed = true;
     }
   }
-  todo.sort((a, b) => a.f.mtimeMs - b.f.mtimeMs || (a.w.rel < b.w.rel ? -1 : a.w.rel > b.w.rel ? 1 : 0));
+  todo.sort((a, b) => rank(a.f, a.w.rel, b.f, b.w.rel));
   return { todo, release, changed };
 }
 
@@ -673,6 +735,8 @@ function entryOf(v: unknown): FileEntry | null {
   if (typeof v.gone !== 'boolean' || !(v.lastTs === null || fin(v.lastTs)) || !fin(v.horizon)) return null;
   if (!uint(v.skipped) || !isObj(v.buckets) || !Array.isArray(v.recent) || v.recent.length > RECENT)
     return null;
+  if (!(v.first === undefined || v.first === null || fin(v.first))) return null;
+  if (!(v.born === undefined || fin(v.born))) return null;
   const buckets = map<Bucket>();
   for (const [k, b] of Object.entries(v.buckets)) {
     const x = bucketOf(b);
@@ -704,6 +768,8 @@ function entryOf(v: unknown): FileEntry | null {
     horizon: v.horizon,
     recent,
     skipped: v.skipped,
+    first: (v.first ?? null) as number | null,
+    born: (v.born ?? 0) as number,
   };
 }
 

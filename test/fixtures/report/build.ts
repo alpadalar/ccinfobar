@@ -93,6 +93,20 @@ export function writeTranscript(rel: string, lines: string[], root = claudeRoot(
   return file;
 }
 
+// a transcript created after prev, by birth time; null without birth times
+export function bornAfter(prev: string, rel: string, lines: string[], root = claudeRoot()): string | null {
+  const before = fs.statSync(prev, { bigint: true }).birthtimeNs;
+  if (before <= 0n) return null;
+  for (let i = 0; i < 200; i++) {
+    const file = writeTranscript(rel, lines, root);
+    if (fs.statSync(file, { bigint: true }).birthtimeNs > before) return file;
+    fs.rmSync(file);
+    const until = Date.now() + 5;
+    while (Date.now() < until) {}
+  }
+  return null;
+}
+
 export function appendTranscript(rel: string, lines: string[], root = claudeRoot()): string {
   const file = path.join(root, ...rel.split('/'));
   fs.appendFileSync(file, text(lines));
