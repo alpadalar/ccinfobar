@@ -1,4 +1,5 @@
 import { en } from './en/index.js';
+import { tr } from './tr/index.js';
 import type { LanguageDef } from './types.js';
 
 export const EN = {
@@ -9,7 +10,15 @@ export const EN = {
   messages: en,
 } as const satisfies LanguageDef;
 
-export const LANGUAGES = [EN] as const;
+export const TR = {
+  id: 'tr',
+  name: 'Türkçe',
+  aliases: ['tur'],
+  locale: 'tr',
+  messages: tr,
+} as const satisfies LanguageDef;
+
+export const LANGUAGES = [EN, TR] as const;
 
 export type LanguageId = (typeof LANGUAGES)[number]['id'];
 export type LanguageSetting = 'auto' | LanguageId;

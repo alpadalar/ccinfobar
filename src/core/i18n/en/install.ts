@@ -17,7 +17,10 @@ export const installMessages = {
   'install.dryRun': 'Dry run: nothing was written.',
   'install.dryRunGlobal': 'Would install ccinfobar {version} with npm first.',
   'install.dryRunFile': 'Would set statusLine in {file}',
-  'install.dryRunProjects': "Would also replace GSD's status line in {count} project(s):",
+  'install.dryRunProjects': {
+    one: "Would also replace GSD's status line in {count} project:",
+    other: "Would also replace GSD's status line in {count} projects:",
+  },
   'install.unset': 'unset',
   'install.stale':
     'The statusLine in {file} changed while installing; nothing was written. Run install again.',
@@ -27,7 +30,10 @@ export const installMessages = {
     "This statusLine mentions ccinfobar but was not recorded by it: {command}. Treat it as ccinfobar's?",
   'install.unsafePath':
     'Cannot build a safe command for {path}: it contains {chars}. Move ccinfobar to a path without them.',
-  'install.projectsTaken': "✓ Also replaced GSD's status line in {count} project(s):",
+  'install.projectsTaken': {
+    one: "✓ Also replaced GSD's status line in {count} project:",
+    other: "✓ Also replaced GSD's status line in {count} projects:",
+  },
   'install.manifestReadOnly':
     '{file} was written by a newer ccinfobar or is damaged; not changing any settings. Move it aside to continue.',
   'install.needsConfirm': 'Confirm replacing the current statusLine first.',

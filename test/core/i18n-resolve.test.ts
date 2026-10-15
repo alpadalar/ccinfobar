@@ -40,10 +40,14 @@ describe('resolveLanguage', () => {
       id: 'en',
       source: 'config',
     });
+    expect(resolveLanguage('tr', hints({ CCINFOBAR_LANG: 'en', LC_ALL: 'en_US.UTF-8' }))).toEqual({
+      id: 'tr',
+      source: 'config',
+    });
   });
 
   it('auto, undefined and junk settings fall through', () => {
-    for (const s of ['auto', undefined, 'xx', 'EN', 5, null, {}]) {
+    for (const s of ['auto', undefined, 'xx', 'EN', 'TR', 5, null, {}]) {
       expect(resolveLanguage(s, hints({ LC_ALL: 'en_US.UTF-8' })), String(s)).toEqual({
         id: 'en',
         source: 'LC_ALL',
@@ -88,8 +92,17 @@ describe('resolveLanguage', () => {
     });
   });
 
-  it.each(['tr_TR.UTF-8', 'tr_TR@euro', 'TR-tr', 'tr'])('%s resolves from its source', (tag) => {
-    expect(resolveLanguage(undefined, hints({ LANG: tag }))).toEqual({ id: 'en', source: 'LANG' });
+  it.each(['tr_TR.UTF-8', 'tr_TR@euro', 'TR-tr', 'tr', 'tur'])('%s resolves from its source', (tag) => {
+    expect(resolveLanguage(undefined, hints({ LANG: tag }))).toEqual({ id: 'tr', source: 'LANG' });
+  });
+
+  it('Turkish from LC_ALL', () => {
+    expect(resolveLanguage(undefined, [undefined, 'tr_TR.UTF-8'])).toEqual({ id: 'tr', source: 'LC_ALL' });
+    expect(resolveLanguage('auto', hints({ CCINFOBAR_LANG: 'tr', LANG: 'en_US' }))).toEqual({
+      id: 'tr',
+      source: 'CCINFOBAR_LANG',
+    });
+    expect(resolveLanguage(undefined, hints({ Intl: 'tr-TR' }))).toEqual({ id: 'tr', source: 'Intl' });
   });
 
   it('und and junk give English without throwing', () => {
@@ -119,6 +132,12 @@ describe('pickUiLanguage', () => {
   it('then a registered auto id', () => {
     expect(pickUiLanguage('auto', 'en', ['de'])).toBe('en');
     expect(pickUiLanguage(undefined, '__proto__', ['en-US'])).toBe('en');
+  });
+
+  it('picks Turkish', () => {
+    expect(pickUiLanguage('tr', 'en', ['en-US'])).toBe('tr');
+    expect(pickUiLanguage('auto', 'tr', ['en-US'])).toBe('tr');
+    expect(pickUiLanguage('auto', undefined, ['de-DE', 'tr-TR', 'en'])).toBe('tr');
   });
 
   it('then the first matching tag, then English', () => {

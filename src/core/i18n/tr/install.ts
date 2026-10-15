@@ -1,0 +1,64 @@
+import type { installMessages as enInstall } from '../en/install.js';
+import type { Message } from '../types.js';
+
+export const installMessages = {
+  'install.installing': 'ccinfobar {version} kuruluyor',
+  'install.wrote': '✓ {file} dosyasında statusLine "{command}" olarak ayarlandı',
+  'install.foreignHeader': '{file} dosyasında başka bir araca ait bir statusLine zaten var.',
+  'install.current': '  mevcut:   {command}',
+  'install.proposed': '  önerilen: {command}',
+  'install.refreshDiff': '  refreshInterval: {current} -> {proposed}',
+  'install.refreshHint':
+    'Zamana bağlı bileşenler ({widgets}) yalnızca Claude Code durum satırını yeniden çalıştırdığında güncellenir. 5 saniyede bir yenilemek için `--refresh 5` ekleyin; Claude Code hook olaylarında veya bir izin penceresi açıkken durum satırını yeniden çalıştırmaz.',
+  'install.refreshHintRules':
+    '{items} üzerindeki zaman kuralları yalnızca Claude Code durum satırını yeniden çalıştırdığında değişir. 5 saniyede bir yenilemek için `--refresh 5` ekleyin.',
+  'install.refreshOne': "refreshInterval 1, Node'u her saniye başlatır; genellikle 5 yeterlidir.",
+  'install.paddingDiff': '  padding: {current} -> {proposed}',
+  'install.replacePrompt': 'Değiştirilsin mi?',
+  'install.kept': 'Mevcut statusLine korundu. Hiçbir şey değiştirilmedi.',
+  'install.replaced': 'Değiştirilen: {command}',
+  'install.dryRun': 'Deneme çalıştırması: hiçbir şey yazılmadı.',
+  'install.dryRunGlobal': 'Önce ccinfobar {version} npm ile kurulacak.',
+  'install.dryRunFile': '{file} dosyasında statusLine ayarlanacak',
+  'install.dryRunProjects': {
+    one: "GSD'nin durum satırı {count} projede de değiştirilecek:",
+    other: "GSD'nin durum satırı {count} projede de değiştirilecek:",
+  },
+  'install.unset': 'ayarlı değil',
+  'install.stale':
+    'Kurulum sırasında {file} dosyasındaki statusLine değişti; hiçbir şey yazılmadı. install komutunu yeniden çalıştırın.',
+  'install.unchanged': "statusLine zaten ccinfobar'ı çalıştırıyor; değiştirilecek bir şey yok.",
+  'install.backup': '  Yedek: {file}',
+  'install.legacyPrompt':
+    "Bu statusLine ccinfobar'dan söz ediyor ama ccinfobar tarafından kaydedilmemiş: {command}. ccinfobar'a ait sayılsın mı?",
+  'install.unsafePath':
+    "{path} için güvenli bir komut oluşturulamıyor, yol şu karakterleri içeriyor: {chars}. ccinfobar'ı bunları içermeyen bir yola taşıyın.",
+  'install.projectsTaken': {
+    one: "✓ GSD'nin durum satırı {count} projede de değiştirildi:",
+    other: "✓ GSD'nin durum satırı {count} projede de değiştirildi:",
+  },
+  'install.manifestReadOnly':
+    '{file} daha yeni bir ccinfobar tarafından yazılmış ya da bozuk; hiçbir ayar değiştirilmiyor. Devam etmek için dosyayı başka bir yere taşıyın.',
+  'install.needsConfirm': "Önce mevcut statusLine'ın değiştirilmesini onaylayın.",
+  'install.confirmNeedsCurrent': "Onaylı bir kurulum, kendisine gösterilen statusLine'ı göndermelidir.",
+  'uninstall.restoredExact': "✓ {file} dosyası ccinfobar'dan önceki haline birebir döndürüldü",
+  'uninstall.restoredPrevious': '✓ Önceki statusLine geri getirildi: {command}',
+  'uninstall.removed': '✓ ccinfobar, {file} dosyasından kaldırıldı',
+  'uninstall.deletedFile': '✓ {file} dosyası kaldırıldı; dosyayı ccinfobar oluşturmuştu',
+  'uninstall.foreign': "{file} dosyasındaki statusLine ccinfobar'a ait değil; dokunulmadı: {command}",
+  'uninstall.goneRestored':
+    'statusLine {file} dosyasından zaten kaldırılmıştı; öncekisi geri getirildi: {command}',
+  'uninstall.goneNothing': 'statusLine {file} dosyasından zaten kaldırılmıştı; yapılacak bir şey yok',
+  'uninstall.notInstalled': 'ccinfobar {file} dosyasında kurulu değil',
+  'editor.planTitle': "ccinfobar'ı Claude Code'a kur",
+  'editor.planCurrent': 'Mevcut durum satırı',
+  'editor.planProposed': 'Yeni durum satırı',
+  'editor.planReplace': 'Değiştir',
+  'editor.planCancel': 'Mevcudu koru',
+  'editor.installed': 'Kuruldu. Yedekler {dir} klasöründe',
+  'editor.refreshHint':
+    'Bu bileşenler yalnızca Claude Code durum satırını yenilediğinde güncellenir: {widgets}. Claude Code hook olaylarında veya bir izin penceresi açıkken durum satırını yenilemez.',
+  'editor.refreshUse': '{n} saniyede bir yenile',
+  'tui.replaceQuestion': '"{current}", "{proposed}" ile değiştirilsin mi?',
+  'tui.installed': 'Kuruldu: statusLine "{command}" komutunu çalıştırıyor. Yedekler {dir} klasöründe',
+} satisfies Record<keyof typeof enInstall, Message>;

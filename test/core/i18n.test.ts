@@ -18,6 +18,7 @@ import {
   type LanguageDef,
   language,
   languageLocale,
+  type Message,
   setLanguage,
   t,
   withLanguage,
@@ -31,7 +32,10 @@ import {
   languageDef,
   matchLanguage,
   nativeName,
+  TR,
 } from '../../src/core/i18n/languages.js';
+import { configMessages as trConfig } from '../../src/core/i18n/tr/config.js';
+import { installMessages as trInstall } from '../../src/core/i18n/tr/install.js';
 import { withLang } from '../helpers.js';
 
 const dir = path.resolve(__dirname, '../../src/core/i18n');
@@ -171,6 +175,76 @@ describe('plural forms', () => {
   });
 });
 
+describe('Turkish', () => {
+  it('translates with params', () => {
+    const text = withLang('tr', () => t('install.installing', { version: '1.2.3' }));
+    expect(text).toContain('1.2.3');
+    expect(text).not.toBe(t('install.installing', { version: '1.2.3' }));
+  });
+
+  it('install project counts are plural', () => {
+    expect(t('install.dryRunProjects', { count: 1 })).toBe(
+      "Would also replace GSD's status line in 1 project:",
+    );
+    expect(t('install.dryRunProjects', { count: 2 })).toBe(
+      "Would also replace GSD's status line in 2 projects:",
+    );
+    expect(t('install.projectsTaken', { count: 1 })).toBe("✓ Also replaced GSD's status line in 1 project:");
+    expect(t('install.projectsTaken', { count: 3 })).toBe("✓ Also replaced GSD's status line in 3 projects:");
+    withLang('tr', () => {
+      expect(t('install.dryRunProjects', { count: 1 })).toContain('1 projede');
+      expect(t('install.projectsTaken', { count: 3 })).toContain('3 projede');
+    });
+  });
+});
+
+type Table = Record<string, Message>;
+
+const AREA_PAIRS: [string, Table, Table][] = [
+  ['install', installMessages, trInstall],
+  ['config', configMessages, trConfig],
+];
+
+function forms(m: Message): string[] {
+  return typeof m === 'string' ? [m] : [m.one, m.other];
+}
+
+function params(m: Message): string[] {
+  return [...new Set(forms(m).flatMap((f) => [...f.matchAll(/\{(\w+)\}/g)].map((x) => x[1]!)))].sort();
+}
+
+function edges(f: string): [string, string, string] {
+  return [/^\s*/.exec(f)![0], /\s*$/.exec(f)![0], /[~:]?$/.exec(f.trimEnd())![0]];
+}
+
+const CONTROL = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069]/;
+
+describe.each(AREA_PAIRS)('tr %s table', (_name, enArea, trArea) => {
+  it('has the same ids', () => {
+    expect(Object.keys(trArea).sort()).toEqual(Object.keys(enArea).sort());
+  });
+
+  it('keeps params, plural shape and edges', () => {
+    for (const [id, msg] of Object.entries(trArea)) {
+      const base = enArea[id]!;
+      expect(typeof msg, id).toBe(typeof base);
+      expect(params(msg), id).toEqual(params(base));
+      const [a, b] = [forms(msg), forms(base)];
+      for (let i = 0; i < a.length; i++) expect(edges(a[i]!), id).toEqual(edges(b[i]!));
+    }
+  });
+
+  it('is clean text', () => {
+    for (const [id, msg] of Object.entries(trArea)) {
+      for (const f of forms(msg)) {
+        expect(f.trim().length, id).toBeGreaterThan(0);
+        expect(f, id).toBe(f.normalize('NFC'));
+        expect(f, id).not.toMatch(CONTROL);
+      }
+    }
+  });
+});
+
 describe('registry', () => {
   it('lists English first', () => {
     expect(LANGUAGES[0]).toBe(EN);
@@ -191,9 +265,20 @@ describe('registry', () => {
     }
   });
 
+  it('registers Turkish', () => {
+    expect(LANGUAGE_IDS).toEqual(['en', 'tr']);
+    expect(LANGUAGE_SETTINGS).toEqual(['auto', 'en', 'tr']);
+    expect(nativeName('tr')).toBe('Türkçe');
+    expect(languageDef('tr')).toBe(TR);
+    expect(matchLanguage('tur')).toBe('tr');
+    expect(matchLanguage('TR')).toBe('tr');
+  });
+
   it('checks ids without the prototype', () => {
     expect(isLanguageId('en')).toBe(true);
+    expect(isLanguageId('tr')).toBe(true);
     expect(isLanguageId('EN')).toBe(false);
+    expect(isLanguageId('TR')).toBe(false);
     expect(isLanguageId('auto')).toBe(false);
     expect(isLanguageId('__proto__')).toBe(false);
     expect(isLanguageId('constructor')).toBe(false);
