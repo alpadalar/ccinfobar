@@ -300,3 +300,282 @@ describe('parseToml errors', () => {
     expect(fail('"\\u001b" = 1\n"\\u001b" = 2').message).toBe('Duplicate key "U+001B"');
   });
 });
+
+const TABLES: [string, string, unknown][] = [
+  ['header table', '[a]\nb = 1\n[a.c]\nd = 2', { a: { b: 1, c: { d: 2 } } }],
+  ['header with spaces and quotes', '[ a . "b c" ]\nx = 1', { a: { 'b c': { x: 1 } } }],
+  ['header with tabs and literal key', '[\tj\t.\t"ʞ"\t.\t\'l\'\t]', { j: { ʞ: { l: {} } } }],
+  [
+    'quoted dotted segment',
+    '[dog."tater.man"]\ntype.name = "pug"',
+    { dog: { 'tater.man': { type: { name: 'pug' } } } },
+  ],
+  ['sub-table before its parent', '[a.b]\nx = 1\n[a]\ny = 2', { a: { b: { x: 1 }, y: 2 } }],
+  ['implicit parents defined later', '[x.y.z.w]\n[x]', { x: { y: { z: { w: {} } } } }],
+  ['empty tables', '[a]\n[b]\n[a.c]', { a: { c: {} }, b: {} }],
+  ['root keys before headers', 'top = 1\n[a]\nb = 2', { top: 1, a: { b: 2 } }],
+  ['indented header with a comment', '  [a] # c\n  b = 1', { a: { b: 1 } }],
+  ['CRLF headers', '[a]\r\nb = 1\r\n[[c]]\r\n', { a: { b: 1 }, c: [{}] }],
+  ['header under a root dotted table', 'a.b = 1\n[a.c]\nd = 2', { a: { b: 1, c: { d: 2 } } }],
+  [
+    'spec fruit example',
+    '[fruit]\napple.color = "red"\napple.taste.sweet = true\n[fruit.apple.texture]\nsmooth = true',
+    { fruit: { apple: { color: 'red', taste: { sweet: true }, texture: { smooth: true } } } },
+  ],
+  ['empty array of tables element', '[[a]]', { a: [{}] }],
+  [
+    'sub-table of the last element',
+    '[[segments]]\nid = "model"\n[segments.icon]\nplain = "M"\n[[segments]]\nid = "git"',
+    { segments: [{ id: 'model', icon: { plain: 'M' } }, { id: 'git' }] },
+  ],
+  [
+    'nested arrays of tables',
+    '[[a]]\n[[a.b]]\nx = 1\n[[a.b]]\nx = 2\n[[a]]\n[[a.b]]\nx = 3',
+    { a: [{ b: [{ x: 1 }, { x: 2 }] }, { b: [{ x: 3 }] }] },
+  ],
+  [
+    'spec fruits example',
+    '[[fruits]]\nname = "apple"\n\n[fruits.physical]  # subtable\ncolor = "red"\nshape = "round"\n\n[[fruits.varieties]]  # nested array of tables\nname = "red delicious"\n\n[[fruits.varieties]]\nname = "granny smith"\n\n\n[[fruits]]\nname = "banana"\n\n[[fruits.varieties]]\nname = "plantain"',
+    {
+      fruits: [
+        {
+          name: 'apple',
+          physical: { color: 'red', shape: 'round' },
+          varieties: [{ name: 'red delicious' }, { name: 'granny smith' }],
+        },
+        { name: 'banana', varieties: [{ name: 'plantain' }] },
+      ],
+    },
+  ],
+  [
+    'dotted keys inside an element',
+    '[[a]]\nb.c = 1\n[[a]]\nb.c = 2',
+    { a: [{ b: { c: 1 } }, { b: { c: 2 } }] },
+  ],
+  [
+    'same sub-table in two elements',
+    '[[a]]\n[a.b]\nx = 1\n[[a]]\n[a.b]\nx = 2',
+    { a: [{ b: { x: 1 } }, { b: { x: 2 } }] },
+  ],
+  ['sub-table of a dotted table', '[a]\nb.c = 1\n[a.b.d]\ne = 2', { a: { b: { c: 1, d: { e: 2 } } } }],
+];
+
+describe('parseToml tables', () => {
+  it.each(TABLES)('%s', (_name, text, expected) => {
+    expect(parseToml(text)).toEqual(expected);
+  });
+
+  it('builds null-prototype header tables and elements', () => {
+    const doc = parseToml('[a.b]\n[[c]]\n[c.d]') as any;
+    for (const v of [doc.a, doc.a.b, doc.c[0], doc.c[0].d]) expect(Object.getPrototypeOf(v)).toBeNull();
+  });
+
+  it('allows a header path up to the depth cap', () => {
+    const doc = parseToml(`[${Array(MAX_TOML_DEPTH).fill('a').join('.')}]\nx = 1`) as any;
+    let v = doc;
+    for (let i = 0; i < MAX_TOML_DEPTH; i++) v = v.a;
+    expect(v).toEqual({ x: 1 });
+  });
+
+  it('parses a CCometixLine-shaped document', () => {
+    const text = [
+      'theme = "default"',
+      '',
+      '[style]',
+      'mode = "plain"',
+      'separator = ""',
+      '',
+      '[[segments]]',
+      'id = "model"',
+      'enabled = true',
+      '',
+      '[segments.icon]',
+      'plain = "🤖"',
+      'nerd_font = "\\ue26d"',
+      '',
+      '[segments.colors]',
+      'icon = { c16 = 14 }',
+      'text = { c16 = 6 }',
+      '',
+      '[segments.styles]',
+      'text_bold = true',
+      '',
+      '[segments.options]',
+      '',
+      '[[segments]]',
+      'id = "directory"',
+      'enabled = true',
+      '',
+      '[segments.icon]',
+      'plain = "📁"',
+      'nerd_font = "\\U000F024B"',
+      '',
+      '[segments.colors.icon]',
+      'c256 = 208',
+      '',
+      '[segments.colors.text]',
+      'r = 1',
+      'g = 2',
+      'b = 3',
+      '',
+      '[segments.styles]',
+      'text_bold = false',
+      '',
+      '[segments.options]',
+      '',
+      '[[segments]]',
+      'id = "git"',
+      'enabled = false',
+      '[segments.icon]',
+      "plain = '🌿'",
+      'nerd_font = ""',
+      '[segments.colors]',
+      'icon = { c256 = 208 }',
+      'text = { r = 10, g = 20, b = 30 }',
+      'background = { c16 = 0 }',
+      '[segments.styles]',
+      'text_bold = true',
+      '[segments.options]',
+      'show_sha = false',
+      '',
+    ].join('\n');
+    expect(parseToml(text)).toEqual({
+      theme: 'default',
+      style: { mode: 'plain', separator: '' },
+      segments: [
+        {
+          id: 'model',
+          enabled: true,
+          icon: { plain: '🤖', nerd_font: '' },
+          colors: { icon: { c16: 14 }, text: { c16: 6 } },
+          styles: { text_bold: true },
+          options: {},
+        },
+        {
+          id: 'directory',
+          enabled: true,
+          icon: { plain: '📁', nerd_font: '\u{f024b}' },
+          colors: { icon: { c256: 208 }, text: { r: 1, g: 2, b: 3 } },
+          styles: { text_bold: false },
+          options: {},
+        },
+        {
+          id: 'git',
+          enabled: false,
+          icon: { plain: '🌿', nerd_font: '' },
+          colors: { icon: { c256: 208 }, text: { r: 10, g: 20, b: 30 }, background: { c16: 0 } },
+          styles: { text_bold: true },
+          options: { show_sha: false },
+        },
+      ],
+    });
+  });
+
+  it('parses a cship-shaped document', () => {
+    const text = [
+      '# cship',
+      '[cship]',
+      'lines = [',
+      '"""',
+      '$cship.model \\',
+      '  $git_branch',
+      '""",',
+      '"$cship.context_bar $cship.cost",',
+      ']',
+      '',
+      '[cship.model]',
+      'symbol = " "',
+      'style = "fg:#c792ea"',
+      '',
+      '[cship.context_bar]',
+      'width = 10',
+      'warn_threshold = 50.0',
+      'warn_style = "fg:#ffcb6b"',
+      'critical_threshold = 70.0',
+      'critical_style = "bold fg:#ff5370"',
+      'format = "[$symbol$value]($style)"',
+    ].join('\r\n');
+    expect(parseToml(text)).toEqual({
+      cship: {
+        lines: ['$cship.model $git_branch\n', '$cship.context_bar $cship.cost'],
+        model: { symbol: ' ', style: 'fg:#c792ea' },
+        context_bar: {
+          width: 10,
+          warn_threshold: 50,
+          warn_style: 'fg:#ffcb6b',
+          critical_threshold: 70,
+          critical_style: 'bold fg:#ff5370',
+          format: '[$symbol$value]($style)',
+        },
+      },
+    });
+  });
+});
+
+const deepPath = (n: number) => Array(n).fill('a').join('.');
+
+const TABLE_ERRORS: [string, string, string, number, number][] = [
+  ['table defined twice', '[a]\n[a]', 'redefined', 2, 1],
+  ['implicit table defined twice', '[a.b]\n[a]\n[a]', 'redefined', 3, 1],
+  ['header over a dotted table', '[fruit]\napple.color = 1\n[fruit.apple]', 'redefined', 3, 1],
+  ['header over a nested dotted table', '[a]\nb.c.d = 1\n[a.b.c]', 'redefined', 3, 1],
+  ['dotted key reopening a header table', '[a.b]\nc = 1\n[x]\n[a]\nb.d = 1', 'redefined', 5, 1],
+  ['dotted key into a defined sub-table', '[a.b.c]\nz = 9\n[a]\nb.c.t = 1', 'redefined', 4, 1],
+  ['sub-table defined twice in one element', '[[a]]\n[a.b]\n[a.b]', 'redefined', 3, 1],
+  ['header over an inline table', 'a = {b = 1}\n[a]', 'inlineExtend', 2, 1],
+  ['sub-table of an inline table', 'a = {b = 1}\n[a.c]', 'inlineExtend', 2, 1],
+  ['dotted key into an inline table', 'a = {b = 1}\na.c = 2', 'inlineExtend', 2, 1],
+  ['inline table under a header', '[a]\nb = { c = 1 }\n[a.b.d]', 'inlineExtend', 3, 1],
+  ['static array then an array of tables', 'a = []\n[[a]]', 'arrayKind', 2, 1],
+  ['array of tables then a table', '[[a]]\n[a]', 'arrayKind', 2, 1],
+  ['table then an array of tables', '[a]\n[[a]]', 'arrayKind', 2, 1],
+  ['implicit table then an array of tables', '[a.b]\n[[a]]', 'arrayKind', 2, 1],
+  ['static array in an element', '[[a]]\nb = [1]\n[[a.b]]', 'arrayKind', 3, 1],
+  ['header over a value', 'a = 1\n[a]', 'duplicateKey', 2, 1],
+  ['header through a value', 'a = 1\n[a.b]', 'duplicateKey', 2, 1],
+  ['header through a static array', 'a = [{ b = 1 }]\n[a.c]', 'duplicateKey', 2, 1],
+  ['array of tables over a value', 'a = 1\n[[a]]', 'duplicateKey', 2, 1],
+  ['key over an implicit table', '[a.b]\n[a]\nb = 1', 'duplicateKey', 3, 1],
+  ['header over a key of the table', '[a]\nb = 1\n[a.b]', 'duplicateKey', 3, 1],
+  ['empty header', '[]', 'badKey', 1, 2],
+  ['empty array of tables header', '[[]]', 'badKey', 1, 3],
+  ['header with a trailing dot', '[a.]', 'badKey', 1, 4],
+  ['spaced array of tables brackets', '[ [a] ]', 'badKey', 1, 3],
+  ['extra closing bracket', '[a]]', 'unexpected', 1, 4],
+  ['key after a header', '[a] b = 1', 'unexpected', 1, 5],
+  ['unclosed header', '[a', 'expected', 1, 3],
+  ['header broken by a newline', '[a\n]', 'expected', 1, 3],
+  ['unclosed array of tables header', '[[a]', 'expected', 1, 4],
+  ['split closing brackets', '[[a] ]', 'expected', 1, 4],
+  ['reserved key in a header', '[__proto__]', 'reservedKey', 1, 2],
+  ['reserved dotted segment in a header', '[[a.constructor]]', 'reservedKey', 1, 5],
+  ['header path too deep', `[${deepPath(MAX_TOML_DEPTH + 1)}]`, 'tooDeep', 1, 2 + 2 * MAX_TOML_DEPTH],
+  ['value under a deep header', `[${deepPath(MAX_TOML_DEPTH)}]\nb = []`, 'tooDeep', 2, 5],
+  ['dotted key under a deep header', `[${deepPath(MAX_TOML_DEPTH)}]\nb.c = 1`, 'tooDeep', 2, 1],
+  ['array of tables too deep', `[[${deepPath(MAX_TOML_DEPTH)}]]`, 'tooDeep', 1, 3 + 2 * (MAX_TOML_DEPTH - 1)],
+  [
+    '33 nested inline arrays',
+    `a = [${'['.repeat(MAX_TOML_DEPTH)}${']'.repeat(MAX_TOML_DEPTH)}]`,
+    'tooDeep',
+    1,
+    5 + MAX_TOML_DEPTH,
+  ],
+];
+
+describe('parseToml table errors', () => {
+  it.each(TABLE_ERRORS)('%s', (_name, text, code, line, col) => {
+    const e = fail(text);
+    expect({ code: e.code, line: e.line, col: e.col }).toEqual({ code, line, col });
+  });
+
+  it('names the table in definition messages', () => {
+    expect(fail('[a.b]\n[a.b]').message).toBe('Table "a.b" is already defined');
+    expect(fail('[[a]]\n[a]').message).toBe(
+      'The key "a" cannot hold both an array of tables and another value',
+    );
+    expect(withLang('tr', () => fail('[a]\n[a]').message)).toBe('"a" tablosu zaten tanımlı');
+    expect(withLang('tr', () => fail('a = []\n[[a]]').message)).toBe(
+      '"a" anahtarı hem tablo dizisi hem başka bir değer tutamaz',
+    );
+  });
+});

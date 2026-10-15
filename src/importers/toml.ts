@@ -35,7 +35,7 @@ export class TomlError extends Error {
 }
 
 type Table = Record<string, unknown>;
-type Kind = 'dotted' | 'inline';
+type Kind = 'implicit' | 'header' | 'dotted' | 'inline' | 'aot-element';
 interface Key {
   name: string;
   at: number;
@@ -132,6 +132,7 @@ function where(s: string, offset: number): { line: number; col: number } {
 class Parser {
   pos = 0;
   readonly meta = new WeakMap<object, Kind>();
+  readonly aot = new WeakSet<unknown[]>();
   readonly n: number;
 
   constructor(readonly s: string) {
@@ -156,15 +157,25 @@ class Parser {
     return this.s.charCodeAt(this.pos);
   }
 
+  kind(v: unknown): Kind | undefined {
+    return typeof v === 'object' && v !== null && !Array.isArray(v) ? this.meta.get(v) : undefined;
+  }
+
   document(): Table {
     const root = newTable();
+    let table = root;
+    let depth = 0;
     for (;;) {
       this.ws();
       if (this.pos >= this.n) return root;
       const c = this.code();
-      if (c !== 35 && c !== 10 && c !== 13) {
-        if (c === 91) this.unexpected(this.pos);
-        this.keyValue(root, 0, null);
+      if (c === 91) {
+        [table, depth] = this.header(root);
+        this.ws();
+        const e = this.code();
+        if (this.pos < this.n && e !== 35 && e !== 10 && e !== 13) this.unexpected(this.pos);
+      } else if (c !== 35 && c !== 10 && c !== 13) {
+        this.keyValue(table, depth, null);
         this.ws();
       }
       if (this.code() === 35) this.comment();
@@ -195,6 +206,88 @@ class Parser {
     else this.fail(this.pos, 'expected', 'toml.expectedEnd');
   }
 
+  header(root: Table): [Table, number] {
+    const open = this.pos;
+    const many = this.s.charCodeAt(open + 1) === 91;
+    this.pos += many ? 2 : 1;
+    this.ws();
+    const keys = this.key();
+    const close = many ? ']]' : ']';
+    if (!this.s.startsWith(close, this.pos))
+      this.fail(this.pos, 'expected', 'toml.expected', { expected: close });
+    this.pos += close.length;
+    const path = (i: number) => ({
+      key: quote(
+        keys
+          .slice(0, i + 1)
+          .map((k) => k.name)
+          .join('.'),
+      ),
+    });
+    const deeper = (d: number, k: Key) => {
+      if (d > MAX_TOML_DEPTH) this.fail(k.at, 'tooDeep', 'toml.tooDeep', { max: MAX_TOML_DEPTH });
+      return d;
+    };
+    let table = root;
+    let depth = 0;
+    const last = keys.length - 1;
+    for (let i = 0; i < last; i++) {
+      const k = keys[i]!;
+      depth = deeper(depth + 1, k);
+      if (!Object.hasOwn(table, k.name)) {
+        const next = newTable();
+        this.meta.set(next, 'implicit');
+        table[k.name] = next;
+        table = next;
+        continue;
+      }
+      const v = table[k.name];
+      if (Array.isArray(v) && this.aot.has(v)) {
+        depth = deeper(depth + 1, k);
+        table = v[v.length - 1] as Table;
+        continue;
+      }
+      const kind = this.kind(v);
+      if (kind === 'inline') this.fail(open, 'inlineExtend', 'toml.inlineExtend', path(i));
+      if (kind === undefined) this.fail(open, 'duplicateKey', 'toml.duplicateKey', path(i));
+      table = v as Table;
+    }
+    const k = keys[last]!;
+    depth = deeper(depth + 1, k);
+    const has = Object.hasOwn(table, k.name);
+    const v = table[k.name];
+    const kind = this.kind(v);
+    if (many) {
+      let list: unknown[];
+      if (!has) {
+        list = [];
+        this.aot.add(list);
+        table[k.name] = list;
+      } else if (Array.isArray(v) && this.aot.has(v)) list = v;
+      else if (Array.isArray(v) || kind !== undefined)
+        return this.fail(open, 'arrayKind', 'toml.arrayKind', path(last));
+      else return this.fail(open, 'duplicateKey', 'toml.duplicateKey', path(last));
+      const el = newTable();
+      this.meta.set(el, 'aot-element');
+      list.push(el);
+      return [el, deeper(depth + 1, k)];
+    }
+    if (!has) {
+      const next = newTable();
+      this.meta.set(next, 'header');
+      table[k.name] = next;
+      return [next, depth];
+    }
+    if (Array.isArray(v) && this.aot.has(v)) this.fail(open, 'arrayKind', 'toml.arrayKind', path(last));
+    if (kind === 'implicit') {
+      this.meta.set(v as Table, 'header');
+      return [v as Table, depth];
+    }
+    if (kind === 'inline') this.fail(open, 'inlineExtend', 'toml.inlineExtend', path(last));
+    if (kind === undefined) this.fail(open, 'duplicateKey', 'toml.duplicateKey', path(last));
+    return this.fail(open, 'redefined', 'toml.redefined', path(last));
+  }
+
   keyValue(table: Table, depth: number, scope: Table[] | null): void {
     const keys = this.key();
     this.ws();
@@ -208,9 +301,10 @@ class Parser {
       if (++d > MAX_TOML_DEPTH) this.fail(k.at, 'tooDeep', 'toml.tooDeep', { max: MAX_TOML_DEPTH });
       if (Object.hasOwn(target, k.name)) {
         const v = target[k.name];
-        const kind = typeof v === 'object' && v !== null ? this.meta.get(v) : undefined;
+        const kind = this.kind(v);
         if (kind === 'inline') this.fail(k.at, 'inlineExtend', 'toml.inlineExtend', { key: quote(k.name) });
-        if (kind !== 'dotted') this.fail(k.at, 'duplicateKey', 'toml.duplicateKey', { key: quote(k.name) });
+        if (kind === undefined) this.fail(k.at, 'duplicateKey', 'toml.duplicateKey', { key: quote(k.name) });
+        if (kind !== 'dotted') this.fail(k.at, 'redefined', 'toml.redefined', { key: quote(k.name) });
         target = v as Table;
       } else {
         const next = newTable();

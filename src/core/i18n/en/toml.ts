@@ -27,4 +27,6 @@ export const tomlMessages = {
   'toml.v11.noSecondsHint': 'add the seconds, as in 07:32:00',
   'toml.tooLarge': 'The file is larger than 1 MB',
   'toml.tooDeep': 'Nested deeper than {max} levels',
+  'toml.redefined': 'Table {key} is already defined',
+  'toml.arrayKind': 'The key {key} cannot hold both an array of tables and another value',
 } as const;

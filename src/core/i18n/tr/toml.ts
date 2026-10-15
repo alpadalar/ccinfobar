@@ -30,4 +30,6 @@ export const tomlMessages = {
   'toml.v11.noSecondsHint': '07:32:00 gibi saniyeyi de yazın',
   'toml.tooLarge': 'Dosya 1 MB sınırından büyük',
   'toml.tooDeep': '{max} düzeyden derin iç içe yapı',
+  'toml.redefined': '{key} tablosu zaten tanımlı',
+  'toml.arrayKind': '{key} anahtarı hem tablo dizisi hem başka bir değer tutamaz',
 } satisfies Record<keyof typeof enToml, Message>;
