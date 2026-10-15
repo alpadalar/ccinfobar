@@ -401,6 +401,7 @@ export const DEFAULT_PRIORITY: Partial<Record<WidgetCategory, number>> = {
   charts: 30,
   system: 30,
   custom: 30,
+  fun: 30,
 };
 
 export function defaultPriority(category: WidgetCategory | undefined): number {

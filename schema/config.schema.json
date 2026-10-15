@@ -132,6 +132,9 @@
                 "link",
                 "env",
                 "http",
+                "pet",
+                "kaomoji",
+                "quip",
                 "text",
                 "separator",
                 "flex"

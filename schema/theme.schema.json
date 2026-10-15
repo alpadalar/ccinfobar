@@ -389,6 +389,28 @@
                 }
               ]
             },
+            "fun": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    },
+                    "bg": {
+                      "type": "string",
+                      "description": "Named color (red, brightBlue...), ansi256:N, #rrggbb or default"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
             "layout": {
               "anyOf": [
                 {

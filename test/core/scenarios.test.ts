@@ -294,13 +294,16 @@ const NEW_WIDGETS = [
   'service-status',
   'http',
   'activity-strip',
+  'pet',
+  'kaomoji',
+  'quip',
 ];
 
 const raw = (id: string, type: string) =>
   withoutSideEffects(() => getWidget(type)!.render(ctxFor(id), { id: type, type }));
 
 const PHASE5 = ['workspace-repos', 'tool-activity', 'turn-timer', 'permission-wait', 'env-counts'];
-const OPT_IN = [...PHASE5, 'provider', 'service-status', 'http', 'activity-strip'];
+const OPT_IN = [...PHASE5, 'provider', 'service-status', 'http', 'activity-strip', 'pet', 'kaomoji', 'quip'];
 
 describe('new widgets across scenarios', () => {
   it('cover every live session widget', () => {

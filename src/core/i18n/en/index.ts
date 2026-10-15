@@ -3,6 +3,7 @@ import { configMessages } from './config.js';
 import { displayMessages } from './display.js';
 import { doctorMessages } from './doctor.js';
 import { explainMessages } from './explain.js';
+import { funMessages } from './fun.js';
 import { hookMessages } from './hooks.js';
 import { installMessages } from './install.js';
 import { jobsMessages } from './jobs.js';
@@ -20,4 +21,5 @@ export const en = {
   ...hookMessages,
   ...jobsMessages,
   ...displayMessages,
+  ...funMessages,
 } as const;

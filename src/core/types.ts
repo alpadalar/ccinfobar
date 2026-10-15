@@ -257,6 +257,7 @@ export type WidgetCategory =
   | 'gsd'
   | 'system'
   | 'custom'
+  | 'fun'
   | 'layout';
 
 export interface OptionChoice {

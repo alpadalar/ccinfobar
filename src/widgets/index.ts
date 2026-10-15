@@ -5,6 +5,7 @@ import { widgets as charts } from './charts.js';
 import { widgets as context } from './context.js';
 import { widgets as cost } from './cost.js';
 import { widgets as custom } from './custom.js';
+import { widgets as fun } from './fun.js';
 import { widgets as git } from './git.js';
 import { widgets as gsd } from './gsd.js';
 import { widgets as http } from './http.js';
@@ -30,6 +31,7 @@ export const CATEGORIES: { id: WidgetCategory; name: string }[] = [
   { id: 'workspace', name: 'Workspace' },
   { id: 'system', name: 'System' },
   { id: 'custom', name: 'Custom' },
+  { id: 'fun', name: 'Fun' },
   { id: 'layout', name: 'Layout' },
 ];
 
@@ -50,6 +52,7 @@ export const ALL_WIDGETS: WidgetDef[] = [
   ...status,
   ...custom,
   ...http,
+  ...fun,
   ...layout,
 ];
 

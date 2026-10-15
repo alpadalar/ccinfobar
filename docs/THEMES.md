@@ -215,7 +215,7 @@ A theme can also set `gradient`, a list of up to 8 colors from low to high that 
 | `glyphs.separator`, `glyphs.thin` | Powerline arrows between different and same colors |
 | `glyphs.startCap`, `glyphs.endCap` | Line or pill caps |
 | `colors.mode` | `widget`: each widget's default color. `category`: one color per widget category. `cycle`: rotate through `colors.cycle`. |
-| `colors.categories` | Colors per category: `session`, `context`, `tokens`, `cost`, `limits`, `gsd`, `git`, `workspace`, `system`, `custom`, `layout` |
+| `colors.categories` | Colors per category: `session`, `context`, `tokens`, `cost`, `limits`, `charts`, `agents`, `gsd`, `git`, `workspace`, `system`, `custom`, `fun`, `layout` (`fun` falls back to `custom`) |
 | `colors.cycle` | List of colors to rotate through |
 | `colors.fg` | Default text color |
 | `colors.bg` | Default block background |

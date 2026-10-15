@@ -232,7 +232,10 @@ function pick(s: Swatch | undefined, key: 'fg' | 'bg'): string | undefined {
 
 function swatchFor(theme: Theme, part: Part, index: number): Swatch | undefined {
   const c = theme.colors;
-  if (c.mode === 'category') return c.categories[part.def.category];
+  if (c.mode === 'category') {
+    const cat = part.def.category;
+    return c.categories[cat] ?? (cat === 'fun' ? c.categories.custom : undefined);
+  }
   if (c.mode === 'cycle' && c.cycle.length) return c.cycle[index % c.cycle.length];
   return undefined;
 }
@@ -403,6 +406,7 @@ export const CATEGORY_PRIORITY: Partial<Record<WidgetCategory, number>> = {
   charts: 30,
   system: 30,
   custom: 30,
+  fun: 30,
 };
 
 export function overflowOf(config: Pick<Config, 'overflow' | 'autoWrap'>): OverflowMode {

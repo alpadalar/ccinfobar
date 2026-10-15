@@ -6,6 +6,7 @@ import { configMessages } from '../../src/core/i18n/en/config.js';
 import { displayMessages } from '../../src/core/i18n/en/display.js';
 import { doctorMessages } from '../../src/core/i18n/en/doctor.js';
 import { explainMessages } from '../../src/core/i18n/en/explain.js';
+import { funMessages } from '../../src/core/i18n/en/fun.js';
 import { hookMessages } from '../../src/core/i18n/en/hooks.js';
 import { en } from '../../src/core/i18n/en/index.js';
 import { installMessages } from '../../src/core/i18n/en/install.js';
@@ -60,6 +61,7 @@ describe('en table', () => {
       hookMessages,
       jobsMessages,
       displayMessages,
+      funMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);
