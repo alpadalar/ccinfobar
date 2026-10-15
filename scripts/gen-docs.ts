@@ -202,6 +202,12 @@ function themeSchema(): object {
         type: 'boolean',
         description: 'Let widgets such as context-bar color themselves by threshold (text style)',
       },
+      gradient: {
+        type: 'array',
+        items: color,
+        maxItems: 8,
+        description: 'Color stops for gradient bars, from low to high',
+      },
       glyphs,
       colors: {
         type: 'object',

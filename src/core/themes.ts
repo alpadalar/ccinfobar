@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { writeAtomic } from '../data/store.js';
+import { parseColor } from './ansi.js';
 import { configDir } from './paths.js';
 import { BASE, BUILTIN } from './themes/builtin.js';
 import {
@@ -22,6 +23,7 @@ export { STYLE_GLYPHS, STYLE_SEPARATOR, STYLES };
 const STYLE_IDS = new Set<string>(STYLES.map((s) => s.id));
 const MODES = new Set(['widget', 'category', 'cycle']);
 const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+const MAX_STOPS = 8;
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -51,6 +53,12 @@ export function parseThemeInput(raw: unknown): ThemeInput {
   if (typeof raw.padding === 'number' && raw.padding >= 0) t.padding = Math.min(4, Math.floor(raw.padding));
   if (typeof raw.bold === 'boolean') t.bold = raw.bold;
   if (typeof raw.statusColors === 'boolean') t.statusColors = raw.statusColors;
+  if (Array.isArray(raw.gradient)) {
+    const stops = raw.gradient
+      .filter((v): v is string => typeof v === 'string' && parseColor(v) !== null)
+      .slice(0, MAX_STOPS);
+    if (stops.length) t.gradient = stops;
+  }
   if (isObject(raw.glyphs)) {
     const g: Partial<ThemeGlyphs> = {};
     for (const k of ['separator', 'thin', 'startCap', 'endCap'] as const) {
@@ -85,6 +93,7 @@ export function parseThemeInput(raw: unknown): ThemeInput {
 function merge(base: Theme, input: ThemeInput, source: Theme['source']): Theme {
   const style = input.style ?? base.style;
   const styleChanged = style !== base.style;
+  const gradient = input.gradient ?? base.gradient;
   return {
     id: input.id ?? base.id,
     name: input.name ?? input.id ?? base.name,
@@ -95,6 +104,7 @@ function merge(base: Theme, input: ThemeInput, source: Theme['source']): Theme {
     padding: input.padding ?? base.padding,
     bold: input.bold ?? base.bold,
     statusColors: input.statusColors ?? base.statusColors,
+    ...(gradient ? { gradient: [...gradient] } : {}),
     glyphs: { ...(styleChanged ? STYLE_GLYPHS[style] : base.glyphs), ...input.glyphs },
     colors: {
       ...base.colors,

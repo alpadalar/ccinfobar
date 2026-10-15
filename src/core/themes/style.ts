@@ -30,6 +30,7 @@ export interface Theme {
   padding: number;
   bold: boolean;
   statusColors: boolean;
+  gradient?: string[];
   glyphs: ThemeGlyphs;
   colors: ThemeColors;
   source: 'builtin' | 'user';
@@ -46,6 +47,7 @@ export interface ThemeInput {
   padding?: number;
   bold?: boolean;
   statusColors?: boolean;
+  gradient?: string[];
   glyphs?: Partial<ThemeGlyphs>;
   colors?: Partial<ThemeColors>;
 }

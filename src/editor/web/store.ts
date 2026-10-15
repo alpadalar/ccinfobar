@@ -30,6 +30,7 @@ export interface ThemeInfo {
   padding: number;
   bold: boolean;
   statusColors: boolean;
+  gradient?: string[];
   glyphs: { separator: string; thin: string; startCap: string; endCap: string };
   colors: Record<string, unknown>;
   source: 'builtin' | 'user';

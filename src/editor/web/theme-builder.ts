@@ -34,6 +34,7 @@ const SLOTS = [
   'custom',
 ];
 const BLOCKY = new Set<StyleId>(['blocks', 'powerline', 'capsule']);
+const MAX_STOPS = 8;
 
 const fgOf = (s: Swatch | undefined) => (typeof s === 'object' ? s.fg : s);
 const bgOf = (s: Swatch | undefined) => (typeof s === 'object' ? s.bg : undefined);
@@ -151,6 +152,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
   let separator = base.separator;
   let padding = base.padding;
   let bold = base.bold;
+  let gradient = [...(base.gradient ?? [])];
   let name = opts.edit?.name ?? '';
   let description = opts.edit?.description ?? '';
 
@@ -168,6 +170,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
     padding,
     bold,
     statusColors: base.statusColors,
+    gradient: gradient.length ? [...gradient] : undefined,
     glyphs: style === base.style ? base.glyphs : undefined,
     colors,
   });
@@ -313,6 +316,62 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
         colors.muted = fgOf(s) ?? 'brightBlack';
       }),
     );
+    const stops = h('div', { class: 'swatch-list' });
+    gradient.forEach((c, i) => {
+      const remove = () => {
+        gradient.splice(i, 1);
+        renderForm();
+        preview();
+      };
+      stops.append(
+        h(
+          'div',
+          { class: 'swatch-row' },
+          h('span', { class: 'swatch-label' }, `Stop ${i + 1}`),
+          miniColor(
+            c,
+            (v) => {
+              if (!v) remove();
+              else {
+                gradient[i] = v;
+                preview();
+              }
+            },
+            `Gradient stop ${i + 1}`,
+          ),
+          h('span', null),
+          h(
+            'button',
+            {
+              class: 'icon-btn sm danger',
+              type: 'button',
+              title: 'Remove stop',
+              'aria-label': `Remove gradient stop ${i + 1}`,
+              onClick: remove,
+            },
+            icon('trash', 14),
+          ),
+        ),
+      );
+    });
+    if (gradient.length < MAX_STOPS) {
+      stops.append(
+        h(
+          'button',
+          {
+            class: 'btn ghost sm',
+            type: 'button',
+            onClick: () => {
+              gradient.push(gradient.at(-1) ?? 'green');
+              renderForm();
+              preview();
+            },
+          },
+          icon('plus', 14),
+          'Add stop',
+        ),
+      );
+    }
 
     form.append(
       h(
@@ -347,6 +406,7 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
                 separator = t.separator;
                 padding = t.padding;
                 bold = t.bold;
+                gradient = [...(t.gradient ?? [])];
                 renderForm();
                 preview();
               }),
@@ -399,6 +459,13 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
       ),
       slots,
       general,
+      field(
+        'Gradient',
+        stops,
+        gradient.length
+          ? 'Gradient bars blend these colors from low to high'
+          : 'Gradient bars use the default ramp; add stops to set your own',
+      ),
       h(
         'div',
         { class: 'builder-cols' },

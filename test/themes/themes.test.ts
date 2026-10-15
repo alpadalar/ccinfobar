@@ -156,6 +156,48 @@ describe('user themes', () => {
   });
 });
 
+describe('theme gradient', () => {
+  it('keeps valid color stops only, at most 8', () => {
+    expect(parseThemeInput({ gradient: ['#00ff00', 'nope', 'red', 3] }).gradient).toEqual(['#00ff00', 'red']);
+    expect(parseThemeInput({ gradient: Array.from({ length: 10 }, () => 'blue') }).gradient).toHaveLength(8);
+    expect('gradient' in parseThemeInput({ gradient: [] })).toBe(false);
+    expect('gradient' in parseThemeInput({ gradient: ['\x1b[31m', 'default', null] })).toBe(false);
+    expect('gradient' in parseThemeInput({ gradient: 'red' })).toBe(false);
+  });
+
+  it('resolves, round-trips and saves a user gradient', () => {
+    const dir = tmp();
+    fs.writeFileSync(
+      path.join(dir, 'ramp.json'),
+      JSON.stringify({ extends: 'classic', gradient: ['green', '#ff0000'] }),
+    );
+    const t = resolveTheme('ramp', dir);
+    expect(t.gradient).toEqual(['green', '#ff0000']);
+    const input = themeToInput(t, 'ramp-copy');
+    expect(input.gradient).toEqual(['green', '#ff0000']);
+    const file = saveUserTheme(input, dir);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).gradient).toEqual(['green', '#ff0000']);
+    expect(resolveTheme('ramp-copy', dir).gradient).toEqual(['green', '#ff0000']);
+    expect('gradient' in resolveTheme('classic', dir)).toBe(false);
+  });
+
+  it('inherits the parent gradient unless overridden', () => {
+    const dir = tmp();
+    fs.writeFileSync(path.join(dir, 'a.json'), JSON.stringify({ gradient: ['red', 'blue'] }));
+    fs.writeFileSync(path.join(dir, 'b.json'), JSON.stringify({ extends: 'a' }));
+    fs.writeFileSync(path.join(dir, 'c.json'), JSON.stringify({ extends: 'a', gradient: ['cyan'] }));
+    expect(resolveTheme('b', dir).gradient).toEqual(['red', 'blue']);
+    expect(resolveTheme('c', dir).gradient).toEqual(['cyan']);
+  });
+
+  it('is in the theme schema', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(new URL('../../schema/theme.schema.json', import.meta.url), 'utf8'),
+    );
+    expect(schema.properties.gradient).toMatchObject({ type: 'array', maxItems: 8 });
+  });
+});
+
 describe('legacy config', () => {
   it('maps powerline.enabled to the powerline style', () => {
     const cfg = normalizeConfig({ powerline: { enabled: true, theme: 'nord' } });
