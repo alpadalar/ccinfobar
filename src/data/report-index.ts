@@ -4,6 +4,7 @@ import {
   type Bucket,
   type FileEntry,
   type FileKind,
+  IDLE_CAP_MS,
   type IndexState,
   MAX_REPORT_FILES,
   MAX_REPORT_LINE,
@@ -225,7 +226,14 @@ function applyAssistant(sc: Scan, e: Json, ts: number | null): void {
     if (f.recent.length > RECENT) f.recent.shift();
     return;
   }
-  if (owner !== rel) return;
+  if (owner !== rel) {
+    // copies of another session's main file form this file's prefix
+    if (ts !== null && ts >= f.horizon && e.isSidechain !== true && st.files[owner]?.kind === 'main') {
+      f.horizon = ts;
+      f.time = map();
+    }
+    return;
+  }
   const old = f.recent.find((x) => x.k === k);
   if (!old) return;
   addTo(f, old.b, old, -1);
@@ -243,9 +251,38 @@ function applyLine(sc: Scan, line: string): void {
   } else if (line.includes('"usage"') && line.includes('"type":"assistant"')) {
     e = parse(line);
   }
-  if (!e) return;
-  const t = typeof e.timestamp === 'string' ? Date.parse(e.timestamp) : Number.NaN;
-  applyAssistant(sc, e, Number.isNaN(t) ? null : t);
+  let ts: number | null;
+  let side: boolean;
+  if (e) {
+    const t = typeof e.timestamp === 'string' ? Date.parse(e.timestamp) : Number.NaN;
+    ts = Number.isNaN(t) ? null : t;
+    side = e.isSidechain === true;
+    applyAssistant(sc, e, ts);
+  } else {
+    if (f.kind !== 'main') return;
+    ts = lineTs(line);
+    side = line.includes('"isSidechain":true');
+  }
+  if (f.kind === 'main' && ts !== null && !side) tick(f, ts);
+}
+
+const TS = '"timestamp":"';
+
+function lineTs(line: string): number | null {
+  const i = line.lastIndexOf(TS);
+  if (i < 0) return null;
+  const j = line.indexOf('"', i + TS.length);
+  const t = j < 0 ? Number.NaN : Date.parse(line.slice(i + TS.length, j));
+  return Number.isNaN(t) ? null : t;
+}
+
+// gap to the previous entry, capped, on the later entry's day
+function tick(f: FileEntry, ts: number): void {
+  if (f.lastTs !== null && ts > f.lastTs && ts > f.horizon) {
+    const d = dayKey(ts);
+    f.time[d] = (f.time[d] ?? 0) + Math.min(ts - f.lastTs, IDLE_CAP_MS);
+  }
+  if (f.lastTs === null || ts > f.lastTs) f.lastTs = ts;
 }
 
 function readFile(sc: Scan, abs: string, size: number, maxLine: number): number {

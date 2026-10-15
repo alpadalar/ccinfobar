@@ -8,6 +8,7 @@ import { keyHash, scanTree, sessionsOf, walkTranscripts } from '../../src/data/r
 import {
   appendTranscript,
   assistantLine,
+  metaLine,
   scratch,
   userLine,
   writeTranscript,
@@ -333,5 +334,113 @@ describe('scanTree requests', () => {
     expect(Number.isSafeInteger(a)).toBe(true);
     expect(a).toBe(keyHash('msg_1:req_1'));
     expect(a).not.toBe(keyHash('msg_1:req_2'));
+  });
+});
+
+const minutes = (s: SessionData | undefined) =>
+  Object.values(s?.time ?? {}).reduce((a, b) => a + b, 0) / 60_000;
+
+describe('scanTree active time', () => {
+  it('sums gaps capped at five minutes', () => {
+    const root = scratch('time');
+    writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [
+        userLine({ ts: min(0) }),
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(2) }),
+        metaLine(min(20)),
+        userLine({ ts: min(21) }),
+      ],
+      root,
+    );
+    expect(minutes(scan(root).S1)).toBe(8);
+  });
+
+  it('credits a gap across midnight to the later day', () => {
+    const root = scratch('midnight');
+    const a = new Date(2026, 9, 12, 23, 58).getTime();
+    const b = new Date(2026, 9, 13, 0, 1).getTime();
+    writeTranscript('projects/-w-a/S1.jsonl', [userLine({ ts: a }), metaLine(b)], root);
+    expect(scan(root).S1!.time).toEqual({ '2026-10-13': 180_000 });
+  });
+
+  it('adds no time for sidechain lines, agent files and aside files', () => {
+    const root = scratch('no-time');
+    writeTranscript(
+      'projects/-w-a/S1.jsonl',
+      [
+        userLine({ ts: min(0) }),
+        userLine({ ts: min(4), sidechain: true }),
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(8), sidechain: true }),
+        metaLine(min(9)),
+      ],
+      root,
+    );
+    writeTranscript(
+      'projects/-w-a/S1/subagents/agent-x.jsonl',
+      [userLine({ ts: min(10) }), metaLine(min(12))],
+      root,
+    );
+    writeTranscript(
+      'projects/-w-a/S2.orphaned-1-x.jsonl',
+      [userLine({ ts: min(0) }), metaLine(min(3))],
+      root,
+    );
+    const s = scan(root);
+    expect(minutes(s.S1)).toBe(5);
+    expect(s.S2!.time).toEqual({});
+  });
+
+  it('skips the copied history of a fork', () => {
+    const root = scratch('fork-time');
+    const history: string[] = [];
+    for (let i = 0; i <= 10; i++) {
+      if (i > 0) history.push(userLine({ ts: min(3 * i - 2) }));
+      history.push(assistantLine({ id: `m${i}`, requestId: `r${i}`, ts: min(3 * i), in: 1, out: 1 }));
+    }
+    age(writeTranscript('projects/-w-a/S1.jsonl', history, root), T0);
+    const fresh: string[] = [];
+    for (let i = 0; i <= 5; i++) {
+      fresh.push(userLine({ ts: min(40 + 2 * i) }));
+      fresh.push(assistantLine({ id: `n${i}`, requestId: `q${i}`, ts: min(40 + 2 * i), out: 1 }));
+    }
+    age(writeTranscript('projects/-w-a/S9.jsonl', [...history, ...fresh], root), T0 + 60_000);
+    const s = scan(root);
+    expect(minutes(s.S1)).toBe(30);
+    expect(minutes(s.S9)).toBe(15);
+    expect(total(s.S1).n).toBe(11);
+    expect(total(s.S9).n).toBe(6);
+  });
+
+  it('keeps the time of a main file that copies its own set-aside transcript', () => {
+    const root = scratch('aside-time');
+    const reqs = [0, 1, 2, 3].map((i) => assistantLine({ id: `m${i}`, requestId: `r${i}`, ts: min(3 * i) }));
+    age(writeTranscript('projects/-w-a/S1.orphaned-1-x.jsonl', reqs, root), T0);
+    const main = [...reqs, assistantLine({ id: 'm4', requestId: 'r4', ts: min(12) })];
+    age(writeTranscript('projects/-w-a/S1.jsonl', main, root), T0 + 60_000);
+    const s = scan(root).S1!;
+    expect(minutes(s)).toBe(12);
+    expect(total(s).n).toBe(5);
+  });
+
+  it('carries the last timestamp across scans', () => {
+    const root = scratch('grow');
+    writeTranscript('projects/-w-a/S1.jsonl', [userLine({ ts: min(0) }), metaLine(min(2))], root);
+    const first = scanTree(root, null);
+    expect(minutes(sessionsOf(first.state).S1)).toBe(2);
+    appendTranscript('projects/-w-a/S1.jsonl', [userLine({ ts: min(5) })], root);
+    expect(minutes(sessionsOf(scanTree(root, first.state).state).S1)).toBe(5);
+  });
+
+  it('reads the top-level timestamp of an unparsed line', () => {
+    const root = scratch('last-ts');
+    const odd = JSON.stringify({
+      type: 'user',
+      toolUseResult: { timestamp: new Date(min(-60)).toISOString() },
+      message: { role: 'user', content: 'PROMPT_MARKER_x' },
+      timestamp: new Date(min(4)).toISOString(),
+    });
+    writeTranscript('projects/-w-a/S1.jsonl', [userLine({ ts: min(0), cwd: '/w/a' }), odd], root);
+    expect(minutes(scan(root).S1)).toBe(4);
   });
 });
