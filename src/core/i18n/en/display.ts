@@ -43,8 +43,7 @@ export const displayMessages = {
   'vis.hiddenBadge': 'hidden by rule',
   'vis.refreshHint':
     'Time rules only change when Claude Code re-runs the status line. Set refreshInterval to {n}.',
-  'vis.help':
-    'Rule, e.g. context.pct >= 70, !git, time.hour in 9..18; || means or, ; joins rules that must all hold. Del removes',
+  'vis.help': 'Rule like context.pct >= 70, !git, time.hour in 9..18 (|| = or, ; = and). Del removes',
   'vis.presetHelp':
     'Enter or ←/→ picks a common showWhen rule; a custom rule is kept until you edit it below',
   'vis.ignored': 'Ignored: {problem}',

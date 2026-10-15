@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import { resolveAppearance } from '../../src/core/renderer.js';
+import type { Config } from '../../src/core/types.js';
 import { cycled, displayValue, globalFields, listEntries, widgetFields } from '../../src/tui/fields.js';
 import { themeInputFromConfig } from '../../src/tui/themeio.js';
 import { getWidget } from '../../src/widgets/index.js';
@@ -257,5 +258,82 @@ describe('hideEmpty default per widget', () => {
     expect(cycled(f, c, 1)).toBe(true);
     const on = { ...c, lines: [[{ id: 'm', type: 'model', hideEmpty: true }]] };
     expect(cycled(f, on, 1)).toBeUndefined();
+  });
+});
+
+describe('visibility fields', () => {
+  const cfg = (extra: object = {}): Config => ({
+    ...defaultConfig(),
+    lines: [[{ id: 'm', type: 'model', ...extra }]],
+  });
+  const vis = (c: Config, id: string) => widgetFields(getWidget('model'), 'm', c).find((f) => f.id === id)!;
+  const item = (c: Config) => c.lines[0]![0]!;
+
+  it('come right after the base fields', () => {
+    const ids = widgetFields(getWidget('model'), 'm', cfg()).map((f) => f.id);
+    const at = ids.indexOf('hideEmpty');
+    expect(ids.slice(at + 1, at + 4)).toEqual(['vis.preset', 'vis.showWhen', 'vis.hideWhen']);
+    expect(vis(cfg(), 'vis.preset').kind).toBe('select');
+    expect(vis(cfg(), 'vis.showWhen').kind).toBe('text');
+    expect(vis(cfg(), 'vis.preset').label).toBe('Visibility: Show only');
+  });
+
+  it('cycles the presets through showWhen and leaves hideWhen alone', () => {
+    let c = cfg({ hideWhen: 'gsd' });
+    expect(displayValue(vis(c, 'vis.preset'), c)).toEqual({ text: 'always', isDefault: true });
+    const seen: unknown[] = [];
+    for (let i = 0; i < 6; i++) {
+      const f = vis(c, 'vis.preset');
+      c = f.set(c, cycled(f, c, 1));
+      seen.push(item(c).showWhen);
+      expect(item(c).hideWhen).toBe('gsd');
+    }
+    expect(seen).toEqual(['git', 'gsd', 'agents', 'context.pct >= 70', 'usage.5h >= 80', undefined]);
+    expect('showWhen' in item(c)).toBe(false);
+    expect(displayValue(vis(cfg({ showWhen: 'gsd' }), 'vis.preset'), cfg({ showWhen: 'gsd' })).text).toBe(
+      'in GSD projects',
+    );
+  });
+
+  it('shows a custom rule as custom and never replaces it', () => {
+    for (const showWhen of [['git', 'context.pct >= 70'], 'contxt > 1']) {
+      const c = cfg({ showWhen });
+      const f = vis(c, 'vis.preset');
+      expect(displayValue(f, c).text).toBe('custom');
+      expect(cycled(f, c, 1)).toBe('custom');
+      expect(cycled(f, c, -1)).toBe('custom');
+      expect(f.set(c, cycled(f, c, 1))).toEqual(c);
+      expect(f.set(c, 'git')).toEqual(c);
+      expect(f.set(c, undefined)).toEqual(c);
+      expect(listEntries(f).at(-1)).toEqual({ value: 'custom', label: 'custom' });
+    }
+  });
+
+  it('validates typed rules inline and stores them', () => {
+    const c = cfg();
+    const f = vis(c, 'vis.showWhen');
+    expect(f.parse('contxt > 1')).toEqual({ ok: false, error: 'unknown metric "contxt"' });
+    expect(f.parse('git')).toEqual({ ok: true, value: 'git' });
+    expect(f.parse('  ')).toEqual({ ok: true, value: undefined });
+    let next = f.set(c, 'git; context.pct >= 70');
+    expect(item(next).showWhen).toEqual(['git', 'context.pct >= 70']);
+    expect(displayValue(f, next).text).toBe('git; context.pct >= 70');
+    next = vis(next, 'vis.hideWhen').set(next, 'provider in bedrock');
+    expect(item(next).hideWhen).toBe('provider in bedrock');
+    expect(f.set(next, 'contxt > 1')).toEqual(next);
+    expect('showWhen' in item(f.set(next, undefined))).toBe(false);
+    expect(f.resettable).toBe(true);
+  });
+
+  it('explains the grammar and a stored problem in the help', () => {
+    expect(vis(cfg(), 'vis.showWhen').help).toContain('context.pct >= 70, !git, time.hour in 9..18');
+    expect(vis(cfg({ hideWhen: 'contxt > 1' }), 'vis.hideWhen').help).toContain(
+      'Ignored: unknown metric "contxt"',
+    );
+  });
+
+  it('strips control characters from stored rule text', () => {
+    const c = cfg({ showWhen: 'git\u001b[31m' });
+    expect(displayValue(vis(c, 'vis.showWhen'), c).text).not.toContain('\u001b');
   });
 });

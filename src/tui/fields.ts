@@ -1,9 +1,23 @@
 import { parseColor } from '../core/ansi.js';
+import { describeRuleError, type RuleKey, validateRule } from '../core/conditions.js';
 import { normalizeTui } from '../core/config.js';
-import { optionShown, setBudget, setOption, setProfilesBuiltIn, updateItem } from '../core/edit.js';
+import {
+  findItem,
+  optionShown,
+  RULE_PRESETS,
+  ruleFromText,
+  rulePreset,
+  ruleToText,
+  setBudget,
+  setItemRule,
+  setOption,
+  setProfilesBuiltIn,
+  updateItem,
+} from '../core/edit.js';
 import { t } from '../core/i18n/index.js';
 import { BOX_PRESETS } from '../core/panel.js';
 import { resolveAppearance } from '../core/renderer.js';
+import { sanitizeText } from '../core/sanitize.js';
 import { resolveTheme, STYLES } from '../core/themes.js';
 import type { Config, OptionChoice, OptionValue, TuiConfig, WidgetDef, WidgetItem } from '../core/types.js';
 
@@ -22,6 +36,7 @@ export interface Field {
   effective?(config: Config): OptionValue | undefined;
   editValue?(config: Config): string;
   range?: [number, number];
+  locked?(config: Config): boolean;
   resettable: boolean;
   get(config: Config): OptionValue | undefined;
   set(config: Config, value: OptionValue | undefined): Config;
@@ -178,7 +193,76 @@ export function widgetFields(def: WidgetDef | undefined, itemId: string, config?
   const specs = def?.options ?? [];
   const options = config?.lines.flat().find((i) => i.id === itemId)?.options;
   const shown = specs.filter((o) => optionShown(o, specs, options));
-  return [...base, ...shown.map((o) => optionField(o, itemId))];
+  return [...base, ...visibilityFields(itemId, config), ...shown.map((o) => optionField(o, itemId))];
+}
+
+const CUSTOM_RULE = 'custom';
+const visLabel = (id: 'vis.preset' | 'vis.showWhen' | 'vis.hideWhen') => `${t('vis.section')}: ${t(id)}`;
+
+function presetField(itemId: string, config?: Config): Field {
+  const preset = (c: Config) => {
+    const it = findItem(c, itemId)?.item;
+    return it ? (rulePreset(it) ?? CUSTOM_RULE) : undefined;
+  };
+  const list: OptionChoice[] = RULE_PRESETS.map((p) => ({ value: p.id, label: t(p.label) }));
+  if (config && preset(config) === CUSTOM_RULE) list.push({ value: CUSTOM_RULE, label: t('vis.custom') });
+  return {
+    id: 'vis.preset',
+    label: visLabel('vis.preset'),
+    kind: 'select',
+    help: t('vis.presetHelp'),
+    choices: list,
+    fallback: 'none',
+    resettable: true,
+    locked: (c) => preset(c) === CUSTOM_RULE,
+    get: (c) => {
+      const p = preset(c);
+      return p === 'none' ? undefined : p;
+    },
+    set: (c, v) => {
+      if (preset(c) === CUSTOM_RULE) return c;
+      const rule = RULE_PRESETS.find((p) => p.id === v)?.rule ?? undefined;
+      const r = setItemRule(c, itemId, 'showWhen', rule);
+      return r.ok ? r.config : c;
+    },
+    parse: parseText,
+  };
+}
+
+function ruleField(key: RuleKey, itemId: string, config?: Config): Field {
+  const raw = (c: Config) => findItem(c, itemId)?.item[key];
+  const stored = config ? raw(config) : undefined;
+  const bad = stored === undefined ? null : validateRule(stored);
+  const help = t('vis.help');
+  return {
+    id: `vis.${key}`,
+    label: visLabel(`vis.${key}`),
+    kind: 'text',
+    help: bad ? `${t('vis.ignored', { problem: sanitizeText(describeRuleError(bad)) })} · ${help}` : help,
+    resettable: true,
+    get: (c) => {
+      const v = raw(c);
+      return v === undefined ? undefined : sanitizeText(ruleToText(v));
+    },
+    set: (c, v) => {
+      const r = setItemRule(c, itemId, key, v === undefined ? undefined : ruleFromText(String(v)));
+      return r.ok ? r.config : c;
+    },
+    parse: (text) => {
+      const rule = ruleFromText(text);
+      if (rule === undefined) return { ok: true, value: undefined };
+      const e = validateRule(rule);
+      return e ? { ok: false, error: describeRuleError(e) } : { ok: true, value: text.trim() };
+    },
+  };
+}
+
+export function visibilityFields(itemId: string, config?: Config): Field[] {
+  return [
+    presetField(itemId, config),
+    ruleField('showWhen', itemId, config),
+    ruleField('hideWhen', itemId, config),
+  ];
 }
 
 function globalField(
@@ -632,6 +716,7 @@ export function cycled(field: Field, config: Config, delta: 1 | -1): OptionValue
     return field.range ? Math.max(field.range[0], Math.min(field.range[1], next)) : next;
   }
   if (field.kind === 'select') {
+    if (field.locked?.(config)) return field.get(config);
     const list = field.choices ?? [];
     if (!list.length) return undefined;
     const cur = String(field.get(config) ?? field.effective?.(config) ?? field.fallback ?? '');

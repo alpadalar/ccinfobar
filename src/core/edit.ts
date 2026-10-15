@@ -2,6 +2,7 @@ import {
   type Clause,
   describeRuleError,
   formatClause,
+  formatRule,
   parseRule,
   type RuleKey,
   ruleMetrics,
@@ -571,4 +572,13 @@ export function ruleFromText(text: string): string | string[] | undefined {
       .map((s) => s.trim())
       .filter(Boolean),
   );
+}
+
+// null when showWhen is not exactly one preset
+export function rulePreset(item: WidgetItem): RulePresetId | null {
+  if (item.showWhen === undefined) return 'none';
+  const r = parseRule(item.showWhen);
+  if (!r.ok) return null;
+  const f = formatRule(r.rule);
+  return RULE_PRESETS.find((p) => p.rule !== null && p.rule === f)?.id ?? null;
 }
