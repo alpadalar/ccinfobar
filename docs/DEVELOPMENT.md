@@ -47,6 +47,7 @@ src/
 │   ├── explain.ts       `ccinfobar explain` and the read-only loader doctor shares
 │   ├── bench.ts         `ccinfobar bench`
 │   ├── repos.ts         workspace-repos dirty check (`repos --background` alias)
+│   ├── worker.ts        hidden `ccinfobar worker <key>...`: runs due background jobs
 │   ├── io.ts            CliIo and the config-issue printer shared by explain, preview and bench
 │   ├── settings-file.ts format-preserving settings.json reads, writes and backups
 │   ├── manifest.ts      what ccinfobar wrote, for uninstall and ownership
@@ -67,6 +68,9 @@ src/
 │   ├── trace.ts         records what a widget read during render
 │   ├── scenarios.ts     named payload and data situations
 │   ├── cache-rule.ts    Claude Code's cache miss rule and the latest-miss check (pure)
+│   ├── jsonpath.ts      the http widget's JSON path subset (pure)
+│   ├── http-spec.ts     http URL templates and header specs (pure)
+│   ├── profiles.ts      built-in model profiles and resolveProfile (pure)
 │   ├── time.ts          epoch seconds, milliseconds and ISO to ms (pure)
 │   ├── edit.ts          pure edit operations shared by both editors
 │   ├── presets.ts, sample.ts, preview.ts, paths.ts
@@ -76,6 +80,7 @@ src/
 │   ├── live.ts          trusted turn, permission wait and running tools (pure)
 │   ├── environment.ts   CLAUDE.md, rules, MCP and hook counts from config files
 │   ├── repos.ts         child repos of a workspace folder and the dirty cache
+│   ├── jobs/            background job runner, registry and one module per job
 │   └── hooks.ts         hook log line format, fold and reader
 ├── widgets/             one file per category, registered in index.ts
 │   ├── live.ts          tool-activity, turn-timer, permission-wait
@@ -101,7 +106,7 @@ Rendering flow:
 4. `renderer.ts` adds labels, colors and separators, fills `flex` space and truncates to the terminal width.
 5. Spaces become non-breaking spaces and every line starts with a reset code, so Claude Code's dim style and whitespace trimming don't alter the output.
 
-The transcript reader keeps an incremental cache in the cache directory, so only newly appended bytes are parsed on each refresh.
+The transcript reader keeps an incremental cache in the cache directory, so only newly appended bytes are parsed on each refresh. After stdout, `scheduleJobs` starts at most one detached worker for the background jobs that are due (see [Background jobs](#background-jobs)).
 
 ### Writing files
 
@@ -127,7 +132,7 @@ Text from outside is sanitized where it enters, not in each widget: the stdin pa
 
 ### Explain and inspect
 
-`core/inspect.ts` turns a render context into one row per widget: its value, its sources and, when it is empty, a reason code. It has no I/O and no `node:` imports. `commands/explain.ts` holds `loadInspectInput`, the read-only loader shared by `explain` and `doctor`: it picks `--payload`, `--scenario`, the last saved payload or the sample, and reads the transcript, subagents and history without writing caches. `explain` replaces `env`, `command` and `tool-activity` values with `<redacted N chars>`; only `--show-values` in a terminal prints them, and `--json` never does.
+`core/inspect.ts` turns a render context into one row per widget: its value, its sources and, when it is empty, a reason code. It has no I/O and no `node:` imports. `commands/explain.ts` holds `loadInspectInput`, the read-only loader shared by `explain` and `doctor`: it picks `--payload`, `--scenario`, the last saved payload or the sample, and reads the transcript, subagents and history without writing caches. `explain` replaces `env`, `command`, `http` and `tool-activity` values with `<redacted N chars>`; only `--show-values` in a terminal prints them, and `--json` never does.
 
 `inspectRows` wraps the render context with a trace from `core/trace.ts`, which the normal render path never does. The trace records the payload paths, env key names and data calls each widget makes, never their values. Widgets whose reads the trace cannot see (system info, `command`) declare `WidgetDef.sources` as a hint. Tests: `test/core/inspect.test.ts`, `test/core/trace.test.ts` and `test/commands/explain.test.ts`.
 
@@ -141,7 +146,7 @@ Text from outside is sanitized where it enters, not in each widget: the stdin pa
 
 ### Limits store
 
-`src/data/limits.ts` shares plan limits between sessions. `accountKey(env)` hashes the provider kind, the resolved Claude config dir (lowercased on win32 only) and `CLAUDE_SECURESTORAGE_CONFIG_DIR` into 16 hex chars. The store is `<cacheDir>/limits/<accountKey>.json`; the OAuth usage cache is `<cacheDir>/usage-<accountKey>.json` (a legacy `usage.json` is only read, when `CLAUDE_CONFIG_DIR` is unset; it may come from another config dir, so its values count as an unknown capture and lose to any known one).
+`src/data/limits.ts` shares plan limits between sessions. `accountKey(env)` hashes the provider kind, the resolved Claude config dir (lowercased on win32 only) and `CLAUDE_SECURESTORAGE_CONFIG_DIR` into 16 hex chars. The store is `<cacheDir>/limits/<accountKey>.json`; the OAuth usage cache is the `<cacheDir>/jobs/usage-<accountKey>.json` envelope, falling back to the older `<cacheDir>/usage-<accountKey>.json` (a legacy `usage.json` is only read, when `CLAUDE_CONFIG_DIR` is unset; it may come from another config dir, so its values count as an unknown capture and lose to any known one).
 
 - Capture time is the transcript's last assistant message (`lastAssistantAt`), else the transcript mtime, else unknown. The usage worker stamps its result with `fetchedAt`.
 - Merge (`pick`): only plausible windows (pct in range, reset in the future and no further than one window length plus 10 minutes ahead). The latest reset wins, then the newest capture, then the payload over the API, then the higher pct; a payload value (0.1% steps) beats an API value (whole percents) that is less than 1 point away, whatever their capture times. Expired windows are dropped and never stored. With nothing plausible, this session's own unexpired payload window, then an API `resets_at: null` bucket, is shown but not stored.
@@ -215,6 +220,47 @@ Phase 5 added three optional `DataSources` members, `hooks`, `repos` and `enviro
 - **Time-based widgets.** `WidgetDef.timeBased` marks widgets that need a refresh interval; `needsRefresh` in `core/edit.ts` (pure) drives the `install`, `doctor` and editor hints.
 
 `test/widgets/performance.test.ts` renders all five live widgets through the real readers on temp fixtures with `child_process` spies and asserts no call; `test/core/scenarios.test.ts` renders them under every scenario and checks that no preset or default layout uses them.
+
+### Background jobs
+
+Everything slow or networked runs in one detached worker, never in the render. `src/data/jobs/`:
+
+- `runner.ts`: the `Job` interface, envelopes, backoff, locks, `spawnSelf`, `scheduleRequests` and `executeJob`. It imports only `core/paths.ts`, `core/sanitize.ts` and `data/store.ts` (plus types), so the hook's update check can reach it.
+- `index.ts`: the `JOBS` registry, `jobFor(key)` and `scheduleJobs`.
+- One module per job: `usage.ts`, `update.ts`, `status.ts`, `http.ts`, `gh.ts`, `repos.ts`; `fetch.ts` (`fetchJson`) and `keys.ts` (`httpKey`, `ghKey`) are shared.
+
+| Job | Key | Network | Lock | Refresh |
+| --- | --- | --- | --- | --- |
+| usage | `usage-<accountKey>` | auto | 30 s | 180 s; 429 honours Retry-After or 300 s; no login 10 min |
+| update | `update` | auto | 10 min | daily, or a new session with a 60 s gap |
+| status | `status` | auto | 60 s | the smallest `interval`, 120..600 s |
+| http | `http-<hash16(url + \0 + headers)>` | explicit | 60 s | the smallest `interval`, at least 30 s |
+| gh | `gh-<hash16(host/owner/name#n)>` | explicit | 60 s | 60 s while checks run, else 5 min; gh missing blocks 1 h, not logged in 30 min, rate limit 15 min |
+| repos | `repos-dirty-<cacheKey(cwd)>` | none | 2 min | 60 s |
+
+**Envelope.** One file per key, `<cacheDir>/jobs/<key>.json` (0600, dir 0700, `writeAtomic`): `{ v: 1, key, fetchedAt, ok, value, error?, blockedUntil?, attempts?, lastGood?, lastGoodAt?, param? }`. Success sets `value` and `lastGood`, `lastGoodAt = fetchedAt` and `attempts: 0`. A failure stores `value: null`, a fixed error code (never a response body or `err.message`), `attempts + 1` and `blockedUntil`, and keeps `lastGood`. Every read goes through `readEnvelope`, which checks the shape and runs `deepSanitize`. Widgets call `jobValue(e)`, which gives `{ value: value ?? lastGood, at, stale, error }`, and they judge the age themselves.
+
+**Backoff.** `failEnvelope` blocks for `retryMs × 2^(attempts − 1)`, capped at 30 min; `retryAfterMs` reads `Retry-After` as seconds or an HTTP date (0 or garbage falls back to the computed backoff). `defaultDue(e, now, ttlMs)` is false while `blockedUntil` lies ahead; otherwise it is true when there is no envelope, a failed run's block has passed, or the data is older than the TTL. `due()` also gets the request, so update's session rule and the per-item intervals fit.
+
+**Scheduling.** `renderOnce` calls `scheduleJobs(config, payload, env, cwd, cfgFile, { repos })` after the stdout write. It returns at once under `CCINFOBAR_NO_JOBS`, skips `auto` jobs before their `keys()` run when `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set (`blockedByTraffic`), asks each remaining job for its requests and due state (each in its own `try`), takes `jobs/<key>.lock` with `acquireLock(file, job.lockMs)` and spawns one `ccinfobar worker <key[=param]>... [--config=<file>] [--cwd=<dir>]` through `spawnSelf`. `--config` is only passed for a non-default config file. If the spawn throws or emits `'error'`, the locks it took are released. Preview, explain, doctor, the editors, the TUI and bench never schedule.
+
+**Worker.** `commands/worker.ts` (lazily imported, in the import-graph test's `EXCLUDED_FILES`) silences stdout and stderr, loads the config the way render does and parses at most 32 `key[=param]` arguments. Every request is checked again: the key must pass `SAFE_KEY` and the job's `keyRe`, `param` its `paramRe`, and `accepts()` re-derives the key from the config (and for repos, the directory). A broken config runs only the update job. The accepted jobs run concurrently (`Promise.allSettled`), each under its own `timeoutMs` in `executeJob`, which writes the envelope and removes the lock. It never prints and always exits 0; a 330 s deadline ends it. Afterwards it removes `jobs/http-*` and `jobs/gh-*` files that no config item and no key it just ran uses and that are older than 7 days, and stale `*.tmp` files.
+
+**Legacy files.** The usage reader falls back to `usage-<accountKey>.json`, then `usage.json` (only without `CLAUDE_CONFIG_DIR`); update to `update.json`; repos to `repos-dirty-<key>.json`. They are read, never written again. `usage --background`, `update --background` and `repos --background` are hidden aliases that run one job through `executeJob`.
+
+**Hook closure.** `scheduleCheck(config, session, env)` in `data/update-state.ts` schedules only the update job, so `cli/hook.ts` reaches `runner.ts` and `jobs/update.ts` but never the registry, config loading or widgets; `jobs/update.ts` loads `commands/update.ts` with `import()` inside `run()`. `test/foundations/import-graph.test.ts` checks this.
+
+**Reading.** `DataSources.jobs()` gives a `JobReader` (`createJobReader(env)`), filled lazily, so a layout without job-backed widgets reads no job file. `core/sample.ts` `sampleJobs(now)` and every scenario supply one. `core/trace.ts` records `job` reads, so `explain` shows `job status, 30s old, ok`; `jobReason` and `jobEmpty` in `core/inspect.ts` turn an envelope into `job-pending`, `job-error`, `stale` or `nonessential-traffic-off`. `doctor` lists every envelope in a Background jobs block.
+
+**Tests.** `test/setup.ts` sets `CCINFOBAR_NO_UPDATE` and `CCINFOBAR_NO_USAGE_API`; built-CLI tests that do not test jobs set `CCINFOBAR_NO_JOBS=1`. Jobs get an injected `fetch` (`test/fake-fetch.ts`) and `execFile`, so no test touches the network or the real `gh`. `test/integration/jobs-cli.test.ts` proves that one render spawns one worker that writes `jobs/update.json` and `jobs/usage-<16 hex>.json`, and `scripts/clean-install.mjs` checks the same paths.
+
+Adding a job:
+
+1. Add the id to `JobId` and a module in `src/data/jobs/` with `network`, `lockMs`, `timeoutMs`, `retryMs`, `keyRe` (and `paramRe` when it needs payload input), `keys`, `accepts`, `due` and `run`. Pass only short, non-secret params in argv; anything from the config is re-read by the worker.
+2. Return `okEnvelope` or `failEnvelope` with a fixed error code; sanitize strings and keep only what the widget needs.
+3. Register it in `JOBS`, and let the widget read it with `ctx.data.jobs?.()?.job(key)` and `jobValue`. Add the key to `sampleJobs` and to a scenario.
+4. Choose the network class: `auto` for anything the user did not ask for by URL or option.
+5. Test `keys`, `due`, `run` with injected `fetch` or `execFile`, the worker round trip and the explain reason.
 
 ### Plugin
 
@@ -311,7 +357,7 @@ Method:
 
 - Each run spawns `process.execPath` with the same entry script (`spawnSync`) and measures from spawn to exit with `process.hrtime.bigint()`.
 - The payload goes on stdin. It is the sample (or `--scenario`) payload with `cwd` set to the current dir, so a real git repo is exercised when there is one, and `transcript_path` set to a synthetic transcript of about 200 entries. `--scenario` applies only the scenario's payload and env (provider keys from your env are dropped first). Its data injectors (subagents, GSD state, no git) cannot reach the child process, so the child reads the real git repo, the real `.planning` and the synthetic transcript.
-- The child env gets temp `CCINFOBAR_CACHE_DIR`, `CCINFOBAR_CONFIG_DIR`, `CLAUDE_CONFIG_DIR` and `NODE_COMPILE_CACHE`, plus `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` (no update or usage workers) and `COLUMNS=140` (like Claude Code, so no width probe). Your config and user themes are copied in read-only; the real caches and `~/.claude` are never touched, and the temp dirs are removed afterwards.
+- The child env gets temp `CCINFOBAR_CACHE_DIR`, `CCINFOBAR_CONFIG_DIR`, `CLAUDE_CONFIG_DIR` and `NODE_COMPILE_CACHE`, plus `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` and `CCINFOBAR_NO_JOBS=1` (no background worker, even for `http` or `pr` CI items in a copied config) and `COLUMNS=140` (like Claude Code, so no width probe). Your config and user themes are copied in read-only; the real caches and `~/.claude` are never touched, and the temp dirs are removed afterwards.
 - Stats: median (mean of the two middle values when N is even), nearest-rank p95, min and max.
 
 Measure at nice 0, for example after `renice -n 0 -p $$` in your shell (lowering the nice value may need privileges). On a machine that starts tools at nice 10, `nice -n -10 ccinfobar bench` also reaches 0; the header shows the priority and warns when it is above 0. Measure when the machine is idle and note the load average, because the numbers move with machine state.

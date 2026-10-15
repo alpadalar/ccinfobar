@@ -42,9 +42,9 @@
 - **24 themes, or your own.** Colored text, colored blocks, powerline arrows, rounded capsules or a bordered panel with a responsive grid, from classic to Nord, Dracula, Rosé Pine, Tokyo Night and Catppuccin. ASCII mode for terminals without a Nerd Font. Preview them all with `ccinfobar themes` and write your own in a few lines of JSON.
 - **Terminal editor too.** `ccinfobar tui` does the same from the keyboard (or mouse) when you are on SSH or prefer to stay in the terminal.
 - **First-class GSD support.** Milestone progress, the current phase, plan completion inside the phase, the next command to run, blockers, requirements and more, as separate widgets you can arrange freely. See [docs/GSD.md](docs/GSD.md).
-- **105 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, the running tool and turn time, git, workspace, system and custom commands.
+- **107 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, the running tool and turn time, git with PR CI checks, workspace, system, Claude's service status, your provider or gateway, any JSON endpoint and custom commands.
 - **Uses the current Claude Code payload.** Rate limits, prompt cache statistics, PR status and repository info come straight from the status line JSON, without extra API calls.
-- **Fast, dependency-free, self-updating.** Zero runtime dependencies, lazy data loading, an incremental transcript cache and background updates.
+- **Fast, dependency-free, self-updating.** Zero runtime dependencies, lazy data loading, an incremental transcript cache, and network checks that run in one background process, so the status line never waits on the network.
 - **Cross-platform.** Linux, macOS and Windows, tested in CI on all three with Node 20, 22, 24 and 26.
 
 ## Quick start
@@ -150,7 +150,7 @@ Mouse works too: click to select, drag a chip to move it.
 
 | Category | Widgets |
 | --- | --- |
-| Session & model | model, effort, thinking, fast mode, output style, session name and id, Claude Code version, vim mode, agent name, skills, how long the turn has run (`turn-timer`), how long the last permission prompt waited (`permission-wait`) |
+| Session & model | model, effort, thinking, fast mode, output style, session name and id, Claude Code version, vim mode, agent name, skills, provider or gateway (`provider`), how long the turn has run (`turn-timer`), how long the last permission prompt waited (`permission-wait`) |
 | Context window | used or remaining percent (optionally relative to the auto-compact limit), bar, length, window size, compaction count |
 | Tokens & cache | input, output, cached, total, cache hit rate, cache expiry countdown, last cache miss cause, output speed, performance (`performance`: hit rate and average response time) |
 | Cost & time | session cost, cost per hour, estimated cost today, this week and per project across sessions (`cost-today`, `cost-week`, `cost-project`), budget, session and API duration, lines changed, message count |
@@ -160,8 +160,8 @@ Mouse works too: click to select, drag a chip to move it.
 | GSD | milestone, milestone progress, phase, status, plans, plan progress, next step, workstream, blockers, todos, requirements, last command, update notice, current task, summary |
 | Git | branch, sha, changes, status, staged, unstaged, untracked, ahead/behind, conflicts, stash, in-progress operation, repo, worktree, pull request with optional CI check status (`pr` option `ci`), child repos of a workspace folder (`workspace-repos`) |
 | Workspace | current directory (5 styles), project directory |
-| System | clock, date, hostname, username, memory, load average, terminal width, platform, CLAUDE.md files, rules, MCP servers and hooks in effect (`env-counts`) |
-| Custom | shell command output, clickable link, environment variable |
+| System | clock, date, hostname, username, memory, load average, terminal width, platform, CLAUDE.md files, rules, MCP servers and hooks in effect (`env-counts`), Claude's status page (`service-status`) |
+| Custom | shell command output, a value from any JSON endpoint (`http`), clickable link, environment variable |
 | Layout | text, separator, flex space |
 
 A widget without data (a new chat, a folder that is not a git repo or GSD project) shows its label and `—`, so every line you add is always visible. Turn on **Hide when no data** (`hideEmpty`) for any widget you would rather hide. The full list with options and examples is in [docs/WIDGETS.md](docs/WIDGETS.md), or run `ccinfobar widgets`.
@@ -187,6 +187,17 @@ These show what Claude is doing right now. They are opt-in: no preset or default
 `env-counts` counts what Claude Code loads for this folder, read from config files only: CLAUDE.md files (managed, user, and the project folder and its parents), AGENTS.md when it is in effect, rules files, MCP servers and hook handlers, or `hooks off` when hooks are disabled. It never runs `claude mcp list` or starts a server. Plugin MCP servers, claude.ai connectors and plugin hooks are not counted, `claudeMdExcludes` is not applied, and MCP health is not shown because Claude Code does not expose it to the status line. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#live-session-widgets).
 
 **Refresh.** Claude Code runs the status line again on a new assistant message, on token, mode or model changes and on the `refreshInterval` timer. It does not run it on hook events or tool results, and not at all while a permission dialog is open. Timers and tool activity therefore move only when one of those happens. For `turn-timer`, `tool-activity`, `permission-wait` and other time-based widgets, use `ccinfobar install --refresh 5`; `install`, `doctor` and the editor's Settings suggest it, but nothing is set for you. A 1 s refresh is not recommended: it runs ccinfobar every second.
+
+### External data
+
+These are opt-in too and come from the network or `gh`. A background process fetches them after the status line has printed, so rendering never waits; the status line shows the cached result.
+
+- `service-status`: Claude's status page when something is wrong, `⚠ major: Elevated errors on Opus +1`; hidden while all is well
+- `http`: one value from any JSON endpoint, such as a relay balance, `$12.50`. Secrets for headers and query values come from env vars only (`Authorization=Bearer $RELAY_TOKEN`)
+- `pr` option `ci`: the PR's CI checks from your own `gh`, `#128 approved ✗ 2`, `● 3` while running, `✓` when all pass
+- `provider`: who serves the session, `Bedrock`, `API key` or `GLM via api.z.ai`; nothing for a normal Claude login
+
+Gateway users can turn on `basis: "auto"` on `session-cost` and `profileLabel` on `model`: a built-in model profile table (GLM, Kimi, DeepSeek, MiniMax, Qwen) gives prices, names and context windows, and your own `profiles` entries extend it. Context widgets already use the profile's window when Claude Code reports the 200K default. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` stops the automatic checks (usage, update, `service-status`); `http` items and the CI part still run because you turned them on. Recipes and every rule are in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#external-data).
 
 ## Themes
 
@@ -330,7 +341,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar update` | Update to the latest release now (`--check` to only look) |
 | `ccinfobar widgets` | List all widgets |
 | `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off; points to `ccinfobar explain` for details |
-| `ccinfobar explain [widget-id]` | Show each widget's value, where it came from (payload field, cache and its age, git, GSD) and why it is empty (`--json` for bug reports, `--scenario <name>`, `--payload <file>`). `env`, `command` and `tool-activity` values are redacted; `--show-values` shows them in a terminal |
+| `ccinfobar explain [widget-id]` | Show each widget's value, where it came from (payload field, cache and its age, git, GSD) and why it is empty (`--json` for bug reports, `--scenario <name>`, `--payload <file>`). `env`, `command`, `http` and `tool-activity` values are redacted; `--show-values` shows them in a terminal |
 | `ccinfobar bench` | Measure render time: a `node -e 0` control, then cold and warm median and p95 (`--runs <n>`, `--scenario <name>`, `--json`) |
 | `ccinfobar config get\|set\|unset <path> [value]` | Read or change one config value by dotted path, e.g. `ccinfobar config set gitHardening false` or `ccinfobar config get lines.0.2.type`. Values are parsed as JSON, else taken as a string; a value that would not pass validation is refused and nothing is written |
 | `ccinfobar hook <Event>` | Used by Claude Code hooks: records one event and prints nothing |
@@ -365,7 +376,7 @@ ccinfobar keeps itself up to date: each time Claude Code starts a session (and a
 | `"notify"` | Adds `⬆ ccinfobar 0.4.0 · ccinfobar update` to the end of the status line |
 | `"off"` | Never checks |
 
-`ccinfobar update` updates right away (`--check` only looks). Checks are skipped when `CI` or `CCINFOBAR_NO_UPDATE` is set, and when Claude Code's `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set (to any non-empty value) ccinfobar starts no background network request at all: no update check and no usage fetch. `ccinfobar update` and `ccinfobar usage` still work when you run them, and `ccinfobar doctor` says when this is on.
+`ccinfobar update` updates right away (`--check` only looks). Checks are skipped when `CI` or `CCINFOBAR_NO_UPDATE` is set, and when Claude Code's `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set (to any non-empty value) ccinfobar makes no automatic network request: no update check, no usage fetch and no `service-status` check. `http` items and the `pr` CI part still run, since you added them. `ccinfobar update` and `ccinfobar usage` still work when you run them, and `ccinfobar doctor` says when this is on.
 
 ## Usage limits
 

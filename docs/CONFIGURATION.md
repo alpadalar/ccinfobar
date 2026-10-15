@@ -82,6 +82,7 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
 | `budget` | object | | Daily and per-session spend budget for the `budget` widget, see [Budget](#budget) |
 | `gitHardening` | boolean | `true` | Ignore repo-local `core.fsmonitor` and `filter.<name>` drivers when ccinfobar runs git, so a cloned repo cannot run commands through the status line. Set `false` only if you need them |
 | `loadingText` | string | `loading…` | Shown by context, token and plan-limit widgets until Claude's first reply, instead of `0%`. Up to 40 characters; `""` turns it off. Items with `hideEmpty` stay hidden |
+| `profiles` | object | | Model profiles for gateway models: names, context windows and prices, see [Model profiles](#model-profiles) |
 | `savePayload` | boolean | `true` | Store the latest Claude Code payload so the editors can preview with your real session data. `ccinfobar explain` reads it too; with no saved payload (for example when this was always off), explain falls back to sample data and says so |
 
 Fields marked "theme" are optional. Leave them out to use the theme's value.
@@ -192,7 +193,7 @@ Resuming or forking a session, `/clear`, compaction, `/login` and two terminals 
 
 Claude Code runs the status line on a new assistant message, on token, permission mode, model, effort or vim changes, and on its `refreshInterval` timer (`statusLine.refreshInterval` in Claude Code's settings, not in this config). It does not run it on hook events or tool results, and not while a permission dialog is open, so time-based widgets only move on those triggers.
 
-The time-based widgets are `turn-timer`, `permission-wait`, `tool-activity`, `usage-projection`, `limit-eta`, `limit-risk`, `cache-timer` and `clock`. When one of them is on your layout and no interval is set:
+The time-based widgets are `turn-timer`, `permission-wait`, `tool-activity`, `usage-projection`, `limit-eta`, `limit-risk`, `cache-timer`, `clock`, `service-status` and `http`. When one of them is on your layout and no interval is set:
 
 - `ccinfobar install` (also with `--dry-run` and `--hooks`) and `ccinfobar doctor` print a hint to run `ccinfobar install --refresh 5`
 - the web editor's Settings (Claude Code) shows a warning with a **Use 5 s refresh** button, which installs only after you confirm
@@ -228,6 +229,143 @@ Not covered:
 ### workspace-repos
 
 Lists git repos directly inside the current folder when that folder is not inside a repo. Elsewhere it hides itself instead of showing `repos: —`; set `hideEmpty: false` on it to keep the placeholder. It reads `.git/HEAD` files, never runs git while rendering, and rescans at most every 10 seconds. Inside-repo detection walks up to the filesystem root looking for `.git`, so a dotfiles repo at `~/.git` makes every folder under your home count as inside a repo and the widget stays hidden there. `GIT_DIR` and `GIT_WORK_TREE` are ignored. With `dirty: true` a background job runs a hardened `git status` in up to 50 repos, the ones on screen first, about once a minute; the status line only reads its cache.
+
+## External data
+
+`service-status`, `http`, `provider` and the `pr` option `ci` are opt-in; no preset or default layout uses them. The status line never waits on the network: after it has printed, ccinfobar starts at most one background process that refreshes whatever is due and writes the results to the cache dir (`jobs/<key>.json`, mode 0600). The next refresh shows them. Until the first result arrives a widget stays empty, and `ccinfobar explain` says why.
+
+### What runs when
+
+| Check | Kind | Off with `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` |
+| --- | --- | --- |
+| usage limits, update check, `service-status` | automatic | yes |
+| `http` items, the `pr` CI part | explicit: you typed the URL or turned on `ci` | no, they still run |
+| `workspace-repos` dirty marker | local, no network | no |
+
+Claude Code also stops sending `pr` when that flag is set, so the CI part disappears with the PR. `CCINFOBAR_NO_JOBS=1` turns off every background check (bench and tests use it). `ccinfobar doctor` lists each job with its age, last error and retry time, and says what turns jobs off.
+
+There is no proxy support of ccinfobar's own: `HTTPS_PROXY` and `NO_PROXY` are not read. Node's own `NODE_USE_ENV_PROXY=1` makes `fetch` use them on Node 22.21+ and 24+; it has to be in the environment Claude Code starts the status line with.
+
+### service-status
+
+Shows the indicator and the worst open incident from Claude's status page (`https://status.claude.com/api/v2/summary.json`), such as `⚠ major: Elevated errors on Opus +1`. It hides itself when all is well; `showOk: true` shows `✓ Claude OK` instead.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `interval` | `180` | Seconds between checks, 120 to 600. A failed check is retried after 60 s, then less often, up to 30 min |
+| `components` | `""` | Comma-separated terms. When set, only incidents whose affected component names contain one of them count (`api, claude code`); case-insensitive. A component that is degraded without an incident is not seen in this mode |
+| `showName` | `true` | Show the incident name, not just the indicator |
+| `showOk` | `false` | Show `✓ Claude OK` when nothing is wrong |
+| `maxLength` | `40` | Cut the incident name with `…` |
+
+When the latest check failed, the last result stays for up to 30 minutes with a trailing ` ?`, then the widget hides. An old "all good" is never shown.
+
+### http
+
+Shows one value from any JSON endpoint. A relay balance:
+
+```json
+{
+  "id": "bal",
+  "type": "http",
+  "options": {
+    "url": "https://relay.example.com/api/user/balance",
+    "path": "$.data.balance",
+    "format": "${value}",
+    "decimals": 2,
+    "headers": "Authorization=Bearer $RELAY_TOKEN"
+  }
+}
+```
+
+A gateway quota with the key in the query string:
+
+```json
+{
+  "id": "quota",
+  "type": "http",
+  "options": {
+    "url": "https://gateway.example.com/v1/quota?key=${API_KEY}",
+    "path": "$.remaining",
+    "format": "{value} left",
+    "interval": 600
+  }
+}
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `url` | | `http:` or `https:` only; no `user:pass@`. `${VAR}` is allowed in query values only, never in the host or path |
+| `path` | `$` | JSON path: `$`, `.key`, `['key']`, `[0]`, `[-1]`. No filters, wildcards or `..`. The value must be a string, number, boolean or null |
+| `format` | `{value}` | Text around the value; `{value}` is the only placeholder |
+| `interval` | `300` | Seconds between fetches, at least 30 |
+| `timeout` | `5000` | Milliseconds, 1000 to 15000 |
+| `headers` | `""` | `Name=$VAR` or `Name=<Scheme> $VAR` entries, comma or newline separated (`${VAR}` works too) |
+| `decimals` | `-1` | Digits after the point for numbers; `-1` keeps them as they are |
+| `maxLength` | `40` | Cut a text value with `…` |
+
+Rules:
+
+- **Secrets come from env vars only.** A header with a literal value (`Authorization=Bearer abc`) is dropped and `ccinfobar doctor` reports it. Values are filled in by the background process when it fetches; they are never written to the cache, argv, explain or doctor. A missing variable shows as `env RELAY_TOKEN not set` in `ccinfobar explain`, and nothing is fetched.
+- An http item sends the env vars it names to its host. Check the URL before you copy someone else's config; `ccinfobar doctor` lists every http item with its host and the env vars it sends (set or unset, never the value).
+- Headers are sent only over `https:`, or plain `http:` to `localhost`, `127.0.0.1` or `::1`. Doctor warns about any other plain `http:` URL.
+- Redirects are followed up to 3 times, only on the same origin or from `http:` to `https:` on the same host. Any other redirect is refused.
+- Replies over 256 KB are cut off and count as an error. Only the values your paths pick are stored, never the reply.
+- Items with the same `url` and `headers` share one fetch; the shortest `interval` wins.
+- When a fetch fails, the last good value stays. Once it is older than three intervals (at least 15 minutes) it gets a ` ?`, and after 24 hours without success the widget hides.
+- With `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, Claude Code removes token-like variables from the status line's environment, so those headers report "not set".
+
+### PR CI checks
+
+`pr` with `ci: true` adds the checks of the current pull request: `#128 approved ✗ 2` (failing, cancelled counts as failing), `● 3` (still running) or `✓` (all passed). Nothing is added when the PR has no checks. The counts come from your own `gh pr checks`, run in the background about every minute while checks run and every 5 minutes after. ccinfobar never reads a token itself.
+
+- The PR comes only from the payload Claude Code sends (`pr` and `workspace.repo`); GitLab merge requests are skipped.
+- gh runs for `github.com` and `*.ghe.com`. Any other host must be one you logged in to with `gh auth login --hostname <host>` (`gh auth status` lists them); otherwise gh is not run, so `GH_ENTERPRISE_TOKEN` never goes to an unknown host.
+- Without gh, or when it is not logged in, the CI part is left out and `ccinfobar explain` prints a `CI:` line with the reason.
+
+### provider
+
+Shows who serves the session: `Bedrock`, `Vertex`, `Foundry`, `Mantle`, `AWS`, `API key`, or a gateway as `GLM via api.z.ai` (with a matching model profile) or its host. It shows nothing for a normal Claude login unless `showFirstParty` is on (`Claude`).
+
+Detection reads only which variables are set (`CLAUDE_CODE_USE_BEDROCK`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY` and so on), never their secret values. Claude Code passes the `env` block of its settings files to the status line, so variables set there are seen; nothing extra is needed. Plan-limit widgets hide for Bedrock, Vertex, Foundry, API key and gateway sessions unless Claude Code sends limits.
+
+## Model profiles
+
+Gateways such as Z.ai or DeepSeek report models Claude Code does not know, so it assumes a 200K window and prices nothing. ccinfobar ships a table (updated 2026-10-14) for GLM (Z.ai and BigModel), Kimi (Moonshot), DeepSeek, MiniMax and Qwen (DashScope). For a non-Claude provider a matching profile gives:
+
+- **Context window.** When Claude Code reports the 200K default (or no size) and the profile knows a larger window, context widgets use the profile's window. `CLAUDE_CODE_MAX_CONTEXT_TOKENS` wins over both. Claude logins are never affected.
+- **Cost.** `session-cost` with `basis: "auto"` uses the profile's prices in its currency when they are known, else Claude Code's cost; `basis: "profile"` always uses the profile. The default `payload` keeps Claude Code's number. Gateway users should set `auto`. Ledger, `cost-*` and budget widgets stay in USD from Claude Code.
+- **Name.** `model` with `profileLabel: true` shows the profile's name instead of a raw model id.
+
+Built-in prices are per 1M tokens and apply only when `ANTHROPIC_BASE_URL` is the vendor's own API host; through another gateway you get the name and window but no price. Where a vendor has tiers, the table stores one list price:
+
+- DeepSeek: the peak price (off-peak is half)
+- MiniMax: the price up to 512K input (above is double)
+- Qwen: the International region list price; other regions have names and windows only
+
+Prices change, and they are never fetched; add your own entries to fix or extend them:
+
+```json
+{
+  "profiles": {
+    "builtIn": true,
+    "models": [
+      { "match": "glm-*", "contextWindow": 500000 },
+      { "match": "my-model", "label": "Mine", "input": 0.5, "output": 2, "currency": "EUR" }
+    ]
+  }
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `builtIn` | `false` turns the built-in table off |
+| `models[].match` | Case-insensitive pattern on the model id or display name; `*` matches anything. Up to 200 characters |
+| `label`, `contextWindow` | Name and window size in tokens |
+| `input`, `output`, `cacheRead`, `cacheWrite` | Prices per 1M tokens, positive. A price needs both `input` and `output` |
+| `currency` | Three capital letters, default `USD` |
+
+Your entries win over the built-ins and the first match wins; they apply to every provider. Set them with `ccinfobar config set profiles.builtIn false` or `ccinfobar config set profiles.models '[{"match":"glm-*","contextWindow":500000}]'`, or in the web editor's Settings (Model profiles), which also lists the built-ins. The TUI has the on/off switch only.
 
 ## Layout tips
 
