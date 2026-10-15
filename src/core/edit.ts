@@ -281,7 +281,6 @@ export function recordStyles(history: StyleHistory, before: Config, after: Confi
   return next;
 }
 
-// drops invalid or default values; removes an empty budget
 export const REFRESH_SUGGEST = 5;
 
 export function needsRefresh(
@@ -308,6 +307,7 @@ export function refreshReasons(
   return { widgets: needsRefresh(config, isTimeBased, extra), rules: [...rules].sort() };
 }
 
+// drops invalid or default values; removes an empty budget
 export function setBudget(config: Config, key: keyof BudgetConfig, value: number | undefined): Config {
   const budget: BudgetConfig = { ...config.budget };
   const ok = typeof value === 'number' && Number.isFinite(value) && (key === 'warnAt' || value > 0);
