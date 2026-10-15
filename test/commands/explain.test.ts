@@ -23,7 +23,7 @@ import type { StatusPayload } from '../../src/core/types.js';
 import { VERSION } from '../../src/core/version.js';
 import { agentsCacheName, readAgents } from '../../src/data/agents.js';
 import { cacheFile } from '../../src/data/cache.js';
-import { httpKey } from '../../src/data/jobs/keys.js';
+import { ghKey, httpKey } from '../../src/data/jobs/keys.js';
 import { failEnvelope, jobsDir, okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
 import { monthKey } from '../../src/data/ledger.js';
 import { accountKey, limitsFile, recordLimits, recordUsageApi } from '../../src/data/limits.js';
@@ -773,6 +773,97 @@ describe('explain redacts http values and options', () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe('explain the pr CI part', () => {
+  const KEY = ghKey('github.com/acme/api#128');
+  const PR = {
+    number: 128,
+    review_state: 'approved',
+    url: 'https://github.com/acme/api/pull/128',
+    kind: 'pr',
+  };
+  const REPO = { host: 'github.com', owner: 'acme', name: 'api' };
+  const cfg = (ci = true) => ({ lines: [[{ id: 'pr', type: 'pr', options: { ci } }]] });
+  const counts = (pass: number, fail: number, pending: number) => ({
+    pass,
+    fail,
+    pending,
+    skipped: 0,
+    cancelled: 0,
+    total: pass + fail + pending,
+    names: [],
+  });
+  const payload = (pr: object = PR, repo: object | null = REPO) =>
+    savedPayload({ pr, workspace: { current_dir: dir, ...(repo ? { repo } : {}) } } as StatusPayload);
+  const row = (c = cfg()) => json([], c).obj.widgets[0];
+
+  afterEach(() => {
+    fs.rmSync(jobsDir(), { recursive: true, force: true });
+  });
+
+  it('says merge-request for a GitLab merge request', () => {
+    payload({ ...PR, kind: 'mr' });
+    writeEnvelope(okEnvelope(KEY, counts(0, 2, 0), Date.now()));
+    expect(row()).toMatchObject({ status: 'shown', value: '#128 approved', ci: { code: 'merge-request' } });
+    const reasonText = t('explain.reason.merge-request');
+    expect(run([], cfg()).out).toContain(t('explain.row.ci', { reason: reasonText }));
+    expect(run(['pr'], cfg()).out).toContain(t('explain.detail.ci', { reason: reasonText }));
+  });
+
+  it('says job-pending before the first gh run', () => {
+    payload();
+    expect(row()).toMatchObject({ value: '#128 approved', ci: { code: 'job-pending' } });
+  });
+
+  it('says no-ci-checks for a pr without checks', () => {
+    payload();
+    writeEnvelope(okEnvelope(KEY, counts(0, 0, 0), Date.now()));
+    expect(row()).toMatchObject({ value: '#128 approved', ci: { code: 'no-ci-checks' } });
+  });
+
+  it('maps gh-missing, gh-auth and gh-host', () => {
+    payload();
+    for (const code of ['gh-missing', 'gh-auth', 'gh-host'] as const) {
+      writeEnvelope(failEnvelope(KEY, null, code, Date.now(), { blockMs: 3_600_000 }));
+      const r = row();
+      expect(r.value, code).toBe('#128 approved');
+      expect(r.ci, code).toEqual({ code, text: t(`explain.reason.${code}`) });
+    }
+  });
+
+  it('keeps the last good part and names the gh error', () => {
+    payload();
+    const good = okEnvelope(KEY, counts(3, 0, 0), Date.now() - 60_000);
+    writeEnvelope(failEnvelope(KEY, good, 'gh-auth', Date.now(), { blockMs: 1_800_000 }));
+    expect(row()).toMatchObject({ value: '#128 approved \u2713', ci: { code: 'gh-auth' } });
+    writeEnvelope(failEnvelope(KEY, good, 'gh-failed', Date.now(), { retryMs: 60_000 }));
+    expect(row().ci).toEqual({
+      code: 'job-error',
+      text: t('explain.reason.ciLastGood', { error: 'gh-failed' }),
+    });
+  });
+
+  it('says payload-field-absent without the repo owner and name', () => {
+    payload(PR, null);
+    expect(row().ci.code).toBe('payload-field-absent');
+  });
+
+  it('has no CI line when the part shows or ci is off', () => {
+    payload();
+    writeEnvelope(okEnvelope(KEY, counts(9, 2, 0), Date.now()));
+    expect(row()).toMatchObject({ value: '#128 approved \u2717 2' });
+    expect(row()).not.toHaveProperty('ci');
+    expect(row(cfg(false))).toMatchObject({ value: '#128 approved' });
+    expect(row(cfg(false))).not.toHaveProperty('ci');
+    expect(run([], cfg(false)).out.join('\n')).not.toContain('CI:');
+  });
+
+  it('shows the failing checks in the pr-ci-failing scenario', () => {
+    expect(json(['--scenario', 'pr-ci-failing'], cfg()).obj.widgets[0]).toMatchObject({
+      value: '#128 approved \u2717 2',
+    });
   });
 });
 

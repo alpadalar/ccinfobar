@@ -158,7 +158,7 @@ Mouse works too: click to select, drag a chip to move it.
 | Charts | moving sparklines of tokens per minute, context fill, 5-hour or weekly usage and dollars per hour over the session |
 | Agents & tasks | Claude's task list, a table of the turn's subagents (type, job, last tool, tokens per minute, share, tokens, time, model), subagent count, the running tool and the turn's tool counts (`tool-activity`) |
 | GSD | milestone, milestone progress, phase, status, plans, plan progress, next step, workstream, blockers, todos, requirements, last command, update notice, current task, summary |
-| Git | branch, sha, changes, status, staged, unstaged, untracked, ahead/behind, conflicts, stash, in-progress operation, repo, worktree, pull request, child repos of a workspace folder (`workspace-repos`) |
+| Git | branch, sha, changes, status, staged, unstaged, untracked, ahead/behind, conflicts, stash, in-progress operation, repo, worktree, pull request with optional CI check status (`pr` option `ci`), child repos of a workspace folder (`workspace-repos`) |
 | Workspace | current directory (5 styles), project directory |
 | System | clock, date, hostname, username, memory, load average, terminal width, platform, CLAUDE.md files, rules, MCP servers and hooks in effect (`env-counts`) |
 | Custom | shell command output, clickable link, environment variable |
@@ -326,7 +326,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`) |
 | `ccinfobar init [preset]` | Write a preset: `default`, `cockpit`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
-| `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `bedrock-user`, `gateway-glm`, `near-7d-limit`, `over-budget`, `workspace-folder`, `waiting-permission`; a bare `--scenario` lists them) |
+| `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `bedrock-user`, `gateway-glm`, `near-7d-limit`, `over-budget`, `workspace-folder`, `waiting-permission`, `service-incident`, `pr-ci-failing`; a bare `--scenario` lists them) |
 | `ccinfobar update` | Update to the latest release now (`--check` to only look) |
 | `ccinfobar widgets` | List all widgets |
 | `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off; points to `ccinfobar explain` for details |

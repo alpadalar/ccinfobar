@@ -40,6 +40,7 @@ const IDS = [
   'workspace-folder',
   'waiting-permission',
   'service-incident',
+  'pr-ci-failing',
 ];
 
 function ctxFor(id: string): RenderContext {
@@ -375,6 +376,21 @@ describe('new widgets across scenarios', () => {
     expect(b.data.jobs().job('gh-x')).toEqual(sampleJobs(SCENARIO_NOW).job('gh-x'));
     for (const id of IDS.filter((x) => x !== 'service-incident'))
       expect(widget(id, 'service-status'), id).toBeNull();
+  });
+
+  it('pr-ci-failing shows 2 failing checks with ci on, the plain pr with ci off', () => {
+    const pr = (id: string, ci: boolean) =>
+      withoutSideEffects(() => renderWidget('pr', ctxFor(id), { options: { ci } }));
+    expect(pr('pr-ci-failing', true)).toBe('#128 approved \u2717 2');
+    expect(pr('pr-ci-failing', false)).toBe('#128 approved');
+    const b = getScenario('pr-ci-failing')!.build(SCENARIO_NOW);
+    expect(b.data.jobs().job('gh-0123456789abcdef')?.value).toMatchObject({ fail: 2, pass: 9, total: 11 });
+    expect(b.data.jobs().job('status')).toEqual(sampleJobs(SCENARIO_NOW).job('status'));
+    for (const id of IDS.filter((x) => x !== 'pr-ci-failing')) {
+      const out = pr(id, true);
+      if (out !== null) expect(out, id).toBe('#128 pending \u2713');
+    }
+    expect(pr('fresh-session', true)).toBe('#128 pending \u2713');
   });
 
   it('api-key-user shows no limits or projection', () => {

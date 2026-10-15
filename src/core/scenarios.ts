@@ -1,7 +1,7 @@
 import type { AgentInfo } from '../data/agents.js';
 import type { JobEnvelope } from '../data/jobs/runner.js';
 import type { AgentCall } from '../data/transcript.js';
-import type { StatusValue } from './job-values.js';
+import type { GhValue, StatusValue } from './job-values.js';
 import {
   sampleAgents,
   sampleEnvironment,
@@ -265,6 +265,44 @@ function serviceIncident(now: number): ScenarioBundle {
   return b;
 }
 
+function prCiFailing(now: number): ScenarioBundle {
+  const b = base(now);
+  b.payload.pr = {
+    number: 128,
+    review_state: 'approved',
+    url: 'https://github.com/acme/api/pull/128',
+    kind: 'pr',
+  };
+  b.payload.workspace = { ...b.payload.workspace, repo: { host: 'github.com', owner: 'acme', name: 'api' } };
+  const at = now - 30_000;
+  const value: GhValue = {
+    pass: 9,
+    fail: 2,
+    pending: 0,
+    skipped: 0,
+    cancelled: 0,
+    total: 11,
+    names: ['test (node 20)', 'lint'],
+  };
+  const jobs = sampleJobs(now);
+  b.data.jobs = () => ({
+    job: <V>(key: string) =>
+      key.startsWith('gh-')
+        ? ({
+            v: 1,
+            key,
+            fetchedAt: at,
+            ok: true,
+            value,
+            attempts: 0,
+            lastGood: value,
+            lastGoodAt: at,
+          } as JobEnvelope<V>)
+        : jobs.job<V>(key),
+  });
+  return b;
+}
+
 export const SCENARIOS: readonly Scenario[] = [
   {
     id: 'fresh-session',
@@ -349,6 +387,12 @@ export const SCENARIOS: readonly Scenario[] = [
     label: 'Service incident',
     description: 'Claude has a major incident: elevated errors on Claude Opus',
     build: serviceIncident,
+  },
+  {
+    id: 'pr-ci-failing',
+    label: 'PR with failing CI',
+    description: 'Pull request #128 is approved but 2 CI checks fail (shown by pr with the ci option)',
+    build: prCiFailing,
   },
 ];
 

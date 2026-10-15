@@ -49,6 +49,7 @@ export const explainMessages = {
   'explain.reason.no-ci-checks': 'the pull request has no CI checks',
   'explain.reason.not-scalar': 'the JSON path matched an object or an array, not a single value',
   'explain.reason.path-miss': 'the JSON path matched nothing in the response',
+  'explain.reason.ciLastGood': 'the last gh run failed ({error}); showing the last good checks',
   'explain.reason.httpLastGood': 'the last fetch failed ({error}); showing the last good value',
   'explain.job.noJobs': ' (background jobs are off: CCINFOBAR_NO_JOBS is set)',
   'explain.job.unknownError': 'unknown error',
@@ -129,6 +130,7 @@ export const explainMessages = {
   'explain.row.error': '  ✗ {name}: error: {error}',
   'explain.row.skipped': '  · {name}: skipped (flex)',
   'explain.row.note': '      {reason}',
+  'explain.row.ci': '      CI: {reason}',
   'explain.lineCut':
     '  ⚠ Line {line} needs {width} columns and is cut at {max}. Lower widthOffset, set autoWrap, or move widgets to another line.',
   'explain.runDoctor': 'Run ccinfobar doctor for details',
@@ -144,6 +146,7 @@ export const explainMessages = {
   'explain.detail.sources': '  sources: {sources}',
   'explain.detail.reason': '  reason: {reason}',
   'explain.detail.note': '  note: {note}',
+  'explain.detail.ci': '  CI: {reason}',
   'explain.detail.error': '  error: {error}',
   'explain.detail.options': '  options: {options}',
   'explain.detail.none': 'none',

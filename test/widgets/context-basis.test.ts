@@ -161,6 +161,7 @@ describe('context window identity', () => {
       'workspace-folder: 34% | 35% | 35% | ███░░░░░░░ 34% | 340k/1M | 1M',
       'waiting-permission: 34% | 35% | 35% | ███░░░░░░░ 34% | 340k/1M | 1M',
       'service-incident: 34% | 35% | 35% | ███░░░░░░░ 34% | 340k/1M | 1M',
+      'pr-ci-failing: 34% | 35% | 35% | ███░░░░░░░ 34% | 340k/1M | 1M',
     ]);
   });
 

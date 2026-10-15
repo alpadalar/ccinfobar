@@ -3,6 +3,7 @@ import { LEDGER_TYPES } from '../data/ledger.js';
 import { trustedTurn } from '../data/live.js';
 import { detectProvider, type Provider } from '../data/provider.js';
 import { budgetPeriod } from '../widgets/cost.js';
+import { PR_CI_GONE_MS, prCiState } from '../widgets/git.js';
 import { HTTP_GONE_MS, httpState } from '../widgets/http.js';
 import { getWidget } from '../widgets/index.js';
 import { projectionState } from '../widgets/projection.js';
@@ -93,6 +94,7 @@ export interface InspectRow {
   empty: EmptyReason | null;
   error: string | null;
   note?: EmptyReason;
+  ci?: EmptyReason;
 }
 
 export interface LineRow {
@@ -236,6 +238,50 @@ function httpReason(ctx: RenderContext, item: WidgetItem): EmptyReason {
     default:
       return reason('no-data');
   }
+}
+
+const GH_CODES = new Set<string>(['gh-missing', 'gh-auth', 'gh-host']);
+
+function ciInfo(ctx: RenderContext, item: WidgetItem): { code: EmptyCode; error: string | null } | null {
+  const s = prCiState(ctx, item);
+  switch (s.kind) {
+    case 'off':
+      return null;
+    case 'mr':
+      return { code: 'merge-request', error: null };
+    case 'no-repo':
+      return { code: 'payload-field-absent', error: null };
+    case 'ok':
+      if (s.error)
+        return { code: GH_CODES.has(s.error) ? (s.error as EmptyCode) : 'job-error', error: s.error };
+      return s.v.total === 0 ? { code: 'no-ci-checks', error: null } : null;
+    default: {
+      const e = ctx.data.jobs?.()?.job(s.key) ?? null;
+      const error = e && !e.ok ? (e.error ?? null) : null;
+      if (error && GH_CODES.has(error)) return { code: error as EmptyCode, error };
+      const code = jobReason(e, 'explicit', ctx.env, ctx.now.getTime(), PR_CI_GONE_MS);
+      return { code: code ?? (s.kind === 'gone' ? 'stale' : 'job-error'), error };
+    }
+  }
+}
+
+// why the pr widget shows no CI part, or shows an old one
+export function ciReason(ctx: RenderContext, item: WidgetItem): EmptyCode | null {
+  return ciInfo(ctx, item)?.code ?? null;
+}
+
+function ciEmpty(ctx: RenderContext, item: WidgetItem): EmptyReason | null {
+  const c = ciInfo(ctx, item);
+  if (!c) return null;
+  const error = sanitizeText(c.error ?? '') || t('explain.job.unknownError');
+  if (c.code === 'payload-field-absent')
+    return reason(c.code, undefined, { path: 'workspace.repo.owner/name', since: '' });
+  if (c.code === 'job-error' && prCiState(ctx, item).kind === 'ok')
+    return reason(c.code, t('explain.reason.ciLastGood', { error }));
+  if (c.code === 'job-error') return reason(c.code, undefined, { error });
+  if (c.code === 'job-pending' && ctx.env.CCINFOBAR_NO_JOBS)
+    return reason(c.code, t('explain.reason.job-pending') + t('explain.job.noJobs'));
+  return reason(c.code);
 }
 
 const PROJECTION_TYPES = new Set(['usage-projection', 'limit-eta', 'limit-risk']);
@@ -467,7 +513,8 @@ function inspectItem(
       sources,
     };
     const note = shownNote(ctx, item);
-    return note ? { ...shown, note } : shown;
+    const ci = item.type === 'pr' ? ciEmpty(ctx, item) : null;
+    return { ...shown, ...(note ? { note } : {}), ...(ci ? { ci } : {}) };
   }
   if (!item.hideEmpty && hiddenByWorkspace(ctx, def)) {
     return { ...row, status: 'hidden', sources, empty: reason('workspace-mode') };
