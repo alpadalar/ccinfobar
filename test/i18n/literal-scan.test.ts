@@ -82,6 +82,7 @@ const SWEPT: string[] = [
   'src/commands/io.ts',
   'src/commands/manifest.ts',
   'src/commands/repos.ts',
+  'src/commands/report.ts',
   'src/commands/worker.ts',
   'src/core/ansi.ts',
   'src/core/builtins.ts',

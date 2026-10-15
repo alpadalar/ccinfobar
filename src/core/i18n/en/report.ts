@@ -15,6 +15,32 @@ export const reportMessages = {
   'report.total': 'total',
   'report.partialMark': '*',
   'report.empty': 'No usage found in {dir}',
+  'report.badPeriod': 'Unknown period "{value}". Use day, week or month.',
+  'report.badSince':
+    'Bad --since value "{value}". Use YYYY-MM-DD or a count of days, weeks or months (7d, 4w, 3m).',
+  'report.badUntil':
+    'Bad --until value "{value}". Use YYYY-MM-DD or a count of days, weeks or months (7d, 4w, 3m).',
+  'report.badOrder': 'The start date {value} is after the end date.',
+  'report.badFormat': 'Unknown format "{value}". Use table, csv or json.',
+  'report.formatConflict': 'Pick one output format: --format, --csv or --json.',
+  'report.projectValue': '--project needs a value: part of a project path, or . for the current project.',
+  'report.progress': {
+    one: 'Scanning transcripts: {count} file, {mb} MB',
+    other: 'Scanning transcripts: {count} files, {mb} MB',
+  },
+  'report.rebuilt': {
+    one: 'Rebuilt the cost ledger summary and re-read {count} transcript',
+    other: 'Rebuilt the cost ledger summary and re-read {count} transcripts',
+  },
+  'report.reread': {
+    one: 'Re-read {count} transcript; there is no cost ledger to rebuild yet',
+    other: 'Re-read {count} transcripts; there is no cost ledger to rebuild yet',
+  },
+  'report.rebuildFailed': 'Could not rewrite the cost ledger summary.',
+  'report.keptDeleted': {
+    one: 'Kept history of {count} deleted transcript',
+    other: 'Kept history of {count} deleted transcripts',
+  },
   'report.note.estimate': 'Costs are estimates at list prices; on a subscription they are not what you pay.',
   'report.note.ledger-since':
     'The cost ledger starts on {date}; earlier costs are estimated from transcripts.',

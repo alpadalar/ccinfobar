@@ -36,6 +36,11 @@ Kullanım
                                   Adı verilen bir durum için bileşenleri açıklar
                                   (tek başına --scenario senaryoları listeler)
   ccinfobar bench                 Görüntüleme süresini ölçer: soğuk, sıcak, medyan ve p95
+  ccinfobar report                Son 7 gün için proje başına token, tahmini maliyet ve aktif süreyi gösterir
+  ccinfobar report --period day|week|month
+                                  Güne, haftaya ya da aya göre gruplar (son 7 gün, 4 hafta ya da 3 ay)
+  ccinfobar report --csv|--json   Raporu CSV ya da JSON olarak yazdırır
+  ccinfobar report --rebuild      Tüm transkriptleri yeniden okur ve maliyet kaydı özetini onarır
   ccinfobar config get <path>     Bir yapılandırma değerini yazdırır (örn. theme, lines.0.2.type)
   ccinfobar config set <path> <value>
                                   Bir değer atar (JSON, değilse dize); geçersiz değerler reddedilir
@@ -49,10 +54,16 @@ Seçenekler
   --scenario <name>               preview/explain/bench: adı verilen bir senaryoyu kullanır (tek başına listeler;
                                   bench yalnızca payload ve env değerlerini kullanır)
   --runs <n>                      bench: tekrar sayısı (varsayılan 20, en fazla 1000)
-  --json                          explain, bench: tek bir JSON nesnesi yazdırır
+  --json                          explain, bench, report: tek bir JSON nesnesi yazdırır
+  --csv                           report: CSV yazdırır
   --show-values                   explain: terminalde env, komut ve araç etkinliği değerlerini ve metin seçeneklerini de gösterir
   --refresh <seconds>             install: statusLine.refreshInterval değerini de ayarlar
   --project                       install/uninstall: buradaki .claude/settings.local.json dosyasını kullanır
+  --project <filter>              report: yalnızca yolunda bu metin geçen projeler (. = bu proje)
+  --since <date> / --until <date>
+                                  report: ilk ve son gün, YYYY-MM-DD ya da 7d, 4w, 3m geriye
+  --all                           report: geçmişin tamamı
+  --format table|csv|json         report: çıktı biçimi (varsayılan table)
   --import / --no-import          install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz
   --file <path>                   import: bu ayar dosyasını okur
   --command <cmd>                 install: yazılacak komut (varsayılan: auto)

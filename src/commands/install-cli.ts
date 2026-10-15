@@ -292,7 +292,8 @@ function userRefresh(): number | undefined {
 
 // `--hooks permission` would otherwise drop the value silently
 function badPositional(args: Args, io: InstallIo): boolean {
-  const arg = args.positional[0];
+  // --project takes a value only for report
+  const arg = args.positional[0] ?? (typeof args.flags.project === 'string' ? args.flags.project : undefined);
   if (arg === undefined) return false;
   io.error(t('hooks.badArg', { arg: sanitizeText(arg).slice(0, 64) }));
   process.exitCode = 1;

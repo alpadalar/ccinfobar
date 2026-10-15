@@ -37,6 +37,10 @@ export const cliMessages = {
   'help.cmd.explainScenario':
     'Adı verilen bir durum için bileşenleri açıklar\n(tek başına --scenario senaryoları listeler)',
   'help.cmd.bench': 'Görüntüleme süresini ölçer: soğuk, sıcak, medyan ve p95',
+  'help.cmd.report': 'Son 7 gün için proje başına token, tahmini maliyet ve aktif süreyi gösterir',
+  'help.cmd.reportPeriod': 'Güne, haftaya ya da aya göre gruplar (son 7 gün, 4 hafta ya da 3 ay)',
+  'help.cmd.reportFormat': 'Raporu CSV ya da JSON olarak yazdırır',
+  'help.cmd.reportRebuild': 'Tüm transkriptleri yeniden okur ve maliyet kaydı özetini onarır',
   'help.cmd.configGet': 'Bir yapılandırma değerini yazdırır (örn. theme, lines.0.2.type)',
   'help.cmd.configSet': 'Bir değer atar (JSON, değilse dize); geçersiz değerler reddedilir',
   'help.cmd.configUnset': 'Bir değeri kaldırır (varsayılan geri gelir)',
@@ -47,11 +51,16 @@ export const cliMessages = {
   'help.opt.scenario':
     'preview/explain/bench: adı verilen bir senaryoyu kullanır (tek başına listeler;\nbench yalnızca payload ve env değerlerini kullanır)',
   'help.opt.runs': 'bench: tekrar sayısı (varsayılan 20, en fazla 1000)',
-  'help.opt.json': 'explain, bench: tek bir JSON nesnesi yazdırır',
+  'help.opt.json': 'explain, bench, report: tek bir JSON nesnesi yazdırır',
+  'help.opt.csv': 'report: CSV yazdırır',
   'help.opt.showValues':
     'explain: terminalde env, komut ve araç etkinliği değerlerini ve metin seçeneklerini de gösterir',
   'help.opt.refresh': 'install: statusLine.refreshInterval değerini de ayarlar',
   'help.opt.project': 'install/uninstall: buradaki .claude/settings.local.json dosyasını kullanır',
+  'help.opt.reportProject': 'report: yalnızca yolunda bu metin geçen projeler (. = bu proje)',
+  'help.opt.since': 'report: ilk ve son gün, YYYY-MM-DD ya da 7d, 4w, 3m geriye',
+  'help.opt.all': 'report: geçmişin tamamı',
+  'help.opt.format': 'report: çıktı biçimi (varsayılan table)',
   'help.opt.import': 'install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz',
   'help.opt.file': 'import: bu ayar dosyasını okur',
   'help.opt.command': 'install: yazılacak komut (varsayılan: auto)',

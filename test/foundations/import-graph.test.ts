@@ -54,6 +54,9 @@ const EXCLUDED_FILES = [
   'src/core/i18n/bundled.ts',
   'src/data/report-index.ts',
   'src/core/report-format.ts',
+  'src/commands/report.ts',
+  'src/core/report-model.ts',
+  'src/core/prices.ts',
 ];
 const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/'];
 // non-English tables load with import() (D-25)
@@ -233,6 +236,7 @@ describe('import graph', () => {
       'config-cmd',
       'explain',
       'bench',
+      'report',
     ]) {
       expect(text).toContain(`await import('../commands/${mod}.js')`);
     }

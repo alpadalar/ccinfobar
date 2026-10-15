@@ -30,6 +30,18 @@ describe('parseArgs', () => {
     expect(parseArgs(['--width=90']).flags.width).toBe('90');
   });
 
+  it('keeps --project a switch before another flag', () => {
+    const a = parseArgs(['install', '--project', '--hooks']);
+    expect(a.flags).toEqual({ project: true, hooks: true });
+  });
+
+  it('takes values for the report flags', () => {
+    const a = parseArgs(['report', '--project', 'api', '--since', '7d', '--until', '2026-10-02']);
+    expect(a.flags).toEqual({ project: 'api', since: '7d', until: '2026-10-02' });
+    const b = parseArgs(['report', '--period', 'week', '--format', 'csv', '--all']);
+    expect(b.flags).toEqual({ period: 'week', format: 'csv', all: true });
+  });
+
   it('keeps every = after the first in an inline value', () => {
     expect(parseArgs(['--command=FOO=1 ccinfobar']).flags.command).toBe('FOO=1 ccinfobar');
     expect(parseArgs(['--payload=']).flags.payload).toBe('');

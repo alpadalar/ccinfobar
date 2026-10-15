@@ -34,6 +34,10 @@ export const cliMessages = {
   'help.cmd.explainScenario':
     'Explain the widgets for a named situation\n(a bare --scenario lists the scenarios)',
   'help.cmd.bench': 'Measure render time: cold, warm, median and p95',
+  'help.cmd.report': 'Tokens, estimated cost and active time per project for the last 7 days',
+  'help.cmd.reportPeriod': 'Group by day, week or month (last 7 days, 4 weeks or 3 months)',
+  'help.cmd.reportFormat': 'Print the report as CSV or JSON',
+  'help.cmd.reportRebuild': 'Re-read every transcript and repair the cost ledger summary',
   'help.cmd.configGet': 'Print a config value (e.g. theme, lines.0.2.type)',
   'help.cmd.configSet': 'Set a value (JSON, else a string); invalid values are refused',
   'help.cmd.configUnset': 'Remove a value (defaults come back)',
@@ -44,11 +48,16 @@ export const cliMessages = {
   'help.opt.scenario':
     'preview/explain/bench: use a named scenario (bare flag lists them;\nbench uses its payload and env only)',
   'help.opt.runs': 'bench: number of runs (default 20, max 1000)',
-  'help.opt.json': 'explain, bench: print one JSON object',
+  'help.opt.json': 'explain, bench, report: print one JSON object',
+  'help.opt.csv': 'report: print CSV',
   'help.opt.showValues':
     'explain: in a terminal, show env, command and tool-activity values and text options',
   'help.opt.refresh': 'install: also set statusLine.refreshInterval',
   'help.opt.project': 'install/uninstall: use .claude/settings.local.json here',
+  'help.opt.reportProject': 'report: only projects whose path contains this text (. = this project)',
+  'help.opt.since': 'report: first and last day, YYYY-MM-DD or 7d, 4w, 3m back',
+  'help.opt.all': 'report: everything in the history',
+  'help.opt.format': 'report: output format (default table)',
   'help.opt.import': "install: import the previous status line's layout without asking",
   'help.opt.file': 'import: read this settings file',
   'help.opt.command': 'install: command to write (default: auto)',

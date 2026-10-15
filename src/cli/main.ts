@@ -157,6 +157,11 @@ async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
       await hookMain(argv);
       return;
     }
+    case 'report': {
+      const { runReport } = await import('../commands/report.js');
+      runReport(args, cfgFile);
+      return;
+    }
     case 'bench': {
       const { runBenchCommand } = await import('../commands/bench.js');
       runBenchCommand(args, cfgFile);

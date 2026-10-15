@@ -18,13 +18,39 @@ export const reportMessages = {
   'report.total': 'toplam',
   'report.partialMark': '*',
   'report.empty': '{dir} içinde kullanım bulunamadı',
+  'report.badPeriod': 'Bilinmeyen dönem "{value}". day, week ya da month kullanın.',
+  'report.badSince':
+    'Geçersiz --since değeri "{value}". YYYY-MM-DD ya da gün, hafta veya ay sayısı kullanın (7d, 4w, 3m).',
+  'report.badUntil':
+    'Geçersiz --until değeri "{value}". YYYY-MM-DD ya da gün, hafta veya ay sayısı kullanın (7d, 4w, 3m).',
+  'report.badOrder': 'Başlangıç tarihi {value}, bitiş tarihinden sonra.',
+  'report.badFormat': 'Bilinmeyen biçim "{value}". table, csv ya da json kullanın.',
+  'report.formatConflict': 'Tek bir çıktı biçimi seçin: --format, --csv ya da --json.',
+  'report.projectValue': '--project bir değer ister: proje yolunun bir parçası ya da geçerli proje için .',
+  'report.progress': {
+    one: 'Transkriptler taranıyor: {count} dosya, {mb} MB',
+    other: 'Transkriptler taranıyor: {count} dosya, {mb} MB',
+  },
+  'report.rebuilt': {
+    one: 'Maliyet kaydı özeti yeniden oluşturuldu ve {count} transkript yeniden okundu',
+    other: 'Maliyet kaydı özeti yeniden oluşturuldu ve {count} transkript yeniden okundu',
+  },
+  'report.reread': {
+    one: '{count} transkript yeniden okundu; yeniden oluşturulacak maliyet kaydı henüz yok',
+    other: '{count} transkript yeniden okundu; yeniden oluşturulacak maliyet kaydı henüz yok',
+  },
+  'report.rebuildFailed': 'Maliyet kaydı özeti yeniden yazılamadı.',
+  'report.keptDeleted': {
+    one: 'Silinmiş {count} transkriptin geçmişi korundu',
+    other: 'Silinmiş {count} transkriptin geçmişi korundu',
+  },
   'report.note.estimate':
     'Maliyetler liste fiyatlarıyla yapılmış tahminlerdir; abonelikte ödediğiniz tutarı göstermez.',
   'report.note.ledger-since':
     'Maliyet kaydı {date} tarihinde başlıyor; önceki maliyetler transkriptlerden tahmin edildi.',
   'report.note.unpriced': {
-    one: '{models} için fiyat yok ({count} istek); maliyeti sayılmadı.',
-    other: '{models} için fiyat yok ({count} istek); maliyetleri sayılmadı.',
+    one: '{models} için fiyat yok ({count} istek); maliyetleri hesaba katılmadı.',
+    other: '{models} için fiyat yok ({count} istek); maliyetleri hesaba katılmadı.',
   },
   'report.note.non-usd': '{currency} cinsinden maliyetler USD toplamlarına dahil değil: {amount}.',
   'report.note.profile-price': '{vendor} modellerinin fiyatları yerleşik {vendor} profilinden alındı.',

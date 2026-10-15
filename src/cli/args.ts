@@ -16,6 +16,11 @@ const VALUE_FLAGS = [
   'scenario',
   'runs',
   'glyph-mode',
+  'period',
+  'since',
+  'until',
+  'project',
+  'format',
 ];
 
 export function parseArgs(argv: string[]): Args {
