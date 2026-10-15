@@ -327,6 +327,17 @@ describe('httpJob.run', () => {
     expect(readEnvelope(out.key, env)).toEqual(out);
   });
 
+  it('keeps __proto__ as a plain key in the stored paths', async () => {
+    const config = withItems(item({ url: `${base}/data`, path: '__proto__' }), item({ url: `${base}/data` }));
+    const env = sandbox();
+    const ctx = { env, config, cwd: '/', prev: null, fetch: globalThis.fetch, now: NOW };
+    const out = await httpJob.run({ key: keyOf(config) }, ctx);
+    const paths = out.value!.paths;
+    expect(Object.getPrototypeOf(paths)).toBeNull();
+    expect(Object.hasOwn(paths, '__proto__')).toBe(true);
+    expect(paths.__proto__).toEqual({ ok: false, code: 'bad-path' });
+  });
+
   it('treats a non-finite number as not-scalar', async () => {
     const config = withItems(
       item({ url: `${base}/raw`, path: '$.big' }),

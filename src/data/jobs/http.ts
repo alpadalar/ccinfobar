@@ -30,7 +30,8 @@ function scalar(v: unknown): HttpPathResult {
 type JsonPath = typeof import('../../core/jsonpath.js');
 
 function extract(body: unknown, paths: string[], jp: JsonPath): Record<string, HttpPathResult> {
-  const out: Record<string, HttpPathResult> = {};
+  // paths are user text: __proto__ must stay a key
+  const out = Object.create(null) as Record<string, HttpPathResult>;
   for (const p of paths) {
     const parsed = jp.parsePath(p);
     if (!parsed.ok) {
