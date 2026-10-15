@@ -1,0 +1,33 @@
+import type { tomlMessages as enToml } from '../en/toml.js';
+import type { Message } from '../types.js';
+
+export const tomlMessages = {
+  'toml.unterminated': 'Kapatılmamış dize',
+  'toml.badEscape': 'Geçersiz kaçış dizisi {escape}',
+  'toml.badNumber': 'Geçersiz sayı',
+  'toml.badDate': 'Geçersiz tarih ya da saat',
+  'toml.duplicateKey': 'Yinelenen anahtar {key}',
+  'toml.inlineExtend': 'Satır içi tablo {key} genişletilemez',
+  'toml.expected': '"{expected}" bekleniyordu',
+  'toml.expectedSep': '"," veya "{close}" bekleniyordu',
+  'toml.expectedValue': 'Değer bekleniyordu',
+  'toml.expectedEnd': 'Satır sonu bekleniyordu',
+  'toml.unexpected': 'Beklenmeyen karakter {char}',
+  'toml.control': '{char} kontrol karakterine burada izin verilmiyor',
+  'toml.badKey': 'Anahtar bekleniyordu',
+  'toml.reservedKey': '{key} anahtarına izin verilmiyor',
+  'toml.unsafeInteger': 'Tam sayı ±9007199254740991 güvenli aralığının dışında',
+  'toml.toml11': '{construct} TOML 1.1 sözdizimidir ve desteklenmiyor; {hint}',
+  'toml.v11.escE': '\\e kaçış dizisi',
+  'toml.v11.escEHint': 'bunun yerine \\u001b yazın',
+  'toml.v11.escX': '\\xHH kaçış dizisi',
+  'toml.v11.escXHint': 'bunun yerine \\u00HH yazın',
+  'toml.v11.inlineNewline': 'Satır içi tabloda satır sonu',
+  'toml.v11.inlineNewlineHint': 'bunun yerine [tablo] başlığı kullanın',
+  'toml.v11.inlineComma': 'Satır içi tablonun sonunda virgül',
+  'toml.v11.inlineCommaHint': 'virgülü kaldırın',
+  'toml.v11.noSeconds': 'Saniyesiz saat',
+  'toml.v11.noSecondsHint': '07:32:00 gibi saniyeyi de yazın',
+  'toml.tooLarge': 'Dosya 1 MB sınırından büyük',
+  'toml.tooDeep': '{max} düzeyden derin iç içe yapı',
+} satisfies Record<keyof typeof enToml, Message>;

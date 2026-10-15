@@ -16,6 +16,7 @@ import { previewMessages } from './preview.js';
 import { reportMessages } from './report.js';
 import { staticMessages } from './static.js';
 import { themeEditorMessages } from './theme-editor.js';
+import { tomlMessages } from './toml.js';
 import { tuiMessages } from './tui.js';
 import { widgetMessages } from './widgets.js';
 
@@ -40,4 +41,5 @@ export const tr = {
   ...staticMessages,
   ...tuiMessages,
   ...reportMessages,
+  ...tomlMessages,
 } as const;

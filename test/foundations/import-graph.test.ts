@@ -79,6 +79,7 @@ const PURE = [
   'src/core/report-types.ts',
   'src/core/report-model.ts',
   'src/core/report-format.ts',
+  'src/importers/toml.ts',
   'src/core/jsonpath.ts',
   'src/core/http-spec.ts',
   'src/core/http-report.ts',
