@@ -384,6 +384,7 @@ describe('timeBased flag', () => {
       'limit-eta',
       'limit-risk',
       'permission-wait',
+      'service-status',
       'tool-activity',
       'turn-timer',
       'usage-projection',

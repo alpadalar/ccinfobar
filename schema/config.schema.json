@@ -126,6 +126,7 @@
                 "load-average",
                 "terminal-width",
                 "platform",
+                "service-status",
                 "command",
                 "link",
                 "env",

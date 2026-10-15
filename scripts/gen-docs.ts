@@ -27,8 +27,9 @@ function optionText(o: OptionSpec): string {
 function selfHiding(): string {
   const list = ALL_WIDGETS.filter((w) => w.hideWhenEmpty).map((w) => `\`${w.type}\``);
   if (!list.length) return '';
-  const verb = list.length === 1 ? 'hides itself' : 'hide themselves';
-  return `${list.join(', ')} ${verb} when empty; set \`hideEmpty: false\` on it to show \`—\` instead.`;
+  const one = list.length === 1;
+  const verb = one ? 'hides itself' : 'hide themselves';
+  return `${list.join(', ')} ${verb} when empty; set \`hideEmpty: false\` on ${one ? 'it' : 'one'} to show \`—\` instead.`;
 }
 
 function widgetsMarkdown(): string {

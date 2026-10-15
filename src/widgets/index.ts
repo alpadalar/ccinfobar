@@ -10,6 +10,7 @@ import { widgets as layout } from './layout.js';
 import { widgets as limits } from './limits.js';
 import { widgets as live } from './live.js';
 import { widgets as session } from './session.js';
+import { widgets as status } from './status.js';
 import { widgets as system } from './system.js';
 import { widgets as tokens } from './tokens.js';
 import { widgets as workspace } from './workspace.js';
@@ -43,6 +44,7 @@ export const ALL_WIDGETS: WidgetDef[] = [
   ...git,
   ...workspace,
   ...system,
+  ...status,
   ...custom,
   ...layout,
 ];

@@ -15,4 +15,6 @@ export const widgetMessages = {
   'widget.provider.apiKey': 'API key',
   'widget.provider.firstParty': 'Claude',
   'widget.provider.via': '{label} via {host}',
+  'widget.status.ok': '✓ Claude OK',
+  'widget.status.okText': 'Claude OK',
 } as const;
