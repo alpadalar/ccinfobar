@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import util from 'node:util';
 import { beforeEach } from 'vitest';
 import { resetLanguageCache } from '../src/cli/lang.js';
+import { installBundled } from '../src/core/i18n/bundled.js';
 import { setLanguage } from '../src/core/i18n/index.js';
 
 declare global {
@@ -60,6 +61,7 @@ process.env.LANG = 'C';
 process.env.LC_ALL = 'C';
 delete process.env.LC_MESSAGES;
 delete process.env.CCINFOBAR_LANG;
+installBundled();
 
 beforeEach(() => {
   resetLanguageCache();

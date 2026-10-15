@@ -1,7 +1,5 @@
 import { en } from './en/index.js';
-import { tr } from './tr/index.js';
-import { trMeta } from './tr/meta/index.js';
-import type { LanguageDef } from './types.js';
+import type { LanguageDef, LanguageTables, MetaTable } from './types.js';
 
 export const EN = {
   id: 'en',
@@ -11,14 +9,20 @@ export const EN = {
   messages: en,
 } as const satisfies LanguageDef;
 
+// tables arrive through loadLanguage or installTables
 export const TR = {
-  id: 'tr',
+  id: 'tr' as const,
   name: 'Türkçe',
-  aliases: ['tur'],
+  aliases: ['tur'] as readonly string[],
   locale: 'tr',
-  messages: tr,
-  meta: trMeta,
-} as const satisfies LanguageDef;
+  messages: {} as LanguageDef['messages'],
+  meta: undefined as MetaTable | undefined,
+} satisfies LanguageDef;
+
+// dynamic, so an English render never parses other tables
+const LOADERS: Record<string, () => Promise<LanguageTables>> = {
+  tr: () => import('./tr/tables.js').then((m) => m.tables),
+};
 
 export const LANGUAGES = [EN, TR] as const;
 
@@ -50,4 +54,29 @@ export function matchLanguage(subtag: string): LanguageId | null {
     if (l.id === s || (l.aliases as readonly string[]).includes(s)) return l.id;
   }
   return null;
+}
+
+const installed = new Set<string>(['en']);
+
+export function installTables(id: string, tables: LanguageTables): void {
+  const def = languageDef(id);
+  if (!def || def === EN) return;
+  def.messages = tables.messages;
+  def.meta = tables.meta;
+  installed.add(id);
+}
+
+export function hasTables(id: string): boolean {
+  return installed.has(id);
+}
+
+export async function loadLanguage(id: string): Promise<void> {
+  if (installed.has(id) || !Object.hasOwn(LOADERS, id)) return;
+  try {
+    installTables(id, await LOADERS[id]!());
+  } catch {}
+}
+
+export async function loadLanguages(): Promise<void> {
+  await Promise.all(LANGUAGE_IDS.map(loadLanguage));
 }

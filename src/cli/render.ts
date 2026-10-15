@@ -26,7 +26,7 @@ import { readTranscript } from '../data/transcript.js';
 import { updateNotice } from '../data/update-state.js';
 import { effectiveUsage } from '../data/usage.js';
 import type { Args } from './args.js';
-import { applyLanguage } from './lang.js';
+import { prepareLanguage } from './lang.js';
 import { syncProgress } from './progress.js';
 import { type TtyDeps, writeTty } from './progress-tty.js';
 
@@ -95,11 +95,12 @@ export async function runRender(args: Args, cfgFile: string, tty?: TtyDeps): Pro
 async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<void> {
   const loaded = loadForUse(cfgFile);
   if (loaded.issue) {
+    await prepareLanguage();
     safeLine(t('safe.line', { line: loaded.issue.line }));
     return;
   }
   const config = loaded.config;
-  applyLanguage(config);
+  await prepareLanguage(config);
   let raw: string;
   if (typeof args.flags.payload === 'string') raw = fs.readFileSync(args.flags.payload, 'utf8');
   else raw = await readStdin();

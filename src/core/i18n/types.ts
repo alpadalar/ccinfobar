@@ -46,3 +46,8 @@ export interface LanguageDef {
   messages: Partial<Record<MessageId, Message>>;
   meta?: MetaTable;
 }
+
+export interface LanguageTables {
+  messages: LanguageDef['messages'];
+  meta?: MetaTable;
+}

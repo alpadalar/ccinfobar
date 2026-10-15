@@ -9,6 +9,7 @@ import {
   setLineAlign,
   uniqueId,
 } from '../../core/edit.js';
+import { installBundled } from '../../core/i18n/bundled.js';
 import { scenarioText } from '../../core/i18n/catalog-text.js';
 import { type LanguageId, language, type MessageId, setLanguage, t } from '../../core/i18n/index.js';
 import { pickUiLanguage } from '../../core/i18n/resolve.js';
@@ -47,6 +48,8 @@ import { chipMenu, copyStyle, paintOnto, pasteStyle, rememberStyles, setPainting
 import { initTerminalPicker } from './terminal-picker.js';
 import { openGallery } from './themes.js';
 import { confirmDialog, modal, toast } from './ui.js';
+
+installBundled();
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 

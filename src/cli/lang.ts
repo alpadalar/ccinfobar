@@ -1,5 +1,5 @@
 import { type Resolved, setLanguage } from '../core/i18n/index.js';
-import { isLanguageId } from '../core/i18n/languages.js';
+import { isLanguageId, loadLanguage } from '../core/i18n/languages.js';
 import { resolveLanguage } from '../core/i18n/resolve.js';
 import type { Config } from '../core/types.js';
 
@@ -37,9 +37,21 @@ function settingOf(config?: LanguagePick): string {
   return isLanguageId(v) ? v : 'auto';
 }
 
-export function applyLanguage(config?: LanguagePick): Resolved {
+function resolveFor(config?: LanguagePick): Resolved {
   const v = config?.language;
-  const r = isLanguageId(v) ? resolveLanguage(v, []) : envLanguage();
+  return isLanguageId(v) ? resolveLanguage(v, []) : envLanguage();
+}
+
+export function applyLanguage(config?: LanguagePick): Resolved {
+  const r = resolveFor(config);
+  setLanguage(r.id);
+  return r;
+}
+
+// loads only the tables this language needs
+export async function prepareLanguage(config?: LanguagePick): Promise<Resolved> {
+  const r = resolveFor(config);
+  await loadLanguage(r.id);
   setLanguage(r.id);
   return r;
 }

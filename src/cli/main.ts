@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { t } from '../core/i18n/index.js';
+import { loadLanguages } from '../core/i18n/languages.js';
 import { configPath } from '../core/paths.js';
 import { JOBS } from '../data/jobs/index.js';
 import { type Args, parseArgs } from './args.js';
-import { applyLanguage } from './lang.js';
+import { applyLanguage, prepareLanguage } from './lang.js';
 import { runRender } from './render.js';
 
 // own copy: importing core/version.ts costs the render one more chunk
@@ -12,6 +13,9 @@ const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
 
 export async function main(argv = process.argv.slice(2)): Promise<void> {
   const args = parseArgs(argv);
+  // the render, hooks and the worker load only what they show
+  if (args.command !== null && args.command !== 'hook' && args.command !== 'worker') await loadLanguages();
+  else if (args.flags.help) await prepareLanguage();
   applyLanguage();
   const cfgFile = typeof args.flags.config === 'string' ? path.resolve(args.flags.config) : configPath();
 
@@ -38,6 +42,7 @@ async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
   switch (args.command) {
     case null: {
       if (process.stdin.isTTY && typeof args.flags.payload !== 'string') {
+        await prepareLanguage();
         process.stdout.write((await import('./help.js')).help());
         return;
       }

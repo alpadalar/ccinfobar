@@ -51,8 +51,11 @@ const EXCLUDED_FILES = [
   'src/commands/bench.ts',
   'src/commands/io.ts',
   'src/commands/worker.ts',
+  'src/core/i18n/bundled.ts',
 ];
 const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/'];
+// non-English tables load with import() (D-25)
+const LANG_TABLES = /^src\/core\/i18n\/(?!en\/)[a-z]{2,3}\//;
 
 // later plans extend this
 const PURE = [
@@ -93,7 +96,8 @@ describe('import graph', () => {
       const files = closure(entry);
       expect(files.has(`src/${entry}`)).toBe(true);
       const bad = [...files].filter(
-        (f) => EXCLUDED_FILES.includes(f) || EXCLUDED_DIRS.some((d) => f.startsWith(d)),
+        (f) =>
+          EXCLUDED_FILES.includes(f) || EXCLUDED_DIRS.some((d) => f.startsWith(d)) || LANG_TABLES.test(f),
       );
       expect(bad).toEqual([]);
     });
