@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 const root = path.resolve(__dirname, '../..');
@@ -9,15 +10,18 @@ const dist = path.join(root, 'dist');
 const SID = 'sess_start-1';
 const DAY = 86_400_000;
 
-// renamed copy: spawnSelf only spawns an entry named ccinfobar(.js), so no worker and no network
+// a copy outside any install, so the worker really starts but its install kind is unknown
+// (never an npm install); the preload makes fetch fail, so it never reaches the network
 let entry = '';
+let preload = '';
 
 beforeAll(() => {
   if (!fs.existsSync(path.join(dist, 'ccinfobar.js'))) return;
   const app = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-hook-ss-app-')), 'app');
   fs.cpSync(dist, app, { recursive: true });
-  entry = path.join(app, 'entry.js');
-  fs.renameSync(path.join(app, 'ccinfobar.js'), entry);
+  entry = path.join(app, 'ccinfobar.js');
+  preload = path.join(app, 'no-network.mjs');
+  fs.writeFileSync(preload, "globalThis.fetch = async () => { throw new Error('no network in tests'); };\n");
 });
 
 function sandbox() {
@@ -32,6 +36,7 @@ function sandbox() {
     CCINFOBAR_CONFIG_DIR: config,
     CCINFOBAR_CACHE_DIR: cache,
     CCINFOBAR_NO_USAGE_API: '1',
+    NODE_OPTIONS: `--import=${pathToFileURL(preload).href}`,
   };
   for (const k of [
     'CI',
