@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { deepSanitize } from '../core/sanitize.js';
@@ -51,6 +51,32 @@ function exec(
   } catch (e) {
     return okExit1 && (e as { status?: number | null }).status === 1 ? '' : null;
   }
+}
+
+// the worker runs jobs side by side, so a slow git must not block the others
+function execAsync(
+  cwd: string,
+  args: string[],
+  timeout: number,
+  env: NodeJS.ProcessEnv,
+  okExit1 = false,
+): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      const child = execFile(
+        'git',
+        args,
+        { cwd, encoding: 'utf8', timeout, windowsHide: true, maxBuffer: 16 * 1024 * 1024, env },
+        (e, stdout) => {
+          if (!e) resolve(String(stdout));
+          else resolve(okExit1 && (e as { code?: unknown }).code === 1 ? '' : null);
+        },
+      );
+      child.stdin?.end();
+    } catch {
+      resolve(null);
+    }
+  });
 }
 
 function git(cwd: string, args: string[], pre: readonly string[] = []): string | null {
@@ -185,17 +211,17 @@ export function localFilterOverrides(entries: ScopedEntry[]): string[] {
 
 const SCOPED_RE = '^(remote\\.origin\\.url|filter\\..+\\.(clean|smudge|process))$';
 
-export function hardenedGit(
+export async function hardenedGit(
   cwd: string,
   args: string[],
   opts: { harden: boolean; timeout: number; env?: NodeJS.ProcessEnv },
-): string | null {
+): Promise<string | null> {
   const env = scrubGitEnv(opts.env ?? process.env);
   const start = Date.now();
   let pre: string[] = [];
   if (opts.harden) {
     // no overrides known, so no status
-    const cfg = exec(
+    const cfg = await execAsync(
       cwd,
       [...HARDEN, 'config', '--show-scope', '--get-regexp', SCOPED_RE],
       opts.timeout,
@@ -207,7 +233,7 @@ export function hardenedGit(
   }
   const left = opts.timeout - (Date.now() - start);
   if (left <= 0) return null;
-  return exec(cwd, [...pre, ...args], left, env);
+  return execAsync(cwd, [...pre, ...args], left, env);
 }
 
 export function readGit(cwd: string, opts: { harden?: boolean } = {}): GitInfo | null {

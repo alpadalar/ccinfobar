@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -288,16 +288,21 @@ export function loginAccount(login: Login, env: NodeJS.ProcessEnv = process.env)
   return hash16(login.token);
 }
 
-function keychain(service: string): string | null {
-  try {
-    return execFileSync('security', ['find-generic-password', '-s', service, '-w'], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 5000,
-    }).trim();
-  } catch {
-    return null;
-  }
+// async: a keychain prompt must not stall the worker's other jobs
+function keychain(service: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      const child = execFile(
+        'security',
+        ['find-generic-password', '-s', service, '-w'],
+        { encoding: 'utf8', timeout: 5000, windowsHide: true },
+        (e, stdout) => resolve(e ? null : String(stdout).trim()),
+      );
+      child.stdin?.end();
+    } catch {
+      resolve(null);
+    }
+  });
 }
 
 export function keychainService(env: NodeJS.ProcessEnv = process.env): string {
@@ -307,7 +312,7 @@ export function keychainService(env: NodeJS.ProcessEnv = process.env): string {
   return `${KEYCHAIN_SERVICE}-${suffix}`;
 }
 
-export function readLogin(env: NodeJS.ProcessEnv = process.env): Login | null {
+export async function readLogin(env: NodeJS.ProcessEnv = process.env): Promise<Login | null> {
   const file = () => {
     try {
       return loginFrom(fs.readFileSync(path.join(claudeDir(env), '.credentials.json'), 'utf8'));
@@ -316,7 +321,7 @@ export function readLogin(env: NodeJS.ProcessEnv = process.env): Login | null {
     }
   };
   if (process.platform !== 'darwin') return file();
-  return loginFrom(keychain(keychainService(env))) ?? file();
+  return loginFrom(await keychain(keychainService(env))) ?? file();
 }
 
 export function usageDue(cache: UsageCache | null, now = Date.now()): boolean {
@@ -338,7 +343,7 @@ export async function fetchUsageEnvelope(
     fetchedAt: prev?.rate_limits ? prev.fetchedAt : now,
     ...extra,
   });
-  const login = readLogin(env);
+  const login = await readLogin(env);
   let account: string | undefined;
   let cache: UsageCache;
   if (!login) {

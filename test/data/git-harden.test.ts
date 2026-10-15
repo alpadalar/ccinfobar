@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { HARDEN, localFilterOverrides, parseScopedConfig, readGit } from '../../src/data/git.js';
+import { HARDEN, hardenedGit, localFilterOverrides, parseScopedConfig, readGit } from '../../src/data/git.js';
 
 function hasGit(): boolean {
   try {
@@ -112,6 +112,20 @@ describe.skipIf(!available || !posix)('hostile repos', () => {
   });
 
   afterAll(() => fs.rmSync(base, { recursive: true, force: true }));
+
+  it('runs the hardened status without blocking the event loop', async () => {
+    const dir = repo('async');
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'changed\n');
+    let ticks = 0;
+    const timer = setInterval(() => ticks++, 1);
+    try {
+      const out = await hardenedGit(dir, ['status', '--porcelain'], { harden: true, timeout: 5000 });
+      expect(out?.trim()).toBe('M a.txt');
+    } finally {
+      clearInterval(timer);
+    }
+    expect(ticks).toBeGreaterThan(0);
+  });
 
   it('blocks a core.fsmonitor hook, and the switch turns it back on', () => {
     const dir = repo('fsmon');

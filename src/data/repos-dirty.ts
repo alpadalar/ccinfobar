@@ -25,7 +25,7 @@ export async function computeDirty(
     await tick();
     const left = end - Date.now();
     if (left <= 0) break;
-    const status = hardenedGit(path.join(cwd, r.name), STATUS, {
+    const status = await hardenedGit(path.join(cwd, r.name), STATUS, {
       harden: opts.harden,
       timeout: Math.min(per, left),
       ...(opts.env ? { env: opts.env } : {}),
