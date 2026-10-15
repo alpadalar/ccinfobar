@@ -52,6 +52,7 @@ const EXCLUDED_FILES = [
   'src/commands/io.ts',
   'src/commands/worker.ts',
   'src/core/i18n/bundled.ts',
+  'src/data/report-index.ts',
 ];
 const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/'];
 // non-English tables load with import() (D-25)
@@ -71,6 +72,7 @@ const PURE = [
   'src/core/job-values.ts',
   'src/core/profiles.ts',
   'src/core/prices.ts',
+  'src/core/report-types.ts',
   'src/core/jsonpath.ts',
   'src/core/http-spec.ts',
   'src/core/http-report.ts',
