@@ -784,9 +784,12 @@ function* setupSteps(version: string, opts: SetupOptions): Steps<Setup> {
   const useExisting = (bin: string) =>
     setup(acceptCommand(buildCommand({ kind: 'bin', bin, onPath: true }), log), true);
   // an older global copy would run the status line and hooks
-  const old = existing && opts.global !== false ? binVersion(existing) : null;
+  const old = existing ? binVersion(existing) : null;
   const stale = !!old && compareVersions(old, version) < 0;
   if (existing && !stale) return useExisting(existing);
+  // --no-global never falls back to a stale copy
+  const reuse = opts.global !== false ? existing : null;
+  if (opts.global === false && stale) log(t('install.setup.staleGlobal', { old: old ?? '', version }));
   if (opts.global !== false) {
     log(
       stale
@@ -810,12 +813,12 @@ function* setupSteps(version: string, opts: SetupOptions): Steps<Setup> {
     yield { version, prefix: localPrefix() };
   } catch (err) {
     log(t('install.setup.failed', { error: (err as Error).message }));
-    if (existing) return useExisting(existing);
+    if (reuse) return useExisting(reuse);
     return { command: null, onPath: false };
   }
   if (!fs.existsSync(localBin())) {
     log(`✗ ${t('install.setup.notFound')}`);
-    if (existing) return useExisting(existing);
+    if (reuse) return useExisting(reuse);
     return { command: null, onPath: false };
   }
   log(t('install.setup.installed', { bin: localBin() }));

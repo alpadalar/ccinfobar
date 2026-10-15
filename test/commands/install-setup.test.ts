@@ -125,8 +125,34 @@ describe('setupCommand under npx', () => {
     expect(npm.calls).toEqual([]);
   });
 
-  it('keeps an older global copy with --no-global', () => {
+  it('skips an older global copy with --no-global and says how to fix it', () => {
     globalCopy('0.6.2');
+    const run = () => {
+      const log: string[] = [];
+      const res = setupCommand('9.9.9', { global: false, log: (l) => log.push(l) });
+      return { res, log };
+    };
+    const { res, log } = run();
+    expect(npm.calls).toEqual([['9.9.9', localPrefix()]]);
+    expect(slash(res.command ?? '')).not.toContain(slash(prefix));
+    expect(res.onPath).toBe(false);
+    expect(log[0]).toBe(
+      '⚠ The global ccinfobar 0.6.2 is older than 9.9.9 and is not used; update it with `npm install -g ccinfobar@latest` or remove it with `npm rm -g ccinfobar`',
+    );
+    expect(withLang('tr', run).log[0]).toBe(
+      '⚠ Global ccinfobar 0.6.2, 9.9.9 sürümünden eski ve kullanılmıyor; `npm install -g ccinfobar@latest` ile güncelleyin ya da `npm rm -g ccinfobar` ile kaldırın',
+    );
+  });
+
+  it('never reuses an older global copy with --no-global', () => {
+    globalCopy('0.6.2');
+    npm.fail.local = true;
+    expect(setupCommand('9.9.9', { global: false }).command).toBeNull();
+    expect(npm.calls).toEqual([['9.9.9', localPrefix()]]);
+  });
+
+  it('keeps a current global copy with --no-global', () => {
+    globalCopy('9.9.9');
     expect(slash(setupCommand('9.9.9', { global: false }).command ?? '')).toContain(slash(prefix));
     expect(npm.calls).toEqual([]);
   });

@@ -59,6 +59,8 @@ export const installMessages = {
   'install.setup.notOnPath': '  {dir} is not on your PATH; add it to type `ccinfobar` directly.',
   'install.setup.updateFailed': '⚠ Could not update the global ccinfobar {old}: {error}',
   'install.setup.globalFailed': '⚠ Global install failed: {error}',
+  'install.setup.staleGlobal':
+    '⚠ The global ccinfobar {old} is older than {version} and is not used; update it with `npm install -g ccinfobar@latest` or remove it with `npm rm -g ccinfobar`',
   'install.setup.pinned': 'Installing a pinned copy of ccinfobar {version} in {dir} ...',
   'install.setup.failed': '✗ Could not install ccinfobar: {error}',
   'install.setup.notFound': 'npm finished but ccinfobar was not found',
