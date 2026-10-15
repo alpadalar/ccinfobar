@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import { main } from '../../src/cli/main.js';
 import { runConfig } from '../../src/commands/config-cmd.js';
+import { describeRuleError, validateRule } from '../../src/core/conditions.js';
 import { defaultConfig, inspectConfigText } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
 import { tildify } from '../../src/core/paths.js';
@@ -308,6 +309,68 @@ describe('config display keys', () => {
     expect(fs.readFileSync(file, 'utf8')).toBe(bytes);
   });
 });
+
+describe('config set rules', () => {
+  const problem = (src: unknown) => describeRuleError(validateRule(src)!);
+
+  it('accepts a valid rule', () => {
+    const file = withFile();
+    const r = run(['set', 'lines.0.0.showWhen', 'context.pct >= 70'], file);
+    expect(r).toEqual({ out: [t('cfg.set', { path: 'lines.0.0.showWhen' })], err: [], code: 0 });
+    expect(run(['get', 'lines.0.0.showWhen'], file).out).toEqual(['context.pct >= 70']);
+  });
+
+  it('refuses rules that do not parse without writing', () => {
+    const file = withFile();
+    const bytes = fs.readFileSync(file, 'utf8');
+    const cases: [string, string, string][] = [
+      ['lines.0.0.showWhen', 'contxt.pct > 5', 'lines.0.0.showWhen'],
+      ['lines.0.0.hideWhen', '["!git","time.hour in 9.."]', 'lines.0.0.hideWhen'],
+      ['lines.0.0', '{"id":"a","type":"model","showWhen":"bad >"}', 'lines.0.0.showWhen'],
+      ['lines.0', '[{"id":"a","type":"model","hideWhen":"git &&"}]', 'lines.0.0.hideWhen'],
+    ];
+    for (const [at, value, where] of cases) {
+      const r = run(['set', at, value], file);
+      const src = at.endsWith('When') ? parseLoose(value) : findRule(parseLoose(value));
+      expect(r.err).toEqual([t('cfg.badRule', { path: where, problem: problem(src) })]);
+      expect(r.out).toEqual([]);
+      expect(r.code).toBe(1);
+      process.exitCode = undefined;
+    }
+    expect(fs.readFileSync(file, 'utf8')).toBe(bytes);
+    expect(problem('contxt.pct > 5')).toContain('unknown metric "contxt.pct"');
+    expect(problem(['!git', 'time.hour in 9..'])).toBe(describeRuleError(validateRule('time.hour in 9..')!));
+  });
+
+  it('checks the whole rule when one entry is set', () => {
+    const file = withFile({ lines: [[{ id: 'm', type: 'model', hideWhen: ['!git', 'context.pct > 5'] }]] });
+    const r = run(['set', 'lines.0.0.hideWhen.1', 'contxt.pct > 5'], file);
+    expect(r.err).toEqual([
+      t('cfg.badRule', { path: 'lines.0.0.hideWhen', problem: problem('contxt.pct > 5') }),
+    ]);
+    expect(r.code).toBe(1);
+  });
+
+  it('still unsets a rule', () => {
+    const file = withFile({ lines: [[{ id: 'm', type: 'model', showWhen: 'context.pct >= 70' }]] });
+    const r = run(['unset', 'lines.0.0.showWhen'], file);
+    expect(r).toEqual({ out: [t('cfg.unset', { path: 'lines.0.0.showWhen' })], err: [], code: 0 });
+    expect(read(file).lines[0][0]).toEqual({ id: 'm', type: 'model' });
+  });
+});
+
+function parseLoose(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function findRule(v: any): unknown {
+  if (Array.isArray(v)) return findRule(v[0]);
+  return v.showWhen ?? v.hideWhen;
+}
 
 describe('broken config', () => {
   for (const argv of [

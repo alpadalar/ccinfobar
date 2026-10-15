@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
 import type { Args } from '../cli/args.js';
+import { describeRuleError, validateRule } from '../core/conditions.js';
 import {
   ConfigBrokenError,
   type ConfigIssue,
@@ -12,6 +13,7 @@ import { getPath, PathError, type PathSegment, parsePath, setPath, unsetPath } f
 import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { tildify } from '../core/paths.js';
+import { sanitizeText } from '../core/sanitize.js';
 
 export interface ConfigIo {
   out(s: string): void;
@@ -26,6 +28,28 @@ const STD_IO: ConfigIo = {
 const SUBCOMMANDS = ['get', 'set', 'unset'];
 
 const plain = (v: unknown): unknown => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
+
+const RULE_KEYS: PathSegment[] = ['showWhen', 'hideWhen'];
+
+function ruleProblem(value: unknown, at: PathSegment[]): string | null {
+  if (RULE_KEYS.includes(at[at.length - 1]!)) {
+    const e = validateRule(value);
+    return e ? t('cfg.badRule', { path: at.join('.'), problem: sanitizeText(describeRuleError(e)) }) : null;
+  }
+  if (!value || typeof value !== 'object') return null;
+  for (const [k, v] of Object.entries(value)) {
+    const r = ruleProblem(v, [...at, Array.isArray(value) ? Number(k) : k]);
+    if (r) return r;
+  }
+  return null;
+}
+
+// a set inside a rule array checks the whole rule
+function badRule(config: unknown, path: PathSegment[]): string | null {
+  const i = path.findIndex((s) => RULE_KEYS.includes(s));
+  const at = i >= 0 ? path.slice(0, i + 1) : path;
+  return ruleProblem(getPath(config, at).value, at);
+}
 
 function parseValue(text: string): unknown {
   try {
@@ -98,6 +122,11 @@ export function runConfig(args: Args, cfgFile: string, io: ConfigIo = STD_IO): v
       const got = getPath(normalized, path);
       if (!got.found || !isDeepStrictEqual(plain(got.value), plain(value))) {
         fail(t('cfg.rejected', { path: pathText }));
+        return;
+      }
+      const problem = badRule(normalized, path);
+      if (problem) {
+        fail(problem);
         return;
       }
       saveConfig(normalized, cfgFile);

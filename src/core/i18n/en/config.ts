@@ -22,6 +22,7 @@ export const configMessages = {
   'cfg.badPath': 'Invalid path "{path}"',
   'cfg.protoSegment': 'Path segment "{segment}" is not allowed',
   'cfg.rejected': 'Rejected: {path} would not survive validation',
+  'cfg.badRule': '{path}: {problem}',
   'cfg.set': '✓ Set {path}',
   'cfg.unset': '✓ Removed {path}',
   'cfg.resetDefault': '✓ {path} reset to default: {value}',
