@@ -1,20 +1,26 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { cacheDir, claudeDir } from '../core/paths.js';
 import {
   type Bucket,
   type FileEntry,
   type FileKind,
   IDLE_CAP_MS,
   type IndexState,
+  type LedgerSession,
   MAX_REPORT_FILES,
   MAX_REPORT_LINE,
   type RecentReq,
   type ScanNote,
+  type ScanResult,
   type SessionData,
 } from '../core/report-types.js';
 import { sanitizeText } from '../core/sanitize.js';
-import { dayKey } from '../core/time.js';
-import { normalizeRoot } from './ledger.js';
+import { dayKey, monthKey } from '../core/time.js';
+import { type Credited, ledgerDir, monthFiles, normalizeRoot, type SessionRow, stepText } from './ledger.js';
+import { accountKeysForDir } from './limits.js';
+import { readJsonSafe, writeAtomic } from './store.js';
 
 export interface WalkedFile {
   rel: string;
@@ -285,7 +291,19 @@ function tick(f: FileEntry, ts: number): void {
   if (f.lastTs === null || ts > f.lastTs) f.lastTs = ts;
 }
 
-function readFile(sc: Scan, abs: string, size: number, maxLine: number): number {
+const TAIL = 256;
+const EMPTY: Buffer = Buffer.alloc(0);
+
+const tailHash = (b: Buffer): string => keyHash(b.toString('latin1')).toString(16);
+
+// bytes [from - n, from) after b
+function before(hist: Buffer, data: Buffer, end: number): Buffer {
+  if (end >= TAIL) return Buffer.from(data.subarray(end - TAIL, end));
+  return Buffer.concat([hist, data.subarray(0, end)]).subarray(-TAIL);
+}
+
+// hist: the bytes right before f.offset
+function readFile(sc: Scan, abs: string, size: number, maxLine: number, hist: Buffer): number {
   const f = sc.f;
   let fd: number | null = null;
   let read = 0;
@@ -313,11 +331,13 @@ function readFile(sc: Scan, abs: string, size: number, maxLine: number): number 
         f.offset = base + start;
         nl = data.indexOf(10, start);
       }
+      if (start > 0) f.tail = tailHash(before(hist, data, start));
       // a line over the cap is dropped up to its newline
       if (skipping || data.length - start > maxLine) {
         skipping = true;
         carry = Buffer.alloc(0);
       } else carry = Buffer.from(data.subarray(start));
+      hist = before(hist, data, data.length - carry.length);
     }
   } catch {
   } finally {
@@ -330,46 +350,205 @@ function readFile(sc: Scan, abs: string, size: number, maxLine: number): number 
   return read;
 }
 
-export function scanTree(
-  claudeDir: string,
-  state: IndexState | null,
-  opts: { maxLine?: number; maxFiles?: number; onProgress?: (files: number, bytes: number) => void } = {},
-): { state: IndexState; notes: ScanNote[]; bytesRead: number } {
-  const st = state ?? emptyState();
-  const maxLine = opts.maxLine ?? MAX_REPORT_LINE;
-  const { files, capped } = walkTranscripts(claudeDir, opts.maxFiles);
-  const todo: { w: WalkedFile; f: FileEntry; size: number }[] = [];
-  for (const w of files) {
-    let s: fs.Stats;
-    try {
-      s = fs.statSync(w.abs);
-    } catch {
-      continue;
+function readTail(abs: string, offset: number): Buffer | null {
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(abs, 'r');
+    const n = Math.min(TAIL, offset);
+    const b = Buffer.alloc(n);
+    return fs.readSync(fd, b, 0, n, offset - n) === n ? b : null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
     }
+  }
+}
+
+const DAY_MS = 86_400_000;
+const KEEP_MONTHS = 13;
+
+// first kept day of the 13-month window
+function keepFrom(now: number): { day: string; ms: number } {
+  const d = new Date(now);
+  const first = new Date(d.getFullYear(), d.getMonth() - (KEEP_MONTHS - 1), 1);
+  return { day: `${monthKey(first.getTime() + DAY_MS / 2)}-01`, ms: first.getTime() };
+}
+
+function resetEntry(f: FileEntry): void {
+  Object.assign(f, {
+    size: 0,
+    offset: 0,
+    tail: '',
+    cwd: null,
+    buckets: map(),
+    time: map(),
+    lastTs: null,
+    horizon: 0,
+    recent: [],
+    skipped: 0,
+  });
+}
+
+// drops days before the window; true when something went
+function pruneGone(f: FileEntry, day: string): boolean {
+  let cut = false;
+  for (const k in f.buckets) {
+    if (k.slice(0, 10) < day) {
+      delete f.buckets[k];
+      cut = true;
+    }
+  }
+  for (const k in f.time) {
+    if (k < day) {
+      delete f.time[k];
+      cut = true;
+    }
+  }
+  if (cut) f.recent = f.recent.filter((r) => r.b.slice(0, 10) >= day);
+  return cut;
+}
+
+interface Todo {
+  w: WalkedFile;
+  f: FileEntry;
+  size: number;
+  hist: Buffer;
+}
+
+export interface ScanOpts {
+  maxLine?: number;
+  maxFiles?: number;
+  onProgress?: (files: number, bytes: number) => void;
+  rebuild?: boolean;
+  now?: number;
+  // lazy owners; null means unusable
+  loadOwners?: () => Map<number, string> | null;
+}
+
+export interface ScanOut {
+  state: IndexState;
+  notes: ScanNote[];
+  bytesRead: number;
+  files: number;
+  changed: boolean;
+  keysLoaded: boolean;
+}
+
+function statOf(abs: string): { id: string | null; size: number; mtime: number } | null {
+  try {
+    const s = fs.statSync(abs, { bigint: true });
+    return {
+      id: s.ino === 0n ? null : `${s.dev}:${s.ino}`,
+      size: Number(s.size),
+      mtime: Number(s.mtimeMs) + Number(s.mtimeNs % 1_000_000n) / 1e6,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function plan(
+  st: IndexState,
+  files: WalkedFile[],
+  capped: boolean,
+  root: string,
+  opts: ScanOpts,
+): { todo: Todo[]; release: Set<string>; changed: boolean } {
+  const todo: Todo[] = [];
+  const release = new Set<string>();
+  let changed = false;
+  const reset = (rel: string, f: FileEntry) => {
+    release.add(rel);
+    resetEntry(f);
+  };
+  const seen = new Set<string>();
+  for (const w of files) {
+    seen.add(w.rel);
+    const s = statOf(w.abs);
+    if (!s) continue;
     let f = st.files[w.rel];
+    let hist = EMPTY;
     if (!f) {
       f = newEntry(w);
       st.files[w.rel] = f;
+    } else {
+      const same = s.id === f.id || s.id === null || f.id === null;
+      if (opts.rebuild || !same || s.size < f.offset) reset(w.rel, f);
+      else if (!f.gone && s.id === f.id && s.size === f.size && s.mtime === f.mtimeMs) continue;
+      else if (f.offset > 0) {
+        const b = readTail(w.abs, f.offset);
+        if (b && tailHash(b) === f.tail) hist = b;
+        else reset(w.rel, f);
+      }
     }
+    changed = true;
     f.gone = false;
-    f.mtimeMs = s.mtimeMs;
-    if (s.size > f.offset) todo.push({ w, f, size: s.size });
+    f.id = s.id;
+    f.mtimeMs = s.mtime;
+    if (s.size > f.offset) todo.push({ w, f, size: s.size, hist });
     else f.size = s.size;
   }
+  const keep = keepFrom(opts.now ?? Date.now());
+  for (const [rel, f] of Object.entries(st.files)) {
+    if (seen.has(rel)) continue;
+    if (!f.gone) {
+      // past the file cap a file may still exist
+      if (capped && statOf(path.join(root, ...rel.split('/')))) continue;
+      f.gone = true;
+      changed = true;
+    }
+    if (pruneGone(f, keep.day)) changed = true;
+    if (!Object.keys(f.buckets).length && !Object.keys(f.time).length) {
+      delete st.files[rel];
+      release.add(rel);
+      changed = true;
+    }
+  }
   todo.sort((a, b) => a.f.mtimeMs - b.f.mtimeMs || (a.w.rel < b.w.rel ? -1 : a.w.rel > b.w.rel ? 1 : 0));
+  return { todo, release, changed };
+}
+
+export function scanTree(claudeDir: string, state: IndexState | null, opts: ScanOpts = {}): ScanOut {
+  let st = state ?? emptyState();
+  const maxLine = opts.maxLine ?? MAX_REPORT_LINE;
+  const { files, capped } = walkTranscripts(claudeDir, opts.maxFiles);
+  let p = plan(st, files, capped, claudeDir, opts);
+  let keysLoaded = !opts.loadOwners;
+  if (!keysLoaded && (p.todo.length || p.release.size)) {
+    const owners = opts.loadOwners!();
+    keysLoaded = true;
+    if (owners) st.owners = owners;
+    else {
+      // dedup cannot hold without the key set: cold scan
+      st = emptyState();
+      p = plan(st, files, capped, claudeDir, opts);
+    }
+  }
+  if (p.release.size) {
+    for (const [k, rel] of st.owners) if (p.release.has(rel)) st.owners.delete(k);
+  }
   let bytesRead = 0;
   let done = 0;
-  for (const { w, f, size } of todo) {
-    bytesRead += readFile({ st, rel: w.rel, f }, w.abs, size, maxLine);
+  for (const { w, f, size, hist } of p.todo) {
+    bytesRead += readFile({ st, rel: w.rel, f }, w.abs, size, maxLine, hist);
     f.size = size;
     opts.onProgress?.(++done, bytesRead);
   }
   const notes: ScanNote[] = [];
   if (capped) notes.push({ code: 'file-cap', count: files.length });
   let skipped = 0;
-  for (const f of Object.values(st.files)) skipped += f.skipped;
+  let gone = 0;
+  for (const f of Object.values(st.files)) {
+    skipped += f.skipped;
+    if (f.gone) gone++;
+  }
   if (skipped > 0) notes.push({ code: 'line-skipped', count: skipped });
-  return { state: st, notes, bytesRead };
+  if (gone > 0) notes.push({ code: 'deleted-transcripts', count: gone });
+  return { state: st, notes, bytesRead, files: files.length, changed: p.changed, keysLoaded };
 }
 
 export function sessionsOf(state: IndexState): Record<string, SessionData> {
@@ -407,4 +586,406 @@ export function sessionsOf(state: IndexState): Record<string, SessionData> {
     }
   }
   return out;
+}
+
+export interface LedgerState {
+  files: Record<string, number>;
+  rows: Record<string, SessionRow>;
+  sessions: Record<string, LedgerSession>;
+}
+
+// loaded: state.owners holds the whole key set
+export interface ReportIndex {
+  claudeDir: string;
+  state: IndexState;
+  ledger: LedgerState;
+  order: string[];
+  keys: { n: number; stamp: number };
+  loaded: boolean;
+}
+
+const INDEX = 'index.json';
+const KEYS = 'keys.bin';
+const MAGIC = 'CCRK';
+const HEAD = 16;
+const ENTRY = 12;
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
+const MONTH_KEY = /^\d{4}-\d{2}$/;
+const KINDS: ReadonlySet<unknown> = new Set(['main', 'agent', 'aside']);
+const SEGMENTS = 16;
+
+export function indexDir(env: NodeJS.ProcessEnv = process.env): string {
+  let dir = path.resolve(claudeDir(env)).normalize('NFC');
+  if (process.platform === 'win32') dir = dir.toLowerCase();
+  const h = createHash('sha256').update(dir).digest('hex').slice(0, 16);
+  return path.join(cacheDir(env), 'report', h);
+}
+
+export function emptyLedger(): LedgerState {
+  return { files: map(), rows: map(), sessions: map() };
+}
+
+type Obj = Record<string, unknown>;
+const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
+const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const uint = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0;
+const str = (v: unknown, max = 4096): v is string => typeof v === 'string' && v.length <= max;
+const REQ = ['in', 'out', 'cr', 'w5', 'w1'] as const;
+
+function numMap(v: unknown, key: RegExp): Record<string, number> | null {
+  if (!isObj(v)) return null;
+  const out = map<number>();
+  for (const [k, n] of Object.entries(v)) {
+    if (!key.test(k) || !fin(n)) return null;
+    out[k] = n;
+  }
+  return out;
+}
+
+function bucketOf(v: unknown): Bucket | null {
+  if (!isObj(v) || !fin(v.n) || !fin(v.usd)) return null;
+  const b = zero();
+  for (const k of REQ) {
+    const n = v[k];
+    if (!fin(n)) return null;
+    b[k] = n;
+  }
+  b.n = v.n;
+  b.usd = v.usd;
+  return b;
+}
+
+function recentOf(v: unknown): RecentReq | null {
+  if (!isObj(v) || !uint(v.k) || !str(v.b, 400) || !(v.usd === null || fin(v.usd))) return null;
+  const r: RecentReq = { k: v.k, b: v.b, in: 0, out: 0, cr: 0, w5: 0, w1: 0, usd: v.usd };
+  for (const k of REQ) {
+    const n = v[k];
+    if (!fin(n)) return null;
+    r[k] = n;
+  }
+  return r;
+}
+
+function entryOf(v: unknown): FileEntry | null {
+  if (!isObj(v) || !KINDS.has(v.kind) || !str(v.sid, 128) || !str(v.enc)) return null;
+  if (!(v.id === null || str(v.id, 100)) || !(v.cwd === null || str(v.cwd))) return null;
+  if (!uint(v.size) || !fin(v.mtimeMs) || !uint(v.offset) || !str(v.tail, 16)) return null;
+  if (typeof v.gone !== 'boolean' || !(v.lastTs === null || fin(v.lastTs)) || !fin(v.horizon)) return null;
+  if (!uint(v.skipped) || !isObj(v.buckets) || !Array.isArray(v.recent) || v.recent.length > RECENT)
+    return null;
+  const buckets = map<Bucket>();
+  for (const [k, b] of Object.entries(v.buckets)) {
+    const x = bucketOf(b);
+    if (!x || k.length > 400) return null;
+    buckets[k] = x;
+  }
+  const time = numMap(v.time, DAY_KEY);
+  if (!time) return null;
+  const recent: RecentReq[] = [];
+  for (const r of v.recent) {
+    const x = recentOf(r);
+    if (!x) return null;
+    recent.push(x);
+  }
+  return {
+    kind: v.kind as FileKind,
+    sid: v.sid,
+    enc: v.enc,
+    id: v.id,
+    size: v.size,
+    mtimeMs: v.mtimeMs,
+    offset: v.offset,
+    tail: v.tail,
+    gone: v.gone,
+    cwd: v.cwd,
+    buckets,
+    time,
+    lastTs: v.lastTs,
+    horizon: v.horizon,
+    recent,
+    skipped: v.skipped,
+  };
+}
+
+function ledgerOf(v: unknown): LedgerState | null {
+  if (!isObj(v) || !isObj(v.files) || !isObj(v.sessions)) return null;
+  const lg = emptyLedger();
+  for (const [k, n] of Object.entries(v.files)) {
+    if (!MONTH_KEY.test(k) || !uint(n)) return null;
+    lg.files[k] = n;
+  }
+  for (const [sid, r] of Object.entries(v.sessions)) {
+    if (!SID.test(sid) || !isObj(r) || !Array.isArray(r.h) || !fin(r.seen)) return null;
+    if (!r.h.length || r.h.length > SEGMENTS || !r.h.every(fin)) return null;
+    lg.rows[sid] = { h: [...r.h], seen: r.seen };
+    if (r.a === undefined) continue;
+    const days = numMap(r.days, DAY_KEY);
+    if (!str(r.a, 80) || !str(r.p) || !fin(r.first) || !fin(r.firstT) || !fin(r.total) || !days) return null;
+    lg.sessions[sid] = { a: r.a, p: r.p, first: r.first, firstT: r.firstT, total: r.total, days };
+  }
+  return lg;
+}
+
+// anything unexpected gives null, so the caller scans cold
+export function loadIndex(dir: string, root?: string): ReportIndex | null {
+  const raw = readJsonSafe<unknown>(path.join(dir, INDEX));
+  if (!isObj(raw) || raw.v !== 1 || !str(raw.claudeDir) || (root !== undefined && raw.claudeDir !== root))
+    return null;
+  const keys = raw.keys;
+  if (!isObj(keys) || !uint(keys.n) || !uint(keys.stamp) || !isObj(raw.files)) return null;
+  if (!Array.isArray(raw.order) || !raw.order.every((o) => str(o))) return null;
+  const ledger = ledgerOf(raw.ledger);
+  if (!ledger) return null;
+  const state = emptyState();
+  for (const [rel, v] of Object.entries(raw.files)) {
+    const f = entryOf(v);
+    if (!f || !rel.startsWith('projects/')) return null;
+    state.files[rel] = f;
+  }
+  return {
+    claudeDir: raw.claudeDir,
+    state,
+    ledger,
+    order: raw.order as string[],
+    keys: { n: keys.n, stamp: keys.stamp },
+    loaded: false,
+  };
+}
+
+export function loadKeys(dir: string, idx: ReportIndex): Map<number, string> | null {
+  try {
+    const b = fs.readFileSync(path.join(dir, KEYS));
+    if (b.length < HEAD || b.toString('latin1', 0, 4) !== MAGIC || b.readUInt32LE(4) !== 1) return null;
+    const n = b.readUInt32LE(8);
+    if (n !== idx.keys.n || b.readUInt32LE(12) !== idx.keys.stamp || b.length !== HEAD + n * ENTRY)
+      return null;
+    const owners = new Map<number, string>();
+    for (let i = 0, o = HEAD; i < n; i++, o += ENTRY) {
+      const k = b.readDoubleLE(o);
+      const rel = idx.order[b.readUInt32LE(o + 8)];
+      if (rel === undefined || !Number.isSafeInteger(k) || k < 0) return null;
+      owners.set(k, rel);
+    }
+    return owners;
+  } catch {
+    return null;
+  }
+}
+
+function keysBuffer(idx: ReportIndex): Buffer {
+  const owners = idx.state.owners;
+  const order: string[] = [];
+  const at = new Map<string, number>();
+  const stamp = Math.floor(Math.random() * 0x1_0000_0000) >>> 0;
+  const b = Buffer.alloc(HEAD + owners.size * ENTRY);
+  b.write(MAGIC, 0, 'latin1');
+  b.writeUInt32LE(1, 4);
+  b.writeUInt32LE(owners.size, 8);
+  b.writeUInt32LE(stamp, 12);
+  let o = HEAD;
+  for (const [k, rel] of owners) {
+    let i = at.get(rel);
+    if (i === undefined) {
+      i = order.length;
+      order.push(rel);
+      at.set(rel, i);
+    }
+    b.writeDoubleLE(k, o);
+    b.writeUInt32LE(i, o + 8);
+    o += ENTRY;
+  }
+  idx.order = order;
+  idx.keys = { n: owners.size, stamp };
+  return b;
+}
+
+// keys.bin first; its stamp ties it to the index.json written after it
+export function saveIndex(dir: string, idx: ReportIndex, now = Date.now()): boolean {
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    if (idx.loaded && !writeAtomic(path.join(dir, KEYS), keysBuffer(idx), { mode: 0o600 })) return false;
+    const sessions = map<Obj>();
+    for (const [sid, row] of Object.entries(idx.ledger.rows)) {
+      sessions[sid] = { h: row.h, seen: row.seen, ...idx.ledger.sessions[sid] };
+    }
+    const out = {
+      v: 1,
+      claudeDir: idx.claudeDir,
+      at: now,
+      keys: idx.keys,
+      order: idx.order,
+      files: idx.state.files,
+      ledger: { files: idx.ledger.files, sessions },
+    };
+    return writeAtomic(path.join(dir, INDEX), JSON.stringify(out), { mode: 0o600 });
+  } catch {
+    return false;
+  }
+}
+
+const LEDGER_CHUNK = 1024 * 1024;
+const LEDGER_LINE = 64 * 1024;
+
+// complete lines from the stored offset, as ledger.ts advance
+function foldMonth(lg: LedgerState, file: string, key: string, on: (c: Credited) => void) {
+  let fd: number | null = null;
+  let bytes = 0;
+  try {
+    const size = fs.statSync(file).size;
+    const from = lg.files[key] ?? 0;
+    if (from > size) return { bytes, shrank: true };
+    if (from === size) return { bytes, shrank: false };
+    fd = fs.openSync(file, 'r');
+    const buf = Buffer.allocUnsafe(Math.min(LEDGER_CHUNK, size - from));
+    let carry = EMPTY;
+    let pos = from;
+    while (pos < size) {
+      const n = fs.readSync(fd, buf, 0, Math.min(buf.length, size - pos), pos);
+      if (n <= 0) break;
+      pos += n;
+      bytes += n;
+      const data = carry.length ? Buffer.concat([carry, buf.subarray(0, n)]) : buf.subarray(0, n);
+      const last = data.lastIndexOf(10);
+      if (last >= 0) stepText(lg.rows, data.toString('utf8', 0, last + 1), on);
+      carry = Buffer.from(data.subarray(last + 1));
+      // skip a junk run with no newline
+      if (carry.length > LEDGER_LINE) carry = EMPTY;
+      lg.files[key] = pos - carry.length;
+    }
+  } catch {
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+  }
+  return { bytes, shrank: false };
+}
+
+function pruneLedgerState(lg: LedgerState, now: number): boolean {
+  const keep = keepFrom(now);
+  let cut = false;
+  for (const [sid, s] of Object.entries(lg.sessions)) {
+    for (const d in s.days) {
+      if (d < keep.day) {
+        delete s.days[d];
+        cut = true;
+      }
+    }
+    if (s.firstT < keep.ms && !Object.keys(s.days).length) {
+      delete lg.sessions[sid];
+      cut = true;
+    }
+  }
+  for (const [sid, r] of Object.entries(lg.rows)) {
+    if (r.seen < keep.ms && !lg.sessions[sid]) {
+      delete lg.rows[sid];
+      cut = true;
+    }
+  }
+  return cut;
+}
+
+// month files oldest first, so a session crossing months keeps its highs
+export function foldLedger(
+  env: NodeJS.ProcessEnv,
+  start: LedgerState,
+  now = Date.now(),
+): { ledger: LedgerState; changed: boolean; bytes: number } {
+  const dir = ledgerDir(env);
+  const accounts = accountKeysForDir(env);
+  const months = monthFiles(dir);
+  let lg = start;
+  let changed = false;
+  let bytes = 0;
+  const on = (c: Credited) => {
+    if (!accounts.has(c.a)) return;
+    let s = lg.sessions[c.s];
+    if (!s) {
+      s = { a: c.a, p: c.p, first: c.c, firstT: c.t, total: 0, days: map() };
+      lg.sessions[c.s] = s;
+    }
+    if (!(c.delta > 0)) return;
+    s.total += c.delta;
+    const d = dayKey(c.t);
+    s.days[d] = (s.days[d] ?? 0) + c.delta;
+  };
+  for (let pass = 0; pass < 2; pass++) {
+    let shrank = false;
+    for (const key of months) {
+      const r = foldMonth(lg, path.join(dir, `${key}.jsonl`), key, on);
+      bytes += r.bytes;
+      if (r.bytes > 0) changed = true;
+      if (r.shrank) {
+        shrank = true;
+        break;
+      }
+    }
+    if (!shrank) break;
+    // a rewritten month on old highs would double count
+    lg = emptyLedger();
+    changed = true;
+  }
+  const present = new Set(months);
+  for (const k in lg.files) {
+    if (!present.has(k)) {
+      delete lg.files[k];
+      changed = true;
+    }
+  }
+  if (pruneLedgerState(lg, now)) changed = true;
+  return { ledger: lg, changed, bytes };
+}
+
+export interface ReportOpts {
+  rebuild?: boolean;
+  now?: number;
+  onProgress?: (files: number, bytes: number) => void;
+  maxFiles?: number;
+  maxLine?: number;
+}
+
+// never writes the ledger or its summary
+export function readReportData(env: NodeJS.ProcessEnv = process.env, opts: ReportOpts = {}): ScanResult {
+  const root = path.resolve(claudeDir(env));
+  const now = opts.now ?? Date.now();
+  const dir = indexDir(env);
+  const idx: ReportIndex = loadIndex(dir, root) ?? {
+    claudeDir: root,
+    state: emptyState(),
+    ledger: emptyLedger(),
+    order: [],
+    keys: { n: 0, stamp: 0 },
+    loaded: true,
+  };
+  const scan = scanTree(root, idx.state, {
+    maxLine: opts.maxLine,
+    maxFiles: opts.maxFiles,
+    onProgress: opts.onProgress,
+    rebuild: opts.rebuild,
+    now,
+    loadOwners: idx.loaded ? undefined : () => loadKeys(dir, idx),
+  });
+  idx.state = scan.state;
+  idx.loaded ||= scan.keysLoaded;
+  const lg = foldLedger(env, opts.rebuild ? emptyLedger() : idx.ledger, now);
+  idx.ledger = lg.ledger;
+  if (scan.changed || lg.changed || opts.rebuild) saveIndex(dir, idx, now);
+  let ledgerSince: number | null = null;
+  for (const s of Object.values(lg.ledger.sessions)) {
+    if (ledgerSince === null || s.firstT < ledgerSince) ledgerSince = s.firstT;
+  }
+  const notes = [...scan.notes];
+  const gone = notes.find((n) => n.code === 'deleted-transcripts');
+  if (opts.rebuild && gone) notes.push({ code: 'rebuild-kept', count: gone.count });
+  return {
+    claudeDir: root,
+    sessions: sessionsOf(scan.state),
+    ledger: lg.ledger.sessions,
+    ledgerSince,
+    notes,
+    files: scan.files,
+    bytesRead: scan.bytesRead + lg.bytes,
+  };
 }
