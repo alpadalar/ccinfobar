@@ -4,6 +4,7 @@ import path from 'node:path';
 import { cacheDir } from '../../core/paths.js';
 import { deepSanitize, sanitizeText } from '../../core/sanitize.js';
 import type { Config, StatusPayload } from '../../core/types.js';
+import type { WorkspaceRepos } from '../repos.js';
 import { acquireLock, writeAtomic } from '../store.js';
 
 export type JobId = 'usage' | 'update' | 'status' | 'http' | 'gh' | 'repos';
@@ -35,6 +36,8 @@ export interface JobInput {
   env: NodeJS.ProcessEnv;
   cwd: string;
   now: number;
+  // render's lazy scan, so keys() never scans twice
+  repos?: () => WorkspaceRepos | null;
 }
 
 export interface AcceptInput {

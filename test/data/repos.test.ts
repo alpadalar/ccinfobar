@@ -5,20 +5,20 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import type { Config, WidgetItem } from '../../src/core/types.js';
+import { okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
 import {
   ancestors,
-  dirtyFile,
   gitdirOf,
   insideRepo,
+  legacyDirtyFile,
   parseHead,
   readDirty,
   readHead,
   readRepos,
   repoDirtyWanted,
   reposCacheName,
+  reposKey,
   scanRepos,
-  scheduleRepoDirty,
-  type WorkspaceRepos,
 } from '../../src/data/repos.js';
 
 const posix = process.platform !== 'win32';
@@ -289,17 +289,10 @@ describe.skipIf(tmpRepo)('readRepos cache', () => {
 });
 
 describe('dirty cache', () => {
-  const T = Date.now();
-  const ws = (total = 1): WorkspaceRepos => ({
-    root: '/ws',
-    repos: total ? [{ name: 'api', branch: 'main', detached: false, activity: null, hidden: false }] : [],
-    total,
-  });
   const write = (cwd: string, v: unknown) => {
     fs.mkdirSync(env.CCINFOBAR_CACHE_DIR!, { recursive: true });
-    fs.writeFileSync(dirtyFile(cwd, env), JSON.stringify(v));
+    fs.writeFileSync(legacyDirtyFile(cwd, env), JSON.stringify(v));
   };
-  const lock = (cwd: string) => fs.existsSync(`${dirtyFile(cwd, env)}.lock`);
 
   it('keeps only boolean entries and skips prototype keys', () => {
     write('/ws', JSON.parse('{"v":1,"at":1,"dirty":{"__proto__":true,"api":true,"web":"yes"}}'));
@@ -333,36 +326,17 @@ describe('dirty cache', () => {
     ).toBe(false);
   });
 
-  it('skips scheduling while the cache is fresh', () => {
-    write('/ws', { v: 1, at: T - 1_000, dirty: {} });
-    scheduleRepoDirty('/ws', ws(), env, T);
-    expect(lock('/ws')).toBe(false);
+  it('prefers the job envelope over the legacy file', () => {
+    write('/ws', { v: 1, at: 1, dirty: { api: true } });
+    expect(readDirty('/ws', env)).toEqual({ at: 1, dirty: { api: true } });
+    writeEnvelope(okEnvelope(reposKey('/ws'), { dirty: { api: false } }, 2), env);
+    expect({ ...readDirty('/ws', env) }).toEqual({ at: 2, dirty: { api: false } });
   });
 
-  it('takes the lock once when the cache is missing or stale', () => {
-    scheduleRepoDirty('/ws', ws(), env, T);
-    expect(lock('/ws')).toBe(true);
-    const at = fs.statSync(`${dirtyFile('/ws', env)}.lock`).mtimeMs;
-    scheduleRepoDirty('/ws', ws(), env, T + 1_000);
-    expect(fs.statSync(`${dirtyFile('/ws', env)}.lock`).mtimeMs).toBe(at);
-    fs.rmSync(`${dirtyFile('/ws', env)}.lock`);
-    write('/ws', { v: 1, at: T - 61_000, dirty: {} });
-    scheduleRepoDirty('/ws', ws(), env, T);
-    expect(lock('/ws')).toBe(true);
-  });
-
-  it('uses the dirty time readRepos already read', () => {
-    scheduleRepoDirty('/ws', { ...ws(), dirtyAt: T - 1_000 }, env, T);
-    expect(lock('/ws')).toBe(false);
-    write('/ws', { v: 1, at: T - 1_000, dirty: {} });
-    scheduleRepoDirty('/ws', { ...ws(), dirtyAt: null }, env, T);
-    expect(lock('/ws')).toBe(true);
-  });
-
-  it('does nothing without repos', () => {
-    scheduleRepoDirty('/ws', null, env, T);
-    scheduleRepoDirty('/ws', ws(0), env, T);
-    expect(lock('/ws')).toBe(false);
+  it('keys the envelope like the legacy file', () => {
+    expect(reposKey('/ws')).toMatch(/^repos-dirty-[0-9a-f]{20}$/);
+    expect(path.basename(legacyDirtyFile('/ws', env))).toBe(`${reposKey('/ws')}.json`);
+    expect(reposKey('/ws/')).toBe(reposKey('/ws'));
   });
 });
 
@@ -371,7 +345,7 @@ describe.skipIf(tmpRepo)('readRepos dirty merge', () => {
     const w = path.join(dir, 'w');
     repo(w, 'api');
     fs.mkdirSync(env.CCINFOBAR_CACHE_DIR!, { recursive: true });
-    fs.writeFileSync(dirtyFile(w, env), JSON.stringify({ v: 1, at: 1, dirty: { api: true } }));
+    fs.writeFileSync(legacyDirtyFile(w, env), JSON.stringify({ v: 1, at: 1, dirty: { api: true } }));
     expect(readRepos(w, env)?.dirty?.api).toBe(true);
     expect(readRepos(w, env)?.dirty?.api).toBe(true);
   });

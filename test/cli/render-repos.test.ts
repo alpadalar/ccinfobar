@@ -6,7 +6,8 @@ import { parseArgs } from '../../src/cli/args.js';
 import { runRender } from '../../src/cli/render.js';
 import { stripAnsi } from '../../src/core/ansi.js';
 import { cacheDir, configDir } from '../../src/core/paths.js';
-import { dirtyFile } from '../../src/data/repos.js';
+import { envelopeFile, lockFile, okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
+import { legacyDirtyFile, reposKey } from '../../src/data/repos.js';
 
 const tmpRepo = fs.existsSync(path.join(os.tmpdir(), '.git'));
 let dir: string;
@@ -20,8 +21,11 @@ afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+const listed = (d: string) => (fs.existsSync(d) ? fs.readdirSync(d) : []);
 const dirtyFiles = () =>
-  fs.existsSync(cacheDir()) ? fs.readdirSync(cacheDir()).filter((f) => /^repos-dirty-.*\.json$/.test(f)) : [];
+  [...listed(cacheDir()), ...listed(path.join(cacheDir(), 'jobs'))].filter((f) =>
+    /^repos-dirty-.*\.json$/.test(f),
+  );
 
 async function renderAt(ws: string, options: Record<string, unknown>): Promise<string> {
   const file = path.join(dir, 'p.json');
@@ -44,16 +48,29 @@ describe.skipIf(tmpRepo)('render with the dirty marker', () => {
     const ws = path.join(dir, 'ws');
     fs.mkdirSync(path.join(ws, 'api', '.git'), { recursive: true });
     fs.writeFileSync(path.join(ws, 'api', '.git', 'HEAD'), 'ref: refs/heads/main\n');
-    const lock = `${dirtyFile(ws)}.lock`;
+    const key = reposKey(ws);
+    const lock = lockFile(key);
     expect(await renderAt(ws, { dirty: true })).toContain('repos: api (main)');
     expect(dirtyFiles()).toEqual([]);
     expect(fs.existsSync(lock)).toBe(true);
+    expect(fs.existsSync(`${legacyDirtyFile(ws)}.lock`)).toBe(false);
     fs.rmSync(lock);
 
-    fs.writeFileSync(dirtyFile(ws), JSON.stringify({ v: 1, at: Date.now(), dirty: { api: true } }));
+    writeEnvelope(okEnvelope(key, { dirty: { api: true } }, Date.now()));
     expect(await renderAt(ws, { dirty: true })).toContain('repos: api (main*)');
     expect(fs.existsSync(lock)).toBe(false);
-    fs.rmSync(dirtyFile(ws));
+    fs.rmSync(envelopeFile(key));
+  });
+
+  it('falls back to the legacy dirty file', async () => {
+    const ws = path.join(dir, 'ws');
+    fs.mkdirSync(path.join(ws, 'api', '.git'), { recursive: true });
+    fs.writeFileSync(path.join(ws, 'api', '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    fs.mkdirSync(cacheDir(), { recursive: true });
+    fs.writeFileSync(legacyDirtyFile(ws), JSON.stringify({ v: 1, at: Date.now(), dirty: { api: true } }));
+    expect(await renderAt(ws, { dirty: true })).toContain('repos: api (main*)');
+    expect(fs.existsSync(lockFile(reposKey(ws)))).toBe(false);
+    fs.rmSync(legacyDirtyFile(ws));
   });
 
   it('never schedules with dirty off', async () => {
@@ -61,6 +78,6 @@ describe.skipIf(tmpRepo)('render with the dirty marker', () => {
     fs.mkdirSync(path.join(ws, 'api', '.git'), { recursive: true });
     fs.writeFileSync(path.join(ws, 'api', '.git', 'HEAD'), 'ref: refs/heads/main\n');
     expect(await renderAt(ws, {})).toContain('repos: api (main)');
-    expect(fs.existsSync(`${dirtyFile(ws)}.lock`)).toBe(false);
+    expect(fs.existsSync(lockFile(reposKey(ws)))).toBe(false);
   });
 });

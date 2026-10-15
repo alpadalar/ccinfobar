@@ -10,7 +10,8 @@ import { createContext } from '../../src/core/context.js';
 import { render } from '../../src/core/renderer.js';
 import { samplePayload, sampleTranscript } from '../../src/core/sample.js';
 import type { StatusPayload, WidgetItem, WidgetOutput } from '../../src/core/types.js';
-import { dirtyFile } from '../../src/data/repos.js';
+import { envelopeFile, okEnvelope } from '../../src/data/jobs/runner.js';
+import { reposKey } from '../../src/data/repos.js';
 import type { TranscriptInfo } from '../../src/data/transcript.js';
 import { getWidget } from '../../src/widgets/index.js';
 import { ctxWith, NOW, renderWidget, withoutSideEffects } from '../helpers.js';
@@ -182,7 +183,10 @@ describe.skipIf(fs.existsSync(path.join(os.tmpdir(), '.git')))('live widgets thr
     ]) {
       put(path.join(ws, name!, '.git', 'HEAD'), `ref: refs/heads/${branch}\n`);
     }
-    put(dirtyFile(ws, env), j({ v: 1, at: at(10), dirty: { api: true, web: false } }));
+    put(
+      envelopeFile(reposKey(ws), env),
+      j(okEnvelope(reposKey(ws), { dirty: { api: true, web: false } }, at(10))),
+    );
     put(path.join(env.CLAUDE_CONFIG_DIR, 'CLAUDE.md'));
     put(path.join(env.CLAUDE_CONFIG_DIR, 'rules', 'a.md'));
     put(

@@ -8,7 +8,8 @@ import { computeDirty, dirtyOrder, runRepos } from '../../src/commands/repos.js'
 import { defaultConfig } from '../../src/core/config.js';
 import { configDir } from '../../src/core/paths.js';
 import type { Config, WidgetItem } from '../../src/core/types.js';
-import { dirtyFile, type RepoEntry, readDirty } from '../../src/data/repos.js';
+import { envelopeFile, lockFile } from '../../src/data/jobs/runner.js';
+import { legacyDirtyFile, type RepoEntry, readDirty, reposKey } from '../../src/data/repos.js';
 
 function hasGit(): boolean {
   try {
@@ -117,22 +118,22 @@ describe.skipIf(!available || tmpRepo)('repos dirty job', () => {
     fs.rmSync(base, { recursive: true, force: true });
   });
 
-  it('reports dirty and clean repos', () => {
-    expect(computeDirty(ws, [entry('clean'), entry('dirty')], { harden: true, env: gitEnv })).toEqual({
+  it('reports dirty and clean repos', async () => {
+    expect(await computeDirty(ws, [entry('clean'), entry('dirty')], { harden: true, env: gitEnv })).toEqual({
       clean: false,
       dirty: true,
     });
   });
 
-  it('ignores an inherited GIT_DIR and GIT_WORK_TREE', () => {
+  it('ignores an inherited GIT_DIR and GIT_WORK_TREE', async () => {
     const env = { ...gitEnv, GIT_DIR: path.join(ws, 'dirty', '.git'), GIT_WORK_TREE: path.join(ws, 'dirty') };
-    expect(computeDirty(ws, [entry('clean'), entry('dirty')], { harden: true, env })).toEqual({
+    expect(await computeDirty(ws, [entry('clean'), entry('dirty')], { harden: true, env })).toEqual({
       clean: false,
       dirty: true,
     });
   });
 
-  it.skipIf(!posix)('never runs a core.fsmonitor hook when hardened', () => {
+  it.skipIf(!posix)('never runs a core.fsmonitor hook when hardened', async () => {
     const d = repo(path.join(base, 'fs'), 'mon', 'a.txt');
     const marker = path.join(base, 'fsmonitor-marker');
     const hook = path.join(base, 'fsmon.sh');
@@ -140,28 +141,28 @@ describe.skipIf(!available || tmpRepo)('repos dirty job', () => {
     fs.chmodSync(hook, 0o755);
     run(d, 'config', 'core.fsmonitor', hook);
     fs.writeFileSync(path.join(d, 'a.txt'), 'two\n');
-    expect(computeDirty(path.join(base, 'fs'), [entry('mon')], { harden: true, env: gitEnv })).toEqual({
+    expect(await computeDirty(path.join(base, 'fs'), [entry('mon')], { harden: true, env: gitEnv })).toEqual({
       mon: true,
     });
     expect(fs.existsSync(marker)).toBe(false);
-    computeDirty(path.join(base, 'fs'), [entry('mon')], { harden: false, env: gitEnv });
+    await computeDirty(path.join(base, 'fs'), [entry('mon')], { harden: false, env: gitEnv });
     expect(fs.existsSync(marker)).toBe(true);
   });
 
-  it('checks at most 50 repos', () => {
+  it('checks at most 50 repos', async () => {
     const names = fs.readdirSync(many).sort();
-    const out = computeDirty(many, names.map(entry), { harden: true, env: gitEnv });
+    const out = await computeDirty(many, names.map(entry), { harden: true, env: gitEnv });
     expect(Object.keys(out)).toEqual(names.slice(0, 50));
     expect(Object.values(out).every((v) => v === true)).toBe(true);
   }, 60_000);
 
-  it('leaves a timed out repo unknown', () => {
-    const out = computeDirty(ws, [entry('dirty')], { harden: true, perRepoMs: 1, env: gitEnv });
+  it('leaves a timed out repo unknown', async () => {
+    const out = await computeDirty(ws, [entry('dirty')], { harden: true, perRepoMs: 1, env: gitEnv });
     expect(out).toEqual({});
   });
 
-  it('leaves a missing repo unknown', () => {
-    expect(computeDirty(ws, [entry('gone')], { harden: true, env: gitEnv })).toEqual({});
+  it('leaves a missing repo unknown', async () => {
+    expect(await computeDirty(ws, [entry('gone')], { harden: true, env: gitEnv })).toEqual({});
   });
 
   describe('runRepos', () => {
@@ -169,18 +170,35 @@ describe.skipIf(!available || tmpRepo)('repos dirty job', () => {
     beforeAll(() => {
       fs.mkdirSync(configDir(), { recursive: true });
       cfg = path.join(configDir(), 'repos-job.json');
-      fs.writeFileSync(cfg, JSON.stringify({ lines: [[{ id: 'r', type: 'workspace-repos' }]] }));
+      fs.writeFileSync(
+        cfg,
+        JSON.stringify({ lines: [[{ id: 'r', type: 'workspace-repos', options: { dirty: true } }]] }),
+      );
     });
 
-    it('writes the dirty cache and drops the lock', async () => {
-      const lock = `${dirtyFile(ws)}.lock`;
-      fs.mkdirSync(path.dirname(lock), { recursive: true });
-      fs.writeFileSync(lock, '');
+    it('runs the job, writes the envelope and drops both locks', async () => {
+      const lock = lockFile(reposKey(ws));
+      const old = `${legacyDirtyFile(ws)}.lock`;
+      for (const f of [lock, old]) {
+        fs.mkdirSync(path.dirname(f), { recursive: true });
+        fs.writeFileSync(f, '');
+      }
       await runRepos(parseArgs(['repos', '--background', ws]), cfg);
       const d = readDirty(ws);
       expect({ ...d?.dirty }).toEqual({ clean: false, dirty: true });
+      expect(fs.existsSync(envelopeFile(reposKey(ws)))).toBe(true);
+      expect(fs.existsSync(legacyDirtyFile(ws))).toBe(false);
       expect(fs.existsSync(lock)).toBe(false);
-      fs.rmSync(dirtyFile(ws));
+      expect(fs.existsSync(old)).toBe(false);
+      fs.rmSync(envelopeFile(reposKey(ws)));
+    });
+
+    it('writes nothing when no item wants the dirty marker', async () => {
+      const off = path.join(configDir(), 'repos-off.json');
+      fs.writeFileSync(off, JSON.stringify({ lines: [[{ id: 'r', type: 'workspace-repos' }]] }));
+      await runRepos(parseArgs(['repos', '--background', ws]), off);
+      expect(fs.existsSync(envelopeFile(reposKey(ws)))).toBe(false);
+      expect(fs.existsSync(lockFile(reposKey(ws)))).toBe(false);
     });
 
     it.skipIf(!posix)('runs git only in folders whose real name is the shown name', async () => {
@@ -190,7 +208,7 @@ describe.skipIf(!available || tmpRepo)('repos dirty job', () => {
       fs.writeFileSync(path.join(odd, 'u.txt'), 'new\n');
       await runRepos(parseArgs(['repos', '--background', w]), cfg);
       expect({ ...readDirty(w)?.dirty }).toEqual({ api: false });
-      fs.rmSync(dirtyFile(w));
+      fs.rmSync(envelopeFile(reposKey(w)));
     });
 
     it('writes nothing for a relative, missing or foreground path', async () => {
@@ -199,9 +217,10 @@ describe.skipIf(!available || tmpRepo)('repos dirty job', () => {
       await runRepos(parseArgs(['repos', '--background', rel]), cfg);
       await runRepos(parseArgs(['repos', '--background', path.join(base, 'missing')]), cfg);
       await runRepos(parseArgs(['repos', ws]), cfg);
-      expect(fs.existsSync(dirtyFile(ws))).toBe(false);
-      expect(fs.existsSync(dirtyFile(rel))).toBe(false);
-      expect(fs.existsSync(dirtyFile(path.join(base, 'missing')))).toBe(false);
+      for (const p of [ws, path.resolve(rel), path.join(base, 'missing')]) {
+        expect(fs.existsSync(envelopeFile(reposKey(p)))).toBe(false);
+        expect(fs.existsSync(legacyDirtyFile(p))).toBe(false);
+      }
     });
   });
 });

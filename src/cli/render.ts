@@ -19,7 +19,7 @@ import {
   recordLedger,
 } from '../data/ledger.js';
 import { accountKey, recordLimits } from '../data/limits.js';
-import { readRepos, repoDirtyWanted, scheduleRepoDirty } from '../data/repos.js';
+import { readRepos } from '../data/repos.js';
 import { writeAtomic } from '../data/store.js';
 import { terminalWidth } from '../data/terminal.js';
 import { readTranscript } from '../data/transcript.js';
@@ -127,7 +127,6 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
       const read = ledger();
       if (read) recordLedger(process.env, payload, read, Date.now());
     }
-    scheduleJobs(config, payload, process.env, path.resolve(cwd), cfgFile);
-    if (repoDirtyWanted(config)) scheduleRepoDirty(cwd, repos(), process.env, Date.now());
+    scheduleJobs(config, payload, process.env, path.resolve(cwd), cfgFile, { repos });
   } catch {}
 }

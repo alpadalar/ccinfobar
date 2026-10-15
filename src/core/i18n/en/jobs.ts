@@ -8,7 +8,7 @@ export const jobsMessages = {
   'doctor.jobs.offAll': ', off (CCINFOBAR_NO_JOBS)',
   'doctor.jobs.unknownError': 'unknown error',
   'doctor.jobs.nonessential':
-    '  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC is set: the usage, update and status jobs are off; http and gh jobs still run',
+    '  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC is set: the usage, update and status jobs are off; http, gh and repos jobs still run',
   'doctor.jobs.disabled': '  CCINFOBAR_NO_JOBS is set: every background job is off',
   'doctor.jobs.httpUrl': ' ({url})',
   'doctor.jobs.httpUnused': ' (no http item uses it now)',

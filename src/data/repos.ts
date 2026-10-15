@@ -1,17 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { ReposDirtyValue } from '../core/job-values.js';
 import { deepSanitize, sanitizeText } from '../core/sanitize.js';
 import type { Config } from '../core/types.js';
 import { cacheFile, cacheKey, readCache, writeCache } from './cache.js';
-import { acquireLock, readJsonSafe } from './store.js';
-import { spawnSelf } from './update-state.js';
+import { jobValue, readEnvelope } from './jobs/runner.js';
+import { readJsonSafe } from './store.js';
 
 const VERSION = 1;
 const TTL = 10_000;
 const MAX_ENTRIES = 1000;
 const MAX_FILE = 4096;
-const DIRTY_TTL = 60_000;
-export const DIRTY_VERSION = 1;
+const DIRTY_VERSION = 1;
 const RD = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0);
 
 export interface RepoEntry {
@@ -239,35 +239,46 @@ export function readRepos(
   }
 }
 
-export function dirtyFile(cwd: string, env: NodeJS.ProcessEnv = process.env): string {
-  return cacheFile(`repos-dirty-${cacheKey(path.resolve(cwd))}.json`, env);
+export const reposKey = (cwd: string): string => `repos-dirty-${cacheKey(path.resolve(cwd))}`;
+
+// phase 5 cache, read only as a fallback
+export function legacyDirtyFile(cwd: string, env: NodeJS.ProcessEnv = process.env): string {
+  return cacheFile(`${reposKey(cwd)}.json`, env);
 }
 
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
-export function readDirty(
-  cwd: string,
-  env: NodeJS.ProcessEnv = process.env,
-): { at: number; dirty: Record<string, boolean> } | null {
-  const raw = readJsonSafe<Record<string, unknown>>(dirtyFile(cwd, env));
-  if (!raw || typeof raw !== 'object' || raw.v !== DIRTY_VERSION) return null;
-  const at = raw.at;
-  const src = raw.dirty;
-  if (
-    typeof at !== 'number' ||
-    !Number.isFinite(at) ||
-    !src ||
-    typeof src !== 'object' ||
-    Array.isArray(src)
-  ) {
-    return null;
-  }
+function cleanDirty(src: unknown): Record<string, boolean> | null {
+  if (!src || typeof src !== 'object' || Array.isArray(src)) return null;
   const dirty = Object.create(null) as Record<string, boolean>;
   for (const [k, v] of Object.entries(src)) {
     const name = sanitizeText(k);
     if (typeof v === 'boolean' && name && !BAD_KEYS.has(name)) dirty[name] = v;
   }
+  return dirty;
+}
+
+export function readLegacyDirty(
+  key: string,
+  env: NodeJS.ProcessEnv = process.env,
+): { at: number; dirty: Record<string, boolean> } | null {
+  const raw = readJsonSafe<Record<string, unknown>>(cacheFile(`${key}.json`, env));
+  if (!raw || typeof raw !== 'object' || raw.v !== DIRTY_VERSION) return null;
+  const at = raw.at;
+  const dirty = cleanDirty(raw.dirty);
+  if (typeof at !== 'number' || !Number.isFinite(at) || !dirty) return null;
   return { at, dirty };
+}
+
+export function readDirty(
+  cwd: string,
+  env: NodeJS.ProcessEnv = process.env,
+): { at: number; dirty: Record<string, boolean> } | null {
+  const key = reposKey(cwd);
+  const v = jobValue(readEnvelope<ReposDirtyValue>(key, env));
+  if (!v) return readLegacyDirty(key, env);
+  const dirty = cleanDirty(v.value?.dirty);
+  return dirty && v.at !== null ? { at: v.at, dirty } : null;
 }
 
 // same parsing as opt(): true or 'true'
@@ -277,20 +288,4 @@ export function repoDirtyWanted(config: Config): boolean {
   return config.lines.some((line) =>
     line.some((it) => it.type === 'workspace-repos' && flag(it.options?.dirty)),
   );
-}
-
-export function scheduleRepoDirty(
-  cwd: string,
-  repos: WorkspaceRepos | null,
-  env: NodeJS.ProcessEnv = process.env,
-  now = Date.now(),
-): void {
-  try {
-    if (!repos || repos.total === 0) return;
-    const root = path.resolve(cwd);
-    const at = repos.dirtyAt !== undefined ? repos.dirtyAt : readDirty(root, env)?.at;
-    if (typeof at === 'number' && now >= at && now - at < DIRTY_TTL) return;
-    if (!acquireLock(`${dirtyFile(root, env)}.lock`, DIRTY_TTL, now)) return;
-    spawnSelf(['repos', '--background', root], env);
-  } catch {}
 }
