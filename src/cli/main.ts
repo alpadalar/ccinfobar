@@ -2,6 +2,7 @@ import path from 'node:path';
 import { configPath } from '../core/paths.js';
 import { JOBS } from '../data/jobs/index.js';
 import { parseArgs } from './args.js';
+import { applyLanguage } from './lang.js';
 import { runRender } from './render.js';
 
 // own copy: importing core/version.ts costs the render one more chunk
@@ -10,6 +11,7 @@ const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
 
 export async function main(argv = process.argv.slice(2)): Promise<void> {
   const args = parseArgs(argv);
+  applyLanguage();
   const cfgFile = typeof args.flags.config === 'string' ? path.resolve(args.flags.config) : configPath();
 
   if (args.flags.version) {

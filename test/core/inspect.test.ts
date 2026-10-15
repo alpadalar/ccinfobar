@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { sanitize } from '../../src/core/ansi.js';
-import { t } from '../../src/core/i18n/index.js';
+import { language, t } from '../../src/core/i18n/index.js';
 import {
   type EmptyCode,
   emptyReason,
@@ -21,7 +21,7 @@ import type { JobEnvelope } from '../../src/data/jobs/runner.js';
 import { findUp } from '../../src/data/repos.js';
 import { parseTranscriptText } from '../../src/data/transcript.js';
 import { ALL_WIDGETS, getWidget } from '../../src/widgets/index.js';
-import { ctxWith, NOW, withoutSideEffects } from '../helpers.js';
+import { ctxWith, NOW, withLang, withoutSideEffects } from '../helpers.js';
 
 const seen: RenderContext[] = [];
 
@@ -1073,5 +1073,31 @@ describe('rule rows', () => {
     const r = one(item('probe', { hideWhen: `co\u001b[31mst > 1` }));
     expect(r.warning!.code).toBe('invalid-rule');
     expect(r.warning!.text).not.toContain('\u001b');
+  });
+});
+
+describe('inspect language', () => {
+  const types = ['git-branch', 'weekly-usage', 'model'];
+  const ctx = (language?: 'auto' | 'en' | 'tr') =>
+    ctxWith({
+      payload: { ...samplePayload(NOW.getTime()), rate_limits: undefined },
+      git: () => null,
+      limits: () => null,
+      config: { lines: [types.map((x) => item(x))], ...(language ? { language } : {}) },
+    });
+  const texts = (c: RenderContext) =>
+    rowsFor(c).map((r) => [r.value, r.empty?.text ?? null, r.note?.text ?? null]);
+
+  it('computes the human text in the config language and restores it', () => {
+    const en = texts(ctx());
+    const tr = withLang('tr', () => texts(ctx()));
+    expect(tr).not.toEqual(en);
+    expect(texts(ctx('tr'))).toEqual(tr);
+    expect(language()).toBe('en');
+    withLang('tr', () => {
+      expect(texts(ctx('en'))).toEqual(en);
+      expect(texts(ctx('auto'))).toEqual(tr);
+      expect(language()).toBe('tr');
+    });
   });
 });

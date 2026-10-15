@@ -15,6 +15,8 @@ import {
 } from './ansi.js';
 import { CATEGORY_PRIORITY, overflowOf } from './display-opts.js';
 import { foldText, pasteSafeText, resolveGlyphMode, stripLinks, widthModeFor } from './glyphs.js';
+import { setLanguage } from './i18n/index.js';
+import { isLanguageId } from './i18n/languages.js';
 import { hasItemRules, ruleDecision } from './metrics.js';
 import { renderPanel } from './panel.js';
 import {
@@ -605,11 +607,14 @@ function wrapLine(parts: Part[], a: Appearance, level: Level, max: number, cut: 
 
 export function render(base: RenderContext): string[] {
   const glyphMode = resolveGlyphMode(base.config, base.env);
+  const lang = base.config.language;
+  const prevLang = isLanguageId(lang) ? setLanguage(lang) : null;
   const prev = setWidthMode(widthModeFor(glyphMode, base.config.ambiguousWidth));
   try {
     return renderAll({ ...base, glyphMode });
   } finally {
     setWidthMode(prev);
+    if (prevLang) setLanguage(prevLang);
   }
 }
 

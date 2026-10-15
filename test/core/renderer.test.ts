@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { stripAnsi, visibleWidth } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
+import { language, setLanguage } from '../../src/core/i18n/index.js';
 import { finalizeLine, render, renderValue, workspaceMode } from '../../src/core/renderer.js';
 import { samplePayload } from '../../src/core/sample.js';
 import type { StatusPayload, WidgetDef, WidgetItem, WidgetResult } from '../../src/core/types.js';
-import { ctxWith, NOW } from '../helpers.js';
+import { getWidget } from '../../src/widgets/index.js';
+import { ctxWith, NOW, withLang } from '../helpers.js';
 
 const text = (t: string, extra: Partial<WidgetItem> = {}): WidgetItem => ({
   id: t,
@@ -236,5 +238,49 @@ describe('workspace mode', () => {
   it('exports the pre-pass', () => {
     expect(workspaceMode(ctxWith({ git: () => null, repos, config: { lines: layout() } }))).toBe(true);
     expect(workspaceMode(ctxWith({ git: () => null, config: { lines: layout() } }))).toBe(false);
+  });
+});
+
+describe('render language', () => {
+  const eta = (language?: 'auto' | 'en' | 'tr') =>
+    ctxWith({
+      config: { lines: [[{ id: 'w', type: 'limit-eta' }]], ...(language ? { language } : {}) },
+    });
+
+  it('renders with the config language and restores the previous one', () => {
+    expect(stripAnsi(render(eta('tr'))[0]!)).toContain('güvenli');
+    expect(language()).toBe('en');
+    withLang('tr', () => {
+      expect(stripAnsi(render(eta('en'))[0]!)).toContain('safe');
+      expect(language()).toBe('tr');
+    });
+  });
+
+  it('keeps the edge language for auto and an absent key', () => {
+    withLang('tr', () => {
+      expect(stripAnsi(render(eta('auto'))[0]!)).toContain('güvenli');
+      expect(stripAnsi(render(eta())[0]!)).toContain('güvenli');
+      expect(language()).toBe('tr');
+    });
+    expect(stripAnsi(render(eta())[0]!)).toContain('safe');
+  });
+
+  it('sets the language for widgets and restores it when render throws', () => {
+    const seen: string[] = [];
+    const spy = vi.spyOn(getWidget('model')!, 'render').mockImplementation(() => {
+      seen.push(language());
+      throw new Error('widget');
+    });
+    try {
+      render(ctxWith({ config: { lines: [[{ id: 'm', type: 'model' }]], language: 'tr' } }));
+    } finally {
+      spy.mockRestore();
+    }
+    expect(seen).toEqual(['tr']);
+    expect(language()).toBe('en');
+    const broken = ctxWith({ config: { language: 'tr', lines: null as never } });
+    expect(() => render(broken)).toThrow();
+    expect(language()).toBe('en');
+    setLanguage('en');
   });
 });

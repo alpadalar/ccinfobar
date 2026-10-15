@@ -13,7 +13,8 @@ import { stripAnsi } from './ansi.js';
 import { describeRuleError, type MetricValue, type Visibility } from './conditions.js';
 import { resolveGlyphMode, widthModeFor } from './glyphs.js';
 import { compareIds } from './i18n/format.js';
-import { t } from './i18n/index.js';
+import { setLanguage, t } from './i18n/index.js';
+import { isLanguageId } from './i18n/languages.js';
 import { parsePath } from './jsonpath.js';
 import { hasItemRules, ruleDecision } from './metrics.js';
 import { hasReplies } from './payload.js';
@@ -600,11 +601,14 @@ function shownNote(ctx: RenderContext, item: WidgetItem): EmptyReason | null {
 // measure and fold like render()
 function inMode<T>(base: RenderContext, fn: (ctx: RenderContext) => T): T {
   const glyphMode = base.glyphMode ?? resolveGlyphMode(base.config, base.env);
+  const lang = base.config.language;
+  const prevLang = isLanguageId(lang) ? setLanguage(lang) : null;
   const prev = setWidthMode(widthModeFor(glyphMode, base.config.ambiguousWidth));
   try {
     return fn({ ...base, glyphMode });
   } finally {
     setWidthMode(prev);
+    if (prevLang) setLanguage(prevLang);
   }
 }
 
