@@ -276,7 +276,9 @@ Found ccstatusline as your current status line. Import its layout into ccinfobar
 | [ccstatusline](https://github.com/sirmalloc/ccstatusline) | Lines, widgets, colors, labels (custom text), separators, merge, raw values, powerline mode and caps, `full-minus-40` width |
 | [claude-powerline](https://github.com/Owloops/claude-powerline) | Lines, segments, theme, style (`minimal`, `powerline`, `capsule`, `tui`), charset, auto wrap, width reserve, custom colors, and `--theme`/`--style` flags in the command |
 
-Widgets without an equivalent are listed as warnings instead of being dropped silently. Run it later with `ccinfobar import ccstatusline` or `ccinfobar import claude-powerline --file <path>`; your current ccinfobar config is backed up first. CCometixLine, claude-hud and custom scripts are detected but not imported.
+Every import prints a report: what was imported, what was approximated and what was dropped, with the reason. `--dry-run` prints the report and a preview with sample data and writes nothing. Run it later with `ccinfobar import ccstatusline` or `ccinfobar import claude-powerline --file <path>`; your current ccinfobar config is backed up first.
+
+Imported labels and text are cleaned of terminal escape sequences, and `javascript:`/`data:` links are dropped. A layout that runs shell commands (ccstatusline custom commands) or opens URLs lists them first: on a terminal you are asked whether to keep them (default No), `--allow-commands` keeps them, and `--yes` or a non-interactive run drops them and prints the command to re-run with `--allow-commands`. CCometixLine, claude-hud and custom scripts are detected but not imported.
 
 ## Plugin
 
@@ -343,7 +345,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
 | `ccinfobar edit --detach` | Start the editor in the background, print its URL and exit; a running one is reused, and it stops after 30 minutes idle |
 | `ccinfobar tui` | Open the terminal editor |
-| `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--yes` to replace another tool's without asking, `--dry-run` to only show the plan, `--import`, `--no-import`, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally, or a pinned copy with `--no-global`) |
+| `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--yes` to replace another tool's without asking, `--dry-run` to only show the plan, `--import`, `--no-import`, `--allow-commands` to keep imported commands, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally, or a pinned copy with `--no-global`) |
 | `ccinfobar install --hooks` | Also add the optional [hooks](#hooks) (`--hooks=permission` adds PermissionRequest) |
 | `ccinfobar install --progress` | Show context fill as the terminal tab's progress bar (OSC 9;4) through synchronous hooks; needs Claude Code 2.1.141+ and adds about 60-110 ms before each prompt |
 | `ccinfobar usage` | Fetch your 5-hour and weekly usage from Claude now |
@@ -353,7 +355,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar uninstall --progress` | Remove only the terminal progress handlers, turn `progress.enabled` off and clear the bar |
 | `ccinfobar themes` | Preview every theme (`--width <n>`; `--list` prints ids and names only) |
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
-| `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`) |
+| `ccinfobar import <tool>` | Import a `ccstatusline` or `claude-powerline` layout (`--file <path>`, `--force`, `--dry-run` to only show the report and a preview, `--allow-commands` to keep its commands and URLs without asking) |
 | `ccinfobar init [preset]` | Write a preset: `default`, `cockpit`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
 | `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--glyph-mode <mode>` to try a glyph mode without saving it, for example `paste-safe` for text that stays aligned in a GitHub issue, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `bedrock-user`, `gateway-glm`, `near-7d-limit`, `over-budget`, `workspace-folder`, `waiting-permission`, `service-incident`, `pr-ci-failing`; a bare `--scenario` lists them) |
 | `ccinfobar update` | Update to the latest release now (`--check` to only look) |
