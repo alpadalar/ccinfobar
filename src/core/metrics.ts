@@ -106,29 +106,37 @@ export function metricGetter(ctx: RenderContext): (name: string) => MetricValue 
   return get;
 }
 
-function newest<T extends { t: number }>(list: readonly T[], now: number, ok: (s: T) => boolean): T | null {
-  let best: T | null = null;
+// before now, oldest first
+function series<T extends { t: number }>(
+  list: readonly T[],
+  now: number,
+  value: (s: T) => number | null,
+): number[] {
+  const out: [number, number][] = [];
   for (const s of list) {
-    if (!num(s.t) || s.t >= now || !ok(s)) continue;
-    if (!best || s.t > best.t) best = s;
+    if (!num(s.t) || s.t >= now) continue;
+    const v = value(s);
+    if (num(v)) out.push([s.t, Math.round(v)]);
   }
-  return best;
+  return out.sort((a, b) => a[0] - b[0]).map((x) => x[1]);
 }
 
-export function metricPrev(ctx: RenderContext): (name: string) => number | null {
+export function metricPrev(ctx: RenderContext): (name: string) => number[] | null {
   return (name) => {
     try {
       const now = ctx.now.getTime();
       const key = WINDOWS.get(name);
       if (key) {
-        const s = newest(ctx.data.limits?.()?.windows[key]?.samples ?? [], now, (x) => num(x.pct));
-        return s ? Math.round(s.pct) : null;
+        const list = series(ctx.data.limits?.()?.windows[key]?.samples ?? [], now, (x) => x.pct);
+        return list.length ? list : null;
       }
       if (name === 'context.pct' && ctx.data.history) {
         const size = windowSize(ctx);
-        const s = newest(ctx.data.history(), now, (x) => num(x.ctx));
-        if (!s || !size) return null;
-        return Math.round(Math.max(0, Math.min(100, (s.ctx! / size) * 100)));
+        if (!size) return null;
+        const list = series(ctx.data.history(), now, (x) =>
+          num(x.ctx) ? Math.max(0, Math.min(100, (x.ctx / size) * 100)) : null,
+        );
+        return list.length ? list : null;
       }
     } catch {}
     return null;

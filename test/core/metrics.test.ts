@@ -206,7 +206,7 @@ describe('memo and prev', () => {
     expect(agents).toHaveBeenCalledTimes(1);
   });
 
-  it('usage prev is the newest earlier ring sample', () => {
+  it('usage prev lists the earlier ring samples oldest first', () => {
     const t = NOW.getTime();
     const ctx = ctxWith({
       limits: () => ({
@@ -227,7 +227,7 @@ describe('memo and prev', () => {
       }),
     });
     const prev = metricPrev(ctx);
-    expect(prev('usage.5h')).toBe(81);
+    expect(prev('usage.5h')).toEqual([70, 81]);
     expect(prev('usage.7d')).toBeNull();
     expect(prev('cost.session')).toBeNull();
   });
@@ -238,7 +238,7 @@ describe('memo and prev', () => {
     expect(metricPrev(ctx)('context.pct')).toBeNull();
     const t = NOW.getTime();
     const withHist = ctxWith({ history: () => [{ t: t - 1000, ctx: 720_000 }] });
-    expect(metricPrev(withHist)('context.pct')).toBe(72);
+    expect(metricPrev(withHist)('context.pct')).toEqual([72]);
   });
 
   it('applies a band from the ring', () => {
@@ -267,6 +267,35 @@ describe('memo and prev', () => {
     expect(at(77, 82)).toBe(true);
     expect(at(77, 70)).toBe(false);
     expect(at(74, 82)).toBe(false);
+  });
+
+  it('holds the band across refreshes that record the dipped value (CR-02)', () => {
+    const t = NOW.getTime();
+    const item = { id: 'm', type: 'model', showWhen: 'usage.5h >= 80 ~5' };
+    const seen: number[] = [];
+    const step = (pct: number) => {
+      const samples = seen.map((v, i) => ({ t: t - (seen.length - i) * 60_000, pct: v }));
+      const limits = () => ({
+        windows: { five_hour: { pct, resetsAt: null, at: null, source: 'payload' as const, samples } },
+        expired: [],
+      });
+      const ctx = ctxWith({
+        payload: payload((p) => (p.rate_limits!.five_hour!.used_percentage = pct)),
+        limits,
+      });
+      seen.push(pct);
+      return ruleDecision(ctx, item).visible;
+    };
+    expect([82, 79, 78, 79, 76, 74, 78, 80].map(step)).toEqual([
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+    ]);
   });
 
   it('hasItemRules', () => {

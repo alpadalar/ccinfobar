@@ -294,7 +294,8 @@ export function formatRule(rule: Rule): string | string[] {
 }
 
 type Get = (metric: string) => MetricValue;
-type Prev = (metric: string) => number | null;
+// earlier samples, oldest first
+type Prev = (metric: string) => readonly number[] | null;
 
 function compare(v: number, op: Op, th: number): boolean {
   switch (op) {
@@ -313,6 +314,21 @@ function compare(v: number, op: Op, th: number): boolean {
   }
 }
 
+type Cmp = Extract<Term, { kind: 'cmp' }>;
+
+const inBand = (v: number, x: Cmp, band: number): boolean =>
+  x.op === '>' || x.op === '>=' ? v >= x.value - band : v <= x.value + band;
+
+// D-12: on while every sample since the last crossing stayed in the band
+function heldOn(samples: readonly number[], x: Cmp, band: number): boolean {
+  for (let i = samples.length - 1; i >= 0; i--) {
+    const v = samples[i]!;
+    if (compare(v, x.op, x.value)) return true;
+    if (!inBand(v, x, band)) return false;
+  }
+  return false;
+}
+
 function termOn(x: Term, v: MetricValue, prev?: Prev): boolean {
   switch (x.kind) {
     case 'flag':
@@ -320,10 +336,9 @@ function termOn(x: Term, v: MetricValue, prev?: Prev): boolean {
     case 'cmp': {
       if (typeof v !== 'number' || Number.isNaN(v)) return false;
       if (compare(v, x.op, x.value)) return true;
-      if (x.band === undefined || !prev) return false;
-      const p = prev(x.metric);
-      if (typeof p !== 'number' || !compare(p, x.op, x.value)) return false;
-      return x.op === '>' || x.op === '>=' ? v >= x.value - x.band : v <= x.value + x.band;
+      if (x.band === undefined || !prev || !inBand(v, x, x.band)) return false;
+      const samples = prev(x.metric);
+      return !!samples && heldOn(samples, x, x.band);
     }
     case 'str':
       if (typeof v !== 'string') return false;

@@ -246,24 +246,33 @@ describe('evaluate', () => {
     expect(evaluate(r, getter({ 'usage.5h': 90 }))).toBe(false);
   });
 
-  it('keeps a banded term on while the previous value was on', () => {
+  it('keeps a banded term on while the samples since the crossing stayed in the band', () => {
     const r = rule('usage.5h >= 80 ~5');
-    const at = (v: number, p: number | null) =>
+    const at = (v: number, p: number[] | null) =>
       evaluate(r, getter({ 'usage.5h': v }), (m) => (m === 'usage.5h' ? p : null));
-    expect(at(77, 82)).toBe(true);
-    expect(at(77, 78)).toBe(false);
+    expect(at(77, [82])).toBe(true);
+    expect(at(77, [78])).toBe(false);
     expect(at(77, null)).toBe(false);
-    expect(at(74, 90)).toBe(false);
+    expect(at(77, [])).toBe(false);
+    expect(at(74, [90])).toBe(false);
     expect(at(81, null)).toBe(true);
     expect(evaluate(r, getter({ 'usage.5h': 77 }))).toBe(false);
+    // 82 -> 79 -> 78 -> 79 stays on (CR-02)
+    expect(at(78, [82, 79])).toBe(true);
+    expect(at(79, [82, 79, 78])).toBe(true);
+    expect(at(77, [82, 79, 78, 78, 77])).toBe(true);
+    expect(at(78, [82, 74, 78])).toBe(false);
+    expect(at(78, [60, 78])).toBe(false);
   });
 
   it('bands downward comparisons upward', () => {
     const r = rule('context.pct <= 20 ~5');
-    const at = (v: number, p: number | null) => evaluate(r, getter({ 'context.pct': v }), () => p);
-    expect(at(23, 18)).toBe(true);
-    expect(at(26, 18)).toBe(false);
-    expect(at(23, 22)).toBe(false);
+    const at = (v: number, p: number[]) => evaluate(r, getter({ 'context.pct': v }), () => p);
+    expect(at(23, [18])).toBe(true);
+    expect(at(26, [18])).toBe(false);
+    expect(at(23, [22])).toBe(false);
+    expect(at(24, [18, 22, 25, 23])).toBe(true);
+    expect(at(24, [18, 26, 24])).toBe(false);
   });
 });
 
@@ -322,7 +331,7 @@ describe('itemVisible', () => {
   it('passes prev through for bands', () => {
     const item = { type: 'model', showWhen: 'context.pct >= 42 ~5' };
     expect(itemVisible(item, get).visible).toBe(false);
-    expect(itemVisible(item, get, () => 45).visible).toBe(true);
+    expect(itemVisible(item, get, () => [45]).visible).toBe(true);
   });
 });
 
