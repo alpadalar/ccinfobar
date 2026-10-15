@@ -79,13 +79,4 @@ export const cliMessages = {
   'help.opt.help': 'Bu yardımı gösterir',
   'cli.unknownCommand': 'Bilinmeyen komut "{command}". ccinfobar --help çalıştırın.',
   'cli.invalidJson': "ccinfobar: stdin'den gelen JSON geçersiz",
-  'import.skippedWidget': 'ccstatusline bileşeni "{type}" için ccinfobar karşılığı yok, atlandı',
-  'import.skippedSegment': 'claude-powerline bölümü "{name}" için ccinfobar karşılığı yok, atlandı',
-  'import.customColors': 'özel claude-powerline renkleri her bileşene ayrı ayrı kopyalandı',
-  'import.noPowerlineFile':
-    'claude-powerline yapılandırma dosyası bulunamadı, varsayılan düzeni içe aktarıldı',
-  'import.cannotRead': '{file} konumundaki ccstatusline ayarları okunamıyor',
-  'import.cannotParse': '{file} konumundaki claude-powerline yapılandırması ayrıştırılamıyor',
-  'import.tool.gsd': 'GSD durum satırı',
-  'import.tool.custom': 'özel bir durum satırı',
 } satisfies Record<keyof typeof enCli, Message>;

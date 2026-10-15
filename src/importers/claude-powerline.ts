@@ -1,7 +1,10 @@
 import { t } from '../core/i18n/index.js';
+import { sanitizeText } from '../core/sanitize.js';
 import { BUILTIN_THEMES } from '../core/themes.js';
 import type { Config, OptionValue, ThemeStyle, WidgetItem } from '../core/types.js';
-import type { ImportResult } from './index.js';
+import type { ImportNote, ImportResult } from './index.js';
+
+const TOOL = 'claude-powerline';
 
 type Raw = Record<string, unknown>;
 
@@ -14,6 +17,36 @@ export const POWERLINE_DEFAULT_SEGMENTS: Raw = {
   context: { enabled: true },
   agent: { enabled: true },
 };
+
+export const TARGETS: readonly string[] = [
+  'cwd',
+  'git-branch',
+  'git-sha',
+  'git-status',
+  'git-ahead-behind',
+  'git-stash',
+  'git-operation',
+  'git-repo',
+  'model',
+  'tokens-total',
+  'session-cost',
+  'context-bar',
+  'context-percentage',
+  'five-hour-usage',
+  'five-hour-reset',
+  'weekly-usage',
+  'weekly-reset',
+  'session-duration',
+  'message-count',
+  'lines-changed',
+  'claude-version',
+  'agent-name',
+  'effort',
+  'cache-timer',
+  'output-style',
+  'session-id',
+  'env',
+];
 
 const BAR_STYLES = new Set([
   'bar',
@@ -43,7 +76,7 @@ function hex(v: unknown): string | undefined {
   return typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v) ? v : undefined;
 }
 
-function segmentItems(name: string, seg: Raw, warnings: string[]): WidgetItem[] {
+function segmentItems(name: string, seg: Raw, notes: ImportNote[]): WidgetItem[] {
   const item = (type: string, options?: Record<string, OptionValue>): WidgetItem => ({
     id: `${name}-${type}`,
     type,
@@ -105,7 +138,10 @@ function segmentItems(name: string, seg: Raw, warnings: string[]): WidgetItem[] 
     case 'env':
       return typeof seg.variable === 'string' ? [item('env', { name: seg.variable })] : [];
     default:
-      warnings.push(t('import.skippedSegment', { name }));
+      notes.push({
+        kind: 'drop',
+        text: t('import.note.noSegment', { tool: TOOL, name: sanitizeText(name) }),
+      });
       return [];
   }
 }
@@ -119,7 +155,7 @@ export function parsePowerlineArgs(command: string): Record<string, string> {
 }
 
 export function importClaudePowerline(raw: unknown, args: Record<string, string> = {}): ImportResult {
-  const warnings: string[] = [];
+  const notes: ImportNote[] = [];
   const c = (raw && typeof raw === 'object' ? raw : {}) as Raw;
   const display = (c.display ?? {}) as Raw;
   const rawLines = Array.isArray(display.lines)
@@ -132,7 +168,7 @@ export function importClaudePowerline(raw: unknown, args: Record<string, string>
     for (const [name, seg] of Object.entries(segs)) {
       if (!on(seg)) continue;
       const colors = custom[name];
-      for (const it of segmentItems(name, seg, warnings)) {
+      for (const it of segmentItems(name, seg, notes)) {
         const bg = hex(colors?.bg);
         const fg = hex(colors?.fg);
         if (bg) it.background = bg;
@@ -156,6 +192,6 @@ export function importClaudePowerline(raw: unknown, args: Record<string, string>
   config.autoWrap = display.autoWrap !== false;
   if (typeof display.widthReserve === 'number') config.widthOffset = display.widthReserve;
   if (typeof display.padding === 'number') config.padding = display.padding;
-  if (theme === 'custom') warnings.push(t('import.customColors'));
-  return { config, warnings, source: 'claude-powerline' };
+  if (theme === 'custom') notes.push({ kind: 'approx', text: t('import.note.customColors', { tool: TOOL }) });
+  return { config, notes, source: TOOL };
 }

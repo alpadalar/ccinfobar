@@ -1,14 +1,28 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import { stripAnsi } from '../../src/core/ansi.js';
 import { createContext } from '../../src/core/context.js';
 import { render } from '../../src/core/renderer.js';
 import { sampleGit, sampleGsd, samplePayload, sampleTranscript } from '../../src/core/sample.js';
 import type { Config } from '../../src/core/types.js';
-import { convertColor, importCcstatusline } from '../../src/importers/ccstatusline.js';
-import { importClaudePowerline, parsePowerlineArgs } from '../../src/importers/claude-powerline.js';
-import { detectTool, importFrom, toConfig } from '../../src/importers/index.js';
+import { TARGETS as CC_TARGETS, convertColor, importCcstatusline } from '../../src/importers/ccstatusline.js';
+import {
+  importClaudePowerline,
+  TARGETS as PL_TARGETS,
+  parsePowerlineArgs,
+} from '../../src/importers/claude-powerline.js';
+import {
+  detectTool,
+  IMPORT_SOURCES,
+  importFrom,
+  MAX_SOURCE_BYTES,
+  readSource,
+  resolveSource,
+  toConfig,
+} from '../../src/importers/index.js';
+import { ALL_WIDGETS } from '../../src/widgets/index.js';
 import { withLang } from '../helpers.js';
 
 const fixture = (f: string) =>
@@ -26,9 +40,9 @@ const show = (config: Config) =>
   ).map(stripAnsi);
 
 describe('ccstatusline import', () => {
-  it('reproduces a real four-line layout without warnings', () => {
+  it('reproduces a real four-line layout without notes', () => {
     const r = importCcstatusline(fixture('ccstatusline-settings.json'));
-    expect(r.warnings).toEqual([]);
+    expect(r.notes).toEqual([]);
     const cfg = toConfig(r);
     expect(cfg.widthOffset).toBe(40);
     expect(show(cfg)).toEqual([
@@ -65,8 +79,11 @@ describe('ccstatusline import', () => {
       { id: '1', type: 'model', color: '#FF8800', background: 'blue', bold: true },
       { id: '4', type: 'command', options: { command: 'echo hi', timeout: 500 } },
     ]);
-    expect(r.warnings).toEqual([
-      'ccstatusline widget "jj-revision" has no ccinfobar equivalent and was skipped',
+    expect(r.notes).toEqual([
+      {
+        kind: 'drop',
+        text: 'ccstatusline widget "jj-revision" has no ccinfobar equivalent and was skipped',
+      },
     ]);
     expect(convertColor('ansi256:208')).toBe('ansi256:208');
     expect(convertColor('nonsense')).toBeUndefined();
@@ -86,9 +103,10 @@ describe('claude-powerline import', () => {
     ]);
     expect(r.config.lines![0]![1]).toMatchObject({ background: '#0066cc', color: '#ffffff', bold: true });
     expect(r.config.lines![1]![0]!.options).toEqual({ display: 'bar', style: 'capped', showPace: true });
-    expect(r.warnings).toContain(
-      'claude-powerline segment "tmux" has no ccinfobar equivalent and was skipped',
-    );
+    expect(r.notes).toContainEqual({
+      kind: 'drop',
+      text: 'claude-powerline segment "tmux" has no ccinfobar equivalent and was skipped',
+    });
   });
 
   it('uses the default layout and command flags when there is no file', () => {
@@ -140,31 +158,173 @@ describe('import text', () => {
     expect(() => importFrom('ccstatusline', { file: missing })).toThrow(
       `Cannot read ccstatusline settings at ${missing}`,
     );
-    expect(importFrom('claude-powerline', { file: missing }).warnings[0]).toBe(
-      'no claude-powerline config file found, imported its default layout',
-    );
+    expect(importFrom('claude-powerline', { file: missing }).notes[0]).toEqual({
+      kind: 'info',
+      text: 'no claude-powerline config file found, imported its default layout',
+    });
   });
 
   it('follows the active language and keeps names', () => {
     withLang('tr', () => {
       const cc = importCcstatusline({ lines: [[{ id: '1', type: 'jj-revision' }]] });
-      expect(cc.warnings).toEqual([
+      expect(cc.notes.map((n) => n.text)).toEqual([
         'ccstatusline bileşeni "jj-revision" için ccinfobar karşılığı yok, atlandı',
       ]);
       const pl = importClaudePowerline({ theme: 'custom', display: { lines: [{ segments: { tmux: {} } }] } });
-      expect(pl.warnings).toEqual([
+      expect(pl.notes.map((n) => n.text)).toEqual([
         'claude-powerline bölümü "tmux" için ccinfobar karşılığı yok, atlandı',
         'özel claude-powerline renkleri her bileşene ayrı ayrı kopyalandı',
       ]);
       expect(() => importFrom('ccstatusline', { file: missing })).toThrow(
         `${missing} konumundaki ccstatusline ayarları okunamıyor`,
       );
-      expect(importFrom('claude-powerline', { file: missing }).warnings[0]).toBe(
+      expect(importFrom('claude-powerline', { file: missing }).notes[0]?.text).toBe(
         'claude-powerline yapılandırma dosyası bulunamadı, varsayılan düzeni içe aktarıldı',
       );
       expect(detectTool('node ~/.claude/hooks/gsd-statusline.js')?.name).toBe('GSD durum satırı');
       expect(detectTool('bash ~/my-line.sh')?.name).toBe('özel bir durum satırı');
       expect(detectTool('ccline')?.name).toBe('CCometixLine');
     });
+  });
+});
+
+describe('import notes', () => {
+  it('sanitizes foreign names in notes', () => {
+    const r = importCcstatusline({
+      lines: [[{ id: '1', type: 'evil\u001b]8;;https://example.com\u0007x\u001b[31m' }]],
+    });
+    expect(r.notes).toHaveLength(1);
+    expect(r.notes[0]!.kind).toBe('drop');
+    expect(r.notes[0]!.text).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/);
+    const pl = importClaudePowerline({ display: { lines: [{ segments: { 'a\u001b[2Jb': {} } }] } });
+    expect(pl.notes[0]!.text).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/);
+  });
+
+  it('notes ccstatusline hide states it cannot reproduce', () => {
+    const hide = (value: unknown) =>
+      importCcstatusline({ lines: [[{ id: '1', type: 'git-branch', metadata: { hide: value } }]] });
+    const r = hide('no-git,zero');
+    expect(r.notes).toEqual([
+      { kind: 'approx', text: 'git-branch: hiding when "zero" is not supported, it stays visible' },
+    ]);
+    expect(r.config.lines![0]).toEqual([{ id: '1', type: 'git-branch' }]);
+    expect(hide('no-data').notes).toEqual([]);
+    expect(hide(' no-git , no-jj,no-remote,no-upstream,empty,, ').notes).toEqual([]);
+    expect(hide('zero,default-value,zero').notes.map((n) => n.text)).toEqual([
+      'git-branch: hiding when "zero" is not supported, it stays visible',
+      'git-branch: hiding when "default-value" is not supported, it stays visible',
+    ]);
+    expect(hide(['zero']).notes).toEqual([]);
+    expect(hide('a\u001b[31mb').notes[0]!.text).toBe(
+      'git-branch: hiding when "ab" is not supported, it stays visible',
+    );
+    withLang('tr', () => {
+      expect(hide('zero').notes[0]!.text).toBe(
+        'git-branch: "zero" durumunda gizleme desteklenmiyor, bileşen görünür kalır',
+      );
+    });
+  });
+
+  it('marks custom powerline colors as approximated', () => {
+    const r = importClaudePowerline({ theme: 'custom', display: { lines: [{ segments: { model: {} } }] } });
+    expect(r.notes).toEqual([
+      { kind: 'approx', text: 'custom claude-powerline colors were copied onto each widget' },
+    ]);
+  });
+});
+
+describe('import sources', () => {
+  it('resolves tool names case-insensitively', () => {
+    expect(IMPORT_SOURCES).toEqual(['ccstatusline', 'claude-powerline']);
+    expect(resolveSource('ccstatusline')).toBe('ccstatusline');
+    expect(resolveSource('CLAUDE-POWERLINE')).toBe('claude-powerline');
+    for (const bad of ['nope', '', undefined, 'constructor', '__proto__', 'toString', ' ccstatusline']) {
+      expect(resolveSource(bad), String(bad)).toBeNull();
+    }
+  });
+
+  it('lists every emitted widget type as a target and every target exists', () => {
+    const types = new Set(ALL_WIDGETS.map((w) => w.type));
+    for (const t of [...CC_TARGETS, ...PL_TARGETS]) expect(types.has(t), t).toBe(true);
+    const emitted = (lines: { type: string }[][] | undefined) => (lines ?? []).flat().map((i) => i.type);
+    const cc = emitted(importCcstatusline(fixture('ccstatusline-settings.json')).config.lines);
+    for (const t of cc) expect(CC_TARGETS, t).toContain(t);
+    const allSegments = Object.fromEntries(
+      [
+        'directory',
+        'git',
+        'model',
+        'session',
+        'context',
+        'block',
+        'weekly',
+        'metrics',
+        'version',
+        'agent',
+        'thinking',
+        'cacheTimer',
+        'outputStyle',
+        'sessionId',
+      ].map((n) => [n, {}]),
+    );
+    const full = {
+      display: {
+        lines: [
+          {
+            segments: {
+              ...allSegments,
+              git: { showSha: true, showWorkingTree: true, showUpstream: true, showStashCount: true },
+              env: { variable: 'HOME' },
+            },
+          },
+          { segments: { git: { showOperation: true, showRepoName: true }, session: { type: 'tokens' } } },
+          { segments: { context: { displayStyle: 'bar' } } },
+        ],
+      },
+    };
+    for (const raw of [fixture('claude-powerline.json'), full, {}]) {
+      for (const t of emitted(importClaudePowerline(raw).config.lines)) expect(PL_TARGETS, t).toContain(t);
+    }
+    expect(new Set(emitted(importClaudePowerline(full).config.lines))).toEqual(new Set(PL_TARGETS));
+  });
+});
+
+describe('readSource', () => {
+  const dir = () => {
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-import-'));
+    onTestFinished(() => fs.rmSync(d, { recursive: true, force: true }));
+    return d;
+  };
+
+  it('refuses files over 1 MB for every importer', () => {
+    const d = dir();
+    const big = path.join(d, 'big.json');
+    fs.writeFileSync(big, `{"lines":[]}${' '.repeat(MAX_SOURCE_BYTES + 1 - 12)}`);
+    expect(fs.statSync(big).size).toBe(MAX_SOURCE_BYTES + 1);
+    expect(() => readSource(big)).toThrow(`${big} is larger than 1 MB and was not read`);
+    expect(() => importFrom('ccstatusline', { file: big })).toThrow('is larger than 1 MB');
+    expect(() => importFrom('claude-powerline', { file: big })).toThrow('is larger than 1 MB');
+    withLang('tr', () => expect(() => readSource(big)).toThrow(`${big} 1 MB sınırından büyük, okunmadı`));
+    const edge = path.join(d, 'edge.json');
+    fs.writeFileSync(edge, `{"lines":[]}${' '.repeat(MAX_SOURCE_BYTES - 12)}`);
+    expect(readSource(edge)).toHaveLength(MAX_SOURCE_BYTES);
+  });
+
+  it('strips one BOM and reports read errors', () => {
+    const d = dir();
+    const f = path.join(d, 'bom.json');
+    fs.writeFileSync(f, `﻿${JSON.stringify({ lines: [[{ id: '1', type: 'model' }]] })}`);
+    expect(readSource(f).startsWith('{')).toBe(true);
+    expect(importFrom('ccstatusline', { file: f }).config.lines).toEqual([[{ id: '1', type: 'model' }]]);
+    const pl = path.join(d, 'pl.json');
+    fs.writeFileSync(pl, `﻿${JSON.stringify({ theme: 'nord' })}`);
+    expect(importFrom('claude-powerline', { file: pl }).config.theme).toBe('nord');
+    fs.writeFileSync(f, '﻿﻿x');
+    expect(readSource(f)).toBe('﻿x');
+    expect(() => readSource(path.join(d, 'none.json'))).toThrow();
+    fs.writeFileSync(pl, '{nope');
+    expect(() => importFrom('claude-powerline', { file: pl })).toThrow(
+      `Cannot parse claude-powerline config at ${pl}`,
+    );
   });
 });

@@ -13,6 +13,7 @@ import { errorMessages } from '../../src/core/i18n/en/errors.js';
 import { explainMessages } from '../../src/core/i18n/en/explain.js';
 import { funMessages } from '../../src/core/i18n/en/fun.js';
 import { hookMessages } from '../../src/core/i18n/en/hooks.js';
+import { importMessages } from '../../src/core/i18n/en/import.js';
 import { en } from '../../src/core/i18n/en/index.js';
 import { inspectorMessages } from '../../src/core/i18n/en/inspector.js';
 import { installMessages } from '../../src/core/i18n/en/install.js';
@@ -56,6 +57,7 @@ import { errorMessages as trErrors } from '../../src/core/i18n/tr/errors.js';
 import { explainMessages as trExplain } from '../../src/core/i18n/tr/explain.js';
 import { funMessages as trFun } from '../../src/core/i18n/tr/fun.js';
 import { hookMessages as trHooks } from '../../src/core/i18n/tr/hooks.js';
+import { importMessages as trImport } from '../../src/core/i18n/tr/import.js';
 import { tr } from '../../src/core/i18n/tr/index.js';
 import { inspectorMessages as trInspector } from '../../src/core/i18n/tr/inspector.js';
 import { installMessages as trInstall } from '../../src/core/i18n/tr/install.js';
@@ -255,6 +257,7 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['tui', tuiMessages, trTui],
   ['report', reportMessages, trReport],
   ['toml', tomlMessages, trToml],
+  ['import', importMessages, trImport],
 ];
 
 function forms(m: Message): string[] {
@@ -422,6 +425,7 @@ describe('en table', () => {
       tuiMessages,
       reportMessages,
       tomlMessages,
+      importMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length).toBe(sum);

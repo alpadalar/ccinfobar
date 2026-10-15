@@ -113,6 +113,31 @@ describe('import', () => {
     expect(tr.out[1]).toMatch(/^ {2}Önceki ccinfobar yapılandırması: /);
   });
 
+  it('prints notes after the imported line and resolves tool names', () => {
+    const src = file(
+      'cc.json',
+      JSON.stringify({
+        lines: [
+          [
+            { id: '1', type: 'git-branch', metadata: { hide: 'no-git,zero' } },
+            { id: '2', type: 'jj-revision' },
+          ],
+        ],
+      }),
+    );
+    const f = path.join(root, 'notes.json');
+    const out = capture(() => runImport('ccstatusline', { file: src, command: '' }, f)).out;
+    expect(out).toEqual([
+      `✓ Imported 1 widgets from ccstatusline (${tildify(src)})`,
+      '  ⚠ git-branch: hiding when "zero" is not supported, it stays visible',
+      '  ⚠ ccstatusline widget "jj-revision" has no ccinfobar equivalent and was skipped',
+    ]);
+    const g = path.join(root, 'upper.json');
+    const upper = capture(() => runImportCommand(parseArgs(['import', 'CCSTATUSLINE', '--file', src]), g));
+    expect(upper.err).toEqual([]);
+    expect(read(g).lines[0]).toEqual([{ id: '1', type: 'git-branch' }]);
+  });
+
   it('translates the failure, usage and exists lines', () => {
     const f = file('fail.json');
     const missing = path.join(root, 'none.json');

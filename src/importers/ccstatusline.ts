@@ -1,7 +1,8 @@
 import { t } from '../core/i18n/index.js';
+import { sanitizeText } from '../core/sanitize.js';
 import { BUILTIN_THEMES } from '../core/themes.js';
 import type { Config, OptionValue, WidgetItem } from '../core/types.js';
-import type { ImportResult } from './index.js';
+import type { ImportNote, ImportResult } from './index.js';
 
 type Raw = Record<string, unknown>;
 
@@ -67,6 +68,23 @@ const RENAMED: Record<string, { type: string; options?: Record<string, OptionVal
   'flex-separator': { type: 'flex' },
 };
 
+export const TARGETS: readonly string[] = [
+  ...new Set([...SAME, ...Object.values(RENAMED).map((r) => r.type), 'text', 'command', 'separator']),
+];
+
+// ccinfobar widgets already hide when there is no data
+const NO_DATA_STATES = new Set(['no-git', 'no-jj', 'no-remote', 'no-upstream', 'no-data', 'empty']);
+
+function hideNotes(type: string, hide: unknown, notes: ImportNote[]): void {
+  if (typeof hide !== 'string') return;
+  const states = new Set(hide.split(',').map((s) => s.trim()));
+  for (const state of states) {
+    if (!state || NO_DATA_STATES.has(state)) continue;
+    const text = t('import.note.hideState', { name: sanitizeText(type), state: sanitizeText(state) });
+    notes.push({ kind: 'approx', text });
+  }
+}
+
 export function convertColor(v: unknown): string | undefined {
   if (typeof v !== 'string' || !v) return undefined;
   let c = v.trim();
@@ -77,7 +95,7 @@ export function convertColor(v: unknown): string | undefined {
   return undefined;
 }
 
-function convertItem(raw: Raw, warnings: string[]): WidgetItem | null {
+function convertItem(raw: Raw, notes: ImportNote[]): WidgetItem | null {
   const type = String(raw.type ?? '');
   const id = String(raw.id ?? type);
   let item: WidgetItem;
@@ -101,11 +119,14 @@ function convertItem(raw: Raw, warnings: string[]): WidgetItem | null {
       options: { char: typeof raw.character === 'string' ? raw.character : '|' },
     };
   } else {
-    warnings.push(t('import.skippedWidget', { type }));
+    const text = t('import.note.noEquivalent', { tool: 'ccstatusline', name: sanitizeText(type) });
+    notes.push({ kind: 'drop', text });
     return null;
   }
-  const meta = (raw.metadata ?? {}) as Record<string, string>;
-  if (type === 'skills' && meta.mode) item.options = { ...item.options, mode: meta.mode };
+  const meta = (raw.metadata && typeof raw.metadata === 'object' ? raw.metadata : {}) as Raw;
+  hideNotes(type, meta.hide, notes);
+  if (type === 'skills' && typeof meta.mode === 'string' && meta.mode)
+    item.options = { ...item.options, mode: meta.mode };
   const color = convertColor(raw.color);
   if (color) item.color = color;
   const bg = convertColor(raw.backgroundColor);
@@ -118,13 +139,13 @@ function convertItem(raw: Raw, warnings: string[]): WidgetItem | null {
 }
 
 export function importCcstatusline(raw: unknown): ImportResult {
-  const warnings: string[] = [];
+  const notes: ImportNote[] = [];
   const s = (raw && typeof raw === 'object' ? raw : {}) as Raw;
   const lines = Array.isArray(s.lines) ? (s.lines as unknown[]) : [];
   const config: Partial<Config> = {
     lines: lines.map((line) =>
       (Array.isArray(line) ? (line as Raw[]) : [])
-        .map((it) => convertItem(it, warnings))
+        .map((it) => convertItem(it, notes))
         .filter((it): it is WidgetItem => it !== null),
     ),
     separator: ' ',
@@ -153,5 +174,5 @@ export function importCcstatusline(raw: unknown): ImportResult {
     const theme = typeof pl.theme === 'string' ? pl.theme : '';
     config.theme = BUILTIN_THEMES.some((b) => b.id === theme) ? theme : 'powerline';
   }
-  return { config, warnings, source: 'ccstatusline' };
+  return { config, notes, source: 'ccstatusline' };
 }

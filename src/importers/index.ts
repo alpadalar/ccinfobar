@@ -8,13 +8,54 @@ import type { Config } from '../core/types.js';
 import { importCcstatusline } from './ccstatusline.js';
 import { importClaudePowerline, parsePowerlineArgs } from './claude-powerline.js';
 
-export type ImportSource = 'ccstatusline' | 'claude-powerline';
+export const IMPORT_SOURCES = ['ccstatusline', 'claude-powerline'] as const;
+
+export type ImportSource = (typeof IMPORT_SOURCES)[number];
+
+export const IMPORT_ALIASES: Record<string, ImportSource> = {};
+
+export interface ImportNote {
+  kind: 'approx' | 'drop' | 'info';
+  text: string;
+}
 
 export interface ImportResult {
   config: Partial<Config>;
-  warnings: string[];
+  notes: ImportNote[];
   source: ImportSource;
   file?: string | null;
+}
+
+export const MAX_SOURCE_BYTES = 1_048_576;
+
+export class SourceTooLargeError extends Error {}
+
+export function resolveSource(name: string | undefined): ImportSource | null {
+  if (typeof name !== 'string') return null;
+  const key = name.replace(/[A-Z]/g, (c) => c.toLowerCase());
+  const hit = IMPORT_SOURCES.find((s) => s === key);
+  return hit ?? (Object.hasOwn(IMPORT_ALIASES, key) ? IMPORT_ALIASES[key]! : null);
+}
+
+// fstat on the open fd, so a swapped file is still capped
+export function readSource(file: string): string {
+  const fd = fs.openSync(file, 'r');
+  try {
+    const tooLarge = () => new SourceTooLargeError(t('import.tooLarge', { file }));
+    if (fs.fstatSync(fd).size > MAX_SOURCE_BYTES) throw tooLarge();
+    const buf = Buffer.alloc(MAX_SOURCE_BYTES + 1);
+    let n = 0;
+    while (n < buf.length) {
+      const r = fs.readSync(fd, buf, n, buf.length - n, null);
+      if (r === 0) break;
+      n += r;
+    }
+    if (n > MAX_SOURCE_BYTES) throw tooLarge();
+    const text = buf.toString('utf8', 0, n);
+    return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 export interface DetectedTool {
@@ -54,8 +95,9 @@ function expand(p: string): string {
 
 function readJson(file: string): unknown | null {
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
+    return JSON.parse(readSource(file));
+  } catch (err) {
+    if (err instanceof SourceTooLargeError) throw err;
     return null;
   }
 }
@@ -99,7 +141,7 @@ export function importFrom(
   const raw = file ? readJson(file) : {};
   if (file && raw === null) throw new Error(t('import.cannotParse', { file }));
   const result = importClaudePowerline(raw, parsePowerlineArgs(command));
-  if (!file) result.warnings.unshift(t('import.noPowerlineFile'));
+  if (!file) result.notes.unshift({ kind: 'info', text: t('import.note.defaultLayout', { tool: source }) });
   return { ...result, file };
 }
 

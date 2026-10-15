@@ -22,7 +22,13 @@ import { padVisible } from '../core/width.js';
 import { gsdInstalled } from '../data/gsd.js';
 import { executeJob, type Job, jobOff } from '../data/jobs/runner.js';
 import { fetchUsage, type UsageCache, usageKey } from '../data/usage.js';
-import { type ImportSource, importFrom, toConfig } from '../importers/index.js';
+import {
+  IMPORT_SOURCES,
+  type ImportSource,
+  importFrom,
+  resolveSource,
+  toConfig,
+} from '../importers/index.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import { currentStatusLine } from './install.js';
 import { type CliIo, cliIo } from './io.js';
@@ -82,7 +88,7 @@ export function runImport(
         : t('cmd.import.done', { count, source }),
     );
     if (backup) console.log(t('cmd.import.previous', { file: tildify(backup) }));
-    for (const w of result.warnings) console.log(`  ⚠ ${w}`);
+    for (const n of result.notes) console.log(`  ⚠ ${n.text}`);
     return true;
   } catch (err) {
     console.error(t('cmd.import.failed', { error: (err as Error).message }));
@@ -91,9 +97,9 @@ export function runImport(
 }
 
 export function runImportCommand(args: Args, cfgFile: string): void {
-  const source = args.positional[0];
-  if (source !== 'ccstatusline' && source !== 'claude-powerline') {
-    console.error(t('cmd.import.usage'));
+  const source = resolveSource(args.positional[0]);
+  if (!source) {
+    console.error(t('cmd.import.usage', { sources: IMPORT_SOURCES.join('|') }));
     process.exitCode = 1;
     return;
   }
