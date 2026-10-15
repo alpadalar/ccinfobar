@@ -1,5 +1,7 @@
+import fs from 'node:fs';
+import { inspectConfigText } from '../core/config.js';
 import { type Resolved, setLanguage } from '../core/i18n/index.js';
-import { isLanguageId, loadLanguage } from '../core/i18n/languages.js';
+import { asciiLower, isLanguageId, loadLanguage } from '../core/i18n/languages.js';
 import { resolveLanguage } from '../core/i18n/resolve.js';
 import type { Config } from '../core/types.js';
 
@@ -30,6 +32,18 @@ export function envLanguage(env: Env = process.env, probe: () => string = intlLo
   const r = resolveLanguage(undefined, [...hints, intl]);
   if (memo) envResult = r;
   return r;
+}
+
+// a missing or broken config leaves the env language
+export function configLanguage(file: string): LanguagePick | undefined {
+  try {
+    const { raw, issue } = inspectConfigText(fs.readFileSync(file, 'utf8'));
+    const v = issue ? undefined : (raw as Record<string, unknown>).language;
+    const id = typeof v === 'string' ? asciiLower(v) : v;
+    return isLanguageId(id) ? { language: id } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function settingOf(config?: LanguagePick): string {

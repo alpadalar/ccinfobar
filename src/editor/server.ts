@@ -310,7 +310,8 @@ function previewSourceOf(body: Record<string, unknown>): PreviewSource {
 export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   // API text stays English; the browser picks its language from `language`
   const auto = envLanguage();
-  setLanguage('en');
+  // console lines keep the cli language
+  const cli = setLanguage('en');
   const host = opts.host ?? '127.0.0.1';
   const token = crypto.randomBytes(16).toString('hex');
   let command = defaultCommand();
@@ -818,7 +819,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
 
   const url = `http://127.0.0.1:${port}/?t=${token}`;
   if (opts.detached) startDetached(opts.detached, url);
-  const say = (line: () => string) => console.log(withLanguage(auto.id, line));
+  const say = (line: () => string) => console.log(withLanguage(cli, line));
   const onSigint = () => {
     say(() => t('edit.stopping'));
     void close();

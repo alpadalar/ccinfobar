@@ -3,7 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { resetLanguageCache } from '../../src/cli/lang.js';
+import { applyLanguage, resetLanguageCache } from '../../src/cli/lang.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { language, t } from '../../src/core/i18n/index.js';
 import { SCENARIOS } from '../../src/core/scenarios.js';
@@ -401,6 +401,7 @@ describe('editor server language', () => {
     if (lang === undefined) delete process.env.CCINFOBAR_LANG;
     else process.env.CCINFOBAR_LANG = lang;
     resetLanguageCache();
+    applyLanguage();
     handle = await startEditor({ configPath: file, open: false, port: 0 });
     port = Number(new URL(handle.url).port);
   };
@@ -493,7 +494,7 @@ describe('editor server language', () => {
     });
   });
 
-  it('prints the startup lines in the auto language', async () => {
+  it('prints the startup lines in the cli language', async () => {
     const lines: string[] = [];
     const spy = vi.spyOn(console, 'log').mockImplementation((s: string) => void lines.push(s));
     try {

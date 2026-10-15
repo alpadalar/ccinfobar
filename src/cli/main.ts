@@ -4,7 +4,7 @@ import { loadLanguages } from '../core/i18n/languages.js';
 import { configPath } from '../core/paths.js';
 import { JOBS } from '../data/jobs/index.js';
 import { type Args, parseArgs } from './args.js';
-import { applyLanguage, prepareLanguage } from './lang.js';
+import { applyLanguage, configLanguage, prepareLanguage } from './lang.js';
 import { runRender } from './render.js';
 
 // own copy: importing core/version.ts costs the render one more chunk
@@ -14,10 +14,13 @@ const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
 export async function main(argv = process.argv.slice(2)): Promise<void> {
   const args = parseArgs(argv);
   // the render, hooks and the worker load only what they show
-  if (args.command !== null && args.command !== 'hook' && args.command !== 'worker') await loadLanguages();
+  const command = args.command !== null && args.command !== 'hook' && args.command !== 'worker';
+  if (command) await loadLanguages();
   else if (args.flags.help) await prepareLanguage();
-  applyLanguage();
   const cfgFile = typeof args.flags.config === 'string' ? path.resolve(args.flags.config) : configPath();
+  // help follows the env (D-36)
+  const help = args.flags.help || args.command === 'help';
+  applyLanguage(command && !help ? configLanguage(cfgFile) : undefined);
 
   if (args.flags.version) {
     console.log(VERSION);
