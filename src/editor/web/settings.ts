@@ -1,8 +1,18 @@
-import { REFRESH_SUGGEST, refreshReasons, setBudget } from '../../core/edit.js';
+import {
+  addProfileOverride,
+  REFRESH_SUGGEST,
+  refreshReasons,
+  removeProfileOverride,
+  setBudget,
+  setProfilesBuiltIn,
+  updateProfileOverride,
+} from '../../core/edit.js';
 import { t } from '../../core/i18n/index.js';
 import { titleWidgets } from '../../core/panel.js';
+import { PROFILE_LABEL_MAX, PROFILE_MATCH_MAX, PROFILES, PROFILES_UPDATED } from '../../core/profiles.js';
+import type { Config, ProfileOverride } from '../../core/types.js';
 import { api } from './api.js';
-import { clear, h } from './dom.js';
+import { clear, h, icon } from './dom.js';
 import { field, numberInput, segmented, textInput, toggle } from './inspector.js';
 import { installDialog } from './install-dialog.js';
 import { commit, S } from './store.js';
@@ -30,11 +40,178 @@ function budgetInput(
   );
 }
 
+type ProfileKey = keyof ProfileOverride;
+export type ProfileDraft = Partial<Record<ProfileKey, string | number>>;
+export type ProfileApply = (fn: (c: Config) => Config, coalesce?: string) => void;
+
+const PROFILE_COLUMNS: { key: ProfileKey; label: string; placeholder: string; num?: boolean }[] = [
+  { key: 'match', label: 'Model match', placeholder: 'glm-*' },
+  { key: 'label', label: 'Label', placeholder: 'GLM' },
+  { key: 'contextWindow', label: 'Context window', placeholder: 'window', num: true },
+  { key: 'input', label: 'Input price', placeholder: 'input', num: true },
+  { key: 'output', label: 'Output price', placeholder: 'output', num: true },
+  { key: 'cacheRead', label: 'Cache read price', placeholder: 'cache read', num: true },
+  { key: 'cacheWrite', label: 'Cache write price', placeholder: 'cache write', num: true },
+  { key: 'currency', label: 'Currency', placeholder: 'USD' },
+];
+
+// undefined clears the field, null is invalid
+function profileValue(
+  key: ProfileKey,
+  v: string | number | null | undefined,
+): string | number | undefined | null {
+  if (key === 'match') return typeof v === 'string' && v.trim() && v.length <= PROFILE_MATCH_MAX ? v : null;
+  if (v === null || v === undefined || v === '') return undefined;
+  if (typeof v === 'number')
+    return Number.isFinite(v) && v > 0 && (key !== 'contextWindow' || Number.isInteger(v)) ? v : null;
+  if (key === 'currency') return /^[a-z]{3}$/i.test(v) ? v.toUpperCase() : null;
+  return v;
+}
+
+export function draftOverride(draft: ProfileDraft): ProfileOverride | null {
+  const out: Record<string, unknown> = {};
+  for (const { key } of PROFILE_COLUMNS) {
+    const v = profileValue(key, draft[key]);
+    if (v === null) return null;
+    if (v !== undefined) out[key] = v;
+  }
+  return out as unknown as ProfileOverride;
+}
+
+const tokens = (n: number | null) =>
+  n === null ? '\u2014' : n >= 1e6 ? `${+(n / 1e6).toFixed(2)}M` : `${Math.round(n / 1e3)}K`;
+
+function prices(
+  p: { input: number | null; output: number | null; cacheRead?: number | null; cacheWrite?: number | null },
+  currency: string | null,
+): string {
+  if (p.input === null || p.output === null) return '\u2014';
+  const parts = [`in ${p.input}`, `out ${p.output}`];
+  if (typeof p.cacheRead === 'number') parts.push(`cache read ${p.cacheRead}`);
+  if (typeof p.cacheWrite === 'number') parts.push(`cache write ${p.cacheWrite}`);
+  return `${parts.join(', ')}${currency ? ` ${currency}` : ''}`;
+}
+
+function builtInList(): HTMLElement {
+  const list = h('details', { class: 'profile-list' }, h('summary', null, 'Built-in models'));
+  for (const v of PROFILES) {
+    list.append(
+      h(
+        'div',
+        { class: 'profile-vendor' },
+        h('strong', null, v.label),
+        ` ${v.hosts.join(', ')}`,
+        v.priceNote ? h('div', { class: 'hint' }, v.priceNote) : null,
+      ),
+    );
+    for (const m of v.models)
+      list.append(
+        h(
+          'div',
+          { class: 'profile-model' },
+          h('span', null, m.label),
+          h('code', null, m.match),
+          h('span', null, tokens(m.contextWindow)),
+          h('span', null, prices(m, v.currency)),
+        ),
+      );
+  }
+  return list;
+}
+
+function profileInputs(
+  values: ProfileDraft,
+  onValue: (key: ProfileKey, v: string | number | undefined | null, raw: string | number | null) => void,
+): HTMLInputElement[] {
+  return PROFILE_COLUMNS.map((col) => {
+    const attrs = { 'aria-label': col.label, title: col.label, placeholder: col.placeholder };
+    const check = (raw: string | number | null) => {
+      const v = profileValue(col.key, raw);
+      input.classList.toggle('invalid', v === null);
+      onValue(col.key, v, raw);
+    };
+    const value = values[col.key];
+    const input = col.num
+      ? numberInput(typeof value === 'number' ? value : '', check, {
+          ...attrs,
+          min: 0,
+          step: col.key === 'contextWindow' ? 1 : 'any',
+        })
+      : textInput(typeof value === 'string' ? value : '', check, {
+          ...attrs,
+          maxLength: col.key === 'currency' ? 3 : col.key === 'match' ? PROFILE_MATCH_MAX : PROFILE_LABEL_MAX,
+        });
+    return input;
+  });
+}
+
+export function profilesFields(c: Config, apply: ProfileApply, draft: ProfileDraft): HTMLElement[] {
+  const rows = (c.profiles?.models ?? []).map((entry, i) =>
+    h(
+      'div',
+      { class: 'profile-row' },
+      ...profileInputs(entry, (key, v) => {
+        if (v !== null) apply((x) => updateProfileOverride(x, i, { [key]: v }), `profiles.${i}.${key}`);
+      }),
+      h(
+        'button',
+        {
+          class: 'icon-btn danger',
+          type: 'button',
+          title: 'Remove',
+          'aria-label': `Remove ${entry.match}`,
+          onClick: () => apply((x) => removeProfileOverride(x, i)),
+        },
+        icon('trash'),
+      ),
+    ),
+  );
+  const add = () => {
+    const entry = draftOverride(draft);
+    if (!entry) return;
+    for (const k of Object.keys(draft)) delete draft[k as ProfileKey];
+    apply((x) => addProfileOverride(x, entry));
+  };
+  return [
+    field(
+      'Built-in model profiles',
+      toggle(c.profiles?.builtIn !== false, (v) => apply((x) => setProfilesBuiltIn(x, v))),
+      "Names, context windows and prices for third-party models. Built-in prices are list prices and apply only on the vendor's own API host.",
+      true,
+    ),
+    builtInList(),
+    h('div', { class: 'hint' }, `Updated ${PROFILES_UPDATED}`),
+    field(
+      'Your models',
+      h(
+        'div',
+        { class: 'profile-rows' },
+        ...rows,
+        h(
+          'div',
+          { class: 'profile-row draft' },
+          ...profileInputs(draft, (key, _, raw) => {
+            if (raw === null || raw === '') delete draft[key];
+            else draft[key] = raw;
+          }),
+          h(
+            'button',
+            { class: 'icon-btn', type: 'button', title: 'Add', 'aria-label': 'Add model', onClick: add },
+            icon('plus'),
+          ),
+        ),
+      ),
+      'Match is a model id with * wildcards. Yours win over the built-ins; prices are per 1M tokens and need both input and output.',
+    ),
+  ];
+}
+
 export async function openSettings(): Promise<void> {
   const body = h('div', { class: 'settings' });
   let info: Awaited<ReturnType<typeof api.system>> | null = null;
   let latest: { latest: string; newer: boolean } | null = null;
   let busy = false;
+  const draft: ProfileDraft = {};
 
   const section = (title: string, ...children: (Node | null)[]) =>
     h('section', { class: 'section' }, h('h4', null, title), ...children);
@@ -283,6 +460,17 @@ export async function openSettings(): Promise<void> {
             100,
           ),
           'The budget widget turns yellow here and red at 100%.',
+        ),
+      ),
+      section(
+        'Model profiles',
+        ...profilesFields(
+          c,
+          (fn, coalesce) => {
+            commit(fn(S.config), coalesce ? { coalesce } : {});
+            if (!coalesce) render();
+          },
+          draft,
         ),
       ),
     );
