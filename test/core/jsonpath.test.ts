@@ -7,7 +7,7 @@ const SAMPLE = {
   items: [{ id: 1 }, { id: 2 }, { id: 3 }],
   a: [1, 2],
   n: 4,
-  été: 'summer',
+  \u00e9t\u00e9: 'summer',
   '\u{1f600}': 'smile',
 };
 
@@ -41,7 +41,7 @@ describe('parsePath', () => {
     ['$.items[ 1 ].id', 2],
     ['$.items[-3].id', 1],
     ['$.data["a b"]', 'x'],
-    ['$.été', 'summer'],
+    ['$.\u00e9t\u00e9', 'summer'],
     ['$.\u{1f600}', 'smile'],
   ])('parses and evaluates %s', (src, value) => {
     expect(run(src)).toEqual({ found: true, value });
@@ -60,7 +60,7 @@ describe('parsePath', () => {
     expect(segs("$['a\\'b']")).toEqual([{ k: 'name', v: "a'b" }]);
     expect(segs('$["a\\"b"]')).toEqual([{ k: 'name', v: 'a"b' }]);
     expect(segs("$['\\b\\f\\n\\r\\t\\/\\\\']")).toEqual([{ k: 'name', v: '\b\f\n\r\t/\\' }]);
-    expect(segs("$['\\u00e9']")).toEqual([{ k: 'name', v: 'é' }]);
+    expect(segs("$['\\u00e9']")).toEqual([{ k: 'name', v: '\u00e9' }]);
     expect(segs('$["it\'s"]')).toEqual([{ k: 'name', v: "it's" }]);
   });
 

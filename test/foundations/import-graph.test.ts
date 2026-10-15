@@ -67,6 +67,8 @@ const PURE = [
   'src/core/cache-rule.ts',
   'src/core/job-values.ts',
   'src/core/profiles.ts',
+  'src/core/jsonpath.ts',
+  'src/core/http-spec.ts',
   'src/data/live.ts',
 ];
 
