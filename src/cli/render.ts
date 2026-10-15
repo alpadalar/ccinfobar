@@ -8,7 +8,7 @@ import { loadForUse } from '../core/load.js';
 import { lastPayloadPath } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
 import { finalizeLine, render } from '../core/renderer.js';
-import type { Config, DataSources, StatusPayload } from '../core/types.js';
+import type { Config, DataSources, RenderContext, StatusPayload } from '../core/types.js';
 import { scheduleJobs } from '../data/jobs/index.js';
 import {
   ledgerOn,
@@ -26,6 +26,7 @@ import { readTranscript } from '../data/transcript.js';
 import { updateNotice } from '../data/update-state.js';
 import { effectiveUsage } from '../data/usage.js';
 import type { Args } from './args.js';
+import { syncProgress } from './progress.js';
 
 // own copy: importing core/version.ts costs the render one more chunk
 declare const __VERSION__: string;
@@ -56,14 +57,23 @@ export function savePayload(payload: StatusPayload): void {
   } catch {}
 }
 
+function statusContext(
+  config: Config,
+  payload: StatusPayload,
+  widthFlag?: number,
+  data?: Partial<DataSources>,
+): RenderContext {
+  const width = widthFlag ?? terminalWidth(payload.session_id, payload.terminal_width ?? payload.columns);
+  return createContext({ payload, config, terminalWidth: width, ...(data ? { data } : {}) });
+}
+
 export function renderStatus(
   config: Config,
   payload: StatusPayload,
   widthFlag?: number,
   data?: Partial<DataSources>,
 ): string[] {
-  const width = widthFlag ?? terminalWidth(payload.session_id, payload.terminal_width ?? payload.columns);
-  return render(createContext({ payload, config, terminalWidth: width, ...(data ? { data } : {}) }));
+  return render(statusContext(config, payload, widthFlag, data));
 }
 
 function safeLine(text: string): void {
@@ -115,7 +125,8 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
         : null;
     });
   }
-  const lines = renderStatus(config, eff.payload, width, data);
+  const ctx = statusContext(config, eff.payload, width, data);
+  const lines = render(ctx);
   let notice: string | null = null;
   try {
     notice = updateNotice(config, VERSION);
@@ -135,5 +146,8 @@ async function renderOnce(args: Args, cfgFile: string): Promise<void> {
       if (read) recordLedger(process.env, payload, read, Date.now());
     }
     scheduleJobs(config, payload, process.env, path.resolve(cwd), cfgFile, { repos });
+  } catch {}
+  try {
+    if (config.progress) syncProgress(ctx, process.env);
   } catch {}
 }

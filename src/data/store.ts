@@ -132,6 +132,22 @@ export function appendLine(file: string, line: string): boolean {
   }
 }
 
+// crypto-free for the hook path; tiny files only
+export function writeSmall(file: string, text: string): boolean {
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(tmp, text, { mode: 0o600 });
+    fs.renameSync(tmp, file);
+    return true;
+  } catch {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {}
+    return false;
+  }
+}
+
 export function readJsonSafe<T>(file: string, guard?: (v: unknown) => v is T): T | null {
   try {
     const v: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
