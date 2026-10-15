@@ -10,8 +10,10 @@ import { projectionState } from '../widgets/projection.js';
 import { isLoadingOutput } from '../widgets/shared.js';
 import { STATUS_STALE_MS, serviceState } from '../widgets/status.js';
 import { stripAnsi, visibleWidth } from './ansi.js';
+import { describeRuleError, type MetricValue, type Visibility } from './conditions.js';
 import { t } from './i18n/index.js';
 import { parsePath } from './jsonpath.js';
+import { hasItemRules, ruleDecision } from './metrics.js';
 import { hasReplies } from './payload.js';
 import {
   hiddenByWorkspace,
@@ -76,7 +78,9 @@ export type EmptyCode =
   | 'not-scalar'
   | 'path-miss'
   | 'error'
-  | 'no-data';
+  | 'no-data'
+  | 'hidden-by-rule'
+  | 'invalid-rule';
 
 export interface EmptyReason {
   code: EmptyCode;
@@ -97,6 +101,7 @@ export interface InspectRow {
   error: string | null;
   note?: EmptyReason;
   ci?: EmptyReason;
+  warning?: EmptyReason;
 }
 
 export interface LineRow {
@@ -360,6 +365,29 @@ export function emptyReason(
   return reason('no-data');
 }
 
+function ruleValue(v: MetricValue): string {
+  if (v === null) return t('explain.value.noData');
+  if (typeof v === 'boolean') return t(v ? 'explain.value.yes' : 'explain.value.no');
+  return sanitizeText(String(v));
+}
+
+function ruleHidden(d: Visibility): EmptyReason {
+  const k = d.decided;
+  if (!k) return reason('hidden-by-rule', t('doctor.hiddenByRule'));
+  return reason('hidden-by-rule', undefined, {
+    key: k.key,
+    rule: sanitizeText(k.clause),
+    metric: sanitizeText(k.metric),
+    value: ruleValue(k.value),
+  });
+}
+
+function ruleWarning(d: Visibility): EmptyReason | null {
+  if (!d.invalid) return null;
+  const problem = sanitizeText(describeRuleError(d.invalid.error));
+  return reason('invalid-rule', undefined, { key: d.invalid.key, problem });
+}
+
 function firstLine(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   return sanitizeText(msg.split(/\r?\n/)[0] ?? '').trim();
@@ -412,7 +440,10 @@ export function sourcesFor(
   reads: TraceRead[],
   meta: InspectMeta = {},
 ): Source[] {
-  const raw = def.sources ? hinted(def.sources) : toSources(item, reads, meta);
+  return uniq(def.sources ? hinted(def.sources) : toSources(item, reads, meta));
+}
+
+function uniq(raw: Source[]): Source[] {
   const seen = new Set<string>();
   return raw.filter((s) => {
     const k = `${s.kind}\u0000${s.path ?? ''}`;
@@ -500,16 +531,29 @@ function inspectItem(
   const wctx = trace.forWidget(
     item.type === 'command' && opts.commandEnv ? { ...traced, env: opts.commandEnv } : traced,
   );
+  let ruleReads: TraceRead[] = [];
+  let warning: EmptyReason | null = null;
+  if (hasItemRules(item)) {
+    trace.begin();
+    const d = ruleDecision(wctx, item);
+    ruleReads = trace.end();
+    warning = ruleWarning(d);
+    if (!d.visible) {
+      const sources = uniq(toSources(item, ruleReads, opts.meta ?? {}));
+      return { ...row, status: 'hidden', sources, empty: ruleHidden(d), ...(warning ? { warning } : {}) };
+    }
+  }
+  const warned = (r: InspectRow): InspectRow => (warning ? { ...r, warning } : r);
   let result: WidgetResult;
   trace.begin();
   try {
     result = def.render(wctx, item);
   } catch (e) {
     trace.end();
-    return { ...row, status: 'error', error: firstLine(e), empty: reason('error') };
+    return warned({ ...row, status: 'error', error: firstLine(e), empty: reason('error') });
   }
   const reads = trace.end();
-  const sources = sourcesFor(def, item, reads, opts.meta);
+  const sources = sourcesFor(def, item, [...ruleReads, ...reads], opts.meta);
   const out = normalizeResult(def, result);
   if (out) {
     const shown: InspectRow = {
@@ -520,14 +564,14 @@ function inspectItem(
     };
     const note = shownNote(ctx, item);
     const ci = item.type === 'pr' ? ciEmpty(ctx, item) : null;
-    return { ...shown, ...(note ? { note } : {}), ...(ci ? { ci } : {}) };
+    return warned({ ...shown, ...(note ? { note } : {}), ...(ci ? { ci } : {}) });
   }
   if (!item.hideEmpty && hiddenByWorkspace(ctx, def)) {
-    return { ...row, status: 'hidden', sources, empty: reason('workspace-mode') };
+    return warned({ ...row, status: 'hidden', sources, empty: reason('workspace-mode') });
   }
   const status = hidesWhenEmpty(def, item) || def.category === 'layout' ? 'hidden' : 'empty';
   const empty = emptyReason(ctx, item, def.sources ? undefined : reads, opts.meta);
-  return { ...row, status, sources, empty };
+  return warned({ ...row, status, sources, empty });
 }
 
 // the payload has no mcp status yet

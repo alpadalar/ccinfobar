@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { sanitize } from '../../src/core/ansi.js';
 import { t } from '../../src/core/i18n/index.js';
@@ -15,6 +18,7 @@ import { samplePayload } from '../../src/core/sample.js';
 import { getScenario, SCENARIO_NOW } from '../../src/core/scenarios.js';
 import type { RenderContext, StatusPayload, WidgetDef, WidgetItem } from '../../src/core/types.js';
 import type { JobEnvelope } from '../../src/data/jobs/runner.js';
+import { findUp } from '../../src/data/repos.js';
 import { parseTranscriptText } from '../../src/data/transcript.js';
 import { ALL_WIDGETS, getWidget } from '../../src/widgets/index.js';
 import { ctxWith, NOW, withoutSideEffects } from '../helpers.js';
@@ -904,5 +908,93 @@ describe('http explain', () => {
     expect(row?.status).toBe('shown');
     expect(row?.note?.code).toBe('job-error');
     expect(row?.note?.text).toContain('http-401');
+  });
+});
+
+describe('rule rows', () => {
+  const atPct = (pct: number): StatusPayload => {
+    const p = samplePayload(NOW.getTime());
+    p.context_window!.used_percentage = pct;
+    delete p.context_window!.current_usage;
+    return p;
+  };
+  const one = (it: WidgetItem, payload = atPct(42)) =>
+    rowsFor(ctxWith({ payload, config: { lines: [[it]] } }))[0]!;
+
+  it('reports a widget hidden by showWhen without rendering it', () => {
+    seen.length = 0;
+    const r = one(item('probe', { showWhen: 'context.pct >= 70' }));
+    expect(r.status).toBe('hidden');
+    expect(r.empty!.code).toBe('hidden-by-rule');
+    expect(r.empty!.text).toContain('showWhen "context.pct >= 70"');
+    expect(r.empty!.text).toContain('context.pct = 42');
+    expect(r.empty!.text).toBe(
+      t('explain.reason.hidden-by-rule', {
+        key: 'showWhen',
+        rule: 'context.pct >= 70',
+        metric: 'context.pct',
+        value: '42',
+      }),
+    );
+    expect(seen).toHaveLength(0);
+    expect(r.sources.some((s) => s.kind === 'payload' && s.path?.startsWith('context_window'))).toBe(true);
+    expect(r.warning).toBeUndefined();
+  });
+
+  it('shows the row when the rule passes', () => {
+    const r = one(item('probe', { showWhen: 'context.pct >= 70' }), atPct(80));
+    expect(r).toMatchObject({ status: 'shown', value: 'p' });
+    expect(r.warning).toBeUndefined();
+  });
+
+  it('names hideWhen and a missing value', () => {
+    const hid = one(item('probe', { hideWhen: 'context.pct < 50' }));
+    expect(hid.empty!.text).toBe(
+      t('explain.reason.hidden-by-rule', {
+        key: 'hideWhen',
+        rule: 'context.pct < 50',
+        metric: 'context.pct',
+        value: '42',
+      }),
+    );
+    const none = rowsFor(
+      ctxWith({
+        hooks: () => null,
+        config: { lines: [[item('probe', { showWhen: 'permission.waiting' })]] },
+      }),
+    )[0]!;
+    expect(none.status).toBe('hidden');
+    expect(none.empty!.text).toContain(`permission.waiting = ${t('explain.value.noData')}`);
+  });
+
+  it.skipIf(findUp(os.tmpdir(), '.git', 'any') !== null)('names a flag rule outside a repo', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-rule-'));
+    try {
+      const ctx = { ...ctxWith({ config: { lines: [[item('probe', { hideWhen: ['!git'] })]] } }), cwd: dir };
+      const r = rowsFor(ctx)[0]!;
+      expect(r.status).toBe('hidden');
+      expect(r.empty!.text).toContain('hideWhen "!git"');
+      expect(r.empty!.text).toContain(`git = ${t('explain.value.no')}`);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('warns about an invalid rule and keeps the row shown', () => {
+    const r = one(item('probe', { showWhen: 'contxt.pct > 5' }));
+    expect(r.status).toBe('shown');
+    expect(r.warning!.code).toBe('invalid-rule');
+    expect(r.warning!.text).toBe(
+      t('explain.reason.invalid-rule', {
+        key: 'showWhen',
+        problem: t('rule.error.unknown-metric', { text: 'contxt.pct', at: 1 }),
+      }),
+    );
+  });
+
+  it('sanitizes rule text', () => {
+    const r = one(item('probe', { hideWhen: `co\u001b[31mst > 1` }));
+    expect(r.warning!.code).toBe('invalid-rule');
+    expect(r.warning!.text).not.toContain('\u001b');
   });
 });

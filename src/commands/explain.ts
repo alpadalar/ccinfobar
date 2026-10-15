@@ -549,6 +549,7 @@ export function explainJson(
       error: r.error,
       ...(r.note ? { note: { code: r.note.code, text: r.note.text } } : {}),
       ...(r.ci ? { ci: { code: r.ci.code, text: r.ci.text } } : {}),
+      ...(r.warning ? { warning: { code: r.warning.code, text: r.warning.text } } : {}),
     })),
     lines: lines.map((l) => ({ line: l.line, width: l.width, max: l.max, cut: l.cut })),
   });
@@ -660,6 +661,7 @@ function detailLines(data: InspectInput, r: InspectRow, reveal: boolean): string
   else if (r.empty) out.push(t('explain.detail.reason', { reason: s(r.empty.text) }));
   if (r.note) out.push(t('explain.detail.note', { note: s(r.note.text) }));
   if (r.ci) out.push(t('explain.detail.ci', { reason: s(r.ci.text) }));
+  if (r.warning) out.push(t('explain.detail.warning', { warning: s(r.warning.text) }));
   const opts =
     options && Object.keys(options).length
       ? JSON.stringify(clean(reveal ? options : maskOptions(r.type, options, data.ctx.env)))
@@ -710,6 +712,7 @@ function printExplain(
       io.log(rowLine(shown(r)));
       if (r.note) io.log(t('explain.row.note', { reason: sanitizeText(r.note.text) }));
       if (r.ci) io.log(t('explain.row.ci', { reason: sanitizeText(r.ci.text) }));
+      if (r.warning) io.log(t('explain.row.warning', { reason: sanitizeText(r.warning.text) }));
     }
     const l = lines[line];
     if (l?.cut) io.log(t('explain.lineCut', { line: line + 1, width: l.width, max: l.max ?? 0 }));

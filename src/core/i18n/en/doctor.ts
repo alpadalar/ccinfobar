@@ -5,6 +5,8 @@ export const doctorMessages = {
   'doctor.columnNote': '  (columns count UTF-16 code units)',
   'doctor.unknownWidget': '⚠ Unknown widget type "{type}" on line {line}',
   'doctor.badOption': '⚠ {type}: option "{key}" has an unsupported value',
+  'doctor.badRule': '⚠ Widget {id}: {key} is ignored ({problem})',
+  'doctor.hiddenByRule': 'hidden by rule',
   'doctor.http.item': '  http on line {line}: {url}, sends {env}',
   'doctor.http.noEnv': 'no env vars',
   'doctor.http.noUrl': '⚠ http on line {line}: no url set; the item shows nothing',

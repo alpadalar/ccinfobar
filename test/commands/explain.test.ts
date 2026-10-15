@@ -254,6 +254,42 @@ describe('runExplain table', () => {
     expect(detail).toContain(t('explain.detail.note', { note: t('explain.reason.no-mcp-health') }));
   });
 
+  it('names the rule that hid a widget and an ignored rule', () => {
+    savedPayload();
+    const cfg = {
+      lines: [
+        [
+          { id: 'hot', type: 'text', options: { text: 'HOT' }, showWhen: 'context.pct >= 70' },
+          { id: 'typo', type: 'text', options: { text: 'T' }, showWhen: `contxt${ESC}[31m.pct > 5` },
+        ],
+      ],
+    };
+    const { out } = run([], cfg);
+    for (const l of out) expect(l).not.toContain(ESC);
+    const reason = t('explain.reason.hidden-by-rule', {
+      key: 'showWhen',
+      rule: 'context.pct >= 70',
+      metric: 'context.pct',
+      value: '12',
+    });
+    const hot = out.find((l) => l.includes('hot (text)'))!;
+    expect(hot.startsWith(`${t('explain.row.hidden', { name: 'hot (text)', reason })} ← `)).toBe(true);
+    expect(hot).toContain('payload: context_window.used_percentage');
+    const i = out.findIndex((l) => l.includes('typo (text): T'));
+    expect(i).toBeGreaterThan(-1);
+    expect(out[i + 1]).toMatch(/^ {6}⚠ showWhen is ignored: /);
+    const json = JSON.parse(run(['--json'], cfg).out.join('\n'));
+    expect(json.widgets[0]).toMatchObject({
+      status: 'hidden',
+      empty: { code: 'hidden-by-rule', text: reason },
+    });
+    expect(json.widgets[1].status).toBe('shown');
+    expect(json.widgets[1].warning.code).toBe('invalid-rule');
+    expect(json.widgets[1].warning.text).not.toContain(ESC);
+    const detail = run(['typo'], cfg).out;
+    expect(detail.some((l) => l.startsWith('  warning: showWhen is ignored: '))).toBe(true);
+  });
+
   it('notes a cut line', () => {
     const { out } = run(['--scenario', 'context-full', '--width', '20'], { ...LAYOUT, autoWrap: false });
     expect(out.some((l) => l.startsWith('  ⚠ Line 1 needs'))).toBe(true);
