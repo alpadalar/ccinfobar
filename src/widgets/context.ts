@@ -25,11 +25,14 @@ function guessSize(ctx: RenderContext): number | null {
   return ctx.payload.exceeds_200k_tokens || len > 200_000 ? 1_000_000 : 200_000;
 }
 
+const envWindow = (ctx: RenderContext): number | null =>
+  detectProvider(ctx.env).kind === 'firstParty' ? null : positive(ctx.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS);
+
 // env > payload > profile, non-first-party only (D-48)
 function overrideSize(ctx: RenderContext, n: number | null): number | null {
   const provider = detectProvider(ctx.env);
   if (provider.kind === 'firstParty') return null;
-  const env = positive(ctx.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS);
+  const env = envWindow(ctx);
   if (env) return env === n ? null : env;
   if (n !== null && n !== 200_000) return null;
   const p = resolveProfile(ctx.payload.model, provider, ctx.config)?.contextWindow ?? null;
@@ -39,6 +42,11 @@ function overrideSize(ctx: RenderContext, n: number | null): number | null {
 export function windowSize(ctx: RenderContext): number | null {
   const n = payloadSize(ctx);
   return overrideSize(ctx, n) ?? n ?? guessSize(ctx);
+}
+
+// where Claude Code compacts: a profile window never moves it
+export function compactWindow(ctx: RenderContext): number | null {
+  return envWindow(ctx) ?? payloadSize(ctx) ?? guessSize(ctx);
 }
 
 export function windowFromPayload(ctx: RenderContext): boolean {
@@ -96,8 +104,9 @@ export function contextPercent(
   const used = contextTokens(ctx);
   const own = windowFromPayload(ctx);
   let pct: number | null = null;
-  if (basis !== 'raw' && size && used !== null) {
-    const limit = limitFor(ctx, basis, size, reserveTokens);
+  const base = basis === 'raw' ? null : (compactWindow(ctx) ?? size);
+  if (base && used !== null) {
+    const limit = limitFor(ctx, basis, base, reserveTokens);
     pct = limit > 0 ? (used / limit) * 100 : 100;
   } else if (own && typeof cw?.used_percentage === 'number') pct = cw.used_percentage;
   else if (own && typeof cw?.remaining_percentage === 'number') pct = 100 - cw.remaining_percentage;

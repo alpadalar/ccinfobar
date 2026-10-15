@@ -149,7 +149,7 @@ With `charset: "text"` every bar becomes `=====-----`.
 | `usable` | the point where Claude Code compacts: the window minus the output reserve and the compaction buffer, so a 1M window counts against about 967K. It follows `CLAUDE_CODE_AUTO_COMPACT_WINDOW` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` |
 | `reserve` | the window minus `reserveTokens` (default `20000`), an approximate output reserve you set yourself |
 
-`usable` and `reserve` fall back to `raw` until the window size and token count are known. The old `usable: true` option still works; the editor and TUI show and save it as `basis: "usable"`.
+`usable` and `reserve` count against the window Claude Code itself compacts at: `CLAUDE_CODE_MAX_CONTEXT_TOKENS` when it is set (gateway and cloud sessions), else the size Claude Code reports. A [model profile](#model-profiles) window changes `raw` only. `usable` and `reserve` fall back to `raw` until the window size and token count are known. The old `usable: true` option still works; the editor and TUI show and save it as `basis: "usable"`.
 
 ## Budget
 
@@ -333,7 +333,7 @@ Detection reads only which variables are set (`CLAUDE_CODE_USE_BEDROCK`, `ANTHRO
 
 Gateways such as Z.ai or DeepSeek report models Claude Code does not know, so it assumes a 200K window and prices nothing. ccinfobar ships a table (updated 2026-10-14) for GLM (Z.ai and BigModel), Kimi (Moonshot), DeepSeek, MiniMax and Qwen (DashScope). For a non-Claude provider a matching profile gives:
 
-- **Context window.** When Claude Code reports the 200K default (or no size) and the profile knows a larger window, context widgets use the profile's window. `CLAUDE_CODE_MAX_CONTEXT_TOKENS` wins over both. Claude logins are never affected.
+- **Context window.** When Claude Code reports the 200K default (or no size) and the profile knows a larger window, context widgets use the profile's window. `CLAUDE_CODE_MAX_CONTEXT_TOKENS` wins over both. Claude logins are never affected. The `usable` and `reserve` [bases](#context-basis) keep the window Claude Code compacts at, because Claude Code does not know the profile: set `CLAUDE_CODE_MAX_CONTEXT_TOKENS` to the model's window so Claude Code itself uses it, and those bases follow.
 - **Cost.** `session-cost` with `basis: "auto"` uses the profile's prices in its currency when they are known, else Claude Code's cost; `basis: "profile"` always uses the profile. The default `payload` keeps Claude Code's number. Gateway users should set `auto`. Ledger, `cost-*` and budget widgets stay in USD from Claude Code.
 - **Name.** `model` with `profileLabel: true` shows the profile's name instead of a raw model id.
 

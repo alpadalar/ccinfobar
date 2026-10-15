@@ -4,7 +4,13 @@ import { createContext } from '../../src/core/context.js';
 import { sampleTranscript } from '../../src/core/sample.js';
 import { getScenario, SCENARIO_NOW, SCENARIOS, scenarioConfig } from '../../src/core/scenarios.js';
 import type { Config, RenderContext, StatusPayload, WidgetItem } from '../../src/core/types.js';
-import { contextPercent, contextTokens, windowFromPayload, windowSize } from '../../src/widgets/context.js';
+import {
+  compactWindow,
+  contextPercent,
+  contextTokens,
+  windowFromPayload,
+  windowSize,
+} from '../../src/widgets/context.js';
 import { ctxWith, NOW, renderWidget, withoutSideEffects } from '../helpers.js';
 
 const payload = (size: number, used: number, usedPct?: number): StatusPayload => ({
@@ -251,11 +257,27 @@ describe('gateway context window (D-48)', () => {
     expect(renderWidget('context-percentage', c)).toBe('75%');
   });
 
-  it('usable and reserve use the new window', () => {
-    const c = ctx(glm(200_000, 483_500));
+  it('usable and reserve keep the window Claude Code compacts at', () => {
+    const c = ctx(glm(200_000, 83_500));
+    expect(windowSize(c)).toBe(1_000_000);
+    expect(compactWindow(c)).toBe(200_000);
+    expect(renderWidget('context-percentage', c)).toBe('8%');
     expect(renderWidget('context-percentage', c, { options: { basis: 'usable' } })).toBe('50%');
-    expect(renderWidget('context-percentage', c, { options: { basis: 'reserve' } })).toBe('49%');
+    expect(renderWidget('context-percentage', c, { options: { basis: 'reserve' } })).toBe('46%');
     expect(renderWidget('context-bar', c, { options: { basis: 'usable' } })).toBe('█████░░░░░ 50%');
+  });
+
+  it('usable and reserve follow CLAUDE_CODE_MAX_CONTEXT_TOKENS and the auto-compact window', () => {
+    const big = ctx(glm(200_000, 483_500), { ...ZAI, CLAUDE_CODE_MAX_CONTEXT_TOKENS: '1000000' });
+    expect(renderWidget('context-percentage', big, { options: { basis: 'usable' } })).toBe('50%');
+    expect(renderWidget('context-percentage', big, { options: { basis: 'reserve' } })).toBe('49%');
+    const auto = ctx(glm(200_000, 83_500), { ...ZAI, CLAUDE_CODE_AUTO_COMPACT_WINDOW: '200000' });
+    expect(renderWidget('context-percentage', auto, { options: { basis: 'usable' } })).toBe('50%');
+    const first = ctxWith({
+      payload: payload(200_000, 83_500),
+      env: { CLAUDE_CODE_MAX_CONTEXT_TOKENS: '1000000' },
+    });
+    expect(renderWidget('context-percentage', first, { options: { basis: 'usable' } })).toBe('50%');
   });
 
   it('a user override window applies with no payload size', () => {
