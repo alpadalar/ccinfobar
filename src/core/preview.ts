@@ -10,7 +10,6 @@ import { readTranscript } from '../data/transcript.js';
 import { effectiveUsage } from '../data/usage.js';
 import { createContext, lazy, resolveCwd } from './context.js';
 import { t } from './i18n/index.js';
-import { inspectRows } from './inspect.js';
 import { hasItemRules } from './metrics.js';
 import { lastPayloadPath } from './paths.js';
 import { ingestPayload } from './payload.js';
@@ -68,12 +67,27 @@ export function readLastPayload(env: NodeJS.ProcessEnv = process.env): StatusPay
 }
 
 export function renderPreview(config: Config, source: PreviewSource, width: number, theme?: Theme): string[] {
-  return render(previewContext(config, source, width, theme));
+  return render({ ...previewContext(config, source, width, theme), values: new Map() });
 }
 
 export interface PreviewHidden {
   hidden: string[];
   dropped: string[];
+}
+
+// WR-08: one render gives the lines and what rules or priority overflow hid
+export function renderPreviewReport(
+  config: Config,
+  source: PreviewSource,
+  width: number,
+  theme?: Theme,
+): PreviewHidden & { lines: string[] } {
+  const sink = { hidden: [] as string[], dropped: [] as string[] };
+  const lines = render({ ...previewContext(config, source, width, theme), values: new Map(), sink });
+  const order = new Map(config.lines.flat().map((i, n) => [i.id, n]));
+  const sorted = (ids: string[]) =>
+    [...new Set(ids)].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+  return { lines, hidden: sorted([...sink.hidden, ...sink.dropped]), dropped: sorted(sink.dropped) };
 }
 
 // dropped: the hidden ids that priority overflow removed
@@ -86,9 +100,8 @@ export function previewHiddenBy(
   if (overflowOf(config) !== 'priority' && !config.lines.some((l) => l.some(hasItemRules))) {
     return { hidden: [], dropped: [] };
   }
-  const rows = inspectRows(previewContext(config, source, width, theme));
-  const ids = (codes: string[]) => rows.filter((r) => codes.includes(r.empty?.code ?? '')).map((r) => r.id);
-  return { hidden: ids(['hidden-by-rule', 'dropped-by-priority']), dropped: ids(['dropped-by-priority']) };
+  const { hidden, dropped } = renderPreviewReport(config, source, width, theme);
+  return { hidden, dropped };
 }
 
 export function previewHidden(config: Config, source: PreviewSource, width: number, theme?: Theme): string[] {

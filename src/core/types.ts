@@ -316,6 +316,10 @@ export interface RenderContext {
   workspaceMode?: boolean;
   glyphMode?: ResolvedGlyphMode;
   gradient?: readonly string[];
+  // filled by render(): ids a rule hid and ids priority overflow dropped
+  sink?: { hidden: string[]; dropped: string[] };
+  // one preview context renders each item once
+  values?: Map<WidgetItem, WidgetOutput | null>;
 }
 
 export interface DataSources {

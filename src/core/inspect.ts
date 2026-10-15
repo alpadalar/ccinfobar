@@ -665,17 +665,13 @@ function lineRows(base: RenderContext): LineRow[] {
   const a = resolveAppearance(ctx.config);
   if (a.style === 'tui') return [];
   const max = maxLineWidth(ctx);
+  // one render per line (WR-08)
   return ctx.config.lines.map((items, line) => {
-    const full = renderLine(
-      { ...ctx, terminalWidth: null, config: { ...ctx.config, maxWidth: 'auto' } },
-      items,
-      0,
-      a,
-    );
-    const width = visibleWidth(full);
+    const report: LineReport = { dropped: [], width: null };
+    renderLine(ctx, items, 0, a, report);
+    const width = report.natural ?? 0;
     const over = max !== null && width > max;
-    const drop = over ? dropReport(ctx, items) : null;
     const cut = over && overflowOf(ctx.config) === 'truncate';
-    return { line, width, max, cut, ...(drop?.dropped.length ? { dropped: drop.dropped } : {}) };
+    return { line, width, max, cut, ...(over && report.dropped.length ? { dropped: report.dropped } : {}) };
   });
 }

@@ -140,13 +140,18 @@ export function emptyHint(def: WidgetDef): string {
 }
 
 export function renderValue(ctx: RenderContext, def: WidgetDef, item: WidgetItem): WidgetOutput | null {
+  const memo = ctx.extra === undefined ? ctx.values : undefined;
+  if (memo?.has(item)) return memo.get(item)!;
   let result: WidgetResult;
   try {
     result = def.render(ctx, item);
   } catch {
+    memo?.set(item, null);
     return null;
   }
-  return normalizeResult(def, result, ctx.glyphMode ?? resolveGlyphMode(ctx.config, ctx.env));
+  const out = normalizeResult(def, result, ctx.glyphMode ?? resolveGlyphMode(ctx.config, ctx.env));
+  memo?.set(item, out);
+  return out;
 }
 
 export function normalizeResult(
@@ -194,7 +199,11 @@ export function visible(ctx: RenderContext, item: WidgetItem): boolean {
 
 export function renderPart(ctx: RenderContext, item: WidgetItem): Part | null {
   const def = getWidget(item.type);
-  if (!def || !visible(ctx, item)) return null;
+  if (!def) return null;
+  if (!visible(ctx, item)) {
+    ctx.sink?.hidden.push(item.id);
+    return null;
+  }
   const flex = def.type === 'flex';
   let out = renderValue(ctx, def, item);
   let empty = false;
@@ -420,6 +429,8 @@ export function effectivePriority(item: WidgetItem, def: WidgetDef): number {
 export interface LineReport {
   dropped: string[];
   width: number | null;
+  // width before any overflow handling
+  natural?: number;
 }
 
 interface Unit {
@@ -558,6 +569,7 @@ export function renderLine(
     return rows.length ? [line, ...rows.map((l) => (max === null ? l : truncate(l, max)))].join('\n') : line;
   };
   let line = compose(parts, a, level, max);
+  if (report) report.natural = visibleWidth(max === null ? line : compose(parts, a, level, null));
   if (max !== null && visibleWidth(line) > max) {
     const mode = overflowOf(ctx.config);
     if (mode === 'wrap' && parts.filter((p) => !p.flex).length > 1)
@@ -640,7 +652,10 @@ function renderAll(base: RenderContext): string[] {
   const width = maxLineWidth(ctx);
   return ctx.config.lines.flatMap((items, li) => {
     const align = ctx.config.lineAlign?.[li] ?? ctx.config.align ?? 'left';
-    return renderLine(ctx, items, level, a)
+    const report: LineReport | undefined = ctx.sink ? { dropped: [], width: null } : undefined;
+    const line = renderLine(ctx, items, level, a, report);
+    if (report) ctx.sink!.dropped.push(...report.dropped);
+    return line
       .split('\n')
       .filter((l) => stripAnsi(l).trim() !== '')
       .map((l) => alignLine(l, width, align));
