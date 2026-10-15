@@ -26,6 +26,7 @@
               "type": "string",
               "enum": [
                 "model",
+                "provider",
                 "effort",
                 "thinking",
                 "fast-mode",
