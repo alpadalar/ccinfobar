@@ -16,6 +16,7 @@ const SWEPT: string[] = [
   'src/importers/ccometixline.ts',
   'src/importers/ccometixline-themes.ts',
   'src/importers/cship.ts',
+  'src/importers/claude-hud.ts',
   'src/importers/toml.ts',
   'src/importers/colors.ts',
   'src/importers/confirm.ts',

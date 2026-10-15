@@ -59,6 +59,7 @@ process.env.CCINFOBAR_NO_USAGE_API = '1';
 delete process.env.CCINFOBAR_CONFIG;
 delete process.env.CLAUDE_HOME;
 delete process.env.STARSHIP_CONFIG;
+delete process.env.CLAUDE_HUD_ALLOW_EXTRA_CMD;
 process.env.LANG = 'C';
 process.env.LC_ALL = 'C';
 delete process.env.LC_MESSAGES;

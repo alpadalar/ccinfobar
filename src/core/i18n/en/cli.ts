@@ -17,7 +17,7 @@ export const cliMessages = {
     'Remove ccinfobar and restore your previous status line\nRun it before `npm rm -g ccinfobar`: hooks call the ccinfobar command',
   'help.cmd.uninstallHooks': "Remove only ccinfobar's hooks",
   'help.cmd.uninstallProgress': 'Remove only the terminal progress handlers',
-  'help.cmd.import': 'Import a ccstatusline, claude-powerline, ccometixline or cship layout',
+  'help.cmd.import': 'Import a ccstatusline, claude-powerline, ccometixline, cship or claude-hud layout',
   'help.cmd.importDryRun': 'Show the mapping report and a preview, write nothing',
   'help.cmd.themes': 'Preview every theme',
   'help.cmd.themesList': 'List theme ids and names only',

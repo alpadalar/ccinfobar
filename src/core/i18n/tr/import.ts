@@ -5,6 +5,7 @@ export const importMessages = {
   'import.cannotRead': '{file} konumundaki ccstatusline ayarları okunamıyor',
   'import.cannotParse': '{file} konumundaki claude-powerline yapılandırması ayrıştırılamıyor',
   'import.cannotReadTool': '{file} konumundaki {tool} yapılandırması okunamıyor',
+  'import.cannotParseTool': '{file} konumundaki {tool} yapılandırması ayrıştırılamıyor',
   'import.tooLarge': '{file} 1 MB sınırından büyük, okunmadı',
   'import.tool.gsd': 'GSD durum satırı',
   'import.tool.custom': 'özel bir durum satırı',
@@ -48,6 +49,21 @@ export const importMessages = {
     one: '{tool}: görünür metni olmayan {count} stilli parça (powerline geçişi) atlandı',
     other: '{tool}: görünür metni olmayan {count} stilli parça (powerline geçişleri) atlandı',
   },
+  'import.note.hudIgnored': '{file} bir JSON nesnesi değil, yok sayıldı',
+  'import.note.hudApprox': '{tool} "{name}", {widget} bileşeniyle yaklaşık olarak gösteriliyor',
+  'import.note.hudShownAlways':
+    '{tool} ayarı "{name}" = {value}, {widget} bileşenini bu değerin altında gizler; ccinfobar onu her zaman gösterir',
+  'import.note.hudNoThreshold':
+    '{tool} ayarı "{name}" = {value} atlandı, {widget} bileşeninin eşik renkleri yok',
+  'import.note.hudContextThresholds':
+    "{tool} bağlam eşikleri %{warn}/%{critical}, ccinfobar eşik renklerine dönüştürüldü (%50'den itibaren sarı, %80'den itibaren kırmızı)",
+  'import.note.hudBreakdown':
+    '{tool} token dökümü her zaman gösterilir ({tool} bunu yalnızca bağlam %{value} ve üzerindeyken gösterir)',
+  'import.note.hudExternalUsage':
+    '{tool} ayarı "{name}" atlandı: ccinfobar kullanım verisini yalnızca Claude Code\'dan alır, başka dosya okumaz ve yazmaz',
+  'import.note.hudLanguage': '{tool} dili "{name}" içe aktarılmadı: ccinfobar kendi dil ayarını korur',
+  'import.note.hudExtraCmd':
+    '{tool}, --extra-cmd komutunu yalnızca CLAUDE_HUD_ALLOW_EXTRA_CMD ayarlıysa çalıştırır; bu değişken ortamınızda veya settings.json içinde ayarlı değil',
   'import.note.hideState': '{name}: "{state}" durumunda gizleme desteklenmiyor, bileşen görünür kalır',
   'import.note.targetDropped': '{kind} "{target}" onaylanmadığı için çıkarıldı',
   'import.note.unsafeLink': 'link "{url}" güvenli olmayan bir URL içeriyor, çıkarıldı',

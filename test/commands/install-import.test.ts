@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import { type InstallIo, offerImport, runInstall } from '../../src/commands/install-cli.js';
 import { t } from '../../src/core/i18n/index.js';
-import { ccstatuslinePath, detectTool } from '../../src/importers/index.js';
+import { ccstatuslinePath, detectTool, hudPaths } from '../../src/importers/index.js';
 
 const writeJson = (file: string, data: unknown) => {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -127,6 +127,20 @@ describe('install import offer', () => {
     expect(tool).toMatchObject({ tool: 'cship', importable: true });
     await offerImport(tool, parseArgs(['install', '--yes']), cfg, f.io);
     expect(types()).toEqual(['model', 'git-branch']);
+  });
+
+  it('offers the claude-hud import too and drops its extra command on --yes', async () => {
+    writeJson(hudPaths(process.env).config, {
+      elementOrder: ['project'],
+      gitStatus: { enabled: false },
+      display: { showProject: false },
+    });
+    const f = fake(false);
+    const tool = detectTool('node ~/.claude/plugins/claude-hud/dist/index.js --extra-cmd "echo hi"')!;
+    expect(tool).toMatchObject({ tool: 'claude-hud', importable: true });
+    await offerImport(tool, parseArgs(['install', '--yes']), cfg, f.io);
+    expect(types()).toEqual(['model']);
+    expect(f.lines).toContain('  command: echo hi');
   });
 
   it('skips everything with --no-import', async () => {

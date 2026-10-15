@@ -236,7 +236,13 @@ describe('import notes', () => {
 
 describe('import sources', () => {
   it('resolves tool names case-insensitively', () => {
-    expect(IMPORT_SOURCES).toEqual(['ccstatusline', 'claude-powerline', 'ccometixline', 'cship']);
+    expect(IMPORT_SOURCES).toEqual([
+      'ccstatusline',
+      'claude-powerline',
+      'ccometixline',
+      'cship',
+      'claude-hud',
+    ]);
     expect(resolveSource('ccstatusline')).toBe('ccstatusline');
     expect(resolveSource('CLAUDE-POWERLINE')).toBe('claude-powerline');
     for (const bad of ['nope', '', undefined, 'constructor', '__proto__', 'toString', ' ccstatusline']) {

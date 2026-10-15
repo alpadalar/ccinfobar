@@ -1,0 +1,32 @@
+{
+  "lineLayout": "expanded",
+  "pathLevels": 2,
+  "elementOrder": ["project", "tools", "agents", "context", "usage", "memory"],
+  "gitStatus": {
+    "enabled": true,
+    "showDirty": true,
+    "showWorktree": true
+  },
+  "display": {
+    "showTools": true,
+    "showAgents": true,
+    "showCost": true,
+    "showDailyCost": true,
+    "showDuration": true,
+    "showMemoryUsage": true,
+    "showModelScopedUsage": false,
+    "showTokenBreakdown": false,
+    "mergeGroups": [["context", "usage"], ["tools", "agents"]],
+    "customLine": "hello",
+    "customLinePosition": "last",
+    "contextWarningThreshold": 50,
+    "contextCriticalThreshold": 80,
+    "sevenDayThreshold": 0
+  },
+  "colors": {
+    "model": "cyan",
+    "project": 208,
+    "git": "#a1b2c3",
+    "label": "dim"
+  }
+}

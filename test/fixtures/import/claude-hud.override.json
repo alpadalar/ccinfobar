@@ -1,0 +1,7 @@
+{
+  "lineLayout": "compact",
+  "elementOrder": ["project", "tools"],
+  "display": {
+    "showTools": false
+  }
+}

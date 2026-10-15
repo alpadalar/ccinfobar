@@ -2,6 +2,7 @@ export const importMessages = {
   'import.cannotRead': 'Cannot read ccstatusline settings at {file}',
   'import.cannotParse': 'Cannot parse claude-powerline config at {file}',
   'import.cannotReadTool': 'Cannot read {tool} config at {file}',
+  'import.cannotParseTool': 'Cannot parse {tool} config at {file}',
   'import.tooLarge': '{file} is larger than 1 MB and was not read',
   'import.tool.gsd': 'GSD status line',
   'import.tool.custom': 'a custom status line',
@@ -45,6 +46,22 @@ export const importMessages = {
     one: '{tool}: {count} styled span without visible text (a powerline transition) was dropped',
     other: '{tool}: {count} styled spans without visible text (powerline transitions) were dropped',
   },
+  'import.note.hudIgnored': '{file} is not a JSON object and was ignored',
+  'import.note.hudApprox': '{tool} "{name}" is approximated by the {widget} widget',
+  'import.note.hudShownAlways':
+    '{tool} setting "{name}" = {value} hides {widget} below that value, ccinfobar always shows it',
+  'import.note.hudNoThreshold':
+    '{tool} setting "{name}" = {value} was dropped, the {widget} widget has no threshold colors',
+  'import.note.hudContextThresholds':
+    '{tool} context thresholds {warn}%/{critical}% became ccinfobar threshold colors (yellow from 50%, red from 80%)',
+  'import.note.hudBreakdown':
+    '{tool} token breakdown is always shown ({tool} shows it from {value}% context)',
+  'import.note.hudExternalUsage':
+    '{tool} setting "{name}" was dropped: ccinfobar takes usage only from Claude Code and never reads or writes other files',
+  'import.note.hudLanguage':
+    '{tool} language "{name}" was not imported: ccinfobar keeps its own language setting',
+  'import.note.hudExtraCmd':
+    '{tool} runs --extra-cmd only when CLAUDE_HUD_ALLOW_EXTRA_CMD is set, and it is not set in your environment or settings.json',
   'import.note.hideState': '{name}: hiding when "{state}" is not supported, it stays visible',
   'import.note.targetDropped': '{kind} "{target}" was dropped (not confirmed)',
   'import.note.unsafeLink': 'link "{url}" has an unsafe URL and was dropped',

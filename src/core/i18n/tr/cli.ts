@@ -20,7 +20,8 @@ export const cliMessages = {
     "ccinfobar'ı kaldırır ve önceki durum satırınızı geri getirir\n`npm rm -g ccinfobar` öncesinde çalıştırın: hook'lar ccinfobar komutunu çağırır",
   'help.cmd.uninstallHooks': "Yalnızca ccinfobar'ın hook'larını kaldırır",
   'help.cmd.uninstallProgress': 'Yalnızca terminal ilerleme işleyicilerini kaldırır',
-  'help.cmd.import': 'Bir ccstatusline, claude-powerline, ccometixline veya cship düzenini içe aktarır',
+  'help.cmd.import':
+    'Bir ccstatusline, claude-powerline, ccometixline, cship veya claude-hud düzenini içe aktarır',
   'help.cmd.importDryRun': 'Eşleme raporunu ve önizlemeyi gösterir, hiçbir şey yazmaz',
   'help.cmd.themes': 'Tüm temaları önizler',
   'help.cmd.themesList': "Yalnızca tema id'lerini ve adlarını listeler",

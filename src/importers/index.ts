@@ -3,17 +3,24 @@ import os from 'node:os';
 import path from 'node:path';
 import { defaultConfig, normalizeConfig } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
-import { claudeDir, tildify } from '../core/paths.js';
+import { claudeDir, claudeSettingsPath, tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config } from '../core/types.js';
 import { CCLINE_DEFAULT, importCcometixline, parseCclineTheme } from './ccometixline.js';
 import { CCLINE_THEMES, type CclineTheme } from './ccometixline-themes.js';
 import { importCcstatusline } from './ccstatusline.js';
+import { importClaudeHud, mergeHud, normalizeHud, parseExtraCmd } from './claude-hud.js';
 import { importClaudePowerline, parsePowerlineArgs } from './claude-powerline.js';
 import { importCship, parseCshipConfigFlag } from './cship.js';
 import { parseToml, TomlError } from './toml.js';
 
-export const IMPORT_SOURCES = ['ccstatusline', 'claude-powerline', 'ccometixline', 'cship'] as const;
+export const IMPORT_SOURCES = [
+  'ccstatusline',
+  'claude-powerline',
+  'ccometixline',
+  'cship',
+  'claude-hud',
+] as const;
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
 
@@ -64,7 +71,7 @@ export function readSource(file: string): string {
 }
 
 export interface DetectedTool {
-  tool: ImportSource | 'claude-hud' | 'ccusage' | 'gsd' | 'unknown';
+  tool: ImportSource | 'ccusage' | 'gsd' | 'unknown';
   name: string;
   importable: boolean;
   command: string;
@@ -80,7 +87,7 @@ const KNOWN: {
   { re: /claude-powerline/i, tool: 'claude-powerline', name: 'claude-powerline', importable: true },
   { re: /ccline|cometix/i, tool: 'ccometixline', name: 'CCometixLine', importable: true },
   { re: /\bcship\b/i, tool: 'cship', name: 'cship', importable: true },
-  { re: /claude-hud/i, tool: 'claude-hud', name: 'claude-hud', importable: false },
+  { re: /claude-hud/i, tool: 'claude-hud', name: 'claude-hud', importable: true },
   { re: /ccusage/i, tool: 'ccusage', name: 'ccusage statusline', importable: false },
   { re: /gsd-statusline/i, tool: 'gsd', name: () => t('import.tool.gsd'), importable: false },
 ];
@@ -295,6 +302,79 @@ function importCshipFrom(found: CshipFound | null): ImportResult {
   return { ...result, file: found.file };
 }
 
+const HUD = 'claude-hud';
+
+// claude-hud's getClaudeConfigDir
+export function hudPaths(env: NodeJS.ProcessEnv = process.env): {
+  dir: string;
+  config: string;
+  override: string;
+} {
+  const home = os.homedir();
+  const raw = env.CLAUDE_CONFIG_DIR?.trim();
+  const tilde = raw === '~' ? home : raw && /^~[\\/]/.test(raw) ? path.join(home, raw.slice(2)) : raw;
+  const dir = tilde ? path.resolve(tilde) : path.join(home, '.claude');
+  return {
+    dir,
+    config: path.join(dir, 'plugins', 'claude-hud', 'config.json'),
+    override: path.join(dir, 'claude-hud.json'),
+  };
+}
+
+const truthy = (v: unknown) =>
+  typeof v === 'string' && ['1', 'true', 'yes', 'on'].includes(v.trim().toLowerCase());
+
+function hudExtraAllowed(env: NodeJS.ProcessEnv): boolean {
+  if (truthy(env.CLAUDE_HUD_ALLOW_EXTRA_CMD)) return true;
+  try {
+    const settings = readJson(claudeSettingsPath(env));
+    const block = tableOf(tableOf(settings)?.env);
+    return !!block && truthy(block.CLAUDE_HUD_ALLOW_EXTRA_CMD);
+  } catch {
+    return false;
+  }
+}
+
+function readHudFile(file: string, required: boolean): { value: unknown } | null {
+  if (!required && !isFile(file)) return null;
+  const shown = sanitizeText(tildify(file));
+  let text: string;
+  try {
+    text = readSource(file);
+  } catch (err) {
+    if (err instanceof SourceTooLargeError) throw err;
+    throw new Error(t('import.cannotReadTool', { tool: HUD, file: shown }));
+  }
+  try {
+    return { value: JSON.parse(text) };
+  } catch {
+    throw new Error(t('import.cannotParseTool', { tool: HUD, file: shown }));
+  }
+}
+
+function importHud(file: string | undefined, command: string, env: NodeJS.ProcessEnv): ImportResult {
+  const paths = hudPaths(env);
+  const mainFile = file ?? paths.config;
+  const main = readHudFile(mainFile, !!file);
+  const over = readHudFile(paths.override, false);
+  const notes: ImportNote[] = [];
+  const objectOf = (read: { value: unknown } | null, f: string): unknown => {
+    if (!read) return {};
+    if (tableOf(read.value)) return read.value;
+    notes.push({ kind: 'info', text: t('import.note.hudIgnored', { file: sanitizeText(tildify(f)) }) });
+    return {};
+  };
+  const merged = mergeHud(objectOf(main, mainFile), objectOf(over, paths.override));
+  const extraCmd = parseExtraCmd(command);
+  const result = importClaudeHud(normalizeHud(merged), {
+    extraCmd,
+    extraAllowed: extraCmd !== null && hudExtraAllowed(env),
+    defaulted: !main && !over,
+  });
+  result.notes.unshift(...notes);
+  return { ...result, file: main ? mainFile : over ? paths.override : null };
+}
+
 export function importFrom(
   source: ImportSource,
   opts: { file?: string; command?: string; env?: NodeJS.ProcessEnv; cwd?: string } = {},
@@ -315,6 +395,7 @@ export function importFrom(
     return { ...importCcstatusline(raw), file };
   }
   if (source === 'ccometixline') return importCcline(opts.file, command);
+  if (source === 'claude-hud') return importHud(opts.file, command, env);
   const files = opts.file ? [opts.file] : powerlinePaths(env, command);
   const file = files.find((f) => fs.existsSync(f)) ?? null;
   const raw = file ? readJson(file) : {};
