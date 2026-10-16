@@ -25,6 +25,8 @@ Requirements: Node.js 20 or newer. There are no runtime dependencies; everything
 | `npm run demo` | Regenerate `docs/images/demo.gif` from the sample data (needs Chrome or Chromium and ImageMagick; set `CHROME` to pick a browser) |
 | `npm run example` | Render `test/fixtures/payload.json` |
 
+Two scripts are not wired into npm or CI: `node scripts/homebrew-formula.mjs` fills in the Homebrew formula for the owner after a release (see [DISTRIBUTION.md](DISTRIBUTION.md#publishing-the-formula-owner)), and `node scripts/startup-probe.mjs` is a dev-only breakdown of where startup time goes, in temp dirs only.
+
 Try your build against a real session without installing it:
 
 ```sh
@@ -148,6 +150,7 @@ The transcript reader keeps an incremental cache in the cache directory, so only
 - `commands/settings-file.ts` reads and writes `settings.json`. It keeps BOM, line endings, indent, trailing newline, mode, owner and symlinks, refuses to write a file that does not parse, merges again if the file changed during the write, and stores a 0600 copy in `<configDir>/backups/` before every change (newest 10 per file plus a never-rotated `-original.json`).
 - `commands/manifest.ts` keeps `<configDir>/manifest.json`: each statusLine and `.git/info/exclude` line ccinfobar wrote, and how to restore what was there. Ownership is deep equality with the recorded value, never a search for "ccinfobar" in the command.
 - `commands/install.ts`: `planInstall` works out the change without writing; `applyInstall` writes it and refuses to replace another tool's statusLine unless `confirmed`. The CLI, `--project`, the GSD takeover, the background update, the editor and the TUI all go through this pair. `uninstall` restores from the manifest.
+- Install kinds (`data/update-state.ts`): `brew` is detected from `/Cellar/ccinfobar/` in the realpath of the entry script, after `npx` and `local` and before `npm-global`. `effectiveUpdate` turns `auto` into `notify` for a brew copy, so the status line notice, `ccinfobar update`, the background check, `doctor` and the web editor only point at `brew upgrade ccinfobar` and never run npm. `install` writes `<brew prefix>/bin/ccinfobar` as the statusLine command, never a `/Cellar/` path.
 
 ### Untrusted text
 
@@ -459,6 +462,7 @@ The resolver, the editors' selectors, `config set language` and `doctor` need no
 - `test/foundations`: test isolation, atomic writes, import graph and config round trips
 - `test/cli`: argument parsing and the hook command
 - `test/plugin`: plugin structure and version sync
+- `test/scripts`: the Homebrew formula script, offline (fixture tarballs and a stubbed `fetch`)
 - `test/integration`: the built CLI end to end (safe mode, install prompts, shared limits, the cost ledger, hooks)
 
 `test/setup.ts` runs before every test file. It points HOME, the config, cache and Claude dirs at a per-run temp folder and throws on any write outside temp dirs, so a test can never touch your real `~/.claude/settings.json`. Wrap code in `withoutSideEffects()` from `test/helpers.ts` to also fail on config saves, spawns or `fetch` (used for the render path).
@@ -504,7 +508,7 @@ Method:
 
 Measure at nice 0, for example after `renice -n 0 -p $$` in your shell (lowering the nice value may need privileges). On a machine that starts tools at nice 10, `nice -n -10 ccinfobar bench` also reaches 0; the header shows the priority and warns when it is above 0. Measure when the machine is idle and note the load average, because the numbers move with machine state.
 
-`ccinfobar overhead = warm median − control median` is the cost ccinfobar adds on top of Node boot. Phase 10 (F2, a single binary) compares this number, taken the same way, to decide whether a compiled binary is worth it. `hook overhead = hook median − control median` is the same figure for one hook event. The clean-install CI job also prints `bench --runs 10 --json` for each OS; that step never fails the job.
+`ccinfobar overhead = warm median − control median` is the cost ccinfobar adds on top of Node boot. Phase 10 compared this number, taken the same way, on Fedora's and the official Node builds to see whether a compiled binary or snapshot is worth it; the result is in [DISTRIBUTION.md](DISTRIBUTION.md#startup-decision-f2). `hook overhead = hook median − control median` is the same figure for one hook event. The clean-install CI job also prints `bench --runs 10 --json` for each OS; that step never fails the job.
 
 Baseline, 2026-10-14, `nice -n -10` (priority 0), Node v22.23.1, Intel i7-1165G7 (8 threads), Linux 7.2.9 (Fedora 44), load average 2.10 → 1.85, cwd this git repo, default layout, N = 20:
 
@@ -640,10 +644,31 @@ After the Phase 9 review fixes (2026-10-16, same method, load average 1.0 to 2.5
 
 The final build was faster warm in seven of the eight rounds.
 
+Phase 10 (distribution), 2026-10-16, `nice -n -10` (priority 0), Node v22.23.1 (Fedora's package: no built-in startup snapshot, no code cache), Intel i7-1165G7 (8 threads), Linux 7.2.9 (Fedora 44), load average 1.05 → 1.03, cwd this git repo, default layout, N = 20, two rounds:
+
+| Row | median (ms, rounds) | p95 (ms) | min (ms) | max (ms) |
+|-----|--------------------:|---------:|---------:|---------:|
+| `node -e 0` | 65.2, 64.9 | 69.9, 66.4 | 62.7, 63.1 | 71.5, 66.5 |
+| cold | 143.2, 143.8 | 150.3, 153.2 | 140.9, 141.6 | 156.5, 158.4 |
+| warm | 126.8, 126.1 | 131.6, 128.2 | 124.8, 124.2 | 139.2, 129.0 |
+| warm, compile cache off | 136.6, 137.4 | 142.6, 142.0 | 134.5, 134.2 | 146.8, 155.2 |
+| hook UserPromptSubmit | 74.8, 73.9 | 79.0, 76.5 | 73.5, 72.3 | 79.1, 76.6 |
+
+ccinfobar overhead 61.6 and 61.3 ms; hook overhead 9.6 and 9.0 ms. The warm median is within 2 ms of Phase 9's 128.6 ms: Phase 10 adds no module to the render path.
+
+The official Node v22.17.1 build (built-in snapshot and code cache), run back to back with the same method, gave warm medians of 59.7 and 58.5 ms and control medians of 15.9 and 15.9 ms.
+
+ccinfobar overhead on official Node: 43.8 and 42.7 ms.
+
+Boot ratio (control / warm): 51.4% on Fedora's Node, 26.8% on official v22.17.1 and 32.8% on official v24.21.0, so most of the gap between the two builds is Node's own boot.
+
+See [docs/DISTRIBUTION.md](DISTRIBUTION.md#startup-decision-f2) for the decision.
+
 ## Releasing
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` under a new version heading.
 2. `npm version <patch|minor|major>` (its `version` script also updates `plugin/.claude-plugin/plugin.json` and the pins in `INSTALL.md` and the README)
 3. `git push --follow-tags`
+4. After npm has the new version, update the Homebrew formula as described in [docs/DISTRIBUTION.md](DISTRIBUTION.md#publishing-the-formula-owner).
 
 The `Release` workflow runs the checks, creates a GitHub release from the changelog section with the packed `ccinfobar.tgz` attached (the README install command points at it), and publishes to npm with provenance when an `NPM_TOKEN` repository secret exists.
