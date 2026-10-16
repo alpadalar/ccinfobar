@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { gunzipSync } from 'node:zlib';
 
 export const URL_RE = /^( {2}url ")https:\/\/registry\.npmjs\.org\/ccinfobar\/-\/ccinfobar-[^"]+\.tgz(")$/m;
 export const SHA_RE = /^( {2}sha256 ")[0-9a-f]{64}(")$/m;
@@ -25,7 +26,11 @@ const REQUIRED = [
   'def caveats',
   'ccinfobar uninstall',
 ];
-const FORBIDDEN = ['post_install', 'system "#{bin}/ccinfobar", "install"'];
+const FORBIDDEN = [
+  ['post_install', /post_install/],
+  ['ccinfobar install', /ccinfobar["']?,\s*["']install/],
+];
+const VALUED = ['--root', '--version', '--tarball'];
 
 // release numbers only, so a prerelease after 0.6.2 passes
 export function belowFloor(version) {
@@ -49,7 +54,7 @@ export function checkFormula(text) {
   const shas = count(text, SHA_RE);
   if (shas !== 1) problems.push(`expected one sha256 line, found ${shas}`);
   for (const s of REQUIRED) if (!text.includes(s)) problems.push(`missing ${s}`);
-  for (const s of FORBIDDEN) if (text.includes(s)) problems.push(`must not contain ${s}`);
+  for (const [name, re] of FORBIDDEN) if (re.test(text)) problems.push(`must not contain ${name}`);
   const version = text.match(VERSION_RE)?.[1];
   if (version && !isPlaceholder(text) && belowFloor(version)) problems.push(floorProblem(version));
   return problems;
@@ -107,6 +112,47 @@ function value(args, flag) {
   return v;
 }
 
+function checkArgs(args) {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (VALUED.includes(a)) i++;
+    else if (a === '--check') continue;
+    else if (/^--[a-z]+=/.test(a)) throw new Fail(`use "${a.replace('=', ' ')}", not "${a}"`);
+    else throw new Fail(`unknown argument: ${a}`);
+  }
+}
+
+// package/package.json from an npm tarball
+export function tarballPackage(buf) {
+  let tar;
+  try {
+    tar = gunzipSync(buf);
+  } catch {
+    throw new Fail('tarball is not gzip');
+  }
+  for (let at = 0; at + 512 <= tar.length; ) {
+    const head = tar.subarray(at, at + 512);
+    if (head.every((b) => b === 0)) break;
+    const field = (from, len) =>
+      head
+        .subarray(from, from + len)
+        .toString('utf8')
+        .replace(/\0[\s\S]*$/, '');
+    const prefix = field(345, 155);
+    const name = prefix ? `${prefix}/${field(0, 100)}` : field(0, 100);
+    const size = Number.parseInt(field(124, 12).trim() || '0', 8);
+    if (name === 'package/package.json') {
+      try {
+        return JSON.parse(tar.subarray(at + 512, at + 512 + size).toString('utf8'));
+      } catch {
+        throw new Fail('tarball package.json is not JSON');
+      }
+    }
+    at += 512 + Math.ceil(size / 512) * 512;
+  }
+  throw new Fail('tarball has no package/package.json');
+}
+
 function read(file, root) {
   try {
     return fs.readFileSync(file, 'utf8');
@@ -116,6 +162,7 @@ function read(file, root) {
 }
 
 export async function run(args) {
+  checkArgs(args);
   const rootArg = value(args, '--root');
   const root = rootArg ? path.resolve(rootArg) : path.dirname(path.dirname(fileURLToPath(import.meta.url)));
   const formulaFile = path.join(root, 'packaging', 'homebrew', 'ccinfobar.rb');
@@ -144,6 +191,12 @@ export async function run(args) {
     } catch {
       throw new Fail(`cannot read ${tarball}`);
     }
+    const pkg = tarballPackage(buf);
+    if (pkg?.name !== 'ccinfobar' || pkg?.version !== version)
+      throw new Fail(`tarball is ${pkg?.name}@${pkg?.version}, not ccinfobar@${version}`);
+    console.error(
+      "homebrew-formula: --tarball skips npm's integrity check; the tap needs the sha256 of the registry tarball",
+    );
   } else {
     buf = await registryTarball(version);
   }

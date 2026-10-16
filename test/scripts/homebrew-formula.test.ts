@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { gzipSync } from 'node:zlib';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const root = path.resolve(__dirname, '../..');
@@ -36,6 +37,31 @@ function tempCopy(text = formulaText): string {
 }
 
 const readCopy = (dir: string) => fs.readFileSync(path.join(dir, formulaRel), 'utf8');
+
+// minimal npm-style tarball: one ustar entry per file
+function tgz(files: Record<string, string>): Buffer {
+  const parts: Buffer[] = [];
+  for (const [name, text] of Object.entries(files)) {
+    const body = Buffer.from(text);
+    const head = Buffer.alloc(512);
+    head.write(name, 0);
+    head.write('0000644\0', 100);
+    head.write(`${body.length.toString(8).padStart(11, '0')}\0`, 124);
+    head.write('0', 156);
+    head.write('ustar\0', 257);
+    parts.push(head, body, Buffer.alloc((512 - (body.length % 512)) % 512));
+  }
+  return gzipSync(Buffer.concat([...parts, Buffer.alloc(1024)]));
+}
+
+const pkgTgz = (version: string, name = 'ccinfobar') =>
+  tgz({ 'package/README.md': '# x\n', 'package/package.json': JSON.stringify({ name, version }) });
+
+function writeTgz(dir: string, version: string, name?: string): string {
+  const file = path.join(dir, `ccinfobar-${version}.tgz`);
+  fs.writeFileSync(file, pkgTgz(version, name));
+  return file;
+}
 
 describe('checkFormula', () => {
   it('accepts the committed formula', () => {
@@ -77,7 +103,11 @@ describe('checkFormula', () => {
       '    bin.install_symlink',
       '    system "#{bin}/ccinfobar", "install"\n    bin.install_symlink',
     );
-    for (const bad of [post, noNode, github, selfInstall]) {
+    const selfInstall2 = formulaText.replace(
+      '    bin.install_symlink',
+      '    system bin/"ccinfobar", "install"\n    bin.install_symlink',
+    );
+    for (const bad of [post, noNode, github, selfInstall, selfInstall2]) {
       expect(bad).not.toBe(formulaText);
       expect(mod.checkFormula(bad).length).toBeGreaterThan(0);
     }
@@ -120,11 +150,11 @@ describe('hashes', () => {
 describe('homebrew-formula.mjs', () => {
   it('fills url and sha256 from a local tarball, then reports no change', () => {
     const dir = tempCopy();
-    const tgz = path.join(dir, 'x.tgz');
-    const bytes = Buffer.from([0x1f, 0x8b, 8, 0, 1, 2, 3, 4, 5]);
-    fs.writeFileSync(tgz, bytes);
+    const tgz = writeTgz(dir, '1.2.3');
+    const bytes = fs.readFileSync(tgz);
     const first = run(['--root', dir, '--tarball', tgz, '--version', '1.2.3']);
     expect(first.status, first.stderr).toBe(0);
+    expect(first.stderr).toContain("--tarball skips npm's integrity check");
     const sha = createHash('sha256').update(bytes).digest('hex');
     expect(first.stdout).toContain(`homebrew-formula: 1.2.3 ${sha}`);
     const text = readCopy(dir);
@@ -148,6 +178,45 @@ describe('homebrew-formula.mjs', () => {
     }
   });
 
+  it('refuses a tarball that is not this package and version', () => {
+    const dir = tempCopy();
+    const cases: [string, string][] = [
+      [writeTgz(dir, '1.2.4'), 'tarball is ccinfobar@1.2.4, not ccinfobar@1.2.3'],
+      [
+        writeTgz(path.join(dir, 'packaging'), '1.2.3', 'other'),
+        'tarball is other@1.2.3, not ccinfobar@1.2.3',
+      ],
+    ];
+    const notGzip = path.join(dir, 'plain.tgz');
+    fs.writeFileSync(notGzip, 'x');
+    cases.push([notGzip, 'tarball is not gzip']);
+    const empty = path.join(dir, 'empty.tgz');
+    fs.writeFileSync(empty, tgz({ 'package/README.md': 'x' }));
+    cases.push([empty, 'tarball has no package/package.json']);
+    for (const [file, msg] of cases) {
+      const r = run(['--root', dir, '--tarball', file, '--version', '1.2.3']);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toBe(`homebrew-formula: ${msg}\n`);
+      expect(readCopy(dir)).toBe(formulaText);
+    }
+  });
+
+  it('rejects unknown arguments and --flag=value', () => {
+    const dir = tempCopy();
+    const tgzFile = writeTgz(dir, '1.2.3');
+    const cases: [string[], string][] = [
+      [['--version=1.2.3', '--tarball', tgzFile], 'use "--version 1.2.3", not "--version=1.2.3"'],
+      [['--version', '1.2.3', '--tarbal', tgzFile], 'unknown argument: --tarbal'],
+      [['--check', 'extra'], 'unknown argument: extra'],
+    ];
+    for (const [args, msg] of cases) {
+      const r = run(['--root', dir, ...args]);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toBe(`homebrew-formula: ${msg}\n`);
+      expect(readCopy(dir)).toBe(formulaText);
+    }
+  });
+
   it('fails on a missing tarball', () => {
     const dir = tempCopy();
     const r = run(['--root', dir, '--tarball', path.join(dir, 'missing.tgz'), '--version', '1.2.3']);
@@ -158,10 +227,8 @@ describe('homebrew-formula.mjs', () => {
 
   it('refuses versions without Homebrew detection', () => {
     const dir = tempCopy();
-    const tgz = path.join(dir, 'x.tgz');
-    fs.writeFileSync(tgz, 'x');
     for (const v of ['0.6.2', '0.6.2-rc.1', '0.5.9']) {
-      const r = run(['--root', dir, '--tarball', tgz, '--version', v]);
+      const r = run(['--root', dir, '--tarball', writeTgz(dir, v), '--version', v]);
       expect(r.status).toBe(1);
       expect(r.stderr).toContain(
         `homebrew-formula: ${v} has no Homebrew detection; the tap needs 0.6.3 or later`,
@@ -169,7 +236,7 @@ describe('homebrew-formula.mjs', () => {
       expect(readCopy(dir)).toBe(formulaText);
     }
     for (const v of ['0.6.3', '0.6.3-rc.1', '0.7.0']) {
-      const r = run(['--root', dir, '--tarball', tgz, '--version', v]);
+      const r = run(['--root', dir, '--tarball', writeTgz(dir, v), '--version', v]);
       expect(r.status, r.stderr).toBe(0);
     }
   });

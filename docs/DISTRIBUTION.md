@@ -74,7 +74,7 @@ Do the Homebrew steps on a machine where a Homebrew copy of ccinfobar is fine. I
    node scripts/homebrew-formula.mjs
    ```
 
-   It reads the version from `package.json` (`--version <x.y.z>` picks another), fetches `https://registry.npmjs.org/ccinfobar/<version>`, downloads the registry tarball, checks its sha512 against npm's `dist.integrity` and only then rewrites the `url` and `sha256` lines. It prints `homebrew-formula: <version> <sha256>`, or `homebrew-formula: already at <version>`. On any error it prints `homebrew-formula: <message>`, exits 1 and writes nothing. `node scripts/homebrew-formula.mjs --check` checks the formula's structure offline.
+   It reads the version from `package.json` (`--version <x.y.z>` picks another), fetches `https://registry.npmjs.org/ccinfobar/<version>`, downloads the registry tarball, checks its sha512 against npm's `dist.integrity` and only then rewrites the `url` and `sha256` lines. It prints `homebrew-formula: <version> <sha256>`, or `homebrew-formula: already at <version>`. On any error it prints `homebrew-formula: <message>`, exits 1 and writes nothing. `node scripts/homebrew-formula.mjs --check` checks the formula's structure offline. Unknown arguments and `--flag=value` forms are refused. `--tarball <file>` hashes a local tarball instead (for tests and offline use): it checks that the file's `package/package.json` is ccinfobar at that version, but it skips npm's integrity check and says so, and a local `npm pack` output does not have the registry tarball's sha256.
 
 3. Commit the updated `packaging/homebrew/ccinfobar.rb` in this repo.
 4. Create the tap once, then copy the formula into it:
