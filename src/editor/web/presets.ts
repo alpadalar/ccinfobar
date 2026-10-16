@@ -1,3 +1,4 @@
+import { slug } from '../../catalog/model.js';
 import { keepLanguage } from '../../core/edit.js';
 import { presetLabels, presetText } from '../../core/i18n/catalog-text.js';
 import { t } from '../../core/i18n/index.js';
@@ -9,18 +10,7 @@ import { confirmDialog, modal, toast } from './ui.js';
 
 const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 
-// Çalışma → calisma
-export function slug(name: string): string {
-  return name
-    .trim()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .replace(/ı/g, 'i')
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
-}
+export { slug };
 
 // escaped ansi html only; the empty note is a text node
 export function previewBox(lines: string[] | undefined): HTMLElement {

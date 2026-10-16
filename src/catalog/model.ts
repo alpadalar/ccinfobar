@@ -1,0 +1,339 @@
+// pure and browser-safe
+import {
+  APPEARANCE_KEYS,
+  applyCatalogContent,
+  type EntryContent,
+  type EntryKind,
+  LAYOUT_KEYS,
+  PERSONAL_KEYS,
+} from '../core/edit.js';
+import type { ThemeInput } from '../core/themes/style.js';
+import type { Config } from '../core/types.js';
+
+export type { EntryContent, EntryKind };
+export { APPEARANCE_KEYS, applyCatalogContent, LAYOUT_KEYS, PERSONAL_KEYS };
+
+export const ENTRY_SCHEMA = 1;
+export const ENTRY_ID_RE = /^u-[0-9a-f]{12}$/;
+export const ENTRY_LIMITS = {
+  name: 64,
+  description: 200,
+  author: 64,
+  note: 200,
+  fileBytes: 1024 * 1024,
+} as const;
+
+export type ShareState = 'local' | 'pending' | 'published' | 'outdated' | 'withdraw-pending' | 'withdrawn';
+
+const KINDS: readonly EntryKind[] = ['preset', 'theme', 'bundle'];
+const STATES: readonly ShareState[] = [
+  'local',
+  'pending',
+  'published',
+  'outdated',
+  'withdraw-pending',
+  'withdrawn',
+];
+
+export interface EntryVersion {
+  version: number;
+  at: string;
+  note: string;
+  content: EntryContent;
+  restoredFrom?: number;
+  overwrittenAt?: string;
+}
+
+export interface RemoteRef {
+  endpoint: string;
+  id: string;
+  version: number;
+  hash: string;
+  publishedAt: string;
+}
+
+export interface EntryShare {
+  wanted: boolean;
+  state: ShareState;
+  remote: RemoteRef | null;
+  lastError: string | null;
+}
+
+export interface CatalogEntry {
+  schema: 1;
+  id: string;
+  rev: number;
+  kind: EntryKind;
+  slug: string;
+  name: string;
+  description: string;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+  versions: EntryVersion[];
+  share: EntryShare;
+  legacy?: { preset?: string; theme?: string };
+}
+
+// Çalışma → calisma
+export function slug(name: string): string {
+  return name
+    .trim()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/ı/g, 'i')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+}
+
+export function marketSlug(name: string): string {
+  const s = slug(name)
+    .replace(/[._]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 39)
+    .replace(/-+$/, '');
+  return s || 'entry';
+}
+
+export function pick<K extends keyof Config>(
+  c: Partial<Config>,
+  keys: readonly K[],
+): Partial<Pick<Config, K>> {
+  const out: Partial<Pick<Config, K>> = {};
+  for (const k of keys) {
+    const v = Object.hasOwn(c, k) ? c[k] : undefined;
+    if (v !== undefined) out[k] = structuredClone(v) as Config[K];
+  }
+  return out;
+}
+
+export function stripPersonal(c: Partial<Config>): Partial<Config> {
+  return pick(c, [...LAYOUT_KEYS, ...APPEARANCE_KEYS]);
+}
+
+export function splitContent(config: Config, kind: EntryKind): EntryContent {
+  const out: EntryContent = {};
+  if (kind !== 'theme') out.layout = pick(config, LAYOUT_KEYS);
+  if (kind !== 'preset') out.appearance = pick(config, APPEARANCE_KEYS);
+  return out;
+}
+
+function cut(s: string, n: number): string {
+  return [...s.trim()].slice(0, n).join('').trim();
+}
+
+export interface NewEntryInput {
+  id: string;
+  kind: EntryKind;
+  name: string;
+  description: string;
+  author: string;
+  content: EntryContent;
+  note?: string;
+  share: boolean;
+  now: string;
+}
+
+export function newEntry(i: NewEntryInput): CatalogEntry {
+  const name = cut(i.name, ENTRY_LIMITS.name);
+  return {
+    schema: ENTRY_SCHEMA,
+    id: i.id,
+    rev: 0,
+    kind: i.kind,
+    slug: slug(name) || 'entry',
+    name,
+    description: cut(i.description, ENTRY_LIMITS.description),
+    author: cut(i.author, ENTRY_LIMITS.author),
+    createdAt: i.now,
+    updatedAt: i.now,
+    version: 1,
+    versions: [
+      {
+        version: 1,
+        at: i.now,
+        note: cut(i.note ?? '', ENTRY_LIMITS.note),
+        content: structuredClone(i.content),
+      },
+    ],
+    share: { wanted: i.share, state: i.share ? 'pending' : 'local', remote: null, lastError: null },
+  };
+}
+
+export function latest(e: CatalogEntry): EntryVersion {
+  return e.versions[e.versions.length - 1]!;
+}
+
+function push(e: CatalogEntry, v: Omit<EntryVersion, 'version'>, now: string): CatalogEntry {
+  const next = structuredClone(e);
+  next.version = e.version + 1;
+  next.versions.push({ version: next.version, ...structuredClone(v) });
+  next.updatedAt = now;
+  return next;
+}
+
+export function appendVersion(
+  e: CatalogEntry,
+  content: EntryContent,
+  note: string,
+  now: string,
+): CatalogEntry {
+  return push(e, { at: now, note: cut(note, ENTRY_LIMITS.note), content }, now);
+}
+
+export function overwriteVersion(
+  e: CatalogEntry,
+  content: EntryContent,
+  note: string,
+  now: string,
+): CatalogEntry {
+  const next = structuredClone(e);
+  const last = latest(next);
+  last.content = structuredClone(content);
+  last.note = cut(note, ENTRY_LIMITS.note);
+  last.overwrittenAt = now;
+  next.updatedAt = now;
+  return next;
+}
+
+export function restoreVersion(e: CatalogEntry, n: number, note: string, now: string): CatalogEntry | null {
+  const from = e.versions.find((v) => v.version === n);
+  if (!from) return null;
+  return push(
+    e,
+    { at: now, note: cut(note, ENTRY_LIMITS.note), content: from.content, restoredFrom: n },
+    now,
+  );
+}
+
+function withShare(e: CatalogEntry, share: Partial<EntryShare>): CatalogEntry {
+  const next = structuredClone(e);
+  next.share = { ...next.share, ...structuredClone(share) };
+  return next;
+}
+
+export function setShare(e: CatalogEntry, wanted: boolean): CatalogEntry {
+  const s = e.share.state;
+  let state = s;
+  if (wanted) {
+    if (s === 'local' || s === 'withdrawn') state = 'pending';
+    else if (s === 'withdraw-pending') state = e.share.remote ? 'published' : 'pending';
+  } else if (s === 'pending') state = 'local';
+  else if (s === 'published' || s === 'outdated') state = 'withdraw-pending';
+  return withShare(e, { wanted, state });
+}
+
+export function markPublished(e: CatalogEntry, remote: RemoteRef): CatalogEntry {
+  return withShare(e, { wanted: true, state: 'published', remote, lastError: null });
+}
+
+export function markWithdrawn(e: CatalogEntry): CatalogEntry {
+  return withShare(e, { wanted: false, state: 'withdrawn', lastError: null });
+}
+
+export function markError(e: CatalogEntry, code: string): CatalogEntry {
+  return withShare(e, { lastError: code });
+}
+
+export function shareView(e: CatalogEntry, latestHash: string | null): ShareState {
+  const { state, remote } = e.share;
+  if (state === 'published' && remote && latestHash !== null && remote.hash !== latestHash) return 'outdated';
+  return state;
+}
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+export function mergeRaw(raw: Record<string, unknown>, next: CatalogEntry): Record<string, unknown> {
+  const old = Array.isArray(raw.versions) ? raw.versions.filter(isObject) : [];
+  const versions = next.versions.map((v) => {
+    const r = old.find((o) => o.version === v.version);
+    return r ? { ...r, ...v } : v;
+  });
+  return { ...raw, ...next, versions };
+}
+
+const isInt = (v: unknown, min: number): v is number => Number.isInteger(v) && (v as number) >= min;
+const isStr = (v: unknown): v is string => typeof v === 'string';
+const str = (v: unknown): string => (isStr(v) ? v : '');
+
+function parseContent(v: unknown): EntryContent | null {
+  if (!isObject(v)) return null;
+  const out: EntryContent = {};
+  if (isObject(v.layout)) out.layout = v.layout as Partial<Config>;
+  if (isObject(v.appearance)) out.appearance = v.appearance as Partial<Config>;
+  if (isObject(v.theme)) out.theme = v.theme as unknown as ThemeInput;
+  return out;
+}
+
+function parseVersion(v: unknown): EntryVersion | null {
+  if (!isObject(v) || !isInt(v.version, 1) || !isStr(v.at)) return null;
+  const content = parseContent(v.content);
+  if (!content) return null;
+  const out: EntryVersion = { version: v.version, at: v.at, note: str(v.note), content };
+  if (isInt(v.restoredFrom, 1)) out.restoredFrom = v.restoredFrom;
+  if (isStr(v.overwrittenAt)) out.overwrittenAt = v.overwrittenAt;
+  return out;
+}
+
+function parseRemote(v: unknown): RemoteRef | null {
+  if (!isObject(v)) return null;
+  const { endpoint, id, version, hash, publishedAt } = v;
+  if (!isStr(endpoint) || !isStr(id) || !isInt(version, 1) || !isStr(hash) || !isStr(publishedAt))
+    return null;
+  return { endpoint, id, version, hash, publishedAt };
+}
+
+function parseShare(v: unknown): EntryShare {
+  if (!isObject(v)) return { wanted: false, state: 'local', remote: null, lastError: null };
+  const state = STATES.includes(v.state as ShareState) ? (v.state as ShareState) : 'local';
+  return {
+    wanted: v.wanted === true,
+    state,
+    remote: parseRemote(v.remote),
+    lastError: isStr(v.lastError) ? v.lastError : null,
+  };
+}
+
+export function parseEntry(raw: unknown): CatalogEntry | null {
+  if (!isObject(raw) || raw.schema !== ENTRY_SCHEMA) return null;
+  const { id, kind, rev, version } = raw;
+  if (!isStr(id) || !ENTRY_ID_RE.test(id) || !KINDS.includes(kind as EntryKind)) return null;
+  if (!isInt(rev, 0) || !isInt(version, 1) || !Array.isArray(raw.versions) || !raw.versions.length)
+    return null;
+  if (!isStr(raw.slug) || !isStr(raw.name) || !isStr(raw.createdAt) || !isStr(raw.updatedAt)) return null;
+  const versions: EntryVersion[] = [];
+  for (const r of raw.versions) {
+    const v = parseVersion(r);
+    if (!v || (versions.length && v.version <= versions[versions.length - 1]!.version)) return null;
+    versions.push(v);
+  }
+  if (versions[versions.length - 1]!.version !== version) return null;
+  const out: CatalogEntry = {
+    schema: ENTRY_SCHEMA,
+    id,
+    rev,
+    kind: kind as EntryKind,
+    slug: raw.slug,
+    name: raw.name,
+    description: str(raw.description),
+    author: str(raw.author),
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+    version,
+    versions,
+    share: parseShare(raw.share),
+  };
+  if (isObject(raw.legacy)) {
+    const legacy: { preset?: string; theme?: string } = {};
+    if (isStr(raw.legacy.preset)) legacy.preset = raw.legacy.preset;
+    if (isStr(raw.legacy.theme)) legacy.theme = raw.legacy.theme;
+    out.legacy = legacy;
+  }
+  return out;
+}
