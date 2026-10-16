@@ -250,6 +250,11 @@ export interface CshipFound {
 const cshipTable = (file: string): CshipFound['table'] =>
   path.basename(file) === 'cship.toml' ? 'wrapper-or-root' : 'cship-only';
 
+function isInside(p: string, dir: string): boolean {
+  const rel = path.relative(dir, p);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
 // cship's load_with_source, plus $STARSHIP_CONFIG last
 export function cshipDiscover(opts: {
   command: string;
@@ -261,14 +266,17 @@ export function cshipDiscover(opts: {
     const file = path.resolve(opts.cwd, expand(flag));
     return { file, table: cshipTable(file), note: null };
   }
-  for (let d = path.resolve(opts.cwd); ; d = path.dirname(d)) {
+  const home = [opts.env.CLAUDE_HOME, opts.env.HOME, opts.env.USERPROFILE].find((h) => h);
+  const cwd = path.resolve(opts.cwd);
+  // D-25: a cwd under home stops at home, so nothing above it is read
+  const top = home && isInside(cwd, path.resolve(home)) ? path.resolve(home) : null;
+  for (let d = cwd; ; d = path.dirname(d)) {
     const own = path.join(d, 'cship.toml');
     if (isFile(own)) return { file: own, table: 'wrapper-or-root', note: null };
     const starship = path.join(d, 'starship.toml');
     if (isFile(starship)) return { file: starship, table: 'cship-only', note: null };
-    if (path.dirname(d) === d) break;
+    if (path.dirname(d) === d || (top !== null && path.relative(d, top) === '')) break;
   }
-  const home = [opts.env.CLAUDE_HOME, opts.env.HOME, opts.env.USERPROFILE].find((h) => h);
   if (home) {
     const own = path.join(home, '.config', 'cship.toml');
     if (isFile(own)) return { file: own, table: 'wrapper-or-root', note: null };

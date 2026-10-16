@@ -414,6 +414,22 @@ describe('cship discovery', () => {
     expect(cshipDiscover({ command: '', cwd: other, env: {} })?.file).toBe(starship);
   });
 
+  it('stops the walk at home when the cwd is under it', () => {
+    const root = tmp();
+    const above = write(path.join(root, 'cship.toml'), MINI);
+    const home = path.join(root, 'home');
+    const cwd = path.join(home, 'a', 'b');
+    fs.mkdirSync(cwd, { recursive: true });
+    expect(cshipDiscover({ command: '', cwd, env: { HOME: home } })).toBeNull();
+    const own = write(path.join(home, 'cship.toml'), MINI);
+    expect(cshipDiscover({ command: '', cwd, env: { HOME: home } })?.file).toBe(own);
+    fs.rmSync(own);
+    expect(cshipDiscover({ command: '', cwd, env: { HOME: path.join(root, 'elsewhere') } })?.file).toBe(
+      above,
+    );
+    expect(cshipDiscover({ command: '', cwd, env: {} })?.file).toBe(above);
+  });
+
   it('falls back to home .config with CLAUDE_HOME, HOME, then USERPROFILE', (ctx) => {
     const cwd = tmp();
     if (!cleanAncestors(cwd)) ctx.skip();
