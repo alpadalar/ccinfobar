@@ -412,8 +412,12 @@ const KINDS: Record<InstallKind, MessageId> = {
   unknown: 'doctor.installKind.unknown',
 };
 
-export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {}): void {
+export function runDoctor(
+  cfgFile: string,
+  opts: { managedFiles?: string[]; installKind?: () => InstallKind } = {},
+): void {
   const ok = (b: boolean) => (b ? '✓' : '✗');
+  const kind = (opts.installKind ?? installKind)();
   const loaded = loadForUse(cfgFile);
   const lang = applyLanguage(loaded.issue ? undefined : loaded.config);
   const sl = (() => {
@@ -491,7 +495,7 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
     const o = projectOverride(dir);
     if (!o) continue;
     console.log(t('doctor.projectOverride', { file: tildify(o.file), command: safe(o.command) }));
-    console.log(t('doctor.projectOverrideFix', { command: selfCommand(), dir: tildify(dir) }));
+    console.log(t('doctor.projectOverrideFix', { command: selfCommand(kind), dir: tildify(dir) }));
   }
   console.log(
     t('doctor.lastPayload', { mark: ok(fs.existsSync(lastPayloadPath())), file: tildify(lastPayloadPath()) }),
@@ -505,20 +509,27 @@ export function runDoctor(cfgFile: string, opts: { managedFiles?: string[] } = {
   const newer = availableUpdate(VERSION);
   if (loaded.config.gitHardening === false) console.log(t('doctor.gitHardeningOff'));
   if (updatesDisabled(loaded.config)) console.log(t('doctor.update.off'));
-  else if (newer) console.log(t('doctor.update.available', { current: VERSION, latest: newer }));
+  else if (newer)
+    console.log(
+      t(kind === 'brew' ? 'doctor.update.availableBrew' : 'doctor.update.available', {
+        current: VERSION,
+        latest: newer,
+      }),
+    );
   else {
-    const kind = { mode: t(MODES[loaded.config.update]), kind: t(KINDS[installKind()]) };
+    const brew = kind === 'brew';
+    const params = { mode: t(MODES[loaded.config.update]), kind: t(KINDS[kind]) };
     console.log(
       upd
-        ? t('doctor.update.upToDate', {
-            ...kind,
+        ? t(brew ? 'doctor.update.brew' : 'doctor.update.upToDate', {
+            ...params,
             when: formatDateTime(new Date(upd.checkedAt), languageLocale()),
           })
-        : t('doctor.update.neverChecked', kind),
+        : t(brew ? 'doctor.update.neverCheckedBrew' : 'doctor.update.neverChecked', params),
     );
   }
   if (upd?.error) console.log(t('doctor.update.failed', { error: safe(upd.error) }));
   printJobs(loaded.config, process.env, Date.now());
   printWidgetReport(cfgFile, loaded);
-  if (!usesUs) console.log(t('doctor.enableHint', { command: selfCommand() }));
+  if (!usesUs) console.log(t('doctor.enableHint', { command: selfCommand(kind) }));
 }
