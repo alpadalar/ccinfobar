@@ -83,12 +83,45 @@ export interface PublishReview {
   plan: PublishItem[];
 }
 
+const tailed = (base: string, tail: string) =>
+  `${base.slice(0, 38 - tail.length).replace(/-+$/, '')}-${tail}`;
+
+// names that map to one slug get the kind, then a number, oldest first
+export function marketSlugs(all: CatalogEntry[]): Map<string, string> {
+  const groups = new Map<string, CatalogEntry[]>();
+  for (const e of all) {
+    const base = marketSlug(e.name);
+    groups.set(base, [...(groups.get(base) ?? []), e]);
+  }
+  const out = new Map<string, string>();
+  const used = new Set<string>();
+  for (const [base, g] of groups) if (g.length === 1) used.add(base);
+  for (const [base, g] of groups) {
+    if (g.length === 1) {
+      out.set(g[0]!.id, base);
+      continue;
+    }
+    const order = [...g].sort((a, b) =>
+      a.createdAt !== b.createdAt ? (a.createdAt < b.createdAt ? -1 : 1) : a.id < b.id ? -1 : 1,
+    );
+    for (const e of order) {
+      let s = tailed(base, e.kind);
+      for (let n = 2; used.has(s); n++) s = tailed(base, `${e.kind}-${n}`);
+      used.add(s);
+      out.set(e.id, s);
+    }
+  }
+  return out;
+}
+
 export function publishPlan(
   entries: CatalogEntry[],
   endpoint: string,
   opts: { overwrite: boolean } = { overwrite: true },
+  all: CatalogEntry[] = entries,
 ): PublishItem[] {
   const key = endpointKey(endpoint);
+  const slugs = marketSlugs(all);
   const out: PublishItem[] = [];
   for (const e of entries) {
     const content = sendable(e);
@@ -109,7 +142,7 @@ export function publishPlan(
         action: 'publish',
         payload: {
           kind: e.kind,
-          slug: marketSlug(e.name),
+          slug: slugs.get(e.id) ?? marketSlug(e.name),
           name: e.name,
           description: e.description,
           author: e.author,
@@ -202,7 +235,8 @@ export async function reviewPublish(ids: string[] | null, deps: PublishDeps = {}
   const endpoint = marketEndpoint(env, dir) ?? '';
   const none = { endpoint, overwrite: true, registration: null, plan: [] };
   if (!endpoint) return { code: 'no-endpoint', ...none };
-  const entries = listEntries(dir).filter((e) => ids === null || ids.includes(e.id));
+  const every = listEntries(dir);
+  const entries = every.filter((e) => ids === null || ids.includes(e.id));
   // nothing waits: no request at all
   if (!publishPlan(entries, endpoint).length) return { code: null, ...none };
   let anon: MarketClient;
@@ -220,7 +254,7 @@ export async function reviewPublish(ids: string[] | null, deps: PublishDeps = {}
   } catch (err) {
     return { code: codeOf(err), ...none };
   }
-  const plan = publishPlan(entries, endpoint, { overwrite });
+  const plan = publishPlan(entries, endpoint, { overwrite }, every);
   const token = readCredential(anon.endpoint, dir);
   const registration = token ? null : registrationOf(anon.endpoint, plan, entries, deps, dir);
   return { code: null, endpoint, overwrite, registration, plan };
@@ -295,10 +329,11 @@ export async function runPublish(
   }
   const client = createMarketClient({ endpoint, fetch: fetchFn, token });
   const results: PublishResult[] = [];
+  const every = listEntries(dir);
   for (const item of items) {
     const cur = readEntry(item.id, dir)?.entry;
     const e = cur && normalizeEntry(cur);
-    const again = e && publishPlan([e], endpoint, { overwrite: review.overwrite })[0];
+    const again = e && publishPlan([e], endpoint, { overwrite: review.overwrite }, every)[0];
     if (!e || !again || canonicalJson(again) !== canonicalJson(item)) {
       results.push(notSent(item));
       continue;

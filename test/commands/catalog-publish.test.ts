@@ -398,15 +398,34 @@ describe('catalog publish', () => {
   });
 
   it('prints the reason of a failed item in English and Turkish', async () => {
+    // WR-07: the same name with two kinds publishes both
     await saveMine('Mine', 'preset');
     await saveMine('Mine', 'theme');
     const s = await server();
+    const both = await run(['publish', '--yes'], { env: s.env });
+    expect(both.code).toBeUndefined();
+    expect(both.out).toContain('Published Mine v1 as alperen/mine-preset');
+    expect(both.out).toContain('Published Mine v1 as alperen/mine-theme');
+    // a new local entry whose slug is taken on the marketplace fails on its own
+    for (const e of listEntries(cat)) await run(['delete', e.id, '--yes']);
+    await saveMine('Mine', 'preset');
+    await saveMine('Mine', 'theme');
+    await saveMine('Other', 'preset');
     const r = await run(['publish', '--yes'], { env: s.env });
     expect(r.code).toBe(1);
-    expect(r.out).toContain('Published Mine v1 as alperen/mine');
-    expect(r.err).toEqual(['Mine: The marketplace already has an entry with this name']);
+    expect(r.out).toContain('Published Other v1 as alperen/other');
+    expect(r.err).toEqual([
+      'Mine: The marketplace already has an entry with this name',
+      'Mine: The marketplace already has an entry with this name',
+    ]);
+    for (const e of listEntries(cat).filter((x) => x.name === 'Mine')) await run(['delete', e.id, '--yes']);
+    await saveMine('Mine', 'preset');
+    await saveMine('Mine', 'theme');
     const tr = await withLangAsync('tr', () => run(['publish', '--yes'], { env: s.env }));
-    expect(tr.err).toEqual(['Mine: Pazar yerinde bu adla bir girdi zaten var']);
+    expect(tr.err).toEqual([
+      'Mine: Pazar yerinde bu adla bir girdi zaten var',
+      'Mine: Pazar yerinde bu adla bir girdi zaten var',
+    ]);
   });
 
   it('names a read-only marketplace and its submit page', async () => {

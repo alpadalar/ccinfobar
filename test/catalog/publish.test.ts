@@ -643,6 +643,37 @@ describe('runPublish', () => {
     ]);
   });
 
+  it('gives entries that share a marketplace slug the kind, then a number (WR-07)', async () => {
+    const s = await server();
+    const deps = { dir, env: { CCINFOBAR_MARKETPLACE_URL: s.url } };
+    const theme = { appearance: { theme: 'nord' } } as EntryContent;
+    const p = save({ name: 'Nord', now: at(1) });
+    const t = save({ name: 'Nord', kind: 'theme', content: theme, now: at(2) });
+    const dot = save({ name: 'Nord.', now: at(3) });
+    const solo = save({ name: 'Solo', now: at(4) });
+    const review = await reviewPublish(null, deps);
+    const slugOf = (id: string) => (review.plan.find((i) => i.id === id)!.payload as { slug: string }).slug;
+    expect([slugOf(p.id), slugOf(t.id), slugOf(dot.id), slugOf(solo.id)]).toEqual([
+      'nord-preset',
+      'nord-theme',
+      'nord-preset-2',
+      'solo',
+    ]);
+    // a partial publish uses the same slugs
+    expect(slugOf(t.id)).toBe(
+      ((await reviewPublish([t.id], deps)).plan[0]!.payload as { slug: string }).slug,
+    );
+    const out = await runPublish(review, deps);
+    expect(out.results.map((r) => [r.ok, r.remoteId])).toEqual(
+      expect.arrayContaining([
+        [true, 'alperen/nord-preset'],
+        [true, 'alperen/nord-theme'],
+        [true, 'alperen/nord-preset-2'],
+        [true, 'alperen/solo'],
+      ]),
+    );
+  });
+
   it('marks every item when a saved token is refused', async () => {
     const s = await server();
     const env = { CCINFOBAR_MARKETPLACE_URL: s.url };

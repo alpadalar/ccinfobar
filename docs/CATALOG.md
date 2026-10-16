@@ -76,7 +76,7 @@ A name that already exists for the same kind (compared ignoring case and accents
 | Update | Adds the current setup as a new version; the history is kept | `vN+1` |
 | Overwrite | Replaces the content and note of the latest version in place; the history marks it as overwritten | stays `vN` |
 
-Both take an optional note ("what changed") and keep the entry's description and share setting unless you change them; in the editor the share switch shows the entry's setting. The change is one write, so the entry's backup (`.bak`) still holds the version an overwrite replaced. The same name with a different kind is a separate entry.
+Both take an optional note ("what changed") and keep the entry's description and share setting unless you change them; in the editor the share switch shows the entry's setting. The change is one write, so the entry's backup (`.bak`) still holds the version an overwrite replaced. The same name with a different kind is a separate entry. On a marketplace, entries whose names map to the same id get the kind added (`nord-preset`, `nord-theme`), and a number after that when names differ only in punctuation or accents (`nord-preset-2`, oldest first).
 
 If the editor and the CLI change the same entry at once, only one writes at a time (a short lock in the catalog folder), and the second write is refused with "This entry changed since you opened it; reload and try again", so nothing is lost. If another ccinfobar holds the lock for more than 3 s, a write stops with "Another ccinfobar window is changing the catalog; try again in a moment".
 
