@@ -502,6 +502,4 @@ describe('editor catalog routes: save, restore, share, delete and install-theme'
     const ref = await request('POST', '/api/catalog/share', { body: { ref: 'nope', share: true } });
     expect(ref.json()).toMatchObject({ error: 'Not a catalog reference', errorId: 'err.catalog.badRef' });
   });
-
-  it.todo('publish/plan shows the exact payload; publish without an endpoint sends nothing');
 });

@@ -119,6 +119,8 @@ export const catalogMessages = {
   'err.catalog.noVersion': '{ref} girdisinin {version} sürümü yok',
   'err.catalog.noEndpoint': 'Pazar yeri adresi ayarlanmadı; girdiler yayımlanmayı bekliyor',
   'err.catalog.badEndpoint': "Pazar yeri adresi bir https URL'si olmalı (http yalnızca localhost için)",
+  'err.catalog.needsConfirm': 'Önce yayımlamayı onaylayın',
+  'err.catalog.planChanged': 'Girdiler siz inceledikten sonra değişti; yeniden inceleyin',
   'market.error.invalid': 'Pazar yeri girdiyi geçersiz buldu ve reddetti',
   'market.error.too-large': 'Girdi pazar yeri için çok büyük',
   'market.error.conflict': 'Pazar yerinde bu adla bir girdi zaten var',

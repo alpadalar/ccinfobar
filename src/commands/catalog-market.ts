@@ -3,6 +3,7 @@ import type { CatalogEntry } from '../catalog/model.js';
 import {
   type PublishDeps,
   type PublishItem,
+  planHash,
   publishPlan,
   remoteList,
   remoteShow,
@@ -52,8 +53,13 @@ const ITEMS: Record<PublishItem['action'], MessageId> = {
 
 const TARGET_INDENT = '      ';
 
-export const reasonText = (code: string | null): string =>
-  t(code !== null && Object.hasOwn(REASONS, code) ? REASONS[code]! : 'market.error.unknown');
+export const reasonId = (code: string | null): MessageId =>
+  code !== null && Object.hasOwn(REASONS, code) ? REASONS[code]! : 'market.error.unknown';
+
+export const reasonText = (code: string | null): string => t(reasonId(code));
+
+// the editor reaches publish.ts through this entry
+export { planHash, publishPlan, remoteList, remoteShow, runPublish };
 
 const shownUrl = (url: string): string => visibleTarget(clean(url));
 
@@ -90,7 +96,7 @@ function noEndpoint(c: Ctx): string | null {
 }
 
 // a re-shared entry that was withdrawn; the marketplace keeps its id
-function reserved(item: PublishItem, entries: CatalogEntry[]): boolean {
+export function reserved(item: PublishItem, entries: CatalogEntry[]): boolean {
   if (item.action !== 'version' && item.action !== 'overwrite') return false;
   return entries.find((e) => e.id === item.id)?.share.state === 'pending';
 }

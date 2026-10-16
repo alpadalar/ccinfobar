@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { createMarketClient, type MarketClient, type Received } from '../market/client.js';
 import {
+  canonicalJson,
   isRemoteId,
   type MarketEntry,
   type MarketSummary,
@@ -116,6 +118,11 @@ export function publishPlan(
     });
   }
   return out;
+}
+
+// what was shown is what is sent
+export function planHash(endpoint: string, plan: PublishItem[]): string {
+  return createHash('sha256').update(canonicalJson({ endpoint, plan })).digest('hex');
 }
 
 function codeOf(err: unknown): string {

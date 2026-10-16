@@ -112,6 +112,8 @@ export const catalogMessages = {
   'err.catalog.noVersion': 'Entry {ref} has no version {version}',
   'err.catalog.noEndpoint': 'No marketplace endpoint set; entries stay waiting to publish',
   'err.catalog.badEndpoint': 'Marketplace endpoint must be an https URL (http only for localhost)',
+  'err.catalog.needsConfirm': 'Confirm the publish first',
+  'err.catalog.planChanged': 'The entries changed since you reviewed them; review again',
   'market.error.invalid': 'The marketplace rejected the entry as not valid',
   'market.error.too-large': 'The entry is too large for the marketplace',
   'market.error.conflict': 'The marketplace already has an entry with this name',

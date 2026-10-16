@@ -184,6 +184,10 @@ describe('import graph', () => {
     expect(fs.readFileSync(path.join(src, 'commands/catalog.ts'), 'utf8')).toContain(
       "await import('./catalog-market.js')",
     );
+    expect(closure('editor/server.ts').has('src/catalog/publish.ts')).toBe(false);
+    expect(fs.readFileSync(path.join(src, 'editor/server.ts'), 'utf8')).toContain(
+      "import('../commands/catalog-market.js')",
+    );
   });
 
   it('loads the lazy tables in every module that prints their ids', () => {

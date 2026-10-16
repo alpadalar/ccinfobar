@@ -102,6 +102,7 @@ import { gsdInstalled } from '../data/gsd.js';
 import { PROGRESS_EVENTS, progressChannel } from '../data/progress.js';
 import { requestClear } from '../data/progress-clear.js';
 import { writeAtomic } from '../data/store.js';
+import { ID_PART_RE } from '../market/protocol.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import type { TerminalColors } from './terminal-colors.js';
 
@@ -370,6 +371,19 @@ const KINDS: readonly EntryKind[] = ['bundle', 'preset', 'theme'];
 const LEGACY_RE = /^legacy:(?:preset|theme)\/(.*)$/;
 const SYSTEM_RE = /^(?:bundle|preset|theme)\/(.*)$/;
 const MAX_PREVIEWS = 100;
+const MAX_PUBLISH_REFS = 500;
+
+type Market = typeof import('../commands/catalog-market.js');
+type PlanItem = ReturnType<Market['publishPlan']>[number];
+type Skip = { id: string; reason: 'not-shared' | 'up-to-date' | 'withdrawn' };
+
+// market codes; read failures are a bad gateway
+function marketError(code: string | null, id: MessageId): HttpError {
+  if (code === 'no-endpoint') return httpError(409, 'err.catalog.noEndpoint');
+  const status =
+    code === 'not-found' ? 404 : code === 'handle-taken' ? 409 : code === 'bad-endpoint' ? 400 : 502;
+  return httpError(status, id, undefined, { code });
+}
 
 const clean = (v: unknown): string => sanitizeText(typeof v === 'string' ? v : '');
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
@@ -647,6 +661,58 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     }
   }
 
+  // marketplace code loads only after the endpoint check
+  const loadMarket = (): Promise<Market> => import('../commands/catalog-market.js');
+
+  function needEndpoint(): string {
+    const endpoint = marketEndpoint();
+    if (!endpoint) throw httpError(409, 'err.catalog.noEndpoint');
+    return endpoint;
+  }
+
+  // explicit refs name user entries; legacy items are never shared
+  function publishRefs(refs: unknown): { ids: string[] | null; skipped: Skip[] } {
+    if (refs === undefined || refs === null) return { ids: null, skipped: [] };
+    if (!Array.isArray(refs) || refs.length > MAX_PUBLISH_REFS)
+      throw httpError(400, 'err.catalog.badRequest');
+    const ids: string[] = [];
+    const skipped: Skip[] = [];
+    for (const raw of refs) {
+      const { type, ref } = writableRef(raw);
+      if (type === 'legacy') {
+        if (!listLegacy().some((i) => i.ref === ref))
+          throw httpError(404, 'err.catalog.unknownRef', { ref: clean(ref) });
+        if (!skipped.some((x) => x.id === ref)) skipped.push({ id: ref, reason: 'not-shared' });
+      } else if (!readEntry(ref)) throw httpError(404, 'err.catalog.unknownRef', { ref });
+      else if (!ids.includes(ref)) ids.push(ref);
+    }
+    return { ids, skipped };
+  }
+
+  async function publishView(endpoint: string, refs: unknown) {
+    const { ids, skipped } = publishRefs(refs);
+    const m = await loadMarket();
+    const entries = listEntries().filter((e) => ids === null || ids.includes(e.id));
+    const plan: PlanItem[] = [];
+    for (const item of m.publishPlan(entries, endpoint)) {
+      if (m.reserved(item, entries)) skipped.push({ id: item.id, reason: 'withdrawn' });
+      else plan.push(item);
+    }
+    if (ids !== null)
+      for (const e of entries) {
+        if (plan.some((i) => i.id === e.id) || skipped.some((x) => x.id === e.id)) continue;
+        skipped.push({ id: e.id, reason: shareState(e) === 'published' ? 'up-to-date' : 'not-shared' });
+      }
+    const view = {
+      endpoint: clean(endpoint),
+      planHash: m.planHash(endpoint, plan),
+      notice: 'catalog.publish.where' as const,
+      plan,
+      skipped,
+    };
+    return { m, view };
+  }
+
   let port = 0;
 
   const hostOk = (h: string | undefined) => h === `127.0.0.1:${port}` || h === `localhost:${port}`;
@@ -743,6 +809,31 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       if (type === 'user') deleteEntry(ref);
       else if (!deleteLegacy(ref)) throw httpError(404, 'err.catalog.unknownRef', { ref: clean(ref) });
       send(res, 200, { ok: true, catalog: catalogBody(lang) });
+      return;
+    }
+
+    if (method === 'GET' && url.pathname.startsWith('/api/catalog/remote/')) {
+      needEndpoint();
+      const raw = url.pathname.slice('/api/catalog/remote/'.length).split('/');
+      let parts: string[] = [];
+      try {
+        parts = raw.map((p) => decodeURIComponent(p));
+      } catch {}
+      if (parts.length !== 2 || !parts.every((p) => ID_PART_RE.test(p)))
+        throw httpError(400, 'catalog.remote.badId', { ref: clean(parts.join('/') || raw.join('/')) });
+      const m = await loadMarket();
+      const out = await m.remoteShow(parts.join('/'));
+      if (!out.entry) throw marketError(out.code, m.reasonId(out.code));
+      const v = out.latest;
+      send(res, 200, {
+        entry: out.entry,
+        latest: v && {
+          version: v.version,
+          content: v.content,
+          targets: v.targets.map((x) => ({ kind: x.kind, target: x.target })),
+        },
+        ...(out.code ? { code: out.code, errorId: m.reasonId(out.code) } : {}),
+      });
       return;
     }
 
@@ -960,6 +1051,40 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           e = updateShare(adopted.id, body.share, adopted.rev);
         } else e = updateShare(target.ref, body.share, currentRev(target.ref, body.rev));
         send(res, 200, userResult(e, diskLang(body.lang)));
+        return;
+      }
+      case 'POST /api/catalog/publish/plan': {
+        const body = asObject(await readBody(req));
+        const endpoint = needEndpoint();
+        send(res, 200, (await publishView(endpoint, body.refs)).view);
+        return;
+      }
+      case 'POST /api/catalog/publish': {
+        const body = asObject(await readBody(req));
+        const endpoint = needEndpoint();
+        if (body.confirm !== true) throw httpError(400, 'err.catalog.needsConfirm');
+        const { m, view } = await publishView(endpoint, body.refs);
+        // send only what was reviewed
+        if (body.planHash !== view.planHash) throw httpError(409, 'err.catalog.planChanged', undefined, view);
+        const out = view.plan.length
+          ? await m.runPublish(view.plan.map((i) => i.id))
+          : { code: null, results: [] };
+        if (out.code !== null && out.code !== 'read-only') throw marketError(out.code, m.reasonId(out.code));
+        send(res, 200, {
+          ok: true,
+          code: out.code,
+          ...(out.submitUrl ? { submitUrl: out.submitUrl } : {}),
+          results: out.results.map((r) => ({ ...r, errorId: r.code === null ? null : m.reasonId(r.code) })),
+          catalog: catalogBody(diskLang(body.lang)),
+        });
+        return;
+      }
+      case 'GET /api/catalog/remote': {
+        const endpoint = needEndpoint();
+        const m = await loadMarket();
+        const out = await m.remoteList();
+        if (out.code) throw marketError(out.code, m.reasonId(out.code));
+        send(res, 200, { endpoint: clean(endpoint), entries: out.entries });
         return;
       }
       case 'POST /api/catalog/install-theme': {
