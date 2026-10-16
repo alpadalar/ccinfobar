@@ -329,6 +329,41 @@ describe('save current dialog', () => {
     expect(saves()[1]!.body).toMatchObject({ mode: 'update', id: 'u-l', rev: 1, kind: 'preset' });
   });
 
+  it('keeps the old description on update unless one is typed', async () => {
+    await init();
+    catalog.user = [{ ...local(), description: 'Old words' }, pub()];
+    const clash = {
+      error: 'exists',
+      errorId: 'err.catalog.exists',
+      errorParams: { kind: 'preset', name: 'Local one', version: 1 },
+      exists: { id: 'u-l', version: 1, name: 'Local one' },
+    };
+    reply('POST /api/catalog/save', 409, clash);
+    reply('POST /api/catalog/save', 200, { ok: true, entry: local(), catalog });
+    await saveDialog();
+    button('Preset only').dispatch('click');
+    type(input('Name'), 'Local one');
+    button('Save').dispatch('click');
+    await flush();
+    expect(input('Description').value).toBe('Old words');
+    button('Update (adds v2)').dispatch('click');
+    await flush();
+    expect(saves()[1]!.body).toMatchObject({ mode: 'update', id: 'u-l', description: 'Old words' });
+
+    calls = [];
+    reply('POST /api/catalog/save', 409, clash);
+    reply('POST /api/catalog/save', 200, { ok: true, entry: local(), catalog });
+    await saveDialog();
+    button('Preset only').dispatch('click');
+    type(input('Name'), 'Local one');
+    type(input('Description'), 'New words');
+    button('Save').dispatch('click');
+    await flush();
+    button('Overwrite v1').dispatch('click');
+    await flush();
+    expect(saves()[1]!.body).toMatchObject({ mode: 'overwrite', description: 'New words' });
+  });
+
   it('shows a stale entry error and reloads the list', async () => {
     await init();
     reply('POST /api/catalog/save', 409, {

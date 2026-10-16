@@ -99,6 +99,8 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
     noteField.hidden = !c;
     submit.hidden = !!c;
     if (!c) return;
+    // update and overwrite keep the old description, as the CLI does
+    if (!desc.value.trim()) desc.value = (latest ?? data).user.find((u) => u.id === c.id)?.description ?? '';
     const p = { name: c.name || name.value.trim(), version: c.version, next: c.version + 1 };
     clashText.textContent = t('catalog.save.existsText', p);
     update.textContent = t('catalog.save.update', p);
