@@ -27,13 +27,15 @@ class Ccinfobar < Formula
   end
 
   test do
-    assert_match version.to_s, shell_output("#{bin}/ccinfobar --version")
-
     ENV["CCINFOBAR_CONFIG_DIR"] = (testpath/"config").to_s
     ENV["CCINFOBAR_CACHE_DIR"] = (testpath/"cache").to_s
     ENV["CLAUDE_CONFIG_DIR"] = (testpath/"claude").to_s
     ENV["CCINFOBAR_NO_UPDATE"] = "1"
+    ENV["CCINFOBAR_NO_JOBS"] = "1"
+    ENV["CCINFOBAR_NO_USAGE_API"] = "1"
     ENV["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+    assert_match version.to_s, shell_output("#{bin}/ccinfobar --version")
+
     payload = '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"/tmp"}}'
     refute_empty pipe_output(bin/"ccinfobar", payload, 0).strip
   end

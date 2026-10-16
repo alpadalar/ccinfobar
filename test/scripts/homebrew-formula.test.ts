@@ -58,8 +58,12 @@ describe('checkFormula', () => {
       'CCINFOBAR_CACHE_DIR',
       'CLAUDE_CONFIG_DIR',
       'CCINFOBAR_NO_UPDATE',
-    ])
+      'CCINFOBAR_NO_JOBS',
+      'CCINFOBAR_NO_USAGE_API',
+    ]) {
       expect(formulaText).toContain(`ENV["${env}"]`);
+      expect(formulaText.indexOf(`ENV["${env}"]`)).toBeLessThan(formulaText.indexOf('ccinfobar --version'));
+    }
   });
 
   it('reports a post_install, a missing node dependency and a non-registry url', () => {

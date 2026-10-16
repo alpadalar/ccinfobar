@@ -94,7 +94,7 @@ Do the Homebrew steps on a machine where a Homebrew copy of ccinfobar is fine. I
    brew test alpadalar/tap/ccinfobar
    ```
 
-   `brew test` runs `ccinfobar --version` and renders a small payload with temp config, cache and Claude dirs. It does not touch your settings and needs no network.
+   `brew test` sets temp config, cache and Claude dirs and turns off update checks, background jobs and the usage API first, then runs `ccinfobar --version` and renders a small payload. It does not touch your settings and needs no network.
 
 6. Create the GitHub repository `alpadalar/homebrew-tap`, then commit and push the tap. Users then run `brew install alpadalar/tap/ccinfobar`, which taps it for them.
 
