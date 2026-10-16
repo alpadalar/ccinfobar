@@ -54,7 +54,7 @@ Every surface follows this:
 
 The status line command works even when Claude Code's PATH has no `node`, for example with the native Claude Code installer. The package's entry starts with `#!/usr/bin/env node`. Homebrew rewrites that shebang at install time to `<prefix>/opt/node/bin/node`, which survives `brew upgrade node`. The formula needs no code for it.
 
-`ccinfobar install` on a Homebrew copy sets the `statusLine` command to `<prefix>/bin/ccinfobar`, for example `/opt/homebrew/bin/ccinfobar` on Apple silicon, `/usr/local/bin/ccinfobar` on Intel Macs and `/home/linuxbrew/.linuxbrew/bin/ccinfobar` on Linux. That symlink survives `brew upgrade ccinfobar`. It prefers this path over an npm-global copy that comes earlier on PATH. It never writes a `/Cellar/<version>/` path, which would break on the next upgrade, and never Homebrew's versioned `node` path.
+`ccinfobar install` on a Homebrew copy sets the `statusLine` command to `<prefix>/bin/ccinfobar`, for example `/opt/homebrew/bin/ccinfobar` on Apple silicon, `/usr/local/bin/ccinfobar` on Intel Macs and `/home/linuxbrew/.linuxbrew/bin/ccinfobar` on Linux. That symlink survives `brew upgrade ccinfobar`. It prefers this path over an npm-global copy that comes earlier on PATH. It uses the path only when its real path is inside `<prefix>/Cellar/ccinfobar/`: if `npm install -g` with Homebrew's node already owns `<prefix>/bin/ccinfobar`, or the keg is unlinked, it takes `<prefix>/opt/ccinfobar/bin/ccinfobar` instead, and it never points Claude Code at a copy that updates itself with npm. It never writes a `/Cellar/<version>/` path, which would break on the next upgrade, and never Homebrew's versioned `node` path.
 
 ### Publishing the formula (owner)
 

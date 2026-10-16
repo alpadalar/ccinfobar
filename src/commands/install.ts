@@ -111,18 +111,40 @@ export interface TargetDeps {
   globalBinary?: () => string | null;
   entry?: string;
   exists?: (p: string) => boolean;
+  realpath?: (p: string) => string;
 }
 
-const inCellar = (p: string) => p.replace(/\\/g, '/').includes('/Cellar/');
+const slash = (p: string) => p.replace(/\\/g, '/');
+const inCellar = (p: string) => slash(p).includes('/Cellar/');
 
-// the prefix bin survives brew upgrade, Cellar paths do not
+// an npm copy can own <prefix>/bin/ccinfobar
+function ownsKeg(p: string, prefix: string | null, realpath: (p: string) => string): boolean {
+  try {
+    const real = slash(realpath(p));
+    return prefix
+      ? real.startsWith(`${slash(prefix)}/Cellar/ccinfobar/`)
+      : real.includes('/Cellar/ccinfobar/');
+  } catch {
+    return false;
+  }
+}
+
+// the prefix bin and opt link survive brew upgrade, Cellar paths do not
 function brewTarget(deps: TargetDeps): CommandTarget | null {
   const exists = deps.exists ?? fs.existsSync;
+  const realpath = deps.realpath ?? fs.realpathSync;
   const prefix = brewPrefix(deps.entry);
-  const bin = prefix ? path.join(prefix, 'bin', 'ccinfobar') : null;
-  if (bin && exists(bin)) return { kind: 'bin', bin, onPath: true };
+  const candidates: CommandTarget[] = prefix
+    ? [
+        { kind: 'bin', bin: path.join(prefix, 'bin', 'ccinfobar'), onPath: true },
+        { kind: 'bin', bin: path.join(prefix, 'opt', 'ccinfobar', 'bin', 'ccinfobar'), onPath: false },
+      ]
+    : [];
   const hit = (deps.globalBinary ?? globalBinary)();
-  return hit && !inCellar(hit) ? { kind: 'bin', bin: hit, onPath: true } : null;
+  if (hit && !inCellar(hit)) candidates.push({ kind: 'bin', bin: hit, onPath: true });
+  return (
+    candidates.find((c) => c.kind === 'bin' && exists(c.bin) && ownsKeg(c.bin, prefix, realpath)) ?? null
+  );
 }
 
 // never npx@latest: it runs whatever npm serves
