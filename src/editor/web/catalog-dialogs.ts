@@ -228,7 +228,8 @@ export async function historyDialog(e: CatalogEntryInfo): Promise<CatalogState |
     (a, b) => b.version - a.version,
   );
   const top = versions[0]?.version;
-  const fallback = t(current.source === 'legacy' ? 'catalog.source.legacy' : 'catalog.source.system');
+  const file = current.kind === 'theme' ? 'catalog.source.themeFile' : 'catalog.source.presetFile';
+  const fallback = t(current.source === 'legacy' ? file : 'catalog.source.system');
   let busy = false;
   let close: (v?: unknown) => void = () => {};
   const restore = async (v: CatalogVersionInfo) => {

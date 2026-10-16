@@ -517,7 +517,7 @@ describe('catalog card actions', () => {
     expect(actions('u-l')).toEqual(['Version history', 'Share to marketplace', 'Delete']);
     expect(actions('u-p')).toEqual(['Version history', 'Stop sharing', 'Delete']);
     expect(actions('legacy:preset/old')).toEqual(['Version history', 'Share to marketplace', 'Delete']);
-    expect(texts(card('legacy:preset/old')!)).toContain('Saved before the catalog');
+    expect(texts(card('legacy:preset/old')!)).toContain('Preset file');
     expect(actions('preset/compact')).toEqual([]);
     expect(action('u-l', 'Delete').getAttribute('aria-label')).toBe('Delete Local one');
   });

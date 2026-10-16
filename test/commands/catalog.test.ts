@@ -112,6 +112,21 @@ describe('catalog command', () => {
     expect(resolveRef('', sys)).toBeNull();
   });
 
+  it('labels presets/ and themes/ files by what they are (IN-04)', async () => {
+    fs.mkdirSync(path.join(root, 'themes'), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, 'themes', 'oldt.json'),
+      JSON.stringify({ name: 'Old theme', extends: 'nord' }),
+    );
+    legacyPreset();
+    const text = (await run(['list', '--user'])).out.join('\n');
+    expect(text).toMatch(/Old theme +legacy:theme\/oldt +Theme +v1 +Theme file/);
+    expect(text).toMatch(/Old one +legacy:preset\/old +Preset +v1 +Preset file/);
+    const tr = (await withLangAsync('tr', () => run(['list', '--user']))).out.join('\n');
+    expect(tr).toContain('Tema dosyası');
+    expect(tr).toContain('Hazır ayar dosyası');
+  });
+
   it('list prints user entries then system entries grouped by kind', async () => {
     saveBundle();
     legacyPreset();
@@ -120,7 +135,7 @@ describe('catalog command', () => {
     expect(r.out[0]).toBe('Your entries');
     const mine = section(r.out, 'Your entries');
     expect(mine.join('\n')).toMatch(/Bundles\n {4}My look +u-[0-9a-f]{12} +Bundle +v1 +Ann +Not shared/);
-    expect(mine.join('\n')).toMatch(/Presets\n {4}Old one +legacy:preset\/old +Preset +v1 +Saved before/);
+    expect(mine.join('\n')).toMatch(/Presets\n {4}Old one +legacy:preset\/old +Preset +v1 +Preset file/);
     const sys = section(r.out, 'Built in');
     const headings = sys.filter((l) => /^ {2}\S/.test(l)).map((l) => l.trim());
     expect(headings).toEqual(['Bundles', 'Presets', 'Themes']);

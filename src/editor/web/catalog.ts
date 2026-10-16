@@ -335,7 +335,13 @@ export async function openCatalog(): Promise<void> {
         h('span', { class: 'catalog-version' }, t('catalog.version', { version: e.version })),
         e.author ? h('span', { class: 'catalog-author' }, t('catalog.by', { author: e.author })) : null,
         chip(e),
-        e.source === 'legacy' ? h('span', { class: 'theme-tag' }, t('catalog.source.legacy')) : null,
+        e.source === 'legacy'
+          ? h(
+              'span',
+              { class: 'theme-tag' },
+              t(e.kind === 'theme' ? 'catalog.source.themeFile' : 'catalog.source.presetFile'),
+            )
+          : null,
         h('span', { class: 'spacer' }),
         actions(e),
       ),

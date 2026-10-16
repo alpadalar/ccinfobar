@@ -204,8 +204,12 @@ function versionRows(a: AnyEntry): VersionRow[] {
   }));
 }
 
+// a presets/ or themes/ file that is not a catalog entry
+const fileLabel = (kind: EntryKind): MessageId =>
+  kind === 'theme' ? 'catalog.source.themeFile' : 'catalog.source.presetFile';
+
 function chip(a: AnyEntry, s: Summary): string {
-  if (a.source === 'legacy') return t('catalog.source.legacy');
+  if (a.source === 'legacy') return t(fileLabel(a.item.kind));
   if (a.source === 'system') return t('catalog.source.system');
   const version = a.entry.share.remote?.version ?? a.entry.version;
   return s.share ? t(SHARE_IDS[s.share], { version }) : '';
@@ -374,7 +378,7 @@ function runHistory(c: Ctx): void {
     return;
   }
   const s = summary(hit);
-  const at = t(hit.source === 'legacy' ? 'catalog.source.legacy' : 'catalog.source.system');
+  const at = t(hit.source === 'legacy' ? fileLabel(hit.item.kind) : 'catalog.source.system');
   c.io.log(t('catalog.history.title', { name: s.name }));
   for (const r of rows) {
     const extra: string[] = [];

@@ -24,7 +24,7 @@ Personal settings are never stored in an entry, never changed by applying one an
 
 - **System** entries are built in and read-only (author `ccinfobar`, version 1). There are 15 curated bundles, such as `bundle/catppuccin-cockpit`, `bundle/nord-minimal`, `bundle/tokyo-night-limits` and `bundle/panel-dashboard`, plus every built-in preset (`preset/<id>`) and theme (`theme/<id>`). Without GSD installed, built-in presets leave out the GSD widgets, and `preset/gsd` and `bundle/solarized-gsd` are hidden.
 - **User** entries are the ones you saved. They show their version, author and share state.
-- **Saved before the catalog** marks presets and themes you saved before the catalog existed (`presets/<id>.json` and `themes/<id>.json`). A preset file that carries a theme shows as a bundle, one without as a preset. They have version 1, no history, and are not shared. Their files are never moved. Sharing or restoring one turns it into a catalog entry; the old file stays until you delete the entry.
+- **Preset file** and **Theme file** mark presets and themes in `presets/<id>.json` and `themes/<id>.json` that are not catalog entries: ones saved before the catalog existed, from the Presets dialog or the theme builder, or themes installed by applying an entry. A preset file that carries a theme shows as a bundle, one without as a preset. They have version 1, no history, and are not shared. Their files are never moved. Sharing or restoring one turns it into a catalog entry; the old file stays until you delete the entry.
 
 ## Opening the catalog
 
