@@ -69,7 +69,7 @@ Seçenekler
   --import / --no-import          install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz
   --file <path>                   import: bu ayar dosyasını okur
   --allow-commands                import, install: içe aktarılan komutları ve URL'leri sormadan korur
-  --command <cmd>                 install: yazılacak komut (varsayılan: auto)
+  --command <cmd>                 install: yazılacak komut (varsayılan: auto); import: okunacak durum satırı komutu
   --hooks[=permission]            install: hook'ları ekler (=permission, PermissionRequest de ekler);
                                   uninstall: yalnızca ccinfobar'ın hook'larını kaldırır
   --progress                      install: terminal ilerleme işleyicilerini ekler (Claude Code 2.1.141+);

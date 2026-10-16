@@ -62,7 +62,7 @@ export const cliMessages = {
   'help.opt.import': "install: import the previous status line's layout without asking",
   'help.opt.file': 'import: read this settings file',
   'help.opt.allowCommands': 'import, install: keep imported commands and URLs without asking',
-  'help.opt.command': 'install: command to write (default: auto)',
+  'help.opt.command': 'install: command to write (default: auto); import: status line command to read',
   'help.opt.hooks':
     "install: add hooks (=permission adds PermissionRequest);\nuninstall: remove only ccinfobar's hooks",
   'help.opt.progress':

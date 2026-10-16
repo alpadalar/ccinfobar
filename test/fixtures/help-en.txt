@@ -69,7 +69,7 @@ Options
   --import / --no-import          install: import the previous status line's layout without asking
   --file <path>                   import: read this settings file
   --allow-commands                import, install: keep imported commands and URLs without asking
-  --command <cmd>                 install: command to write (default: auto)
+  --command <cmd>                 install: command to write (default: auto); import: status line command to read
   --hooks[=permission]            install: add hooks (=permission adds PermissionRequest);
                                   uninstall: remove only ccinfobar's hooks
   --progress                      install: add the terminal progress handlers (Claude Code 2.1.141+);

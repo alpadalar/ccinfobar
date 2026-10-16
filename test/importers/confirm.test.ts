@@ -159,19 +159,43 @@ describe('rerun hint quoting', () => {
   });
 
   it('asks to add --file when the path is refused', () => {
-    expect(rerunCommand('ccstatusline', 'C:\\$(x).json', false, 'win32')).toEqual({
+    expect(rerunCommand('ccstatusline', { file: 'C:\\$(x).json' }, 'win32')).toEqual({
       command: 'ccinfobar import ccstatusline --allow-commands --force',
       addFile: true,
+      addCommand: false,
     });
-    expect(rerunCommand('ccstatusline', '/tmp/$(touch x).json', true, 'linux')).toEqual({
+    expect(rerunCommand('ccstatusline', { file: '/tmp/$(touch x).json', dryRun: true }, 'linux')).toEqual({
       command:
         "ccinfobar import ccstatusline --allow-commands --force --file '/tmp/$(touch x).json' --dry-run",
       addFile: false,
+      addCommand: false,
     });
-    expect(rerunCommand('claude-powerline', null, false, 'linux')).toEqual({
+    expect(rerunCommand('claude-powerline', { file: null }, 'linux')).toEqual({
       command: 'ccinfobar import claude-powerline --allow-commands --force',
       addFile: false,
+      addCommand: false,
     });
+  });
+
+  it('passes the status line command it read, or asks to add it', () => {
+    const cmd = 'npx -y @owloops/claude-powerline --theme=nord';
+    expect(rerunCommand('claude-powerline', { command: cmd }, 'linux')).toEqual({
+      command: `ccinfobar import claude-powerline --allow-commands --force --command '${cmd}'`,
+      addFile: false,
+      addCommand: false,
+    });
+    expect(rerunCommand('claude-powerline', { command: cmd }, 'win32').command).toBe(
+      `ccinfobar import claude-powerline --allow-commands --force --command "${cmd}"`,
+    );
+    const hud = 'node "C:\\hud\\index.js" --extra-cmd "echo hi"';
+    expect(rerunCommand('claude-hud', { file: 'C:\\a%b.json', command: hud }, 'win32')).toEqual({
+      command: 'ccinfobar import claude-hud --allow-commands --force',
+      addFile: true,
+      addCommand: true,
+    });
+    expect(rerunCommand('ccstatusline', { command: 'ccinfobar' }, 'linux').command).not.toContain(
+      '--command',
+    );
   });
 
   it('prints the add --file hint for a refused path', async () => {

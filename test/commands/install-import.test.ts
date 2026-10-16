@@ -81,7 +81,7 @@ describe('install import offer', () => {
     expect(f.lines).toContain('  command: echo hi');
     expect(f.lines).toContain(
       t('import.rerun', {
-        command: `ccinfobar import ccstatusline --allow-commands --force --file ${shellArg(ccFile)}`,
+        command: `ccinfobar import ccstatusline --allow-commands --force --file ${shellArg(ccFile)} --command ${shellArg('npx ccstatusline')}`,
       }),
     );
   });
@@ -238,8 +238,12 @@ describe('install import offer', () => {
       await offerImport(detectTool(hudCmd)!, parseArgs(['install', '--yes']), cfg, f.io);
       expect(types()).toEqual(['model']);
       const file = shellArg(hudPaths(process.env).config)!;
+      const base = `ccinfobar import claude-hud --allow-commands --force --file ${file}`;
+      const cmd = shellArg(hudCmd);
       expect(f.lines).toContain(
-        t('import.rerun', { command: `ccinfobar import claude-hud --allow-commands --force --file ${file}` }),
+        cmd
+          ? t('import.rerun', { command: `${base} --command ${cmd}` })
+          : t('import.rerunAddCommand', { command: base }),
       );
       expect(f.lines.find((l) => l.startsWith('To keep them, run: '))).toContain('--allow-commands');
     });

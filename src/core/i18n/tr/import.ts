@@ -77,6 +77,10 @@ export const importMessages = {
   'import.rerun': 'Korumak için şunu çalıştırın: {command}',
   'import.rerunAddFile':
     'Korumak için şunu çalıştırın: {command} (kaynak dosyanın yolunu --file ile ekleyin)',
+  'import.rerunAddCommand':
+    'Korumak için şunu çalıştırın: {command} (önceki durum satırı komutunuzu --command ile ekleyin)',
+  'import.rerunAddBoth':
+    'Korumak için şunu çalıştırın: {command} (kaynak dosyanın yolunu --file, önceki durum satırı komutunuzu --command ile ekleyin)',
   'import.spaces': '\u27e8{count} boşluk\u27e9',
   'import.targetLong': '  {kind}: {count} karakter, incelenemeyecek kadar uzun, çıkarıldı',
   'import.note.targetTooLong':

@@ -74,6 +74,10 @@ export const importMessages = {
   },
   'import.rerun': 'To keep them, run: {command}',
   'import.rerunAddFile': 'To keep them, run: {command} (add --file with the path of the source file)',
+  'import.rerunAddCommand':
+    'To keep them, run: {command} (add --command with your previous status line command)',
+  'import.rerunAddBoth':
+    'To keep them, run: {command} (add --file with the path of the source file and --command with your previous status line command)',
   'import.spaces': '\u27e8{count} spaces\u27e9',
   'import.targetLong': '  {kind}: {count} characters, too long to review, dropped',
   'import.note.targetTooLong':

@@ -66,7 +66,7 @@ export const cliMessages = {
   'help.opt.import': 'install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz',
   'help.opt.file': 'import: bu ayar dosyasını okur',
   'help.opt.allowCommands': "import, install: içe aktarılan komutları ve URL'leri sormadan korur",
-  'help.opt.command': 'install: yazılacak komut (varsayılan: auto)',
+  'help.opt.command': 'install: yazılacak komut (varsayılan: auto); import: okunacak durum satırı komutu',
   'help.opt.hooks':
     "install: hook'ları ekler (=permission, PermissionRequest de ekler);\nuninstall: yalnızca ccinfobar'ın hook'larını kaldırır",
   'help.opt.progress':

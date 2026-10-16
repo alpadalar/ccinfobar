@@ -104,19 +104,35 @@ export function shellArg(s: string, platform: NodeJS.Platform = process.platform
 export interface Rerun {
   command: string;
   addFile: boolean;
+  addCommand: boolean;
+}
+
+export interface RerunOpts {
+  file?: string | null;
+  // the status line command the import read
+  command?: string;
+  dryRun?: boolean;
 }
 
 export function rerunCommand(
   source: ImportSource,
-  file: string | null | undefined,
-  dryRun: boolean,
+  o: RerunOpts,
   platform: NodeJS.Platform = process.platform,
 ): Rerun {
   const parts = ['ccinfobar', 'import', source, '--allow-commands', '--force'];
-  const arg = file ? shellArg(file, platform) : null;
+  const arg = o.file ? shellArg(o.file, platform) : null;
   if (arg) parts.push('--file', arg);
-  if (dryRun) parts.push('--dry-run');
-  return { command: sanitizeText(parts.join(' ')), addFile: !!file && !arg };
+  // install replaces it before the hint is used
+  const command = o.command && !/ccinfobar/i.test(o.command) ? o.command : '';
+  const cmd = command ? shellArg(command, platform) : null;
+  if (cmd) parts.push('--command', cmd);
+  if (o.dryRun) parts.push('--dry-run');
+  return { command: sanitizeText(parts.join(' ')), addFile: !!o.file && !arg, addCommand: !!command && !cmd };
+}
+
+function rerunId(r: Rerun): MessageId {
+  if (r.addFile) return r.addCommand ? 'import.rerunAddBoth' : 'import.rerunAddFile';
+  return r.addCommand ? 'import.rerunAddCommand' : 'import.rerun';
 }
 
 // D-29: commands and URLs stay only with consent, shown in full
@@ -150,7 +166,7 @@ async function confirmTargets(
   const drop = keep ? targets.filter(long) : targets;
   if (!drop.length) return result;
   io.log(t('import.targetsDropped', { count: drop.length }));
-  io.log(t(rerun.addFile ? 'import.rerunAddFile' : 'import.rerun', { command: rerun.command }));
+  io.log(t(rerunId(rerun), { command: rerun.command }));
   const dropped: ImportNote[] = drop.map((x) => ({
     kind: 'drop',
     text: long(x)
@@ -212,7 +228,11 @@ export async function runImport(
     const raw = sanitizeImport(
       importFrom(source, opts.file ? { file: opts.file, command: opts.command } : { command: opts.command }),
     );
-    const rerun = rerunCommand(source, opts.file ?? raw.file, flags.dryRun);
+    const rerun = rerunCommand(source, {
+      file: opts.file ?? raw.file,
+      command: opts.command,
+      dryRun: flags.dryRun,
+    });
     const result = await confirmTargets(raw, flags, io, rerun);
     if (flags.dryRun) {
       importReport(io, result, null);
@@ -254,7 +274,8 @@ export async function runImportCommand(
     return;
   }
   const file = typeof args.flags.file === 'string' ? path.resolve(args.flags.file) : undefined;
-  const ok = await runImport(source, { file, command: currentCommandSafe(), flags }, cfgFile, io);
+  const command = typeof args.flags.command === 'string' ? args.flags.command : currentCommandSafe();
+  const ok = await runImport(source, { file, command, flags }, cfgFile, io);
   if (!ok) process.exitCode = 1;
 }
 

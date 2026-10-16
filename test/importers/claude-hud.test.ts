@@ -818,6 +818,28 @@ describe('import claude-hud', () => {
     expect(saved.lines[0].map((i: WidgetItem) => i.type)).toContain('command');
   });
 
+  it('reads --command instead of the current status line, as the install hint asks', async () => {
+    const s = claudeDir();
+    write(path.join(s.d, 'claude', 'settings.json'), {
+      statusLine: { type: 'command', command: 'ccinfobar' },
+    });
+    keepExit();
+    const f = fake();
+    const cfg = path.join(s.d, 'c.json');
+    const argv = [
+      'import',
+      'claude-hud',
+      '--allow-commands',
+      '--command',
+      'node claude-hud --extra-cmd=uptime',
+    ];
+    await runImportCommand(parseArgs(argv), cfg, f.io);
+    expect(f.errors).toEqual([]);
+    const saved = JSON.parse(fs.readFileSync(cfg, 'utf8'));
+    const cmd = (saved.lines as WidgetItem[][]).flat().find((i) => i.type === 'command');
+    expect(cmd?.options?.command).toBe('uptime');
+  });
+
   it('prints a parse failure through runImportCommand, also in Turkish', async () => {
     const s = claudeDir();
     write(s.config, '{ nope');
