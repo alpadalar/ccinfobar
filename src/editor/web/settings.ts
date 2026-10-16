@@ -33,7 +33,7 @@ import { field, numberInput, segmented, textInput, toggle } from './inspector.js
 import { installDialog } from './install-dialog.js';
 import { applySaved, commit, type HooksInfo, S } from './store.js';
 import { modal, toast } from './ui.js';
-import { canSelfUpdate, kindLabel, updateCommand } from './update-info.js';
+import { brewHint, canSelfUpdate, kindLabel } from './update-info.js';
 
 const reasonText = (hk: HooksInfo): string => idText(hk.reasonId, hk.reasonParams, hk.reason ?? '');
 
@@ -512,6 +512,7 @@ export async function openSettings(): Promise<void> {
       render();
     };
     const canUpdate = canSelfUpdate(info?.kind);
+    const hint = brewHint(info?.kind, c.update);
     const checked = info?.update?.checkedAt
       ? t('web.settings.lastChecked', {
           when: formatDateTime(new Date(info.update.checkedAt), languageLocale()),
@@ -587,7 +588,7 @@ export async function openSettings(): Promise<void> {
           }),
           latest ? t('web.settings.latest', { version: latest.latest }) : '',
         ),
-        updateCommand(info?.kind) ? h('div', { class: 'hint' }, t('update.brewSettingsHint')) : null,
+        hint ? h('div', { class: 'hint' }, hint) : null,
         h(
           'div',
           { class: 'row-inline' },

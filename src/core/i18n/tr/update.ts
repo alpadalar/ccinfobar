@@ -6,5 +6,5 @@ export const updateMessages = {
   'update.brewRefused': 'Homebrew ile kurulmuş: `brew upgrade ccinfobar` çalıştırın',
   'update.kindBrew': 'Homebrew kurulumu',
   'update.brewSettingsHint':
-    'Bu kopyayı Homebrew güncelliyor: `brew upgrade ccinfobar` çalıştırın. Hangi mod seçilirse seçilsin ccinfobar yalnızca bildirim gösterir.',
+    'Bu kopyayı Homebrew güncelliyor: `brew upgrade ccinfobar` çalıştırın. "Otomatik kur", "Haber ver" gibi davranır; ccinfobar kendisi kurmaz.',
 } satisfies Record<keyof typeof enUpdate, Message>;
