@@ -669,6 +669,6 @@ See [docs/DISTRIBUTION.md](DISTRIBUTION.md#startup-decision-f2) for the decision
 1. Move the `Unreleased` entries in `CHANGELOG.md` under a new version heading.
 2. `npm version <patch|minor|major>` (its `version` script also updates `plugin/.claude-plugin/plugin.json` and the pins in `INSTALL.md` and the README)
 3. `git push --follow-tags`
-4. After npm has the new version, update the Homebrew formula as described in [docs/DISTRIBUTION.md](DISTRIBUTION.md#publishing-the-formula-owner).
+4. As soon as npm has the new version, in the same sitting, update the Homebrew formula and the tap as described in [docs/DISTRIBUTION.md](DISTRIBUTION.md#publishing-the-formula-owner). Brew users see the update notice from the moment the GitHub release exists, and `brew upgrade ccinfobar` does nothing until the tap has the version.
 
 The `Release` workflow runs the checks, creates a GitHub release from the changelog section with the packed `ccinfobar.tgz` attached (the README install command points at it), and publishes to npm with provenance when an `NPM_TOKEN` repository secret exists.

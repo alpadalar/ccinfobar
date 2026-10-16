@@ -52,6 +52,8 @@ Every surface follows this:
 - **Web editor:** Settings shows `This is ccinfobar <version>, Homebrew install; …` and ``Homebrew updates this copy: run `brew upgrade ccinfobar`. "Install automatically" acts like "Tell me"; ccinfobar never installs it.`` (not with `update: "off"`), with no Update button. `POST /api/update` with `install: true` answers 409 `` Installed with Homebrew: run `brew upgrade ccinfobar` `` (`errorId: update.brewRefused`).
 - **`ccinfobar doctor`:** `✓ Up to date (auto mode, updates via brew upgrade ccinfobar (Homebrew install), last checked …)`, or ``✗ Update available: <current> → <latest> (run `brew upgrade ccinfobar`)``.
 
+The newest version comes from the GitHub "latest release", which the release workflow creates when the tag is pushed. The tap gets the version later, by hand, after npm has it (see [Publishing the formula](#publishing-the-formula-owner)), and `brew bump*` skips versions younger than a day. Until the tap has it, brew users already see the notice, `doctor` reports `✗ Update available` and `ccinfobar update` names the new version, but `brew upgrade ccinfobar` says it is already installed. Updating the tap in the same release step keeps this window short.
+
 The status line command works even when Claude Code's PATH has no `node`, for example with the native Claude Code installer. The package's entry starts with `#!/usr/bin/env node`. Homebrew rewrites that shebang at install time to `<prefix>/opt/node/bin/node`, which survives `brew upgrade node`. The formula needs no code for it.
 
 `ccinfobar install` on a Homebrew copy sets the `statusLine` command to `<prefix>/bin/ccinfobar`, for example `/opt/homebrew/bin/ccinfobar` on Apple silicon, `/usr/local/bin/ccinfobar` on Intel Macs and `/home/linuxbrew/.linuxbrew/bin/ccinfobar` on Linux. That symlink survives `brew upgrade ccinfobar`. It prefers this path over an npm-global copy that comes earlier on PATH. It uses the path only when its real path is inside `<prefix>/Cellar/ccinfobar/`: if `npm install -g` with Homebrew's node already owns `<prefix>/bin/ccinfobar`, or the keg is unlinked, it takes `<prefix>/opt/ccinfobar/bin/ccinfobar` instead, and it never points Claude Code at a copy that updates itself with npm. It never writes a `/Cellar/<version>/` path, which would break on the next upgrade, and never Homebrew's versioned `node` path.
@@ -95,7 +97,7 @@ Do the Homebrew steps on a machine where a Homebrew copy of ccinfobar is fine. I
 
 6. Create the GitHub repository `alpadalar/homebrew-tap`, then commit and push the tap. Users then run `brew install alpadalar/tap/ccinfobar`, which taps it for them.
 
-Later releases: after each npm publish, repeat steps 2 to 6 (the tap already exists). `brew bump-formula-pr --version <x.y.z> alpadalar/tap/ccinfobar` works too, but it does not check the tarball against npm's integrity hash.
+Later releases: after each npm publish, repeat steps 2 to 6 right away (the tap already exists). Brew users see the update notice as soon as the GitHub release exists, so a late tap update leaves them with a `brew upgrade` that does nothing. `brew bump-formula-pr --version <x.y.z> alpadalar/tap/ccinfobar` works too, but it does not check the tarball against npm's integrity hash.
 
 Notes:
 
