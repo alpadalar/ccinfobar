@@ -283,7 +283,7 @@ The System tab has every built-in preset and theme, plus 15 ready bundles:
 - Dracula arrows (`powerline` + Dracula, needs a Nerd Font)
 - Gruvbox git (`git` + Gruvbox)
 - Tokyo limits (`limits` + Tokyo Night)
-- Mono compact (`compact` without colors, paste-safe)
+- Mono compact (`compact` without colors, in the plain text style without powerline glyphs; for pasting into GitHub also set `"glyphMode": "paste-safe"`, a personal setting that bundles never change)
 - Everforest repos (`workspace` + Everforest)
 - Kanagawa agents (`agents` + Kanagawa)
 - Rosé Pine 2-line (`two-line` + Rosé Pine)

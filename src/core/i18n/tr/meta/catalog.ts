@@ -122,7 +122,7 @@ export const catalog: CatalogMeta = {
     },
     'mono-compact': {
       name: 'Mono kompakt',
-      description: 'Renksiz ve powerline glifsiz tek, yoğun bir satır; düz terminaller ve yapıştırmak için',
+      description: 'Renksiz ve powerline glifsiz tek, yoğun bir satır; düz terminaller için',
     },
     'everforest-workspace': {
       name: 'Everforest depo',

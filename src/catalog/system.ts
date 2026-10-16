@@ -53,7 +53,7 @@ export const SYSTEM_BUNDLES: SystemBundle[] = [
   {
     id: 'mono-compact',
     name: 'Mono compact',
-    description: 'One dense line without colors or powerline glyphs, for plain terminals and pasting',
+    description: 'One dense line without colors or powerline glyphs, for plain terminals',
     preset: 'compact',
     theme: 'mono',
     appearance: { style: 'text' },
