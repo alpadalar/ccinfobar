@@ -392,17 +392,50 @@ describe('formatTable', () => {
     expect(headers(70)).toContain('Output');
     expect(headers(60)).not.toContain('Output');
     expect(table(dayReport(), { width: 60 })[1]).toContain('ccinfobar');
+    const cut = table(dayReport(), { width: 58 });
+    expect(cut[0]).toContain('Sessions');
+    expect(cut[1]).toContain('ccin\u2026bar');
     const narrow = table(dayReport(), { width: 55 });
-    expect(narrow[1]).toContain('ccin\u2026bar');
+    expect(narrow[0]).not.toContain('Sessions');
+    expect(narrow[1]).toContain('ccinfobar');
     expect(narrow[2]).toContain('work/api');
     for (const w of [99, 90, 80, 70, 60]) {
       for (const l of body(table(dayReport(), { width: w })))
         expect(visibleWidth(l), String(w)).toBeLessThanOrEqual(w);
     }
-    const tiny = table(dayReport(), { width: 10 })[0]!;
-    for (const h of ['Day', 'Project', 'Sessions', 'Total', 'Cost (est.)', 'Active'])
-      expect(tiny).toContain(h);
-    expect(table(dayReport(), { width: 10 })[1]).toContain('ccin\u2026bar');
+    const mid = table(dayReport(), { width: 45 });
+    expect(mid[0]).not.toContain('Sessions');
+    expect(mid[0]).not.toContain('Active');
+    expect(mid[1]).toContain('ccinfobar');
+  });
+
+  it('fits every table line from 20 to 120 columns in both languages', () => {
+    for (const lang of ['en', 'tr'] as const) {
+      for (let w = 20; w <= 120; w++) {
+        const ls = withLanguage(lang, () => body(table(dayReport(), { width: w })));
+        for (const l of ls) expect(visibleWidth(l), `${lang} ${w}: ${l}`).toBeLessThanOrEqual(w);
+      }
+    }
+  });
+
+  it('stacks period and project over the numbers when even that does not fit', () => {
+    expect(body(table(dayReport(), { width: 20 }))).toEqual([
+      'Day         Project',
+      '  Total  Cost (est.)',
+      '2026-10-14  ccin\u2026bar',
+      '    19M      $14.20',
+      '2026-10-14  work/api',
+      '   872k       $0.94*',
+      '            subtotal',
+      '   872k      $15.14*',
+      '2026-10-15  old/api',
+      '      \u2014           \u2014',
+      '            total',
+      '   872k      $15.14*',
+    ]);
+    const tiny = body(table(dayReport(), { width: 12 }));
+    expect(tiny[1]).toMatch(/^ {2}\S/);
+    expect(tiny.length).toBe(12);
   });
 
   it('keeps everything without a width', () => {

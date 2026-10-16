@@ -250,37 +250,87 @@ export function formatTable(
   );
 
   const all = [header, ...body];
+  const full = all.map((x) => x.project);
   const widthOf = (c: Col) => Math.max(...all.map((x) => visibleWidth(x[c])));
-  let cols = [...COLS];
-  const lineWidth = () => cols.reduce((n, c) => n + widthOf(c), 0) + 2 * (cols.length - 1);
+  const span = (cs: Col[]) => cs.reduce((n, c) => n + widthOf(c), 0) + 2 * (cs.length - 1);
+  const right = (c: Col) => c !== 'period' && c !== 'project';
   const max = opts.width;
-  if (max !== null) {
-    for (const d of DROP) {
-      if (lineWidth() <= max) break;
-      cols = cols.filter((c) => c !== d);
-    }
-    const over = lineWidth() - max;
-    if (over > 0) {
-      const w = widthOf('project');
-      const target = Math.max(Math.min(8, w), w - over);
-      for (const x of all) x.project = midTruncate(x.project, target);
-    }
+  let cols = [...COLS];
+  const fits = () => max === null || span(cols) <= max;
+  // the project gives way down to floor before the next column goes
+  const shrink = (floor: number) => {
+    all.forEach((x, i) => {
+      x.project = full[i]!;
+    });
+    const over = max === null ? 0 : span(cols) - max;
+    if (over <= 0) return;
+    const w = widthOf('project');
+    const target = Math.max(Math.min(floor, w), w - over);
+    for (const x of all) x.project = midTruncate(x.project, target);
+  };
+  for (const d of DROP) {
+    if (fits()) break;
+    cols = cols.filter((c) => c !== d);
   }
-  const widths = new Map(cols.map((c) => [c, widthOf(c)]));
-  const line = (x: Record<Col, string>) =>
-    cols
-      .map((c) => pad(x[c], widths.get(c)!, c !== 'period' && c !== 'project'))
-      .join('  ')
-      .trimEnd();
-
+  shrink(8);
+  for (const d of ['sessions', 'active'] as Col[]) {
+    if (fits()) break;
+    cols = cols.filter((c) => c !== d);
+    shrink(8);
+  }
+  if (!fits()) shrink(4);
+  let table: string[];
+  if (fits()) {
+    const widths = new Map(cols.map((c) => [c, widthOf(c)]));
+    const line = (x: Record<Col, string>) =>
+      cols
+        .map((c) => pad(x[c], widths.get(c)!, right(c)))
+        .join('  ')
+        .trimEnd();
+    table = [style(line(header), { bold: true }, opts.level), ...body.map(line)];
+  } else table = stacked(all, full, header, body, max!, widthOf, span, opts.level);
   const notes = report.notes.map(noteText);
   if (anyPartial && !report.notes.some((n) => n.code === 'partial'))
     notes.push(noteText({ code: 'partial' }));
   if (anyLow && !report.notes.some((n) => n.code === 'tokens-partial'))
     notes.push(noteText({ code: 'tokens-partial' }));
+  return [...table, ...(notes.length ? ['', ...notes.map((n) => style(n, { dim: true }, opts.level))] : [])];
+}
+
+// period and project on one line, the numbers indented below
+function stacked(
+  all: Record<Col, string>[],
+  full: string[],
+  header: Record<Col, string>,
+  body: Record<Col, string>[],
+  max: number,
+  widthOf: (c: Col) => number,
+  span: (cs: Col[]) => number,
+  level: Level,
+): string[] {
+  const pw = widthOf('period');
+  all.forEach((x, i) => {
+    x.project = midTruncate(full[i]!, Math.max(1, max - pw - 2));
+  });
+  let nums: Col[] = ['sessions', 'total', 'cost', 'active'];
+  for (const d of ['sessions', 'active', 'total'] as Col[]) {
+    if (2 + span(nums) <= max) break;
+    nums = nums.filter((c) => c !== d);
+  }
+  if (2 + span(nums) > max) {
+    // headers give way to the values
+    for (const c of nums) {
+      const vw = Math.max(1, ...body.map((x) => visibleWidth(x[c])));
+      header[c] = truncate(header[c], vw);
+    }
+  }
+  const widths = new Map(nums.map((c) => [c, widthOf(c)]));
+  const top = (x: Record<Col, string>) => `${pad(x.period, pw, false)}  ${x.project}`.trimEnd();
+  const below = (x: Record<Col, string>) =>
+    `  ${nums.map((c) => pad(x[c], widths.get(c)!, true)).join('  ')}`.trimEnd();
   return [
-    style(line(header), { bold: true }, opts.level),
-    ...body.map(line),
-    ...(notes.length ? ['', ...notes.map((n) => style(n, { dim: true }, opts.level))] : []),
+    style(top(header), { bold: true }, level),
+    style(below(header), { bold: true }, level),
+    ...body.flatMap((x) => [top(x), below(x)]),
   ];
 }
