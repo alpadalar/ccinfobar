@@ -33,20 +33,9 @@ import { field, numberInput, segmented, textInput, toggle } from './inspector.js
 import { installDialog } from './install-dialog.js';
 import { applySaved, commit, type HooksInfo, S } from './store.js';
 import { modal, toast } from './ui.js';
+import { canSelfUpdate, kindLabel, updateCommand } from './update-info.js';
 
 const reasonText = (hk: HooksInfo): string => idText(hk.reasonId, hk.reasonParams, hk.reason ?? '');
-
-const KIND: Record<string, MessageId> = {
-  'npm-global': 'web.kind.npm-global',
-  local: 'web.kind.local',
-  npx: 'web.kind.npx',
-  source: 'web.kind.source',
-  unknown: 'web.kind.unknown',
-};
-
-function kindText(kind = 'unknown'): string {
-  return Object.hasOwn(KIND, kind) ? t(KIND[kind]!) : kind;
-}
 
 function budgetInput(
   key: 'daily' | 'session' | 'warnAt',
@@ -522,7 +511,7 @@ export async function openSettings(): Promise<void> {
       commit({ ...S.config, ...p });
       render();
     };
-    const canUpdate = info?.kind === 'npm-global' || info?.kind === 'local';
+    const canUpdate = canSelfUpdate(info?.kind);
     const checked = info?.update?.checkedAt
       ? t('web.settings.lastChecked', {
           when: formatDateTime(new Date(info.update.checkedAt), languageLocale()),
@@ -593,11 +582,12 @@ export async function openSettings(): Promise<void> {
           { class: 'hint' },
           t('web.settings.version', {
             version: info?.version ?? S.api.version,
-            kind: kindText(info?.kind),
+            kind: kindLabel(info?.kind),
             checked,
           }),
           latest ? t('web.settings.latest', { version: latest.latest }) : '',
         ),
+        updateCommand(info?.kind) ? h('div', { class: 'hint' }, t('update.brewSettingsHint')) : null,
         h(
           'div',
           { class: 'row-inline' },

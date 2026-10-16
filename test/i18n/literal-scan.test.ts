@@ -55,6 +55,7 @@ const SWEPT: string[] = [
   'src/editor/web/styles.ts',
   'src/editor/web/terminals.ts',
   'src/editor/web/i18n-static.ts',
+  'src/editor/web/update-info.ts',
   'src/tui/fields.ts',
   'src/tui/state.ts',
   'src/tui/index.ts',
@@ -205,6 +206,7 @@ const ALLOW: Record<string, string[]> = {
   ],
   // shell command in the render notice (10-01)
   'src/data/update-state.ts': ['brew upgrade ccinfobar'],
+  'src/editor/web/update-info.ts': ['brew upgrade ccinfobar'],
   // compact duration units stay ASCII (D-17)
   'src/widgets/shared.ts': ['Xd Xh', 'Xh Xm'],
   // English catalog data, shown through styleGroupName (08-12)
