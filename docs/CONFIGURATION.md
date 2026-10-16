@@ -18,6 +18,8 @@ Override it with:
 
 Your own themes live in `themes/` and your own presets in `presets/` next to `config.json`. A preset file holds `name`, `description` and a full `config`; `ccinfobar init <id>` applies it.
 
+Built-in presets: `default`, `cockpit`, `dashboard`, `minimal`, `gsd`, `powerline`, `full`, `cost`, `limits`, `git`, `workspace`, `compact`, `two-line`, `agents`, `charts`, `session`. The [README](../README.md#presets) describes each one.
+
 To use a project-specific layout, point the Claude Code `statusLine` command at a different file, e.g. `ccinfobar --config ./.claude/infobar.json`.
 
 ## Editor support
@@ -319,7 +321,7 @@ Resuming or forking a session, `/clear`, compaction, `/login` and two terminals 
 
 ## Live session widgets
 
-`tool-activity`, `turn-timer`, `permission-wait`, `env-counts` and `workspace-repos` are opt-in; no preset or default layout uses them. Their options are in [WIDGETS.md](WIDGETS.md).
+`tool-activity`, `turn-timer`, `permission-wait`, `env-counts` and `workspace-repos` are opt-in; the default layout does not use them. The `agents` preset uses `tool-activity`, `turn-timer` and `permission-wait`, and the `workspace` preset uses `workspace-repos`. Their options are in [WIDGETS.md](WIDGETS.md).
 
 ### Refresh interval
 
@@ -364,7 +366,7 @@ Lists git repos directly inside the current folder when that folder is not insid
 
 ## External data
 
-`service-status`, `http`, `provider` and the `pr` option `ci` are opt-in; no preset or default layout uses them. The status line never waits on the network: after it has printed, ccinfobar starts at most one background process that refreshes whatever is due and writes the results to the cache dir (`jobs/<key>.json`, mode 0600). The next refresh shows them. Until the first result arrives a widget stays empty, and `ccinfobar explain` says why.
+`service-status`, `http`, `provider` and the `pr` option `ci` are opt-in; neither the default layout nor any built-in preset uses them. The status line never waits on the network: after it has printed, ccinfobar starts at most one background process that refreshes whatever is due and writes the results to the cache dir (`jobs/<key>.json`, mode 0600). The next refresh shows them. Until the first result arrives a widget stays empty, and `ccinfobar explain` says why.
 
 ### What runs when
 

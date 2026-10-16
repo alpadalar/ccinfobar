@@ -171,7 +171,7 @@ A widget without data (a new chat, a folder that is not a git repo or GSD projec
 
 ### Live session widgets
 
-These show what Claude is doing right now. They are opt-in: no preset or default layout uses them, so add them in the editor.
+These show what Claude is doing right now. They are opt-in: the default layout does not use them. The `agents` preset shows `tool-activity`, `turn-timer` and `permission-wait`, the `workspace` preset shows `workspace-repos`, or add them in the editor.
 
 - `tool-activity`: the running tool and this turn's tool counts, `Bash npm test · Read 4, Edit 2, Bash 1`
 - `turn-timer`: how long the turn has run, or the last one took, `Turn 2m14s`
@@ -232,6 +232,29 @@ ccinfobar theme dracula   # switch
 | Panel (box with optional grid) | `panel` |
 
 ![Theme gallery](docs/images/themes.png)
+
+### Presets
+
+A preset is a ready layout. `ccinfobar init <id> --force` writes one, or pick it under **Presets** in either editor. `dashboard` and `powerline` bring their own theme, the others use `classic`.
+
+| Preset | Layout |
+| --- | --- |
+| `default` | Model, git and context, usage limits, and a GSD line when GSD is installed |
+| `cockpit` | Developer dashboard: path and git, GSD, model and time, context and tokens, usage limits |
+| `dashboard` | A boxed overview: model in the corner, usage cells, a full-width context bar, token graph, tasks and subagents |
+| `minimal` | One compact line |
+| `gsd` | Everything GSD tracks, plus context |
+| `powerline` | Powerline arrows with the Tokyo Night theme (needs a Nerd Font) |
+| `full` | Dense lines for wide terminals |
+| `cost` | Session, daily and weekly cost, spend rate and a budget bar |
+| `limits` | Five-hour and weekly limits with pace, projection and reset times |
+| `git` | Repo, branch, sync, staged and unstaged files, stash, worktree and PR |
+| `workspace` | Every repo in a folder of projects, with branch and dirty marker |
+| `compact` | One dense line: model, path, git, context, cost and the 5h limit |
+| `two-line` | Model, path, git and time on top; context, tokens, cache, cost and limits below |
+| `agents` | What Claude is doing: turn timer, tools, subagents, permission waits and tasks |
+| `charts` | Small graphs of context, token rate, output speed, spend rate and usage |
+| `session` | Session name, id and time, context size, tokens, cache hits and messages |
 
 ### Dashboard
 
@@ -394,7 +417,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar import <tool>` | Import a `ccstatusline`, `claude-powerline`, `ccometixline` (`ccline`), `cship` or `claude-hud` layout (`--file <path>`, `--force`, `--dry-run` to only show the report and a preview, `--allow-commands` to keep its commands and URLs without asking, `--command <cmd>` to read that status line command instead of the current one) |
 | `ccinfobar report` | Tokens, estimated cost and active time per project ([Reports](#reports); `--period day\|week\|month`, `--since`/`--until <date>`, `--all`, `--project <text>`, `--csv`, `--json`, `--rebuild`) |
-| `ccinfobar init [preset]` | Write a preset: `default`, `cockpit`, `minimal`, `gsd`, `powerline`, `full` (`--force` to overwrite) |
+| `ccinfobar init [preset]` | Write a [preset](#presets): `default`, `cockpit`, `dashboard`, `minimal`, `gsd`, `powerline`, `full`, `cost`, `limits`, `git`, `workspace`, `compact`, `two-line`, `agents`, `charts`, `session` (`--force` to overwrite) |
 | `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--glyph-mode <mode>` to try a glyph mode without saving it, for example `paste-safe` for text that stays aligned in a GitHub issue, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `bedrock-user`, `gateway-glm`, `near-7d-limit`, `over-budget`, `workspace-folder`, `waiting-permission`, `service-incident`, `pr-ci-failing`; a bare `--scenario` lists them) |
 | `ccinfobar update` | Update to the latest release now (`--check` to only look) |
 | `ccinfobar widgets` | List all widgets |

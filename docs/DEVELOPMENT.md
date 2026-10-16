@@ -339,7 +339,7 @@ Phase 5 added three optional `DataSources` members, `hooks`, `repos` and `enviro
 - **Workspace mode.** Before rendering, `workspaceMode(ctx)` in `core/renderer.ts` renders each `workspace-repos` item once; when one shows repos, the other git widgets hide instead of showing `—` (`hideGitPlaceholders: false` opts out). `workspace-repos` itself sets `WidgetDef.hideWhenEmpty`, so `renderPart` and `inspect` hide it when empty (status `hidden`, reason `inside-repo` or `no-child-repos`) unless the item sets `hideEmpty: false`.
 - **Time-based widgets.** `WidgetDef.timeBased` marks widgets that need a refresh interval; `needsRefresh` in `core/edit.ts` (pure) drives the `install`, `doctor` and editor hints.
 
-`test/widgets/performance.test.ts` renders all five live widgets through the real readers on temp fixtures with `child_process` spies and asserts no call; `test/core/scenarios.test.ts` renders them under every scenario and checks that no preset or default layout uses them.
+`test/widgets/performance.test.ts` renders all five live widgets through the real readers on temp fixtures with `child_process` spies and asserts no call; `test/core/scenarios.test.ts` renders them under every scenario and checks that no default layout uses them and that only the `agents` and `workspace` presets do.
 
 ### Background jobs
 
