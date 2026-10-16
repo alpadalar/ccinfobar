@@ -23,6 +23,7 @@
 - [Editing your status line](#editing-your-status-line)
 - [Widgets](#widgets)
 - [Themes](#themes)
+- [Catalog](#catalog)
 - [GSD integration](#gsd-integration)
 - [Coming from another status line](#coming-from-another-status-line)
 - [Reports](#reports)
@@ -123,6 +124,7 @@ ccinfobar edit
 | Inspector (right) | Colors (16 named, 256 palette or hex), background, bold/dim/italic, label override, merge, and every widget option. The **Global** tab covers style, separators, glyphs, icons, color depth and width, and **Colors from** keeps your style while taking the colors of any theme. |
 | Theme gallery | Every theme rendered live with your own widgets. Apply with one click, filter by style, or open **New theme** to build your own: pick a starting theme, a style, and text and background colors per category or in a cycle, with a live preview. |
 | Presets | Built-in and your own layouts with live previews. **Save current as preset** keeps your layout for later. |
+| Catalog | Built-in and saved presets, themes and bundles with live previews, one-click apply, save with version history, and sharing ([Catalog](#catalog)). |
 | Top bar | Presets, themes, undo/redo, import/export JSON, save (`Ctrl+S`), and one-click install into Claude Code. |
 
 The editor runs only on `127.0.0.1` with a per-session token. Press **Done** or `Ctrl+C` to stop it.
@@ -267,6 +269,42 @@ ccinfobar init dashboard --force   # or Presets → Dashboard in the editor
 ![Dashboard preset](docs/images/dashboard.png)
 
 Any theme can be drawn in any style (`"style": "capsule"`), and per-widget colors always win. To make your own, use **New theme** in the editor, or run `ccinfobar theme new mine --from nord` and edit `~/.config/ccinfobar/themes/mine.json`. Details: [docs/THEMES.md](docs/THEMES.md).
+
+## Catalog
+
+The catalog keeps layouts and looks you can apply in one step: presets, themes and bundles (a preset with a theme). In `ccinfobar edit`, click **Catalog** in the header. The **All** tab shows your own entries first and the built-in ones below, **User** only yours and **System** only the built-in ones, each grouped as bundles, presets and themes with a live preview of your config. One click applies an entry, `Ctrl+Z` undoes it, and nothing is written until you save.
+
+**Save current as…** keeps your setup as a preset, a theme or a bundle, with a name, a description and an author (remembered for next time). Saving under an existing name asks whether to update it (a new version) or overwrite the latest one, and every entry has a version history with restore. Applying changes only the layout and the theme; your budget, profiles, language and other personal settings stay.
+
+The System tab has every built-in preset and theme, plus 15 ready bundles:
+
+- Mocha cockpit (`cockpit` + Catppuccin Mocha)
+- Nord minimal (`minimal` + Nord)
+- Dracula arrows (`powerline` + Dracula, needs a Nerd Font)
+- Gruvbox git (`git` + Gruvbox)
+- Tokyo limits (`limits` + Tokyo Night)
+- Mono compact (`compact` without colors, paste-safe)
+- Everforest repos (`workspace` + Everforest)
+- Kanagawa agents (`agents` + Kanagawa)
+- Rosé Pine 2-line (`two-line` + Rosé Pine)
+- One Dark cost (`cost` + One Dark capsules)
+- Solarized GSD (`gsd` + Solarized)
+- Panel dashboard (`dashboard`, boxed)
+- Paper default (`default` + Paper, for light terminals)
+- Neon charts (`charts` + Neon)
+- Amber session (`session` + Amber)
+
+Every action has a CLI command too:
+
+```sh
+ccinfobar catalog list                        # your entries, then the built-in ones
+ccinfobar catalog apply bundle/nord-minimal   # apply the Nord minimal bundle (backup first)
+ccinfobar catalog save "My setup"             # save your current setup as a bundle
+ccinfobar catalog history "My setup"          # versions, then `catalog restore <ref> <version>`
+ccinfobar catalog publish                     # show what would be sent, then send after you confirm
+```
+
+Sharing is on by default, but nothing leaves your machine until you set a marketplace endpoint; there is no default endpoint. With one set (`ccinfobar catalog endpoint <url>`), `catalog publish` and the editor's **Publish…** show the exact payload and send only after you confirm, and `catalog list --remote` browses the marketplace read-only. Marketplace content is data only: no `command`, `http` or `env` widgets, only http(s) links and no personal settings. Details: [docs/CATALOG.md](docs/CATALOG.md) and [docs/MARKETPLACE.md](docs/MARKETPLACE.md).
 
 ## GSD integration
 
@@ -425,6 +463,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar explain [widget-id]` | Show each widget's value, where it came from (payload field, cache and its age, git, GSD) and why it is empty (`--json` for bug reports, `--scenario <name>`, `--payload <file>`). `env`, `command`, `http` and `tool-activity` values are redacted; `--show-values` shows them in a terminal |
 | `ccinfobar bench` | Measure render time: a `node -e 0` control, then cold and warm median and p95 (`--runs <n>`, `--scenario <name>`, `--json`) |
 | `ccinfobar config get\|set\|unset <path> [value]` | Read or change one config value by dotted path, e.g. `ccinfobar config set gitHardening false` or `ccinfobar config get lines.0.2.type`. Values are parsed as JSON, else taken as a string; a value that would not pass validation is refused and nothing is written |
+| `ccinfobar catalog <command>` | Browse, apply and save presets, themes and bundles ([Catalog](#catalog)): `list`, `show`, `history`, `apply`, `save`, `restore`, `share`, `unshare`, `delete`, `author`, `endpoint`, `publish` (`--json`, `--dry-run` on the write commands, `--remote` to browse a marketplace) |
 | `ccinfobar hook <Event>` | Used by Claude Code hooks: records one event and prints nothing |
 
 All commands accept `--config <file>`.

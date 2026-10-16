@@ -20,6 +20,17 @@ Your own themes live in `themes/` and your own presets in `presets/` next to `co
 
 Built-in presets: `default`, `cockpit`, `dashboard`, `minimal`, `gsd`, `powerline`, `full`, `cost`, `limits`, `git`, `workspace`, `compact`, `two-line`, `agents`, `charts`, `session`. The [README](../README.md#presets) describes each one.
 
+The [catalog](CATALOG.md) keeps its files in `catalog/` next to `config.json`:
+
+| Path | What it is |
+| --- | --- |
+| `catalog/entries/` | One file per saved preset, theme or bundle, with its version history |
+| `catalog/trash/` | Deleted entries (the newest 20 are kept) |
+| `catalog/profile.json` | Your remembered author, the marketplace endpoint and your publisher handle |
+| `catalog/credentials.json` | Publisher tokens, written only after a publish (mode 0600) |
+
+`CCINFOBAR_MARKETPLACE_URL=<url>` sets the marketplace endpoint that `ccinfobar catalog publish`, `catalog list --remote` and the editor's Publish and Marketplace tab use, and wins over the one stored with `ccinfobar catalog endpoint`. It is unset by default, and with no endpoint nothing is sent. See [MARKETPLACE.md](MARKETPLACE.md).
+
 To use a project-specific layout, point the Claude Code `statusLine` command at a different file, e.g. `ccinfobar --config ./.claude/infobar.json`.
 
 ## Editor support
