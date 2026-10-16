@@ -272,7 +272,7 @@ describe('editor catalog routes: list, entry and previews', () => {
         [
           { id: 'm', type: 'model' },
           { id: 'f', type: 'flex' },
-          { id: 'c', type: 'clock' },
+          { id: 'c', type: 'text', options: { text: 'end' } },
         ],
       ],
     };
