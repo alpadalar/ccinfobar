@@ -14,6 +14,7 @@ import {
   shareView,
 } from '../../src/catalog/model.js';
 import { entryHash, publishPlan, remoteList, remoteShow, runPublish } from '../../src/catalog/publish.js';
+import { shareState } from '../../src/catalog/share.js';
 import {
   commitEntry,
   listEntries,
@@ -340,6 +341,27 @@ describe('runPublish', () => {
     expect(w.share).toMatchObject({ wanted: false, state: 'withdrawn', lastError: null });
     expect((await remoteShow('alperen/mine', deps)).entry!.withdrawn).toBe(true);
     expect((await remoteList(deps)).entries.map((e) => e.id)).toEqual(['alperen/second']);
+  });
+
+  it('stays published when the content has tab, newline, ESC or bidi controls (WR-01)', async () => {
+    const s = await server();
+    const deps = { dir, env: { CCINFOBAR_MARKETPLACE_URL: s.url }, now: () => at(5) };
+    const text = (t: string) => ({ id: 't', type: 'text', options: { text: t } });
+    const raw = ['a\tb', 'two\nlines', '\u001b[31mred\u001b[0m', '\u202eevil', 'x\u200fy'];
+    const e = save({ content: { layout: { lines: [raw.map(text)] } } });
+    const plan = publishPlan(listEntries(dir), s.url);
+    const sent = JSON.stringify(plan[0]!.payload);
+    expect(sent).not.toMatch(/\\t|\\n|\\u001b|\\u202e|\\u200f/);
+    const first = await runPublish(null, deps);
+    expect(first.results).toMatchObject([{ id: e.id, ok: true, version: 1 }]);
+    const after = listEntries(dir).find((x) => x.id === e.id)!;
+    expect(shareState(after)).toBe('published');
+    const local = readEntry(e.id, dir)!.entry;
+    expect(latest(local).content.layout!.lines![0]![0]!.options!.text).toBe('a\tb');
+    const shown = await remoteShow(local.share.remote!.id, deps);
+    expect(shown.latest!.hash).toBe(local.share.remote!.hash);
+    expect(publishPlan(listEntries(dir), s.url)).toEqual([]);
+    expect((await runPublish(null, deps)).results).toEqual([]);
   });
 
   it('keeps going after one item fails', async () => {

@@ -98,7 +98,7 @@ The share switch decides whether an entry should go to a marketplace. No marketp
 | Withdrawn | It was withdrawn from the marketplace |
 
 - Stop sharing a "Waiting to publish" entry and it goes back to Not shared. Share a withdrawn entry again and it waits to publish, but the marketplace keeps withdrawn ids reserved, so publish skips it; save it under a new name to publish it again.
-- Only the latest version is sent; your local history stays local.
+- Only the latest version is sent; your local history stays local. Text goes out as the marketplace stores it: control characters, escape sequences and bidi marks are removed and tabs and newlines become spaces. Your local entry keeps the original, and it stays "Published vN" until you really change it.
 - Publishing only happens when you ask for it: `ccinfobar catalog publish`, or **Publish…** in the Catalog page. Both first show exactly what will be sent (action, name, kind, description, author and the content as JSON) and name the endpoint. The CLI sends only after you confirm in a terminal or pass `--yes`; the editor sends only from the Publish button in that review, and refuses if the entries changed since you opened it. Nothing is ever published in the background or during a status line refresh.
 - Without an endpoint, the Catalog page shows no Publish button and no Marketplace tab, and says that shared entries wait.
 - Deleting a published entry does not remove the published copy. Stop sharing it and publish first to withdraw it.

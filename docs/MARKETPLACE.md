@@ -45,7 +45,7 @@ Every request can get `429 rate-limited`. Every write can also answer `415 unsup
 
 ### Hashes
 
-`hash` is the lowercase hex sha256 of the canonical JSON of `content`: object keys sorted by code unit, no whitespace, `undefined` values dropped. The client recomputes it on every download and refuses a mismatch (`bad-hash`).
+`hash` is the lowercase hex sha256 of the canonical JSON of `content`: object keys sorted by code unit, no whitespace, `undefined` values dropped. The server hashes the content after sanitizing its text (control characters, escape sequences and bidi marks removed; tabs and newlines become spaces), and ccinfobar sanitizes the same way before it shows, hashes and sends a payload, so the hash it keeps matches the server's. The client recomputes it on every download and refuses a mismatch (`bad-hash`).
 
 ### Content and policy
 
