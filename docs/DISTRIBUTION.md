@@ -60,7 +60,7 @@ The status line command works even when Claude Code's PATH has no `node`, for ex
 
 The formula lives in this repo at `packaging/homebrew/ccinfobar.rb`. This repo is not a tap: the owner copies the formula into the tap. The committed formula has the current `package.json` version and a placeholder sha256 of 64 zeros, so it cannot install anything until the script fills it in. A wrong sha256 makes `brew install` fail safely.
 
-**First tap version.** The first version in the tap must be the first published npm version that contains Homebrew detection, the next release after 0.6.2. Never publish 0.6.2 (or anything older) to the tap: it has no Homebrew detection, so it would update itself with `npm install -g` and leave a second copy outside Homebrew.
+**First tap version.** The first version in the tap must be the first published npm version that contains Homebrew detection, the next release after 0.6.2. Never publish 0.6.2 (or anything older) to the tap: it has no Homebrew detection, so it would update itself with `npm install -g` and leave a second copy outside Homebrew. The script enforces this: it refuses any version below 0.6.3 (`homebrew-formula: 0.6.2 has no Homebrew detection; the tap needs 0.6.3 or later`), and `--check` refuses a filled-in formula below it. The committed placeholder (zero sha256) passes `--check` with a note.
 
 Do the Homebrew steps on a machine where a Homebrew copy of ccinfobar is fine. If Homebrew's `bin` comes first on PATH, the brew copy shadows an npm-global `ccinfobar`.
 

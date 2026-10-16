@@ -152,6 +152,42 @@ describe('homebrew-formula.mjs', () => {
     expect(readCopy(dir)).toBe(formulaText);
   });
 
+  it('refuses versions without Homebrew detection', () => {
+    const dir = tempCopy();
+    const tgz = path.join(dir, 'x.tgz');
+    fs.writeFileSync(tgz, 'x');
+    for (const v of ['0.6.2', '0.6.2-rc.1', '0.5.9']) {
+      const r = run(['--root', dir, '--tarball', tgz, '--version', v]);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain(
+        `homebrew-formula: ${v} has no Homebrew detection; the tap needs 0.6.3 or later`,
+      );
+      expect(readCopy(dir)).toBe(formulaText);
+    }
+    for (const v of ['0.6.3', '0.6.3-rc.1', '0.7.0']) {
+      const r = run(['--root', dir, '--tarball', tgz, '--version', v]);
+      expect(r.status, r.stderr).toBe(0);
+    }
+  });
+
+  it('--check refuses a filled-in formula below the floor and notes the placeholder', () => {
+    const filled = (v: string) => mod.renderFormula(formulaText, { version: v, sha256: SHA });
+    expect(mod.checkFormula(filled('0.6.2'))).toEqual([
+      '0.6.2 has no Homebrew detection; the tap needs 0.6.3 or later',
+    ]);
+    expect(mod.checkFormula(filled('0.6.3'))).toEqual([]);
+    const low = run(['--check', '--root', tempCopy(filled('0.6.2'))]);
+    expect(low.status).toBe(1);
+    expect(low.stderr).toContain('homebrew-formula: 0.6.2 has no Homebrew detection');
+    const placeholder = mod.renderFormula(formulaText, { version: '0.6.2', sha256: '0'.repeat(64) });
+    const ok = run(['--check', '--root', tempCopy(placeholder)]);
+    expect(ok.status).toBe(0);
+    expect(ok.stdout).toContain(
+      'homebrew-formula: placeholder sha256; fill in 0.6.3 or later after publishing',
+    );
+    expect(ok.stdout).toContain('homebrew-formula: formula ok');
+  });
+
   it('--check passes on the formula and fails on a broken copy', () => {
     const ok = run(['--check', '--root', tempCopy()]);
     expect(ok.status).toBe(0);

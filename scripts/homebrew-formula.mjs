@@ -8,6 +8,11 @@ export const URL_RE = /^( {2}url ")https:\/\/registry\.npmjs\.org\/ccinfobar\/-\
 export const SHA_RE = /^( {2}sha256 ")[0-9a-f]{64}(")$/m;
 
 const SEMVER = String.raw`\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?`;
+// first release with the brew install kind; older ones update themselves with npm
+export const MIN_BREW = '0.6.3';
+const ZERO_SHA = '0'.repeat(64);
+const VERSION_RE = new RegExp(`/ccinfobar-(${SEMVER})\\.tgz"$`, 'm');
+const SHA_VALUE_RE = /^ {2}sha256 "([0-9a-f]{64})"$/m;
 const REGISTRY = 'https://registry.npmjs.org/ccinfobar';
 const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -22,6 +27,18 @@ const REQUIRED = [
 ];
 const FORBIDDEN = ['post_install', 'system "#{bin}/ccinfobar", "install"'];
 
+// release numbers only, so a prerelease after 0.6.2 passes
+export function belowFloor(version) {
+  const a = version.split(/[-+]/)[0].split('.').map(Number);
+  const b = MIN_BREW.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] < b[i];
+  return false;
+}
+
+const floorProblem = (version) => `${version} has no Homebrew detection; the tap needs ${MIN_BREW} or later`;
+
+export const isPlaceholder = (text) => text.match(SHA_VALUE_RE)?.[1] === ZERO_SHA;
+
 const count = (text, re) => text.match(new RegExp(re.source, 'gm'))?.length ?? 0;
 const tarballUrl = (version) => `${REGISTRY}/-/ccinfobar-${version}.tgz`;
 
@@ -33,6 +50,8 @@ export function checkFormula(text) {
   if (shas !== 1) problems.push(`expected one sha256 line, found ${shas}`);
   for (const s of REQUIRED) if (!text.includes(s)) problems.push(`missing ${s}`);
   for (const s of FORBIDDEN) if (text.includes(s)) problems.push(`must not contain ${s}`);
+  const version = text.match(VERSION_RE)?.[1];
+  if (version && !isPlaceholder(text) && belowFloor(version)) problems.push(floorProblem(version));
   return problems;
 }
 
@@ -106,6 +125,8 @@ export async function run(args) {
     const problems = checkFormula(before);
     for (const p of problems) console.error(`homebrew-formula: ${p}`);
     if (problems.length) return 1;
+    if (isPlaceholder(before))
+      console.log(`homebrew-formula: placeholder sha256; fill in ${MIN_BREW} or later after publishing`);
     console.log('homebrew-formula: formula ok');
     return 0;
   }
@@ -113,6 +134,7 @@ export async function run(args) {
   const version = value(args, '--version') ?? JSON.parse(read(path.join(root, 'package.json'), root)).version;
   if (typeof version !== 'string' || !new RegExp(`^${SEMVER}$`).test(version))
     throw new Fail(`bad version: ${version}`);
+  if (belowFloor(version)) throw new Fail(floorProblem(version));
 
   const tarball = value(args, '--tarball');
   let buf;
