@@ -8,6 +8,7 @@ import {
   readProfile,
   writeCredential,
   writeProfile,
+  writePublisher,
 } from '../../src/catalog/store.js';
 
 let root = '';
@@ -39,14 +40,14 @@ function walk(d: string): string[] {
 
 describe('profile', () => {
   it('defaults when missing or corrupt', () => {
-    const empty = { schema: 1, author: '', endpoint: null, publisher: null };
+    const empty = { schema: 1, author: '', endpoint: null, publishers: {} };
     expect(readProfile(dir)).toEqual(empty);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(profileFile(), '{nope');
     expect(readProfile(dir)).toEqual(empty);
     fs.writeFileSync(profileFile(), '[1]');
     expect(readProfile(dir)).toEqual(empty);
-    fs.writeFileSync(profileFile(), '{"author":5,"endpoint":7,"publisher":[]}');
+    fs.writeFileSync(profileFile(), '{"author":5,"endpoint":7,"publishers":[]}');
     expect(readProfile(dir)).toEqual(empty);
   });
 
@@ -54,13 +55,16 @@ describe('profile', () => {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(profileFile(), '﻿{"schema":1,"future":{"a":1},"endpoint":"http://127.0.0.1:9"}');
     const p = writeProfile({ author: 'Alperen' }, dir);
-    expect(p).toEqual({ schema: 1, author: 'Alperen', endpoint: 'http://127.0.0.1:9', publisher: null });
+    expect(p).toEqual({ schema: 1, author: 'Alperen', endpoint: 'http://127.0.0.1:9', publishers: {} });
     expect(readProfile(dir).author).toBe('Alperen');
     const raw = JSON.parse(fs.readFileSync(profileFile(), 'utf8'));
     expect(raw.future).toEqual({ a: 1 });
     expect(raw.schema).toBe(1);
-    writeProfile({ publisher: 'alp' }, dir);
-    expect(readProfile(dir)).toMatchObject({ author: 'Alperen', publisher: 'alp' });
+    writePublisher('https://m.example.com/team-a/', 'alp', dir);
+    expect(readProfile(dir)).toMatchObject({
+      author: 'Alperen',
+      publishers: { 'https://m.example.com/team-a': 'alp' },
+    });
     writeProfile({ endpoint: '  ' }, dir);
     expect(readProfile(dir).endpoint).toBeNull();
   });
@@ -108,12 +112,17 @@ describe('marketEndpoint', () => {
 });
 
 describe('credentials', () => {
-  it('stores tokens by origin with mode 0600', () => {
+  it('stores tokens by endpoint (origin and path) with mode 0600 (WR-05)', () => {
     expect(readCredential('https://market.example.com', dir)).toBeNull();
     writeCredential('https://market.example.com', 'tok-1', dir);
     writeCredential('http://127.0.0.1:5', 'tok-2', dir);
     expect(readCredential('https://market.example.com', dir)).toBe('tok-1');
-    expect(readCredential('https://market.example.com/api/v1/', dir)).toBe('tok-1');
+    expect(readCredential('https://market.example.com/', dir)).toBe('tok-1');
+    // another marketplace on the same host never gets this token
+    expect(readCredential('https://market.example.com/team-b', dir)).toBeNull();
+    writeCredential('https://market.example.com/team-b/', 'tok-b', dir);
+    expect(readCredential('https://market.example.com/team-b', dir)).toBe('tok-b');
+    expect(readCredential('https://market.example.com', dir)).toBe('tok-1');
     expect(readCredential('http://127.0.0.1:5', dir)).toBe('tok-2');
     expect(readCredential('https://other.example.com', dir)).toBeNull();
     if (process.platform !== 'win32') expect(fs.statSync(credFile()).mode & 0o777).toBe(0o600);

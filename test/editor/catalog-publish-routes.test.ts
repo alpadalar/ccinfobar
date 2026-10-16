@@ -195,6 +195,31 @@ describe('editor publish routes', () => {
     expect(ok.json().results[0]).toMatchObject({ ok: true, version: 2 });
   });
 
+  it('sets the handle from the review and plans again (WR-06)', async () => {
+    const url = await market();
+    await save();
+    const before = (await plan()).json();
+    expect(before.registration.handle).toBe('alp');
+    const bad = await request('POST', '/api/catalog/publisher', { handle: 'No Way' });
+    expect(bad.status).toBe(400);
+    expect(bad.json().errorId).toBe('err.catalog.badHandle');
+    const set = await request('POST', '/api/catalog/publisher', { handle: 'alp-team' });
+    expect(set.status).toBe(200);
+    const view = set.json();
+    expect(view.registration).toEqual({ handle: 'alp-team', displayName: 'Alp' });
+    expect(view.planHash).not.toBe(before.planHash);
+    const stale = await request('POST', '/api/catalog/publish', { confirm: true, planHash: before.planHash });
+    expect(stale.json().errorId).toBe('err.catalog.planChanged');
+    const ok = await request('POST', '/api/catalog/publish', { confirm: true, planHash: view.planHash });
+    expect(ok.json().results[0]).toMatchObject({ ok: true, remoteId: 'alp-team/x' });
+    const again = await request('POST', '/api/catalog/publisher', { handle: 'other' });
+    expect(again.status).toBe(409);
+    expect(again.json()).toMatchObject({
+      errorId: 'catalog.publisher.registered',
+      errorParams: { handle: 'alp-team', endpoint: url },
+    });
+  });
+
   it('refuses a changed plan with 409 planChanged and sends nothing', async () => {
     await market();
     const e = await save();

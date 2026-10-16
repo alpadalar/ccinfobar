@@ -26,14 +26,16 @@ import {
   CatalogStoreError,
   catalogDir,
   commitEntry,
+  endpointKey,
   listEntries,
   marketEndpoint,
   normalizeEntry,
   readCredential,
   readEntry,
   readProfile,
+  readPublisher,
   writeCredential,
-  writeProfile,
+  writePublisher,
 } from './store.js';
 
 export { entryHash };
@@ -79,15 +81,6 @@ export interface PublishReview {
   overwrite: boolean;
   registration: Registration | null;
   plan: PublishItem[];
-}
-
-function endpointKey(raw: string): string | null {
-  try {
-    const u = new URL(raw.trim());
-    return `${u.origin}${u.pathname.replace(/\/+$/, '')}`;
-  } catch {
-    return null;
-  }
 }
 
 export function publishPlan(
@@ -188,11 +181,17 @@ const withdrawn = (e: CatalogEntry) => {
   return e.share.wanted ? setShare(next, true) : next;
 };
 
-function registrationOf(plan: PublishItem[], entries: CatalogEntry[], deps: PublishDeps, dir: string) {
-  const profile = readProfile(dir);
-  const author = profile.author || entries.find((e) => e.id === plan[0]?.id)?.author || '';
+// the handle set for this endpoint, else the author as a slug
+function registrationOf(
+  endpoint: string,
+  plan: PublishItem[],
+  entries: CatalogEntry[],
+  deps: PublishDeps,
+  dir: string,
+) {
+  const author = readProfile(dir).author || entries.find((e) => e.id === plan[0]?.id)?.author || '';
   return {
-    handle: marketSlug(profile.publisher ?? (author || 'publisher')),
+    handle: readPublisher(endpoint, dir) ?? marketSlug(author || 'publisher'),
     displayName: deps.displayName ?? author,
   };
 }
@@ -222,8 +221,8 @@ export async function reviewPublish(ids: string[] | null, deps: PublishDeps = {}
     return { code: codeOf(err), ...none };
   }
   const plan = publishPlan(entries, endpoint, { overwrite });
-  const token = readCredential(new URL(anon.endpoint).origin, dir);
-  const registration = token ? null : registrationOf(plan, entries, deps, dir);
+  const token = readCredential(anon.endpoint, dir);
+  const registration = token ? null : registrationOf(anon.endpoint, plan, entries, deps, dir);
   return { code: null, endpoint, overwrite, registration, plan };
 }
 
@@ -279,16 +278,15 @@ export async function runPublish(
   } catch {
     return { code: 'bad-endpoint', results: [] };
   }
-  const origin = new URL(anon.endpoint).origin;
-  let token = readCredential(origin, dir);
+  let token = readCredential(anon.endpoint, dir);
   if (!token) {
     // only the reviewed registration is sent
     const asked = review.registration;
     if (!asked) return { code: 'unreviewed', results: [] };
     try {
       const reg = await anon.register(asked.handle, asked.displayName);
-      writeCredential(origin, reg.token, dir);
-      writeProfile({ publisher: reg.handle }, dir);
+      writeCredential(anon.endpoint, reg.token, dir);
+      writePublisher(anon.endpoint, reg.handle, dir);
       token = reg.token;
     } catch (err) {
       const c = codeOf(err);

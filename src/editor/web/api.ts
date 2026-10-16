@@ -190,6 +190,8 @@ export const api = {
     }>('POST', '/api/catalog/install-theme', { ref, version }),
   catalogPublishPlan: (refs?: string[]) =>
     call<PublishPlanInfo>('POST', '/api/catalog/publish/plan', { refs }),
+  catalogPublisher: (handle: string, refs?: string[]) =>
+    call<PublishPlanInfo>('POST', '/api/catalog/publisher', { handle, refs }),
   catalogPublish: (refs: string[] | undefined, planHash: string) =>
     call<{
       ok: boolean;

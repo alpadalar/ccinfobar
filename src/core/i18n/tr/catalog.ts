@@ -92,7 +92,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Pazar yeri yükleniyor…',
   'catalog.usage':
-    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--clear] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]',
+    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]',
   'catalog.section.user': 'Sizin girdileriniz',
   'catalog.section.system': 'Yerleşik',
   'catalog.list.noUser': 'Henüz kayıtlı girdi yok. ccinfobar catalog save <name> ile bir tane kaydedin.',
@@ -137,6 +137,20 @@ export const catalogMessages = {
   'catalog.endpoint.none': 'Pazar yeri adresi ayarlanmadı. Hiçbir yere bir şey gönderilmez.',
   'catalog.endpoint.set': 'Pazar yeri adresi artık {url}. Siz yayımlayana kadar hiçbir şey gönderilmez.',
   'catalog.endpoint.cleared': 'Pazar yeri adresi kaldırıldı. Hiçbir yere bir şey gönderilmez.',
+  'catalog.publisher.show': '{endpoint} üzerindeki yayıncı adı: @{handle} (henüz kayıtlı değil)',
+  'catalog.publisher.registeredShow': '{endpoint} üzerindeki yayıncı adı: @{handle} (kayıtlı)',
+  'catalog.publisher.none':
+    '{endpoint} için yayıncı adı ayarlanmadı. İlk yayımlama @{handle} adını kaydeder; başka bir ad için ccinfobar catalog publisher <handle> kullanın.',
+  'catalog.publisher.set':
+    '{endpoint} üzerindeki yayıncı adı artık @{handle}. Siz yayımlayana kadar hiçbir şey gönderilmez.',
+  'catalog.publisher.forgot':
+    '{endpoint} için yayıncı adı ve belirteci unutuldu. Bir sonraki yayımlama yeniden kayıt olur.',
+  'catalog.publisher.registered':
+    '{endpoint} üzerinde zaten @{handle} olarak kayıtlısınız. Başka bir ad kaydetmek için önce ccinfobar catalog publisher --forget çalıştırın; yayımlanan girdileriniz @{handle} altında kalır.',
+  'catalog.publish.handle': 'Yayıncı adı',
+  'catalog.publish.handleHint':
+    'Küçük harf, rakam ve tire. İlk yayımlamada kaydedilir ve yazarın yanında gösterilir.',
+  'catalog.publish.setHandle': 'Bu adı kullan',
   'catalog.publish.plan': 'Şu girdiler gönderilecek:',
   'catalog.publish.item.publish': '{name} ({kind}) yayımlanacak',
   'catalog.publish.item.version': '{name} ({kind}) girdisinin yeni sürümü {id} altında yayımlanacak',
@@ -195,6 +209,8 @@ export const catalogMessages = {
   'err.catalog.noEndpoint': 'Pazar yeri adresi ayarlanmadı; girdiler yayımlanmayı bekliyor',
   'err.catalog.badEndpoint': "Pazar yeri adresi bir https URL'si olmalı (http yalnızca localhost için)",
   'err.catalog.needsConfirm': 'Önce yayımlamayı onaylayın',
+  'err.catalog.badHandle':
+    'Yayıncı adı 1 ile 39 arasında küçük harf, rakam veya tireden oluşur ve harf ya da rakamla başlar',
   'err.catalog.planChanged': 'Girdiler siz inceledikten sonra değişti; yeniden inceleyin',
   'market.error.invalid': 'Pazar yeri girdiyi geçersiz buldu ve reddetti',
   'market.error.too-large': 'Girdi pazar yeri için çok büyük',
@@ -215,12 +231,13 @@ export const catalogMessages = {
   'market.error.http': 'Pazar yeri HTTP {status} ile yanıt verdi',
   'market.error.redirect': 'Pazar yeri başka bir adrese yönlendirmeye çalıştı; istek durduruldu',
   'market.error.bad-endpoint': 'Pazar yeri adresi geçerli değil (https, http yalnızca localhost için)',
-  'market.error.unauthorized': 'Pazar yeri kayıtlı yayıncı belirtecini kabul etmedi',
+  'market.error.unauthorized':
+    'Pazar yeri kayıtlı yayıncı belirtecini kabul etmedi; yeniden kayıt olmak için ccinfobar catalog publisher --forget çalıştırın',
   'market.error.unsupported-media': 'Pazar yeri istek biçimini kabul etmedi',
   'market.error.internal': 'Pazar yerinde bir iç hata oluştu; daha sonra tekrar deneyin',
   'market.error.read-only': 'Bu pazar yeri salt okunur ve yükleme kabul etmiyor',
   'market.error.handle-taken':
-    'Bu yayıncı adı pazar yerinde zaten alınmış; ccinfobar catalog author <name> ile başka bir ad ayarlayın',
+    'Bu yayıncı adı pazar yerinde zaten alınmış; ccinfobar catalog publisher <handle> ile başka bir ad ayarlayın',
   'market.error.changed': 'Girdi yayımlama sırasında değişti; değişikliği göndermek için tekrar yayımlayın',
   'market.error.unreviewed':
     'İncelemenizden sonra değiştiği için gönderilmedi; değişikliği incelemek için tekrar yayımlayın',

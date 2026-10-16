@@ -26,8 +26,8 @@ The [catalog](CATALOG.md) keeps its files in `catalog/` next to `config.json`:
 | --- | --- |
 | `catalog/entries/` | One file per saved preset, theme or bundle, with its version history |
 | `catalog/trash/` | Deleted entries (the newest 20 are kept) |
-| `catalog/profile.json` | Your remembered author, the marketplace endpoint and your publisher handle |
-| `catalog/credentials.json` | Publisher tokens, written only after a publish (mode 0600) |
+| `catalog/profile.json` | Your remembered author, the marketplace endpoint and your publisher handle for each marketplace |
+| `catalog/credentials.json` | Publisher tokens per marketplace endpoint, written only after a publish (mode 0600) |
 
 `CCINFOBAR_MARKETPLACE_URL=<url>` sets the marketplace endpoint that `ccinfobar catalog publish`, `catalog list --remote` and the editor's Publish and Marketplace tab use, and wins over the one stored with `ccinfobar catalog endpoint`. It is unset by default, and with no endpoint nothing is sent. See [MARKETPLACE.md](MARKETPLACE.md).
 

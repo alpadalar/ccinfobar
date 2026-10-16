@@ -451,6 +451,36 @@ describe('publish review', () => {
     );
   });
 
+  it('changes the handle a first publish registers and shows the new plan (WR-06)', async () => {
+    online();
+    await init();
+    reply(
+      'POST /api/catalog/publish/plan',
+      200,
+      plan({ registration: { handle: 'ada', displayName: 'Ada' } }),
+    );
+    reply(
+      'POST /api/catalog/publisher',
+      200,
+      plan({ planHash: 'hash-2', registration: { handle: 'ada-l', displayName: 'Ada' } }),
+    );
+    await publish();
+    const d = top();
+    const field = d.all((e) => e.tagName === 'INPUT' && e.value === 'ada')[0]!;
+    field.value = 'ada-l';
+    button('Use this handle')!.dispatch('click');
+    await flush();
+    expect(calls.filter((c) => c.url === '/api/catalog/publisher').map((c) => c.body)).toEqual([
+      { handle: 'ada-l' },
+    ]);
+    expect(texts(top())).toContain(
+      'The first publish to this marketplace registers the publisher handle @ada-l, shown as Ada.',
+    );
+    button('Publish')!.dispatch('click');
+    await flush();
+    expect(sends().map((c) => c.body.planHash)).toEqual(['hash-2']);
+  });
+
   it('keeps the dialog open with a translated error when sending fails', async () => {
     online();
     await init();

@@ -33,6 +33,7 @@ import {
   saveEntry,
   updateShare,
   writeCredential,
+  writePublisher,
 } from '../../src/catalog/store.js';
 import { contentHash } from '../../src/market/client.js';
 import { startMarketServer } from '../../src/market/server.js';
@@ -289,7 +290,7 @@ describe('runPublish', () => {
     ]);
     const origin = new URL(s.url).origin;
     expect(readCredential(origin, dir)).toMatch(/^[0-9a-f]{64}$/);
-    expect(readProfile(dir).publisher).toBe('alperen');
+    expect(readProfile(dir).publishers).toEqual({ [origin]: 'alperen' });
     const cred = JSON.parse(fs.readFileSync(path.join(dir, 'credentials.json'), 'utf8'));
     expect(Object.keys(cred)).toEqual([origin]);
     const pub = readEntry(a.id, dir)!.entry;
@@ -598,6 +599,48 @@ describe('runPublish', () => {
     expect(out).toEqual({ code: 'handle-taken', results: [] });
     expect(fs.readFileSync(fileOf(e.id))).toEqual(before);
     expect(readCredential(s.url, dir)).toBeNull();
+  });
+
+  it('never sends one marketplace token to another path on the same host (WR-05)', async () => {
+    const A = 'https://m.example.com/team-a';
+    const B = 'https://m.example.com/team-b';
+    writeCredential(A, 'a'.repeat(64), dir);
+    writePublisher(A, 'alp', dir);
+    save();
+    const meta = { protocol: 1, name: 'B', capabilities: { write: true, overwrite: true } };
+    const f = fakeFetch([
+      json(meta),
+      json({ handle: 'alperen', token: 'b'.repeat(64) }, 201),
+      json({ id: 'alperen/mine', version: 1, hash: 'c'.repeat(64) }, 201),
+    ]);
+    const deps = { dir, env: { CCINFOBAR_MARKETPLACE_URL: B }, fetch: f.fetch, now: () => at(5) };
+    const review = await reviewPublish(null, deps);
+    // team-a's handle is not reused either (WR-06)
+    expect(review.registration).toEqual({ handle: 'alperen', displayName: 'Alperen' });
+    const out = await runPublish(review, deps);
+    expect(out.results).toMatchObject([{ ok: true, remoteId: 'alperen/mine' }]);
+    expect(f.calls.map((c) => [c.method, c.url])).toEqual([
+      ['GET', `${B}/v1/meta.json`],
+      ['POST', `${B}/v1/publishers`],
+      ['POST', `${B}/v1/entries`],
+    ]);
+    expect(f.calls[1]!.headers.authorization).toBeUndefined();
+    expect(f.calls[2]!.headers.authorization).toBe(`Bearer ${'b'.repeat(64)}`);
+    expect(readCredential(A, dir)).toBe('a'.repeat(64));
+    expect(readCredential(B, dir)).toBe('b'.repeat(64));
+    expect(readProfile(dir).publishers).toEqual({ [A]: 'alp', [B]: 'alperen' });
+  });
+
+  it('registers the handle set for this endpoint (WR-06)', async () => {
+    const s = await server();
+    const deps = { dir, env: { CCINFOBAR_MARKETPLACE_URL: s.url } };
+    writePublisher(s.url, 'my-handle', dir);
+    save();
+    const review = await reviewPublish(null, deps);
+    expect(review.registration).toEqual({ handle: 'my-handle', displayName: 'Alperen' });
+    expect((await runPublish(review, deps)).results).toMatchObject([
+      { ok: true, remoteId: 'my-handle/mine' },
+    ]);
   });
 
   it('marks every item when a saved token is refused', async () => {

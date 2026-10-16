@@ -3,7 +3,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { shareState } from '../../src/catalog/share.js';
-import { listEntries, readCredential, readEntry, saveEntry } from '../../src/catalog/store.js';
+import {
+  listEntries,
+  readCredential,
+  readEntry,
+  readProfile,
+  saveEntry,
+  writeCredential,
+} from '../../src/catalog/store.js';
 import { parseArgs } from '../../src/cli/args.js';
 import { runCatalog } from '../../src/commands/catalog.js';
 import type { PromptIo } from '../../src/commands/io.js';
@@ -327,6 +334,58 @@ describe('catalog publish', () => {
     expect((await run(['publish', '--yes'], { env: s.env })).out.at(-1)).toBe(
       'Published Mine again v1 as alperen/mine-again',
     );
+  });
+
+  it('catalog publisher shows, sets and forgets the handle per endpoint (WR-06)', async () => {
+    const env = { CCINFOBAR_MARKETPLACE_URL: 'https://m.example.com/team-a' };
+    const ep = 'https://m.example.com/team-a';
+    expect((await run(['publisher'])).err).toEqual([
+      'No marketplace endpoint set; entries stay waiting to publish',
+    ]);
+    await run(['author', 'Alperen Adalar']);
+    expect((await run(['publisher'], { env })).out).toEqual([
+      `No publisher handle set for ${ep}. The first publish registers @alperen-adalar; set another with ccinfobar catalog publisher <handle>.`,
+    ]);
+    const bad = await run(['publisher', 'Not Valid'], { env });
+    expect(bad.code).toBe(1);
+    expect(bad.err).toEqual([
+      'A publisher handle is 1 to 39 lowercase letters, digits or hyphens and starts with a letter or digit',
+    ]);
+    const dry = await run(['publisher', 'alp', '--dry-run', '--json'], { env });
+    expect(JSON.parse(dry.out[0]!)).toEqual({
+      schema: 1,
+      endpoint: ep,
+      publisher: 'alp',
+      registered: false,
+      dryRun: true,
+    });
+    expect(readProfile(cat).publishers).toEqual({});
+    expect((await run(['publisher', 'alp'], { env })).out).toEqual([
+      `Publisher handle on ${ep} is now @alp. Nothing is sent until you publish.`,
+    ]);
+    expect((await run(['publisher'], { env })).out).toEqual([
+      `Publisher handle on ${ep}: @alp (not registered yet)`,
+    ]);
+    // another path on the same host has its own handle
+    expect(
+      (await run(['publisher'], { env: { CCINFOBAR_MARKETPLACE_URL: 'https://m.example.com/b' } })).out[0],
+    ).toMatch(/^No publisher handle set/);
+    writeCredential(ep, 't'.repeat(64), cat);
+    expect((await run(['publisher'], { env })).out).toEqual([`Publisher handle on ${ep}: @alp (registered)`]);
+    const taken = await run(['publisher', 'bob'], { env });
+    expect(taken.code).toBe(1);
+    expect(taken.err[0]).toMatch(
+      /^You are already registered as @alp on https:\/\/m\.example\.com\/team-a\. /,
+    );
+    expect((await run(['publisher', '--forget'], { env })).out).toEqual([
+      `Forgot the publisher handle and token for ${ep}. The next publish registers again.`,
+    ]);
+    expect(readCredential(ep, cat)).toBeNull();
+    expect(readProfile(cat).publishers).toEqual({});
+    const tr = await withLangAsync('tr', () => run(['publisher', 'alp'], { env }));
+    expect(tr.out).toEqual([
+      `${ep} üzerindeki yayıncı adı artık @alp. Siz yayımlayana kadar hiçbir şey gönderilmez.`,
+    ]);
   });
 
   it('publishes even with CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC set', async () => {

@@ -115,8 +115,8 @@ Everything lives in the ccinfobar config folder (`~/.config/ccinfobar` on Linux 
 | `catalog/entries/<id>.json.bak` | The previous content of the entry file, written before every change |
 | `catalog/.lock` | Held for a moment while ccinfobar writes an entry, the profile or a token, so the editor and the CLI never write at once. A lock older than 10 s is taken over |
 | `catalog/trash/` | Deleted entries and copies of deleted pre-catalog files. The newest 20 are kept |
-| `catalog/profile.json` | Your remembered author, the marketplace endpoint and, after a first publish, your publisher handle |
-| `catalog/credentials.json` | Publisher tokens per marketplace origin, only after a publish. Mode 0600 on Linux and macOS; on Windows the mode bits do not apply and the file is protected by the access rules of your user profile folder |
+| `catalog/profile.json` | Your remembered author, the marketplace endpoint and your publisher handle for each marketplace |
+| `catalog/credentials.json` | Publisher tokens per marketplace endpoint (origin and path, so two marketplaces on one host never share a token), only after a publish. Mode 0600 on Linux and macOS; on Windows the mode bits do not apply and the file is protected by the access rules of your user profile folder |
 | `presets/<id>.json`, `themes/<id>.json` | Presets and themes saved before the catalog. Never moved; `themes/` is also where applied themes are installed, because the status line reads themes from there |
 
 Every write is atomic. Keys that a newer ccinfobar version adds to an entry file are kept at every level (the entry, its share state and every version) when an older one rewrites it; only an overwrite replaces the content of the version it overwrites. An entry file is limited to 1 MiB; a save that would go over it is refused instead of dropping history. Delete moves the file to the trash instead of removing it, and deleting an entry that came from a pre-catalog file also moves that file to the trash.
@@ -144,6 +144,7 @@ Your own `<kind>/<slug>` wins over a built-in ref with the same text.
 | `ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]` | Move an entry to the trash. Asks in a terminal; needs `--yes` otherwise |
 | `ccinfobar catalog author [<name>] [--dry-run] [--json]` | Show or set the remembered author |
 | `ccinfobar catalog endpoint [<url>\|--clear] [--dry-run] [--json]` | Show, set or remove the marketplace endpoint. Only checks the URL; sends nothing |
+| `ccinfobar catalog publisher [<handle>\|--forget] [--dry-run] [--json]` | Show or set the publisher handle a first publish registers on the current endpoint (lowercase letters, digits and hyphens; without one, the author as a slug). `--forget` drops the handle and token for that endpoint, so the next publish registers again. Sends nothing |
 | `ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]` | Show what waits to publish, then send it after confirmation |
 | `ccinfobar catalog list --remote [--kind ...] [--json]` | Read-only list of the marketplace entries |
 | `ccinfobar catalog show <publisher/slug> --remote [--json]` | A marketplace entry with its versions and the commands or URLs it would run or open |
@@ -163,6 +164,7 @@ ccinfobar catalog unshare bundle/nord-cockpit
 ccinfobar catalog delete nord-cockpit --yes
 ccinfobar catalog author "Alperen"
 ccinfobar catalog endpoint https://catalog.example.com
+ccinfobar catalog publisher alperen
 ccinfobar catalog publish --dry-run
 ```
 

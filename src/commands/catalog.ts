@@ -8,6 +8,7 @@ import {
   type EntryKind,
   isReserved,
   latest,
+  marketSlug,
   newEntry,
   restoreVersion,
   type ShareState,
@@ -23,17 +24,22 @@ import {
   deleteEntry,
   deleteLegacy,
   findByName,
+  forgetPublisher,
   installEntryTheme,
+  isHandle,
   type LegacyItem,
   listEntries,
   listLegacy,
   marketEndpoint,
+  readCredential,
   readProfile,
+  readPublisher,
   restoreEntry,
   type StoreCode,
   saveEntry,
   updateShare,
   writeProfile,
+  writePublisher,
 } from '../catalog/store.js';
 import { type SystemEntry, systemEntries } from '../catalog/system.js';
 import type { Args } from '../cli/args.js';
@@ -779,6 +785,62 @@ async function runEndpoint(c: Ctx): Promise<void> {
   if (changed) dryRunDone(c);
 }
 
+// per endpoint; nothing is sent
+function runPublisher(c: Ctx): void {
+  const endpoint = marketEndpoint(c.env, c.dir);
+  if (!endpoint) {
+    c.fail(t('err.catalog.noEndpoint'));
+    return;
+  }
+  const raw = c.args.positional[1];
+  const forget = c.args.flags.forget === true;
+  if (forget && raw !== undefined) {
+    c.fail(t('catalog.usage'));
+    return;
+  }
+  const ep = clean(endpoint);
+  const cur = readPublisher(endpoint, c.dir);
+  const registered = readCredential(endpoint, c.dir) !== null;
+  let handle = cur;
+  let id: MessageId;
+  if (forget) {
+    if (!c.dryRun) forgetPublisher(endpoint, c.dir);
+    handle = null;
+    id = 'catalog.publisher.forgot';
+  } else if (raw !== undefined) {
+    const next = raw.trim();
+    if (!isHandle(next)) {
+      c.fail(t('err.catalog.badHandle'));
+      return;
+    }
+    if (registered && cur !== null && cur !== next) {
+      c.fail(t('catalog.publisher.registered', { handle: cur, endpoint: ep }));
+      return;
+    }
+    if (!c.dryRun) writePublisher(endpoint, next, c.dir);
+    handle = next;
+    id = 'catalog.publisher.set';
+  } else
+    id = !cur
+      ? 'catalog.publisher.none'
+      : registered
+        ? 'catalog.publisher.registeredShow'
+        : 'catalog.publisher.show';
+  const changed = forget || raw !== undefined;
+  if (c.json) {
+    json(c, () => ({
+      endpoint,
+      publisher: handle,
+      registered: forget ? false : registered,
+      ...(c.dryRun && changed ? { dryRun: true } : {}),
+    }));
+    return;
+  }
+  const guess = marketSlug(readProfile(c.dir).author || 'publisher');
+  c.io.log(t(id, { endpoint: ep, handle: clean(handle ?? guess) }));
+  if (changed) dryRunDone(c);
+}
+
 // marketplace code loads only for publish and --remote
 async function market(c: Ctx, sub: 'publish' | 'list' | 'show'): Promise<void> {
   const m = await import('./catalog-market.js');
@@ -804,6 +866,7 @@ const SUBCOMMANDS: Record<string, (c: Ctx) => void | Promise<void>> = {
   delete: runDelete,
   author: runAuthor,
   endpoint: runEndpoint,
+  publisher: runPublisher,
   publish: (c) => market(c, 'publish'),
 };
 

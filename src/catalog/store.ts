@@ -632,11 +632,13 @@ export interface CatalogProfile {
   schema: 1;
   author: string;
   endpoint: string | null;
-  publisher: string | null;
+  // publisher handle per endpoint key
+  publishers: Record<string, string>;
 }
 
 const profileFile = (dir: string) => path.join(dir, 'profile.json');
 const credentialsFile = (dir: string) => path.join(dir, 'credentials.json');
+const HANDLE_RE = /^[a-z0-9][a-z0-9-]{0,38}$/;
 
 function readObject(file: string): Record<string, unknown> | null {
   const buf = readBytes(file);
@@ -652,12 +654,32 @@ function orNull(v: unknown, n?: number): string | null {
   return s || null;
 }
 
+// origin plus base path: two marketplaces on one host never share a token or handle
+export function endpointKey(raw: unknown): string | null {
+  try {
+    const u = new URL(String(raw).trim());
+    if (!u.origin || u.origin === 'null') return null;
+    return `${u.origin}${u.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return null;
+  }
+}
+
+function publishersOf(v: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!isObject(v)) return out;
+  for (const [k, h] of Object.entries(v)) {
+    if (endpointKey(k) === k && typeof h === 'string' && HANDLE_RE.test(h)) out[k] = h;
+  }
+  return out;
+}
+
 function profileOf(raw: Record<string, unknown>): CatalogProfile {
   return {
     schema: 1,
     author: safe(raw.author, ENTRY_LIMITS.author),
     endpoint: orNull(raw.endpoint),
-    publisher: orNull(raw.publisher, 64),
+    publishers: publishersOf(raw.publishers),
   };
 }
 
@@ -665,19 +687,41 @@ export function readProfile(dir = catalogDir()): CatalogProfile {
   return profileOf(readObject(profileFile(dir)) ?? {});
 }
 
-export function writeProfile(
-  patch: Partial<Omit<CatalogProfile, 'schema'>>,
-  dir = catalogDir(),
-): CatalogProfile {
+function patchProfile(dir: string, edit: (p: CatalogProfile) => void): CatalogProfile {
   return withStoreLock(dir, () => {
     const raw = plain(readObject(profileFile(dir)) ?? {});
     const next = profileOf(raw);
-    if (patch.author !== undefined) next.author = safe(patch.author, ENTRY_LIMITS.author);
-    if (patch.endpoint !== undefined) next.endpoint = orNull(patch.endpoint);
-    if (patch.publisher !== undefined) next.publisher = orNull(patch.publisher, 64);
+    edit(next);
     const data = { ...raw, ...next };
     writeAtomic(profileFile(dir), `${JSON.stringify(data, null, 2)}\n`, { class: 'settings' });
     return next;
+  });
+}
+
+export function writeProfile(
+  patch: Partial<Pick<CatalogProfile, 'author' | 'endpoint'>>,
+  dir = catalogDir(),
+): CatalogProfile {
+  return patchProfile(dir, (next) => {
+    if (patch.author !== undefined) next.author = safe(patch.author, ENTRY_LIMITS.author);
+    if (patch.endpoint !== undefined) next.endpoint = orNull(patch.endpoint);
+  });
+}
+
+export const isHandle = (v: unknown): v is string => typeof v === 'string' && HANDLE_RE.test(v);
+
+export function readPublisher(endpoint: string, dir = catalogDir()): string | null {
+  const key = endpointKey(endpoint);
+  return (key && readProfile(dir).publishers[key]) || null;
+}
+
+export function writePublisher(endpoint: string, handle: string | null, dir = catalogDir()): void {
+  const key = endpointKey(endpoint);
+  if (!key) fail('bad-endpoint');
+  if (handle !== null && !isHandle(handle)) fail('bad-name');
+  patchProfile(dir, (next) => {
+    if (handle === null) delete next.publishers[key];
+    else next.publishers[key] = handle;
   });
 }
 
@@ -688,33 +732,32 @@ export function marketEndpoint(env: NodeJS.ProcessEnv = process.env, dir = catal
   return readProfile(dir).endpoint;
 }
 
-function originOf(s: unknown): string | null {
-  try {
-    const o = new URL(String(s)).origin;
-    return o && o !== 'null' ? o : null;
-  } catch {
-    return null;
-  }
-}
-
-export function readCredential(origin: string, dir = catalogDir()): string | null {
-  const o = originOf(origin);
-  const raw = o ? readObject(credentialsFile(dir)) : null;
-  const v = raw && o && Object.hasOwn(raw, o) ? raw[o] : null;
+export function readCredential(endpoint: string, dir = catalogDir()): string | null {
+  const key = endpointKey(endpoint);
+  const raw = key ? readObject(credentialsFile(dir)) : null;
+  const v = raw && key && Object.hasOwn(raw, key) ? raw[key] : null;
   return isObject(v) && typeof v.token === 'string' && v.token ? v.token : null;
 }
 
-export function writeCredential(origin: string, token: string, dir = catalogDir()): void {
-  const o = originOf(origin);
-  if (!o) fail('bad-endpoint');
+export function writeCredential(endpoint: string, token: string, dir = catalogDir()): void {
+  const key = endpointKey(endpoint);
+  if (!key) fail('bad-endpoint');
   withStoreLock(dir, () => {
     const data = plain(readObject(credentialsFile(dir)) ?? {});
-    const cur = data[o];
-    if (typeof token === 'string' && token) data[o] = { ...(isObject(cur) ? plain(cur) : {}), token };
-    else delete data[o];
+    const cur = data[key];
+    if (typeof token === 'string' && token) data[key] = { ...(isObject(cur) ? plain(cur) : {}), token };
+    else delete data[key];
     writeAtomic(credentialsFile(dir), `${JSON.stringify(data, null, 2)}\n`, {
       mode: 0o600,
       class: 'settings',
     });
+  });
+}
+
+// the token is never shown; forgetting it makes the next publish register again
+export function forgetPublisher(endpoint: string, dir = catalogDir()): void {
+  withStoreLock(dir, () => {
+    writeCredential(endpoint, '', dir);
+    writePublisher(endpoint, null, dir);
   });
 }

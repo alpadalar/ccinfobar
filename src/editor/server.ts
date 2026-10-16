@@ -20,18 +20,22 @@ import {
   deleteEntry,
   deleteLegacy,
   installEntryTheme,
+  isHandle,
   type LegacyItem,
   listEntries,
   listLegacy,
   marketEndpoint,
   normalizeEntry,
+  readCredential,
   readEntry,
   readProfile,
+  readPublisher,
   restoreEntry,
   type StoreCode,
   saveEntry,
   updateShare,
   writeProfile,
+  writePublisher,
 } from '../catalog/store.js';
 import { findSystem, type SystemEntry, systemEntries } from '../catalog/system.js';
 import { configLanguage, envLanguage } from '../cli/lang.js';
@@ -1067,6 +1071,19 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       case 'POST /api/catalog/publish/plan': {
         const body = asObject(await readBody(req));
         const endpoint = needEndpoint();
+        send(res, 200, (await publishView(endpoint, body.refs)).view);
+        return;
+      }
+      // sets the handle a first publish registers, then reviews again
+      case 'POST /api/catalog/publisher': {
+        const body = asObject(await readBody(req));
+        const endpoint = needEndpoint();
+        const handle = typeof body.handle === 'string' ? body.handle.trim() : '';
+        if (!isHandle(handle)) throw httpError(400, 'err.catalog.badHandle');
+        const cur = readPublisher(endpoint);
+        if (readCredential(endpoint) !== null && cur !== null && cur !== handle)
+          throw httpError(409, 'catalog.publisher.registered', { handle: cur, endpoint: clean(endpoint) });
+        writePublisher(endpoint, handle);
         send(res, 200, (await publishView(endpoint, body.refs)).view);
         return;
       }

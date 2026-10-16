@@ -87,7 +87,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Loading the marketplace…',
   'catalog.usage':
-    'Usage: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n       ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n       ccinfobar catalog show <publisher/slug> --remote [--json]\n       ccinfobar catalog history <ref> [--json]\n       ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n       ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n       ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n       ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n       ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n       ccinfobar catalog author [<name>] [--dry-run] [--json]\n       ccinfobar catalog endpoint [<url>|--clear] [--dry-run] [--json]\n       ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]',
+    'Usage: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n       ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n       ccinfobar catalog show <publisher/slug> --remote [--json]\n       ccinfobar catalog history <ref> [--json]\n       ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n       ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n       ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n       ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n       ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n       ccinfobar catalog author [<name>] [--dry-run] [--json]\n       ccinfobar catalog endpoint [<url>|--clear] [--dry-run] [--json]\n       ccinfobar catalog publisher [<handle>|--forget] [--dry-run] [--json]\n       ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]',
   'catalog.section.user': 'Your entries',
   'catalog.section.system': 'Built in',
   'catalog.list.noUser': 'No saved entries yet. Save one with ccinfobar catalog save <name>.',
@@ -130,6 +130,20 @@ export const catalogMessages = {
   'catalog.endpoint.none': 'No marketplace endpoint set. Nothing is sent anywhere.',
   'catalog.endpoint.set': 'Marketplace endpoint is now {url}. Nothing is sent until you publish.',
   'catalog.endpoint.cleared': 'Marketplace endpoint removed. Nothing is sent anywhere.',
+  'catalog.publisher.show': 'Publisher handle on {endpoint}: @{handle} (not registered yet)',
+  'catalog.publisher.registeredShow': 'Publisher handle on {endpoint}: @{handle} (registered)',
+  'catalog.publisher.none':
+    'No publisher handle set for {endpoint}. The first publish registers @{handle}; set another with ccinfobar catalog publisher <handle>.',
+  'catalog.publisher.set':
+    'Publisher handle on {endpoint} is now @{handle}. Nothing is sent until you publish.',
+  'catalog.publisher.forgot':
+    'Forgot the publisher handle and token for {endpoint}. The next publish registers again.',
+  'catalog.publisher.registered':
+    'You are already registered as @{handle} on {endpoint}. Run ccinfobar catalog publisher --forget first to register another handle; your published entries stay with @{handle}.',
+  'catalog.publish.handle': 'Publisher handle',
+  'catalog.publish.handleHint':
+    'Lowercase letters, digits and hyphens. It is registered on the first publish and shown next to the author.',
+  'catalog.publish.setHandle': 'Use this handle',
   'catalog.publish.plan': 'These entries will be sent:',
   'catalog.publish.item.publish': 'Publish {name} ({kind})',
   'catalog.publish.item.version': 'Publish a new version of {name} ({kind}) to {id}',
@@ -185,6 +199,8 @@ export const catalogMessages = {
   'err.catalog.noEndpoint': 'No marketplace endpoint set; entries stay waiting to publish',
   'err.catalog.badEndpoint': 'Marketplace endpoint must be an https URL (http only for localhost)',
   'err.catalog.needsConfirm': 'Confirm the publish first',
+  'err.catalog.badHandle':
+    'A publisher handle is 1 to 39 lowercase letters, digits or hyphens and starts with a letter or digit',
   'err.catalog.planChanged': 'The entries changed since you reviewed them; review again',
   'market.error.invalid': 'The marketplace rejected the entry as not valid',
   'market.error.too-large': 'The entry is too large for the marketplace',
@@ -205,12 +221,13 @@ export const catalogMessages = {
   'market.error.http': 'The marketplace answered with HTTP {status}',
   'market.error.redirect': 'The marketplace tried to redirect to another address; the request was stopped',
   'market.error.bad-endpoint': 'The marketplace endpoint is not valid (https, or http only for localhost)',
-  'market.error.unauthorized': 'The marketplace did not accept the saved publisher token',
+  'market.error.unauthorized':
+    'The marketplace did not accept the saved publisher token; run ccinfobar catalog publisher --forget to register again',
   'market.error.unsupported-media': 'The marketplace did not accept the request format',
   'market.error.internal': 'The marketplace had an internal error; try again later',
   'market.error.read-only': 'This marketplace is read-only and does not take uploads',
   'market.error.handle-taken':
-    'This publisher name is already taken on the marketplace; set another one with ccinfobar catalog author <name>',
+    'This publisher handle is already taken on the marketplace; set another one with ccinfobar catalog publisher <handle>',
   'market.error.changed': 'The entry changed while publishing; publish again to send the change',
   'market.error.unreviewed':
     'It changed after you reviewed it, so it was not sent; publish again to review the change',

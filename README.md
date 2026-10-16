@@ -463,7 +463,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar explain [widget-id]` | Show each widget's value, where it came from (payload field, cache and its age, git, GSD) and why it is empty (`--json` for bug reports, `--scenario <name>`, `--payload <file>`). `env`, `command`, `http` and `tool-activity` values are redacted; `--show-values` shows them in a terminal |
 | `ccinfobar bench` | Measure render time: a `node -e 0` control, then cold and warm median and p95 (`--runs <n>`, `--scenario <name>`, `--json`) |
 | `ccinfobar config get\|set\|unset <path> [value]` | Read or change one config value by dotted path, e.g. `ccinfobar config set gitHardening false` or `ccinfobar config get lines.0.2.type`. Values are parsed as JSON, else taken as a string; a value that would not pass validation is refused and nothing is written |
-| `ccinfobar catalog <command>` | Browse, apply and save presets, themes and bundles ([Catalog](#catalog)): `list`, `show`, `history`, `apply`, `save`, `restore`, `share`, `unshare`, `delete`, `author`, `endpoint`, `publish` (`--json`, `--dry-run` on the write commands, `--remote` to browse a marketplace) |
+| `ccinfobar catalog <command>` | Browse, apply and save presets, themes and bundles ([Catalog](#catalog)): `list`, `show`, `history`, `apply`, `save`, `restore`, `share`, `unshare`, `delete`, `author`, `endpoint`, `publisher`, `publish` (`--json`, `--dry-run` on the write commands, `--remote` to browse a marketplace) |
 | `ccinfobar hook <Event>` | Used by Claude Code hooks: records one event and prints nothing |
 
 All commands accept `--config <file>`.

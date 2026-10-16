@@ -3,6 +3,7 @@ import { formatDateTime } from '../../core/i18n/format.js';
 import { languageLocale, type MessageId, t } from '../../core/i18n/index.js';
 import { ApiError, api, idText } from './api.js';
 import { h } from './dom.js';
+import { field } from './inspector.js';
 import type {
   CatalogState,
   MarketEntryInfo,
@@ -119,6 +120,46 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
       : idText('market.error.read-only', null, unknownReason());
   }
 
+  // the handle a first publish registers can be changed here
+  function handleField(reg: NonNullable<PublishPlanInfo['registration']>): HTMLElement {
+    const input = h('input', { class: 'input mono', type: 'text', maxLength: 39, value: reg.handle });
+    const use = h(
+      'button',
+      { class: 'btn sm', type: 'button', onClick: () => void setHandle(input.value) },
+      t('catalog.publish.setHandle'),
+    );
+    const f = field(t('catalog.publish.handle'), input, t('catalog.publish.handleHint'));
+    input.after(use);
+    return h(
+      'div',
+      { class: 'catalog-publish-where' },
+      h(
+        'p',
+        null,
+        t('catalog.publish.register', {
+          handle: shown(reg.handle),
+          name: shown(reg.displayName) || shown(reg.handle),
+        }),
+      ),
+      f,
+    );
+  }
+
+  async function setHandle(value: string) {
+    if (busy) return;
+    busy = true;
+    err.textContent = '';
+    try {
+      view = await api.catalogPublisher(value.trim(), refs);
+      note.textContent = '';
+      render();
+    } catch (e) {
+      err.textContent = (e as Error).message;
+    } finally {
+      busy = false;
+    }
+  }
+
   function render() {
     const skipped = view.skipped.map((s) => h('li', null, skippedText(s)));
     if (view.code === 'read-only' || !view.plan.length) {
@@ -138,16 +179,7 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
       h('p', { class: 'modal-text' }, t('catalog.publish.plan')),
       h('ol', { class: 'catalog-publish-list' }, ...view.plan.map(planItem)),
       skipped.length ? h('ul', { class: 'catalog-publish-skipped' }, ...skipped) : '',
-      reg
-        ? h(
-            'p',
-            { class: 'catalog-publish-where' },
-            t('catalog.publish.register', {
-              handle: shown(reg.handle),
-              name: shown(reg.displayName) || shown(reg.handle),
-            }),
-          )
-        : '',
+      reg ? handleField(reg) : '',
       h(
         'p',
         { class: 'catalog-publish-where' },
