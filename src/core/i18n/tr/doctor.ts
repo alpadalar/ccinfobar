@@ -107,7 +107,7 @@ export const doctorMessages = {
   'doctor.update.neverCheckedBrew':
     '✓ Güncel (güncelleme: {mode}, {command} ile güncellenir, Homebrew kurulumu, henüz denetlenmedi)',
   'doctor.brewMode.notify': 'yalnızca bildir',
-  'doctor.brewMode.auto': 'yalnızca bildir, otomatik bildir gibi çalışır',
+  'doctor.brewMode.auto': 'yalnızca bildir, auto burada notify gibi çalışır',
   'doctor.update.failed': '  Son güncelleme denetimi başarısız oldu: {error}',
   'doctor.updateMode.auto': 'otomatik',
   'doctor.updateMode.notify': 'yalnızca bildir',

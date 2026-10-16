@@ -102,7 +102,7 @@ describe('runDoctor on a Homebrew copy', () => {
     expect(out).toContain(`✗ Güncelleme var: ${VERSION} → 99.0.0 (\`brew upgrade ccinfobar\` çalıştırın)`);
     fs.rmSync(envelopeFile('update'), { force: true });
     expect(withEnvLang('tr', () => doctor('brew'))).toContain(
-      '✓ Güncel (güncelleme: yalnızca bildir, otomatik bildir gibi çalışır, brew upgrade ccinfobar ile güncellenir, Homebrew kurulumu, henüz denetlenmedi)',
+      '✓ Güncel (güncelleme: yalnızca bildir, auto burada notify gibi çalışır, brew upgrade ccinfobar ile güncellenir, Homebrew kurulumu, henüz denetlenmedi)',
     );
     expect(withEnvLang('tr', () => doctor('brew', 'notify'))).toContain(
       '✓ Güncel (güncelleme: yalnızca bildir, brew upgrade ccinfobar ile güncellenir, Homebrew kurulumu, henüz denetlenmedi)',
