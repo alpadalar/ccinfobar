@@ -136,6 +136,11 @@ export const catalogMessages = {
   'catalog.publish.item.overwrite': 'Replace the latest version of {name} ({kind}) on {id}',
   'catalog.publish.item.withdraw': 'Withdraw {name} ({kind}) from {id}',
   'catalog.publish.noPayload': 'Only the withdraw request is sent.',
+  'catalog.publish.register':
+    'The first publish to this marketplace registers the publisher handle @{handle}, shown as {name}.',
+  'catalog.publish.replanned':
+    'The entries changed since this list was shown, so nothing was sent. The new list:',
+  'catalog.publish.runAgain': 'Nothing was sent. Run the command again to send the new list.',
   'catalog.publish.where':
     'This sends the entries above to {endpoint}. It runs because you asked, even if CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC is set.',
   'catalog.publish.ask': { one: 'Send this entry?', other: 'Send these {count} entries?' },
@@ -207,5 +212,7 @@ export const catalogMessages = {
   'market.error.handle-taken':
     'This publisher name is already taken on the marketplace; set another one with ccinfobar catalog author <name>',
   'market.error.changed': 'The entry changed while publishing; publish again to send the change',
+  'market.error.unreviewed':
+    'It changed after you reviewed it, so it was not sent; publish again to review the change',
   'market.error.unknown': 'The marketplace request failed',
 } as const;

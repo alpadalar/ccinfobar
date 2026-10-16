@@ -425,6 +425,32 @@ describe('publish review', () => {
     );
   });
 
+  it('shows a read-only review without a Publish button, and the first-publish registration', async () => {
+    online();
+    await init();
+    reply(
+      'POST /api/catalog/publish/plan',
+      200,
+      plan({ code: 'read-only', submitUrl: 'https://example.com/submit', plan: [] }),
+    );
+    await publish();
+    expect(texts(top())).toContain(
+      'This marketplace is read-only. Submit your entries at https://example.com/submit instead.',
+    );
+    expect(button('Publish')).toBeUndefined();
+    button('Cancel')!.dispatch('click');
+    await flush();
+    reply(
+      'POST /api/catalog/publish/plan',
+      200,
+      plan({ registration: { handle: 'ada', displayName: 'Ada L' } }),
+    );
+    await publish();
+    expect(texts(top())).toContain(
+      'The first publish to this marketplace registers the publisher handle @ada, shown as Ada L.',
+    );
+  });
+
   it('keeps the dialog open with a translated error when sending fails', async () => {
     online();
     await init();

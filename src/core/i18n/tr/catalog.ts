@@ -144,6 +144,12 @@ export const catalogMessages = {
     '{id} altındaki {name} ({kind}) girdisinin son sürümünün üzerine yazılacak',
   'catalog.publish.item.withdraw': '{name} ({kind}) pazar yerinden geri çekilecek ({id})',
   'catalog.publish.noPayload': 'Yalnızca geri çekme isteği gönderilir.',
+  'catalog.publish.register':
+    'Bu pazar yerine ilk yayımlama @{handle} yayıncı adını kaydeder; {name} olarak görünür.',
+  'catalog.publish.replanned':
+    'Girdiler bu liste gösterildikten sonra değişti, bu yüzden hiçbir şey gönderilmedi. Yeni liste:',
+  'catalog.publish.runAgain':
+    'Hiçbir şey gönderilmedi. Yeni listeyi göndermek için komutu tekrar çalıştırın.',
   'catalog.publish.where':
     'Bu işlem yukarıdaki girdileri {endpoint} adresine gönderir. Siz istediğiniz için CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC ayarlı olsa bile çalışır.',
   'catalog.publish.ask': { one: 'Bu girdi gönderilsin mi?', other: 'Bu {count} girdi gönderilsin mi?' },
@@ -216,5 +222,7 @@ export const catalogMessages = {
   'market.error.handle-taken':
     'Bu yayıncı adı pazar yerinde zaten alınmış; ccinfobar catalog author <name> ile başka bir ad ayarlayın',
   'market.error.changed': 'Girdi yayımlama sırasında değişti; değişikliği göndermek için tekrar yayımlayın',
+  'market.error.unreviewed':
+    'İncelemenizden sonra değiştiği için gönderilmedi; değişikliği incelemek için tekrar yayımlayın',
   'market.error.unknown': 'Pazar yeri isteği başarısız oldu',
 } satisfies Record<keyof typeof enCatalog, Message>;

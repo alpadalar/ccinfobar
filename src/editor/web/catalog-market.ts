@@ -113,20 +113,41 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
     return t('catalog.publish.notShared', { name, ref: shown(s.id) });
   }
 
+  function readOnlyText(url: string | undefined): string {
+    return url
+      ? t('catalog.publish.readOnly', { url: shown(url) })
+      : idText('market.error.read-only', null, unknownReason());
+  }
+
   function render() {
     const skipped = view.skipped.map((s) => h('li', null, skippedText(s)));
-    if (!view.plan.length) {
+    if (view.code === 'read-only' || !view.plan.length) {
       send.remove();
       content.replaceChildren(
-        h('p', { class: 'modal-text' }, t('catalog.publish.nothing')),
+        h(
+          'p',
+          { class: 'modal-text' },
+          view.code === 'read-only' ? readOnlyText(view.submitUrl) : t('catalog.publish.nothing'),
+        ),
         skipped.length ? h('ul', { class: 'catalog-publish-skipped' }, ...skipped) : '',
       );
       return;
     }
+    const reg = view.registration;
     content.replaceChildren(
       h('p', { class: 'modal-text' }, t('catalog.publish.plan')),
       h('ol', { class: 'catalog-publish-list' }, ...view.plan.map(planItem)),
       skipped.length ? h('ul', { class: 'catalog-publish-skipped' }, ...skipped) : '',
+      reg
+        ? h(
+            'p',
+            { class: 'catalog-publish-where' },
+            t('catalog.publish.register', {
+              handle: shown(reg.handle),
+              name: shown(reg.displayName) || shown(reg.handle),
+            }),
+          )
+        : '',
       h(
         'p',
         { class: 'catalog-publish-where' },
@@ -139,15 +160,7 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
     const items = new Map(view.plan.map((i) => [i.id, i]));
     const rows: HTMLElement[] = [];
     if (r.code === 'read-only')
-      rows.push(
-        h(
-          'li',
-          { class: 'catalog-result failed' },
-          r.submitUrl
-            ? t('catalog.publish.readOnly', { url: shown(r.submitUrl) })
-            : idText('market.error.read-only', null, unknownReason()),
-        ),
-      );
+      rows.push(h('li', { class: 'catalog-result failed' }, readOnlyText(r.submitUrl)));
     for (const x of r.results)
       rows.push(
         h(
@@ -196,7 +209,11 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
     body: [note, content, err],
     actions: (done) => {
       close = done;
-      return [h('span', { class: 'spacer' }), cancel, view.plan.length ? send : null];
+      return [
+        h('span', { class: 'spacer' }),
+        cancel,
+        view.plan.length && view.code !== 'read-only' ? send : null,
+      ];
     },
   });
   // Enter must not publish

@@ -693,28 +693,35 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     return { ids, skipped };
   }
 
+  // the review reads server meta, so actions match what the server will do
   async function publishView(endpoint: string, refs: unknown) {
     const { ids, skipped } = publishRefs(refs);
     const m = await loadMarket();
+    const review = await m.reviewPublish(ids);
+    if (review.code && review.code !== 'read-only') throw marketError(review.code, m.reasonId(review.code));
     const entries = listEntries().filter((e) => ids === null || ids.includes(e.id));
     const plan: PlanItem[] = [];
-    for (const item of m.publishPlan(entries, endpoint)) {
+    for (const item of review.plan) {
       if (m.reserved(item, entries)) skipped.push({ id: item.id, reason: 'withdrawn' });
       else plan.push(item);
     }
-    if (ids !== null)
+    if (ids !== null && !review.code)
       for (const e of entries) {
         if (plan.some((i) => i.id === e.id) || skipped.some((x) => x.id === e.id)) continue;
         skipped.push({ id: e.id, reason: shareState(e) === 'published' ? 'up-to-date' : 'not-shared' });
       }
+    const kept = { ...review, endpoint, plan };
     const view = {
       endpoint: clean(endpoint),
-      planHash: m.planHash(endpoint, plan),
+      planHash: m.planHash(kept),
       notice: 'catalog.publish.where' as const,
+      code: review.code,
+      ...(review.submitUrl ? { submitUrl: review.submitUrl } : {}),
+      registration: review.registration,
       plan,
       skipped,
     };
-    return { m, view };
+    return { m, view, review: kept };
   }
 
   let port = 0;
@@ -1065,12 +1072,10 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const body = asObject(await readBody(req));
         const endpoint = needEndpoint();
         if (body.confirm !== true) throw httpError(400, 'err.catalog.needsConfirm');
-        const { m, view } = await publishView(endpoint, body.refs);
-        // send only what was reviewed
+        const { m, view, review } = await publishView(endpoint, body.refs);
+        // send only what was reviewed; runPublish also checks each entry rev
         if (body.planHash !== view.planHash) throw httpError(409, 'err.catalog.planChanged', undefined, view);
-        const out = view.plan.length
-          ? await m.runPublish(view.plan.map((i) => i.id))
-          : { code: null, results: [] };
+        const out = await m.runPublish(review);
         if (out.code !== null && out.code !== 'read-only') throw marketError(out.code, m.reasonId(out.code));
         send(res, 200, {
           ok: true,

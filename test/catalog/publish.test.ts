@@ -13,7 +13,15 @@ import {
   setShare,
   shareView,
 } from '../../src/catalog/model.js';
-import { entryHash, publishPlan, remoteList, remoteShow, runPublish } from '../../src/catalog/publish.js';
+import {
+  entryHash,
+  type PublishDeps,
+  publishPlan,
+  remoteList,
+  remoteShow,
+  reviewPublish,
+  runPublish,
+} from '../../src/catalog/publish.js';
 import { shareState } from '../../src/catalog/share.js';
 import {
   commitEntry,
@@ -105,6 +113,10 @@ const save = (over: Partial<SaveInput> = {}) =>
   );
 
 const fileOf = (id: string) => path.join(dir, 'entries', `${id}.json`);
+
+// review, then send what was reviewed
+const send = async (ids: string[] | null, deps: PublishDeps) =>
+  runPublish(await reviewPublish(ids, deps), deps);
 
 function snapshot(d: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -226,7 +238,7 @@ describe('runPublish', () => {
     updateShare(b.id, true, b.rev, dir);
     const before = snapshot(root);
     const f = fakeFetch([]);
-    const out = await runPublish(null, { dir, env: {}, fetch: f.fetch });
+    const out = await send(null, { dir, env: {}, fetch: f.fetch });
     expect(out).toEqual({ code: 'no-endpoint', results: [] });
     expect(f.calls).toHaveLength(0);
     expect(snapshot(root)).toEqual(before);
@@ -244,7 +256,7 @@ describe('runPublish', () => {
   it('makes no call when nothing waits to publish', async () => {
     save({ share: false });
     const f = fakeFetch([]);
-    const out = await runPublish(null, { dir, env: { CCINFOBAR_MARKETPLACE_URL: EP }, fetch: f.fetch });
+    const out = await send(null, { dir, env: { CCINFOBAR_MARKETPLACE_URL: EP }, fetch: f.fetch });
     expect(out).toEqual({ code: null, results: [] });
     expect(f.calls).toHaveLength(0);
   });
@@ -253,7 +265,7 @@ describe('runPublish', () => {
     save();
     const f = fakeFetch([]);
     const env = { CCINFOBAR_MARKETPLACE_URL: 'http://market.example.com' };
-    expect(await runPublish(null, { dir, env, fetch: f.fetch })).toEqual({
+    expect(await send(null, { dir, env, fetch: f.fetch })).toEqual({
       code: 'bad-endpoint',
       results: [],
     });
@@ -269,7 +281,7 @@ describe('runPublish', () => {
     const b = save({ name: 'Second', content: preset('cwd'), now: at(1) });
     save({ name: 'Private', share: false });
 
-    const first = await runPublish(null, deps);
+    const first = await send(null, deps);
     expect(first.code).toBeNull();
     expect(first.results).toEqual([
       { id: a.id, ok: true, code: null, remoteId: 'alperen/mine', version: 1 },
@@ -317,7 +329,7 @@ describe('runPublish', () => {
     );
     const view = listEntries(dir).find((e) => e.id === a.id)!;
     expect(shareView(view, entryHash(latest(view).content))).toBe('outdated');
-    const second = await runPublish(null, deps);
+    const second = await send(null, deps);
     expect(second.results).toEqual([
       { id: a.id, ok: true, code: null, remoteId: 'alperen/mine', version: 2 },
     ]);
@@ -333,7 +345,7 @@ describe('runPublish', () => {
     // unshare sends a withdraw
     const now = readEntry(a.id, dir)!.entry;
     updateShare(a.id, false, now.rev, dir);
-    const third = await runPublish([a.id], deps);
+    const third = await send([a.id], deps);
     expect(third.results).toEqual([
       { id: a.id, ok: true, code: null, remoteId: 'alperen/mine', version: null },
     ]);
@@ -352,7 +364,7 @@ describe('runPublish', () => {
     const plan = publishPlan(listEntries(dir), s.url);
     const sent = JSON.stringify(plan[0]!.payload);
     expect(sent).not.toMatch(/\\t|\\n|\\u001b|\\u202e|\\u200f/);
-    const first = await runPublish(null, deps);
+    const first = await send(null, deps);
     expect(first.results).toMatchObject([{ id: e.id, ok: true, version: 1 }]);
     const after = listEntries(dir).find((x) => x.id === e.id)!;
     expect(shareState(after)).toBe('published');
@@ -361,7 +373,7 @@ describe('runPublish', () => {
     const shown = await remoteShow(local.share.remote!.id, deps);
     expect(shown.latest!.hash).toBe(local.share.remote!.hash);
     expect(publishPlan(listEntries(dir), s.url)).toEqual([]);
-    expect((await runPublish(null, deps)).results).toEqual([]);
+    expect((await send(null, deps)).results).toEqual([]);
   });
 
   it('keeps going after one item fails', async () => {
@@ -369,7 +381,7 @@ describe('runPublish', () => {
     const env = { CCINFOBAR_MARKETPLACE_URL: s.url };
     const bad = save({ name: 'Bad', content: preset('command'), now: at(1) });
     const good = save({ name: 'Good', now: at(0) });
-    const out = await runPublish(null, { dir, env, fetch: globalThis.fetch });
+    const out = await send(null, { dir, env, fetch: globalThis.fetch });
     expect(out.results).toEqual([
       { id: bad.id, ok: false, code: 'invalid', remoteId: null, version: null },
       { id: good.id, ok: true, code: null, remoteId: 'alperen/good', version: 1 },
@@ -395,7 +407,7 @@ describe('runPublish', () => {
         },
         sub,
       );
-      await runPublish(null, { dir: sub, env, fetch: globalThis.fetch });
+      await send(null, { dir: sub, env, fetch: globalThis.fetch });
       const cur = readEntry(e.id, sub)!.entry;
       saveEntry(
         {
@@ -413,13 +425,84 @@ describe('runPublish', () => {
       );
       const [item] = publishPlan(listEntries(sub), s.url, { overwrite: allowOverwrite });
       expect(item!.action).toBe(allowOverwrite ? 'overwrite' : 'version');
-      const out = await runPublish(null, { dir: sub, env, fetch: globalThis.fetch });
+      const out = await send(null, { dir: sub, env, fetch: globalThis.fetch });
       expect(out.results[0]).toMatchObject({ ok: true, version: allowOverwrite ? 1 : 2 });
       const shown = await remoteShow('alp/mine', { dir: sub, env, fetch: globalThis.fetch });
       expect(shown.entry!.versions).toHaveLength(allowOverwrite ? 1 : 2);
       expect(shown.latest!.hash).toBe(entryHash(preset('cost')));
       expect(readEntry(e.id, sub)!.entry.share.remote!.hash).toBe(entryHash(preset('cost')));
     }
+  });
+
+  it('the review shows the action the server will do, from its meta (WR-12)', async () => {
+    const s = await server({ allowOverwrite: false });
+    const deps = { dir, env: { CCINFOBAR_MARKETPLACE_URL: s.url }, now: () => at(5) };
+    const e = save();
+    await send(null, deps);
+    save({ mode: 'overwrite', content: preset('cost'), id: e.id, rev: readEntry(e.id, dir)!.entry.rev });
+    const review = await reviewPublish(null, deps);
+    expect(review).toMatchObject({ code: null, overwrite: false, registration: null });
+    expect(review.plan.map((i) => i.action)).toEqual(['version']);
+  });
+
+  it('sends only what was reviewed: a later change is not sent (CR-02)', async () => {
+    const s = await server();
+    const f = counted();
+    const deps = { dir, env: { CCINFOBAR_MARKETPLACE_URL: s.url }, fetch: f.fetch, now: () => at(5) };
+    const a = save();
+    const b = save({ name: 'Second', content: preset('cwd') });
+    const review = await reviewPublish(null, deps);
+    expect(review.registration).toEqual({ handle: 'alperen', displayName: 'Alperen' });
+    expect(review.plan.map((i) => [i.id, i.action])).toEqual(
+      expect.arrayContaining([
+        [a.id, 'publish'],
+        [b.id, 'publish'],
+      ]),
+    );
+    // the CLI or editor saves a v2 of a while the review is open
+    save({ mode: 'update', content: preset('git'), id: a.id, rev: a.rev, note: 'unseen' });
+    const out = await runPublish(review, deps);
+    expect(out.results.find((r) => r.id === a.id)).toEqual({
+      id: a.id,
+      ok: false,
+      code: 'unreviewed',
+      remoteId: null,
+      version: null,
+    });
+    expect(out.results.find((r) => r.id === b.id)).toMatchObject({ ok: true, version: 1 });
+    expect((await remoteList(deps)).entries.map((e) => e.id)).toEqual(['alperen/second']);
+    expect(readEntry(a.id, dir)!.entry.share.state).toBe('pending');
+  });
+
+  it('refuses a review for another endpoint or a registration that was not reviewed', async () => {
+    const s = await server();
+    const deps = { dir, env: { CCINFOBAR_MARKETPLACE_URL: s.url } };
+    save();
+    const review = await reviewPublish(null, deps);
+    expect((await runPublish({ ...review, endpoint: 'https://other.example' }, deps)).code).toBe(
+      'unreviewed',
+    );
+    expect((await runPublish({ ...review, registration: null }, deps)).code).toBe('unreviewed');
+    expect(readCredential(new URL(s.url).origin, dir)).toBeNull();
+  });
+
+  it('a reviewed overwrite never becomes a new version when the server stops allowing it', async () => {
+    const s = await server();
+    const deps = { dir, env: { CCINFOBAR_MARKETPLACE_URL: s.url } };
+    const e = save();
+    await send(null, deps);
+    save({ mode: 'overwrite', content: preset('cost'), id: e.id, rev: readEntry(e.id, dir)!.entry.rev });
+    const review = await reviewPublish(null, deps);
+    expect(review.plan[0]!.action).toBe('overwrite');
+    // the server turned overwrite off after the review
+    const f = fakeFetch([json({ error: { code: 'overwrite-disabled', message: 'x' } }, 403)]);
+    const out = await runPublish(review, { ...deps, fetch: f.fetch });
+    expect(out.results).toEqual([
+      { id: e.id, ok: false, code: 'overwrite-disabled', remoteId: 'alperen/mine', version: null },
+    ]);
+    expect(f.calls.map((c) => c.method)).toEqual(['PUT']);
+    const shown = await remoteShow('alperen/mine', deps);
+    expect(shown.entry!.versions).toHaveLength(1);
   });
 
   it('records the remote on the newer rev when the entry changed meanwhile', async () => {
@@ -449,7 +532,7 @@ describe('runPublish', () => {
       }
       return res;
     }) as typeof fetch;
-    const out = await runPublish(null, { dir, env, fetch: fetchFn });
+    const out = await send(null, { dir, env, fetch: fetchFn });
     expect(out.results).toEqual([
       { id: e.id, ok: true, code: 'changed', remoteId: 'alperen/mine', version: 1 },
     ]);
@@ -477,7 +560,7 @@ describe('runPublish', () => {
       }
       return res;
     }) as typeof fetch;
-    const out = await runPublish(null, { dir, env, fetch: fetchFn });
+    const out = await send(null, { dir, env, fetch: fetchFn });
     expect(out.results[0]).toMatchObject({ ok: true, code: 'changed' });
     expect(readEntry(e.id, dir)!.entry.share).toMatchObject({
       wanted: false,
@@ -491,11 +574,11 @@ describe('runPublish', () => {
     const s = await server();
     const env = { CCINFOBAR_MARKETPLACE_URL: s.url };
     const e = save();
-    await runPublish(null, { dir, env, fetch: globalThis.fetch });
+    await send(null, { dir, env, fetch: globalThis.fetch });
     const token = readCredential(s.url, dir);
     const next = save({ name: 'Two', now: at(9) });
     const f = counted();
-    const out = await runPublish([next.id, e.id], { dir, env, fetch: f.fetch });
+    const out = await send([next.id, e.id], { dir, env, fetch: f.fetch });
     expect(out.results).toEqual([{ id: next.id, ok: true, code: null, remoteId: 'alperen/two', version: 1 }]);
     expect(f.calls()).toBe(2);
     expect(readCredential(s.url, dir)).toBe(token);
@@ -511,7 +594,7 @@ describe('runPublish', () => {
     });
     const e = save();
     const before = fs.readFileSync(fileOf(e.id));
-    const out = await runPublish(null, { dir, env, fetch: globalThis.fetch });
+    const out = await send(null, { dir, env, fetch: globalThis.fetch });
     expect(out).toEqual({ code: 'handle-taken', results: [] });
     expect(fs.readFileSync(fileOf(e.id))).toEqual(before);
     expect(readCredential(s.url, dir)).toBeNull();
@@ -522,7 +605,7 @@ describe('runPublish', () => {
     const env = { CCINFOBAR_MARKETPLACE_URL: s.url };
     writeCredential(s.url, 'a'.repeat(64), dir);
     const e = save();
-    const out = await runPublish(null, { dir, env, fetch: globalThis.fetch });
+    const out = await send(null, { dir, env, fetch: globalThis.fetch });
     expect(out.results).toEqual([
       { id: e.id, ok: false, code: 'unauthorized', remoteId: null, version: null },
     ]);
@@ -541,7 +624,7 @@ describe('runPublish', () => {
       }),
     ]);
     const env = { CCINFOBAR_MARKETPLACE_URL: 'https://market.example.com' };
-    const out = await runPublish(null, { dir, env, fetch: f.fetch });
+    const out = await send(null, { dir, env, fetch: f.fetch });
     expect(out).toEqual({ code: 'read-only', submitUrl: 'https://market.example.com/submit', results: [] });
     expect(f.calls.map((c) => c.method)).toEqual(['GET']);
     expect(fs.readFileSync(fileOf(e.id))).toEqual(before);
@@ -558,7 +641,7 @@ describe('runPublish', () => {
       json({ id: 'alperen/mine', version: 1, hash }, 201),
     ]);
     const env = { CCINFOBAR_MARKETPLACE_URL: 'https://market.example.com' };
-    const out = await runPublish(null, { dir, env, fetch: f.fetch, displayName: 'Alp A.' });
+    const out = await send(null, { dir, env, fetch: f.fetch, displayName: 'Alp A.' });
     expect(out.results[0]).toMatchObject({ id: e.id, ok: true });
     expect(f.calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
       'GET /v1/meta.json',
@@ -575,7 +658,7 @@ describe('runPublish', () => {
     const before = fs.readFileSync(fileOf(e.id));
     const f = fakeFetch([Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } })]);
     const env = { CCINFOBAR_MARKETPLACE_URL: 'https://market.example.com' };
-    const out = await runPublish(null, { dir, env, fetch: f.fetch });
+    const out = await send(null, { dir, env, fetch: f.fetch });
     expect(out).toEqual({ code: 'network', results: [] });
     expect(fs.readFileSync(fileOf(e.id))).toEqual(before);
   });
@@ -598,7 +681,7 @@ describe('runPublish', () => {
       json({ error: { code: 'not-found', message: 'not found' } }, 404),
     ]);
     const env = { CCINFOBAR_MARKETPLACE_URL: 'https://market.example.com' };
-    const out = await runPublish(null, { dir, env, fetch: f.fetch });
+    const out = await send(null, { dir, env, fetch: f.fetch });
     expect(out.results).toEqual([{ id: e.id, ok: true, code: null, remoteId: 'alp/mine', version: null }]);
     expect(f.calls[1]).toMatchObject({
       method: 'DELETE',
@@ -620,7 +703,7 @@ describe('remote browse', () => {
         layout: { lines: [[{ id: 'l', type: 'link', options: { url: 'https://example.com/docs' } }]] },
       },
     });
-    await runPublish(null, { dir, env, fetch: globalThis.fetch });
+    await send(null, { dir, env, fetch: globalThis.fetch });
     const f = counted();
     const list = await remoteList({ dir, env, fetch: f.fetch });
     expect(list.code).toBeNull();

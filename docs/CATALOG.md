@@ -99,7 +99,7 @@ The share switch decides whether an entry should go to a marketplace. No marketp
 
 - Stop sharing a "Waiting to publish" entry and it goes back to Not shared. Share a withdrawn entry again and it waits to publish, but the marketplace keeps withdrawn ids reserved, so publish skips it; save it under a new name to publish it again.
 - Only the latest version is sent; your local history stays local. Text goes out as the marketplace stores it: control characters, escape sequences and bidi marks are removed and tabs and newlines become spaces. Your local entry keeps the original, and it stays "Published vN" until you really change it.
-- Publishing only happens when you ask for it: `ccinfobar catalog publish`, or **Publish…** in the Catalog page. Both first show exactly what will be sent (action, name, kind, description, author and the content as JSON) and name the endpoint. The CLI sends only after you confirm in a terminal or pass `--yes`; the editor sends only from the Publish button in that review, and refuses if the entries changed since you opened it. Nothing is ever published in the background or during a status line refresh.
+- Publishing only happens when you ask for it: `ccinfobar catalog publish`, or **Publish…** in the Catalog page. Both first show exactly what will be sent (action, name, kind, description, author and the content as JSON) and name the endpoint. The review first reads the marketplace's `meta.json`, so it shows the action the server will really do (New version where the server does not allow Replace latest) and, before a first publish, the publisher handle that gets registered. The CLI sends only after you confirm in a terminal or pass `--yes`, and then plans again: if anything changed since the list was shown, nothing is sent and the new list is shown (a terminal asks again; otherwise it exits 1). The editor sends only from the Publish button in that review, and refuses if the entries changed since you opened it. Either way, each entry is sent only while it is exactly as reviewed. Nothing is ever published in the background or during a status line refresh.
 - Without an endpoint, the Catalog page shows no Publish button and no Marketplace tab, and says that shared entries wait.
 - Deleting a published entry does not remove the published copy. Stop sharing it and publish first to withdraw it.
 
@@ -167,7 +167,7 @@ ccinfobar catalog publish --dry-run
 ```
 
 - Without `--update` or `--overwrite`, a name clash asks in a terminal and exits 1 otherwise.
-- `--dry-run` shows what would happen and writes nothing; `publish --dry-run` sends nothing.
+- `--dry-run` shows what would happen and writes nothing; `publish --dry-run` sends nothing (it reads the marketplace's `meta.json` to show the real actions).
 - `--json` prints one English object with `schema: 1`, whatever the language, and never prompts.
 - Unknown or ambiguous refs, a name clash without a terminal, a broken config and a publish or `--remote` without an endpoint exit 1.
 - `catalog publish` and `--remote` run even with `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` set, because you asked for them; the publish confirmation says so.

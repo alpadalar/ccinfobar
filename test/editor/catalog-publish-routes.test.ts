@@ -65,8 +65,8 @@ async function save(body: Record<string, unknown> = {}): Promise<Record<string, 
   return res.json().entry;
 }
 
-async function market(): Promise<string> {
-  const s = await startMarketServer({ dataDir: path.join(dir, `market-${servers.length}`) });
+async function market(opts: { allowOverwrite?: boolean } = {}): Promise<string> {
+  const s = await startMarketServer({ dataDir: path.join(dir, `market-${servers.length}`), ...opts });
   servers.push(s);
   process.env.CCINFOBAR_MARKETPLACE_URL = s.url;
   return s.url;
@@ -150,6 +150,9 @@ describe('editor publish routes', () => {
       remoteId: null,
     });
     expect(p.plan[0].payload).toMatchObject({ kind: 'preset', slug: 'x', name: 'X', author: 'Alp' });
+    // the first publish registers this handle; the review says so
+    expect(p.registration).toEqual({ handle: 'alp', displayName: 'Alp' });
+    expect(p.code).toBeNull();
     const sent = JSON.stringify(p.plan[0].payload);
     for (const bad of ['budget', 'profiles', 'language', dir]) expect(sent).not.toContain(bad);
     expect((await plan()).json().planHash).toBe(p.planHash);
@@ -172,6 +175,24 @@ describe('editor publish routes', () => {
     expect(body.catalog.user[0]).toMatchObject({ ref: e.ref, share: { state: 'published' } });
     expect(body.catalog.user[0].remote).toMatchObject({ id: 'alp/x', version: 1 });
     expect((await plan()).json().plan).toEqual([]);
+  });
+
+  it('labels the action the server will do and registers only once (WR-12)', async () => {
+    await market({ allowOverwrite: false });
+    const e = await save();
+    expect((await publish()).json().results[0]).toMatchObject({ ok: true, version: 1 });
+    const cur = (await request('GET', '/api/catalog')).json().user[0];
+    await save({
+      mode: 'overwrite',
+      id: e.ref,
+      rev: cur.rev,
+      config: config([[{ id: 'c', type: 'clock' }]]),
+    });
+    const p = (await plan()).json();
+    expect(p.registration).toBeNull();
+    expect(p.plan.map((i: any) => i.action)).toEqual(['version']);
+    const ok = await request('POST', '/api/catalog/publish', { confirm: true, planHash: p.planHash });
+    expect(ok.json().results[0]).toMatchObject({ ok: true, version: 2 });
   });
 
   it('refuses a changed plan with 409 planChanged and sends nothing', async () => {
@@ -247,16 +268,23 @@ describe('editor publish routes', () => {
     process.env.CCINFOBAR_MARKETPLACE_URL = 'https://market.example.com';
     await save();
     const meta = { protocol: 1, name: 'Pages', capabilities: { write: false, submit: 'pull-request' } };
-    const fake = fakeFetch([json({ ...meta, submitUrl: 'https://market.example.com/submit' })]);
+    const ro = { ...meta, submitUrl: 'https://market.example.com/submit' };
+    const fake = fakeFetch([json(ro), json(ro)]);
     vi.spyOn(globalThis, 'fetch').mockImplementation(fake.fetch);
-    const res = await publish();
+    const view = (await plan()).json();
+    expect(view).toMatchObject({
+      code: 'read-only',
+      submitUrl: 'https://market.example.com/submit',
+      plan: [],
+    });
+    const res = await request('POST', '/api/catalog/publish', { confirm: true, planHash: view.planHash });
     expect(res.json()).toMatchObject({
       ok: true,
       code: 'read-only',
       submitUrl: 'https://market.example.com/submit',
       results: [],
     });
-    expect(fake.calls.map((c) => c.method)).toEqual(['GET']);
+    expect(fake.calls.map((c) => c.method)).toEqual(['GET', 'GET']);
     vi.spyOn(globalThis, 'fetch').mockImplementation(fakeFetch([new TypeError('fetch failed')]).fetch);
     const down = await publish();
     expect(down.status).toBe(502);

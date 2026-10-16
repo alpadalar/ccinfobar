@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { shareState } from '../../src/catalog/share.js';
-import { listEntries, readCredential, readEntry } from '../../src/catalog/store.js';
+import { listEntries, readCredential, readEntry, saveEntry } from '../../src/catalog/store.js';
 import { parseArgs } from '../../src/cli/args.js';
 import { runCatalog } from '../../src/commands/catalog.js';
 import type { PromptIo } from '../../src/commands/io.js';
@@ -120,6 +120,94 @@ describe('catalog publish', () => {
     expect(stateOf('Mine')).toBe('pending');
   });
 
+  it('re-plans after the answer: a change made meanwhile is shown, not sent (CR-02)', async () => {
+    await saveMine();
+    const s = await server();
+    const out: string[] = [];
+    const err: string[] = [];
+    const asked: string[] = [];
+    let n = 0;
+    const io: PromptIo = {
+      tty: true,
+      columns: 100,
+      ask: async (q) => {
+        asked.push(q);
+        // another window saves v2 while the first prompt is open
+        if (n++ === 0) {
+          const e = entryOf('Mine');
+          saveEntry(
+            {
+              kind: 'preset',
+              name: 'Mine',
+              description: 'changed meanwhile',
+              author: 'Alperen',
+              content: { layout: { lines: [[{ id: 'g', type: 'git-branch' }]] } },
+              share: true,
+              mode: 'update',
+              id: e.id,
+              rev: e.rev,
+            },
+            cat,
+          );
+        }
+        return true;
+      },
+      log: (l) => void out.push(l),
+      error: (l) => void err.push(l),
+    };
+    await runCatalog(parseArgs(['catalog', 'publish']), cfg, {
+      io,
+      dir: cat,
+      env: s.env,
+      gsd: true,
+      now: () => NOW,
+    });
+    expect(asked).toHaveLength(2);
+    expect(out).toContain(
+      'The entries changed since this list was shown, so nothing was sent. The new list:',
+    );
+    expect(out.filter((l) => l === 'These entries will be sent:')).toHaveLength(2);
+    expect(out.join('\n')).toContain('"description": "changed meanwhile"');
+    expect(out).toContain('Published Mine v1 as alperen/mine');
+    const shown = await run(['show', 'alperen/mine', '--remote', '--json'], { env: s.env });
+    expect(JSON.parse(shown.out[0]!).entry.description).toBe('changed meanwhile');
+  });
+
+  it('stops without sending when the plan changed and there is no terminal to ask again', async () => {
+    await saveMine();
+    const s = await server();
+    let calls = 0;
+    const f = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      // the entry changes between the review and the re-plan
+      if (calls++ === 0) {
+        const e = entryOf('Mine');
+        saveEntry(
+          {
+            kind: 'preset',
+            name: 'Mine',
+            description: 'later',
+            author: 'Alperen',
+            content: { layout: { lines: [] } },
+            share: true,
+            mode: 'update',
+            id: e.id,
+            rev: e.rev,
+          },
+          cat,
+        );
+      }
+      return globalThis.fetch(input, init);
+    }) as typeof fetch;
+    const r = await run(['publish', '--yes'], { env: s.env, fetch: f });
+    expect(r.code).toBe(1);
+    expect(r.err).toEqual(['Nothing was sent. Run the command again to send the new list.']);
+    expect(stateOf('Mine')).toBe('pending');
+    // nothing changes now, so the next run sends the new list
+    const j = await run(['publish', '--yes', '--json'], { env: s.env, fetch: f });
+    expect(j.code).toBeUndefined();
+    expect(JSON.parse(j.out[0]!).results).toMatchObject([{ ok: true, version: 1 }]);
+  });
+
   it('shows the exact payload and the endpoint, then needs --yes without a terminal (D-25)', async () => {
     await saveMine();
     const s = await server();
@@ -136,7 +224,8 @@ describe('catalog publish', () => {
     expect(body).toContain('"type": "model"');
     expect(r.out).toContain(`This sends the entries above to ${s.url}. It runs because you asked, ${WHERE}.`);
     expect(r.err).toEqual(['Nothing was sent. Run again with --yes to send it.']);
-    expect(f.calls()).toBe(0);
+    // the review reads meta.json only
+    expect(f.calls()).toBe(1);
     expect(stateOf('Mine')).toBe('pending');
     const list = await run(['list', '--remote'], { env: s.env });
     expect(list.out).toContain('  The marketplace has no entries yet.');
@@ -150,7 +239,8 @@ describe('catalog publish', () => {
     expect(r.code).toBeUndefined();
     expect(r.out).toContain('  Publish Mine (preset)');
     expect(r.out.at(-1)).toBe('Dry run: nothing was sent.');
-    expect(f.calls()).toBe(0);
+    // the review reads meta.json only
+    expect(f.calls()).toBe(1);
   });
 
   it('asks in a terminal and keeps everything on no', async () => {
@@ -160,7 +250,8 @@ describe('catalog publish', () => {
     const r = await run(['publish'], { env: s.env, fetch: f.fetch, tty: true, answers: [false] });
     expect(r.asked).toEqual(['Send this entry?']);
     expect(r.out.at(-1)).toBe('Nothing was sent.');
-    expect(f.calls()).toBe(0);
+    // the review reads meta.json only
+    expect(f.calls()).toBe(1);
     const yes = await run(['publish'], { env: s.env, tty: true, answers: [true] });
     expect(yes.out.at(-1)).toBe('Published Mine v1 as alperen/mine');
   });
@@ -219,7 +310,8 @@ describe('catalog publish', () => {
       'Mine was withdrawn from the marketplace, and withdrawn ids stay reserved. Save it under a new name to publish it again.',
       'Nothing is waiting to publish.',
     ]);
-    expect(f.calls()).toBe(0);
+    // the review reads meta.json only
+    expect(f.calls()).toBe(1);
     const tr = await withLangAsync('tr', () => run(['publish', '--yes'], { env: s.env }));
     expect(tr.out[0]).toBe(
       'Mine pazar yerinden geri çekildi ve geri çekilen kimlikler ayrılmış kalır. Yeniden yayımlamak için farklı bir adla kaydedin.',

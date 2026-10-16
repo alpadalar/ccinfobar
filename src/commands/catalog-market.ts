@@ -3,10 +3,12 @@ import type { CatalogEntry } from '../catalog/model.js';
 import {
   type PublishDeps,
   type PublishItem,
+  type PublishReview,
   planHash,
   publishPlan,
   remoteList,
   remoteShow,
+  reviewPublish,
   runPublish,
 } from '../catalog/publish.js';
 import { shareState } from '../catalog/share.js';
@@ -42,6 +44,7 @@ const REASONS: Record<string, MessageId> = {
   'read-only': 'market.error.read-only',
   'handle-taken': 'market.error.handle-taken',
   changed: 'market.error.changed',
+  unreviewed: 'market.error.unreviewed',
   'bad-content': 'err.catalog.badContent',
   busy: 'err.catalog.busy',
 };
@@ -61,7 +64,7 @@ export const reasonId = (code: string | null): MessageId =>
 export const reasonText = (code: string | null): string => t(reasonId(code));
 
 // the editor reaches publish.ts through this entry
-export { planHash, publishPlan, remoteList, remoteShow, runPublish };
+export { planHash, publishPlan, remoteList, remoteShow, reviewPublish, runPublish };
 
 const shownUrl = (url: string): string => visibleTarget(clean(url));
 
@@ -103,11 +106,75 @@ export function reserved(item: PublishItem, entries: CatalogEntry[]): boolean {
   return entries.find((e) => e.id === item.id)?.share.state === 'pending';
 }
 
+type Skip = { id: string; reason: string };
+
+interface Planned {
+  review: PublishReview;
+  hash: string;
+  notes: string[];
+  skipped: Skip[];
+}
+
+// the review reads server meta; reserved items are skipped with a note
+async function planned(c: Ctx, ids: string[] | null): Promise<Planned> {
+  const review = await reviewPublish(ids, deps(c));
+  const notes: string[] = [];
+  const skipped: Skip[] = [];
+  const entries = listEntries(c.dir).filter((e) => ids === null || ids.includes(e.id));
+  if (ids !== null && review.code === null) {
+    for (const e of entries) {
+      if (review.plan.some((i) => i.id === e.id)) continue;
+      const up = shareState(e) === 'published';
+      skipped.push({ id: e.id, reason: up ? 'up-to-date' : 'not-shared' });
+      const name = clean(e.name);
+      notes.push(
+        up
+          ? t('catalog.publish.upToDate', { name, version: e.share.remote?.version ?? e.version })
+          : t('catalog.publish.notShared', { name, ref: e.id }),
+      );
+    }
+  }
+  const plan: PublishItem[] = [];
+  for (const item of review.plan) {
+    if (!reserved(item, entries)) {
+      plan.push(item);
+      continue;
+    }
+    skipped.push({ id: item.id, reason: 'withdrawn' });
+    notes.push(t('catalog.publish.reserved', { name: clean(item.name) }));
+  }
+  const kept = { ...review, plan };
+  return { review: kept, hash: planHash(kept), notes, skipped };
+}
+
+function showPlan(c: Ctx, p: Planned, endpoint: string): void {
+  const width = widthOf(c);
+  c.io.log(t('catalog.publish.plan'));
+  for (const item of p.review.plan) {
+    const vars = { name: clean(item.name), kind: kindWord(item.kind), id: clean(item.remoteId) };
+    c.io.log(`  ${t(ITEMS[item.action], vars)}`);
+    if (item.payload) for (const line of payloadLines(item.payload, width)) c.io.log(line);
+    else c.io.log(`    ${t('catalog.publish.noPayload')}`);
+  }
+  c.io.log('');
+  const reg = p.review.registration;
+  if (reg) {
+    const handle = clean(reg.handle);
+    c.io.log(t('catalog.publish.register', { handle, name: clean(reg.displayName) || handle }));
+  }
+  c.io.log(t('catalog.publish.where', { endpoint: shownUrl(endpoint) }));
+}
+
+function reviewFail(c: Ctx, code: string, submitUrl?: string): void {
+  if (code === 'read-only' && submitUrl) c.fail(t('catalog.publish.readOnly', { url: shownUrl(submitUrl) }));
+  else c.fail(t('catalog.publish.error', { reason: reasonText(code) }));
+}
+
 export async function runPublishCommand(c: Ctx): Promise<void> {
   const endpoint = noEndpoint(c);
   if (!endpoint) return;
-  const notes: string[] = [];
-  const skipped: { id: string; reason: string }[] = [];
+  const legacyNotes: string[] = [];
+  const legacySkips: Skip[] = [];
   const refs = c.args.positional.slice(1);
   let ids: string[] | null = null;
   if (refs.length) {
@@ -120,89 +187,97 @@ export async function runPublishCommand(c: Ctx): Promise<void> {
         return;
       }
       if (hit.source === 'legacy') {
-        skipped.push({ id: hit.item.ref, reason: 'not-shared' });
-        notes.push(t('catalog.publish.notShared', { name: clean(hit.item.name), ref: clean(hit.item.ref) }));
+        legacySkips.push({ id: hit.item.ref, reason: 'not-shared' });
+        legacyNotes.push(
+          t('catalog.publish.notShared', { name: clean(hit.item.name), ref: clean(hit.item.ref) }),
+        );
       } else if (!ids.includes(hit.entry.id)) ids.push(hit.entry.id);
     }
   }
-  const entries = listEntries(c.dir).filter((e) => ids === null || ids.includes(e.id));
-  const all = publishPlan(entries, endpoint);
-  for (const e of entries) {
-    if (ids === null || all.some((i) => i.id === e.id)) continue;
-    const up = shareState(e) === 'published';
-    skipped.push({ id: e.id, reason: up ? 'up-to-date' : 'not-shared' });
-    const name = clean(e.name);
-    notes.push(
-      up
-        ? t('catalog.publish.upToDate', { name, version: e.share.remote?.version ?? e.version })
-        : t('catalog.publish.notShared', { name, ref: e.id }),
-    );
-  }
-  const items: PublishItem[] = [];
-  for (const item of all) {
-    if (!reserved(item, entries)) {
-      items.push(item);
-      continue;
-    }
-    skipped.push({ id: item.id, reason: 'withdrawn' });
-    notes.push(t('catalog.publish.reserved', { name: clean(item.name) }));
-  }
-  const base = { endpoint, plan: items, results: null, code: null, skipped };
+  let cur = await planned(c, ids);
+  const base = (p: Planned) => ({
+    endpoint,
+    plan: p.review.plan,
+    registration: p.review.registration,
+    results: null,
+    code: p.review.code,
+    ...(p.review.submitUrl ? { submitUrl: p.review.submitUrl } : {}),
+    skipped: [...legacySkips, ...p.skipped],
+  });
   const yes = c.args.flags.yes === true;
-  if (!c.json) for (const line of notes) c.io.log(line);
-  if (!items.length) {
-    if (c.json) jsonOut(c, c.dryRun ? { ...base, dryRun: true } : base);
+  if (cur.review.code) {
+    if (c.json) jsonOut(c, base(cur));
+    reviewFail(c, cur.review.code, cur.review.submitUrl);
+    return;
+  }
+  if (!c.json) for (const line of [...legacyNotes, ...cur.notes]) c.io.log(line);
+  if (!cur.review.plan.length) {
+    if (c.json) jsonOut(c, c.dryRun ? { ...base(cur), dryRun: true } : base(cur));
     else c.io.log(t('catalog.publish.nothing'));
     return;
   }
   if (c.json) {
-    if (c.dryRun || !yes) jsonOut(c, c.dryRun ? { ...base, dryRun: true } : base);
+    if (c.dryRun || !yes) jsonOut(c, c.dryRun ? { ...base(cur), dryRun: true } : base(cur));
     if (c.dryRun) return;
     if (!yes) {
       c.fail(t('catalog.publish.needsYes'));
       return;
     }
   } else {
-    const width = widthOf(c);
-    c.io.log(t('catalog.publish.plan'));
-    for (const item of items) {
-      const vars = { name: clean(item.name), kind: kindWord(item.kind), id: clean(item.remoteId) };
-      c.io.log(`  ${t(ITEMS[item.action], vars)}`);
-      if (item.payload) for (const line of payloadLines(item.payload, width)) c.io.log(line);
-      else c.io.log(`    ${t('catalog.publish.noPayload')}`);
-    }
-    c.io.log('');
-    c.io.log(t('catalog.publish.where', { endpoint: shownUrl(endpoint) }));
+    showPlan(c, cur, endpoint);
     if (c.dryRun) {
       c.io.log(t('catalog.publish.dryRun'));
       return;
     }
-    if (!yes) {
+  }
+  // what was shown is what is sent: plan again after the answer
+  for (;;) {
+    if (!yes && !c.json) {
       if (!c.io.tty) {
         c.fail(t('catalog.publish.needsYes'));
         return;
       }
-      if (!(await c.io.ask(t('catalog.publish.ask', { count: items.length }), false))) {
+      const count = cur.review.plan.length;
+      if (!(await c.io.ask(t('catalog.publish.ask', { count }), false))) {
         c.io.log(t('catalog.publish.cancelled'));
         return;
       }
     }
+    const again = await planned(c, ids);
+    if (again.review.code) {
+      if (c.json) jsonOut(c, base(again));
+      reviewFail(c, again.review.code, again.review.submitUrl);
+      return;
+    }
+    if (again.hash === cur.hash) break;
+    cur = again;
+    if (c.json) {
+      jsonOut(c, { ...base(cur), code: 'unreviewed' });
+      c.fail(t('catalog.publish.runAgain'));
+      return;
+    }
+    c.io.log(t('catalog.publish.replanned'));
+    if (!cur.review.plan.length) {
+      c.io.log(t('catalog.publish.nothing'));
+      return;
+    }
+    showPlan(c, cur, endpoint);
+    if (yes || !c.io.tty) {
+      c.fail(t('catalog.publish.runAgain'));
+      return;
+    }
   }
-  const res = await runPublish(
-    items.map((i) => i.id),
-    deps(c),
-  );
+  const items = cur.review.plan;
+  const res = await runPublish(cur.review, deps(c));
   if (c.json)
     jsonOut(c, {
-      ...base,
+      ...base(cur),
       code: res.code,
       ...(res.submitUrl ? { submitUrl: res.submitUrl } : {}),
       results: res.results,
     });
   if (res.code) {
-    if (res.code === 'read-only' && res.submitUrl)
-      c.fail(t('catalog.publish.readOnly', { url: shownUrl(res.submitUrl) }));
-    else c.fail(t('catalog.publish.error', { reason: reasonText(res.code) }));
+    reviewFail(c, res.code, res.submitUrl);
     return;
   }
   if (!res.results.length && !c.json) c.io.log(t('catalog.publish.nothing'));

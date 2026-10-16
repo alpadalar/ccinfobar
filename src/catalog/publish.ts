@@ -28,6 +28,7 @@ import {
   commitEntry,
   listEntries,
   marketEndpoint,
+  normalizeEntry,
   readCredential,
   readEntry,
   readProfile,
@@ -63,6 +64,21 @@ export interface PublishDeps {
   fetch?: typeof fetch;
   now?: () => Date;
   displayName?: string;
+}
+
+export interface Registration {
+  handle: string;
+  displayName: string;
+}
+
+// what the user reviews; runPublish sends exactly this
+export interface PublishReview {
+  code: string | null;
+  submitUrl?: string;
+  endpoint: string;
+  overwrite: boolean;
+  registration: Registration | null;
+  plan: PublishItem[];
 }
 
 function endpointKey(raw: string): string | null {
@@ -121,8 +137,9 @@ export function publishPlan(
 }
 
 // what was shown is what is sent
-export function planHash(endpoint: string, plan: PublishItem[]): string {
-  return createHash('sha256').update(canonicalJson({ endpoint, plan })).digest('hex');
+export function planHash(review: Pick<PublishReview, 'endpoint' | 'plan' | 'registration'>): string {
+  const { endpoint, plan, registration } = review;
+  return createHash('sha256').update(canonicalJson({ endpoint, plan, registration })).digest('hex');
 }
 
 function codeOf(err: unknown): string {
@@ -171,6 +188,45 @@ const withdrawn = (e: CatalogEntry) => {
   return e.share.wanted ? setShare(next, true) : next;
 };
 
+function registrationOf(plan: PublishItem[], entries: CatalogEntry[], deps: PublishDeps, dir: string) {
+  const profile = readProfile(dir);
+  const author = profile.author || entries.find((e) => e.id === plan[0]?.id)?.author || '';
+  return {
+    handle: marketSlug(profile.publisher ?? (author || 'publisher')),
+    displayName: deps.displayName ?? author,
+  };
+}
+
+// reads meta, so the plan shows what the server will really do
+export async function reviewPublish(ids: string[] | null, deps: PublishDeps = {}): Promise<PublishReview> {
+  const { env, dir } = envOf(deps);
+  const endpoint = marketEndpoint(env, dir) ?? '';
+  const none = { endpoint, overwrite: true, registration: null, plan: [] };
+  if (!endpoint) return { code: 'no-endpoint', ...none };
+  const entries = listEntries(dir).filter((e) => ids === null || ids.includes(e.id));
+  // nothing waits: no request at all
+  if (!publishPlan(entries, endpoint).length) return { code: null, ...none };
+  let anon: MarketClient;
+  try {
+    anon = createMarketClient({ endpoint, fetch: deps.fetch ?? globalThis.fetch });
+  } catch {
+    return { code: 'bad-endpoint', ...none };
+  }
+  let overwrite: boolean;
+  try {
+    const meta = await anon.meta();
+    if (!meta.capabilities.write)
+      return { code: 'read-only', ...(meta.submitUrl ? { submitUrl: meta.submitUrl } : {}), ...none };
+    overwrite = meta.capabilities.overwrite;
+  } catch (err) {
+    return { code: codeOf(err), ...none };
+  }
+  const plan = publishPlan(entries, endpoint, { overwrite });
+  const token = readCredential(new URL(anon.endpoint).origin, dir);
+  const registration = token ? null : registrationOf(plan, entries, deps, dir);
+  return { code: null, endpoint, overwrite, registration, plan };
+}
+
 async function sendItem(
   client: MarketClient,
   item: PublishItem,
@@ -189,25 +245,32 @@ async function sendItem(
     return null;
   }
   const payload = item.payload as VersionPayload;
-  if (item.action === 'overwrite') {
-    try {
-      return { id, ...(await client.overwrite(id, remote!.version, payload)) };
-    } catch (err) {
-      if (codeOf(err) !== 'overwrite-disabled') throw err;
-    }
-  }
+  // a reviewed overwrite never turns into a new public version
+  if (item.action === 'overwrite') return { id, ...(await client.overwrite(id, remote!.version, payload)) };
   return { id, ...(await client.addVersion(id, remote!.version, payload)) };
 }
 
+const notSent = (item: PublishItem): PublishResult => ({
+  id: item.id,
+  ok: false,
+  code: 'unreviewed',
+  remoteId: item.remoteId,
+  version: null,
+});
+
+// sends the reviewed items only, each only while its plan is unchanged
 export async function runPublish(
-  ids: string[] | null,
+  review: PublishReview,
   deps: PublishDeps = {},
 ): Promise<{ code: string | null; submitUrl?: string; results: PublishResult[] }> {
+  if (review.code)
+    return { code: review.code, ...(review.submitUrl ? { submitUrl: review.submitUrl } : {}), results: [] };
   const { env, dir } = envOf(deps);
   const endpoint = marketEndpoint(env, dir);
   if (!endpoint) return { code: 'no-endpoint', results: [] };
-  const entries = listEntries(dir).filter((e) => ids === null || ids.includes(e.id));
-  if (!publishPlan(entries, endpoint).length) return { code: null, results: [] };
+  if (endpointKey(endpoint) !== endpointKey(review.endpoint)) return { code: 'unreviewed', results: [] };
+  const items = review.plan;
+  if (!items.length) return { code: null, results: [] };
   const fetchFn = deps.fetch ?? globalThis.fetch;
   const now = deps.now ?? (() => new Date());
   let anon: MarketClient;
@@ -216,27 +279,14 @@ export async function runPublish(
   } catch {
     return { code: 'bad-endpoint', results: [] };
   }
-  let overwrite: boolean;
-  try {
-    const meta = await anon.meta();
-    if (!meta.capabilities.write) {
-      return { code: 'read-only', ...(meta.submitUrl ? { submitUrl: meta.submitUrl } : {}), results: [] };
-    }
-    overwrite = meta.capabilities.overwrite;
-  } catch (err) {
-    return { code: codeOf(err), results: [] };
-  }
-  const items = publishPlan(entries, endpoint, { overwrite });
   const origin = new URL(anon.endpoint).origin;
   let token = readCredential(origin, dir);
   if (!token) {
-    const profile = readProfile(dir);
-    const author = profile.author || entries.find((e) => e.id === items[0]?.id)?.author || '';
+    // only the reviewed registration is sent
+    const asked = review.registration;
+    if (!asked) return { code: 'unreviewed', results: [] };
     try {
-      const reg = await anon.register(
-        marketSlug(profile.publisher ?? (author || 'publisher')),
-        deps.displayName ?? author,
-      );
+      const reg = await anon.register(asked.handle, asked.displayName);
       writeCredential(origin, reg.token, dir);
       writeProfile({ publisher: reg.handle }, dir);
       token = reg.token;
@@ -248,7 +298,13 @@ export async function runPublish(
   const client = createMarketClient({ endpoint, fetch: fetchFn, token });
   const results: PublishResult[] = [];
   for (const item of items) {
-    const e = entries.find((x) => x.id === item.id)!;
+    const cur = readEntry(item.id, dir)?.entry;
+    const e = cur && normalizeEntry(cur);
+    const again = e && publishPlan([e], endpoint, { overwrite: review.overwrite })[0];
+    if (!e || !again || canonicalJson(again) !== canonicalJson(item)) {
+      results.push(notSent(item));
+      continue;
+    }
     const remote = item.remoteId ? e.share.remote : null;
     let res: PublishResult;
     try {

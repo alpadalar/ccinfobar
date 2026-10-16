@@ -136,6 +136,9 @@ export interface PublishPlanInfo {
   endpoint: string;
   planHash: string;
   notice: string;
+  code?: 'read-only' | null;
+  submitUrl?: string;
+  registration?: { handle: string; displayName: string } | null;
   plan: {
     id: string;
     rev: number;
