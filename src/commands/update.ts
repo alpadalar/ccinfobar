@@ -19,6 +19,7 @@ import { classifyOwner, owns, readManifest } from './manifest.js';
 
 export {
   assertVersion,
+  type CheckDeps,
   checkForUpdate,
   fetchLatest,
   installSources,
@@ -34,7 +35,10 @@ export {
 } from '../data/self-update.js';
 export {
   availableUpdate,
+  BREW_UPGRADE,
+  brewPrefix,
   compareVersions,
+  effectiveUpdate,
   type InstallKind,
   installKind,
   localPrefix,
@@ -44,6 +48,7 @@ export {
   spawnSelf,
   type UpdateState,
   updateFile,
+  updateHint,
   updateNotice,
   updatesDisabled,
   writeUpdateState,
@@ -99,6 +104,10 @@ export async function manualUpdate(
   d.log(t('cmd.update.available', { version: current, latest }));
   if (checkOnly) return 0;
   const kind = d.installKind();
+  if (kind === 'brew') {
+    d.log(t('update.brewManual'));
+    return 0;
+  }
   if (kind === 'source') {
     d.log(t('cmd.update.source'));
     return 0;

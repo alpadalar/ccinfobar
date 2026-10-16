@@ -26,6 +26,7 @@ import { staticMessages } from '../../src/core/i18n/en/static.js';
 import { themeEditorMessages } from '../../src/core/i18n/en/theme-editor.js';
 import { tomlMessages } from '../../src/core/i18n/en/toml.js';
 import { tuiMessages } from '../../src/core/i18n/en/tui.js';
+import { updateMessages } from '../../src/core/i18n/en/update.js';
 import { widgetMessages } from '../../src/core/i18n/en/widgets.js';
 import {
   activeLanguage,
@@ -71,6 +72,7 @@ import { staticMessages as trStatic } from '../../src/core/i18n/tr/static.js';
 import { themeEditorMessages as trThemeEditor } from '../../src/core/i18n/tr/theme-editor.js';
 import { tomlMessages as trToml } from '../../src/core/i18n/tr/toml.js';
 import { tuiMessages as trTui } from '../../src/core/i18n/tr/tui.js';
+import { updateMessages as trUpdate } from '../../src/core/i18n/tr/update.js';
 import { widgetMessages as trWidgets } from '../../src/core/i18n/tr/widgets.js';
 import { renderPreview } from '../../src/core/preview.js';
 import { saveUserTheme, type ThemeInput } from '../../src/core/themes.js';
@@ -258,6 +260,7 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['theme-editor', themeEditorMessages, trThemeEditor],
   ['static', staticMessages, trStatic],
   ['tui', tuiMessages, trTui],
+  ['update', updateMessages, trUpdate],
   ['report', reportMessages, trReport],
   ['toml', tomlMessages, trToml],
   ['import', importMessages, trImport],
@@ -427,6 +430,7 @@ describe('en table', () => {
       themeEditorMessages,
       staticMessages,
       tuiMessages,
+      updateMessages,
       reportMessages,
       tomlMessages,
       importMessages,

@@ -16,6 +16,7 @@ import { previewMessages } from './preview.js';
 import { staticMessages } from './static.js';
 import { themeEditorMessages } from './theme-editor.js';
 import { tuiMessages } from './tui.js';
+import { updateMessages } from './update.js';
 import { widgetMessages } from './widgets.js';
 
 export const en = {
@@ -38,4 +39,5 @@ export const en = {
   ...themeEditorMessages,
   ...staticMessages,
   ...tuiMessages,
+  ...updateMessages,
 } as const;

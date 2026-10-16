@@ -3,7 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Config } from '../core/types.js';
 import { VERSION } from '../core/version.js';
-import { compareVersions, installKind, localPrefix } from './update-state.js';
+import {
+  compareVersions,
+  effectiveUpdate,
+  type InstallKind,
+  installKind,
+  localPrefix,
+} from './update-state.js';
 
 // the update check and npm install: the update job loads it with import()
 export const REPO = 'alpadalar/ccinfobar';
@@ -140,20 +146,29 @@ export async function installVersionAsync(
   throw last;
 }
 
+export interface CheckDeps {
+  fetch?: typeof fetch;
+  signal?: AbortSignal;
+  kind?: InstallKind;
+  fetchLatest?: (timeoutMs?: number) => Promise<string>;
+  install?: (version: string, prefix?: string, signal?: AbortSignal) => void | Promise<void>;
+}
+
 export async function checkForUpdate(
   config: Config,
   current: string = VERSION,
   env: NodeJS.ProcessEnv = process.env,
-  deps: { fetch?: typeof fetch; signal?: AbortSignal } = {},
+  deps: CheckDeps = {},
 ): Promise<{ latest: string; installed?: string }> {
-  const latest = await fetchLatest(undefined, deps.fetch);
-  const kind = installKind();
+  const latest = deps.fetchLatest ? await deps.fetchLatest() : await fetchLatest(undefined, deps.fetch);
+  const kind = deps.kind ?? installKind();
   if (
-    config.update === 'auto' &&
+    effectiveUpdate(config, kind) === 'auto' &&
     compareVersions(latest, current) > 0 &&
     (kind === 'npm-global' || kind === 'local')
   ) {
-    await installVersionAsync(latest, kind === 'local' ? localPrefix(env) : undefined, deps.signal);
+    const install = deps.install ?? installVersionAsync;
+    await install(latest, kind === 'local' ? localPrefix(env) : undefined, deps.signal);
     return { latest, installed: latest };
   }
   return { latest };
