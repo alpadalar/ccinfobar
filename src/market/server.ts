@@ -30,16 +30,20 @@ export interface MarketServerOpts {
   host?: string;
   port?: number;
   allowOverwrite?: boolean;
-  rateLimit?: { perMinute: number; readsPerMinute?: number };
+  rateLimit?: { perMinute: number; readsPerMinute?: number; registersPerMinute?: number };
+  caps?: { publishers?: number; entries?: number; entriesPerPublisher?: number };
+  maxConnections?: number;
   name?: string;
   now?: () => number;
 }
 
 const MAX_VERSIONS = 5000;
 const WINDOW_MS = 60_000;
-const MAX_KEYS = 100_000;
+const MAX_KEYS = 50_000;
 const READS_FACTOR = 20;
 const DRAIN_LIMIT = 4 * MARKET_LIMITS.maxBodyBytes;
+const CAPS = { publishers: 10_000, entries: 5000, entriesPerPublisher: 200 };
+const REGISTERS_PER_MINUTE = 5;
 const TOKEN_RE = /^Bearer ([0-9a-f]{64})$/;
 const DIGEST_RE = /^[0-9a-f]{64}$/;
 const VERSION_RE = /^[1-9][0-9]{0,15}$/;
@@ -84,7 +88,11 @@ type StoredVersionInfo = MarketVersionInfo & { overwrittenAt?: string };
 type StoredEntry = MarketEntry & { versions: StoredVersionInfo[] };
 
 // fixed one-minute windows; returns retry-after seconds when over
-export function fixedWindow(perMinute: number, now: () => number): (key: string) => number | null {
+export function fixedWindow(
+  perMinute: number,
+  now: () => number,
+  maxKeys = MAX_KEYS,
+): (key: string) => number | null {
   const counts = new Map<string, number>();
   let start = Number.NaN;
   return (key) => {
@@ -97,7 +105,7 @@ export function fixedWindow(perMinute: number, now: () => number): (key: string)
     const wait = Math.max(1, Math.ceil((w + WINDOW_MS - t) / 1000));
     const n = counts.get(key);
     // full table fails closed
-    if (n === undefined && counts.size >= MAX_KEYS) return wait;
+    if (n === undefined && counts.size >= maxKeys) return wait;
     if ((n ?? 0) >= perMinute) return wait;
     counts.set(key, (n ?? 0) + 1);
     return null;
@@ -233,8 +241,31 @@ export async function startMarketServer(
     limits: { ...MARKET_LIMITS },
   };
 
-  function rebuildIndex(): void {
-    const entries: MarketSummary[] = [];
+  const summaries = new Map<string, MarketSummary>();
+  const byPublisher = new Map<string, number>();
+  const caps = { ...CAPS, ...opts.caps };
+
+  // ids compare as (publisher, slug), like the dir walk
+  const order = (a: MarketSummary, b: MarketSummary): number => {
+    const [ap, as] = a.id.split('/') as [string, string];
+    const [bp, bs] = b.id.split('/') as [string, string];
+    if (ap !== bp) return ap < bp ? -1 : 1;
+    return as < bs ? -1 : as > bs ? 1 : 0;
+  };
+
+  function writeIndex(): void {
+    const entries = [...summaries.values()].sort(order);
+    writeJson(pub('index.json'), { entries, generatedAt: iso() });
+  }
+
+  // only the changed entry is updated, nothing is re-read
+  function indexEntry(e: MarketEntry): void {
+    if (!summaries.has(e.id)) byPublisher.set(e.publisher, (byPublisher.get(e.publisher) ?? 0) + 1);
+    summaries.set(e.id, toSummary(e));
+    writeIndex();
+  }
+
+  function loadIndex(): void {
     const base = pub('entries');
     let pubs: string[] = [];
     try {
@@ -252,10 +283,12 @@ export async function startMarketServer(
         const s = f.endsWith('.json') ? f.slice(0, -5) : '';
         if (!ID_PART_RE.test(s)) continue;
         const e = parseRemoteEntry(readJson(entryFile(p, s)));
-        if (e && e.id === `${p}/${s}`) entries.push(toSummary(e));
+        if (!e || e.id !== `${p}/${s}`) continue;
+        summaries.set(e.id, toSummary(e));
+        byPublisher.set(p, (byPublisher.get(p) ?? 0) + 1);
       }
     }
-    writeJson(pub('index.json'), { entries, generatedAt: iso() });
+    writeIndex();
   }
 
   function loadTokens(): void {
@@ -342,7 +375,7 @@ export async function startMarketServer(
       versions: [...entry.versions.slice(0, -1), { ...last, note: payload.note, hash, overwrittenAt: at }],
     };
     writeJson(entryFile(p, s), next);
-    rebuildIndex();
+    indexEntry(next);
     send(res, 200, { id: entry.id, version: n, hash });
   }
 
@@ -352,8 +385,9 @@ export async function startMarketServer(
     checkOwner(handle, p, s);
     if (!entry.withdrawn) {
       // tombstone first, so a failed delete still answers 410
-      writeJson(entryFile(p, s), { ...entry, withdrawn: true, withdrawnAt: iso() });
-      rebuildIndex();
+      const tomb = { ...entry, withdrawn: true, withdrawnAt: iso() };
+      writeJson(entryFile(p, s), tomb);
+      indexEntry(tomb);
     }
     for (const v of entry.versions) {
       try {
@@ -405,6 +439,7 @@ export async function startMarketServer(
     if (dn !== undefined && typeof dn !== 'string') throw fail(400, 'invalid', 'invalid displayName');
     const name = [...sanitizeText(dn ?? '').trim()].slice(0, MARKET_LIMITS.displayName).join('').trim();
     if (fs.existsSync(publisherFile(handle))) throw fail(409, 'conflict');
+    if (tokens.size >= caps.publishers) throw fail(413, 'too-large', 'too many publishers');
     const token = randomBytes(32).toString('hex');
     const tokenSha256 = sha256(token);
     writeJson(
@@ -423,6 +458,10 @@ export async function startMarketServer(
     checkContent(payload.kind, payload.content);
     const s = payload.slug;
     if (fs.existsSync(entryFile(handle, s))) throw fail(409, 'conflict');
+    if (summaries.size >= caps.entries) throw fail(413, 'too-large', 'too many entries');
+    if ((byPublisher.get(handle) ?? 0) >= caps.entriesPerPublisher) {
+      throw fail(413, 'too-large', 'too many entries for this publisher');
+    }
     const id = `${handle}/${s}`;
     const at = iso();
     const hash = sha256(canonicalJson(payload.content));
@@ -441,7 +480,7 @@ export async function startMarketServer(
       versions: [{ version: 1, at, note: payload.note, hash }],
     };
     writeJson(entryFile(handle, s), entry);
-    rebuildIndex();
+    indexEntry(entry);
     send(res, 201, { id, version: 1, hash });
   }
 
@@ -476,7 +515,7 @@ export async function startMarketServer(
       versions: [...entry.versions, { version, at, note: payload.note, hash }],
     };
     writeJson(entryFile(p, s), next);
-    rebuildIndex();
+    indexEntry(next);
     send(res, 201, { id: entry.id, version, hash });
   }
 
@@ -497,6 +536,10 @@ export async function startMarketServer(
     const m = TOKEN_RE.exec(req.headers.authorization ?? '');
     const wait = writes(`ip:${ip}`) ?? (m ? writes(`token:${sha256(m[1]!)}`) : null);
     if (wait !== null) throw limited(wait);
+    if (req.method === 'POST' && p === publishersPath()) {
+      const r = registers(`ip:${ip}`);
+      if (r !== null) throw limited(r);
+    }
     if (req.method === 'DELETE') {
       const w = WITHDRAW_RE.exec(p);
       if (!w) throw fail(404, 'not-found');
@@ -523,21 +566,41 @@ export async function startMarketServer(
   const perMinute = opts.rateLimit?.perMinute ?? 30;
   const writes = fixedWindow(perMinute, now);
   const reads = fixedWindow(opts.rateLimit?.readsPerMinute ?? perMinute * READS_FACTOR, now);
+  const registers = fixedWindow(
+    opts.rateLimit?.registersPerMinute ?? Math.min(perMinute, REGISTERS_PER_MINUTE),
+    now,
+  );
 
   fs.mkdirSync(root, { recursive: true });
   writeJson(pub('meta.json'), meta);
-  rebuildIndex();
+  loadIndex();
   loadTokens();
 
-  // slow bodies cannot hold sockets open
-  const server = http.createServer({ requestTimeout: 30_000, headersTimeout: 15_000 }, (req, res) => {
-    handle(req, res).catch((err: unknown) => {
-      if (res.headersSent) return res.end();
+  function answer(res: http.ServerResponse, err: unknown): void {
+    try {
+      if (res.headersSent) return void res.end();
       const e = err instanceof MarketHttpError ? err : fail(500, 'internal');
       if (e.status === 413) res.setHeader('connection', 'close');
       if (e.retryAfter !== null) res.setHeader('retry-after', String(e.retryAfter));
       send(res, e.status, { error: { code: e.code, message: e.message } });
-    });
+    } catch {
+      res.destroy();
+    }
+  }
+
+  // slow or idle sockets cannot hold the server open
+  const server = http.createServer(
+    { requestTimeout: 30_000, headersTimeout: 15_000, keepAliveTimeout: 5000 },
+    (req, res) => {
+      req.on('error', () => {});
+      res.on('error', () => {});
+      handle(req, res).catch((err: unknown) => answer(res, err));
+    },
+  );
+  server.maxConnections = opts.maxConnections ?? 256;
+  server.on('clientError', (_err, socket) => {
+    if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n');
+    else socket.destroy();
   });
 
   let closing: Promise<void> | null = null;
@@ -553,6 +616,7 @@ export async function startMarketServer(
     server.once('error', reject);
     server.listen(opts.port ?? 0, host, () => {
       server.off('error', reject);
+      server.on('error', () => {});
       resolve();
     });
   });

@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EntryContent } from '../../src/core/edit.js';
 import { createMarketClient } from '../../src/market/client.js';
 import {
@@ -301,6 +302,143 @@ describe('reference market server', () => {
     expect((await request('GET', '/v1/meta.json')).status).toBe(200);
   });
 
+  it('registration has its own stricter per-IP bucket', async () => {
+    for (const h of ['a', 'b', 'c', 'd', 'e']) {
+      expect((await request('POST', '/v1/publishers', { body: { handle: h } })).status).toBe(201);
+    }
+    const over = await request('POST', '/v1/publishers', { body: { handle: 'f' } });
+    expect(over.status).toBe(429);
+    expect(over.json().error.code).toBe('rate-limited');
+    expect(over.headers['retry-after']).toBe('60');
+    expect(fs.existsSync(file('private', 'publishers', 'f.json'))).toBe(false);
+    const bad = await request('POST', '/v1/publishers', { body: { handle: 'BAD' } });
+    expect(bad.status).toBe(429);
+    // other writes and reads still pass
+    expect((await request('GET', '/v1/meta.json')).status).toBe(200);
+    const login = await request('POST', '/v1/entries', { body: publishBody('x') });
+    expect(login.status).toBe(401);
+    clock += 60_000;
+    expect((await request('POST', '/v1/publishers', { body: { handle: 'f' } })).status).toBe(201);
+  });
+
+  it('caps publishers, entries and entries per publisher', async () => {
+    await restart({ caps: { publishers: 2, entries: 3, entriesPerPublisher: 2 } });
+    const a = await register('alp');
+    const b = await register('bob');
+    const third = await request('POST', '/v1/publishers', { body: { handle: 'cem' } });
+    expect(third.status).toBe(413);
+    expect(third.json()).toEqual({ error: { code: 'too-large', message: 'too many publishers' } });
+    expect(fs.existsSync(file('private', 'publishers', 'cem.json'))).toBe(false);
+
+    for (const s of ['one', 'two']) {
+      expect((await request('POST', '/v1/entries', { token: a, body: publishBody(s) })).status).toBe(201);
+    }
+    const mine = await request('POST', '/v1/entries', { token: a, body: publishBody('three') });
+    expect(mine.status).toBe(413);
+    expect(mine.json().error.message).toBe('too many entries for this publisher');
+    expect((await request('POST', '/v1/entries', { token: b, body: publishBody('one') })).status).toBe(201);
+    const full = await request('POST', '/v1/entries', { token: b, body: publishBody('two') });
+    expect(full.status).toBe(413);
+    expect(full.json().error.message).toBe('too many entries');
+    expect(fs.existsSync(file('v1', 'entries', 'bob', 'two.json'))).toBe(false);
+
+    // tombstones still count, also after a restart
+    expect((await request('DELETE', '/v1/entries/alp/one', { token: a })).status).toBe(200);
+    await restart({ caps: { publishers: 2, entries: 3, entriesPerPublisher: 2 } });
+    expect((await request('POST', '/v1/entries', { token: a, body: publishBody('four') })).status).toBe(413);
+    expect((await request('POST', '/v1/publishers', { body: { handle: 'cem' } })).status).toBe(413);
+  });
+
+  it('a write updates the index without reading other entry files', async () => {
+    const token = await register('alp');
+    for (const s of ['aa', 'bb', 'cc']) await request('POST', '/v1/entries', { token, body: publishBody(s) });
+    const others = [file('v1', 'entries', 'alp', 'bb.json'), file('v1', 'entries', 'alp', 'cc.json')];
+    const spy = vi.spyOn(fs, 'readFileSync');
+    try {
+      const writes: [string, string, Parameters<typeof request>[2]][] = [
+        [
+          'POST',
+          '/v1/entries/alp/aa/versions',
+          { token, headers: { 'if-match': '"1"' }, body: { content: preset(), note: '' } },
+        ],
+        [
+          'PUT',
+          '/v1/entries/alp/aa/versions/2',
+          { token, body: { content: preset([[{ type: 'cwd' }]]), note: '' } },
+        ],
+        ['POST', '/v1/entries', { token, body: publishBody('dd') }],
+        ['DELETE', '/v1/entries/alp/aa', { token }],
+      ];
+      for (const [m, p, o] of writes) {
+        spy.mockClear();
+        const r = await request(m, p, o);
+        expect(r.status, `${m} ${p}`).toBeLessThan(300);
+        const read = spy.mock.calls.map((c) => path.resolve(String(c[0])));
+        for (const f of others) expect(read, `${m} ${p}`).not.toContain(path.resolve(f));
+        if (p.includes('/aa')) expect(read).toContain(path.resolve(file('v1', 'entries', 'alp', 'aa.json')));
+      }
+    } finally {
+      spy.mockRestore();
+    }
+    const index = parseIndex((await request('GET', '/v1/index.json')).json())!;
+    expect(index.entries.map((e) => [e.id, e.version, e.withdrawn ?? false])).toEqual([
+      ['alp/aa', 2, true],
+      ['alp/bb', 1, false],
+      ['alp/cc', 1, false],
+      ['alp/dd', 1, false],
+    ]);
+    const before = fs.readFileSync(file('v1', 'index.json'), 'utf8');
+    await restart();
+    expect(JSON.parse(fs.readFileSync(file('v1', 'index.json'), 'utf8')).entries).toEqual(
+      JSON.parse(before).entries,
+    );
+  });
+
+  it('sorts the index by publisher, then slug', async () => {
+    const x = await register('a-b');
+    const y = await register('a');
+    await request('POST', '/v1/entries', { token: x, body: publishBody('z') });
+    await request('POST', '/v1/entries', { token: y, body: publishBody('z') });
+    await request('POST', '/v1/entries', { token: y, body: publishBody('y') });
+    const ids = (await request('GET', '/v1/index.json')).json().entries.map((e: any) => e.id);
+    expect(ids).toEqual(['a/y', 'a/z', 'a-b/z']);
+    await restart();
+    expect((await request('GET', '/v1/index.json')).json().entries.map((e: any) => e.id)).toEqual(ids);
+  });
+
+  it('malformed requests and handler failures never stop the server', async () => {
+    const raw = await new Promise<string>((resolve, reject) => {
+      const sock = net.connect(port, '127.0.0.1', () => sock.write('NOT HTTP\r\n\r\n'));
+      let out = '';
+      sock.on('data', (d) => {
+        out += d.toString('latin1');
+      });
+      sock.on('end', () => resolve(out));
+      sock.on('error', reject);
+    });
+    expect(raw.startsWith('HTTP/1.1 400')).toBe(true);
+    // an unexpected fs failure becomes a fixed 500
+    const token = await register('alp');
+    fs.mkdirSync(file('private', 'owners'), { recursive: true });
+    fs.writeFileSync(file('private', 'owners', 'alp'), 'not a dir');
+    const r = await request('POST', '/v1/entries', { token, body: publishBody('mine') });
+    expect(r.status).toBe(500);
+    expect(r.json()).toEqual({ error: { code: 'internal', message: 'internal error' } });
+    expect((await request('GET', '/v1/meta.json')).status).toBe(200);
+  });
+
+  it('fixed windows bound the key table and evict old windows', () => {
+    let t = Date.UTC(2026, 9, 16, 12, 0, 0);
+    const hit = fixedWindow(5, () => t, 2);
+    expect([hit('a'), hit('b')]).toEqual([null, null]);
+    expect(hit('c')).toBe(60);
+    expect(hit('a')).toBeNull();
+    t += 60_000;
+    expect(hit('c')).toBeNull();
+    expect(hit('d')).toBeNull();
+    expect(hit('a')).toBe(60);
+  });
+
   it('fixed windows count each key on its own', () => {
     let t = Date.UTC(2026, 9, 16, 12, 0, 10);
     const hit = fixedWindow(2, () => t);
@@ -365,6 +503,7 @@ describe('reference market server', () => {
   });
 
   it('rejects bad handles and bodies', async () => {
+    await restart({ rateLimit: { perMinute: 30, registersPerMinute: 20 } });
     for (const body of [
       { handle: 'ALP', displayName: 'x' },
       { handle: '../x', displayName: 'x' },
