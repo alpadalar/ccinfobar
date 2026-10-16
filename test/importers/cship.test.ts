@@ -7,6 +7,7 @@ import type { PromptIo } from '../../src/commands/io.js';
 import { runImportCommand } from '../../src/commands/manage.js';
 import { stripAnsi } from '../../src/core/ansi.js';
 import { createContext } from '../../src/core/context.js';
+import { t } from '../../src/core/i18n/index.js';
 import { tildify } from '../../src/core/paths.js';
 import { render } from '../../src/core/renderer.js';
 import { sampleGit, sampleGsd, samplePayload, sampleTranscript } from '../../src/core/sample.js';
@@ -239,9 +240,21 @@ describe('cship mapper', () => {
     expect(
       importCship({ lines: ['$cship.model | $cship.cost | $cship.vim $cship.agent'] }).config.separator,
     ).toBe(' ');
-    expect(
-      importCship({ lines: ['$cship.model  $cship.cost  $cship.vim $cship.agent'] }).config.separator,
-    ).toBe('  ');
+    const mixed = importCship({ lines: ['$cship.model  $cship.cost  $cship.vim $cship.agent'] });
+    expect(mixed.config.separator).toBe('  ');
+    expect(mixed.notes).toContainEqual({
+      kind: 'approx',
+      text: t('import.note.gapsReplaced', { tool: 'cship', gaps: '" "', separator: '"  "' }),
+    });
+    const wide = importCship({ lines: ['$cship.model  $cship.cost  $cship.vim     $cship.agent'] });
+    expect(wide.notes.map((n) => n.text)).toContain(
+      t('import.note.gapsReplaced', {
+        tool: 'cship',
+        gaps: t('import.spaces', { count: 5 }),
+        separator: '"  "',
+      }),
+    );
+    expect(importCship({ lines: ['$cship.model $cship.cost'] }).notes).toEqual([]);
   });
 
   it('styles spans, keeps $ inside spans literal and drops empty spans', () => {

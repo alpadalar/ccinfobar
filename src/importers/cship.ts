@@ -351,6 +351,9 @@ function linePieces(line: string, cfg: Raw, st: State): Piece[] {
   return out;
 }
 
+const showGap = (g: string) =>
+  !g.trim() && g.length > 2 ? t('import.spaces', { count: g.length }) : `"${sanitizeText(g)}"`;
+
 export function importCship(cfg: Record<string, unknown>): ImportResult {
   const st: State = { notes: [], n: 0, spans: 0 };
   const sources =
@@ -389,6 +392,14 @@ export function importCship(cfg: Record<string, unknown>): ImportResult {
   let best = 0;
   for (const [g, n] of gaps) {
     if (n > best) [separator, best] = [g, n];
+  }
+  const others = [...gaps.keys()].filter((g) => g !== separator);
+  if (others.length) {
+    const gapsText = others.map(showGap).join(', ');
+    st.notes.push({
+      kind: 'approx',
+      text: t('import.note.gapsReplaced', { tool: TOOL, gaps: gapsText, separator: showGap(separator) }),
+    });
   }
   const config: Partial<Config> = { lines, separator };
   const seen = new Set<string>();

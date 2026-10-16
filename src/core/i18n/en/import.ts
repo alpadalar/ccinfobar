@@ -46,6 +46,8 @@ export const importMessages = {
     one: '{tool}: {count} styled span without visible text (a powerline transition) was dropped',
     other: '{tool}: {count} styled spans without visible text (powerline transitions) were dropped',
   },
+  'import.note.gapsReplaced':
+    '{tool}: modules separated by {gaps} now use the most common separator, {separator}',
   'import.note.hudIgnored': '{file} is not a JSON object and was ignored',
   'import.note.hudApprox': '{tool} "{name}" is approximated by the {widget} widget',
   'import.note.hudShownAlways':

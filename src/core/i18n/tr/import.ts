@@ -49,6 +49,8 @@ export const importMessages = {
     one: '{tool}: görünür metni olmayan {count} stilli parça (powerline geçişi) atlandı',
     other: '{tool}: görünür metni olmayan {count} stilli parça (powerline geçişleri) atlandı',
   },
+  'import.note.gapsReplaced':
+    '{tool}: {gaps} ile ayrılan modüller artık en sık kullanılan ayracı ({separator}) kullanıyor',
   'import.note.hudIgnored': '{file} bir JSON nesnesi değil, yok sayıldı',
   'import.note.hudApprox': '{tool} "{name}", {widget} bileşeniyle yaklaşık olarak gösteriliyor',
   'import.note.hudShownAlways':
