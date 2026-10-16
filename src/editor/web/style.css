@@ -2403,7 +2403,14 @@ input[type="range"]:disabled {
   min-width: 0;
 }
 
+.catalog-targets .theme-tag {
+  flex: none;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
 .catalog-consent-target {
+  flex: 1;
   min-width: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
