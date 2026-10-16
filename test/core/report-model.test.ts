@@ -470,6 +470,22 @@ describe('buildReport projects and filters (D-06, D-10)', () => {
     expect(winAt('c:\\work')).toEqual([]);
   });
 
+  it('shows a Windows project in its own letter case, keyed case-blind', () => {
+    const data = scan({
+      sessions: [
+        {
+          ...sess('w1', { cwd: 'c:\\users\\alp\\repo', buckets: [{ day: '2026-10-10', in: 1 }] }),
+          shown: 'C:\\Users\\Alp\\Repo',
+        },
+      ],
+      ledger: { w2: led('c:\\users\\alp\\repo', 0.001, { '2026-10-10': 2 }) },
+    });
+    const r = report(data, {});
+    expect(r.rows.map((x) => [x.project, x.sessions])).toEqual([['C:\\Users\\Alp\\Repo', 2]]);
+    const cwd = report(data, { filter: { kind: 'cwd', cwd: 'c:\\users\\alp\\repo\\src' } });
+    expect(cwd.rows.map((x) => x.project)).toEqual(['C:\\Users\\Alp\\Repo']);
+  });
+
   it('shows nothing for --project . in a parent folder that is no project', () => {
     const data = scan({
       sessions: ['/work/a', '/work/b'].map((cwd, i) =>

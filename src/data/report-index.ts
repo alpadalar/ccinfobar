@@ -18,7 +18,15 @@ import {
 } from '../core/report-types.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { dayKey, monthKey } from '../core/time.js';
-import { type Credited, ledgerDir, monthFiles, normalizeRoot, type SessionRow, stepText } from './ledger.js';
+import {
+  type Credited,
+  displayRoot,
+  ledgerDir,
+  monthFiles,
+  normalizeRoot,
+  type SessionRow,
+  stepText,
+} from './ledger.js';
 import { accountKeysForDir } from './limits.js';
 import { readJsonSafe, writeAtomic } from './store.js';
 
@@ -162,6 +170,7 @@ function newEntry(f: WalkedFile): FileEntry {
     born: 0,
     lost: false,
     tz: '',
+    shown: null,
   };
 }
 
@@ -190,6 +199,7 @@ interface Scan {
   st: IndexState;
   rel: string;
   f: FileEntry;
+  platform: NodeJS.Platform;
 }
 
 function parse(line: string): Json | null {
@@ -274,7 +284,14 @@ function applyLine(sc: Scan, line: string): void {
   if (f.cwd === null) {
     e = parse(line);
     const cwd = e?.cwd;
-    if (typeof cwd === 'string' && cwd && path.isAbsolute(cwd)) f.cwd = normalizeRoot(cwd);
+    const pm = sc.platform === 'win32' ? path.win32 : path.posix;
+    if (typeof cwd === 'string' && cwd && pm.isAbsolute(cwd)) {
+      f.cwd = normalizeRoot(cwd, sc.platform);
+      if (sc.platform === 'win32') {
+        const shown = displayRoot(cwd, sc.platform);
+        f.shown = shown !== f.cwd ? shown : null;
+      }
+    }
   } else if (line.includes('"usage"') && line.includes('"type":"assistant"')) {
     e = parse(line);
   }
@@ -415,6 +432,7 @@ function resetEntry(f: FileEntry): void {
     first: null,
     born: 0,
     tz: '',
+    shown: null,
   });
 }
 
@@ -454,6 +472,7 @@ export interface ScanOpts {
   loadOwners?: () => Map<number, string> | null;
   // current zone; present files cut in another one are read again
   tz?: string;
+  platform?: NodeJS.Platform;
 }
 
 export interface ScanOut {
@@ -611,8 +630,9 @@ export function scanTree(claudeDir: string, state: IndexState | null, opts: Scan
   }
   let bytesRead = 0;
   let done = 0;
+  const platform = opts.platform ?? process.platform;
   for (const { w, f, size, hist } of p.todo) {
-    bytesRead += readFile({ st, rel: w.rel, f }, w.abs, size, maxLine, hist);
+    bytesRead += readFile({ st, rel: w.rel, f, platform }, w.abs, size, maxLine, hist);
     f.size = size;
     opts.onProgress?.(++done, bytesRead);
   }
@@ -650,10 +670,14 @@ export function sessionsOf(state: IndexState): Record<string, SessionData> {
       s.enc = f.enc;
       if (f.cwd !== null && !cwdFrom[f.sid]) {
         s.cwd = f.cwd;
+        s.shown = f.shown;
         cwdFrom[f.sid] = true;
       }
       for (const [d, ms] of Object.entries(f.time)) s.time[d] = (s.time[d] ?? 0) + ms;
-    } else if (s.cwd === null) s.cwd = f.cwd;
+    } else if (s.cwd === null) {
+      s.cwd = f.cwd;
+      s.shown = f.shown;
+    }
     for (const [k, b] of Object.entries(f.buckets)) {
       let x = s.buckets[k];
       if (!x) {
@@ -775,7 +799,8 @@ function entryOf(v: unknown): FileEntry | null {
   if (!(v.first === undefined || v.first === null || fin(v.first))) return null;
   if (!(v.born === undefined || fin(v.born)) || !(v.lost === undefined || typeof v.lost === 'boolean'))
     return null;
-  if (!(v.tz === undefined || str(v.tz, 100))) return null;
+  if (!(v.tz === undefined || str(v.tz, 100)) || !(v.shown === undefined || v.shown === null || str(v.shown)))
+    return null;
   const buckets = map<Bucket>();
   for (const [k, b] of Object.entries(v.buckets)) {
     const x = bucketOf(b);
@@ -811,6 +836,7 @@ function entryOf(v: unknown): FileEntry | null {
     born: (v.born ?? 0) as number,
     lost: v.lost === true,
     tz: (v.tz ?? '') as string,
+    shown: (v.shown ?? null) as string | null,
   };
 }
 

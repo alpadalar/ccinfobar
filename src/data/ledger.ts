@@ -107,11 +107,21 @@ export function credit(highs: number[] | undefined, c: number): { highs: number[
 
 export const slotKey = (t: number): number => Math.floor(t / SLOT_MS);
 
-export function normalizeRoot(raw: string, platform: NodeJS.Platform = process.platform): string {
+function trimRoot(raw: string, platform: NodeJS.Platform): string {
   const p = platform === 'win32' ? path.win32 : path.posix;
   let root = p.resolve(raw);
   while (root.length > 1 && /[\\/]$/.test(root) && p.dirname(root) !== root) root = root.slice(0, -1);
+  return root;
+}
+
+export function normalizeRoot(raw: string, platform: NodeJS.Platform = process.platform): string {
+  const root = trimRoot(raw, platform);
   return (platform === 'win32' ? root.toLowerCase() : root).slice(0, MAX_PROJECT);
+}
+
+// normalizeRoot in the path's own letter case
+export function displayRoot(raw: string, platform: NodeJS.Platform = process.platform): string {
+  return trimRoot(raw, platform).slice(0, MAX_PROJECT);
 }
 
 export function projectRoot(payload: StatusPayload, platform: NodeJS.Platform = process.platform): string {

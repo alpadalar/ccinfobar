@@ -377,6 +377,23 @@ describe('scanTree requests', () => {
     expect(JSON.stringify(sessionsOf(state))).not.toContain('PROMPT_MARKER');
   });
 
+  it('keys a Windows cwd lowercased and keeps its own case for display', () => {
+    const root = scratch('cwd-case');
+    writeTranscript(
+      'projects/C--Users-Alp-Repo/S1.jsonl',
+      [
+        userLine({ ts: min(0), cwd: 'C:\\Users\\Alp\\Repo\\' }),
+        assistantLine({ id: 'm1', requestId: 'r1', ts: min(1) }),
+      ],
+      root,
+    );
+    writeTranscript('projects/-w-a/S2.jsonl', [userLine({ ts: min(0), cwd: '/w/a' })], root);
+    const win = sessionsOf(scanTree(root, null, { platform: 'win32' }).state);
+    expect(win.S1).toMatchObject({ cwd: 'c:\\users\\alp\\repo', shown: 'C:\\Users\\Alp\\Repo' });
+    const posix = sessionsOf(scanTree(root, null, { platform: 'linux' }).state);
+    expect(posix.S2).toMatchObject({ cwd: '/w/a', shown: null });
+  });
+
   it('reports the file cap and progress', () => {
     const root = scratch('progress');
     for (const s of ['S1', 'S2', 'S3']) {

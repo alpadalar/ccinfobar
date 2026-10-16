@@ -278,6 +278,12 @@ export function buildReport(data: ScanResult, opts: ReportOptions): Report {
     for (const o of owner.values()) if (!o.approx) known.add(o.project);
     here = currentProject(f.cwd, known);
   }
+  // a key folded on Windows shows the transcript's own case
+  const shown = new Map<string, string>();
+  for (const sid of Object.keys(data.sessions).sort(byText)) {
+    const s = data.sessions[sid]!;
+    if (s.cwd && s.shown && !shown.has(s.cwd)) shown.set(s.cwd, s.shown);
+  }
   const matches = (project: string) =>
     !f || (f.kind === 'substring' ? fold(project).includes(fold(f.text)) : project === here);
 
@@ -385,7 +391,7 @@ export function buildReport(data: ScanResult, opts: ReportOptions): Report {
       const ck = `${period}\u0000${approx ? 1 : 0}\u0000${project}`;
       let a = cells.get(ck);
       if (!a) {
-        a = newAcc(period, project, approx);
+        a = newAcc(period, shown.get(project) ?? project, approx);
         cells.set(ck, a);
       }
       a.sids.add(sid);

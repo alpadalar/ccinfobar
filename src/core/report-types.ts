@@ -51,6 +51,8 @@ export interface FileEntry {
   lost: boolean;
   // time zone its days were cut in
   tz: string;
+  // cwd in its own letter case when the key folds it
+  shown: string | null;
 }
 
 // files keyed by relPath with / separators; owners maps key hash to the owning relPath
@@ -64,6 +66,7 @@ export interface SessionData {
   sid: string;
   enc: string;
   cwd: string | null;
+  shown?: string | null;
   buckets: Record<string, Bucket>;
   time: Record<string, number>;
   files: number;
