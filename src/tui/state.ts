@@ -89,6 +89,7 @@ export interface State {
   presets: Preset[];
   gsd: boolean;
   autoLanguage?: LanguageId;
+  brew?: boolean;
 }
 
 export type NavDir = 'up' | 'down' | 'left' | 'right' | 'pageup' | 'pagedown' | 'home' | 'end';
@@ -147,11 +148,12 @@ export function initialState(
   loaded: Config,
   path: string,
   message = '',
-  opts: { presets?: Preset[]; gsd?: boolean; autoLanguage?: LanguageId } = {},
+  opts: { presets?: Preset[]; gsd?: boolean; autoLanguage?: LanguageId; brew?: boolean } = {},
 ): State {
   const config = upgradeOptions(loaded);
   return {
     ...(opts.autoLanguage ? { autoLanguage: opts.autoLanguage } : {}),
+    ...(opts.brew ? { brew: true } : {}),
     presets: opts.presets ?? PRESETS,
     gsd: opts.gsd ?? true,
     config,
@@ -226,7 +228,7 @@ export function clampSel(config: Config, sel: Position): Position {
 export function settingsFields(state: State): Field[] {
   const mode = state.mode;
   if (mode.kind !== 'settings') return [];
-  if (mode.scope === 'global') return globalFields(state.config, state.autoLanguage);
+  if (mode.scope === 'global') return globalFields(state.config, state.autoLanguage, state.brew);
   const found = findItem(state.config, mode.itemId);
   return found ? widgetFields(getWidget(found.item.type), mode.itemId, state.config) : [];
 }

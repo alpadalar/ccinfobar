@@ -33,6 +33,8 @@ export const editorMessages = {
   'web.settings.updateWhen': 'Yeni sürüm çıktığında',
   'web.settings.updateAuto': 'Otomatik kur',
   'web.settings.updateAutoHelp': 'Varsayılan. Claude Code her başladığında denetler ve arka planda kurar',
+  'web.settings.updateAutoHelpBrew':
+    'Varsayılan. Homebrew kopyasında Haber ver gibi yalnızca bir not gösterir',
   'web.settings.updateNotify': 'Haber ver',
   'web.settings.updateNotifyHelp': 'Durum satırının sonunda bir not gösterir',
   'web.settings.updateOff': 'Kapalı',

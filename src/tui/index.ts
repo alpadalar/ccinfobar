@@ -144,6 +144,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     presets: availablePresets(gsd),
     gsd,
     autoLanguage: envLanguage().id,
+    brew: installKind() === 'brew',
   });
   let hits: Hit[] = [];
   let prev: string[] = [];

@@ -615,9 +615,9 @@ export function panelFields(): Field[] {
   ];
 }
 
-export function globalFields(config?: Config, autoLanguage?: LanguageId): Field[] {
+export function globalFields(config?: Config, autoLanguage?: LanguageId, brew = false): Field[] {
   const panel = config && resolveAppearance(config).style === 'tui' ? panelFields() : [];
-  const all = baseGlobalFields(autoLanguage);
+  const all = baseGlobalFields(autoLanguage, brew);
   all.splice(2, 0, ...panel);
   return all;
 }
@@ -639,7 +639,7 @@ function languageField(autoLanguage?: LanguageId): Field {
   );
 }
 
-function baseGlobalFields(autoLanguage?: LanguageId): Field[] {
+function baseGlobalFields(autoLanguage?: LanguageId, brew = false): Field[] {
   return [
     {
       id: 'theme',
@@ -711,7 +711,7 @@ function baseGlobalFields(autoLanguage?: LanguageId): Field[] {
       (c, v) => ({ ...c, update: v === 'notify' || v === 'off' ? v : 'auto' }),
       {
         choices: choices(['auto', 'notify', 'off']),
-        help: t('tui.field.updatesHelp'),
+        help: t(brew ? 'tui.field.updatesHelpBrew' : 'tui.field.updatesHelp'),
       },
     ),
     globalField(

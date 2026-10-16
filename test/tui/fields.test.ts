@@ -562,3 +562,20 @@ describe('Turkish field text', () => {
 });
 
 const panelCfg = (): Config => ({ ...defaultConfig(), style: 'tui' });
+
+describe('updates field on a Homebrew copy', () => {
+  const help = (brew: boolean) =>
+    globalFields(undefined, undefined, brew).find((f) => f.id === 'update')!.help;
+
+  it('says Homebrew updates it instead of promising installs', () => {
+    expect(help(false)).toBe(
+      'auto installs new releases in the background, notify shows a note, off never checks',
+    );
+    expect(help(true)).toBe(
+      'Homebrew updates this copy: run brew upgrade ccinfobar. auto acts like notify and shows a note, off never checks',
+    );
+    expect(withLang('tr', () => help(true))).toBe(
+      'Bu kopyayı Homebrew güncelliyor: brew upgrade ccinfobar çalıştırın. auto, notify gibi bir not gösterir, off hiç denetlemez',
+    );
+  });
+});

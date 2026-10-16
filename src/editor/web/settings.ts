@@ -564,7 +564,9 @@ export async function openSettings(): Promise<void> {
               {
                 value: 'auto',
                 label: t('web.settings.updateAuto'),
-                title: t('web.settings.updateAutoHelp'),
+                title: t(
+                  info?.kind === 'brew' ? 'web.settings.updateAutoHelpBrew' : 'web.settings.updateAutoHelp',
+                ),
               },
               {
                 value: 'notify',

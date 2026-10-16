@@ -31,6 +31,7 @@ export const editorMessages = {
   'web.settings.updateAuto': 'Install automatically',
   'web.settings.updateAutoHelp':
     'Default. Checks each time Claude Code starts and installs in the background',
+  'web.settings.updateAutoHelpBrew': 'Default. On a Homebrew copy it only shows a note, like Tell me',
   'web.settings.updateNotify': 'Tell me',
   'web.settings.updateNotifyHelp': 'Shows a note at the end of the status line',
   'web.settings.updateOff': 'Off',
