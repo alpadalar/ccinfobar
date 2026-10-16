@@ -72,3 +72,31 @@ describe('language tables (D-25)', () => {
     expect(read('src/cli/render.ts')).toContain('await prepareLanguage(config)');
   });
 });
+
+describe('catalog text (D-17, D-18)', () => {
+  it('loads only with the lazy tables', async () => {
+    const { langs, i18n } = await fresh();
+    expect(langs.EN.lazy).toBeUndefined();
+    expect(i18n.t('catalog.share.pending')).toBe('catalog.share.pending');
+    expect(i18n.t('market.error.timeout')).toBe('market.error.timeout');
+    await import('../../src/core/i18n/lazy.js');
+    expect(i18n.t('catalog.share.pending')).toBe('Waiting to publish');
+    expect(i18n.t('catalog.share.published', { version: 3 })).toBe('Published v3');
+    await langs.loadLanguage('tr');
+    expect(i18n.withLanguage('tr', () => i18n.t('catalog.share.pending'))).toBe('Yayımlanmayı bekliyor');
+  });
+
+  it('has every English id in Turkish with the same placeholders', async () => {
+    const { catalogMessages: en } = await import('../../src/core/i18n/en/catalog.js');
+    const { catalogMessages: tr } = await import('../../src/core/i18n/tr/catalog.js');
+    const { lazyMessages: enLazy } = await import('../../src/core/i18n/en/lazy.js');
+    const { lazyMessages: trLazy } = await import('../../src/core/i18n/tr/lazy.js');
+    const ph = (s: string) => [...s.matchAll(/\{\w+\}/g)].map((m) => m[0]).sort();
+    expect(Object.keys(tr).sort()).toEqual(Object.keys(en).sort());
+    for (const [id, text] of Object.entries(en)) {
+      expect(ph((tr as Record<string, string>)[id]!), id).toEqual(ph(text));
+      expect(Object.hasOwn(enLazy, id) && Object.hasOwn(trLazy, id), id).toBe(true);
+      expect(/^(?:catalog|err\.catalog|market)\./.test(id), id).toBe(true);
+    }
+  });
+});

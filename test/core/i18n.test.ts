@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import { benchMessages } from '../../src/core/i18n/en/bench.js';
+import { catalogMessages } from '../../src/core/i18n/en/catalog.js';
 import { cliMessages } from '../../src/core/i18n/en/cli.js';
 import { commandsMessages } from '../../src/core/i18n/en/commands.js';
 import { configMessages } from '../../src/core/i18n/en/config.js';
@@ -50,6 +51,7 @@ import {
   TR,
 } from '../../src/core/i18n/languages.js';
 import { benchMessages as trBench } from '../../src/core/i18n/tr/bench.js';
+import { catalogMessages as trCatalog } from '../../src/core/i18n/tr/catalog.js';
 import { cliMessages as trCli } from '../../src/core/i18n/tr/cli.js';
 import { commandsMessages as trCommands } from '../../src/core/i18n/tr/commands.js';
 import { configMessages as trConfig } from '../../src/core/i18n/tr/config.js';
@@ -264,6 +266,7 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['report', reportMessages, trReport],
   ['toml', tomlMessages, trToml],
   ['import', importMessages, trImport],
+  ['catalog', catalogMessages, trCatalog],
 ];
 
 function forms(m: Message): string[] {
@@ -434,6 +437,7 @@ describe('en table', () => {
       reportMessages,
       tomlMessages,
       importMessages,
+      catalogMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
     expect(Object.keys(en).length + Object.keys(enLazy).length).toBe(sum);
