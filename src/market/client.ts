@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto';
 import { APPEARANCE_KEYS, LAYOUT_KEYS, pick } from '../catalog/model.js';
 import { normalizeConfig } from '../core/config.js';
 import type { EntryContent, EntryKind } from '../core/edit.js';
-import { isLoopback } from '../core/http-spec.js';
 import { deepSanitize } from '../core/sanitize.js';
 import { parseThemeInput } from '../core/themes.js';
 import type { Config } from '../core/types.js';
 import { CAP_BYTES, errorCode, JobFetchError, requestJson } from '../data/jobs/fetch.js';
 import { type ImportTarget, importTargets } from '../importers/confirm.js';
+import { checkEndpoint } from './endpoint.js';
 import {
   canonicalJson,
   contentProblems,
@@ -34,6 +34,8 @@ import {
   versionsPath,
   withdrawPath,
 } from './protocol.js';
+
+export { checkEndpoint };
 
 const TIMEOUT_MS = 10_000;
 const HASH_RE = /^[0-9a-f]{64}$/;
@@ -76,22 +78,6 @@ export class MarketError extends Error {
     this.status = status;
     this.retryAfterMs = retryAfter;
   }
-}
-
-export function checkEndpoint(raw: string | null | undefined): URL | null {
-  const v = typeof raw === 'string' ? raw.trim() : '';
-  if (!v) return null;
-  let url: URL;
-  try {
-    url = new URL(v);
-  } catch {
-    return null;
-  }
-  const ok = url.protocol === 'https:' || (url.protocol === 'http:' && isLoopback(url.hostname));
-  if (!ok || url.username || url.password || url.search || url.hash) return null;
-  if (v.includes('?') || v.includes('#')) return null;
-  url.pathname = url.pathname.replace(/\/+$/, '');
-  return url;
 }
 
 export function contentHash(content: EntryContent): string {

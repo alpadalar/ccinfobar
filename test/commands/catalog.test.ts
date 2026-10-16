@@ -332,12 +332,5 @@ describe('catalog command', () => {
     expect(usage.err[0]).toMatch(/^Kullanım: ccinfobar catalog list/);
   });
 
-  it.todo('apply writes with a backup and keeps language and personal keys');
-  it.todo('apply --dry-run writes nothing');
-  it.todo('save asks --update or --overwrite on a name clash when not a TTY');
-  it.todo('save remembers the author (D-07)');
-  it.todo('restore appends a version');
-  it.todo('share/unshare change the publish state');
-  it.todo('delete needs --yes when not a TTY');
   it.todo('publish with no endpoint sends nothing and keeps entries waiting (D-09)');
 });

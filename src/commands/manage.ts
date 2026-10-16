@@ -17,7 +17,14 @@ import { forGsd, listPresets } from '../core/presets.js';
 import { type PreviewSource, renderPreview, scenarioFlag, scenarioListLines } from '../core/preview.js';
 import { finalizeLine } from '../core/renderer.js';
 import { sanitizeText } from '../core/sanitize.js';
-import { listThemes, resolveTheme, saveUserTheme, themesDir, themeToInput } from '../core/themes.js';
+import {
+  listThemes,
+  resolveTheme,
+  saveUserTheme,
+  type Theme,
+  themesDir,
+  themeToInput,
+} from '../core/themes.js';
 import type { Config } from '../core/types.js';
 import { padVisible } from '../core/width.js';
 import { gsdInstalled } from '../data/gsd.js';
@@ -48,6 +55,8 @@ import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import { currentStatusLine } from './install.js';
 import { type CliIo, cliIo, type PromptIo, plainOutput, promptIo } from './io.js';
 import { usageErrorText } from './usage-error.js';
+
+export { selfCommand };
 
 const DEMO_LINE = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gsd-plans', 'session-cost'].map(
   (type) => ({
@@ -143,12 +152,12 @@ function rerunId(r: Rerun): MessageId {
 }
 
 // D-29: commands and URLs stay only with consent, shown in full
-async function confirmTargets(
-  result: ImportResult,
+export async function confirmTargets<R extends { config: Partial<Config>; notes: ImportNote[] }>(
+  result: R,
   flags: ImportFlags,
   io: PromptIo,
   rerun: Rerun,
-): Promise<ImportResult> {
+): Promise<R> {
   const targets = importTargets(result.config);
   if (!targets.length) return result;
   const width = Math.max(20, (io.columns ?? 80) - 1);
@@ -207,14 +216,14 @@ function importReport(io: PromptIo, result: ImportResult, backup: string | null)
 }
 
 // a dry run never runs imported commands
-function dryRunPreview(config: Config, io: PromptIo): string[] {
+export function dryRunPreview(config: Config, io: PromptIo, theme?: Theme): string[] {
   const def = ALL_WIDGETS.find((w) => w.type === 'command');
   const text = def ? widgetText(def, 'sample') : '';
   const lines = config.lines.map((items) =>
     items.map((item) => (item.type === 'command' ? { ...item, type: 'text', options: { text } } : item)),
   );
   const plain = plainOutput(io.tty);
-  return renderPreview({ ...config, lines }, 'sample', io.columns ?? 100).map((l) =>
+  return renderPreview({ ...config, lines }, 'sample', io.columns ?? 100, theme).map((l) =>
     plain ? stripAnsi(l) : l,
   );
 }

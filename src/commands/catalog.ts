@@ -1,24 +1,50 @@
 import '../core/i18n/lazy.js';
+import path from 'node:path';
 import {
   applyCatalogContent,
   type CatalogEntry,
+  ENTRY_LIMITS,
   type EntryContent,
   type EntryKind,
   latest,
+  newEntry,
+  restoreVersion,
   type ShareState,
+  setShare,
   slug,
 } from '../catalog/model.js';
 import { shareState } from '../catalog/share.js';
-import { catalogDir, type LegacyItem, listEntries, listLegacy } from '../catalog/store.js';
+import { contentFromConfig } from '../catalog/snapshot.js';
+import {
+  adoptLegacy,
+  CatalogStoreError,
+  catalogDir,
+  deleteEntry,
+  deleteLegacy,
+  findByName,
+  installEntryTheme,
+  type LegacyItem,
+  listEntries,
+  listLegacy,
+  marketEndpoint,
+  readProfile,
+  restoreEntry,
+  type StoreCode,
+  saveEntry,
+  updateShare,
+  writeProfile,
+} from '../catalog/store.js';
 import { type SystemEntry, systemEntries } from '../catalog/system.js';
 import type { Args } from '../cli/args.js';
 import { stripAnsi } from '../core/ansi.js';
-import { defaultConfig } from '../core/config.js';
+import { defaultConfig, type LoadResult, saveConfig } from '../core/config.js';
+import { keepLanguage } from '../core/edit.js';
 import { resolveGlyphMode } from '../core/glyphs.js';
 import { bundleText, presetText, themeDescription } from '../core/i18n/catalog-text.js';
 import { formatDateTime } from '../core/i18n/format.js';
 import { languageLocale, type MessageId, t, withLanguage } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
+import { tildify } from '../core/paths.js';
 import { ID_RE } from '../core/presets.js';
 import { type PreviewSource, renderPreview, scenarioFlag, scenarioListLines } from '../core/preview.js';
 import { finalizeLine } from '../core/renderer.js';
@@ -26,7 +52,9 @@ import { sanitizeText } from '../core/sanitize.js';
 import { parseThemeInput, resolveThemeInput, type Theme } from '../core/themes.js';
 import { padVisible, visibleWidth } from '../core/width.js';
 import { gsdInstalled } from '../data/gsd.js';
-import { type PromptIo, plainOutput, promptIo } from './io.js';
+import { type ImportTarget, importTargets } from '../importers/confirm.js';
+import { checkEndpoint } from '../market/endpoint.js';
+import { type PromptIo, plainOutput, promptIo, reportConfigIssue } from './io.js';
 
 export interface CatalogDeps {
   io?: PromptIo;
@@ -69,6 +97,9 @@ interface Ctx {
   env: NodeJS.ProcessEnv;
   dir: string;
   gsd: boolean;
+  now: () => Date;
+  json: boolean;
+  dryRun: boolean;
   fail(msg: string): void;
 }
 
@@ -345,10 +376,413 @@ function runHistory(c: Ctx): void {
   }
 }
 
-const SUBCOMMANDS: Record<string, (c: Ctx) => void> = {
+const STORE_IDS: Record<StoreCode, MessageId> = {
+  exists: 'err.catalog.exists',
+  changed: 'err.catalog.changed',
+  'too-large': 'err.catalog.tooLarge',
+  'not-found': 'err.catalog.unknownRef',
+  'bad-id': 'err.catalog.badId',
+  'bad-name': 'err.catalog.badName',
+  'bad-content': 'err.catalog.badContent',
+  'bad-endpoint': 'err.catalog.badEndpoint',
+  'no-version': 'err.catalog.noVersion',
+};
+
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
+
+const kindWord = (kind: EntryKind): string => t(`catalog.kind.${kind}`).toLocaleLowerCase(languageLocale());
+
+function flagKind(c: Ctx): EntryKind | null {
+  const flag = c.args.flags.kind;
+  return flag === undefined ? 'bundle' : KINDS.includes(flag as EntryKind) ? (flag as EntryKind) : null;
+}
+
+function storeFail(c: Ctx, err: CatalogStoreError): void {
+  const d = err.data;
+  const kind = flagKind(c);
+  c.fail(
+    t(STORE_IDS[err.code], {
+      ref: clean(c.args.positional[1]),
+      kind: kind ? kindWord(kind) : '',
+      name: clean(d.name),
+      version: typeof d.version === 'number' ? d.version : '',
+    }),
+  );
+}
+
+const textFlag = (c: Ctx, key: string): string | undefined =>
+  typeof c.args.flags[key] === 'string' ? (c.args.flags[key] as string) : undefined;
+
+const shown = (file: string): string => clean(tildify(file));
+
+function dryRunDone(c: Ctx): void {
+  if (c.dryRun) c.io.log(t('catalog.dryRun'));
+}
+
+const shareText = (e: CatalogEntry, state: ShareState): string =>
+  t(SHARE_IDS[state], { version: e.share.remote?.version ?? e.version });
+
+function usable(c: Ctx, loaded: LoadResult): boolean {
+  if (reportConfigIssue(loaded, c.io)) {
+    process.exitCode = 1;
+    return false;
+  }
+  if (loaded.error) {
+    c.fail(t('catalog.failed', { error: clean(loaded.error) }));
+    return false;
+  }
+  return true;
+}
+
+// a legacy item becomes an entry on its first change; a dry run only pretends
+function writable(c: Ctx, hit: AnyEntry): CatalogEntry | null {
+  if (hit.source === 'system') {
+    c.fail(t('err.catalog.systemReadOnly'));
+    return null;
+  }
+  if (hit.source === 'user') return hit.entry;
+  const i = hit.item;
+  if (!c.dryRun) return adoptLegacy(i.ref, c.now(), c.dir);
+  return newEntry({
+    id: i.ref,
+    kind: i.kind,
+    name: i.name,
+    description: i.description,
+    author: i.author,
+    content: i.content,
+    share: false,
+    now: c.now().toISOString(),
+  });
+}
+
+const targetKey = (x: ImportTarget) => `${x.kind}\u0000${x.target}`;
+
+async function runApply(c: Ctx): Promise<void> {
+  const hit = find(c, c.args.positional[1]);
+  if (!hit) return;
+  const loaded = loadForUse(c.cfgFile, () => c.gsd);
+  if (!usable(c, loaded)) return;
+  const current = loaded.config;
+  const m = await import('./manage.js');
+  const ref = refOf(hit);
+  const kind = kindOf(hit);
+  const name = summary(hit).name;
+  const content = structuredClone(contentOf(hit));
+  let dropped: ImportTarget[] = [];
+  if (kind !== 'theme' && content.layout) {
+    const before = importTargets(content.layout);
+    const parts = [m.selfCommand(), 'catalog', 'apply', m.shellArg(ref) ?? ref, '--allow-commands'];
+    if (c.dryRun) parts.push('--dry-run');
+    const rerun = { command: sanitizeText(parts.join(' ')), addFile: false, addCommand: false };
+    const flags = {
+      allowCommands: c.args.flags['allow-commands'] === true,
+      yes: c.args.flags.yes === true,
+      dryRun: c.dryRun,
+    };
+    const io: PromptIo = c.json ? { ...c.io, tty: false, log: () => {} } : c.io;
+    const kept = await m.confirmTargets({ config: content.layout, notes: [] }, flags, io, rerun);
+    const left = importTargets(kept.config).map(targetKey);
+    dropped = before.filter((x) => {
+      const i = left.indexOf(targetKey(x));
+      if (i >= 0) left.splice(i, 1);
+      return i < 0;
+    });
+    content.layout = kept.config;
+  }
+  const lost = () => dropped.map((x) => ({ kind: x.kind, target: x.target }));
+  const embedded = kind !== 'preset' && !!content.theme;
+  if (c.dryRun) {
+    const config = keepLanguage(applyCatalogContent(current, content, kind), current);
+    const io: PromptIo = c.json ? { ...c.io, tty: false } : c.io;
+    const preview = m.dryRunPreview(config, io, embedded ? draftTheme(content.theme) : undefined);
+    if (c.json) {
+      json(c, () => ({
+        applied: ref,
+        kind,
+        file: c.cfgFile,
+        backup: null,
+        theme: null,
+        dropped: lost(),
+        dryRun: true,
+        preview: preview.map(stripAnsi),
+      }));
+      return;
+    }
+    c.io.log(t('catalog.apply.dryRun', { name }));
+    for (const line of preview) c.io.log(line);
+    return;
+  }
+  const installed = embedded ? installEntryTheme(content, path.join(path.dirname(c.dir), 'themes')) : null;
+  const next = applyCatalogContent(current, content, kind, installed?.id);
+  const backup = m.backupConfig(c.cfgFile);
+  saveConfig(keepLanguage(next, current), c.cfgFile, { overwriteBroken: true });
+  if (c.json) {
+    json(c, () => ({ applied: ref, kind, file: c.cfgFile, backup, theme: installed, dropped: lost() }));
+    return;
+  }
+  c.io.log(t('catalog.apply.done', { name, file: shown(c.cfgFile) }));
+  if (backup) c.io.log(t('catalog.apply.previous', { file: shown(backup) }));
+  if (installed?.renamed) {
+    const own = content.theme?.id;
+    const base = typeof own === 'string' && ID_RE.test(own) ? own : clean(content.appearance?.theme);
+    c.io.log(t('catalog.apply.themeRenamed', { id: clean(base), newId: clean(installed.id) }));
+  } else if (installed?.written) c.io.log(t('catalog.apply.themeInstalled', { id: clean(installed.id) }));
+}
+
+async function runSave(c: Ctx): Promise<void> {
+  const name = (c.args.positional.slice(1).join(' ') || textFlag(c, 'name') || '').normalize('NFC').trim();
+  if (!name) {
+    c.fail(t('catalog.usage'));
+    return;
+  }
+  if ([...name].length > ENTRY_LIMITS.name || CONTROL.test(name)) {
+    c.fail(t('err.catalog.badName'));
+    return;
+  }
+  const kind = flagKind(c);
+  if (!kind) {
+    c.fail(t('catalog.badKind'));
+    return;
+  }
+  const { update, overwrite } = c.args.flags;
+  if (update === true && overwrite === true) {
+    c.fail(t('catalog.save.bothModes'));
+    return;
+  }
+  const loaded = loadForUse(c.cfgFile, () => c.gsd);
+  if (!usable(c, loaded)) return;
+  const content = contentFromConfig(loaded.config, kind);
+  const existing = findByName(kind, name, c.dir);
+  let mode: 'new' | 'update' | 'overwrite' = 'new';
+  if (existing) {
+    const { version } = existing;
+    const shownName = clean(existing.name);
+    if (update === true) mode = 'update';
+    else if (overwrite === true) mode = 'overwrite';
+    else if (!c.io.tty || c.json) {
+      c.fail(t('catalog.save.exists', { name: shownName, version }));
+      return;
+    } else {
+      c.io.log(t('catalog.save.ask', { name: shownName, version, next: version + 1 }));
+      if (await c.io.ask(t('catalog.save.askUpdate', { next: version + 1 }), false)) mode = 'update';
+      else if (await c.io.ask(t('catalog.save.askOverwrite', { version }), false)) mode = 'overwrite';
+      else {
+        c.io.log(t('catalog.save.cancelled'));
+        return;
+      }
+    }
+  }
+  const old = mode === 'new' ? null : existing;
+  const author = textFlag(c, 'author') ?? old?.author ?? readProfile(c.dir).author;
+  const description = textFlag(c, 'description') ?? old?.description ?? '';
+  const note = textFlag(c, 'note') ?? '';
+  const share = c.args.flags.share;
+  if (c.dryRun) {
+    const version = old ? old.version + (mode === 'update' ? 1 : 0) : 1;
+    const wanted = typeof share === 'boolean' ? share : old ? old.share.wanted : true;
+    const state = old ? shareState(setShare(old, wanted)) : wanted ? 'pending' : 'local';
+    if (c.json) {
+      json(c, () => ({
+        id: old?.id ?? null,
+        kind,
+        name,
+        version,
+        share: state,
+        mode,
+        dryRun: true,
+        content,
+      }));
+      return;
+    }
+    c.io.log(t('catalog.save.dryRun', { kind: kindWord(kind), name: clean(name), version }));
+    for (const line of JSON.stringify(content, null, 2).split('\n')) c.io.log(`  ${clean(line)}`);
+    return;
+  }
+  let e = saveEntry(
+    {
+      kind,
+      name,
+      description,
+      author,
+      content,
+      note,
+      share: share !== false,
+      mode,
+      ...(old ? { id: old.id, rev: old.rev } : {}),
+      now: c.now(),
+    },
+    c.dir,
+  );
+  if (old && typeof share === 'boolean' && e.share.wanted !== share)
+    e = updateShare(e.id, share, e.rev, c.dir);
+  if (textFlag(c, 'author') !== undefined) writeProfile({ author }, c.dir);
+  const state = shareState(e);
+  if (c.json) {
+    json(c, () => ({ id: e.id, kind, name: clean(e.name), version: e.version, share: state, mode }));
+    return;
+  }
+  c.io.log(t('catalog.save.done', { kind: kindWord(kind), name: clean(e.name), version: e.version }));
+  if (state === 'pending')
+    c.io.log(t(marketEndpoint(c.env, c.dir) ? 'catalog.save.waitingEndpoint' : 'catalog.save.waiting'));
+  else if (state === 'local') c.io.log(t('catalog.save.notShared', { ref: e.id }));
+}
+
+function runRestore(c: Ctx): void {
+  const hit = find(c, c.args.positional[1]);
+  if (!hit) return;
+  const raw = c.args.positional[2] ?? '';
+  const n = /^v?\d{1,9}$/i.test(raw) ? Number(raw.replace(/^v/i, '')) : 0;
+  if (n < 1) {
+    c.fail(t('catalog.usage'));
+    return;
+  }
+  if (hit.source !== 'system' && !versionRows(hit).some((r) => r.version === n)) {
+    c.fail(t('err.catalog.noVersion', { ref: clean(refOf(hit)), version: n }));
+    return;
+  }
+  const e = writable(c, hit);
+  if (!e) return;
+  const note = t('catalog.restore.note', { version: n });
+  const next = c.dryRun
+    ? restoreVersion(e, n, note, c.now().toISOString())!
+    : restoreEntry(e.id, n, e.rev, note, c.dir, c.now());
+  if (c.json) {
+    json(c, () => ({
+      id: next.id,
+      version: next.version,
+      restoredFrom: n,
+      ...(c.dryRun ? { dryRun: true } : {}),
+    }));
+    return;
+  }
+  c.io.log(t('catalog.restore.done', { from: n, name: clean(next.name), version: next.version }));
+  dryRunDone(c);
+}
+
+function shareCommand(wanted: boolean): (c: Ctx) => void {
+  return (c) => {
+    const hit = find(c, c.args.positional[1]);
+    if (!hit) return;
+    const e = writable(c, hit);
+    if (!e) return;
+    const next = c.dryRun ? setShare(e, wanted) : updateShare(e.id, wanted, e.rev, c.dir);
+    const state = shareState(next);
+    if (c.json) {
+      json(c, () => ({ id: next.id, share: state, ...(c.dryRun ? { dryRun: true } : {}) }));
+      return;
+    }
+    const name = clean(next.name);
+    c.io.log(t(wanted ? 'catalog.share.on' : 'catalog.share.off', { name, state: shareText(next, state) }));
+    if (state === 'withdraw-pending') c.io.log(t('catalog.share.withdrawLater'));
+    dryRunDone(c);
+  };
+}
+
+async function runDelete(c: Ctx): Promise<void> {
+  const hit = find(c, c.args.positional[1]);
+  if (!hit) return;
+  if (hit.source === 'system') {
+    c.fail(t('err.catalog.systemReadOnly'));
+    return;
+  }
+  const name = summary(hit).name;
+  const trash = path.join(c.dir, 'trash');
+  if (!c.dryRun && c.args.flags.yes !== true) {
+    if (!c.io.tty || c.json) {
+      c.fail(t('catalog.delete.needsYes', { name }));
+      return;
+    }
+    if (!(await c.io.ask(t('catalog.delete.ask', { name, dir: shown(trash) }), false))) {
+      c.io.log(t('catalog.delete.kept', { name }));
+      return;
+    }
+  }
+  let file = trash;
+  if (!c.dryRun) {
+    if (hit.source === 'user') file = deleteEntry(hit.entry.id, c.dir, c.now());
+    else if (!deleteLegacy(hit.item.ref, c.dir, c.now())) {
+      c.fail(t('err.catalog.unknownRef', { ref: clean(hit.item.ref) }));
+      return;
+    }
+  }
+  if (c.json) {
+    json(c, () => ({ deleted: refOf(hit), trash: file, ...(c.dryRun ? { dryRun: true } : {}) }));
+    return;
+  }
+  c.io.log(t('catalog.delete.done', { name, file: shown(file) }));
+  dryRunDone(c);
+}
+
+function runAuthor(c: Ctx): void {
+  const given = c.args.positional.length > 1;
+  let author = readProfile(c.dir).author;
+  if (given) {
+    const raw = c.args.positional.slice(1).join(' ');
+    author = c.dryRun
+      ? [...sanitizeText(raw).trim()].slice(0, ENTRY_LIMITS.author).join('').trim()
+      : writeProfile({ author: raw }, c.dir).author;
+  }
+  if (c.json) {
+    json(c, () => ({ author: author || null, ...(c.dryRun && given ? { dryRun: true } : {}) }));
+    return;
+  }
+  const id: MessageId = !author
+    ? 'catalog.author.none'
+    : given
+      ? 'catalog.author.set'
+      : 'catalog.author.show';
+  c.io.log(t(id, { author: clean(author) }));
+  if (given) dryRunDone(c);
+}
+
+// validates only; nothing is sent
+async function runEndpoint(c: Ctx): Promise<void> {
+  const raw = c.args.positional[1];
+  const clear = c.args.flags.clear === true;
+  if (clear && raw !== undefined) {
+    c.fail(t('catalog.usage'));
+    return;
+  }
+  let url: string | null;
+  let id: MessageId;
+  if (clear) {
+    if (!c.dryRun) writeProfile({ endpoint: null }, c.dir);
+    url = null;
+    id = 'catalog.endpoint.cleared';
+  } else if (raw !== undefined) {
+    const u = checkEndpoint(raw);
+    if (!u) {
+      c.fail(t('err.catalog.badEndpoint'));
+      return;
+    }
+    url = `${u.origin}${u.pathname.replace(/\/+$/, '')}`;
+    if (!c.dryRun) writeProfile({ endpoint: url }, c.dir);
+    id = 'catalog.endpoint.set';
+  } else {
+    url = marketEndpoint(c.env, c.dir);
+    id = url ? 'catalog.endpoint.show' : 'catalog.endpoint.none';
+  }
+  const changed = clear || raw !== undefined;
+  if (c.json) {
+    json(c, () => ({ endpoint: url, ...(c.dryRun && changed ? { dryRun: true } : {}) }));
+    return;
+  }
+  c.io.log(t(id, { url: clean(url) }));
+  if (changed) dryRunDone(c);
+}
+
+const SUBCOMMANDS: Record<string, (c: Ctx) => void | Promise<void>> = {
   list: runList,
   show: runShow,
   history: runHistory,
+  apply: runApply,
+  save: runSave,
+  restore: runRestore,
+  share: shareCommand(true),
+  unshare: shareCommand(false),
+  delete: runDelete,
+  author: runAuthor,
+  endpoint: runEndpoint,
 };
 
 export async function runCatalog(args: Args, cfgFile: string, deps: CatalogDeps = {}): Promise<void> {
@@ -365,5 +799,22 @@ export async function runCatalog(args: Args, cfgFile: string, deps: CatalogDeps 
     return;
   }
   const dir = deps.dir ?? catalogDir(env);
-  run({ args, cfgFile, io, env, dir, gsd: deps.gsd ?? gsdInstalled(env), fail });
+  const c: Ctx = {
+    args,
+    cfgFile,
+    io,
+    env,
+    dir,
+    gsd: deps.gsd ?? gsdInstalled(env),
+    now: deps.now ?? (() => new Date()),
+    json: args.flags.json === true,
+    dryRun: args.flags['dry-run'] === true,
+    fail,
+  };
+  try {
+    await run(c);
+  } catch (err) {
+    if (err instanceof CatalogStoreError) storeFail(c, err);
+    else fail(t('catalog.failed', { error: clean((err as Error)?.message) }));
+  }
 }

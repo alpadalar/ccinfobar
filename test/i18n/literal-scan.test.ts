@@ -42,6 +42,7 @@ const SWEPT: string[] = [
   'src/catalog/store.ts',
   'src/catalog/system.ts',
   'src/catalog/share.ts',
+  'src/market/endpoint.ts',
   'src/core/brew.ts',
   'src/editor/server.ts',
   'src/editor/detach.ts',
