@@ -119,7 +119,8 @@ type Json = Record<string, any>;
 const CHUNK = 8 * 1024 * 1024;
 const RECENT = 64;
 const MAX_MODEL = 200;
-const BIG = 100_000;
+// prompt size of the long-context price tier, fixed in bucket keys
+export const BIG = 100_000;
 
 const map = <T>(): Record<string, T> => Object.create(null) as Record<string, T>;
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);

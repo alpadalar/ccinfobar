@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { PRICES } from '../../src/core/prices.js';
 import type { Bucket, SessionData } from '../../src/core/report-types.js';
 import { dayKey } from '../../src/core/time.js';
 import { normalizeRoot } from '../../src/data/ledger.js';
-import { keyHash, scanTree, sessionsOf, walkTranscripts } from '../../src/data/report-index.js';
+import { BIG, keyHash, scanTree, sessionsOf, walkTranscripts } from '../../src/data/report-index.js';
 import {
   appendTranscript,
   assistantLine,
@@ -289,6 +290,12 @@ describe('scanTree requests', () => {
     );
     expect(b[`${d}|claude-opus-4-5|0|0|1`]).toMatchObject({ n: 2, usd: 0.75 });
     expect(b[`${d}|claude-opus-4-5|0|0|0`]!.n).toBe(1);
+  });
+
+  it('buckets big prompts at the threshold of every long-context price tier', () => {
+    const tiers = Object.entries(PRICES).filter(([, p]) => p.over);
+    expect(tiers.length).toBeGreaterThan(0);
+    for (const [model, p] of tiers) expect(p.over!.threshold, model).toBe(BIG);
   });
 
   it('puts each request on the day of its own timestamp', () => {
