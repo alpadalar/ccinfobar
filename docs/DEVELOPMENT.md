@@ -45,6 +45,8 @@ src/
 │   ├── progress.ts      syncProgress: the wanted OSC 9;4 value after stdout
 │   └── progress-tty.ts  the tty progress channel: find and write the parent's terminal
 ├── commands/            install, update, doctor, manage, config-cmd; loaded with import() per command
+│   ├── catalog.ts       `ccinfobar catalog`: list, show, history, apply, save and the other local subcommands
+│   ├── catalog-market.ts `catalog publish` and `--remote`, the one lazy entry for marketplace code
 │   ├── install.ts       planInstall / applyInstall / uninstall
 │   ├── hooks-install.ts hook planner, version floor, applyHooks / uninstallHooks
 │   ├── hooks-doctor.ts  doctor's Hooks block: entry state, missing binaries, hook gates
@@ -113,6 +115,18 @@ src/
 │   ├── toml.ts          TOML 1.0 parser with positioned errors (pure)
 │   ├── colors.ts        c16/c256/rgb, Starship style and claude-hud color mapping (pure)
 │   └── ccstatusline.ts, claude-powerline.ts, ccometixline.ts (+ -themes.ts), cship.ts, claude-hud.ts
+├── catalog/             the catalog; used by the catalog commands, the editor and market/client.ts, never by the render
+│   ├── model.ts         entry schema, version ops and share states (pure)
+│   ├── system.ts        built-in bundles, presets and themes as entries
+│   ├── snapshot.ts      current config to preset, theme or bundle content
+│   ├── store.ts         entry files, legacy adoption, theme install, profile and credentials
+│   ├── share.ts         content hash and share state
+│   └── publish.ts       publish plan and run, remote list and show
+├── market/              marketplace protocol, client and reference server
+│   ├── protocol.ts      v1 paths, parsers, limits, error codes and content policy (pure)
+│   ├── endpoint.ts      endpoint check
+│   ├── client.ts        bounded marketplace client
+│   └── server.ts, serve.ts  reference server, built with `node scripts/build.mjs --market`
 ├── editor/              web editor: HTTP server + browser app (web/)
 │   └── detach.ts        `edit --detach`: reuse or spawn a background editor
 └── tui/                 terminal editor: state, view, keys, IO loop
@@ -284,6 +298,51 @@ Each importer turns a raw source into `{ config, notes, file, source }` (`Import
 
 Adding an importer: a mapper module with its `TARGETS` list (every widget type it can produce; a test checks each exists in `ALL_WIDGETS`), discovery in `index.ts`, an entry in `IMPORT_SOURCES` and `detectTool`, `import.*` messages in `en/` and `tr/`, the `help.cmd.import` line and help fixtures, the file on `SWEPT` in `test/i18n/literal-scan.test.ts`, fixtures under `test/fixtures/import/`, and a row in the `TOOLS` table of `test/importers/guards.test.ts`, which checks targets, fixture round trips, hostile labels, prototype keys and that `--dry-run` writes nothing for every importer.
 
+### Catalog and marketplace
+
+User docs: [CATALOG.md](CATALOG.md) and [MARKETPLACE.md](MARKETPLACE.md).
+
+| Module | Role |
+| --- | --- |
+| `core/edit.ts` | `LAYOUT_KEYS`, `APPEARANCE_KEYS`, `PERSONAL_KEYS` and `applyCatalogContent(current, content, kind, themeId?)`. It copies only the kind's keys (own properties, so personal and unknown keys in content are ignored) and keeps `lines`, `theme`, `autoWrap` and `widthOffset` when the content leaves them out |
+| `catalog/model.ts` | Pure and browser-safe: entry schema v1, `ENTRY_LIMITS`, `slug`/`marketSlug`, the version ops (`newEntry`, `appendVersion`, `overwriteVersion`, `restoreVersion`), share states (`setShare`, `markPublished`, `markWithdrawn`, `shareView`), `mergeRaw`, `parseEntry` |
+| `catalog/system.ts` | `SYSTEM_BUNDLES` (15) plus the built-in presets and themes as entries, built at call time (`systemEntries({ gsd })`, `findSystem`) |
+| `catalog/snapshot.ts` | `themeFromConfig` (shared with `POST /api/themes`) and `contentFromConfig(config, kind)` |
+| `catalog/store.ts` | Node: user entries, legacy adoption, `installEntryTheme`, `profile.json`, `marketEndpoint`, `credentials.json` |
+| `catalog/share.ts` | `entryHash`, `sendable`, `shareState`; imports only `node:crypto`, `protocol.ts` and `model.ts` |
+| `catalog/publish.ts` | `publishPlan`, `planHash`, `runPublish`, `remoteList`, `remoteShow` |
+| `market/protocol.ts` | Pure: paths, `ID_PART_RE`, `MARKET_LIMITS`, `ERROR_CODES`, the parsers, `canonicalJson`, `contentProblems` |
+| `market/endpoint.ts` | `checkEndpoint` (https, or http on loopback) |
+| `market/client.ts` | `createMarketClient`, `validateReceived`, `contentHash`, on top of `requestJson` in `data/jobs/fetch.ts` |
+| `market/server.ts`, `market/serve.ts` | Reference server and its command line, built by `node scripts/build.mjs --market` into the gitignored `market/` |
+| `commands/catalog.ts` | `ccinfobar catalog` local subcommands |
+| `commands/catalog-market.ts` | `publish` and `--remote`; also re-exports the publish functions for the editor |
+| `editor/server.ts` | `/api/catalog*` routes |
+| `editor/web/catalog.ts`, `catalog-dialogs.ts`, `catalog-market.ts` | Catalog page, save/history/share/delete dialogs, publish review and Marketplace tab |
+
+**Why the content op lives in `core/edit.ts`.** `core/presets.ts` imports `edit.ts`, and presets is on the render path (`cli/render.ts` → `core/load.ts` → `core/presets.ts`), so `edit.ts` is in the render closure. It must stay pure and must never import `src/catalog/`. The catalog imports the key lists and `applyCatalogContent` from it (`model.ts` re-exports them), so the CLI, the editor server's previews and the browser all apply through one function. The browser wraps it in `replaceAll`, so applying is one undo step and nothing is written until Save.
+
+**Lazy loading.**
+
+- `cli/main.ts` loads `commands/catalog.ts` with `await import()`, and `catalog.ts` loads `manage.ts` the same way, so the catalog chunk never reaches the importers or jobs statically.
+- `catalog.ts` loads `./catalog-market.js` with `await import()` only for `publish` and `--remote`, and the editor server loads `../commands/catalog-market.js` only in the publish and remote routes, after the endpoint check.
+- `catalog-market.ts` is the only lazy entry for marketplace code. It imports `catalog.ts`, `publish.ts` and (through publish) `client.ts` statically, with named imports, so its closure covers whole render chunks. An `await import()` of `market/client.js` or `catalog/publish.js` anywhere, or a namespace import, made esbuild split the render chunks (19 became 22 or 20). The same reason moved `checkEndpoint` into `endpoint.ts` and the share helpers into `share.ts`.
+- No module under `src/data/jobs/` imports `src/catalog/` or `src/market/`, so nothing publishes in the background.
+- `test/foundations/import-graph.test.ts` enforces all of this: `src/catalog/` and `src/market/` are excluded from the render closure, `model.ts` and `protocol.ts` are pure, `catalog-market.ts` is the one entry, the closures of `catalog.ts` and `editor/server.ts` have no `publish.ts`, jobs never import either dir, and the built render and hook chunks carry no catalog or marketplace text.
+
+**Store writes.** Only `store.ts` writes catalog files, always through `writeAtomic`.
+
+- `commitEntry(next, expectedRev)` is the only entry writer. It re-reads the file: a missing file needs `expectedRev` 0, an existing one must have `rev === expectedRev`, and an unreadable one counts as changed. It writes `mergeRaw(raw, next)` with `rev + 1`, so keys from newer versions survive (an own `__proto__` key is dropped). The result must parse again and stay within 1 MiB, or nothing is written. The previous bytes go to `<id>.json.bak` first.
+- Ids are `u-` plus 12 random hex characters; names never become file names. Reads strip a BOM and skip files over 4 MiB, other file names, and files whose `id` differs from the name.
+- Delete renames the file into `trash/` (with the Windows rename retry), removes the `.bak`, moves a linked legacy file to the trash too, and keeps the newest 20.
+- Legacy `presets/` and `themes/` files are only read until the user deletes them; `deleteLegacy` writes a trash copy before it calls `deleteUserPreset`/`deleteUserTheme`. Applied themes are written only by `saveUserTheme`, through `installEntryTheme`, which never overwrites a different theme (`<id>-2`, `-3`, …).
+- `profile.json` and `credentials.json` writes keep unknown keys; `credentials.json` is mode 0600.
+- A `changed` error becomes 409 `err.catalog.changed` in the editor, so a CLI change is never overwritten.
+
+**Text.** Catalog text is the lazy `catalog` i18n area: `src/core/i18n/en/catalog.ts` and `tr/catalog.ts`, spread into `en/lazy.ts` and `tr/lazy.ts`, with ids under `catalog.*`, `err.catalog.*` and `market.*`. Every module that uses them imports `core/i18n/lazy.js`, including the browser modules, and `api.ts` accepts lazy ids when it translates an editor API `errorId`. System entry names and descriptions stay English in `system.ts` and are translated by `bundleText`, `presetText` and `themeDescription` from `tr/meta/catalog.ts`. Only the `help.cmd.catalog*` rows and the two `web.static.catalog*` header strings are in the main tables. The reference server speaks English protocol JSON only.
+
+**Tests.** `test/catalog/`, `test/market/`, `test/commands/catalog*.test.ts` and `test/editor/catalog-*.test.ts` use temp dirs and never the network: the client gets `test/fake-fetch.ts` with `example.com` hosts, or the reference server runs in-process on `127.0.0.1` port 0 and is closed after each test. No-endpoint tests assert zero calls on both the injected fetch and `globalThis.fetch`.
+
 ### Hooks
 
 Hooks are optional. The render path never loads the hook writer; it reads the folded state through `DataSources.hooks` (see [Live session data](#live-session-data)).
@@ -406,7 +465,7 @@ User-facing messages go through `t(id, params)` from `core/i18n/`. Each area has
 - **Resolver.** `core/i18n/resolve.ts` is pure and never reads `process`: `resolveLanguage(setting, hints)` takes the config value and the hints in order. A config id wins; otherwise the first non-empty hint decides (an unsupported tag, `C` or `POSIX` gives English from that source), else the default. `pickUiLanguage` does the same for the browser.
 - **Active language.** One module-level language, switched with set-and-restore: `render()` switches to the config's `language` and restores the previous one in `finally`, and so does `inMode` in `core/inspect.ts`. Render is synchronous, so editor previews with different configs cannot interleave.
 - **Edges.** Only the edges read the environment. `cli/lang.ts` builds the hints from `CCINFOBAR_LANG`, `LC_ALL`, `LC_MESSAGES` and `LANG`, and only when all are empty asks `new Intl.PluralRules().resolvedOptions().locale` (about 0.2 ms, against about 12 ms for `Intl.DateTimeFormat()`), memoized per process. `cli/main.ts` applies the config's `language` once for every command except `help`, `hook` and `worker` (help follows the environment); a missing or broken config keeps the environment's answer. The editor server sends its environment answer as `language` in `/api/state` and renders previews in it. The TUI applies the config language at boot and again after each change. The browser app picks the UI language from the config, the server's answer and `navigator.languages`, and fills `data-i18n` keys in `index.html` with `applyStatic`.
-- **Loading.** English is always loaded. Other tables load with `import()` (`loadLanguage`), so an English status line never parses them: `cli/render.ts` awaits `prepareLanguage(config)` before the first `t()`, and `main.ts` loads every language for the other commands (not for `hook` and `worker`). The browser bundle and `test/setup.ts` call `installBundled()` from `core/i18n/bundled.ts`, which installs every table up front. The `report`, `import` and `toml` areas are not in the main tables: `en/lazy.ts` and `tr/lazy.ts` hold them, and `core/i18n/lazy.ts` installs both as each language's `lazy` table when it is imported. Every module that prints one of their ids imports it for its effect (`import '../core/i18n/lazy.js'`), so the commands that need them have them and the status line never parses them; `t()` looks in `messages`, then `lazy`. `test/foundations/import-graph.test.ts` checks both the import in every such module and that the built render and hook chunks carry none of that text.
+- **Loading.** English is always loaded. Other tables load with `import()` (`loadLanguage`), so an English status line never parses them: `cli/render.ts` awaits `prepareLanguage(config)` before the first `t()`, and `main.ts` loads every language for the other commands (not for `hook` and `worker`). The browser bundle and `test/setup.ts` call `installBundled()` from `core/i18n/bundled.ts`, which installs every table up front. The `report`, `import`, `toml` and `catalog` areas are not in the main tables: `en/lazy.ts` and `tr/lazy.ts` hold them, and `core/i18n/lazy.ts` installs both as each language's `lazy` table when it is imported. Every module that prints one of their ids imports it for its effect (`import '../core/i18n/lazy.js'`), so the commands that need them have them and the status line never parses them; `t()` looks in `messages`, then `lazy`. `test/foundations/import-graph.test.ts` checks both the import in every such module and that the built render and hook chunks carry none of that text.
 - **Metadata.** Widget names, descriptions, labels, hints, samples and option texts stay English in the `WidgetDef`s; translations live in `tr/meta/`, one `MetaFile` per widget category keyed by widget type and option key, plus `catalog.ts` for themes, styles, presets, scenarios and style groups keyed by id. `widgetText`, `optionLabel`, `choiceLabel` (`core/i18n/widget-text.ts`) and `themeDescription`, `styleText`, `presetText`, `scenarioText` (`core/i18n/catalog-text.ts`) fall back to the English text.
 - **Formats.** `core/i18n/format.ts` formats dates with an explicit locale and 24-hour times, and `foldSearch` folds search text with the language's casing rules. Numbers, units and compact durations are not localized. Ids, config keys and JSON output stay English; JSON paths run under `withLanguage('en', …)`.
 - **Tests.** `test/setup.ts` pins `LANG=C` and `LC_ALL=C`, removes `LC_MESSAGES` and `CCINFOBAR_LANG`, and sets English before each test; `withLang` and `withTz` in `test/helpers.ts` switch for one test. `test/core/i18n.test.ts` checks that every language has exactly the English ids, the same params and plural shapes, and clean text; `test/i18n/widget-meta.test.ts` checks that every widget and category has metadata in every language that ships it. `test/i18n/snapshots.test.ts` keeps one plain-text file per scenario under `test/i18n/__snapshots__/tr/` (update with `-u`). `test/i18n/literal-scan.test.ts` lists every `src/` file outside `core/i18n/` as swept or not swept with a reason, `test/foundations/locale-scan.test.ts` rejects implicit-locale casing, date strings and sorting, and `test/i18n/pseudo.test.ts` renders a wide pseudo-locale (`zz`, test-only) to prove widths. The `test-tr-locale` CI job runs `npm run check` with the process started under `tr_TR.UTF-8`.
