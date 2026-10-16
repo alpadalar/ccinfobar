@@ -2398,6 +2398,25 @@ input[type="range"]:disabled {
   overflow-wrap: anywhere;
 }
 
+/* consent shows every target in full: wrapped, never cut */
+.catalog-consent li {
+  min-width: 0;
+}
+
+.catalog-consent-target {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  overflow: visible;
+  text-overflow: clip;
+  max-width: none;
+}
+
+.catalog-consent-long {
+  color: var(--muted);
+}
+
 @media (max-width: 70rem) {
   .catalog-tabs {
     flex: 1 0 100%;

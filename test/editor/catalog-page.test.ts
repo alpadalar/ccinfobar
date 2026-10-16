@@ -346,6 +346,65 @@ describe('catalog page', () => {
     expect(store.S.config.lines.flat().map((i) => i.type)).toEqual(['model', 'command', 'link']);
   });
 
+  it('consent shows every target in full like the CLI, and never keeps an overlong one', async () => {
+    const long = `echo ${'x'.repeat(2100)}`;
+    const many = Array.from({ length: 40 }, (_, i) => ({
+      id: `c${i}`,
+      type: 'command',
+      options: { command: `echo ${i} ${'y'.repeat(150)}` },
+    }));
+    const lines = [
+      [
+        { id: 'm', type: 'model' },
+        { id: 'long', type: 'command', options: { command: long } },
+        { id: 'zw', type: 'command', options: { command: 'cat\u200b /etc/passwd' } },
+        { id: 'bidi', type: 'command', options: { command: 'ls \u202erm -rf\u202c' } },
+        { id: 'sp', type: 'command', options: { command: 'echo a     b' } },
+        { id: 'esc', type: 'command', options: { command: 'printf \u001b[2J' } },
+        ...many,
+      ],
+    ];
+    catalog.user = [user({ ref: 'u-r', id: 'u-r', name: 'Risky', content: { layout: { lines } } as any })];
+    const store = await init();
+    await open();
+    card('u-r').dispatch('click');
+    await flush();
+    const codes = body.all((e) => e.tagName === 'CODE' && e.classList.contains('catalog-consent-target'));
+    const shownText = codes.map((c) => c.textContent);
+    expect(shownText).toHaveLength(44);
+    expect(shownText).toContain('cat\u27e8U+200B\u27e9 /etc/passwd');
+    expect(shownText).toContain('ls \u27e8U+202E\u27e9rm -rf\u27e8U+202C\u27e9');
+    expect(shownText).toContain('echo a\u27e85 spaces\u27e9b');
+    expect(shownText).toContain('printf \u27e8U+001B\u27e9[2J');
+    // full text, no ellipsis
+    for (const x of many) expect(shownText).toContain(x.options.command);
+    expect(shownText.some((x) => x.includes('\u2026'))).toBe(false);
+    expect(texts(body)).toContain('command: 2105 characters, too long to review, dropped');
+    expect(shownText.some((x) => x.includes('x'.repeat(100)))).toBe(false);
+    // the safe button is the focused default
+    const drop = button('Apply without them');
+    expect(drop.classList.contains('primary')).toBe(true);
+    button('Keep them').dispatch('click');
+    await flush();
+    const ids = store.S.config.lines.flat().map((i) => i.id);
+    expect(ids).not.toContain('long');
+    expect(ids).toHaveLength(45);
+    expect(toastText()).toContain('Applied Risky without 1 command or link widget. Save to keep it.');
+  });
+
+  it('offers no Keep when every target is too long', async () => {
+    const lines = [[{ id: 'long', type: 'command', options: { command: 'z'.repeat(2001) } }]];
+    catalog.user = [user({ ref: 'u-r', id: 'u-r', name: 'Risky', content: { layout: { lines } } as any })];
+    const store = await init();
+    await open();
+    card('u-r').dispatch('click');
+    await flush();
+    expect(body.all((e) => e.tagName === 'BUTTON' && e.textContent === 'Keep them')).toEqual([]);
+    button('Apply without them').dispatch('click');
+    await flush();
+    expect(store.S.config.lines.flat()).toEqual([]);
+  });
+
   it('keeps theme and style when applying a preset', async () => {
     const store = await init({ ...defaultConfig(), theme: 'dracula', style: 'capsule' } as Config);
     await open();

@@ -15,7 +15,8 @@ import {
   type ImportTarget,
   importTargets,
   kindText,
-  shortTarget,
+  MAX_TARGET_CHARS,
+  visibleTarget,
 } from '../../importers/confirm.js';
 import { api, previewSource } from './api.js';
 import { deleteEntryDialog, historyDialog, saveCurrentDialog, toggleShare } from './catalog-dialogs.js';
@@ -81,26 +82,32 @@ function localize(e: CatalogEntryInfo, config: Config): Config {
   return e.source === 'system' && e.kind !== 'theme' ? presetLabels(config) : config;
 }
 
-// the same consent as catalog apply in the CLI; dropping is the default
+const reviewable = (x: ImportTarget) => [...x.target].length <= MAX_TARGET_CHARS;
+
+// as catalog apply in a terminal: every target in full, invisible characters
+// named, overlong ones dropped unseen; dropping is the focused default
 async function consent(e: CatalogEntryInfo, targets: ImportTarget[]): Promise<'keep' | 'drop' | null> {
+  const short = targets.filter(reviewable);
   let drop: HTMLElement | null = null;
+  const row = (x: ImportTarget) =>
+    reviewable(x)
+      ? h(
+          'li',
+          null,
+          h('span', { class: 'theme-tag' }, kindText(x.kind)),
+          h('code', { class: 'catalog-consent-target' }, visibleTarget(x.target)),
+        )
+      : h(
+          'li',
+          { class: 'catalog-consent-long' },
+          t('import.targetLong', { kind: kindText(x.kind), count: [...x.target].length }).trim(),
+        );
   const shown = modal<'keep' | 'drop'>({
     title: t('catalog.consent.title', { name: e.name }),
     wide: true,
     body: [
       h('p', { class: 'modal-text' }, t('catalog.consent.text')),
-      h(
-        'ul',
-        { class: 'catalog-targets' },
-        ...targets.map((x) =>
-          h(
-            'li',
-            null,
-            h('span', { class: 'theme-tag' }, kindText(x.kind)),
-            h('code', null, shortTarget(x.target, 120)),
-          ),
-        ),
-      ),
+      h('ul', { class: 'catalog-targets catalog-consent' }, ...targets.map(row)),
     ],
     actions: (done) => {
       drop = h(
@@ -111,7 +118,13 @@ async function consent(e: CatalogEntryInfo, targets: ImportTarget[]): Promise<'k
       return [
         h('span', { class: 'spacer' }),
         h('button', { class: 'btn', type: 'button', onClick: () => done() }, t('web.ui.cancel')),
-        h('button', { class: 'btn', type: 'button', onClick: () => done('keep') }, t('catalog.consent.keep')),
+        short.length
+          ? h(
+              'button',
+              { class: 'btn', type: 'button', onClick: () => done('keep') },
+              t('catalog.consent.keep'),
+            )
+          : null,
         drop,
       ];
     },
@@ -138,9 +151,11 @@ export async function applyEntry(e: CatalogEntryInfo, close: (v?: unknown) => vo
     if (targets.length) {
       const choice = await consent(e, targets);
       if (!choice) return;
-      if (choice === 'drop') {
-        content = { ...content, layout: dropTargets(content.layout, targets) };
-        dropped = targets.length;
+      // overlong targets are never kept
+      const gone = choice === 'drop' ? targets : targets.filter((x) => !reviewable(x));
+      if (gone.length) {
+        content = { ...content, layout: dropTargets(content.layout, gone) };
+        dropped = gone.length;
       }
     }
   }
