@@ -67,8 +67,9 @@ const LAZY_TABLES = [
   'src/core/i18n/en/report.ts',
   'src/core/i18n/en/import.ts',
   'src/core/i18n/en/toml.ts',
+  'src/core/i18n/en/catalog.ts',
 ];
-const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/'];
+const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/', 'src/catalog/', 'src/market/'];
 // non-English tables load with import() (D-25)
 const LANG_TABLES = /^src\/core\/i18n\/(?!en\/)[a-z]{2,3}\//;
 
@@ -170,7 +171,7 @@ describe('import graph', () => {
   it('loads the lazy tables in every module that prints their ids', () => {
     const users = walk(src)
       .filter((f) => !f.includes(`${path.sep}i18n${path.sep}`))
-      .filter((f) => /['`](?:report|import|toml)\.[a-zA-Z]/.test(fs.readFileSync(f, 'utf8')));
+      .filter((f) => /['`](?:report|import|toml|catalog|market)\.[a-zA-Z]/.test(fs.readFileSync(f, 'utf8')));
     expect(users.length).toBeGreaterThan(5);
     for (const f of users) {
       expect(fs.readFileSync(f, 'utf8'), path.relative(root, f)).toMatch(
@@ -202,6 +203,16 @@ describe('import graph', () => {
   it('keeps src/data free of command imports', () => {
     const files = walk(path.join(src, 'data')).filter((f) =>
       /from '[./]+commands\/|import\('[./]+commands\//.test(fs.readFileSync(f, 'utf8')),
+    );
+    expect(files.map((f) => path.relative(root, f))).toEqual([]);
+  });
+
+  // D-09: publishing is never a background job
+  it('never imports the marketplace or catalog from background jobs', () => {
+    const files = walk(path.join(src, 'data/jobs')).filter((f) =>
+      /from '[./]+(?:\.\.\/)*(?:market|catalog)\/|import\('[./]+(?:market|catalog)\//.test(
+        fs.readFileSync(f, 'utf8'),
+      ),
     );
     expect(files.map((f) => path.relative(root, f))).toEqual([]);
   });
@@ -292,6 +303,31 @@ describe('import graph', () => {
         .readdirSync(path.join(dist, 'chunks'))
         .filter((f) => /TomlError|report-index/.test(fs.readFileSync(path.join(dist, 'chunks', f), 'utf8')));
       expect(lazy.length).toBeGreaterThan(0);
+    },
+  );
+
+  // D-28: catalog and marketplace code never loads on a refresh
+  it.skipIf(!fs.existsSync(path.join(dist, 'ccinfobar.js')))(
+    'built render and hook chunks carry no catalog or marketplace code',
+    () => {
+      const entry = fs.readFileSync(path.join(dist, 'ccinfobar.js'), 'utf8');
+      const roots = [...entry.matchAll(/import\("\.\/chunks\/((?:cli|hook)-[^"]+\.js)"\)/g)].map(
+        (m) => m[1]!,
+      );
+      expect(roots).toHaveLength(2);
+      const marker = /catppuccin-cockpit|ccinfobar-market|\/v1\/index\.json|Waiting to publish/;
+      expect(entry).not.toMatch(marker);
+      const seen = new Set<string>();
+      const stack = [...roots];
+      while (stack.length) {
+        const f = stack.pop()!;
+        if (seen.has(f)) continue;
+        seen.add(f);
+        const text = fs.readFileSync(path.join(dist, 'chunks', f), 'utf8');
+        expect(text, f).not.toMatch(marker);
+        for (const m of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(m[1]!);
+      }
+      expect(seen.size).toBeGreaterThan(2);
     },
   );
 
