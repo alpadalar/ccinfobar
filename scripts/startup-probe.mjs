@@ -57,10 +57,18 @@ function stats(ms) {
 
 const r2 = (n) => Math.round(n * 100) / 100;
 
-// copied from src/data/git.ts
-const HARDEN = ['-c', 'core.fsmonitor=false', '--no-optional-locks'];
-const SCOPED_RE = '^(remote\\.origin\\.url|filter\\..+\\.(clean|smudge|process))$';
-const GIT_CMDS = {
+// copies of src/data/git.ts, kept equal by test/scripts/startup-probe.test.ts
+export const HARDEN = ['-c', 'core.fsmonitor=false', '--no-optional-locks'];
+export const SCOPED_RE = '^(remote\\.origin\\.url|filter\\..+\\.(clean|smudge|process))$';
+const SCRUB = new Set([
+  'GIT_DIR',
+  'GIT_WORK_TREE',
+  'GIT_INDEX_FILE',
+  'GIT_OBJECT_DIRECTORY',
+  'GIT_COMMON_DIR',
+  'GIT_NAMESPACE',
+]);
+export const GIT_CMDS = {
   'git --version': ['--version'],
   'rev-parse': [...HARDEN, 'rev-parse', '--show-toplevel', '--git-dir', '--git-common-dir'],
   'config --show-scope': [...HARDEN, 'config', '--show-scope', '--get-regexp', SCOPED_RE],
@@ -80,8 +88,9 @@ function inside(root, p) {
   return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
 }
 
+// a GIT_DIR from a hook would time another repo
 function childEnv(root) {
-  const env = { ...process.env };
+  const env = withoutGitVars(process.env);
   for (const k of ['CCINFOBAR_CONFIG', 'NODE_DISABLE_COMPILE_CACHE', 'NODE_OPTIONS']) delete env[k];
   Object.assign(env, {
     HOME: path.join(root, 'home'),
@@ -152,8 +161,18 @@ async function buildOnefile(out) {
   });
 }
 
+function withoutGitVars(env) {
+  const out = {};
+  for (const [k, v] of Object.entries(env)) if (!SCRUB.has(k.toUpperCase())) out[k] = v;
+  return out;
+}
+
+export function scrubGitEnvLike(env) {
+  return { ...withoutGitVars(env), GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', CCINFOBAR_GIT_EMPTY: '' };
+}
+
 // same checks as installKind() in src/data/update-state.ts
-function installKindLike(entry, prefix) {
+export function installKindLike(entry, prefix) {
   let real = entry;
   try {
     real = fs.realpathSync(entry);
@@ -255,7 +274,8 @@ async function main() {
       }
     }
 
-    const gitEnv = { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', CCINFOBAR_GIT_EMPTY: '' };
+    // same env as the render child, scrubbed like git.ts
+    const gitEnv = scrubGitEnvLike(env);
     const gitSamples = Object.fromEntries(Object.keys(GIT_CMDS).map((c) => [c, []]));
     for (let i = 0; i < o.rounds * o.iterations; i++) {
       for (const [name, args] of Object.entries(GIT_CMDS)) {
@@ -326,10 +346,20 @@ function print(r) {
   );
 }
 
-try {
-  await main();
-} catch (err) {
-  if (!(err instanceof ProbeError)) throw err;
-  console.error(`startup-probe: ${err.message}`);
-  process.exitCode = 1;
+function isMain() {
+  try {
+    return import.meta.url === pathToFileURL(fs.realpathSync(path.resolve(process.argv[1] ?? ''))).href;
+  } catch {
+    return false;
+  }
+}
+
+if (process.argv[1] && isMain()) {
+  try {
+    await main();
+  } catch (err) {
+    if (!(err instanceof ProbeError)) throw err;
+    console.error(`startup-probe: ${err.message}`);
+    process.exitCode = 1;
+  }
 }
