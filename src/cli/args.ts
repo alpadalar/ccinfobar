@@ -21,6 +21,11 @@ const VALUE_FLAGS = [
   'until',
   'project',
   'format',
+  'kind',
+  'description',
+  'author',
+  'note',
+  'name',
 ];
 
 export function parseArgs(argv: string[]): Args {

@@ -62,4 +62,13 @@ describe('parseArgs', () => {
     expect(a.flags.scenario).toBe(true);
     expect(a.flags.width).toBe('80');
   });
+
+  it('takes values for the catalog flags', () => {
+    const a = parseArgs(['catalog', 'save', 'x', '--kind', 'preset', '--author', 'A B']);
+    expect(a.flags).toEqual({ kind: 'preset', author: 'A B' });
+    expect(a.positional).toEqual(['save', 'x']);
+    const b = parseArgs(['catalog', 'save', '--name', 'n', '--note', 'v2', '--description', 'd']);
+    expect(b.flags).toEqual({ name: 'n', note: 'v2', description: 'd' });
+    expect(b.positional).toEqual(['save']);
+  });
 });

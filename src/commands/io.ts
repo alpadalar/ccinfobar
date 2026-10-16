@@ -17,6 +17,11 @@ export function cliIo(): CliIo {
   };
 }
 
+export const plainOutput = (tty: boolean, env: NodeJS.ProcessEnv = process.env): boolean => {
+  const forced = env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '0';
+  return (!tty && !forced) || !!env.NO_COLOR || env.FORCE_COLOR === '0';
+};
+
 export const promptMarker = (fallback: boolean) => t(fallback ? 'install.prompt.yes' : 'install.prompt.no');
 
 // y/yes and e/evet in any language

@@ -46,7 +46,7 @@ import {
 } from '../importers/index.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import { currentStatusLine } from './install.js';
-import { type CliIo, cliIo, type PromptIo, promptIo } from './io.js';
+import { type CliIo, cliIo, type PromptIo, plainOutput, promptIo } from './io.js';
 import { usageErrorText } from './usage-error.js';
 
 const DEMO_LINE = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gsd-plans', 'session-cost'].map(
@@ -205,11 +205,6 @@ function importReport(io: PromptIo, result: ImportResult, backup: string | null)
     for (const n of notes) io.log(`    - ${n.text}`);
   }
 }
-
-const plainOutput = (tty: boolean, env: NodeJS.ProcessEnv = process.env): boolean => {
-  const forced = env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '0';
-  return (!tty && !forced) || !!env.NO_COLOR || env.FORCE_COLOR === '0';
-};
 
 // a dry run never runs imported commands
 function dryRunPreview(config: Config, io: PromptIo): string[] {

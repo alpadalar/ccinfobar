@@ -1,6 +1,4 @@
-import { createHash } from 'node:crypto';
 import {
-  canonicalJson,
   isRemoteId,
   type MarketEntry,
   type MarketSummary,
@@ -9,21 +7,18 @@ import {
   type VersionPayload,
 } from '../market/protocol.js';
 import {
-  APPEARANCE_KEYS,
   type CatalogEntry,
-  type EntryContent,
   type EntryKind,
-  LAYOUT_KEYS,
   latest,
   markError,
   marketSlug,
   markPublished,
   markWithdrawn,
-  pick,
   type RemoteRef,
   setShare,
   shareView,
 } from './model.js';
+import { entryHash, sendable } from './share.js';
 import {
   CatalogStoreError,
   catalogDir,
@@ -41,9 +36,7 @@ import {
 type MarketClient = import('../market/client.js').MarketClient;
 type Received = import('../market/client.js').Received;
 
-export function entryHash(content: EntryContent): string {
-  return createHash('sha256').update(canonicalJson(content)).digest('hex');
-}
+export { entryHash };
 
 export type PublishAction = 'publish' | 'version' | 'overwrite' | 'withdraw';
 
@@ -80,16 +73,6 @@ function endpointKey(raw: string): string | null {
   } catch {
     return null;
   }
-}
-
-// kind keys only; personal or unknown keys never leave
-function sendable(e: CatalogEntry): EntryContent {
-  const c = latest(e).content;
-  const out: EntryContent = {};
-  if (e.kind !== 'theme' && c.layout) out.layout = pick(c.layout, LAYOUT_KEYS);
-  if (e.kind !== 'preset' && c.appearance) out.appearance = pick(c.appearance, APPEARANCE_KEYS);
-  if (e.kind !== 'preset' && c.theme) out.theme = structuredClone(c.theme);
-  return out;
 }
 
 export function publishPlan(

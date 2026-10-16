@@ -55,6 +55,7 @@ const EXCLUDED_FILES = [
   'src/data/report-index.ts',
   'src/core/report-format.ts',
   'src/commands/report.ts',
+  'src/commands/catalog.ts',
   'src/core/report-model.ts',
   'src/core/prices.ts',
   'src/core/report-types.ts',
@@ -355,6 +356,7 @@ describe('import graph', () => {
       'explain',
       'bench',
       'report',
+      'catalog',
     ]) {
       expect(text).toContain(`await import('../commands/${mod}.js')`);
     }

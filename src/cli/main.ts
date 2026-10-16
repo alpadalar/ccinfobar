@@ -181,6 +181,11 @@ async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
       runReport(args, cfgFile, reportDeps());
       return;
     }
+    case 'catalog': {
+      const { runCatalog } = await import('../commands/catalog.js');
+      await runCatalog(args, cfgFile);
+      return;
+    }
     case 'bench': {
       const { runBenchCommand } = await import('../commands/bench.js');
       runBenchCommand(args, cfgFile);
