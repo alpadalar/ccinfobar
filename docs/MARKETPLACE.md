@@ -79,7 +79,7 @@ A server advertises its limits in `meta.json` `limits`.
 
 ### Errors
 
-Error bodies are `{ "error": { "code": "<code>", "message": "<text>" } }`. Codes: `invalid`, `too-large` (a body or content over its size limit), `over-quota` (a count limit: publishers, entries, withdrawn entries or versions), `conflict`, `stale`, `forbidden`, `not-found`, `withdrawn`, `rate-limited`, `overwrite-disabled`, `unsupported-media`, `unauthorized` (`ERROR_CODES`). The reference server also answers `500 internal`. `429` carries `Retry-After` in seconds. Static hosts answer without a JSON body, so the client maps the status (`404` to `not-found`, `429` to `rate-limited`, and so on). The client keeps only the code; server messages are never shown.
+Error bodies are `{ "error": { "code": "<code>", "message": "<text>" } }`. Codes: `invalid`, `too-large` (a body or content over its size limit), `over-quota` (a count limit: publishers, entries, withdrawn entries or versions), `conflict`, `stale`, `forbidden`, `not-found`, `withdrawn`, `rate-limited`, `overwrite-disabled`, `unsupported-media`, `unauthorized` (`ERROR_CODES`). The reference server also answers `500 internal`. `429` carries `Retry-After` in seconds. Static hosts answer without a JSON body, so the client maps the status (`404` to `not-found`, `429` to `rate-limited`, and so on); any other status is reported as "The marketplace answered with HTTP N" (code `http`, with `status`). The client keeps only the code; server messages are never shown.
 
 ## Client
 

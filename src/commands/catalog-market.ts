@@ -41,6 +41,7 @@ const REASONS: Record<string, MessageId> = {
   'bad-hash': 'market.error.bad-hash',
   'bad-endpoint': 'market.error.bad-endpoint',
   internal: 'market.error.internal',
+  http: 'market.error.http',
   'read-only': 'market.error.read-only',
   'handle-taken': 'market.error.handle-taken',
   changed: 'market.error.changed',
@@ -62,7 +63,8 @@ const TARGET_INDENT = '      ';
 export const reasonId = (code: string | null): MessageId =>
   code !== null && Object.hasOwn(REASONS, code) ? REASONS[code]! : 'market.error.unknown';
 
-export const reasonText = (code: string | null): string => t(reasonId(code));
+export const reasonText = (code: string | null, status?: number): string =>
+  t(reasonId(code), { status: status ?? '' });
 
 // the editor reaches publish.ts through this entry
 export { planHash, publishPlan, remoteList, remoteShow, reviewPublish, runPublish };
@@ -166,9 +168,9 @@ function showPlan(c: Ctx, p: Planned, endpoint: string): void {
   c.io.log(t('catalog.publish.where', { endpoint: shownUrl(endpoint) }));
 }
 
-function reviewFail(c: Ctx, code: string, submitUrl?: string): void {
+function reviewFail(c: Ctx, code: string, submitUrl?: string, status?: number): void {
   if (code === 'read-only' && submitUrl) c.fail(t('catalog.publish.readOnly', { url: shownUrl(submitUrl) }));
-  else c.fail(t('catalog.publish.error', { reason: reasonText(code) }));
+  else c.fail(t('catalog.publish.error', { reason: reasonText(code, status) }));
 }
 
 export async function runPublishCommand(c: Ctx): Promise<void> {
@@ -208,7 +210,7 @@ export async function runPublishCommand(c: Ctx): Promise<void> {
   const yes = c.args.flags.yes === true;
   if (cur.review.code) {
     if (c.json) jsonOut(c, base(cur));
-    reviewFail(c, cur.review.code, cur.review.submitUrl);
+    reviewFail(c, cur.review.code, cur.review.submitUrl, cur.review.status);
     return;
   }
   if (!c.json) for (const line of [...legacyNotes, ...cur.notes]) c.io.log(line);
@@ -247,7 +249,7 @@ export async function runPublishCommand(c: Ctx): Promise<void> {
     const again = await planned(c, ids);
     if (again.review.code) {
       if (c.json) jsonOut(c, base(again));
-      reviewFail(c, again.review.code, again.review.submitUrl);
+      reviewFail(c, again.review.code, again.review.submitUrl, again.review.status);
       return;
     }
     if (again.hash === cur.hash) break;
@@ -278,7 +280,7 @@ export async function runPublishCommand(c: Ctx): Promise<void> {
       results: res.results,
     });
   if (res.code) {
-    reviewFail(c, res.code, res.submitUrl);
+    reviewFail(c, res.code, res.submitUrl, res.status);
     return;
   }
   if (!res.results.length && !c.json) c.io.log(t('catalog.publish.nothing'));
@@ -290,7 +292,7 @@ export async function runPublishCommand(c: Ctx): Promise<void> {
       if (c.json) continue;
       if (r.code === 'withdrawn' && item.action !== 'withdraw')
         c.io.error(t('catalog.publish.reserved', { name }));
-      else c.io.error(t('catalog.publish.failed', { name, reason: reasonText(r.code) }));
+      else c.io.error(t('catalog.publish.failed', { name, reason: reasonText(r.code, r.status) }));
       continue;
     }
     if (c.json) continue;
@@ -301,10 +303,10 @@ export async function runPublishCommand(c: Ctx): Promise<void> {
   }
 }
 
-function remoteFail(c: Ctx, code: string | null): void {
+function remoteFail(c: Ctx, code: string | null, status?: number): void {
   if (code === 'no-endpoint') c.fail(t('err.catalog.noEndpoint'));
   else if (code === 'bad-endpoint') c.fail(t('err.catalog.badEndpoint'));
-  else c.fail(t('catalog.remote.failed', { reason: reasonText(code) }));
+  else c.fail(t('catalog.remote.failed', { reason: reasonText(code, status) }));
 }
 
 const authorText = (e: MarketSummary): string =>
@@ -320,7 +322,7 @@ export async function runRemoteList(c: Ctx): Promise<void> {
   }
   const res = await remoteList(deps(c));
   if (res.code) {
-    remoteFail(c, res.code);
+    remoteFail(c, res.code, res.status);
     return;
   }
   const endpoint = marketEndpoint(c.env, c.dir) ?? '';
@@ -365,13 +367,13 @@ export async function runRemoteShow(c: Ctx): Promise<void> {
   const res = await remoteShow(ref, deps(c));
   if (!res.entry) {
     if (res.code === 'invalid') c.fail(t('catalog.remote.badId', { ref: clean(ref) }));
-    else remoteFail(c, res.code);
+    else remoteFail(c, res.code, res.status);
     return;
   }
   const e = res.entry;
   if (c.json) {
     jsonOut(c, { endpoint: marketEndpoint(c.env, c.dir), entry: e, latest: res.latest });
-    if (res.code) remoteFail(c, res.code);
+    if (res.code) remoteFail(c, res.code, res.status);
     return;
   }
   const meta = [t(`catalog.kind.${e.kind}`), t('catalog.version', { version: e.version })];
@@ -400,7 +402,7 @@ export async function runRemoteShow(c: Ctx): Promise<void> {
       }
     }
   }
-  if (res.code) remoteFail(c, res.code);
+  if (res.code) remoteFail(c, res.code, res.status);
   c.io.log('');
   c.io.log(t('catalog.remote.readOnly'));
 }

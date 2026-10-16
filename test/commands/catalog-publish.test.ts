@@ -388,6 +388,22 @@ describe('catalog publish', () => {
     ]);
   });
 
+  it('names the HTTP status of an answer it has no message for (IN-06)', async () => {
+    const env = { CCINFOBAR_MARKETPLACE_URL: 'https://market.example.com' };
+    const f = fakeFetch([new Response('down', { status: 503 })]);
+    const r = await run(['list', '--remote'], { env, fetch: f.fetch });
+    expect(r.code).toBe(1);
+    expect(r.err).toEqual(['Could not read the marketplace: The marketplace answered with HTTP 503']);
+    await saveMine();
+    const g = fakeFetch([new Response('teapot', { status: 418 })]);
+    const p = await run(['publish', '--yes'], { env, fetch: g.fetch });
+    expect(p.err).toEqual(['Publishing failed: The marketplace answered with HTTP 418']);
+    const tr = await withLangAsync('tr', () =>
+      run(['list', '--remote'], { env, fetch: fakeFetch([new Response('', { status: 503 })]).fetch }),
+    );
+    expect(tr.err).toEqual(['Pazar yeri okunamadı: Pazar yeri HTTP 503 ile yanıt verdi']);
+  });
+
   it('publishes even with CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC set', async () => {
     await saveMine();
     const s = await server();

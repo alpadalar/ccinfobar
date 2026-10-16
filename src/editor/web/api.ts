@@ -209,5 +209,6 @@ export const api = {
       latest: { version: number; content: EntryContent; targets: { kind: string; target: string }[] } | null;
       code?: string;
       errorId?: string;
+      errorParams?: { status?: number };
     }>('GET', `/api/catalog/remote/${id.split('/').map(encodeURIComponent).join('/')}`),
 };

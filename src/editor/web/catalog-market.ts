@@ -69,7 +69,12 @@ function resultText(r: PublishResultInfo, item: PlanItem | undefined): string[] 
   if (!r.ok) {
     if (r.code === 'withdrawn' && item?.action !== 'withdraw')
       return [t('catalog.publish.reserved', { name })];
-    return [t('catalog.publish.failed', { name, reason: idText(r.errorId, null, unknownReason()) })];
+    return [
+      t('catalog.publish.failed', {
+        name,
+        reason: idText(r.errorId, r.errorParams ?? null, unknownReason()),
+      }),
+    ];
   }
   const id = shown(r.remoteId ?? '');
   const out = [
@@ -358,7 +363,13 @@ export async function remoteEntryDialog(id: string): Promise<void> {
       );
   }
   if (info.errorId)
-    body.push(h('div', { class: 'form-error', role: 'alert' }, idText(info.errorId, null, unknownReason())));
+    body.push(
+      h(
+        'div',
+        { class: 'form-error', role: 'alert' },
+        idText(info.errorId, info.errorParams ?? null, unknownReason()),
+      ),
+    );
   body.push(h('p', { class: 'hint' }, t('catalog.remote.readOnly')));
   await modal({
     title: shown(e.name || e.id),

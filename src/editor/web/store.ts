@@ -158,6 +158,7 @@ export interface PublishResultInfo {
   remoteId: string | null;
   version: number | null;
   errorId: string | null;
+  errorParams?: { status?: number };
 }
 
 export interface MarketSummaryInfo {

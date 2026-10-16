@@ -327,6 +327,21 @@ describe('editor publish routes', () => {
   });
 });
 
+describe('editor marketplace HTTP status (IN-06)', () => {
+  it('sends market.error.http with the status', async () => {
+    process.env.CCINFOBAR_MARKETPLACE_URL = 'https://market.example.com';
+    vi.spyOn(globalThis, 'fetch').mockImplementation(fakeFetch([new Response('', { status: 503 })]).fetch);
+    const res = await request('GET', '/api/catalog/remote');
+    expect(res.status).toBe(502);
+    expect(res.json()).toMatchObject({
+      code: 'http',
+      errorId: 'market.error.http',
+      errorParams: { status: 503 },
+      error: 'The marketplace answered with HTTP 503',
+    });
+  });
+});
+
 describe('editor remote browse routes', () => {
   it('lists published entries and shows versions with consent targets', async () => {
     await market();

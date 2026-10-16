@@ -383,11 +383,11 @@ type PlanItem = ReturnType<Market['publishPlan']>[number];
 type Skip = { id: string; reason: 'not-shared' | 'up-to-date' | 'withdrawn' };
 
 // market codes; read failures are a bad gateway
-function marketError(code: string | null, id: MessageId): HttpError {
+function marketError(code: string | null, id: MessageId, status?: number): HttpError {
   if (code === 'no-endpoint') return httpError(409, 'err.catalog.noEndpoint');
-  const status =
+  const http =
     code === 'not-found' ? 404 : code === 'handle-taken' ? 409 : code === 'bad-endpoint' ? 400 : 502;
-  return httpError(status, id, undefined, { code });
+  return httpError(http, id, status === undefined ? undefined : { status }, { code });
 }
 
 const clean = (v: unknown): string => sanitizeText(typeof v === 'string' ? v : '');
@@ -713,7 +713,8 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     const { ids, skipped } = publishRefs(refs);
     const m = await loadMarket();
     const review = await m.reviewPublish(ids);
-    if (review.code && review.code !== 'read-only') throw marketError(review.code, m.reasonId(review.code));
+    if (review.code && review.code !== 'read-only')
+      throw marketError(review.code, m.reasonId(review.code), review.status);
     const entries = listEntries().filter((e) => ids === null || ids.includes(e.id));
     const plan: PlanItem[] = [];
     for (const item of review.plan) {
@@ -851,7 +852,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         throw httpError(400, 'catalog.remote.badId', { ref: clean(parts.join('/') || raw.join('/')) });
       const m = await loadMarket();
       const out = await m.remoteShow(parts.join('/'));
-      if (!out.entry) throw marketError(out.code, m.reasonId(out.code));
+      if (!out.entry) throw marketError(out.code, m.reasonId(out.code), out.status);
       const v = out.latest;
       send(res, 200, {
         entry: out.entry,
@@ -860,7 +861,13 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           content: v.content,
           targets: v.targets.map((x) => ({ kind: x.kind, target: x.target })),
         },
-        ...(out.code ? { code: out.code, errorId: m.reasonId(out.code) } : {}),
+        ...(out.code
+          ? {
+              code: out.code,
+              errorId: m.reasonId(out.code),
+              ...(out.status ? { errorParams: { status: out.status } } : {}),
+            }
+          : {}),
       });
       return;
     }
@@ -1106,12 +1113,17 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         // send only what was reviewed; runPublish also checks each entry rev
         if (body.planHash !== view.planHash) throw httpError(409, 'err.catalog.planChanged', undefined, view);
         const out = await m.runPublish(review);
-        if (out.code !== null && out.code !== 'read-only') throw marketError(out.code, m.reasonId(out.code));
+        if (out.code !== null && out.code !== 'read-only')
+          throw marketError(out.code, m.reasonId(out.code), out.status);
         send(res, 200, {
           ok: true,
           code: out.code,
           ...(out.submitUrl ? { submitUrl: out.submitUrl } : {}),
-          results: out.results.map((r) => ({ ...r, errorId: r.code === null ? null : m.reasonId(r.code) })),
+          results: out.results.map((r) => ({
+            ...r,
+            errorId: r.code === null ? null : m.reasonId(r.code),
+            ...(r.status ? { errorParams: { status: r.status } } : {}),
+          })),
           catalog: catalogBody(diskLang(body.lang)),
         });
         return;
@@ -1120,7 +1132,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const endpoint = needEndpoint();
         const m = await loadMarket();
         const out = await m.remoteList();
-        if (out.code) throw marketError(out.code, m.reasonId(out.code));
+        if (out.code) throw marketError(out.code, m.reasonId(out.code), out.status);
         send(res, 200, { endpoint: clean(endpoint), entries: out.entries });
         return;
       }

@@ -58,6 +58,7 @@ export interface PublishResult {
   code: string | null;
   remoteId: string | null;
   version: number | null;
+  status?: number;
 }
 
 export interface PublishDeps {
@@ -76,6 +77,7 @@ export interface Registration {
 // what the user reviews; runPublish sends exactly this
 export interface PublishReview {
   code: string | null;
+  status?: number;
   submitUrl?: string;
   endpoint: string;
   overwrite: boolean;
@@ -174,6 +176,14 @@ function codeOf(err: unknown): string {
   return e && e.name === 'MarketError' && typeof e.code === 'string' ? e.code : 'unknown';
 }
 
+// an unmapped answer keeps its HTTP status for the message
+function statusOf(err: unknown): { status?: number } {
+  const e = err as { name?: unknown; code?: unknown; status?: unknown } | null;
+  return e && e.name === 'MarketError' && e.code === 'http' && typeof e.status === 'number'
+    ? { status: e.status }
+    : {};
+}
+
 function envOf(deps: PublishDeps) {
   const env = deps.env ?? process.env;
   return { env, dir: deps.dir ?? catalogDir(env) };
@@ -252,7 +262,7 @@ export async function reviewPublish(ids: string[] | null, deps: PublishDeps = {}
       return { code: 'read-only', ...(meta.submitUrl ? { submitUrl: meta.submitUrl } : {}), ...none };
     overwrite = meta.capabilities.overwrite;
   } catch (err) {
-    return { code: codeOf(err), ...none };
+    return { code: codeOf(err), ...statusOf(err), ...none };
   }
   const plan = publishPlan(entries, endpoint, { overwrite }, every);
   const token = readCredential(anon.endpoint, dir);
@@ -295,9 +305,14 @@ const notSent = (item: PublishItem): PublishResult => ({
 export async function runPublish(
   review: PublishReview,
   deps: PublishDeps = {},
-): Promise<{ code: string | null; submitUrl?: string; results: PublishResult[] }> {
+): Promise<{ code: string | null; status?: number; submitUrl?: string; results: PublishResult[] }> {
   if (review.code)
-    return { code: review.code, ...(review.submitUrl ? { submitUrl: review.submitUrl } : {}), results: [] };
+    return {
+      code: review.code,
+      ...(review.status ? { status: review.status } : {}),
+      ...(review.submitUrl ? { submitUrl: review.submitUrl } : {}),
+      results: [],
+    };
   const { env, dir } = envOf(deps);
   const endpoint = marketEndpoint(env, dir);
   if (!endpoint) return { code: 'no-endpoint', results: [] };
@@ -324,7 +339,7 @@ export async function runPublish(
       token = reg.token;
     } catch (err) {
       const c = codeOf(err);
-      return { code: c === 'conflict' ? 'handle-taken' : c, results: [] };
+      return { code: c === 'conflict' ? 'handle-taken' : c, ...statusOf(err), results: [] };
     }
   }
   const client = createMarketClient({ endpoint, fetch: fetchFn, token });
@@ -360,7 +375,7 @@ export async function runPublish(
     } catch (err) {
       const code = codeOf(err);
       record(item.id, item.rev, (x) => markError(x, code), dir, now());
-      res = { id: item.id, ok: false, code, remoteId: item.remoteId, version: null };
+      res = { id: item.id, ok: false, code, remoteId: item.remoteId, version: null, ...statusOf(err) };
     }
     results.push(res);
   }
@@ -383,20 +398,25 @@ async function reader(deps: PublishDeps): Promise<{ client: MarketClient | null;
 
 export async function remoteList(
   deps: PublishDeps = {},
-): Promise<{ code: string | null; entries: MarketSummary[] }> {
+): Promise<{ code: string | null; status?: number; entries: MarketSummary[] }> {
   const { client, code } = await reader(deps);
   if (!client) return { code, entries: [] };
   try {
     return { code: null, entries: (await client.index()).entries.filter((e) => !e.withdrawn) };
   } catch (err) {
-    return { code: codeOf(err), entries: [] };
+    return { code: codeOf(err), ...statusOf(err), entries: [] };
   }
 }
 
 export async function remoteShow(
   id: string,
   deps: PublishDeps = {},
-): Promise<{ code: string | null; entry: MarketEntry | null; latest: (MarketVersion & Received) | null }> {
+): Promise<{
+  code: string | null;
+  status?: number;
+  entry: MarketEntry | null;
+  latest: (MarketVersion & Received) | null;
+}> {
   const { client, code } = await reader(deps);
   if (!client) return { code, entry: null, latest: null };
   if (!isRemoteId(id)) return { code: 'invalid', entry: null, latest: null };
@@ -404,7 +424,7 @@ export async function remoteShow(
   try {
     entry = await client.entry(id);
   } catch (err) {
-    return { code: codeOf(err), entry: null, latest: null };
+    return { code: codeOf(err), ...statusOf(err), entry: null, latest: null };
   }
   if (entry.withdrawn) return { code: null, entry, latest: null };
   const want = entry.versions.find((v) => v.version === entry.version)?.hash;
@@ -412,6 +432,6 @@ export async function remoteShow(
   try {
     return { code: null, entry, latest: await client.version(id, entry.version, entry.kind, want) };
   } catch (err) {
-    return { code: codeOf(err), entry, latest: null };
+    return { code: codeOf(err), ...statusOf(err), entry, latest: null };
   }
 }
