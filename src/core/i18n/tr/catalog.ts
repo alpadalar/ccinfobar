@@ -192,6 +192,8 @@ export const catalogMessages = {
   'err.catalog.planChanged': 'Girdiler siz inceledikten sonra değişti; yeniden inceleyin',
   'market.error.invalid': 'Pazar yeri girdiyi geçersiz buldu ve reddetti',
   'market.error.too-large': 'Girdi pazar yeri için çok büyük',
+  'market.error.over-quota':
+    'Pazar yeri sınırına ulaşıldı (girdi, geri çekilen girdi, sürüm veya yayıncı sayısı); hiçbir şey eklenmedi',
   'market.error.conflict': 'Pazar yerinde bu adla bir girdi zaten var',
   'market.error.stale': 'Bu arada daha yeni bir sürüm yayımlandı; yeniden yükleyip tekrar deneyin',
   'market.error.forbidden': 'Pazar yeri buna izin vermedi',

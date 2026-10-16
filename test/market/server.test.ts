@@ -202,14 +202,13 @@ describe('reference market server', () => {
     expect(r.status).toBe(200);
     expect(r.json()).toEqual({ id: 'alp/mine', withdrawn: true });
     const index = parseIndex((await request('GET', '/v1/index.json')).json())!;
-    expect(index.entries).toEqual([expect.objectContaining({ id: 'alp/mine', withdrawn: true, version: 2 })]);
+    expect(index.entries).toEqual([]);
     const entry = (await request('GET', '/v1/entries/alp/mine.json')).json();
     expect(entry).toMatchObject({ withdrawn: true, withdrawnAt: '2026-10-16T12:01:00.000Z' });
     expect(entry.versions.map((v: any) => v.version)).toEqual([1, 2]);
     // WR-08: no name, description, author or notes stay public
     expect(entry).toMatchObject({ name: '', description: '', author: '', publisher: 'alp', kind: 'preset' });
     expect(entry.versions.map((v: any) => v.note)).toEqual(['', '']);
-    expect(index.entries[0]).toMatchObject({ name: '', description: '', author: '' });
     const raw = fs.readFileSync(file('v1', 'entries', 'alp', 'mine.json'), 'utf8');
     const indexRaw = fs.readFileSync(file('v1', 'index.json'), 'utf8');
     for (const text of [raw, indexRaw]) expect(text).not.toMatch(/Name mine|"desc"|"Alp"|"first"|"two"/);
@@ -241,7 +240,8 @@ describe('reference market server', () => {
     expect((await request('DELETE', '/v1/entries/alp/mine', { token: alp })).status).toBe(200);
     await restart();
     const idx = parseIndex((await request('GET', '/v1/index.json')).json())!;
-    expect(idx.entries[0]?.withdrawn).toBe(true);
+    expect(idx.entries).toEqual([]);
+    expect((await request('GET', '/v1/entries/alp/mine.json')).json().withdrawn).toBe(true);
     expect((await request('GET', '/v1/entries/alp/mine/1.json')).status).toBe(410);
   });
 
@@ -349,7 +349,7 @@ describe('reference market server', () => {
     const b = await register('bob');
     const third = await request('POST', '/v1/publishers', { body: { handle: 'cem' } });
     expect(third.status).toBe(413);
-    expect(third.json()).toEqual({ error: { code: 'too-large', message: 'too many publishers' } });
+    expect(third.json()).toEqual({ error: { code: 'over-quota', message: 'too many publishers' } });
     expect(fs.existsSync(file('private', 'publishers', 'cem.json'))).toBe(false);
 
     for (const s of ['one', 'two']) {
@@ -372,6 +372,35 @@ describe('reference market server', () => {
     const again = await request('POST', '/v1/entries', { token: b, body: publishBody('two') });
     expect(again.json().error.message).toBe('too many entries');
     expect((await request('POST', '/v1/publishers', { body: { handle: 'cem' } })).status).toBe(413);
+  });
+
+  it('a publish and withdraw loop stops at the tombstone caps, also after a restart', async () => {
+    const caps = { entriesPerPublisher: 2, tombstonesPerPublisher: 3, tombstones: 5 };
+    await restart({ caps, rateLimit: { perMinute: 1000 } });
+    const a = await register('alp');
+    const b = await register('bob');
+    const loop = async (token: string, who: string, n: number) => {
+      for (let i = 0; i < n; i++) {
+        const r = await request('POST', '/v1/entries', { token, body: publishBody(`x${i}`) });
+        if (r.status !== 201) return r;
+        expect((await request('DELETE', `/v1/entries/${who}/x${i}`, { token })).status).toBe(200);
+      }
+      return null;
+    };
+    const stopped = (await loop(a, 'alp', 10))!;
+    expect(stopped.status).toBe(413);
+    expect(stopped.json()).toEqual({
+      error: { code: 'over-quota', message: 'too many withdrawn entries for this publisher' },
+    });
+    const tombs = () => fs.readdirSync(file('v1', 'entries', 'alp')).filter((f) => f.endsWith('.json'));
+    expect(tombs()).toHaveLength(3);
+    await restart({ caps, rateLimit: { perMinute: 1000 } });
+    expect((await request('POST', '/v1/entries', { token: a, body: publishBody('y') })).status).toBe(413);
+    // withdraw always works: a live entry may still be withdrawn at the cap
+    const g = (await loop(b, 'bob', 10))!;
+    expect(g.json().error.message).toBe('too many withdrawn entries');
+    expect(fs.readdirSync(file('v1', 'entries', 'bob')).filter((f) => f.endsWith('.json'))).toHaveLength(2);
+    expect((await request('GET', '/v1/index.json')).json().entries).toEqual([]);
   });
 
   it('a write updates the index without reading other entry files', async () => {
@@ -406,12 +435,11 @@ describe('reference market server', () => {
       spy.mockRestore();
     }
     const index = parseIndex((await request('GET', '/v1/index.json')).json())!;
-    // tombstones go after the live entries
+    // the withdrawn alp/aa stays out of the index
     expect(index.entries.map((e) => [e.id, e.version, e.withdrawn ?? false])).toEqual([
       ['alp/bb', 1, false],
       ['alp/cc', 1, false],
       ['alp/dd', 1, false],
-      ['alp/aa', 2, true],
     ]);
     const before = fs.readFileSync(file('v1', 'index.json'), 'utf8');
     await restart();

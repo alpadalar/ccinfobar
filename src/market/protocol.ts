@@ -35,6 +35,7 @@ export const RESPONSE_CAPS = {
 export const ERROR_CODES = [
   'invalid',
   'too-large',
+  'over-quota',
   'conflict',
   'stale',
   'forbidden',

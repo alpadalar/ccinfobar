@@ -183,6 +183,8 @@ export const catalogMessages = {
   'err.catalog.planChanged': 'The entries changed since you reviewed them; review again',
   'market.error.invalid': 'The marketplace rejected the entry as not valid',
   'market.error.too-large': 'The entry is too large for the marketplace',
+  'market.error.over-quota':
+    'The marketplace limit is reached (entries, withdrawn entries, versions or publishers); nothing was added',
   'market.error.conflict': 'The marketplace already has an entry with this name',
   'market.error.stale': 'A newer version was published meanwhile; reload and try again',
   'market.error.forbidden': 'The marketplace did not allow this',

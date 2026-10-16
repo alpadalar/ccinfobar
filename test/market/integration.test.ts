@@ -84,7 +84,8 @@ describe('market client against the reference server', () => {
       status: 410,
     });
     expect((await anon.entry('alp/mine')).withdrawn).toBe(true);
-    expect((await anon.index()).entries[0]?.withdrawn).toBe(true);
+    // tombstones stay out of the public index
+    expect((await anon.index()).entries).toEqual([]);
     await expect(
       client.publish({
         kind: 'preset',
@@ -262,7 +263,7 @@ describe('reference server filled to its caps', () => {
           refused = err;
         }
       }
-      expect(refused).toMatchObject({ code: 'too-large', status: 413 });
+      expect(refused).toMatchObject({ code: 'over-quota', status: 413 });
       expect(latest).toBeGreaterThan(100);
       const entry = await anon.entry(pub.id);
       expect(entry.versions).toHaveLength(latest);

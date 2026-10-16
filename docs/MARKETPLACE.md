@@ -25,9 +25,9 @@ All paths are relative to the endpoint, which may have a base path (`https://exa
 | List | `GET /v1/index.json`, then `GET /v1/index-<n>.json` while `next` is set | | `{ entries: Summary[], generatedAt, next? }` | `404` for a page that does not exist |
 | Entry and history | `GET /v1/entries/<publisher>/<slug>.json` | | Summary plus `versions: [{ version, at, note, hash }]` | `400 invalid`, `404 not-found` |
 | Version content | `GET /v1/entries/<publisher>/<slug>/<n>.json` | | `{ version, content, hash }` | `400`, `410 withdrawn`, `404` |
-| Register | `POST /v1/publishers` | `{ handle, displayName }` | `201 { handle, token }` | `400 invalid`, `409 conflict`, `413 too-large` |
-| Publish new | `POST /v1/entries` | `{ kind, slug, name, description, author, content, note }` | `201 { id, version: 1, hash }` | `401`, `400 invalid`, `409 conflict`, `413 too-large` |
-| New version | `POST /v1/entries/<publisher>/<slug>/versions` with `If-Match: "<latest version>"` | `{ content, note, name?, description? }` | `201 { id, version, hash }` | `401`, `404`, `403 forbidden`, `410 withdrawn`, `412 stale`, `400 invalid`, `413 too-large` |
+| Register | `POST /v1/publishers` | `{ handle, displayName }` | `201 { handle, token }` | `400 invalid`, `409 conflict`, `413 over-quota` |
+| Publish new | `POST /v1/entries` | `{ kind, slug, name, description, author, content, note }` | `201 { id, version: 1, hash }` | `401`, `400 invalid`, `409 conflict`, `413 over-quota` |
+| New version | `POST /v1/entries/<publisher>/<slug>/versions` with `If-Match: "<latest version>"` | `{ content, note, name?, description? }` | `201 { id, version, hash }` | `401`, `404`, `403 forbidden`, `410 withdrawn`, `412 stale`, `400 invalid`, `413 over-quota` |
 | Overwrite latest | `PUT /v1/entries/<publisher>/<slug>/versions/<n>` | `{ content, note, name?, description? }` | `200 { id, version, hash }` | `401`, `403 overwrite-disabled`, `404`, `403 forbidden`, `410`, `409 conflict` (n is not the latest), `400 invalid` |
 | Withdraw | `DELETE /v1/entries/<publisher>/<slug>` | | `200 { id, withdrawn: true }` (also when repeated) | `401`, `404`, `403 forbidden` |
 
@@ -35,7 +35,7 @@ Every request can get `429 rate-limited`. Every write can also answer `415 unsup
 
 - **Summary**: `{ id, kind, name, description, author, publisher, version, updatedAt, hash, withdrawn? }`. `publisher` must equal the first part of `id`, or the client drops the row.
 - **Index pages**: `index.json` holds at most 500 summaries. When there are more, `next` names the next page relative to `v1/` (`index-2.json`, then `index-3.json`), up to `index-10.json` (5000 entries). A page may only link to the page right after it; any other `next` ends the list, and the client stops at 5000 entries. A static host serves the pages as plain files.
-- **Withdraw** is soft. The entry file stays as a tombstone with `withdrawn: true` that keeps only the id, kind, publisher, version numbers, times and hashes; the name, description, author and version notes are blanked in the tombstone and the index, because they are personal data. Version content answers `410`, and the id stays reserved: publishing the same slug again gives `409`. A tombstone summary is the only one that may have an empty name. The index lists tombstones after the live entries, so they never push a live entry past the 5000-entry limit.
+- **Withdraw** is soft. The entry file stays as a tombstone with `withdrawn: true` that keeps only the id, kind, publisher, version numbers, times and hashes; the name, description, author and version notes are blanked in the tombstone and the index, because they are personal data. Version content answers `410`, and the id stays reserved: publishing the same slug again gives `409`. The reference server leaves tombstones out of the index, so withdrawing never grows it; a static host that lists them must mark them `withdrawn: true`, and only such a summary may have an empty name.
 - **Overwrite** is allowed only when `capabilities.overwrite` is true. When a server answers `403 overwrite-disabled`, ccinfobar sends a new version instead.
 
 ### Ids and versions
@@ -79,7 +79,7 @@ A server advertises its limits in `meta.json` `limits`.
 
 ### Errors
 
-Error bodies are `{ "error": { "code": "<code>", "message": "<text>" } }`. Codes: `invalid`, `too-large`, `conflict`, `stale`, `forbidden`, `not-found`, `withdrawn`, `rate-limited`, `overwrite-disabled`, `unsupported-media`, `unauthorized` (`ERROR_CODES`). The reference server also answers `500 internal`. `429` carries `Retry-After` in seconds. Static hosts answer without a JSON body, so the client maps the status (`404` to `not-found`, `429` to `rate-limited`, and so on). The client keeps only the code; server messages are never shown.
+Error bodies are `{ "error": { "code": "<code>", "message": "<text>" } }`. Codes: `invalid`, `too-large` (a body or content over its size limit), `over-quota` (a count limit: publishers, entries, withdrawn entries or versions), `conflict`, `stale`, `forbidden`, `not-found`, `withdrawn`, `rate-limited`, `overwrite-disabled`, `unsupported-media`, `unauthorized` (`ERROR_CODES`). The reference server also answers `500 internal`. `429` carries `Retry-After` in seconds. Static hosts answer without a JSON body, so the client maps the status (`404` to `not-found`, `429` to `rate-limited`, and so on). The client keeps only the code; server messages are never shown.
 
 ## Client
 
@@ -144,8 +144,9 @@ Withdrawing deletes the version content files and keeps a blanked tombstone, so 
 | Publisher registration | 5 per minute per IP |
 | Rate limiter table | 50,000 keys, cleared every minute; a full table answers `429` (fails closed) |
 | Publishers | 10,000 |
-| Entries | 5000 in total, 200 per publisher (`413 too-large`, also after a restart). Withdrawn entries do not count, but their ids stay reserved |
-| Versions | 5000 per entry; a new version or overwrite that would make the entry document larger than 320 KiB answers `413 too-large` |
+| Entries | 5000 live entries in total, 200 per publisher (`413 over-quota`, also after a restart) |
+| Withdrawn entries | Their ids stay reserved and count separately: 50,000 in total, 1000 per publisher. At either cap a new publish answers `413 over-quota`; withdrawing always works, so a publisher has at most 1000 + 200 tombstones. Both caps are options of `startMarketServer` (`caps.tombstones`, `caps.tombstonesPerPublisher`) |
+| Versions | 5000 per entry; a new version or overwrite that would make the entry document larger than 320 KiB answers `413 over-quota` |
 | Request body | 1 MiB; bodies up to 4 MiB are drained so the `413` reaches the client, a declared size over 4 MiB gets `413` at once, and a stream past 4 MiB is cut off |
 | Connections | 256 at once; request timeout 30 s, header timeout 15 s, keep-alive 5 s |
 
@@ -210,7 +211,7 @@ This is not legal advice; check with someone qualified before going live.
 - The author field is optional free text: prefilled from the last save, editable, and it can be blank.
 - The publisher handle is separate from the author. With GitHub-based auth it would be the GitHub login, which is already public.
 - ccinfobar sends only the payload it shows: the name, description, author, note and content. No machine ids, paths, personal settings or telemetry.
-- Withdrawing an entry removes its name, description, author and version notes from the published files (the tombstone and the index). With option A, git history and forks still keep them.
+- Withdrawing an entry removes its name, description, author and version notes from the published files (the tombstone keeps none, and the index does not list it). With option A, git history and forks still keep them.
 - Go-live needs a public note that published content is public, and a way to request removal.
 
 ## Recommendation

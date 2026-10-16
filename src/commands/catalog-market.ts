@@ -21,6 +21,7 @@ import { type Ctx, clean, find, GROUPS, KINDS, kindWord, when } from './catalog.
 const REASONS: Record<string, MessageId> = {
   invalid: 'market.error.invalid',
   'too-large': 'market.error.too-large',
+  'over-quota': 'market.error.over-quota',
   conflict: 'market.error.conflict',
   stale: 'market.error.stale',
   forbidden: 'market.error.forbidden',

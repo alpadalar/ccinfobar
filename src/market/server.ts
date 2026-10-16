@@ -36,7 +36,13 @@ export interface MarketServerOpts {
   port?: number;
   allowOverwrite?: boolean;
   rateLimit?: { perMinute: number; readsPerMinute?: number; registersPerMinute?: number };
-  caps?: { publishers?: number; entries?: number; entriesPerPublisher?: number };
+  caps?: {
+    publishers?: number;
+    entries?: number;
+    entriesPerPublisher?: number;
+    tombstones?: number;
+    tombstonesPerPublisher?: number;
+  };
   maxConnections?: number;
   name?: string;
   now?: () => number;
@@ -47,7 +53,14 @@ const WINDOW_MS = 60_000;
 const MAX_KEYS = 50_000;
 const READS_FACTOR = 20;
 const DRAIN_LIMIT = 4 * MARKET_LIMITS.maxBodyBytes;
-const CAPS = { publishers: 10_000, entries: 5000, entriesPerPublisher: 200 };
+// live entries and tombstones have their own caps, so publish and withdraw cannot loop forever
+const CAPS = {
+  publishers: 10_000,
+  entries: 5000,
+  entriesPerPublisher: 200,
+  tombstones: 50_000,
+  tombstonesPerPublisher: 1000,
+};
 const REGISTERS_PER_MINUTE = 5;
 const TOKEN_RE = /^Bearer ([0-9a-f]{64})$/;
 const DIGEST_RE = /^[0-9a-f]{64}$/;
@@ -65,6 +78,7 @@ const PAGE_RE = /^\/v1\/index-([1-9][0-9]{0,3})\.json$/;
 const MESSAGES: Record<string, string> = {
   invalid: 'invalid request',
   'too-large': 'request too large',
+  'over-quota': 'limit reached',
   conflict: 'already exists',
   stale: 'not the latest version',
   forbidden: 'not your entry',
@@ -266,7 +280,7 @@ export async function startMarketServer(
   // an entry document must stay readable by the client
   function fits(e: MarketEntry): void {
     if (Buffer.byteLength(JSON.stringify(e)) + 1 > RESPONSE_CAPS.document) {
-      throw fail(413, 'too-large', 'version history too large');
+      throw fail(413, 'over-quota', 'version history too large');
     }
   }
 
@@ -289,12 +303,13 @@ export async function startMarketServer(
     return as < bs ? -1 : as > bs ? 1 : 0;
   };
 
-  // pages of INDEX_PAGE, each linking the next; tombstones go last, so
-  // they never push a live entry past MAX_INDEX
+  // pages of INDEX_PAGE, each linking the next; tombstones stay out, so
+  // withdrawing never grows the public index
   function writeIndex(): void {
-    const all = [...summaries.values()];
-    const live = all.filter((x) => !x.withdrawn).sort(order);
-    const entries = [...live, ...all.filter((x) => x.withdrawn).sort(order)].slice(0, MAX_INDEX);
+    const entries = [...summaries.values()]
+      .filter((x) => !x.withdrawn)
+      .sort(order)
+      .slice(0, MAX_INDEX);
     const pages = Math.max(1, Math.ceil(entries.length / INDEX_PAGE));
     const generatedAt = iso();
     for (let n = 1; n <= pages; n++) {
@@ -494,7 +509,7 @@ export async function startMarketServer(
     if (dn !== undefined && typeof dn !== 'string') throw fail(400, 'invalid', 'invalid displayName');
     const name = [...sanitizeText(dn ?? '').trim()].slice(0, MARKET_LIMITS.displayName).join('').trim();
     if (fs.existsSync(publisherFile(handle))) throw fail(409, 'conflict');
-    if (tokens.size >= caps.publishers) throw fail(413, 'too-large', 'too many publishers');
+    if (tokens.size >= caps.publishers) throw fail(413, 'over-quota', 'too many publishers');
     const token = randomBytes(32).toString('hex');
     const tokenSha256 = sha256(token);
     writeJson(
@@ -513,17 +528,27 @@ export async function startMarketServer(
     checkContent(payload.kind, payload.content);
     const s = payload.slug;
     if (fs.existsSync(entryFile(handle, s))) throw fail(409, 'conflict');
-    // withdrawn slugs stay reserved but do not count
+    // withdrawn slugs stay reserved and count against the tombstone caps
     let live = 0;
     let mine = 0;
+    let tombs = 0;
+    let myTombs = 0;
     for (const x of summaries.values()) {
-      if (x.withdrawn) continue;
-      live++;
-      if (x.publisher === handle) mine++;
+      const own = x.publisher === handle;
+      if (x.withdrawn) {
+        tombs++;
+        if (own) myTombs++;
+      } else {
+        live++;
+        if (own) mine++;
+      }
     }
-    if (live >= caps.entries) throw fail(413, 'too-large', 'too many entries');
-    if (mine >= caps.entriesPerPublisher) {
-      throw fail(413, 'too-large', 'too many entries for this publisher');
+    if (live >= caps.entries) throw fail(413, 'over-quota', 'too many entries');
+    if (mine >= caps.entriesPerPublisher)
+      throw fail(413, 'over-quota', 'too many entries for this publisher');
+    if (tombs >= caps.tombstones) throw fail(413, 'over-quota', 'too many withdrawn entries');
+    if (myTombs >= caps.tombstonesPerPublisher) {
+      throw fail(413, 'over-quota', 'too many withdrawn entries for this publisher');
     }
     const id = `${handle}/${s}`;
     const at = iso();
@@ -563,7 +588,7 @@ export async function startMarketServer(
     const payload = parseVersionPayload(body);
     if (!payload) throw fail(400, 'invalid');
     checkContent(entry.kind, payload.content);
-    if (entry.versions.length >= MAX_VERSIONS) throw fail(413, 'too-large', 'too many versions');
+    if (entry.versions.length >= MAX_VERSIONS) throw fail(413, 'over-quota', 'too many versions');
     const version = entry.version + 1;
     const at = iso();
     const hash = sha256(canonicalJson(payload.content));
