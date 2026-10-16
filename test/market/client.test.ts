@@ -10,7 +10,7 @@ import {
   MarketError,
   validateReceived,
 } from '../../src/market/client.js';
-import { canonicalJson } from '../../src/market/protocol.js';
+import { canonicalJson, RESPONSE_CAPS } from '../../src/market/protocol.js';
 import { fakeFetch, json, redirect, streamed } from '../fake-fetch.js';
 
 const BASE = 'https://m.example';
@@ -360,8 +360,21 @@ describe('market client', () => {
     const { c } = client([new Response(big.body, { status: 200 }), json({ entries: [] })], { capBytes: 8 });
     expect((await failure(c.index())).code).toBe('too-large');
     expect((await failure(c.index())).code).toBe('too-large');
-    const d = client([new Response(streamed([`{"entries":[],"x":"${'y'.repeat(260 * 1024)}"}`]).body)]);
+    const d = client([new Response(streamed([`{"entries":[],"x":"${'y'.repeat(1025 * 1024)}"}`]).body)]);
     expect((await failure(d.c.index())).code).toBe('too-large');
+  });
+
+  it('caps each document by kind: index pages 1 MiB, entries and versions 320 KiB, others 256 KiB', async () => {
+    const pad = (n: number) => 'y'.repeat(n * 1024);
+    const ok = client([json({ entries: [], x: pad(900) })]);
+    expect((await ok.c.index()).entries).toEqual([]);
+    const meta = client([json({ protocol: 1, name: 'm', capabilities: {}, x: pad(300) })]);
+    expect((await failure(meta.c.meta())).code).toBe('too-large');
+    const big = client([json({ version: 1, hash: 'a'.repeat(64), content: {}, x: pad(330) })]);
+    expect((await failure(big.c.version('a/b', 1, 'preset'))).code).toBe('too-large');
+    const fitting = client([json({ version: 1, hash: 'a'.repeat(64), content: {}, x: pad(300) })]);
+    expect((await failure(fitting.c.version('a/b', 1, 'preset'))).code).not.toBe('too-large');
+    expect(RESPONSE_CAPS).toEqual({ index: 1024 * 1024, document: (256 + 64) * 1024 });
   });
 
   it('timeouts fail with a fixed code', async () => {

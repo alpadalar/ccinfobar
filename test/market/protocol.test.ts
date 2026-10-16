@@ -7,9 +7,11 @@ import {
   entriesPath,
   entryPath,
   ID_PART_RE,
+  INDEX_PAGE,
   indexPath,
   isRemoteId,
   MARKET_LIMITS,
+  MAX_PAGES,
   metaPath,
   PROTOCOL_VERSION,
   parseErrorBody,
@@ -61,6 +63,8 @@ describe('market protocol', () => {
     expect(PROTOCOL_VERSION).toBe(1);
     expect(metaPath()).toBe('/v1/meta.json');
     expect(indexPath()).toBe('/v1/index.json');
+    expect(indexPath(1)).toBe('/v1/index.json');
+    expect(indexPath(2)).toBe('/v1/index-2.json');
     expect(entryPath('alp/nord-cockpit')).toBe('/v1/entries/alp/nord-cockpit.json');
     expect(versionPath('alp/x', 3)).toBe('/v1/entries/alp/x/3.json');
     expect(versionPath('alp/x', 3).endsWith('/x/3.json')).toBe(true);
@@ -136,6 +140,19 @@ describe('market protocol', () => {
     expect(parseIndex({ entries: 'x' })).toBeNull();
     expect(parseIndex(null)).toBeNull();
     expect(parseIndex([])).toBeNull();
+  });
+
+  it('parseIndex keeps a next link only to the following page, up to the last page (CR-03)', () => {
+    const next = (link: unknown, page?: number) => parseIndex({ entries: [], next: link }, page)?.next;
+    expect(next('index-2.json')).toBe('index-2.json');
+    expect(next('index-4.json', 3)).toBe('index-4.json');
+    expect(next('index-3.json')).toBeUndefined();
+    expect(next('index.json')).toBeUndefined();
+    expect(next('../index-2.json')).toBeUndefined();
+    expect(next('https://evil.example/index-2.json')).toBeUndefined();
+    expect(next(2)).toBeUndefined();
+    expect(next('index-11.json', MAX_PAGES)).toBeUndefined();
+    expect(MAX_PAGES * INDEX_PAGE).toBe(5000);
   });
 
   it('parseIndex drops bad summaries and caps the list', () => {

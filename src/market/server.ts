@@ -10,8 +10,11 @@ import {
   contentProblems,
   entriesPath,
   ID_PART_RE,
+  INDEX_PAGE,
+  indexFile,
   indexPath,
   MARKET_LIMITS,
+  MAX_PAGES,
   type MarketEntry,
   type MarketMeta,
   type MarketSummary,
@@ -23,6 +26,7 @@ import {
   parseRemoteEntry,
   parseVersionPayload,
   publishersPath,
+  RESPONSE_CAPS,
 } from './protocol.js';
 
 export interface MarketServerOpts {
@@ -54,6 +58,7 @@ const VERSIONS_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)\/versions$/;
 const PUT_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)\/versions\/([^/]+)$/;
 const WITHDRAW_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)$/;
 const STAMP_RE = /^\d{4}-\d{2}-\d{2}T[0-9:.]+Z$/;
+const PAGE_RE = /^\/v1\/index-([1-9][0-9]{0,3})\.json$/;
 
 // fixed English, never echoes input
 const MESSAGES: Record<string, string> = {
@@ -226,11 +231,19 @@ export async function startMarketServer(
   const publisherFile = (h: string) => priv('publishers', `${h}.json`);
   const tokens = new Map<string, string>();
 
+  // public files stay compact so they fit the client caps
   function writeJson(file: string, data: unknown, secret = false): void {
-    writeAtomic(file, `${JSON.stringify(data, null, 2)}\n`, {
+    writeAtomic(file, `${secret ? JSON.stringify(data, null, 2) : JSON.stringify(data)}\n`, {
       class: 'settings',
       ...(secret ? { mode: 0o600 } : {}),
     });
+  }
+
+  // an entry document must stay readable by the client
+  function fits(e: MarketEntry): void {
+    if (Buffer.byteLength(JSON.stringify(e)) + 1 > RESPONSE_CAPS.document) {
+      throw fail(413, 'too-large', 'version history too large');
+    }
   }
 
   const meta: MarketMeta = {
@@ -253,9 +266,20 @@ export async function startMarketServer(
     return as < bs ? -1 : as > bs ? 1 : 0;
   };
 
+  // pages of INDEX_PAGE, each linking the next
   function writeIndex(): void {
     const entries = [...summaries.values()].sort(order);
-    writeJson(pub('index.json'), { entries, generatedAt: iso() });
+    const pages = Math.max(1, Math.ceil(entries.length / INDEX_PAGE));
+    const generatedAt = iso();
+    for (let n = 1; n <= pages; n++) {
+      const page = { entries: entries.slice((n - 1) * INDEX_PAGE, n * INDEX_PAGE), generatedAt };
+      writeJson(pub(indexFile(n)), n < pages ? { ...page, next: indexFile(n + 1) } : page);
+    }
+    for (let n = pages + 1; n <= MAX_PAGES; n++) {
+      try {
+        fs.rmSync(pub(indexFile(n)), { force: true });
+      } catch {}
+    }
   }
 
   // only the changed entry is updated, nothing is re-read
@@ -364,7 +388,6 @@ export async function startMarketServer(
     checkContent(entry.kind, payload.content);
     const at = iso();
     const hash = sha256(canonicalJson(payload.content));
-    writeJson(pub('entries', p, s, `${n}.json`), { version: n, content: payload.content, hash });
     const last = entry.versions.at(-1)!;
     const next: StoredEntry = {
       ...entry,
@@ -374,6 +397,8 @@ export async function startMarketServer(
       hash,
       versions: [...entry.versions.slice(0, -1), { ...last, note: payload.note, hash, overwrittenAt: at }],
     };
+    fits(next);
+    writeJson(pub('entries', p, s, `${n}.json`), { version: n, content: payload.content, hash });
     writeJson(entryFile(p, s), next);
     indexEntry(next);
     send(res, 200, { id: entry.id, version: n, hash });
@@ -414,6 +439,8 @@ export async function startMarketServer(
   function readPath(p: string): string {
     if (p === metaPath()) return pub('meta.json');
     if (p === indexPath()) return pub('index.json');
+    const page = PAGE_RE.exec(p);
+    if (page && Number(page[1]) >= 2 && Number(page[1]) <= MAX_PAGES) return pub(indexFile(Number(page[1])));
     const e = ENTRY_RE.exec(p);
     if (e) return entryFile(part(e[1]!), part(e[2]!));
     const v = VERSION_FILE_RE.exec(p);
@@ -504,7 +531,6 @@ export async function startMarketServer(
     const version = entry.version + 1;
     const at = iso();
     const hash = sha256(canonicalJson(payload.content));
-    writeVersion(p, s, { version, content: payload.content, hash });
     const next: MarketEntry = {
       ...entry,
       name: payload.name ?? entry.name,
@@ -514,6 +540,8 @@ export async function startMarketServer(
       hash,
       versions: [...entry.versions, { version, at, note: payload.note, hash }],
     };
+    fits(next);
+    writeVersion(p, s, { version, content: payload.content, hash });
     writeJson(entryFile(p, s), next);
     indexEntry(next);
     send(res, 201, { id: entry.id, version, hash });

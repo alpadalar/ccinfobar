@@ -21,6 +21,17 @@ export const MARKET_LIMITS = {
   displayName: 64,
 } as const;
 
+// index pages; a static host serves them as files
+export const INDEX_PAGE = 500;
+export const MAX_INDEX = 5000;
+export const MAX_PAGES = MAX_INDEX / INDEX_PAGE;
+
+// response caps per document, shared by client and server
+export const RESPONSE_CAPS = {
+  index: 1024 * 1024,
+  document: MARKET_LIMITS.maxEntryBytes + 64 * 1024,
+} as const;
+
 export const ERROR_CODES = [
   'invalid',
   'too-large',
@@ -36,7 +47,7 @@ export const ERROR_CODES = [
 ] as const;
 export type MarketErrorCode = (typeof ERROR_CODES)[number];
 
-const MAX_LIST = 5000;
+const MAX_LIST = MAX_INDEX;
 const MAX_AUTH = 8;
 const STAMP = 64;
 const HASH_RE = /^[0-9a-f]{64}$/;
@@ -95,6 +106,8 @@ export interface MarketSummary {
 export interface MarketIndex {
   entries: MarketSummary[];
   generatedAt: string;
+  // the next page, relative to v1/
+  next?: string;
 }
 
 export interface MarketVersionInfo {
@@ -149,7 +162,8 @@ function versionNo(n: number): number {
 }
 
 export const metaPath = () => '/v1/meta.json';
-export const indexPath = () => '/v1/index.json';
+export const indexFile = (page = 1) => (page === 1 ? 'index.json' : `index-${versionNo(page)}.json`);
+export const indexPath = (page = 1) => `/v1/${indexFile(page)}`;
 export const entriesPath = () => '/v1/entries';
 export const publishersPath = () => '/v1/publishers';
 
@@ -262,10 +276,13 @@ function parseSummary(raw: unknown): MarketSummary | null {
   return s;
 }
 
-export function parseIndex(raw: unknown): MarketIndex | null {
+// page n links only to page n + 1, so paging always ends
+export function parseIndex(raw: unknown, page = 1): MarketIndex | null {
   if (!isObject(raw)) return null;
   const list = own(raw, 'entries');
   if (!Array.isArray(list)) return null;
+  const link = own(raw, 'next');
+  const next = page < MAX_PAGES && link === indexFile(page + 1) ? link : null;
   const generatedAt = optText(own(raw, 'generatedAt'), STAMP) ?? '';
   const seen = new Set<string>();
   const entries: MarketSummary[] = [];
@@ -276,7 +293,7 @@ export function parseIndex(raw: unknown): MarketIndex | null {
     seen.add(s.id);
     entries.push(s);
   }
-  return { entries, generatedAt };
+  return next ? { entries, generatedAt, next } : { entries, generatedAt };
 }
 
 export function parseRemoteEntry(raw: unknown): MarketEntry | null {

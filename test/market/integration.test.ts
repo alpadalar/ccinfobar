@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { EntryContent } from '../../src/core/edit.js';
 import { contentHash, createMarketClient } from '../../src/market/client.js';
+import { canonicalJson } from '../../src/market/protocol.js';
 import { parseServeArgs, runServe } from '../../src/market/serve.js';
 import { startMarketServer } from '../../src/market/server.js';
 
@@ -174,4 +175,100 @@ describe('self-hosting entry', () => {
     }
     await expect(runServe(['--port', '0'], () => {})).rejects.toThrow('missing --data <dir>');
   });
+});
+
+// CR-03: everything the server accepts, the shipped client can read back
+describe('reference server filled to its caps', () => {
+  const wide = (ch: string, n: number) => ch.repeat(n);
+  const HASH = 'a'.repeat(64);
+  const at = '2026-10-16T10:00:00.000Z';
+
+  it('pages a 5000-entry index with the longest fields and the client reads all of it', async () => {
+    const data = path.join(dir, 'full');
+    for (let p = 0; p < 25; p++) {
+      const pub = `pub-${p}`;
+      fs.mkdirSync(path.join(data, 'v1', 'entries', pub), { recursive: true });
+      for (let i = 0; i < 200; i++) {
+        const slug = `entry-${i}`;
+        const entry = {
+          id: `${pub}/${slug}`,
+          kind: 'bundle',
+          name: wide('\u{1F600}', 64),
+          description: wide('\u{1F600}', 200),
+          author: wide('"', 64),
+          publisher: pub,
+          version: 1,
+          updatedAt: at,
+          hash: HASH,
+          versions: [{ version: 1, at, note: '', hash: HASH }],
+        };
+        fs.writeFileSync(path.join(data, 'v1', 'entries', pub, `${slug}.json`), JSON.stringify(entry));
+      }
+    }
+    const s = await startMarketServer({ dataDir: data });
+    try {
+      const pages = fs.readdirSync(path.join(data, 'v1')).filter((f) => /^index(-\d+)?\.json$/.test(f));
+      expect(pages.sort()).toEqual(
+        ['index-10.json', ...[2, 3, 4, 5, 6, 7, 8, 9].map((n) => `index-${n}.json`), 'index.json'].sort(),
+      );
+      for (const f of pages) expect(fs.statSync(path.join(data, 'v1', f)).size).toBeLessThan(1024 * 1024);
+      const first = await (await fetch(`${s.url}/v1/index.json`)).json();
+      expect(first.entries).toHaveLength(500);
+      expect(first.next).toBe('index-2.json');
+      const last = await (await fetch(`${s.url}/v1/index-10.json`)).json();
+      expect(last.next).toBeUndefined();
+      expect((await fetch(`${s.url}/v1/index-11.json`)).status).toBe(404);
+      const c = createMarketClient({ endpoint: s.url, fetch: globalThis.fetch });
+      const index = await c.index();
+      expect(index.entries).toHaveLength(5000);
+      expect(new Set(index.entries.map((e) => e.id)).size).toBe(5000);
+    } finally {
+      await s.close();
+    }
+  }, 60_000);
+
+  it('serves accepted content up to the content limit and a history up to the document cap', async () => {
+    const s = await startMarketServer({ dataDir: path.join(dir, 'big'), rateLimit: { perMinute: 100_000 } });
+    try {
+      const anon = createMarketClient({ endpoint: s.url, fetch: globalThis.fetch });
+      const { token } = await anon.register('alp', 'Alp');
+      const c = createMarketClient({ endpoint: s.url, fetch: globalThis.fetch, token });
+      const widget = (i: number) => ({ id: `w${i}`, type: 'text', options: { text: wide('x', 100) } });
+      const lines = [Array.from({ length: 1600 }, (_, i) => widget(i))];
+      const big = preset(lines);
+      const size = Buffer.byteLength(canonicalJson(big));
+      expect(size).toBeGreaterThan(200 * 1024);
+      expect(size).toBeLessThanOrEqual(256 * 1024);
+      const pub = await c.publish({
+        kind: 'preset',
+        slug: 'big',
+        name: 'Big',
+        description: '',
+        author: '',
+        content: big,
+        note: '',
+      });
+      const v = await anon.version(pub.id, 1, 'preset');
+      expect(v.hash).toBe(contentHash(big));
+
+      const small = preset([[{ type: 'model' }]]);
+      let latest = 1;
+      let refused: unknown = null;
+      for (let i = 0; i < 1000 && !refused; i++) {
+        try {
+          latest = (await c.addVersion(pub.id, latest, { content: small, note: wide('\u{1F600}', 200) }))
+            .version;
+        } catch (err) {
+          refused = err;
+        }
+      }
+      expect(refused).toMatchObject({ code: 'too-large', status: 413 });
+      expect(latest).toBeGreaterThan(100);
+      const entry = await anon.entry(pub.id);
+      expect(entry.versions).toHaveLength(latest);
+      expect((await anon.version(pub.id, latest, 'preset')).hash).toBe(contentHash(small));
+    } finally {
+      await s.close();
+    }
+  }, 60_000);
 });

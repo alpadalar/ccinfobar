@@ -17,6 +17,7 @@ import {
   ID_PART_RE,
   indexPath,
   isRemoteId,
+  MAX_INDEX,
   type MarketEntry,
   type MarketIndex,
   type MarketMeta,
@@ -28,6 +29,7 @@ import {
   parseRemoteEntry,
   parseRemoteVersion,
   publishersPath,
+  RESPONSE_CAPS,
   type VersionPayload,
   versionPath,
   versionPutPath,
@@ -176,6 +178,7 @@ export function createMarketClient(opts: MarketClientOpts) {
     p: string,
     body?: unknown,
     extra: Record<string, string> = {},
+    cap = CAP_BYTES,
   ): Promise<unknown> {
     try {
       const headers: Record<string, string> = { ...extra };
@@ -186,7 +189,7 @@ export function createMarketClient(opts: MarketClientOpts) {
       const res = await requestJson(new URL(`${endpoint}${p}`), {
         fetch: opts.fetch,
         timeoutMs: opts.timeoutMs ?? TIMEOUT_MS,
-        capBytes: opts.capBytes ?? CAP_BYTES,
+        capBytes: opts.capBytes ?? cap,
         headers,
         method,
         body,
@@ -204,18 +207,33 @@ export function createMarketClient(opts: MarketClientOpts) {
     async meta(): Promise<MarketMeta> {
       return need(parseMeta(await call('GET', metaPath())));
     },
+    // follows next pages up to MAX_INDEX entries
     async index(): Promise<MarketIndex> {
-      return need(parseIndex(await call('GET', indexPath())));
+      const page = async (n: number) =>
+        need(parseIndex(await call('GET', indexPath(n), undefined, {}, RESPONSE_CAPS.index), n));
+      const first = await page(1);
+      const seen = new Set<string>();
+      const entries: MarketIndex['entries'] = [];
+      let cur: MarketIndex | null = first;
+      for (let n = 1; cur; n++) {
+        for (const e of cur.entries) {
+          if (entries.length >= MAX_INDEX || seen.has(e.id)) continue;
+          seen.add(e.id);
+          entries.push(e);
+        }
+        cur = cur.next && entries.length < MAX_INDEX ? await page(n + 1) : null;
+      }
+      return { entries, generatedAt: first.generatedAt };
     },
     async entry(id: string): Promise<MarketEntry> {
       const p = route(() => entryPath(id));
-      const e = need(parseRemoteEntry(await call('GET', p)));
+      const e = need(parseRemoteEntry(await call('GET', p, undefined, {}, RESPONSE_CAPS.document)));
       if (e.id !== id) throw new MarketError('bad-json');
       return e;
     },
     async version(id: string, n: number, kind: EntryKind): Promise<MarketVersion & Received> {
       const p = route(() => versionPath(id, n));
-      const v = need(parseRemoteVersion(await call('GET', p)));
+      const v = need(parseRemoteVersion(await call('GET', p, undefined, {}, RESPONSE_CAPS.document)));
       if (v.version !== n) throw new MarketError('bad-json');
       // the hash covers the parsed content, as on the server
       if (contentHash(v.content) !== v.hash) throw new MarketError('bad-hash');

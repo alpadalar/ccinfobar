@@ -13,7 +13,7 @@ For how users save and share entries, see [CATALOG.md](CATALOG.md).
 
 ## Protocol v1
 
-Design rule: every **read** is a `GET` on a path that ends in `.json`. A static host (GitHub Pages, an R2 public bucket) can serve the read side unchanged, and search happens on the client over `index.json`. **Writes** are optional; a server says in `meta.json` whether it takes them.
+Design rule: every **read** is a `GET` on a path that ends in `.json`. A static host (GitHub Pages, an R2 public bucket) can serve the read side unchanged, and search happens on the client over the index pages. **Writes** are optional; a server says in `meta.json` whether it takes them.
 
 All paths are relative to the endpoint, which may have a base path (`https://example.com/catalog` reads `https://example.com/catalog/v1/index.json`).
 
@@ -22,7 +22,7 @@ All paths are relative to the endpoint, which may have a base path (`https://exa
 | Op | Method and path | Request body | Success | Errors |
 | --- | --- | --- | --- | --- |
 | Discover | `GET /v1/meta.json` | | `{ protocol: 1, name, capabilities: { write, overwrite, withdraw, submit }, auth, limits, submitUrl? }` | |
-| List | `GET /v1/index.json` | | `{ entries: Summary[], generatedAt }` | |
+| List | `GET /v1/index.json`, then `GET /v1/index-<n>.json` while `next` is set | | `{ entries: Summary[], generatedAt, next? }` | `404` for a page that does not exist |
 | Entry and history | `GET /v1/entries/<publisher>/<slug>.json` | | Summary plus `versions: [{ version, at, note, hash }]` | `400 invalid`, `404 not-found` |
 | Version content | `GET /v1/entries/<publisher>/<slug>/<n>.json` | | `{ version, content, hash }` | `400`, `410 withdrawn`, `404` |
 | Register | `POST /v1/publishers` | `{ handle, displayName }` | `201 { handle, token }` | `400 invalid`, `409 conflict`, `413 too-large` |
@@ -34,6 +34,7 @@ All paths are relative to the endpoint, which may have a base path (`https://exa
 Every request can get `429 rate-limited`. Every write can also answer `415 unsupported-media` (the body must be `application/json`) and `413 too-large` (body over 1 MiB). Errors are listed in the order the reference server checks them.
 
 - **Summary**: `{ id, kind, name, description, author, publisher, version, updatedAt, hash, withdrawn? }`. `publisher` must equal the first part of `id`, or the client drops the row.
+- **Index pages**: `index.json` holds at most 500 summaries. When there are more, `next` names the next page relative to `v1/` (`index-2.json`, then `index-3.json`), up to `index-10.json` (5000 entries). A page may only link to the page right after it; any other `next` ends the list, and the client stops at 5000 entries. A static host serves the pages as plain files.
 - **Withdraw** is soft. The entry file stays as a tombstone with `withdrawn: true` and the version hashes, version content answers `410`, and the id stays reserved: publishing the same slug again gives `409`.
 - **Overwrite** is allowed only when `capabilities.overwrite` is true. When a server answers `403 overwrite-disabled`, ccinfobar sends a new version instead.
 
@@ -71,7 +72,8 @@ Writes send `Authorization: Bearer <token>`; reads never send a token. On the re
 | Request body | 1 MiB (`maxBodyBytes`) |
 | Name, author, display name | 64 characters |
 | Description, note | 200 characters |
-| Versions per entry | 5000 |
+| Versions per entry | 5000, and the entry document (summary plus history) stays under 320 KiB |
+| Index page | 500 summaries |
 
 A server advertises its limits in `meta.json` `limits`.
 
@@ -84,7 +86,7 @@ Error bodies are `{ "error": { "code": "<code>", "message": "<text>" } }`. Codes
 `src/market/client.ts` is the only code that talks to a marketplace.
 
 - **Endpoint**: https only, except http on `localhost`, `127.0.0.1` and `[::1]` (for the reference server). No user name or password, query or fragment.
-- **Bounds**: one 10 s timeout covers all hops and the body; every response is capped at 256 KiB.
+- **Bounds**: one 10 s timeout covers all hops and the body. Responses are capped per document (`RESPONSE_CAPS`, shared with the reference server): an index page at 1 MiB, an entry or version document at 320 KiB (the 256 KiB content limit plus 64 KiB), anything else at 256 KiB. So everything the reference server accepts can be read back.
 - **Redirects**: GET follows at most 3, same origin only (or http to https on the same host). A write that gets a redirect stops with `redirect` and is never re-sent elsewhere.
 - **Received content** is hash-checked and treated like an import: sanitized, checked against the content policy, normalized, and its command and URL targets listed for the import consent step.
 - **No endpoint, no request**: with no endpoint, publish and remote browse stop before any request is made.
@@ -123,6 +125,7 @@ The layout under `v1/` is exactly the request paths, so `v1/` can be copied to a
 <data>/
 ├── v1/meta.json                          rewritten at every start
 ├── v1/index.json                         rewritten on every write
+├── v1/index-<n>.json                     more index pages, 500 entries each
 ├── v1/entries/<publisher>/<slug>.json    entry and version history
 ├── v1/entries/<publisher>/<slug>/<n>.json  version content
 └── private/                              never served
@@ -130,7 +133,7 @@ The layout under `v1/` is exactly the request paths, so `v1/` can be copied to a
     └── owners/<publisher>/<slug>.json    who may change the entry (0600)
 ```
 
-Withdrawing deletes the version content files and keeps the tombstone, so a copied `v1/` never leaks withdrawn content. Every file is written atomically.
+Withdrawing deletes the version content files and keeps the tombstone, so a copied `v1/` never leaks withdrawn content. Every file is written atomically, and the files under `v1/` are compact JSON so they stay within the client caps.
 
 ### Limits and hardening
 
@@ -142,11 +145,11 @@ Withdrawing deletes the version content files and keeps the tombstone, so a copi
 | Rate limiter table | 50,000 keys, cleared every minute; a full table answers `429` (fails closed) |
 | Publishers | 10,000 |
 | Entries | 5000 in total, 200 per publisher (`413 too-large`, also after a restart) |
-| Versions | 5000 per entry |
+| Versions | 5000 per entry; a new version or overwrite that would make the entry document larger than 320 KiB answers `413 too-large` |
 | Request body | 1 MiB; bodies up to 4 MiB are drained so the `413` reaches the client, a declared size over 4 MiB gets `413` at once, and a stream past 4 MiB is cut off |
 | Connections | 256 at once; request timeout 30 s, header timeout 15 s, keep-alive 5 s |
 
-- The index is built from disk once at start. A write updates only that entry's summary in memory and rewrites `index.json`; it never reads other entries.
+- The index is built from disk once at start. A write updates only that entry's summary in memory and rewrites the index pages; it never reads other entries.
 - Path parts are decoded and checked against the id regex before any file path is built.
 - A malformed request gets a raw `400`; any other failure answers `500 internal` without details, and the server keeps serving.
 - Error messages are fixed English text and never echo input.
