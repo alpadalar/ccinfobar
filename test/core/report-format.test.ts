@@ -518,7 +518,7 @@ describe('formatTable', () => {
   it('prints the Turkish header', () => {
     const ls = withTz('Europe/Istanbul', () => withLanguage('tr', () => table(dayReport())));
     expect(ls[0]).toBe(
-      'G\u00fcn         Proje       Oturum  Girdi  \u00c7\u0131kt\u0131  \u00d6nbellek okuma  \u00d6nbellek yazma  Toplam  Maliyet (tah.)   Aktif',
+      'G\u00fcn         Proje       Oturum  Girdi  \u00c7\u0131kt\u0131  \u00d6nbellek okuma  \u00d6nbellek yazma  Toplam  Tahmini maliyet   Aktif',
     );
     expect(ls[3]).toMatch(/^ {12}ara toplam /);
     expect(ls[5]).toMatch(/^ {12}toplam /);

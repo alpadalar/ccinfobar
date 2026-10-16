@@ -12,7 +12,7 @@ export const reportMessages = {
   'report.col.cacheRead': 'Önbellek okuma',
   'report.col.cacheWrite': 'Önbellek yazma',
   'report.col.total': 'Toplam',
-  'report.col.cost': 'Maliyet (tah.)',
+  'report.col.cost': 'Tahmini maliyet',
   'report.col.active': 'Aktif',
   'report.subtotal': 'ara toplam',
   'report.total': 'toplam',
@@ -62,8 +62,8 @@ export const reportMessages = {
     other: '{count} oturumun projesi klasör adından tahmin edildi.',
   },
   'report.note.ledger-only': {
-    one: '{count} oturumun maliyeti var ama transkripti kalmadı; token ve süre — gösterir.',
-    other: '{count} oturumun maliyeti var ama transkripti kalmadı; token ve süre — gösterir.',
+    one: '{count} oturumun maliyeti var ama transkripti kalmadı; token ve süre sütunlarında — görünür.',
+    other: '{count} oturumun maliyeti var ama transkripti kalmadı; token ve süre sütunlarında — görünür.',
   },
   'report.note.tokens-partial':
     '+ Token ve süre, satırda maliyeti olup transkripti kalmayan oturumları içermez.',

@@ -17,7 +17,7 @@ import type { Config } from '../../src/core/types.js';
 import { visibleWidth } from '../../src/core/width.js';
 import { dropTargets, importTargets, sanitizeImport, visibleTarget } from '../../src/importers/confirm.js';
 import { IMPORT_SOURCES } from '../../src/importers/index.js';
-import { withLangAsync } from '../helpers.js';
+import { withLang, withLangAsync } from '../helpers.js';
 
 const root = path.join(process.env.CCINFOBAR_CONFIG_DIR!, 'confirm');
 
@@ -301,6 +301,17 @@ describe('runImport confirmation', () => {
     expect(f.lines).toContain('  link: https://example.com/docs');
     expect(f.lines).toContain(t('import.targetsDropped', { count: 1 }));
     expect(items(cfg)).toEqual(['model']);
+  });
+
+  it('names the target kind in Turkish', async () => {
+    const f = fake(false);
+    const { cfg } = await withLangAsync('tr', () => run(f.io, {}));
+    expect(f.lines).toContain('  komut: echo hi');
+    expect(f.lines).toContain(
+      `    - ${withLang('tr', () => t('import.note.targetDropped', { kind: 'komut', target: 'echo hi' }))}`,
+    );
+    expect(f.lines.join('\n')).not.toMatch(/\bcommand\b(?! --)/);
+    expect(items(cfg)).toEqual(['text']);
   });
 
   it('keeps the command when the TTY user says yes', async () => {

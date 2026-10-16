@@ -135,6 +135,14 @@ export function rerunCommand(
   return { command: sanitizeText(parts.join(' ')), addFile: !!o.file && !arg, addCommand: !!command && !cmd };
 }
 
+const KINDS: Record<ImportTarget['kind'], MessageId> = {
+  command: 'import.kind.command',
+  http: 'import.kind.http',
+  link: 'import.kind.link',
+};
+
+const kindText = (kind: ImportTarget['kind']): string => t(KINDS[kind]);
+
 function rerunId(r: Rerun): MessageId {
   if (r.addFile) return r.addCommand ? 'import.rerunAddBoth' : 'import.rerunAddFile';
   return r.addCommand ? 'import.rerunAddCommand' : 'import.rerun';
@@ -155,10 +163,10 @@ async function confirmTargets(
   io.log(t('import.targetsHeader'));
   for (const x of targets) {
     if (long(x) && !flags.allowCommands) {
-      io.log(t('import.targetLong', { kind: x.kind, count: size(x) }));
+      io.log(t('import.targetLong', { kind: kindText(x.kind), count: size(x) }));
       continue;
     }
-    const line = t('import.target', { kind: x.kind, target: visibleTarget(x.target) });
+    const line = t('import.target', { kind: kindText(x.kind), target: visibleTarget(x.target) });
     for (const part of wrapLine(line, width, TARGET_INDENT)) io.log(part);
   }
   if (flags.allowCommands) return result;
@@ -175,8 +183,8 @@ async function confirmTargets(
   const dropped: ImportNote[] = drop.map((x) => ({
     kind: 'drop',
     text: long(x)
-      ? t('import.note.targetTooLong', { kind: x.kind, count: size(x) })
-      : t('import.note.targetDropped', { kind: x.kind, target: shortTarget(x.target) }),
+      ? t('import.note.targetTooLong', { kind: kindText(x.kind), count: size(x) })
+      : t('import.note.targetDropped', { kind: kindText(x.kind), target: shortTarget(x.target) }),
   }));
   return { ...result, config: dropTargets(result.config, drop), notes: [...result.notes, ...dropped] };
 }
