@@ -163,15 +163,17 @@ Fedora builds Node without the built-in startup snapshot and code cache, so ever
 
 ### Results
 
+All values are rounded half-up to 0.1 ms, the same rule as the Phase 10 table in DEVELOPMENT.md.
+
 Distro Node, 2026-10-16, `nice -n -10` (priority 0), Node v22.23.1 (`node_use_node_snapshot` false, `node_use_node_code_cache` false), Intel i7-1165G7 (8 threads), Linux 7.2.9-200.fc44.x86_64 (Fedora 44), load average 1.05 → 1.03, cwd this git repo, default layout, N = 20, two rounds:
 
 | Row | median r1 (ms) | median r2 (ms) | p95 r1 / r2 (ms) | min (ms) | max (ms) |
 |-----|---------------:|---------------:|-----------------:|---------:|---------:|
-| `node -e 0` | 65.2 | 64.8 | 69.9 / 66.4 | 62.6 | 71.5 |
+| `node -e 0` | 65.2 | 64.9 | 69.9 / 66.4 | 62.7 | 71.5 |
 | cold | 143.2 | 143.8 | 150.3 / 153.2 | 140.9 | 158.4 |
 | warm | 126.8 | 126.1 | 131.6 / 128.2 | 124.2 | 139.2 |
-| warm, compile cache off | 136.6 | 137.3 | 142.6 / 142.0 | 134.2 | 155.2 |
-| hook UserPromptSubmit | 74.8 | 73.9 | 79.0 / 76.5 | 72.3 | 79.0 |
+| warm, compile cache off | 136.6 | 137.4 | 142.6 / 142.0 | 134.2 | 155.2 |
+| hook UserPromptSubmit | 74.8 | 73.9 | 79.0 / 76.5 | 72.3 | 79.1 |
 
 ccinfobar overhead 61.6 / 61.3 ms; hook overhead 9.6 / 9.0 ms.
 

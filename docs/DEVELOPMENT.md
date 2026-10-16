@@ -644,7 +644,7 @@ After the Phase 9 review fixes (2026-10-16, same method, load average 1.0 to 2.5
 
 The final build was faster warm in seven of the eight rounds.
 
-Phase 10 (distribution), 2026-10-16, `nice -n -10` (priority 0), Node v22.23.1 (Fedora's package: no built-in startup snapshot, no code cache), Intel i7-1165G7 (8 threads), Linux 7.2.9 (Fedora 44), load average 1.05 → 1.03, cwd this git repo, default layout, N = 20, two rounds:
+Phase 10 (distribution), 2026-10-16, `nice -n -10` (priority 0), Node v22.23.1 (Fedora's package: no built-in startup snapshot, no code cache), Intel i7-1165G7 (8 threads), Linux 7.2.9 (Fedora 44), load average 1.05 → 1.03, cwd this git repo, default layout, N = 20, two rounds, values rounded half-up to 0.1 ms:
 
 | Row | median (ms, rounds) | p95 (ms) | min (ms) | max (ms) |
 |-----|--------------------:|---------:|---------:|---------:|
