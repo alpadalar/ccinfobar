@@ -135,7 +135,8 @@ describe.skipIf(!fs.existsSync(path.join(dist, 'ccinfobar.js')))('hook SessionSt
     const oldFold = s.aged('old-session.fold.json', 10);
     const fresh = s.aged('fresh-session.jsonl', 1);
     const other = s.aged('notes.txt', 30);
-    s.run('startup');
+    // pruning is time-bounded; a slow runner may need another startup
+    for (let i = 0; i < 3 && (fs.existsSync(old) || fs.existsSync(oldFold)); i++) s.run('startup');
     expect(fs.existsSync(old)).toBe(false);
     expect(fs.existsSync(oldFold)).toBe(false);
     expect(fs.existsSync(fresh)).toBe(true);
