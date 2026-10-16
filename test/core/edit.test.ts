@@ -1,19 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { defaultConfig, normalizeConfig } from '../../src/core/config.js';
 import {
+  APPEARANCE_KEYS,
   addLine,
   addProfileOverride,
+  applyCatalogContent,
   applyStyle,
   clearColors,
   DEFAULT_PRIORITY,
   defaultPriority,
+  type EntryContent,
   effectiveOverflow,
   hasOwnColors,
   insertItem,
   keepLanguage,
+  LAYOUT_KEYS,
   moveItem,
   moveLine,
   needsRefresh,
+  PERSONAL_KEYS,
   REFRESH_SUGGEST,
   RULE_PRESETS,
   recordStyles,
@@ -599,5 +604,147 @@ describe('rule edits', () => {
       const r = setItemRule(withItem({}), 'w', 'showWhen', p.rule);
       expect(r.ok).toBe(true);
     }
+  });
+});
+
+describe('applyCatalogContent', () => {
+  const current = (): Config => ({
+    ...base(),
+    theme: 'nord',
+    style: 'powerline',
+    separator: ' | ',
+    padding: 2,
+    align: 'right',
+    budget: { daily: 5 },
+    profiles: { builtIn: false },
+    language: 'tr',
+    charset: 'text',
+    update: 'off',
+  });
+  const content = (): EntryContent => ({
+    layout: { lines: [[{ id: 'm', type: 'model', color: 'red' }]], autoWrap: false, tui: { padding: 2 } },
+    appearance: { theme: 'dracula', style: 'capsule', glyphs: { startCap: '[' } },
+  });
+
+  it('replaces layout and appearance for a bundle and keeps personal keys', () => {
+    const c = current();
+    const next = applyCatalogContent(c, content(), 'bundle');
+    expect(next.lines).toEqual([[{ id: 'm', type: 'model', color: 'red' }]]);
+    expect(next.theme).toBe('dracula');
+    expect(next.style).toBe('capsule');
+    expect(next.tui).toEqual({ padding: 2 });
+    expect('align' in next).toBe(false);
+    expect('separator' in next).toBe(false);
+    expect('padding' in next).toBe(false);
+    expect(next.budget).toEqual(c.budget);
+    expect(next.profiles).toEqual(c.profiles);
+    expect(next.language).toBe('tr');
+    expect(next.charset).toBe('text');
+    expect(next.update).toBe('off');
+  });
+
+  it('keeps theme and style for a preset (D-23)', () => {
+    const next = applyCatalogContent(current(), content(), 'preset');
+    expect(next.theme).toBe('nord');
+    expect(next.style).toBe('powerline');
+    expect(next.separator).toBe(' | ');
+    expect(next.padding).toBe(2);
+    expect(next.lines[0]![0]!.type).toBe('model');
+    expect('align' in next).toBe(false);
+    expect(next.tui).toEqual({ padding: 2 });
+  });
+
+  it('keeps lines for a theme and drops appearance keys the content does not set', () => {
+    const c = current();
+    const next = applyCatalogContent(c, content(), 'theme');
+    expect(next.lines).toEqual(c.lines);
+    expect(next.align).toBe('right');
+    expect(next.theme).toBe('dracula');
+    expect(next.style).toBe('capsule');
+    expect('separator' in next).toBe(false);
+  });
+
+  it('uses themeId for theme and bundle kinds only', () => {
+    expect(applyCatalogContent(current(), content(), 'theme', 'mine-2').theme).toBe('mine-2');
+    expect(applyCatalogContent(current(), content(), 'bundle', 'mine-2').theme).toBe('mine-2');
+    expect(applyCatalogContent(current(), content(), 'preset', 'mine-2').theme).toBe('nord');
+  });
+
+  it('never takes personal or unknown keys from the content', () => {
+    const bad = {
+      layout: { lines: [], budget: { daily: 99 }, language: 'en', extra: 1 },
+      appearance: { theme: 'x', charset: 'unicode', update: 'auto' },
+    } as unknown as EntryContent;
+    const next = applyCatalogContent(current(), bad, 'bundle');
+    expect(next.budget).toEqual({ daily: 5 });
+    expect(next.language).toBe('tr');
+    expect(next.charset).toBe('text');
+    expect(next.update).toBe('off');
+    expect('extra' in next).toBe(false);
+  });
+
+  it('keeps required keys the content leaves out', () => {
+    const c = current();
+    const next = applyCatalogContent(c, {}, 'bundle');
+    expect(next.lines).toEqual(c.lines);
+    expect(next.theme).toBe('nord');
+    expect(next.autoWrap).toBe(c.autoWrap);
+    expect(next.widthOffset).toBe(c.widthOffset);
+    expect('style' in next).toBe(false);
+  });
+
+  it('does not mutate or share its inputs', () => {
+    const c = current();
+    const k = content();
+    const before = structuredClone(c);
+    const kBefore = structuredClone(k);
+    const next = applyCatalogContent(c, k, 'bundle');
+    expect(c).toEqual(before);
+    expect(k).toEqual(kBefore);
+    next.lines[0]![0]!.color = 'blue';
+    next.glyphs!.startCap = '<';
+    expect(k.layout!.lines![0]![0]!.color).toBe('red');
+    expect(k.appearance!.glyphs!.startCap).toBe('[');
+  });
+
+  it('splits every Config key into exactly one list', () => {
+    const owner: Record<keyof Config, 'layout' | 'appearance' | 'personal'> = {
+      $schema: 'personal',
+      version: 'personal',
+      lines: 'layout',
+      align: 'layout',
+      lineAlign: 'layout',
+      theme: 'appearance',
+      style: 'appearance',
+      separator: 'appearance',
+      separatorColor: 'appearance',
+      padding: 'appearance',
+      glyphs: 'appearance',
+      charset: 'personal',
+      autoWrap: 'layout',
+      update: 'personal',
+      usageApi: 'personal',
+      gsdAutoLine: 'personal',
+      gitHardening: 'personal',
+      loadingText: 'personal',
+      budget: 'personal',
+      profiles: 'personal',
+      tui: 'layout',
+      colorLevel: 'personal',
+      icons: 'personal',
+      maxWidth: 'personal',
+      widthOffset: 'layout',
+      savePayload: 'personal',
+      overflow: 'layout',
+      glyphMode: 'personal',
+      ambiguousWidth: 'personal',
+      progress: 'personal',
+      language: 'personal',
+    };
+    const lists = { layout: LAYOUT_KEYS, appearance: APPEARANCE_KEYS, personal: PERSONAL_KEYS };
+    const all: string[] = [...LAYOUT_KEYS, ...APPEARANCE_KEYS, ...PERSONAL_KEYS];
+    expect(new Set(all).size).toBe(all.length);
+    expect(all.sort()).toEqual(Object.keys(owner).sort());
+    for (const [k, v] of Object.entries(owner)) expect(lists[v] as readonly string[], k).toContain(k);
   });
 });

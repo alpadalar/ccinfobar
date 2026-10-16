@@ -17,6 +17,7 @@ import {
 import type { MessageId } from './i18n/index.js';
 import { LANGUAGE_SETTINGS, type LanguageSetting } from './i18n/languages.js';
 import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
+import type { ThemeInput } from './themes/style.js';
 import type {
   Align,
   BudgetConfig,
@@ -436,6 +437,84 @@ export function keepLanguage(next: Config, current: Config): Config {
   if (current.language && LANGUAGE_SETTINGS.includes(current.language)) out.language = current.language;
   else delete out.language;
   return out;
+}
+
+export type EntryKind = 'preset' | 'theme' | 'bundle';
+
+export interface EntryContent {
+  layout?: Partial<Config>;
+  appearance?: Partial<Config>;
+  theme?: ThemeInput;
+}
+
+export const LAYOUT_KEYS = [
+  'lines',
+  'align',
+  'lineAlign',
+  'overflow',
+  'autoWrap',
+  'widthOffset',
+  'tui',
+] as const satisfies readonly (keyof Config)[];
+
+export const APPEARANCE_KEYS = [
+  'theme',
+  'style',
+  'separator',
+  'separatorColor',
+  'padding',
+  'glyphs',
+] as const satisfies readonly (keyof Config)[];
+
+export const PERSONAL_KEYS = [
+  'charset',
+  'icons',
+  'colorLevel',
+  'maxWidth',
+  'glyphMode',
+  'ambiguousWidth',
+  'update',
+  'usageApi',
+  'savePayload',
+  'gitHardening',
+  'gsdAutoLine',
+  'loadingText',
+  'budget',
+  'profiles',
+  'progress',
+  'language',
+  'version',
+  '$schema',
+] as const satisfies readonly (keyof Config)[];
+
+const REQUIRED = new Set<string>(['lines', 'theme', 'autoWrap', 'widthOffset']);
+
+function replaceKeys(
+  next: Record<string, unknown>,
+  from: Partial<Config> | undefined,
+  keys: readonly string[],
+) {
+  const src = (from ?? {}) as Record<string, unknown>;
+  for (const k of keys) {
+    const v = Object.hasOwn(src, k) ? src[k] : undefined;
+    if (v !== undefined) next[k] = structuredClone(v);
+    else if (!REQUIRED.has(k)) delete next[k];
+  }
+}
+
+export function applyCatalogContent(
+  current: Config,
+  content: EntryContent,
+  kind: EntryKind,
+  themeId?: string,
+): Config {
+  const next = structuredClone(current) as unknown as Record<string, unknown>;
+  if (kind !== 'theme') replaceKeys(next, content.layout, LAYOUT_KEYS);
+  if (kind !== 'preset') {
+    replaceKeys(next, content.appearance, APPEARANCE_KEYS);
+    if (themeId) next.theme = themeId;
+  }
+  return next as unknown as Config;
 }
 
 export function setAmbiguousWidth(config: Config, v: 1 | 2 | undefined): Config {
