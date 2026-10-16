@@ -186,6 +186,7 @@ const NOT_SWEPT: Record<string, string> = {
   'src/market/client.ts': 'marketplace client, codes only, no user-facing prose',
   'src/market/protocol.ts': 'marketplace protocol, English JSON on the wire',
   'src/market/server.ts': 'reference marketplace server, English protocol JSON (D-15)',
+  'src/market/serve.ts': 'self-hosting entry for the reference server (D-24)',
 };
 
 // exact literal texts allowed per file

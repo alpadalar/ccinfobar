@@ -68,8 +68,24 @@ async function docs(script = 'gen-docs') {
   await import(`${out}?t=${Date.now()}`);
 }
 
+// self-hosting reference server, never part of the npm package
+async function market() {
+  await esbuild.build({
+    entryPoints: [path.join(root, 'src/market/serve.ts')],
+    outfile: path.join(root, 'market/ccinfobar-market.mjs'),
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node20',
+    legalComments: 'none',
+    define: { __VERSION__: JSON.stringify(pkg.version) },
+  });
+  console.log('built market/ccinfobar-market.mjs');
+}
+
 if (process.argv.includes('--docs')) await docs();
 else if (process.argv.includes('--demo')) await docs('demo-gif');
+else if (process.argv.includes('--market')) await market();
 else await build();
 
 if (watch) {

@@ -9,3 +9,4 @@ coverage/
 .claude/*.lock
 .planning/
 graphify-out/
+/market/
