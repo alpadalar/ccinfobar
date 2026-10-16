@@ -16,6 +16,7 @@ import {
   type MarketMeta,
   type MarketSummary,
   type MarketVersion,
+  type MarketVersionInfo,
   metaPath,
   PROTOCOL_VERSION,
   parsePublishPayload,
@@ -29,12 +30,16 @@ export interface MarketServerOpts {
   host?: string;
   port?: number;
   allowOverwrite?: boolean;
-  rateLimit?: { perMinute: number };
+  rateLimit?: { perMinute: number; readsPerMinute?: number };
   name?: string;
   now?: () => number;
 }
 
 const MAX_VERSIONS = 5000;
+const WINDOW_MS = 60_000;
+const MAX_KEYS = 100_000;
+const READS_FACTOR = 20;
+const DRAIN_LIMIT = 4 * MARKET_LIMITS.maxBodyBytes;
 const TOKEN_RE = /^Bearer ([0-9a-f]{64})$/;
 const DIGEST_RE = /^[0-9a-f]{64}$/;
 const VERSION_RE = /^[1-9][0-9]{0,15}$/;
@@ -42,6 +47,9 @@ const IF_MATCH_RE = /^"([1-9][0-9]{0,15})"$/;
 const ENTRY_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)\.json$/;
 const VERSION_FILE_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)\/([^/]+)\.json$/;
 const VERSIONS_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)\/versions$/;
+const PUT_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)\/versions\/([^/]+)$/;
+const WITHDRAW_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)$/;
+const STAMP_RE = /^\d{4}-\d{2}-\d{2}T[0-9:.]+Z$/;
 
 // fixed English, never echoes input
 const MESSAGES: Record<string, string> = {
@@ -53,10 +61,14 @@ const MESSAGES: Record<string, string> = {
   'not-found': 'not found',
   withdrawn: 'entry withdrawn',
   unauthorized: 'missing or unknown token',
+  'overwrite-disabled': 'overwrite is disabled on this server',
+  'unsupported-media': 'content-type must be application/json',
+  'rate-limited': 'too many requests',
   internal: 'internal error',
 };
 
 class MarketHttpError extends Error {
+  retryAfter: number | null = null;
   constructor(
     readonly status: number,
     readonly code: string,
@@ -67,6 +79,40 @@ class MarketHttpError extends Error {
 }
 
 const fail = (status: number, code: string, message?: string) => new MarketHttpError(status, code, message);
+
+type StoredVersionInfo = MarketVersionInfo & { overwrittenAt?: string };
+type StoredEntry = MarketEntry & { versions: StoredVersionInfo[] };
+
+// fixed one-minute windows; returns retry-after seconds when over
+export function fixedWindow(perMinute: number, now: () => number): (key: string) => number | null {
+  const counts = new Map<string, number>();
+  let start = Number.NaN;
+  return (key) => {
+    const t = now();
+    const w = Math.floor(t / WINDOW_MS) * WINDOW_MS;
+    if (w !== start) {
+      start = w;
+      counts.clear();
+    }
+    const wait = Math.max(1, Math.ceil((w + WINDOW_MS - t) / 1000));
+    const n = counts.get(key);
+    // full table fails closed
+    if (n === undefined && counts.size >= MAX_KEYS) return wait;
+    if ((n ?? 0) >= perMinute) return wait;
+    counts.set(key, (n ?? 0) + 1);
+    return null;
+  };
+}
+
+function limited(seconds: number): MarketHttpError {
+  const e = fail(429, 'rate-limited');
+  e.retryAfter = seconds;
+  return e;
+}
+
+function isJsonType(v: string | undefined): boolean {
+  return (v ?? '').split(';')[0]!.trim().toLowerCase() === 'application/json';
+}
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -90,21 +136,29 @@ function sendText(res: http.ServerResponse, status: number, text: string, cache:
 
 function readBody(req: http.IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
+    const declared = Number(req.headers['content-length']);
+    if (declared > DRAIN_LIMIT) return reject(fail(413, 'too-large'));
     const chunks: Buffer[] = [];
     let size = 0;
     let failed = false;
+    // small overflows are drained so the 413 reply arrives
     req.on('data', (chunk: Buffer) => {
-      if (failed) return;
       size += chunk.length;
+      if (size > DRAIN_LIMIT) {
+        req.destroy();
+        reject(fail(413, 'too-large'));
+        return;
+      }
+      if (failed) return;
       if (size > MARKET_LIMITS.maxBodyBytes) {
         failed = true;
-        reject(fail(413, 'too-large'));
+        chunks.length = 0;
         return;
       }
       chunks.push(chunk);
     });
     req.on('end', () => {
-      if (failed) return;
+      if (failed) return reject(fail(413, 'too-large'));
       if (!size) return resolve({});
       try {
         resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
@@ -227,12 +281,20 @@ export async function startMarketServer(
     return handle;
   }
 
-  function loadEntry(p: string, s: string): MarketEntry {
+  function loadEntry(p: string, s: string): StoredEntry {
     const file = entryFile(p, s);
     if (!fs.existsSync(file)) throw fail(404, 'not-found');
-    const e = parseRemoteEntry(readJson(file));
+    const raw = readJson(file);
+    const e = parseRemoteEntry(raw);
     if (!e || e.id !== `${p}/${s}`) throw fail(500, 'internal');
-    return e;
+    // parse drops overwrittenAt; keep it from the stored rows
+    const rows = isObject(raw) ? own(raw, 'versions') : undefined;
+    const versions: StoredVersionInfo[] = e.versions.map((v, i) => {
+      const row = Array.isArray(rows) ? rows[i] : undefined;
+      const at = isObject(row) ? own(row, 'overwrittenAt') : undefined;
+      return typeof at === 'string' && STAMP_RE.test(at) ? { ...v, overwrittenAt: at } : v;
+    });
+    return { ...e, versions };
   }
 
   function checkOwner(handle: string, p: string, s: string): void {
@@ -248,6 +310,60 @@ export async function startMarketServer(
   // history rows are never rewritten here
   function writeVersion(p: string, s: string, v: MarketVersion): void {
     writeJson(pub('entries', p, s, `${v.version}.json`), v);
+  }
+
+  function overwrite(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    body: unknown,
+    p: string,
+    s: string,
+    n: number,
+  ): void {
+    const handle = publisherOf(req);
+    if (!meta.capabilities.overwrite) throw fail(403, 'overwrite-disabled');
+    const entry = loadEntry(p, s);
+    checkOwner(handle, p, s);
+    if (entry.withdrawn) throw fail(410, 'withdrawn');
+    if (n !== entry.version) throw fail(409, 'conflict', 'only the latest version can be overwritten');
+    const payload = parseVersionPayload(body);
+    if (!payload) throw fail(400, 'invalid');
+    checkContent(entry.kind, payload.content);
+    const at = iso();
+    const hash = sha256(canonicalJson(payload.content));
+    writeJson(pub('entries', p, s, `${n}.json`), { version: n, content: payload.content, hash });
+    const last = entry.versions.at(-1)!;
+    const next: StoredEntry = {
+      ...entry,
+      name: payload.name ?? entry.name,
+      description: payload.description ?? entry.description,
+      updatedAt: at,
+      hash,
+      versions: [...entry.versions.slice(0, -1), { ...last, note: payload.note, hash, overwrittenAt: at }],
+    };
+    writeJson(entryFile(p, s), next);
+    rebuildIndex();
+    send(res, 200, { id: entry.id, version: n, hash });
+  }
+
+  function withdraw(req: http.IncomingMessage, res: http.ServerResponse, p: string, s: string): void {
+    const handle = publisherOf(req);
+    const entry = loadEntry(p, s);
+    checkOwner(handle, p, s);
+    if (!entry.withdrawn) {
+      // tombstone first, so a failed delete still answers 410
+      writeJson(entryFile(p, s), { ...entry, withdrawn: true, withdrawnAt: iso() });
+      rebuildIndex();
+    }
+    for (const v of entry.versions) {
+      try {
+        fs.rmSync(pub('entries', p, s, `${v.version}.json`), { force: true, maxRetries: 3 });
+      } catch {}
+    }
+    try {
+      fs.rmdirSync(pub('entries', p, s));
+    } catch {}
+    send(res, 200, { id: entry.id, withdrawn: true });
   }
 
   function serveFile(res: http.ServerResponse, file: string): void {
@@ -269,10 +385,16 @@ export async function startMarketServer(
     const v = VERSION_FILE_RE.exec(p);
     if (!v) throw fail(404, 'not-found');
     const [pp, s] = [part(v[1]!), part(v[2]!)];
-    if (!VERSION_RE.test(v[3]!) || !Number.isSafeInteger(Number(v[3]))) {
+    const n = versionNo(v[3]!);
+    if (parseRemoteEntry(readJson(entryFile(pp, s)))?.withdrawn) throw fail(410, 'withdrawn');
+    return pub('entries', pp, s, `${n}.json`);
+  }
+
+  function versionNo(raw: string): number {
+    if (!VERSION_RE.test(raw) || !Number.isSafeInteger(Number(raw))) {
       throw fail(400, 'invalid', 'invalid version');
     }
-    return pub('entries', pp, s, `${Number(v[3])}.json`);
+    return Number(raw);
   }
 
   function register(res: http.ServerResponse, body: unknown): void {
@@ -366,28 +488,54 @@ export async function startMarketServer(
       throw fail(400, 'invalid');
     }
     const p = url.pathname;
-    if (req.method === 'GET') return serveFile(res, readPath(p));
-    if (req.method !== 'POST') throw fail(404, 'not-found');
+    const ip = req.socket.remoteAddress ?? '';
+    if (req.method === 'GET') {
+      const wait = reads(`ip:${ip}`);
+      if (wait !== null) throw limited(wait);
+      return serveFile(res, readPath(p));
+    }
+    const m = TOKEN_RE.exec(req.headers.authorization ?? '');
+    const wait = writes(`ip:${ip}`) ?? (m ? writes(`token:${sha256(m[1]!)}`) : null);
+    if (wait !== null) throw limited(wait);
+    if (req.method === 'DELETE') {
+      const w = WITHDRAW_RE.exec(p);
+      if (!w) throw fail(404, 'not-found');
+      return withdraw(req, res, part(w[1]!), part(w[2]!));
+    }
+    let route: (body: unknown) => void;
     const versions = VERSIONS_RE.exec(p);
-    if (p !== publishersPath() && p !== entriesPath() && !versions) throw fail(404, 'not-found');
-    const ids = versions ? [part(versions[1]!), part(versions[2]!)] : null;
+    const put = PUT_RE.exec(p);
+    if (req.method === 'POST' && p === publishersPath()) route = (b) => register(res, b);
+    else if (req.method === 'POST' && p === entriesPath()) route = (b) => publish(req, res, b);
+    else if (req.method === 'POST' && versions) {
+      const [pp, s] = [part(versions[1]!), part(versions[2]!)];
+      route = (b) => addVersion(req, res, b, pp, s);
+    } else if (req.method === 'PUT' && put) {
+      const [pp, s, n] = [part(put[1]!), part(put[2]!), versionNo(put[3]!)];
+      route = (b) => overwrite(req, res, b, pp, s, n);
+    } else throw fail(404, 'not-found');
+    if (!isJsonType(req.headers['content-type'])) throw fail(415, 'unsupported-media');
     // writes run without an await, so they never interleave
     const body = await readBody(req);
-    if (p === publishersPath()) return register(res, body);
-    if (p === entriesPath()) return publish(req, res, body);
-    return addVersion(req, res, body, ids![0]!, ids![1]!);
+    return route(body);
   }
+
+  const perMinute = opts.rateLimit?.perMinute ?? 30;
+  const writes = fixedWindow(perMinute, now);
+  const reads = fixedWindow(opts.rateLimit?.readsPerMinute ?? perMinute * READS_FACTOR, now);
 
   fs.mkdirSync(root, { recursive: true });
   writeJson(pub('meta.json'), meta);
   rebuildIndex();
   loadTokens();
 
-  const server = http.createServer((req, res) => {
+  // slow bodies cannot hold sockets open
+  const server = http.createServer({ requestTimeout: 30_000, headersTimeout: 15_000 }, (req, res) => {
     handle(req, res).catch((err: unknown) => {
       if (res.headersSent) return res.end();
       const e = err instanceof MarketHttpError ? err : fail(500, 'internal');
       if (e.status === 413) res.setHeader('connection', 'close');
+      if (e.retryAfter !== null) res.setHeader('retry-after', String(e.retryAfter));
       send(res, e.status, { error: { code: e.code, message: e.message } });
     });
   });

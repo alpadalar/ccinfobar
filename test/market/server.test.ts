@@ -6,8 +6,14 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { EntryContent } from '../../src/core/edit.js';
 import { createMarketClient } from '../../src/market/client.js';
-import { canonicalJson, parseIndex, parseMeta, parseRemoteEntry } from '../../src/market/protocol.js';
-import { startMarketServer } from '../../src/market/server.js';
+import {
+  canonicalJson,
+  MARKET_LIMITS,
+  parseIndex,
+  parseMeta,
+  parseRemoteEntry,
+} from '../../src/market/protocol.js';
+import { fixedWindow, startMarketServer } from '../../src/market/server.js';
 
 let dir: string;
 let server: { url: string; close(): Promise<void> };
@@ -17,6 +23,7 @@ let clock: number;
 interface Res {
   status: number;
   body: string;
+  headers: http.IncomingHttpHeaders;
   json: () => any;
 }
 
@@ -39,7 +46,7 @@ function request(
       res.on('data', (c: Buffer) => chunks.push(c));
       res.on('end', () => {
         const body = Buffer.concat(chunks).toString('utf8');
-        resolve({ status: res.statusCode ?? 0, body, json: () => JSON.parse(body) });
+        resolve({ status: res.statusCode ?? 0, body, headers: res.headers, json: () => JSON.parse(body) });
       });
     });
     req.on('error', reject);
@@ -83,9 +90,228 @@ afterEach(async () => {
 });
 
 describe('reference market server', () => {
-  it.todo('overwrite is refused when allowOverwrite is false');
-  it.todo('withdraw tombstones the entry and versions answer 410');
-  it.todo('413 over 1 MiB, 415 without JSON, 429 past the rate limit');
+  async function restart(o: Partial<Parameters<typeof startMarketServer>[0]> = {}): Promise<void> {
+    await server.close();
+    server = await startMarketServer({ dataDir: dir, now: () => clock, ...o });
+    port = Number(new URL(server.url).port);
+  }
+
+  async function withTwo(token: string): Promise<void> {
+    await request('POST', '/v1/entries', { token, body: publishBody('mine') });
+    const r = await request('POST', '/v1/entries/alp/mine/versions', {
+      token,
+      headers: { 'if-match': '"1"' },
+      body: { content: preset([[{ type: 'cwd' }]]), note: 'two' },
+    });
+    expect(r.status).toBe(201);
+  }
+
+  it('overwrite replaces the latest version in place', async () => {
+    const alp = await register('alp');
+    const bob = await register('bob');
+    await withTwo(alp);
+    const v1Bytes = fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '1.json'));
+    const next = preset([[{ type: 'model' }, { type: 'git-branch' }]]);
+    clock += 60_000;
+    const r = await request('PUT', '/v1/entries/alp/mine/versions/2', {
+      token: alp,
+      body: { content: next, note: 'fixed', description: 'better' },
+    });
+    expect(r.status).toBe(200);
+    expect(r.json()).toEqual({ id: 'alp/mine', version: 2, hash: sha(next) });
+    const raw = (await request('GET', '/v1/entries/alp/mine.json')).json();
+    expect(raw.versions).toHaveLength(2);
+    expect(raw.versions[1]).toEqual({
+      version: 2,
+      at: '2026-10-16T12:00:00.000Z',
+      note: 'fixed',
+      hash: sha(next),
+      overwrittenAt: '2026-10-16T12:01:00.000Z',
+    });
+    expect(raw).toMatchObject({ version: 2, hash: sha(next), description: 'better' });
+    expect(raw.updatedAt).toBe('2026-10-16T12:01:00.000Z');
+    expect((await request('GET', '/v1/entries/alp/mine/2.json')).json()).toEqual({
+      version: 2,
+      content: next,
+      hash: sha(next),
+    });
+    expect(fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '1.json')).equals(v1Bytes)).toBe(true);
+    const index = parseIndex((await request('GET', '/v1/index.json')).json())!;
+    expect(index.entries[0]).toMatchObject({ version: 2, hash: sha(next) });
+
+    const body = { content: preset(), note: '' };
+    for (const [n, token, status, code] of [
+      [1, alp, 409, 'conflict'],
+      [3, alp, 409, 'conflict'],
+      [2, bob, 403, 'forbidden'],
+      [2, undefined, 401, 'unauthorized'],
+    ] as const) {
+      const bad = await request('PUT', `/v1/entries/alp/mine/versions/${n}`, { token, body });
+      expect(bad.status, `${n} ${code}`).toBe(status);
+      expect(bad.json().error.code).toBe(code);
+    }
+    expect((await request('PUT', '/v1/entries/alp/mine/versions/0', { token: alp, body })).status).toBe(400);
+    expect((await request('PUT', '/v1/entries/alp/nope/versions/1', { token: alp, body })).status).toBe(404);
+    const cmd = await request('PUT', '/v1/entries/alp/mine/versions/2', {
+      token: alp,
+      body: { content: preset([[{ type: 'command', options: { command: 'x' } }]]), note: '' },
+    });
+    expect(cmd.status).toBe(400);
+    expect(cmd.json().error.message).toBe('command-widget');
+
+    // a later version keeps the overwrite mark
+    await request('POST', '/v1/entries/alp/mine/versions', {
+      token: alp,
+      headers: { 'if-match': '"2"' },
+      body: { content: preset(), note: 'three' },
+    });
+    const after = (await request('GET', '/v1/entries/alp/mine.json')).json();
+    expect(after.versions.map((v: any) => v.version)).toEqual([1, 2, 3]);
+    expect(after.versions[1].overwrittenAt).toBe('2026-10-16T12:01:00.000Z');
+    expect(after.versions[2].overwrittenAt).toBeUndefined();
+  });
+
+  it('overwrite is refused when allowOverwrite is false', async () => {
+    const token = await register('alp');
+    await request('POST', '/v1/entries', { token, body: publishBody('mine') });
+    await restart({ allowOverwrite: false });
+    const before = fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '1.json'));
+    const r = await request('PUT', '/v1/entries/alp/mine/versions/1', {
+      token,
+      body: { content: preset([[{ type: 'cwd' }]]), note: '' },
+    });
+    expect(r.status).toBe(403);
+    expect(r.json()).toEqual({ error: { code: 'overwrite-disabled', message: expect.any(String) } });
+    expect(fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '1.json')).equals(before)).toBe(true);
+  });
+
+  it('withdraw tombstones the entry and versions answer 410', async () => {
+    const alp = await register('alp');
+    const bob = await register('bob');
+    await withTwo(alp);
+    const other = await request('DELETE', '/v1/entries/alp/mine', { token: bob });
+    expect(other.status).toBe(403);
+    expect(other.json().error.code).toBe('forbidden');
+    expect((await request('DELETE', '/v1/entries/alp/mine')).status).toBe(401);
+    expect((await request('DELETE', '/v1/entries/alp/nope', { token: alp })).status).toBe(404);
+    expect((await request('DELETE', '/v1/entries/ALP/mine', { token: alp })).status).toBe(400);
+
+    clock += 60_000;
+    const r = await request('DELETE', '/v1/entries/alp/mine', { token: alp });
+    expect(r.status).toBe(200);
+    expect(r.json()).toEqual({ id: 'alp/mine', withdrawn: true });
+    const index = parseIndex((await request('GET', '/v1/index.json')).json())!;
+    expect(index.entries).toEqual([expect.objectContaining({ id: 'alp/mine', withdrawn: true, version: 2 })]);
+    const entry = (await request('GET', '/v1/entries/alp/mine.json')).json();
+    expect(entry).toMatchObject({ withdrawn: true, withdrawnAt: '2026-10-16T12:01:00.000Z' });
+    expect(entry.versions.map((v: any) => v.version)).toEqual([1, 2]);
+    for (const n of [1, 2, 3]) {
+      const g = await request('GET', `/v1/entries/alp/mine/${n}.json`);
+      expect(g.status, String(n)).toBe(410);
+      expect(g.json().error.code).toBe('withdrawn');
+    }
+    expect(fs.existsSync(file('v1', 'entries', 'alp', 'mine', '1.json'))).toBe(false);
+    expect(fs.existsSync(file('v1', 'entries', 'alp', 'mine', '2.json'))).toBe(false);
+
+    const again = await request('POST', '/v1/entries', { token: alp, body: publishBody('mine') });
+    expect(again.status).toBe(409);
+    expect(again.json().error.code).toBe('conflict');
+    const v = await request('POST', '/v1/entries/alp/mine/versions', {
+      token: alp,
+      headers: { 'if-match': '"2"' },
+      body: { content: preset(), note: '' },
+    });
+    expect(v.status).toBe(410);
+    const put = await request('PUT', '/v1/entries/alp/mine/versions/2', {
+      token: alp,
+      body: { content: preset(), note: '' },
+    });
+    expect(put.status).toBe(410);
+    expect((await request('POST', '/v1/publishers', { body: { handle: 'alp' } })).status).toBe(409);
+
+    // repeat withdraw is idempotent and survives a restart
+    expect((await request('DELETE', '/v1/entries/alp/mine', { token: alp })).status).toBe(200);
+    await restart();
+    const idx = parseIndex((await request('GET', '/v1/index.json')).json())!;
+    expect(idx.entries[0]?.withdrawn).toBe(true);
+    expect((await request('GET', '/v1/entries/alp/mine/1.json')).status).toBe(410);
+  });
+
+  it('413 over 1 MiB with connection close, 415 without JSON', async () => {
+    const token = await register('alp');
+    const head = '{"pad":"';
+    const big = `${head}${'x'.repeat(MARKET_LIMITS.maxBodyBytes + 1 - head.length - 2)}"}`;
+    expect(Buffer.byteLength(big)).toBe(MARKET_LIMITS.maxBodyBytes + 1);
+    const r = await request('POST', '/v1/entries', { token, body: big });
+    expect(r.status).toBe(413);
+    expect(r.headers.connection).toBe('close');
+    expect(r.json().error.code).toBe('too-large');
+
+    const exact = `${head}${'x'.repeat(MARKET_LIMITS.maxBodyBytes - head.length - 2)}"}`;
+    const ok = await request('POST', '/v1/entries', { token, body: exact });
+    expect(ok.status).toBe(400);
+
+    for (const type of ['text/plain', 'application/jsonx', 'application/x-www-form-urlencoded', '']) {
+      const t = await request('POST', '/v1/entries', {
+        token,
+        body: publishBody('mine'),
+        headers: { 'content-type': type },
+      });
+      expect(t.status, type).toBe(415);
+      expect(t.json().error.code).toBe('unsupported-media');
+    }
+    const put = await request('PUT', '/v1/entries/alp/mine/versions/1', {
+      token,
+      body: { content: preset(), note: '' },
+      headers: { 'content-type': 'text/plain' },
+    });
+    expect(put.status).toBe(415);
+    const charset = await request('POST', '/v1/entries', {
+      token,
+      body: publishBody('mine'),
+      headers: { 'content-type': 'Application/JSON; charset=utf-8' },
+    });
+    expect(charset.status).toBe(201);
+    expect(fs.existsSync(file('v1', 'entries', 'alp', 'mine', '1.json'))).toBe(true);
+  });
+
+  it('429 with retry-after past the write limit, then a new window', async () => {
+    await restart({ rateLimit: { perMinute: 3, readsPerMinute: 5 } });
+    for (const h of ['a', 'b', 'c']) {
+      expect((await request('POST', '/v1/publishers', { body: { handle: h } })).status).toBe(201);
+    }
+    const over = await request('POST', '/v1/publishers', { body: { handle: 'd' } });
+    expect(over.status).toBe(429);
+    expect(over.headers['retry-after']).toBe('60');
+    expect(over.json().error.code).toBe('rate-limited');
+    expect(fs.existsSync(file('private', 'publishers', 'd.json'))).toBe(false);
+    clock += 30_000;
+    const still = await request('DELETE', '/v1/entries/a/x');
+    expect(still.status).toBe(429);
+    expect(still.headers['retry-after']).toBe('30');
+
+    // reads have their own budget
+    for (let i = 0; i < 5; i++) expect((await request('GET', '/v1/meta.json')).status).toBe(200);
+    const reads = await request('GET', '/v1/meta.json');
+    expect(reads.status).toBe(429);
+    expect(reads.headers['retry-after']).toBe('30');
+
+    clock += 30_000;
+    expect((await request('POST', '/v1/publishers', { body: { handle: 'd' } })).status).toBe(201);
+    expect((await request('GET', '/v1/meta.json')).status).toBe(200);
+  });
+
+  it('fixed windows count each key on its own', () => {
+    let t = Date.UTC(2026, 9, 16, 12, 0, 10);
+    const hit = fixedWindow(2, () => t);
+    expect([hit('token:a'), hit('token:a'), hit('token:a')]).toEqual([null, null, 50]);
+    expect(hit('token:b')).toBeNull();
+    expect(hit('ip:1')).toBeNull();
+    t += 49_500;
+    expect(hit('token:a')).toBe(1);
+    t += 500;
+    expect(hit('token:a')).toBeNull();
+  });
 
   it('listens on 127.0.0.1 with an ephemeral port and closes twice', async () => {
     const u = new URL(server.url);
