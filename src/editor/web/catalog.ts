@@ -12,13 +12,14 @@ import { type MessageId, t } from '../../core/i18n/index.js';
 import type { Config } from '../../core/types.js';
 import { api, previewSource } from './api.js';
 import { deleteEntryDialog, historyDialog, saveCurrentDialog, toggleShare } from './catalog-dialogs.js';
+import { marketplaceSection, publishDialog } from './catalog-market.js';
 import { clear, h, icon } from './dom.js';
 import { fitCols, previewBox } from './presets.js';
 import { type CatalogEntryInfo, type CatalogState, isDirty, replaceAll, S } from './store.js';
 import { askThemeColors } from './themes.js';
 import { confirmDialog, modal, toast } from './ui.js';
 
-export type CatalogTab = 'all' | 'user' | 'system';
+export type CatalogTab = 'all' | 'user' | 'system' | 'market';
 type Section = 'user' | 'system';
 
 export interface CatalogGroup {
@@ -28,6 +29,9 @@ export interface CatalogGroup {
 }
 
 const TABS: readonly CatalogTab[] = ['all', 'user', 'system'];
+// the marketplace tab needs an endpoint
+const tabsOf = (data: CatalogState): readonly CatalogTab[] => (data.publishable ? [...TABS, 'market'] : TABS);
+const WAITING: ReadonlySet<ShareState> = new Set(['pending', 'outdated', 'withdraw-pending']);
 const KINDS: readonly EntryKind[] = ['bundle', 'preset', 'theme'];
 const GROUP: Record<EntryKind, MessageId> = {
   bundle: 'catalog.group.bundles',
@@ -44,7 +48,8 @@ const STATE: Record<ShareState, MessageId> = {
 };
 const BATCH = 100;
 
-const sectionsOf = (tab: CatalogTab): Section[] => (tab === 'all' ? ['user', 'system'] : [tab]);
+const sectionsOf = (tab: CatalogTab): Section[] =>
+  tab === 'all' ? ['user', 'system'] : tab === 'market' ? [] : [tab];
 
 export function groupEntries(data: CatalogState, tab: CatalogTab): CatalogGroup[] {
   const out: CatalogGroup[] = [];
@@ -127,6 +132,7 @@ export async function openCatalog(): Promise<void> {
   const tabs = h('div', { class: 'tabs catalog-tabs', role: 'tablist', 'aria-label': t('catalog.title') });
   const status = h('span', { class: 'hint catalog-status', role: 'status' });
   const list = h('div', { class: 'catalog-list' });
+  let market: HTMLElement | null = null;
   let close: (v?: unknown) => void = () => {};
 
   function pick(tab: CatalogTab) {
@@ -139,7 +145,8 @@ export async function openCatalog(): Promise<void> {
 
   function renderTabs() {
     clear(tabs);
-    for (const id of TABS) {
+    const all = tabsOf(st.data);
+    for (const id of all) {
       const on = id === st.tab;
       tabs.append(
         h(
@@ -156,7 +163,7 @@ export async function openCatalog(): Promise<void> {
               const step = ev.key === 'ArrowRight' ? 1 : ev.key === 'ArrowLeft' ? -1 : 0;
               if (!step) return;
               ev.preventDefault();
-              const next = TABS[(TABS.indexOf(id) + step + TABS.length) % TABS.length]!;
+              const next = all[(all.indexOf(id) + step + all.length) % all.length]!;
               pick(next);
               tabs.querySelector<HTMLElement>(`[data-tab="${next}"]`)?.focus();
             },
@@ -281,6 +288,17 @@ export async function openCatalog(): Promise<void> {
     clear(list);
     slots.clear();
     cards.clear();
+    if (st.tab === 'market') {
+      market ??= marketplaceSection(st.data);
+      if (market) list.append(market);
+      return;
+    }
+    if (
+      st.tab !== 'system' &&
+      !st.data.publishable &&
+      st.data.user.some((e) => e.share && WAITING.has(e.share.state))
+    )
+      list.append(h('p', { class: 'hint catalog-hint' }, t('catalog.noEndpointHint')));
     const groups = groupEntries(st.data, st.tab);
     for (const section of sectionsOf(st.tab)) {
       const own = groups.filter((g) => g.section === section);
@@ -354,6 +372,23 @@ export async function openCatalog(): Promise<void> {
           },
           t('catalog.saveCurrent'),
         ),
+        st.data.publishable
+          ? h(
+              'button',
+              {
+                class: 'btn',
+                type: 'button',
+                title: t('catalog.publish.title'),
+                onClick: async () => {
+                  const next = await publishDialog(st.data);
+                  if (!next || st.closed) return;
+                  market = null;
+                  update(next);
+                },
+              },
+              t('catalog.publish.open'),
+            )
+          : null,
         h('button', { class: 'btn primary', type: 'button', onClick: () => done() }, t('web.settings.done')),
       ];
     },

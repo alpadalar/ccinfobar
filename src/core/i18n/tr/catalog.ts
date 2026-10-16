@@ -11,6 +11,7 @@ export const catalogMessages = {
   'catalog.tab.all': 'Tümü',
   'catalog.tab.user': 'Kullanıcı',
   'catalog.tab.system': 'Sistem',
+  'catalog.tab.market': 'Pazar yeri',
   'catalog.source.user': 'Sizin',
   'catalog.source.system': 'Yerleşik',
   'catalog.source.legacy': 'Katalogdan önce kaydedildi',
@@ -76,6 +77,20 @@ export const catalogMessages = {
     'ccinfobar yapılandırma klasöründeki katalog çöp kutusuna taşınır. Yayımlanan kopya pazar yerinde kalır; geri çekmek için önce paylaşmayı durdurup yayımlayın.',
   'catalog.delete.confirm': 'Sil',
   'catalog.delete.doneWeb': '{name} silindi',
+  'catalog.noEndpointHint':
+    'Paylaşılan girdiler yayımlanmayı bekler. ccinfobar catalog endpoint <url> ile bir pazar yeri ayarlayana kadar hiçbir şey gönderilmez.',
+  'catalog.publish.open': 'Yayımla…',
+  'catalog.publish.title': 'Pazar yerinde yayımla',
+  'catalog.publish.send': 'Yayımla',
+  'catalog.publish.action.publish': 'Yeni',
+  'catalog.publish.action.version': 'Yeni sürüm',
+  'catalog.publish.action.overwrite': 'Son sürümü değiştir',
+  'catalog.publish.action.withdraw': 'Geri çek',
+  'catalog.publish.changedPlan':
+    'Girdiler siz bu pencereyi açtıktan sonra değişti. Yeniden inceleyip yayımlayın.',
+  'catalog.remote.by': '{author} · @{publisher}',
+  'catalog.remote.publisher': '@{publisher}',
+  'catalog.remote.loading': 'Pazar yeri yükleniyor…',
   'catalog.usage':
     'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--clear] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]',
   'catalog.section.user': 'Sizin girdileriniz',
