@@ -56,6 +56,7 @@ import {
   writeSettingsBytes,
 } from './settings-file.js';
 import {
+  brewPrefix,
   compareVersions,
   type InstallKind,
   installKind,
@@ -106,22 +107,45 @@ export function acceptCommand(built: BuiltCommand, log: (line: string) => void =
   return null;
 }
 
+export interface TargetDeps {
+  globalBinary?: () => string | null;
+  entry?: string;
+  exists?: (p: string) => boolean;
+}
+
+const inCellar = (p: string) => p.replace(/\\/g, '/').includes('/Cellar/');
+
+// the prefix bin survives brew upgrade, Cellar paths do not
+function brewTarget(deps: TargetDeps): CommandTarget | null {
+  const exists = deps.exists ?? fs.existsSync;
+  const prefix = brewPrefix(deps.entry);
+  const bin = prefix ? path.join(prefix, 'bin', 'ccinfobar') : null;
+  if (bin && exists(bin)) return { kind: 'bin', bin, onPath: true };
+  const hit = (deps.globalBinary ?? globalBinary)();
+  return hit && !inCellar(hit) ? { kind: 'bin', bin: hit, onPath: true } : null;
+}
+
 // never npx@latest: it runs whatever npm serves
-function defaultTarget(kind: InstallKind): CommandTarget | null {
-  const bin = globalBinary();
+function defaultTarget(kind: InstallKind, deps: TargetDeps = {}): CommandTarget | null {
+  if (kind === 'brew') return brewTarget(deps);
+  const exists = deps.exists ?? fs.existsSync;
+  const bin = (deps.globalBinary ?? globalBinary)();
   if (bin) return { kind: 'bin', bin, onPath: true };
-  if (fs.existsSync(localBin())) return { kind: 'bin', bin: localBin(), onPath: false };
-  const entry = process.argv[1] ? path.resolve(process.argv[1]) : null;
-  if (kind !== 'npx' && entry && fs.existsSync(entry)) return { kind: 'script', script: entry };
+  if (exists(localBin())) return { kind: 'bin', bin: localBin(), onPath: false };
+  const raw = deps.entry ?? process.argv[1];
+  const entry = raw ? path.resolve(raw) : null;
+  if (kind !== 'npx' && entry && exists(entry)) return { kind: 'script', script: entry };
   return null;
 }
 
 export function defaultCommand(
   kind: InstallKind = installKind(),
   log?: (line: string) => void,
+  deps?: TargetDeps,
 ): string | null {
-  const target = defaultTarget(kind);
-  return target ? acceptCommand(buildCommand(target), log) : null;
+  const target = defaultTarget(kind, deps);
+  const command = target ? acceptCommand(buildCommand(target), log) : null;
+  return kind === 'brew' && command && inCellar(command) ? null : command;
 }
 
 function statusLineOf(data: Record<string, unknown>): StatusLineSetting | null {
