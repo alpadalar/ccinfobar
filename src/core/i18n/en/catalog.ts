@@ -104,6 +104,8 @@ export const catalogMessages = {
   'err.catalog.changed': 'This entry changed since you opened it; reload and try again',
   'err.catalog.tooLarge': 'The entry would be larger than 1 MiB; it was not saved',
   'err.catalog.badId': 'Not a catalog entry id',
+  'err.catalog.badRef': 'Not a catalog reference',
+  'err.catalog.badRequest': 'Invalid catalog request',
   'err.catalog.badName': 'Name must be 1 to 64 characters',
   'err.catalog.badContent': 'The entry content is not valid',
   'err.catalog.systemReadOnly': 'Built-in entries cannot be changed',

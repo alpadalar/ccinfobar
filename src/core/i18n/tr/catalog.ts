@@ -111,6 +111,8 @@ export const catalogMessages = {
   'err.catalog.changed': 'Bu girdi siz açtıktan sonra değişti; yeniden yükleyip tekrar deneyin',
   'err.catalog.tooLarge': 'Girdi 1 MiB sınırını aşacaktı; kaydedilmedi',
   'err.catalog.badId': 'Geçerli bir katalog girdisi kimliği değil',
+  'err.catalog.badRef': 'Geçerli bir katalog başvurusu değil',
+  'err.catalog.badRequest': 'Geçersiz katalog isteği',
   'err.catalog.badName': 'Ad 1 ile 64 karakter arasında olmalı',
   'err.catalog.badContent': 'Girdinin içeriği geçerli değil',
   'err.catalog.systemReadOnly': 'Yerleşik girdiler değiştirilemez',

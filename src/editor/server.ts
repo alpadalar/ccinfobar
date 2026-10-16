@@ -4,8 +4,37 @@ import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
-import { themeFromConfig } from '../catalog/snapshot.js';
-import { envLanguage } from '../cli/lang.js';
+import '../core/i18n/lazy.js';
+import {
+  type CatalogEntry,
+  ENTRY_ID_RE,
+  type EntryContent,
+  type EntryKind,
+  latest,
+} from '../catalog/model.js';
+import { shareState } from '../catalog/share.js';
+import { contentFromConfig, themeFromConfig } from '../catalog/snapshot.js';
+import {
+  adoptLegacy,
+  CatalogStoreError,
+  deleteEntry,
+  deleteLegacy,
+  installEntryTheme,
+  type LegacyItem,
+  listEntries,
+  listLegacy,
+  marketEndpoint,
+  normalizeEntry,
+  readEntry,
+  readProfile,
+  restoreEntry,
+  type StoreCode,
+  saveEntry,
+  updateShare,
+  writeProfile,
+} from '../catalog/store.js';
+import { findSystem, type SystemEntry, systemEntries } from '../catalog/system.js';
+import { configLanguage, envLanguage } from '../cli/lang.js';
 import { hookEntryState } from '../commands/hooks-doctor.js';
 import {
   applyHooks,
@@ -42,17 +71,21 @@ import {
 import { BREW_UPGRADE } from '../core/brew.js';
 import { ConfigBrokenError, loadConfig, normalizeConfig, saveConfig } from '../core/config.js';
 import {
+  applyCatalogContent,
   applyStyle,
   PROGRESS_CHOICES,
   type StyleHistory,
   setProgress,
   upgradeOptions,
 } from '../core/edit.js';
+import { bundleText, presetText, themeDescription } from '../core/i18n/catalog-text.js';
 import { type MessageId, type Params, setLanguage, t, withLanguage } from '../core/i18n/index.js';
+import { isLanguageId, type LanguageId } from '../core/i18n/languages.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { deleteUserPreset, listPresets, presetsDir, saveUserPreset } from '../core/presets.js';
 import { type PreviewSource, renderPreview, renderPreviewReport } from '../core/preview.js';
+import { sanitizeText } from '../core/sanitize.js';
 import { getScenario, scenarioList } from '../core/scenarios.js';
 import {
   deleteUserTheme,
@@ -61,6 +94,7 @@ import {
   resolveThemeInput,
   STYLES,
   saveUserTheme,
+  type Theme,
   themesDir,
 } from '../core/themes.js';
 import type { Config, ProgressConfig, WidgetItem } from '../core/types.js';
@@ -310,6 +344,162 @@ function previewSourceOf(body: Record<string, unknown>): PreviewSource {
   return 'sample';
 }
 
+type Found =
+  | { source: 'user'; entry: CatalogEntry }
+  | { source: 'legacy'; item: LegacyItem }
+  | { source: 'system'; entry: SystemEntry };
+
+export interface EntrySummary {
+  ref: string;
+  source: Found['source'];
+  id: string;
+  kind: EntryKind;
+  name: string;
+  description: string;
+  author: string;
+  version: number;
+  rev: number | null;
+  share: { wanted: boolean; state: string } | null;
+  remote: { id: string; version: number } | null;
+  updatedAt: string | null;
+  scenario: string | null;
+  content: EntryContent;
+}
+
+const KINDS: readonly EntryKind[] = ['bundle', 'preset', 'theme'];
+const LEGACY_RE = /^legacy:(?:preset|theme)\/(.*)$/;
+const SYSTEM_RE = /^(?:bundle|preset|theme)\/(.*)$/;
+const MAX_PREVIEWS = 100;
+
+const clean = (v: unknown): string => sanitizeText(typeof v === 'string' ? v : '');
+const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+const isKind = (v: unknown): v is EntryKind => KINDS.includes(v as EntryKind);
+
+function refType(ref: unknown): Found['source'] | null {
+  if (typeof ref !== 'string') return null;
+  if (ENTRY_ID_RE.test(ref)) return 'user';
+  const legacy = LEGACY_RE.exec(ref);
+  if (legacy && ID_RE.test(legacy[1]!)) return 'legacy';
+  const system = SYSTEM_RE.exec(ref);
+  return system && ID_RE.test(system[1]!) ? 'system' : null;
+}
+
+const refOf = (a: Found): string =>
+  a.source === 'user' ? a.entry.id : a.source === 'legacy' ? a.item.ref : a.entry.ref;
+const entryKind = (a: Found): EntryKind => (a.source === 'legacy' ? a.item.kind : a.entry.kind);
+
+function contentOf(a: Found): EntryContent {
+  if (a.source === 'user') return latest(a.entry).content;
+  return a.source === 'legacy' ? a.item.content : a.entry.content;
+}
+
+function systemText(e: SystemEntry, field: 'name' | 'description'): string {
+  if (e.kind === 'bundle') return bundleText(e, field);
+  if (e.kind === 'preset') return presetText(e, field);
+  return field === 'name' ? e.name : themeDescription(e);
+}
+
+function summaryOf(a: Found): EntrySummary {
+  const base = { ref: refOf(a), source: a.source, kind: entryKind(a), content: contentOf(a) };
+  if (a.source === 'user') {
+    const e = a.entry;
+    const remote = e.share.remote;
+    return {
+      ...base,
+      id: e.id,
+      name: clean(e.name),
+      description: clean(e.description),
+      author: clean(e.author),
+      version: e.version,
+      rev: e.rev,
+      share: { wanted: e.share.wanted, state: shareState(e) },
+      remote: remote ? { id: clean(remote.id), version: remote.version } : null,
+      updatedAt: e.updatedAt,
+      scenario: null,
+    };
+  }
+  const fixed = { version: 1, rev: null, share: null, remote: null, updatedAt: null };
+  if (a.source === 'legacy') {
+    const i = a.item;
+    return {
+      ...base,
+      ...fixed,
+      id: i.legacyId,
+      name: clean(i.name),
+      description: clean(i.description),
+      author: clean(i.author),
+      scenario: null,
+    };
+  }
+  const e = a.entry;
+  return {
+    ...base,
+    ...fixed,
+    id: e.id,
+    name: clean(systemText(e, 'name')),
+    description: clean(systemText(e, 'description')),
+    author: e.author,
+    scenario: e.scenario ?? null,
+  };
+}
+
+function versionsOf(a: Found) {
+  if (a.source !== 'user')
+    return [
+      { version: 1, at: null, note: '', restoredFrom: null, overwrittenAt: null, content: contentOf(a) },
+    ];
+  return a.entry.versions.map((v) => ({
+    version: v.version,
+    at: v.at,
+    note: clean(v.note),
+    restoredFrom: v.restoredFrom ?? null,
+    overwrittenAt: v.overwrittenAt ?? null,
+    content: v.content,
+  }));
+}
+
+// the same draft path as POST /api/preview; nothing is installed
+function draftTheme(raw: unknown): Theme | undefined {
+  try {
+    const input = parseThemeInput(raw);
+    if (input.extends !== undefined && !ID_RE.test(input.extends)) delete input.extends;
+    return resolveThemeInput(input);
+  } catch {
+    return undefined;
+  }
+}
+
+const STORE_ERRORS: Record<StoreCode, [number, MessageId]> = {
+  exists: [409, 'err.catalog.exists'],
+  changed: [409, 'err.catalog.changed'],
+  'too-large': [413, 'err.catalog.tooLarge'],
+  'not-found': [404, 'err.catalog.unknownRef'],
+  'bad-id': [400, 'err.catalog.badId'],
+  'bad-name': [400, 'err.catalog.badName'],
+  'bad-content': [400, 'err.catalog.badContent'],
+  'bad-endpoint': [400, 'err.catalog.badEndpoint'],
+  'no-version': [404, 'err.catalog.noVersion'],
+};
+
+function storeError(err: CatalogStoreError, kind = ''): HttpError {
+  const d = err.data;
+  const [status, id] = STORE_ERRORS[err.code];
+  const ref = clean(d.ref ?? d.id ?? d.name);
+  const version = typeof d.version === 'number' ? d.version : undefined;
+  if (err.code === 'exists') {
+    const name = clean(d.name);
+    return httpError(
+      status,
+      id,
+      { kind, name, version: version ?? '' },
+      { exists: { id: d.id, version, name } },
+    );
+  }
+  if (err.code === 'not-found') return httpError(status, id, { ref });
+  if (err.code === 'no-version') return httpError(status, id, { ref, version: version ?? '' });
+  return httpError(status, id);
+}
+
 export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   // API text stays English; the browser picks its language from `language`
   const auto = envLanguage();
@@ -373,6 +563,90 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       source: p.source ?? 'builtin',
       config: p.build(),
     }));
+
+  // the UI language: an explicit hint, the config's own language, else the env
+  const uiLang = (hint: unknown, config?: { language?: unknown }): LanguageId =>
+    isLanguageId(hint) ? hint : isLanguageId(config?.language) ? config.language : auto.id;
+  const diskLang = (hint: unknown): LanguageId => uiLang(hint, configLanguage(opts.configPath));
+
+  function allEntries(): Found[] {
+    return [
+      ...listEntries().map((entry): Found => ({ source: 'user', entry })),
+      ...listLegacy().map((item): Found => ({ source: 'legacy', item })),
+      ...systemEntries({ gsd }).map((entry): Found => ({ source: 'system', entry })),
+    ];
+  }
+
+  function findRef(ref: string): Found | null {
+    const type = refType(ref);
+    if (type === 'user') {
+      const s = readEntry(ref);
+      return s ? { source: 'user', entry: normalizeEntry(s.entry) } : null;
+    }
+    if (type === 'legacy') {
+      const item = listLegacy().find((i) => i.ref === ref);
+      return item ? { source: 'legacy', item } : null;
+    }
+    const entry = type === 'system' ? findSystem(ref, { gsd }) : null;
+    return entry ? { source: 'system', entry } : null;
+  }
+
+  function mustFind(ref: string): Found {
+    const hit = findRef(ref);
+    if (!hit) throw httpError(404, 'err.catalog.unknownRef', { ref: clean(ref) });
+    return hit;
+  }
+
+  function catalogBody(lang: LanguageId) {
+    return withLanguage(lang, () => {
+      const all = allEntries();
+      const endpoint = marketEndpoint();
+      return {
+        system: all.filter((a) => a.source === 'system').map(summaryOf),
+        user: all.filter((a) => a.source !== 'system').map(summaryOf),
+        profile: { author: readProfile().author },
+        endpoint: endpoint === null ? null : clean(endpoint),
+        publishable: endpoint !== null,
+      };
+    });
+  }
+
+  const userResult = (e: CatalogEntry, lang: LanguageId) => ({
+    ok: true,
+    entry: withLanguage(lang, () => summaryOf({ source: 'user', entry: normalizeEntry(e) })),
+    catalog: catalogBody(lang),
+  });
+
+  // body refs; system entries are read only
+  function writableRef(ref: unknown): { type: 'user' | 'legacy'; ref: string } {
+    const type = refType(ref);
+    if (!type) throw httpError(400, 'err.catalog.badRef');
+    if (type === 'system') {
+      if (!findSystem(ref as string, { gsd }))
+        throw httpError(404, 'err.catalog.unknownRef', { ref: clean(ref) });
+      throw httpError(403, 'err.catalog.systemReadOnly');
+    }
+    return { type, ref: ref as string };
+  }
+
+  function currentRev(id: string, rev: unknown): number {
+    if (Number.isInteger(rev)) return rev as number;
+    const s = readEntry(id);
+    if (!s) throw httpError(404, 'err.catalog.unknownRef', { ref: id });
+    return s.entry.rev;
+  }
+
+  function previewOf(current: Config, a: Found, source: PreviewSource, width: number): string[] {
+    const kind = entryKind(a);
+    const content = contentOf(a);
+    const theme = kind !== 'preset' && content.theme ? draftTheme(content.theme) : undefined;
+    try {
+      return renderPreview(applyCatalogContent(current, content, kind), source, width, theme);
+    } catch {
+      return [];
+    }
+  }
+
   let port = 0;
 
   const hostOk = (h: string | undefined) => h === `127.0.0.1:${port}` || h === `localhost:${port}`;
@@ -442,6 +716,33 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       if (theme?.source !== 'user') throw httpError(404, 'err.server.notUserTheme');
       deleteUserTheme(id);
       send(res, 200, { ok: true, themes: listThemes() });
+      return;
+    }
+
+    if ((method === 'GET' || method === 'DELETE') && url.pathname.startsWith('/api/catalog/entries/')) {
+      let ref = '';
+      try {
+        ref = decodeURIComponent(url.pathname.slice('/api/catalog/entries/'.length));
+      } catch {}
+      const type = refType(ref);
+      if (!type) throw httpError(400, 'err.catalog.badId');
+      const lang = diskLang(url.searchParams.get('lang'));
+      if (method === 'GET') {
+        const hit = mustFind(ref);
+        send(
+          res,
+          200,
+          withLanguage(lang, () => ({ entry: summaryOf(hit), versions: versionsOf(hit) })),
+        );
+        return;
+      }
+      if (type === 'system') {
+        mustFind(ref);
+        throw httpError(403, 'err.catalog.systemReadOnly');
+      }
+      if (type === 'user') deleteEntry(ref);
+      else if (!deleteLegacy(ref)) throw httpError(404, 'err.catalog.unknownRef', { ref: clean(ref) });
+      send(res, 200, { ok: true, catalog: catalogBody(lang) });
       return;
     }
 
@@ -567,6 +868,117 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           config: body.config,
         });
         send(res, 200, { ok: true, presets: presetList() });
+        return;
+      }
+      case 'GET /api/catalog': {
+        send(res, 200, catalogBody(diskLang(url.searchParams.get('lang'))));
+        return;
+      }
+      case 'POST /api/catalog/previews': {
+        const body = asObject(await readBody(req));
+        const config = normalizeConfig(body.config);
+        if (config.colorLevel === 'auto') config.colorLevel = 3;
+        const source = previewSourceOf(body);
+        const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 100));
+        const byRef = new Map(allEntries().map((a) => [refOf(a), a]));
+        const refs = Array.isArray(body.refs)
+          ? body.refs.slice(0, MAX_PREVIEWS).filter((r): r is string => typeof r === 'string')
+          : [...byRef.keys()].slice(0, MAX_PREVIEWS);
+        const previews: Record<string, string[]> = {};
+        withLanguage(uiLang(body.lang, config), () => {
+          for (const ref of refs) {
+            const hit = byRef.get(ref);
+            if (hit && !Object.hasOwn(previews, ref)) previews[ref] = previewOf(config, hit, source, width);
+          }
+        });
+        send(res, 200, { previews });
+        return;
+      }
+      case 'POST /api/catalog/save': {
+        const body = asObject(await readBody(req));
+        const { kind } = body;
+        const mode = body.mode ?? 'new';
+        if (!isKind(kind) || typeof body.config !== 'object' || body.config === null)
+          throw httpError(400, 'err.catalog.badContent');
+        if (mode !== 'new' && mode !== 'update' && mode !== 'overwrite')
+          throw httpError(400, 'err.catalog.badRequest');
+        const config = normalizeConfig(body.config);
+        const author = str(body.author);
+        let e: CatalogEntry;
+        try {
+          e = saveEntry({
+            kind,
+            name: str(body.name),
+            description: str(body.description),
+            author,
+            content: contentFromConfig(config, kind),
+            note: str(body.note),
+            share: body.share !== false,
+            mode,
+            ...(body.id === undefined ? {} : { id: body.id as string }),
+            ...(Number.isInteger(body.rev) ? { rev: body.rev as number } : {}),
+          });
+        } catch (err) {
+          throw err instanceof CatalogStoreError ? storeError(err, kind) : err;
+        }
+        if (mode !== 'new' && typeof body.share === 'boolean' && e.share.wanted !== body.share)
+          e = updateShare(e.id, body.share, e.rev);
+        if (typeof body.author === 'string') writeProfile({ author });
+        send(res, 200, userResult(e, uiLang(body.lang, config)));
+        return;
+      }
+      case 'POST /api/catalog/restore': {
+        const body = asObject(await readBody(req));
+        const target = writableRef(body.id ?? body.ref);
+        const version = body.version;
+        if (!Number.isInteger(version) || (version as number) < 1)
+          throw httpError(400, 'err.catalog.badRequest');
+        const lang = diskLang(body.lang);
+        let id = target.ref;
+        let rev: number;
+        if (target.type === 'legacy') {
+          if (version !== 1)
+            throw httpError(404, 'err.catalog.noVersion', { ref: clean(id), version: version as number });
+          const adopted = adoptLegacy(id, new Date());
+          id = adopted.id;
+          rev = adopted.rev;
+        } else {
+          if (!Number.isInteger(body.rev)) throw httpError(400, 'err.catalog.badRequest');
+          rev = body.rev as number;
+        }
+        const note = withLanguage(lang, () => t('catalog.restore.note', { version: version as number }));
+        send(res, 200, userResult(restoreEntry(id, version as number, rev, note), lang));
+        return;
+      }
+      case 'POST /api/catalog/share': {
+        const body = asObject(await readBody(req));
+        const target = writableRef(body.ref ?? body.id);
+        if (typeof body.share !== 'boolean') throw httpError(400, 'err.catalog.badRequest');
+        let e: CatalogEntry;
+        if (target.type === 'legacy') {
+          const adopted = adoptLegacy(target.ref, new Date());
+          e = updateShare(adopted.id, body.share, adopted.rev);
+        } else e = updateShare(target.ref, body.share, currentRev(target.ref, body.rev));
+        send(res, 200, userResult(e, diskLang(body.lang)));
+        return;
+      }
+      case 'POST /api/catalog/install-theme': {
+        const body = asObject(await readBody(req));
+        const ref = body.ref;
+        if (!refType(ref)) throw httpError(400, 'err.catalog.badRef');
+        const hit = mustFind(ref as string);
+        let content = contentOf(hit);
+        if (body.version !== undefined) {
+          const v = hit.source === 'user' ? hit.entry.versions.find((x) => x.version === body.version) : null;
+          if (v) content = v.content;
+          else if (hit.source === 'user' || body.version !== 1)
+            throw httpError(404, 'err.catalog.noVersion', {
+              ref: clean(ref),
+              version: typeof body.version === 'number' ? body.version : '',
+            });
+        }
+        const theme = entryKind(hit) === 'preset' ? null : installEntryTheme(content);
+        send(res, 200, { ok: true, theme, themes: listThemes() });
         return;
       }
       case 'PUT /api/styles': {
@@ -755,8 +1167,9 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   let lastRequest = now();
   const server = http.createServer((req, res) => {
     lastRequest = now();
-    handle(req, res).catch((err: unknown) => {
+    handle(req, res).catch((caught: unknown) => {
       if (res.headersSent) return res.end();
+      const err = caught instanceof CatalogStoreError ? storeError(caught) : caught;
       const status = err instanceof HttpError ? err.status : 500;
       if (status === 413) res.setHeader('connection', 'close');
       const e = err instanceof HttpError ? err : undefined;
