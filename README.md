@@ -315,7 +315,7 @@ How it counts:
 - One Claude config folder per run. For another profile, run `CLAUDE_CONFIG_DIR=~/.claude-work ccinfobar report`.
 - The first run builds an index in the cache folder (`report/` in `~/.cache/ccinfobar`, `~/Library/Caches/ccinfobar` on macOS, `%LOCALAPPDATA%\ccinfobar\cache` on Windows), so later runs read only what is new. It holds numbers, hashes, model and session ids and project paths, never prompt text. Totals of transcripts that Claude Code deletes later (`cleanupPeriodDays`) are kept for 13 months, so your history survives that cleanup from the first run on.
 - `--rebuild` reads every transcript again and repairs the cost ledger summary the cost widgets use; deleted transcripts keep their totals.
-- CSV has a fixed English header, one row per period and project and the full project path. A text cell that starts with `=`, `+`, `-`, `@` or a tab gets a leading `'`, so a spreadsheet never runs it as a formula; saving the file again from Excel can undo that.
+- CSV has a fixed English header, one row per period and project and the full project path. A row priced only in another currency (a model profile in CNY, for example) has an empty `cost_usd` and `partial` set to `true`; `--json` has the amount in `costOther`. A text cell that starts with `=`, `+`, `-`, `@` or a tab gets a leading `'`, so a spreadsheet never runs it as a formula; saving the file again from Excel can undo that.
 
 ## Plugin
 

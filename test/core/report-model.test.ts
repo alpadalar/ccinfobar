@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PRICES_UPDATED } from '../../src/core/prices.js';
+import { formatCsv } from '../../src/core/report-format.js';
 import { buildReport, decodeProjectDir, parseRange, periodOf } from '../../src/core/report-model.js';
 import {
   type Bucket,
@@ -367,7 +368,13 @@ describe('buildReport cost source (D-04)', () => {
       costSource: 'transcript',
       costOther: { CNY: 3 },
     });
-    expect(rowOf(r.rows, '2026-10-10', '/work/cn')).toMatchObject({ costUsd: null, costOther: { CNY: 1 } });
+    expect(rowOf(r.rows, '2026-10-10', '/work/cn')).toMatchObject({
+      costUsd: null,
+      costOther: { CNY: 1 },
+      partial: true,
+    });
+    expect(rowOf(r.rows, '2026-10-10')!.partial).toBe(false);
+    expect(formatCsv(r).split('\r\n')[2]).toMatch(/,,transcript,true,\d*$/);
     expect(r.total).toMatchObject({ costUsd: 3, costOther: { CNY: 4 } });
     expect(r.notes).toContainEqual({ code: 'non-usd', params: { currency: 'CNY', amount: 4 } });
     expect(rowOf(r.rows, '2026-10-10')).not.toHaveProperty('costOther.USD');

@@ -216,7 +216,8 @@ function toRow(a: Acc): ReportRow {
     tokens: a.transcript ? { ...a.t } : null,
     costUsd: a.hasUsd ? a.usd : null,
     costSource: (a.src.size > 1 ? 'mixed' : ([...a.src][0] ?? null)) as CostSource,
-    partial: a.partial,
+    // cost only in another currency is not in cost_usd
+    partial: a.partial || (!a.hasUsd && Object.keys(a.other).length > 0),
     activeMs: a.transcript ? a.ms : null,
     tokensPartial: a.transcript && a.tsids.size < a.sids.size,
   };
