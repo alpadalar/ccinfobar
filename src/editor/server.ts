@@ -31,6 +31,7 @@ import { backupsDir, readSettings } from '../commands/settings-file.js';
 import {
   compareVersions,
   fetchLatest,
+  type InstallKind,
   installKind,
   installVersionAsync,
   localPrefix,
@@ -86,6 +87,8 @@ export interface EditorOptions {
   terminal?: TerminalColors | null;
   setup?: (version: string) => Promise<Setup>;
   claudeVersion?: () => string | null | Promise<string | null>;
+  installKind?: () => InstallKind;
+  fetchLatest?: (timeoutMs: number) => Promise<string>;
   detached?: { idleMs: number; stateFile: string; checkMs?: number; now?: () => number };
 }
 
@@ -316,6 +319,8 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const token = crypto.randomBytes(16).toString('hex');
   let command = defaultCommand();
   const setup = opts.setup ?? ((v: string) => setupCommandAsync(v));
+  const kindOf = opts.installKind ?? installKind;
+  const latestOf = opts.fetchLatest ?? fetchLatest;
   // async and once; started after listen, so the first request rarely waits
   const detectAbort = new AbortController();
   let detecting: Promise<string | null> | null = null;
@@ -712,7 +717,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       case 'GET /api/system': {
         send(res, 200, {
           version: VERSION,
-          kind: installKind(),
+          kind: kindOf(),
           update: readUpdateState(),
           claude: claudeInfo(command),
           hooks: await hooksInfo(command),
@@ -723,13 +728,14 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const body = asObject(await readBody(req));
         let latest: string;
         try {
-          latest = await fetchLatest(8000);
+          latest = await latestOf(8000);
         } catch (err) {
           throw httpError(502, 'err.server.github', { error: (err as Error).message });
         }
         const newer = compareVersions(latest, VERSION) > 0;
-        const kind = installKind();
+        const kind = kindOf();
         if (body.install === true && newer) {
+          if (kind === 'brew') throw httpError(409, 'update.brewRefused');
           if (kind !== 'npm-global' && kind !== 'local') {
             throw httpError(409, 'err.server.cannotUpdate', { kind });
           }
