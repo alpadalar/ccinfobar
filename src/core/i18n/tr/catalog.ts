@@ -123,7 +123,6 @@ export const catalogMessages = {
     'Deneme çalıştırması: hiçbir şey yazılmadı. {name} ({kind}) v{version} şunları içerecekti:',
   'catalog.save.bothModes': '--update ve --overwrite birlikte kullanılamaz',
   'catalog.restore.done': '{name} için v{from} sürümü v{version} olarak geri yüklendi',
-  'catalog.restore.note': 'v{version} geri yüklendi',
   'catalog.share.on': '{name} paylaşılıyor: {state}',
   'catalog.share.off': '{name} paylaşılmıyor: {state}',
   'catalog.share.withdrawLater': 'Bir sonraki yayımlama onu geri çekene kadar pazar yerinde kalır.',

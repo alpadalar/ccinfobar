@@ -149,6 +149,20 @@ describe('catalog store', () => {
     expect(rawOf(e.id).versions[0].content).toEqual({ layout: { lines: [] } });
   });
 
+  it('an update or overwrite with a share change is one write and keeps the overwritten backup', () => {
+    const e = saveEntry(input(), dir);
+    const v1 = bytes(e.id);
+    const o = saveEntry(input({ mode: 'overwrite', content: content('git'), shareChange: false }), dir);
+    expect(o.rev).toBe(2);
+    expect(o.share).toMatchObject({ wanted: false, state: 'local' });
+    expect(fs.readFileSync(`${fileOf(e.id)}.bak`).equals(v1)).toBe(true);
+    const u = saveEntry(input({ mode: 'update', content: content('cost'), shareChange: false }), dir);
+    expect(u.rev).toBe(3);
+    expect(u.share.wanted).toBe(false);
+    const kept = saveEntry(input({ mode: 'update', content: content('cwd'), share: true }), dir);
+    expect(kept.share.wanted).toBe(false);
+  });
+
   it('update appends, overwrite replaces in place', () => {
     const e = saveEntry(input(), dir);
     const up = saveEntry(input({ mode: 'update', content: content('cost'), note: 'two', now: at(1) }), dir);

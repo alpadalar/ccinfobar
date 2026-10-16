@@ -80,6 +80,8 @@ export interface SaveInput {
   note?: string;
   share: boolean;
   mode: 'new' | 'update' | 'overwrite';
+  // update and overwrite: a new share choice, in the same write
+  shareChange?: boolean;
   id?: string;
   rev?: number;
   now?: Date;
@@ -315,7 +317,9 @@ function saveLocked(input: SaveInput, dir: string): CatalogEntry {
       : overwriteVersion(cur, content, note, at);
   next.description = clip(input.description, ENTRY_LIMITS.description);
   next.author = clip(input.author, ENTRY_LIMITS.author);
-  return commitEntry(next, rev, dir, now);
+  const change = input.shareChange;
+  const shared = typeof change === 'boolean' && change !== cur.share.wanted ? setShare(next, change) : next;
+  return commitEntry(shared, rev, dir, now);
 }
 
 export function restoreEntry(

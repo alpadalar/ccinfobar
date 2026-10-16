@@ -47,6 +47,7 @@ function textInput(value: string, max: number, placeholder?: string): HTMLInputE
 export async function saveCurrentDialog(data: CatalogState): Promise<CatalogState | null> {
   let kind: EntryKind = 'bundle';
   let share = true;
+  let shareTouched = false;
   let clash: Clash | null = null;
   let latest: CatalogState | null = null;
   let busy = false;
@@ -56,6 +57,10 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
   const note = textInput('', 200, t('catalog.save.notePlaceholder'));
   const kindBox = h('div', { class: 'catalog-kind' });
   const kindHint = h('div', { class: 'hint' });
+  const shareSwitch = toggle(share, (v) => {
+    share = v;
+    shareTouched = true;
+  });
   const noteField = field(t('catalog.save.note'), note);
   const clashText = h('p', { class: 'modal-text' });
   const update = h('button', { class: 'btn', type: 'button', onClick: () => void send({ mode: 'update' }) });
@@ -99,8 +104,13 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
     noteField.hidden = !c;
     submit.hidden = !!c;
     if (!c) return;
-    // update and overwrite keep the old description, as the CLI does
-    if (!desc.value.trim()) desc.value = (latest ?? data).user.find((u) => u.id === c.id)?.description ?? '';
+    const old = (latest ?? data).user.find((u) => u.id === c.id);
+    // update and overwrite keep the old description and share choice, as the CLI does
+    if (!desc.value.trim()) desc.value = old?.description ?? '';
+    if (!shareTouched && old?.share) {
+      share = old.share.wanted;
+      shareSwitch.querySelector('input')!.checked = share;
+    }
     const p = { name: c.name || name.value.trim(), version: c.version, next: c.version + 1 };
     clashText.textContent = t('catalog.save.existsText', p);
     update.textContent = t('catalog.save.update', p);
@@ -124,7 +134,7 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
         name: title,
         description: desc.value.trim(),
         author: author.value.trim(),
-        share,
+        ...(mode === 'new' || shareTouched ? { share } : {}),
         mode,
         ...(target ? { id: target.id, note: note.value.trim() } : {}),
         ...(typeof rev === 'number' ? { rev } : {}),
@@ -155,14 +165,7 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
       field(t('catalog.save.name'), name),
       field(t('catalog.save.description'), desc),
       field(t('catalog.save.author'), author, t('catalog.save.authorHint')),
-      field(
-        t('catalog.save.share'),
-        toggle(share, (v) => {
-          share = v;
-        }),
-        t('catalog.save.shareHint'),
-        true,
-      ),
+      field(t('catalog.save.share'), shareSwitch, t('catalog.save.shareHint'), true),
       clashBox,
       noteField,
       err,

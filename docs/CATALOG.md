@@ -76,13 +76,13 @@ A name that already exists for the same kind (compared ignoring case and accents
 | Update | Adds the current setup as a new version; the history is kept | `vN+1` |
 | Overwrite | Replaces the content and note of the latest version in place; the history marks it as overwritten | stays `vN` |
 
-Both take an optional note ("what changed"). The same name with a different kind is a separate entry.
+Both take an optional note ("what changed") and keep the entry's description and share setting unless you change them; in the editor the share switch shows the entry's setting. The change is one write, so the entry's backup (`.bak`) still holds the version an overwrite replaced. The same name with a different kind is a separate entry.
 
 If the editor and the CLI change the same entry at once, only one writes at a time (a short lock in the catalog folder), and the second write is refused with "This entry changed since you opened it; reload and try again", so nothing is lost. If another ccinfobar holds the lock for more than 3 s, a write stops with "Another ccinfobar window is changing the catalog; try again in a moment".
 
 ## History and restore
 
-**Version history** on a user card lists every version, newest first, with its time, note, a Current tag on the latest one, and "restored from vN" or "overwritten" where they apply. **Restore** on an older version adds a copy of it as a new version (note `restored vN`); the versions in between stay.
+**Version history** on a user card lists every version, newest first, with its time, note, a Current tag on the latest one, and "restored from vN" or "overwritten" where they apply. **Restore** on an older version adds a copy of it as a new version, marked "restored from vN"; the versions in between stay.
 
 ## Sharing and publishing
 

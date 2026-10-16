@@ -116,7 +116,6 @@ export const catalogMessages = {
   'catalog.save.dryRun': 'Dry run: nothing was written. {kind} {name} v{version} would contain:',
   'catalog.save.bothModes': '--update and --overwrite cannot be used together',
   'catalog.restore.done': 'Restored v{from} of {name} as v{version}',
-  'catalog.restore.note': 'restored v{version}',
   'catalog.share.on': 'Sharing {name}: {state}',
   'catalog.share.off': 'Not sharing {name}: {state}',
   'catalog.share.withdrawLater': 'It stays on the marketplace until the next publish withdraws it.',

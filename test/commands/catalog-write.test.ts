@@ -357,7 +357,7 @@ describe('catalog restore, share, unshare and delete', () => {
     expect(r.out).toEqual(['Restored v1 of My look as v3']);
     const e = readEntry(id, cat)!.entry;
     expect(e.version).toBe(3);
-    expect(e.versions[2]).toMatchObject({ note: 'restored v1', restoredFrom: 1 });
+    expect(e.versions[2]).toMatchObject({ note: '', restoredFrom: 1 });
     expect(e.versions[2]!.content.appearance).toEqual({ theme: 'nord' });
     const missing = await run(['restore', id, '9']);
     expect(missing.code).toBe(1);
@@ -506,7 +506,7 @@ describe('catalog write text in Turkish', () => {
     const id = listEntries(cat)[0]!.id;
     expect((await tr(['save', 'Görünüm'])).err[0]).toMatch(/^Görünüm zaten v1 olarak var\. /);
     expect((await tr(['restore', id, '1'])).out).toEqual(['Görünüm için v1 sürümü v2 olarak geri yüklendi']);
-    expect(readEntry(id, cat)!.entry.versions[1]!.note).toBe('v1 geri yüklendi');
+    expect(readEntry(id, cat)!.entry.versions[1]).toMatchObject({ note: '', restoredFrom: 1 });
     expect((await tr(['unshare', id])).out).toEqual(['Görünüm paylaşılmıyor: Paylaşılmadı']);
     expect((await tr(['delete', id])).err).toEqual([
       'Görünüm girdisini silmek için --yes ile tekrar çalıştırın.',

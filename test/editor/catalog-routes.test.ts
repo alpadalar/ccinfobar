@@ -356,6 +356,23 @@ describe('editor catalog routes: save, restore, share, delete and install-theme'
     expect(stale.json().errorId).toBe('err.catalog.changed');
   });
 
+  it('an overwrite with a share change is one write; no share keeps it (WR-02)', async () => {
+    const first = (await save({ share: false })).json().entry;
+    const file = path.join(cfgDir(), 'catalog', 'entries', `${first.id}.json`);
+    const v1 = fs.readFileSync(file);
+    const kept = (
+      await save({ mode: 'overwrite', id: first.id, rev: first.rev, config: twoLines(), share: undefined })
+    ).json();
+    expect(kept.entry.share).toEqual({ wanted: false, state: 'local' });
+    expect(kept.entry.rev).toBe(first.rev + 1);
+    expect(fs.readFileSync(`${file}.bak`).equals(v1)).toBe(true);
+    const v2 = fs.readFileSync(file);
+    const on = await save({ mode: 'overwrite', id: first.id, rev: kept.entry.rev, share: true });
+    expect(on.json().entry.share).toEqual({ wanted: true, state: 'pending' });
+    expect(on.json().entry.rev).toBe(kept.entry.rev + 1);
+    expect(fs.readFileSync(`${file}.bak`).equals(v2)).toBe(true);
+  });
+
   it('rejects a bad name, kind, mode or missing config', async () => {
     const cases: [Record<string, unknown>, number, string][] = [
       [{ name: '' }, 400, 'err.catalog.badName'],
@@ -425,7 +442,7 @@ describe('editor catalog routes: save, restore, share, delete and install-theme'
     expect(res.json().entry.version).toBe(3);
     expect(res.json().entry.content.layout.lines).toHaveLength(1);
     const full = (await request('GET', `/api/catalog/entries/${e.id}`)).json();
-    expect(full.versions[2]).toMatchObject({ version: 3, restoredFrom: 1, note: 'restored v1' });
+    expect(full.versions[2]).toMatchObject({ version: 3, restoredFrom: 1, note: '' });
     const missing = await request('POST', '/api/catalog/restore', {
       body: { id: e.id, version: 9, rev: res.json().entry.rev },
     });

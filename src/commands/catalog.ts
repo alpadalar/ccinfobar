@@ -601,7 +601,7 @@ async function runSave(c: Ctx): Promise<void> {
     for (const line of JSON.stringify(content, null, 2).split('\n')) c.io.log(`  ${clean(line)}`);
     return;
   }
-  let e = saveEntry(
+  const e = saveEntry(
     {
       kind,
       name,
@@ -612,12 +612,11 @@ async function runSave(c: Ctx): Promise<void> {
       share: share !== false,
       mode,
       ...(old ? { id: old.id, rev: old.rev } : {}),
+      ...(old && typeof share === 'boolean' ? { shareChange: share } : {}),
       now: c.now(),
     },
     c.dir,
   );
-  if (old && typeof share === 'boolean' && e.share.wanted !== share)
-    e = updateShare(e.id, share, e.rev, c.dir);
   if (textFlag(c, 'author') !== undefined) writeProfile({ author }, c.dir);
   const state = shareState(e);
   if (c.json) {
@@ -645,10 +644,10 @@ function runRestore(c: Ctx): void {
   }
   const e = writable(c, hit);
   if (!e) return;
-  const note = t('catalog.restore.note', { version: n });
+  // restoredFrom labels it; no note in the language of the moment
   const next = c.dryRun
-    ? restoreVersion(e, n, note, c.now().toISOString())!
-    : restoreEntry(e.id, n, e.rev, note, c.dir, c.now());
+    ? restoreVersion(e, n, '', c.now().toISOString())!
+    : restoreEntry(e.id, n, e.rev, '', c.dir, c.now());
   if (c.json) {
     json(c, () => ({
       id: next.id,

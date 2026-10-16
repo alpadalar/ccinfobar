@@ -1010,14 +1010,13 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
             note: str(body.note),
             share: body.share !== false,
             mode,
+            ...(mode !== 'new' && typeof body.share === 'boolean' ? { shareChange: body.share } : {}),
             ...(body.id === undefined ? {} : { id: body.id as string }),
             ...(Number.isInteger(body.rev) ? { rev: body.rev as number } : {}),
           });
         } catch (err) {
           throw err instanceof CatalogStoreError ? storeError(err, kind) : err;
         }
-        if (mode !== 'new' && typeof body.share === 'boolean' && e.share.wanted !== body.share)
-          e = updateShare(e.id, body.share, e.rev);
         if (typeof body.author === 'string') writeProfile({ author });
         send(res, 200, userResult(e, uiLang(body.lang, config)));
         return;
@@ -1041,8 +1040,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           if (!Number.isInteger(body.rev)) throw httpError(400, 'err.catalog.badRequest');
           rev = body.rev as number;
         }
-        const note = withLanguage(lang, () => t('catalog.restore.note', { version: version as number }));
-        send(res, 200, userResult(restoreEntry(id, version as number, rev, note), lang));
+        send(res, 200, userResult(restoreEntry(id, version as number, rev, ''), lang));
         return;
       }
       case 'POST /api/catalog/share': {

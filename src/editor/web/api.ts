@@ -42,7 +42,7 @@ export interface CatalogSaveBody {
   name: string;
   description: string;
   author?: string;
-  share: boolean;
+  share?: boolean;
   mode: 'new' | 'update' | 'overwrite';
   note?: string;
   id?: string;

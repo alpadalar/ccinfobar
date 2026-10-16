@@ -329,6 +329,44 @@ describe('save current dialog', () => {
     expect(saves()[1]!.body).toMatchObject({ mode: 'update', id: 'u-l', rev: 1, kind: 'preset' });
   });
 
+  it('keeps the clashing entry share choice unless the switch is touched (WR-02)', async () => {
+    await init();
+    const clash = {
+      error: 'exists',
+      errorId: 'err.catalog.exists',
+      errorParams: { kind: 'preset', name: 'Local one', version: 1 },
+      exists: { id: 'u-l', version: 1, name: 'Local one' },
+    };
+    reply('POST /api/catalog/save', 409, clash);
+    reply('POST /api/catalog/save', 200, { ok: true, entry: local(), catalog });
+    await saveDialog();
+    button('Preset only').dispatch('click');
+    type(input('Name'), 'Local one');
+    button('Save').dispatch('click');
+    await flush();
+    expect(shareSwitch().checked).toBe(false);
+    button('Overwrite v1').dispatch('click');
+    await flush();
+    expect(saves()[0]!.body.share).toBe(true);
+    expect(saves()[1]!.body).toMatchObject({ mode: 'overwrite', id: 'u-l' });
+    expect('share' in saves()[1]!.body).toBe(false);
+
+    calls = [];
+    reply('POST /api/catalog/save', 409, clash);
+    reply('POST /api/catalog/save', 200, { ok: true, entry: local(), catalog });
+    await saveDialog();
+    button('Preset only').dispatch('click');
+    type(input('Name'), 'Local one');
+    button('Save').dispatch('click');
+    await flush();
+    const sw = shareSwitch();
+    sw.checked = true;
+    sw.dispatch('change');
+    button('Update (adds v2)').dispatch('click');
+    await flush();
+    expect(saves()[1]!.body).toMatchObject({ mode: 'update', share: true });
+  });
+
   it('keeps the old description on update unless one is typed', async () => {
     await init();
     catalog.user = [{ ...local(), description: 'Old words' }, pub()];
