@@ -29,6 +29,15 @@ export const catalogMessages = {
   'catalog.applyTitle': '{name} uygulansın mı?',
   'catalog.applyText': 'Kaydedilmemiş değişiklikleriniz geri alma geçmişinde kalır.',
   'catalog.applied': '{name} uygulandı. Kalıcı olması için kaydedin.',
+  'catalog.consent.title': '{name} içindeki komutlar ve bağlantılar',
+  'catalog.consent.text':
+    'Bu bileşenler durum satırınızdan komut çalıştırır, HTTP isteği gönderir veya URL açar. Bunlar olmadan uygulayın ya da bu girdiye güveniyorsanız koruyun.',
+  'catalog.consent.drop': 'Bunlar olmadan uygula',
+  'catalog.consent.keep': 'Bunları koru',
+  'catalog.consent.dropped': {
+    one: '{name}, 1 komut veya bağlantı bileşeni olmadan uygulandı. Kalıcı olması için kaydedin.',
+    other: '{name}, {count} komut veya bağlantı bileşeni olmadan uygulandı. Kalıcı olması için kaydedin.',
+  },
   'catalog.themeRenamed': '{id} teması başka renklerle zaten var; {newId} olarak yüklendi',
   'catalog.empty.user':
     'Henüz kayıtlı bir şey yok. Kurulumunuzu eklemek için Mevcut olanı kaydet… düğmesini kullanın.',

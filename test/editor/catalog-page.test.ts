@@ -300,6 +300,52 @@ describe('catalog page', () => {
     expect(store.S.config).toEqual(before);
   });
 
+  it('asks before applying commands and links from a saved entry; dropping is the default (IN-03)', async () => {
+    const risky = user({
+      ref: 'u-r',
+      id: 'u-r',
+      name: 'Risky',
+      content: {
+        layout: {
+          lines: [
+            [
+              { id: 'm', type: 'model' },
+              { id: 'c', type: 'command', options: { command: 'echo hi' } },
+              { id: 'l', type: 'link', options: { url: 'https://example.com/x', text: 'x' } },
+            ],
+          ],
+        },
+      },
+    });
+    catalog.user = [risky];
+    const store = await init();
+    await open();
+    const before = clone(store.S.config);
+    card('u-r').dispatch('click');
+    await flush();
+    const all = texts(body);
+    expect(all).toContain('Commands and links in Risky');
+    expect(all).toContain('echo hi');
+    expect(all).toContain('https://example.com/x');
+    button('Cancel').dispatch('click');
+    await flush();
+    expect(store.S.config).toEqual(before);
+    card('u-r').dispatch('click');
+    await flush();
+    button('Apply without them').dispatch('click');
+    await flush();
+    expect(store.S.config.lines.flat().map((i) => i.type)).toEqual(['model']);
+    expect(toastText()).toContain('Applied Risky without 2 command or link widgets. Save to keep it.');
+    card('u-r').dispatch('click');
+    await flush();
+    // unsaved changes ask first
+    button('Apply').dispatch('click');
+    await flush();
+    button('Keep them').dispatch('click');
+    await flush();
+    expect(store.S.config.lines.flat().map((i) => i.type)).toEqual(['model', 'command', 'link']);
+  });
+
   it('keeps theme and style when applying a preset', async () => {
     const store = await init({ ...defaultConfig(), theme: 'dracula', style: 'capsule' } as Config);
     await open();

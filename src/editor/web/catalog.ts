@@ -10,6 +10,13 @@ import {
 import { presetLabels } from '../../core/i18n/catalog-text.js';
 import { type MessageId, t } from '../../core/i18n/index.js';
 import type { Config } from '../../core/types.js';
+import {
+  dropTargets,
+  type ImportTarget,
+  importTargets,
+  kindText,
+  shortTarget,
+} from '../../importers/confirm.js';
 import { api, previewSource } from './api.js';
 import { deleteEntryDialog, historyDialog, saveCurrentDialog, toggleShare } from './catalog-dialogs.js';
 import { marketplaceSection, publishDialog } from './catalog-market.js';
@@ -74,6 +81,45 @@ function localize(e: CatalogEntryInfo, config: Config): Config {
   return e.source === 'system' && e.kind !== 'theme' ? presetLabels(config) : config;
 }
 
+// the same consent as catalog apply in the CLI; dropping is the default
+async function consent(e: CatalogEntryInfo, targets: ImportTarget[]): Promise<'keep' | 'drop' | null> {
+  let drop: HTMLElement | null = null;
+  const shown = modal<'keep' | 'drop'>({
+    title: t('catalog.consent.title', { name: e.name }),
+    wide: true,
+    body: [
+      h('p', { class: 'modal-text' }, t('catalog.consent.text')),
+      h(
+        'ul',
+        { class: 'catalog-targets' },
+        ...targets.map((x) =>
+          h(
+            'li',
+            null,
+            h('span', { class: 'theme-tag' }, kindText(x.kind)),
+            h('code', null, shortTarget(x.target, 120)),
+          ),
+        ),
+      ),
+    ],
+    actions: (done) => {
+      drop = h(
+        'button',
+        { class: 'btn primary', type: 'button', onClick: () => done('drop') },
+        t('catalog.consent.drop'),
+      );
+      return [
+        h('span', { class: 'spacer' }),
+        h('button', { class: 'btn', type: 'button', onClick: () => done() }, t('web.ui.cancel')),
+        h('button', { class: 'btn', type: 'button', onClick: () => done('keep') }, t('catalog.consent.keep')),
+        drop,
+      ];
+    },
+  });
+  (drop as HTMLElement | null)?.focus();
+  return (await shown) ?? null;
+}
+
 export async function applyEntry(e: CatalogEntryInfo, close: (v?: unknown) => void): Promise<void> {
   if (
     isDirty() &&
@@ -84,6 +130,20 @@ export async function applyEntry(e: CatalogEntryInfo, close: (v?: unknown) => vo
     ))
   )
     return;
+  let content = e.content;
+  let dropped = 0;
+  // saved and pre-catalog entries go through consent; built-in ones are known
+  if (e.source !== 'system' && e.kind !== 'theme' && content.layout) {
+    const targets = importTargets(content.layout);
+    if (targets.length) {
+      const choice = await consent(e, targets);
+      if (!choice) return;
+      if (choice === 'drop') {
+        content = { ...content, layout: dropTargets(content.layout, targets) };
+        dropped = targets.length;
+      }
+    }
+  }
   let base = S.config;
   if (e.kind === 'theme' && hasOwnColors(base) && (await askThemeColors())) base = clearColors(base);
   let themeId: string | undefined;
@@ -98,8 +158,13 @@ export async function applyEntry(e: CatalogEntryInfo, close: (v?: unknown) => vo
       return;
     }
   }
-  replaceAll(keepLanguage(localize(e, applyCatalogContent(base, e.content, e.kind, themeId)), S.config));
-  toast(t('catalog.applied', { name: e.name }), 'info');
+  replaceAll(keepLanguage(localize(e, applyCatalogContent(base, content, e.kind, themeId)), S.config));
+  toast(
+    dropped
+      ? t('catalog.consent.dropped', { name: e.name, count: dropped })
+      : t('catalog.applied', { name: e.name }),
+    'info',
+  );
   close();
 }
 
