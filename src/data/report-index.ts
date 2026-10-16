@@ -223,11 +223,13 @@ function applyAssistant(sc: Scan, e: Json, ts: number | null): void {
     .slice(0, MAX_MODEL);
   const big = r.in + r.cr + r.w5 + r.w1 > BIG;
   const b = bucketKey(dayKey(ts ?? f.lastTs ?? f.mtimeMs), model, u.speed === 'fast', big, r.usd !== null);
-  if (msg.id === undefined && e.requestId === undefined) {
+  const id = typeof msg.id === 'string' && msg.id ? msg.id : null;
+  const rq = typeof e.requestId === 'string' && e.requestId ? e.requestId : null;
+  if (id === null && rq === null) {
     addTo(f, b, r, 1);
     return;
   }
-  const k = keyHash(`${msg.id ?? ''}:${e.requestId ?? ''}`);
+  const k = keyHash(`${id ?? ''}:${rq ?? ''}`);
   const owner = st.owners.get(k);
   if (owner === undefined) {
     st.owners.set(k, rel);

@@ -236,6 +236,21 @@ describe('scanTree requests', () => {
     expect(total(scan(root).S1)).toMatchObject({ n: 2, out: 6 });
   });
 
+  it('counts lines with null or empty ids each time, in every file', () => {
+    const root = scratch('null-ids');
+    const blank = (ts: number, out: number, id: unknown) => {
+      const e = JSON.parse(assistantLine({ ts, out }));
+      e.requestId = id;
+      e.message.id = id;
+      return JSON.stringify(e);
+    };
+    writeTranscript('projects/-w-a/S1.jsonl', [blank(min(0), 3, null), blank(min(1), 3, '')], root);
+    writeTranscript('projects/-w-b/S2.jsonl', [blank(min(2), 4, null)], root);
+    const s = scan(root);
+    expect(total(s.S1)).toMatchObject({ n: 2, out: 6 });
+    expect(total(s.S2)).toMatchObject({ n: 1, out: 4 });
+  });
+
   it('splits cache writes into 5m and 1h', () => {
     const root = scratch('cache');
     writeTranscript(
