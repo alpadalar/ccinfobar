@@ -72,7 +72,7 @@ function filterOf(args: Args): ProjectFilter | null | undefined {
   const p = args.flags.project;
   if (p === undefined || p === false) return null;
   if (typeof p !== 'string' || !p) return undefined;
-  return p === '.' ? { kind: 'root', root: normalizeRoot(process.cwd()) } : { kind: 'substring', text: p };
+  return p === '.' ? { kind: 'cwd', cwd: normalizeRoot(process.cwd()) } : { kind: 'substring', text: p };
 }
 
 function widthOf(args: Args, io: ReportIo, env: NodeJS.ProcessEnv): number | null {

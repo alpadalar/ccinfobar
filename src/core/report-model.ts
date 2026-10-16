@@ -141,13 +141,16 @@ const pos = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 
 // ascii only, so İ and ı never fold
 const fold = (s: string) => s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
 
-function matches(project: string, f: ProjectFilter | null): boolean {
-  if (!f) return true;
-  if (f.kind === 'substring') return fold(project).includes(fold(f.text));
-  const root = f.root;
-  if (project === root) return true;
-  if (!root || !project.startsWith(root)) return false;
-  return /[\\/]$/.test(root) || project[root.length] === '/' || project[root.length] === '\\';
+function within(p: string, root: string): boolean {
+  if (p === root) return true;
+  if (!root || !p.startsWith(root)) return false;
+  return /[\\/]$/.test(root) || p[root.length] === '/' || p[root.length] === '\\';
+}
+
+function currentProject(cwd: string, projects: Iterable<string>): string {
+  let best: string | null = null;
+  for (const p of projects) if (within(cwd, p) && (best === null || p.length > best.length)) best = p;
+  return best ?? cwd;
 }
 
 function newDay(): Day {
@@ -260,18 +263,28 @@ export function buildReport(data: ScanResult, opts: ReportOptions): Report {
   let ledgerOnly = 0;
 
   const sids = new Set([...Object.keys(data.sessions), ...Object.keys(data.ledger)]);
+  const owner = new Map<string, { project: string; approx: boolean }>();
   for (const sid of sids) {
     const s = Object.hasOwn(data.sessions, sid) ? data.sessions[sid] : undefined;
     const l = Object.hasOwn(data.ledger, sid) ? data.ledger[sid] : undefined;
-    let project: string;
-    let approx = false;
-    if (l && typeof l.p === 'string' && l.p) project = l.p;
-    else if (s?.cwd) project = s.cwd;
-    else if (s) {
-      project = decodeProjectDir(s.enc);
-      approx = true;
-    } else continue;
-    if (!matches(project, opts.filter)) continue;
+    if (l && typeof l.p === 'string' && l.p) owner.set(sid, { project: l.p, approx: false });
+    else if (s?.cwd) owner.set(sid, { project: s.cwd, approx: false });
+    else if (s) owner.set(sid, { project: decodeProjectDir(s.enc), approx: true });
+  }
+  const f = opts.filter;
+  let here: string | null = null;
+  if (f?.kind === 'cwd') {
+    const known = new Set<string>();
+    for (const o of owner.values()) if (!o.approx) known.add(o.project);
+    here = currentProject(f.cwd, known);
+  }
+  const matches = (project: string) =>
+    !f || (f.kind === 'substring' ? fold(project).includes(fold(f.text)) : project === here);
+
+  for (const [sid, { project, approx }] of owner) {
+    const s = Object.hasOwn(data.sessions, sid) ? data.sessions[sid] : undefined;
+    const l = Object.hasOwn(data.ledger, sid) ? data.ledger[sid] : undefined;
+    if (!matches(project)) continue;
 
     const days = new Map<string, Day>();
     const day = (d: string) => {

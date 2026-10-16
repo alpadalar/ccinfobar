@@ -146,6 +146,10 @@ describe('report command', () => {
     const here = run(['--project', '.']);
     expect(rows(here).every((l) => / web /.test(l))).toBe(true);
     expect(rows(here)).toHaveLength(2);
+    vi.spyOn(process, 'cwd').mockReturnValue(path.resolve('/w/web/src/deep'));
+    expect(rows(run(['--project', '.']))).toEqual(rows(here));
+    vi.spyOn(process, 'cwd').mockReturnValue(path.resolve('/w'));
+    expect(rows(run(['--project', '.']))).toEqual([]);
   });
 
   it('narrows to --since/--until and widens with --all', () => {

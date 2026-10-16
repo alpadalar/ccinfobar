@@ -305,7 +305,7 @@ Costs are estimates at list prices; on a subscription they are not what you pay.
 
 - `--period week` groups by ISO week (last 4 weeks), `--period month` by month (last 3 months).
 - `--since` and `--until` take `YYYY-MM-DD` or a count back (`7d`, `4w`, `3m`); `--all` shows everything there is.
-- `--project <text>` keeps projects whose path contains the text; `--project .` is the current project.
+- `--project <text>` keeps projects whose path contains the text; `--project .` is the current project: the longest project root in the report that is the current folder or holds it, so it also works from a subfolder.
 - `--csv` and `--json` print CSV or one JSON object (always English) instead of the table. In a terminal the table fits the width by dropping cache columns first; piped, every column is kept.
 
 How it counts:

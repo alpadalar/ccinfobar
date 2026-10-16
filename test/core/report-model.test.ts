@@ -448,20 +448,35 @@ describe('buildReport projects and filters (D-06, D-10)', () => {
     expect(report(data, { filter: { kind: 'substring', text: 'İ' } }).rows).toEqual([]);
   });
 
-  it('filters by project root equality or containment', () => {
+  it('filters --project . to the longest known project that holds cwd', () => {
     const data = scan({
-      sessions: ['/work/repo', '/work/repo/pkg', '/work/repo2'].map((cwd, i) =>
+      sessions: ['/work/repo', '/work/repo/pkg', '/work/repo2', '/work'].map((cwd, i) =>
         sess(`s${i}`, { cwd, buckets: [{ day: '2026-10-10', in: 1 }] }),
       ),
     });
-    const r = report(data, { filter: { kind: 'root', root: '/work/repo' } });
-    expect(r.rows.map((x) => x.project).sort()).toEqual(['/work/repo', '/work/repo/pkg']);
+    const at = (cwd: string) => report(data, { filter: { kind: 'cwd', cwd } }).rows.map((x) => x.project);
+    expect(at('/work/repo')).toEqual(['/work/repo']);
+    expect(at('/work/repo/src/deep')).toEqual(['/work/repo']);
+    expect(at('/work/repo/pkg/lib')).toEqual(['/work/repo/pkg']);
+    expect(at('/work/repo2x')).toEqual(['/work']);
+    expect(at('/elsewhere')).toEqual([]);
     const win = scan({
       sessions: ['c:\\work\\repo', 'c:\\work\\repo\\pkg', 'c:\\work\\repo2'].map((cwd, i) =>
         sess(`w${i}`, { cwd, buckets: [{ day: '2026-10-10', in: 1 }] }),
       ),
     });
-    expect(report(win, { filter: { kind: 'root', root: 'c:\\work\\repo' } }).rows).toHaveLength(2);
+    const winAt = (cwd: string) => report(win, { filter: { kind: 'cwd', cwd } }).rows.map((x) => x.project);
+    expect(winAt('c:\\work\\repo\\src')).toEqual(['c:\\work\\repo']);
+    expect(winAt('c:\\work')).toEqual([]);
+  });
+
+  it('shows nothing for --project . in a parent folder that is no project', () => {
+    const data = scan({
+      sessions: ['/work/a', '/work/b'].map((cwd, i) =>
+        sess(`p${i}`, { cwd, buckets: [{ day: '2026-10-10', in: 1 }] }),
+      ),
+    });
+    expect(report(data, { filter: { kind: 'cwd', cwd: '/work' } }).rows).toEqual([]);
   });
 });
 

@@ -159,7 +159,8 @@ export interface Report {
   notes: ReportNote[];
 }
 
-export type ProjectFilter = { kind: 'substring'; text: string } | { kind: 'root'; root: string };
+// cwd: the longest known project root that is cwd or contains it
+export type ProjectFilter = { kind: 'substring'; text: string } | { kind: 'cwd'; cwd: string };
 
 export interface RangeInput {
   period?: string | boolean;
