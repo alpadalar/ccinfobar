@@ -118,7 +118,7 @@ Everything lives in the ccinfobar config folder (`~/.config/ccinfobar` on Linux 
 | `catalog/credentials.json` | Publisher tokens per marketplace origin, only after a publish. Mode 0600 on Linux and macOS; on Windows the mode bits do not apply and the file is protected by the access rules of your user profile folder |
 | `presets/<id>.json`, `themes/<id>.json` | Presets and themes saved before the catalog. Never moved; `themes/` is also where applied themes are installed, because the status line reads themes from there |
 
-Every write is atomic. Keys that a newer ccinfobar version adds to an entry file are kept when an older one rewrites it. An entry file is limited to 1 MiB; a save that would go over it is refused instead of dropping history. Delete moves the file to the trash instead of removing it, and deleting an entry that came from a pre-catalog file also moves that file to the trash.
+Every write is atomic. Keys that a newer ccinfobar version adds to an entry file are kept at every level (the entry, its share state and every version) when an older one rewrites it; only an overwrite replaces the content of the version it overwrites. An entry file is limited to 1 MiB; a save that would go over it is refused instead of dropping history. Delete moves the file to the trash instead of removing it, and deleting an entry that came from a pre-catalog file also moves that file to the trash.
 
 ## CLI
 

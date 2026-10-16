@@ -252,13 +252,37 @@ function isObject(v: unknown): v is Record<string, unknown> {
 const own = (o: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(o).filter(([k]) => k !== '__proto__'));
 
+export function canon(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canon).join(',')}]`;
+  if (isObject(v))
+    return `{${Object.keys(v)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canon(v[k])}`)
+      .join(',')}}`;
+  return JSON.stringify(v) ?? 'null';
+}
+
+const merged = <T extends object>(r: unknown, n: T): T => (isObject(r) ? { ...own(r), ...n } : n);
+
+// replaced content drops the old unknown keys
+function mergeContent(r: unknown, n: EntryContent): EntryContent {
+  return isObject(r) && canon(parseContent(r)) === canon(n) ? merged(r, n) : n;
+}
+
+// keys a newer version added are kept at every level
 export function mergeRaw(raw: Record<string, unknown>, next: CatalogEntry): Record<string, unknown> {
   const old = Array.isArray(raw.versions) ? raw.versions.filter(isObject) : [];
   const versions = next.versions.map((v) => {
     const r = old.find((o) => o.version === v.version);
-    return r ? { ...own(r), ...v } : v;
+    return r ? { ...own(r), ...v, content: mergeContent(r.content, v.content) } : v;
   });
-  return { ...own(raw), ...next, versions };
+  const rs = isObject(raw.share) ? raw.share : undefined;
+  const nr = next.share.remote;
+  const same = nr && isObject(rs?.remote) && rs.remote.id === nr.id && rs.remote.endpoint === nr.endpoint;
+  const share = { ...merged(rs, next.share), remote: nr && (same ? merged(rs?.remote, nr) : nr) };
+  const out: Record<string, unknown> = { ...own(raw), ...next, share, versions };
+  if (next.legacy) out.legacy = merged(raw.legacy, next.legacy);
+  return out;
 }
 
 const isInt = (v: unknown, min: number): v is number => Number.isInteger(v) && (v as number) >= min;

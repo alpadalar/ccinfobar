@@ -245,6 +245,51 @@ describe('catalog store', () => {
     expect(fs.readFileSync(`${fileOf(e.id)}.bak`, 'utf8')).toBe(text);
   });
 
+  it('nested unknown keys survive share, update, overwrite and restore (D-04)', () => {
+    const e = saveEntry(input(), dir);
+    updateShare(e.id, false, 1, dir);
+    const raw = rawOf(e.id);
+    raw.future = 1;
+    raw.share.future = 2;
+    raw.share.remote = { endpoint: 'https://m.example', id: 'me/x', version: 1, hash: 'a'.repeat(64) };
+    raw.share.remote.publishedAt = '2026-10-16T10:00:00.000Z';
+    raw.share.remote.future = 3;
+    raw.versions[0].future = 4;
+    raw.versions[0].content.future = 5;
+    handWrite(e.id, JSON.stringify(raw, null, 2));
+    const check = (after: Record<string, any>) => {
+      expect(after.future).toBe(1);
+      expect(after.share.future).toBe(2);
+      expect(after.share.remote.future).toBe(3);
+      expect(after.versions[0].future).toBe(4);
+      expect(after.versions[0].content.future).toBe(5);
+    };
+    updateShare(e.id, true, 2, dir);
+    check(rawOf(e.id));
+    saveEntry(input({ mode: 'update', content: content('cost') }), dir);
+    check(rawOf(e.id));
+    saveEntry(input({ mode: 'overwrite', content: content('git') }), dir);
+    check(rawOf(e.id));
+    restoreEntry(e.id, 1, 5, '', dir, at(9));
+    const after = rawOf(e.id);
+    check(after);
+    expect(after.versions.map((v: any) => v.version)).toEqual([1, 2, 3]);
+    expect(after.versions[2].content.future).toBeUndefined();
+  });
+
+  it('an overwrite drops the unknown content keys of the version it replaces', () => {
+    const e = saveEntry(input(), dir);
+    const raw = rawOf(e.id);
+    raw.versions[0].content.future = 5;
+    raw.versions[0].content.theme = { name: 'old' };
+    handWrite(e.id, JSON.stringify(raw, null, 2));
+    saveEntry(input({ mode: 'overwrite', content: content('git') }), dir);
+    const v = rawOf(e.id).versions[0];
+    expect(v.content.future).toBeUndefined();
+    expect(v.content.theme).toBeUndefined();
+    expect(v.content.layout.lines[0][0].type).toBe('git');
+  });
+
   it('a BOM-prefixed entry file is read', () => {
     const e = stored('u-aaaaaaaaaaaa');
     const text = `﻿${JSON.stringify(e, null, 2)}\n`;
