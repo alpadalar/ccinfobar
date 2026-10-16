@@ -629,6 +629,17 @@ Phase 9 (reports and importers), 2026-10-16, same machine and method, `nice -n -
 
 The render closure has no new module, but the warm render is about 1.3 ms slower, in five of the six rounds. The English table gained the report, import and TOML messages (the render loads 594 KB of chunks against 579 KB), and `report` imports `config.ts`, `ledger.ts` and `limits.ts` without the rest of their chunks, so esbuild splits two more chunks off the render path (20 against 18). `report` itself, over 200 synthetic transcripts (51 MB, 60 days) with the OS file cache warm: 270 ms with no index, 139 ms with one.
 
+After the Phase 9 review fixes (2026-10-16, same method, load average 1.0 to 2.5, eight alternating rounds against the build before them): handing report code its render-path helpers from `main.ts` takes the render to 19 chunks, and moving the report, import and TOML messages into lazy tables takes the render chunks from 610 KB to 597 KB.
+
+| Row | before | helpers handed in | + lazy tables |
+|-----|-------:|------------------:|--------------:|
+| `node -e 0` | 65.0 | 65.0 | 65.3 |
+| cold | 147.2 | 146.5 | 145.3 (-1.3%) |
+| warm | 129.9 | 129.6 | 128.6 (-1.0%) |
+| warm p95 | 134.3 | 137.9 | 136.9 |
+
+The final build was faster warm in seven of the eight rounds.
+
 ## Releasing
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` under a new version heading.
