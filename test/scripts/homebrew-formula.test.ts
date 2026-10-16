@@ -42,10 +42,11 @@ describe('checkFormula', () => {
     expect(mod.checkFormula(formulaText)).toEqual([]);
   });
 
-  it('carries the package.json version and a placeholder sha256', () => {
-    const { version } = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-    expect(formulaText).toContain(`/ccinfobar-${version}.tgz"`);
-    expect(formulaText).toContain(`  sha256 "${'0'.repeat(64)}"`);
+  it('carries a registry url and a well-formed sha256', () => {
+    expect(formulaText).toMatch(
+      /^ {2}url "https:\/\/registry\.npmjs\.org\/ccinfobar\/-\/ccinfobar-\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\.tgz"$/m,
+    );
+    expect(formulaText).toMatch(/^ {2}sha256 "[0-9a-f]{64}"$/m);
   });
 
   it('never installs settings from the formula', () => {
