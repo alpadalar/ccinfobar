@@ -16,6 +16,7 @@ import {
   writeLedger,
   writeTranscript,
 } from '../fixtures/report/build.js';
+import { REPORT_DEPS } from '../report-deps.js';
 
 let root = '';
 let cache = '';
@@ -82,7 +83,7 @@ function fakeIo(o: Partial<ReportIo> = {}): Fake {
 
 function run(argv: string[], o: Partial<ReportIo> = {}): Fake {
   const io = fakeIo(o);
-  runReport(parseArgs(['report', ...argv]), cfg, io);
+  runReport(parseArgs(['report', ...argv]), cfg, REPORT_DEPS, io);
   return io;
 }
 

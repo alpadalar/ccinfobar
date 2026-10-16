@@ -139,6 +139,23 @@ describe('import graph', () => {
     expect(files.filter((f) => REPORT_FILES.includes(f) || f.startsWith('src/importers/'))).toEqual([]);
   });
 
+  // a lazy entry that reaches part of a render chunk makes esbuild split it (D-33)
+  it('hands report code its config, language, ledger, limits and profile helpers from main', () => {
+    const files = closure('commands/report.ts');
+    expect(files.has('src/data/report-index.ts')).toBe(true);
+    const handed = [
+      'src/core/config.ts',
+      'src/cli/lang.ts',
+      'src/data/ledger.ts',
+      'src/data/limits.ts',
+      'src/core/profiles.ts',
+    ];
+    expect([...files].filter((f) => handed.includes(f))).toEqual([]);
+    expect(fs.readFileSync(path.join(src, 'cli/main.ts'), 'utf8')).toContain(
+      'runReport(args, cfgFile, reportDeps())',
+    );
+  });
+
   // the hook lazy-loads update-state; it must not reach the registry, config or widgets
   it('keeps the update-state.ts closure to the update job', () => {
     const allowed = new Set([

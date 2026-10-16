@@ -15,6 +15,7 @@ import {
   writeTranscript,
 } from '../fixtures/report/build.js';
 import { withTz } from '../helpers.js';
+import { REPORT_DEPS } from '../report-deps.js';
 
 const T0 = Date.parse('2026-10-12T10:00:00.000Z');
 const NOW = Date.parse('2026-10-14T12:00:00.000Z');
@@ -25,7 +26,8 @@ const req = (i: number, out = i, ts = min(i)) =>
 function setup(name: string) {
   const root = scratch(name);
   const env = { ...process.env, CLAUDE_CONFIG_DIR: root, CCINFOBAR_CACHE_DIR: path.join(root, 'cache') };
-  const run = (opts: Parameters<typeof readReportData>[1] = {}) => readReportData(env, { now: NOW, ...opts });
+  const run = (opts: Parameters<typeof readReportData>[2] = {}) =>
+    readReportData(env, REPORT_DEPS, { now: NOW, ...opts });
   return { root, env, run, dir: indexDir(env) };
 }
 

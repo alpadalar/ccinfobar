@@ -1,8 +1,13 @@
 import path from 'node:path';
+import { loadConfig } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
 import { loadLanguages } from '../core/i18n/languages.js';
 import { configPath } from '../core/paths.js';
+import { globMatch, PROFILES } from '../core/profiles.js';
+import type { ReportDeps } from '../core/report-types.js';
 import { JOBS } from '../data/jobs/index.js';
+import { ledgerDir, monthFiles, rebuildSummary, stepText } from '../data/ledger.js';
+import { accountKeysForDir } from '../data/limits.js';
 import { type Args, parseArgs } from './args.js';
 import { applyLanguage, configLanguage, prepareLanguage } from './lang.js';
 import { runRender } from './render.js';
@@ -10,6 +15,20 @@ import { runRender } from './render.js';
 // own copy: importing core/version.ts costs the render one more chunk
 declare const __VERSION__: string;
 const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
+
+// report code reaches no render chunk of its own
+function reportDeps(): ReportDeps {
+  return {
+    loadConfig,
+    applyLanguage,
+    ledgerDir,
+    monthFiles,
+    stepText,
+    rebuildSummary,
+    accountKeysForDir,
+    profiles: { vendors: PROFILES, globMatch },
+  };
+}
 
 export async function main(argv = process.argv.slice(2)): Promise<void> {
   const args = parseArgs(argv);
@@ -159,7 +178,7 @@ async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
     }
     case 'report': {
       const { runReport } = await import('../commands/report.js');
-      runReport(args, cfgFile);
+      runReport(args, cfgFile, reportDeps());
       return;
     }
     case 'bench': {

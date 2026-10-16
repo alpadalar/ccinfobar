@@ -15,6 +15,7 @@ import {
   writeLedger,
   writeTranscript,
 } from '../fixtures/report/build.js';
+import { BUILTINS, REPORT_DEPS } from '../report-deps.js';
 
 const NOW = Date.parse('2026-10-14T12:00:00.000Z');
 const D1 = Date.parse('2026-10-12T10:00:00.000Z');
@@ -28,7 +29,8 @@ function setup(name: string) {
   const a = accountKeyFor('apiKey', env);
   const line = (o: Partial<LedgerOpts> & { c: number; t: number }) =>
     ledgerLine({ a, s: 'A', p: '/w/a', ...o });
-  const run = (opts: Parameters<typeof readReportData>[1] = {}) => readReportData(env, { now: NOW, ...opts });
+  const run = (opts: Parameters<typeof readReportData>[2] = {}) =>
+    readReportData(env, REPORT_DEPS, { now: NOW, ...opts });
   return { root, cache, env, other, a, line, run };
 }
 
@@ -111,7 +113,7 @@ describe('report ledger fold', () => {
     expect(shrunk.ledger.A!.total).toBeCloseTo(1.998, 9);
     const fresh = path.join(path.dirname(cache), 'cache2');
     writeLedger('2026-10', [fs.readFileSync(file, 'utf8').trimEnd()], fresh);
-    const cold = readReportData({ ...env, CCINFOBAR_CACHE_DIR: fresh }, { now: NOW });
+    const cold = readReportData({ ...env, CCINFOBAR_CACHE_DIR: fresh }, REPORT_DEPS, { now: NOW });
     expect(cold.ledger).toEqual(shrunk.ledger);
   });
 
@@ -197,7 +199,14 @@ describe('report ledger fold', () => {
     fs.utimesSync(copy, new Date(D2), new Date(D2));
     fs.utimesSync(orig, new Date(D2 + 60_000), new Date(D2 + 60_000));
     const cost = (r: ReturnType<typeof run>) =>
-      buildReport(r, { period: 'day', since: null, until: null, filter: null, config: {} }).total!.costUsd;
+      buildReport(r, {
+        period: 'day',
+        since: null,
+        until: null,
+        filter: null,
+        config: {},
+        profiles: BUILTINS,
+      }).total!.costUsd;
     const cold = run();
     expect(cost(cold)).toBeCloseTo(19.999, 6);
     expect(cost(run())).toBeCloseTo(19.999, 6);

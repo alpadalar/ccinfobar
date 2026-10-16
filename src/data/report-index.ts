@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { cacheDir, claudeDir } from '../core/paths.js';
+import { cacheDir, claudeDir, displayRoot, normalizeRoot } from '../core/paths.js';
 import {
   type Bucket,
   type FileEntry,
   type FileKind,
   IDLE_CAP_MS,
   type IndexState,
+  type LedgerDeps,
   type LedgerSession,
   MAX_REPORT_FILES,
   MAX_REPORT_LINE,
@@ -18,16 +19,7 @@ import {
 } from '../core/report-types.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { dayKey, monthKey } from '../core/time.js';
-import {
-  type Credited,
-  displayRoot,
-  ledgerDir,
-  monthFiles,
-  normalizeRoot,
-  type SessionRow,
-  stepText,
-} from './ledger.js';
-import { accountKeysForDir } from './limits.js';
+import type { Credited, SessionRow } from './ledger.js';
 import { readJsonSafe, writeAtomic } from './store.js';
 
 export interface WalkedFile {
@@ -992,7 +984,13 @@ const LEDGER_CHUNK = 1024 * 1024;
 const LEDGER_LINE = 64 * 1024;
 
 // complete lines from the stored offset, as ledger.ts advance
-function foldMonth(lg: LedgerState, file: string, key: string, on: (c: Credited) => void) {
+function foldMonth(
+  lg: LedgerState,
+  file: string,
+  key: string,
+  on: (c: Credited) => void,
+  stepText: LedgerDeps['stepText'],
+) {
   let fd: number | null = null;
   let bytes = 0;
   try {
@@ -1056,11 +1054,12 @@ function pruneLedgerState(lg: LedgerState, now: number): boolean {
 export function foldLedger(
   env: NodeJS.ProcessEnv,
   start: LedgerState,
+  deps: LedgerDeps,
   now = Date.now(),
 ): { ledger: LedgerState; changed: boolean; bytes: number } {
-  const dir = ledgerDir(env);
-  const accounts = accountKeysForDir(env);
-  const months = monthFiles(dir);
+  const dir = deps.ledgerDir(env);
+  const accounts = deps.accountKeysForDir(env);
+  const months = deps.monthFiles(dir);
   let lg = start;
   let changed = false;
   let bytes = 0;
@@ -1079,7 +1078,7 @@ export function foldLedger(
   for (let pass = 0; pass < 2; pass++) {
     let shrank = false;
     for (const key of months) {
-      const r = foldMonth(lg, path.join(dir, `${key}.jsonl`), key, on);
+      const r = foldMonth(lg, path.join(dir, `${key}.jsonl`), key, on, deps.stepText);
       bytes += r.bytes;
       if (r.bytes > 0) changed = true;
       if (r.shrank) {
@@ -1120,7 +1119,7 @@ export function timeZone(): string {
 }
 
 // never writes the ledger or its summary
-export function readReportData(env: NodeJS.ProcessEnv = process.env, opts: ReportOpts = {}): ScanResult {
+export function readReportData(env: NodeJS.ProcessEnv, deps: LedgerDeps, opts: ReportOpts = {}): ScanResult {
   const root = path.resolve(claudeDir(env));
   const now = opts.now ?? Date.now();
   const dir = indexDir(env);
@@ -1146,7 +1145,7 @@ export function readReportData(env: NodeJS.ProcessEnv = process.env, opts: Repor
   idx.state = scan.state;
   idx.loaded ||= scan.keysLoaded;
   const rezone = idx.ledgerTz !== tz;
-  const lg = foldLedger(env, opts.rebuild || rezone ? emptyLedger() : idx.ledger, now);
+  const lg = foldLedger(env, opts.rebuild || rezone ? emptyLedger() : idx.ledger, deps, now);
   idx.ledger = lg.ledger;
   idx.ledgerTz = tz;
   if (scan.changed || lg.changed || rezone || opts.rebuild) saveIndex(dir, idx, now);

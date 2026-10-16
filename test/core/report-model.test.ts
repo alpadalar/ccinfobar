@@ -16,6 +16,7 @@ import {
 import type { Config } from '../../src/core/types.js';
 import { LEDGER_ZERO } from '../../src/data/ledger.js';
 import { withTz } from '../helpers.js';
+import { BUILTINS } from '../report-deps.js';
 
 const ZONES = ['UTC', 'America/New_York', 'Europe/Istanbul', 'Pacific/Auckland'];
 const local = (y: number, m: number, d: number, h = 12, min = 0) => new Date(y, m - 1, d, h, min).getTime();
@@ -216,6 +217,7 @@ function report(
     until: o.until ?? null,
     filter: o.filter ?? null,
     config: o.config ?? {},
+    profiles: BUILTINS,
   });
 }
 

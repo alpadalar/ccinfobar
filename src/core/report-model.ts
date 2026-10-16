@@ -3,6 +3,7 @@ import {
   type CostSource,
   LEDGER_ZERO_USD,
   type Period,
+  type PriceBuiltins,
   type ProjectFilter,
   type RangeInput,
   type Report,
@@ -101,6 +102,7 @@ export interface ReportOptions {
   until: string | null;
   filter: ProjectFilter | null;
   config: Pick<Config, 'profiles'>;
+  profiles: PriceBuiltins;
 }
 
 type Src = 'ledger' | 'transcript';
@@ -249,7 +251,7 @@ export function buildReport(data: ScanResult, opts: ReportOptions): Report {
     (until === null || d <= until);
   const prices = new Map<string, ReturnType<typeof priceFor>>();
   const price = (model: string) => {
-    if (!prices.has(model)) prices.set(model, priceFor(model, opts.config));
+    if (!prices.has(model)) prices.set(model, priceFor(model, opts.config, opts.profiles));
     return prices.get(model)!;
   };
   const periods = new Map<string, string>();

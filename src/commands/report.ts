@@ -1,16 +1,13 @@
 import os from 'node:os';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
-import { applyLanguage } from '../cli/lang.js';
 import { detectLevel, type Level } from '../core/ansi.js';
-import { loadConfig } from '../core/config.js';
 import { type MessageId, t } from '../core/i18n/index.js';
-import { tildify } from '../core/paths.js';
+import { normalizeRoot, tildify } from '../core/paths.js';
 import { formatCsv, formatJson, formatTable } from '../core/report-format.js';
 import { buildReport, parseRange, type Range, type RangeError as RangeFail } from '../core/report-model.js';
-import type { ProjectFilter, ScanResult } from '../core/report-types.js';
+import type { ProjectFilter, ReportDeps, ScanResult } from '../core/report-types.js';
 import { sanitizeText } from '../core/sanitize.js';
-import { ledgerDir, monthFiles, normalizeRoot, rebuildSummary } from '../data/ledger.js';
 import { readReportData, timeZone as zoneOf } from '../data/report-index.js';
 
 export interface ReportIo {
@@ -135,13 +132,20 @@ function planOf(args: Args, io: ReportIo, now: number): Plan | null {
   return { format, filter, range };
 }
 
-function readData(env: NodeJS.ProcessEnv, io: ReportIo, now: number, rebuild: boolean): ScanResult {
+function readData(
+  env: NodeJS.ProcessEnv,
+  deps: ReportDeps,
+  io: ReportIo,
+  now: number,
+  rebuild: boolean,
+): ScanResult {
   let summary: 'ok' | 'none' | 'failed' = 'none';
-  if (rebuild && monthFiles(ledgerDir(env)).length > 0) summary = rebuildSummary(env, now) ? 'ok' : 'failed';
+  if (rebuild && deps.monthFiles(deps.ledgerDir(env)).length > 0)
+    summary = deps.rebuildSummary(env, now) ? 'ok' : 'failed';
   const progress = progressOf(io);
   let data: ScanResult;
   try {
-    data = readReportData(env, { rebuild, now, onProgress: progress.tick });
+    data = readReportData(env, deps, { rebuild, now, onProgress: progress.tick });
   } finally {
     progress.done();
   }
@@ -154,15 +158,20 @@ function readData(env: NodeJS.ProcessEnv, io: ReportIo, now: number, rebuild: bo
   return data;
 }
 
-export function runReport(args: Args, cfgFile: string, io: ReportIo = reportIo()): void {
+export function runReport(args: Args, cfgFile: string, deps: ReportDeps, io: ReportIo = reportIo()): void {
   const env = process.env;
-  const loaded = loadConfig(cfgFile);
-  if (!loaded.issue) applyLanguage(loaded.config);
+  const loaded = deps.loadConfig(cfgFile);
+  if (!loaded.issue) deps.applyLanguage(loaded.config);
   const now = io.now();
   const plan = planOf(args, io, now);
   if (!plan) return;
-  const data = readData(env, io, now, args.flags.rebuild === true);
-  const report = buildReport(data, { ...plan.range, filter: plan.filter, config: loaded.config });
+  const data = readData(env, deps, io, now, args.flags.rebuild === true);
+  const report = buildReport(data, {
+    ...plan.range,
+    filter: plan.filter,
+    config: loaded.config,
+    profiles: deps.profiles,
+  });
   if (plan.format === 'csv') io.write(formatCsv(report));
   else if (plan.format === 'json') {
     const timeZone = zoneOf();

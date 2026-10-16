@@ -3,6 +3,26 @@ import path from 'node:path';
 
 const APP = 'ccinfobar';
 
+export const MAX_PROJECT = 1024;
+
+function trimRoot(raw: string, platform: NodeJS.Platform): string {
+  const p = platform === 'win32' ? path.win32 : path.posix;
+  let root = p.resolve(raw);
+  while (root.length > 1 && /[\\/]$/.test(root) && p.dirname(root) !== root) root = root.slice(0, -1);
+  return root;
+}
+
+// project key: resolved, no trailing separator, lowercased on Windows
+export function normalizeRoot(raw: string, platform: NodeJS.Platform = process.platform): string {
+  const root = trimRoot(raw, platform);
+  return (platform === 'win32' ? root.toLowerCase() : root).slice(0, MAX_PROJECT);
+}
+
+// normalizeRoot in the path's own letter case
+export function displayRoot(raw: string, platform: NodeJS.Platform = process.platform): string {
+  return trimRoot(raw, platform).slice(0, MAX_PROJECT);
+}
+
 export function configDir(env: NodeJS.ProcessEnv = process.env): string {
   if (env.CCINFOBAR_CONFIG_DIR) return env.CCINFOBAR_CONFIG_DIR;
   if (process.platform === 'win32') {

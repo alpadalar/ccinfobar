@@ -1,4 +1,4 @@
-import { globMatch, PROFILES } from './profiles.js';
+import type { PriceBuiltins } from './report-types.js';
 import type { Config } from './types.js';
 
 export interface Tier {
@@ -120,17 +120,21 @@ function fromProfile(p: Prices): Price {
 
 const hasPrice = (p: Prices) => typeof p.input === 'number' && typeof p.output === 'number';
 
-export function priceFor(model: string, config: Pick<Config, 'profiles'>): ResolvedPrice | null {
+export function priceFor(
+  model: string,
+  config: Pick<Config, 'profiles'>,
+  builtins: PriceBuiltins,
+): ResolvedPrice | null {
   if (typeof model !== 'string' || !model || model.length > ID_MAX) return null;
   const raw = model.trim().replace(/\[1m\]$/i, '');
   const id = normalizeModelId(model);
-  const hits = (glob: string) => globMatch(glob, raw) || globMatch(glob, id);
+  const hits = (glob: string) => builtins.globMatch(glob, raw) || builtins.globMatch(glob, id);
   for (const o of config.profiles?.models ?? []) {
     if (!o || typeof o.match !== 'string' || !hasPrice(o) || !hits(o.match)) continue;
     return { source: 'override', currency: o.currency ?? 'USD', vendor: null, price: fromProfile(o) };
   }
   if (config.profiles?.builtIn !== false && !id.startsWith('claude-')) {
-    for (const v of PROFILES) {
+    for (const v of builtins.vendors) {
       const hit = v.models.find((p) => hits(p.match));
       if (!hit || !hasPrice(hit) || !v.currency) continue;
       return { source: 'profile', currency: v.currency, vendor: v.id, price: fromProfile(hit) };

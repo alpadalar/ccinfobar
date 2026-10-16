@@ -1,3 +1,8 @@
+import type { Credited, SessionRow } from '../data/ledger.js';
+import type { LoadResult } from './config.js';
+import type { ProfileVendor } from './profiles.js';
+import type { Config } from './types.js';
+
 export const IDLE_CAP_MS = 300_000;
 export const MAX_REPORT_LINE = 16 * 1024 * 1024;
 export const MAX_REPORT_FILES = 100_000;
@@ -174,3 +179,22 @@ export interface RangeInput {
   until?: string | boolean;
   all?: boolean;
 }
+
+export interface PriceBuiltins {
+  vendors: readonly ProfileVendor[];
+  globMatch(glob: string, text: string): boolean;
+}
+
+// render-path helpers handed in by cli/main.ts, so report code shares no render chunk (D-33)
+export interface ReportDeps {
+  loadConfig(file: string): LoadResult;
+  applyLanguage(config: Config): unknown;
+  ledgerDir(env: NodeJS.ProcessEnv): string;
+  monthFiles(dir: string): string[];
+  stepText(rows: Record<string, SessionRow>, text: string, on: (c: Credited) => void): void;
+  rebuildSummary(env: NodeJS.ProcessEnv, now: number): unknown;
+  accountKeysForDir(env: NodeJS.ProcessEnv): Set<string>;
+  profiles: PriceBuiltins;
+}
+
+export type LedgerDeps = Pick<ReportDeps, 'ledgerDir' | 'monthFiles' | 'stepText' | 'accountKeysForDir'>;

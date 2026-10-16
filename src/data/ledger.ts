@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { cacheDir } from '../core/paths.js';
+import { cacheDir, MAX_PROJECT, normalizeRoot } from '../core/paths.js';
 import { addDays, dayKey, mondayOf, monthKey } from '../core/time.js';
 import type { Config, StatusPayload } from '../core/types.js';
 import { accountKey } from './limits.js';
@@ -60,7 +60,6 @@ const ZERO = 0.005;
 export const LEDGER_ZERO = ZERO;
 const SEGMENTS = 16;
 const MAX_COST = 1e6;
-const MAX_PROJECT = 1024;
 const CHUNK = 1024 * 1024;
 export const BYTE_BUDGET = 16 * 1024 * 1024;
 export const RENDER_BUDGET = 256 * 1024;
@@ -107,22 +106,7 @@ export function credit(highs: number[] | undefined, c: number): { highs: number[
 
 export const slotKey = (t: number): number => Math.floor(t / SLOT_MS);
 
-function trimRoot(raw: string, platform: NodeJS.Platform): string {
-  const p = platform === 'win32' ? path.win32 : path.posix;
-  let root = p.resolve(raw);
-  while (root.length > 1 && /[\\/]$/.test(root) && p.dirname(root) !== root) root = root.slice(0, -1);
-  return root;
-}
-
-export function normalizeRoot(raw: string, platform: NodeJS.Platform = process.platform): string {
-  const root = trimRoot(raw, platform);
-  return (platform === 'win32' ? root.toLowerCase() : root).slice(0, MAX_PROJECT);
-}
-
-// normalizeRoot in the path's own letter case
-export function displayRoot(raw: string, platform: NodeJS.Platform = process.platform): string {
-  return trimRoot(raw, platform).slice(0, MAX_PROJECT);
-}
+export { displayRoot, normalizeRoot } from '../core/paths.js';
 
 export function projectRoot(payload: StatusPayload, platform: NodeJS.Platform = process.platform): string {
   const raw =
