@@ -3,7 +3,19 @@ import path from 'node:path';
 import { randomHex } from '../core/builtins.js';
 import { normalizeConfig } from '../core/config.js';
 import { configDir } from '../core/paths.js';
+import { deleteUserPreset, ID_RE, listPresets, type Preset } from '../core/presets.js';
+import { sanitizeText } from '../core/sanitize.js';
 import type { ThemeInput } from '../core/themes/style.js';
+import {
+  BUILTIN_THEMES,
+  deleteUserTheme,
+  listThemes,
+  parseThemeInput,
+  saveUserTheme,
+  type Theme,
+  themesDir,
+  themeToInput,
+} from '../core/themes.js';
 import type { Config } from '../core/types.js';
 import { renameWithRetry, writeAtomic } from '../data/store.js';
 import {
@@ -23,6 +35,7 @@ import {
   restoreVersion,
   setShare,
   slug,
+  stripPersonal,
 } from './model.js';
 
 export function catalogDir(env: NodeJS.ProcessEnv = process.env): string {
@@ -37,6 +50,7 @@ export type StoreCode =
   | 'bad-id'
   | 'bad-name'
   | 'bad-content'
+  | 'bad-endpoint'
   | 'no-version';
 
 export class CatalogStoreError extends Error {
@@ -75,7 +89,8 @@ const TRASH_KEEP = 20;
 // hand-made files only; we never write more than fileBytes
 const READ_CAP = ENTRY_LIMITS.fileBytes * 4;
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
-const TRASH_RE = /^u-[0-9a-f]{12}-(\d{8}T\d{9}Z)(?:-(\d+))?\.json$/;
+const TRASH_RE =
+  /^(?:u-[0-9a-f]{12}|legacy-(?:preset|theme)-[a-z0-9][a-z0-9._-]*)-(\d{8}T\d{9}Z)(?:-(\d+))?\.json$/i;
 
 function fail(code: StoreCode, data: Record<string, unknown> = {}): never {
   throw new CatalogStoreError(code, data);
@@ -293,6 +308,12 @@ function stamp(d: Date): string {
   return d.toISOString().replace(/[-:.]/g, '');
 }
 
+function trashTarget(trash: string, base: string): string {
+  let target = path.join(trash, `${base}.json`);
+  for (let n = 2; fs.existsSync(target); n++) target = path.join(trash, `${base}-${n}.json`);
+  return target;
+}
+
 function rotateTrash(trash: string): void {
   let names: string[];
   try {
@@ -320,13 +341,310 @@ export function deleteEntry(id: string, dir = catalogDir(), now = new Date()): s
   if (!fs.existsSync(file)) fail('not-found', { id });
   const trash = path.join(dir, 'trash');
   fs.mkdirSync(trash, { recursive: true });
-  const base = `${id}-${stamp(now)}`;
-  let target = path.join(trash, `${base}.json`);
-  for (let n = 2; fs.existsSync(target); n++) target = path.join(trash, `${base}-${n}.json`);
+  const target = trashTarget(trash, `${id}-${stamp(now)}`);
   renameWithRetry(file, target, 2000);
   try {
     fs.rmSync(`${file}.bak`, { force: true });
   } catch {}
   rotateTrash(trash);
   return target;
+}
+
+export interface LegacyItem {
+  source: 'legacy';
+  ref: string;
+  kind: EntryKind;
+  legacyId: string;
+  name: string;
+  description: string;
+  author: string;
+  file: string;
+  content: EntryContent;
+}
+
+export interface LegacyDirs {
+  dir?: string;
+  presets?: string;
+  themes?: string;
+}
+
+type LegacyType = 'preset' | 'theme';
+const REF_RE = /^legacy:(preset|theme)\/(.*)$/;
+
+function parseRef(ref: unknown): { type: LegacyType; id: string } | null {
+  const m = typeof ref === 'string' ? REF_RE.exec(ref) : null;
+  if (!m || !ID_RE.test(m[2]!)) return null;
+  return { type: m[1] as LegacyType, id: m[2]! };
+}
+
+function legacyDirs(o: LegacyDirs): Required<LegacyDirs> {
+  const dir = o.dir ?? catalogDir();
+  const base = path.dirname(dir);
+  return {
+    dir,
+    presets: o.presets ?? path.join(base, 'presets'),
+    themes: o.themes ?? path.join(base, 'themes'),
+  };
+}
+
+const safe = (s: unknown, n: number) => clip(sanitizeText(typeof s === 'string' ? s : ''), n);
+
+function presetItem(p: Preset, dir: string): LegacyItem | null {
+  const file = path.join(dir, `${p.id}.json`);
+  const buf = readBytes(file);
+  const raw = buf ? parseRaw(buf) : null;
+  if (!raw) return null;
+  const theme = isObject(raw.config) ? raw.config.theme : undefined;
+  const kind: EntryKind = typeof theme === 'string' && theme.trim() ? 'bundle' : 'preset';
+  const config = p.build();
+  const content: EntryContent = { layout: stripPersonal(pick(config, LAYOUT_KEYS)) };
+  if (kind === 'bundle') content.appearance = pick(config, APPEARANCE_KEYS);
+  return {
+    source: 'legacy',
+    ref: `legacy:preset/${p.id}`,
+    kind,
+    legacyId: p.id,
+    name: safe(p.name, ENTRY_LIMITS.name) || p.id,
+    description: safe(p.description, ENTRY_LIMITS.description),
+    author: '',
+    file,
+    content,
+  };
+}
+
+function themeItem(t: Theme, dir: string): LegacyItem {
+  return {
+    source: 'legacy',
+    ref: `legacy:theme/${t.id}`,
+    kind: 'theme',
+    legacyId: t.id,
+    name: safe(t.name, ENTRY_LIMITS.name) || t.id,
+    description: safe(t.description, ENTRY_LIMITS.description),
+    author: safe(t.author, ENTRY_LIMITS.author),
+    file: path.join(dir, `${t.id}.json`),
+    content: { appearance: { theme: t.id }, theme: themeToInput(t, t.id) },
+  };
+}
+
+function legacyItems(d: Required<LegacyDirs>, only?: { type: LegacyType; id: string }): LegacyItem[] {
+  const out: LegacyItem[] = [];
+  if (!only || only.type === 'preset') {
+    for (const p of listPresets(d.presets)) {
+      if (p.source !== 'user' || (only && p.id !== only.id)) continue;
+      const item = presetItem(p, d.presets);
+      if (item) out.push(item);
+    }
+  }
+  if (!only || only.type === 'theme') {
+    for (const t of listThemes(d.themes)) {
+      if (t.source === 'user' && (!only || t.id === only.id)) out.push(themeItem(t, d.themes));
+    }
+  }
+  return out;
+}
+
+const linkedTo = (e: CatalogEntry, type: LegacyType, id: string) =>
+  (type === 'preset' ? e.legacy?.preset : e.legacy?.theme) === id;
+
+// read only; files stay until an explicit delete
+export function listLegacy(opts: LegacyDirs = {}): LegacyItem[] {
+  const d = legacyDirs(opts);
+  const entries = listEntries(d.dir);
+  const type = (i: LegacyItem): LegacyType => (i.ref.startsWith('legacy:theme/') ? 'theme' : 'preset');
+  return legacyItems(d).filter((i) => !entries.some((e) => linkedTo(e, type(i), i.legacyId)));
+}
+
+export function adoptLegacy(
+  ref: string,
+  now: Date,
+  dir = catalogDir(),
+  opts: Omit<LegacyDirs, 'dir'> = {},
+): CatalogEntry {
+  const r = parseRef(ref);
+  if (!r) fail('bad-id', { id: ref });
+  const hit = listEntries(dir).find((e) => linkedTo(e, r.type, r.id));
+  if (hit) return hit;
+  const item = legacyItems(legacyDirs({ ...opts, dir }), r)[0];
+  if (!item) fail('not-found', { ref });
+  const e = newEntry({
+    id: `u-${randomHex(6)}`,
+    kind: item.kind,
+    name: item.name,
+    description: item.description,
+    author: item.author,
+    content: cleanContent(item.kind, item.content),
+    share: false,
+    now: now.toISOString(),
+  });
+  e.legacy = r.type === 'preset' ? { preset: r.id } : { theme: r.id };
+  return normalizeEntry(commitEntry(e, 0, dir, now));
+}
+
+export function deleteLegacy(
+  ref: string,
+  dir = catalogDir(),
+  now = new Date(),
+  opts: Omit<LegacyDirs, 'dir'> = {},
+): boolean {
+  const r = parseRef(ref);
+  if (!r) return false;
+  const d = legacyDirs({ ...opts, dir });
+  const folder = r.type === 'preset' ? d.presets : d.themes;
+  let bytes: Buffer;
+  try {
+    bytes = fs.readFileSync(path.join(folder, `${r.id}.json`));
+  } catch {
+    return false;
+  }
+  const trash = path.join(dir, 'trash');
+  fs.mkdirSync(trash, { recursive: true });
+  writeAtomic(trashTarget(trash, `legacy-${r.type}-${r.id}-${stamp(now)}`), bytes, { class: 'settings' });
+  const ok = r.type === 'preset' ? deleteUserPreset(r.id, folder) : deleteUserTheme(r.id, folder);
+  rotateTrash(trash);
+  return ok;
+}
+
+export interface InstalledTheme {
+  id: string;
+  written: boolean;
+  renamed: boolean;
+}
+
+const BUILTIN_BY_ID = new Map(BUILTIN_THEMES.map((t) => [t.id, t]));
+
+function themeBody(v: unknown): ThemeInput {
+  const t = parseThemeInput(v);
+  delete t.id;
+  delete t.extends;
+  return t;
+}
+
+function canon(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canon).join(',')}]`;
+  if (isObject(v))
+    return `{${Object.keys(v)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canon(v[k])}`)
+      .join(',')}}`;
+  return JSON.stringify(v) ?? 'null';
+}
+
+function suffixed(id: string, n: number): string {
+  const s = `-${n}`;
+  return `${id.slice(0, 64 - s.length)}${s}`;
+}
+
+// a different theme is never overwritten
+export function installEntryTheme(content: EntryContent, themes = themesDir()): InstalledTheme | null {
+  const theme = isObject(content) ? content.theme : undefined;
+  if (!isObject(theme)) return null;
+  const input = parseThemeInput(theme);
+  const app = isObject(content.appearance) ? content.appearance.theme : undefined;
+  const base =
+    input.id && ID_RE.test(input.id) ? input.id : typeof app === 'string' && ID_RE.test(app) ? app : 'theme';
+  const want = themeBody(input);
+  const key = canon(want);
+  for (let n = 1; n < 1000; n++) {
+    const id = n === 1 ? base : suffixed(base, n);
+    const renamed = n > 1;
+    const file = path.join(themes, `${id}.json`);
+    if (fs.existsSync(file)) {
+      const buf = readBytes(file);
+      const raw = buf ? parseRaw(buf) : null;
+      if (raw && canon(themeBody(raw)) === key) return { id, written: false, renamed };
+      continue;
+    }
+    const builtin = BUILTIN_BY_ID.get(id);
+    if (builtin) {
+      if (canon(themeBody(themeToInput(builtin, id))) === key) return { id, written: false, renamed };
+      continue;
+    }
+    saveUserTheme({ ...want, id }, themes);
+    return { id, written: true, renamed };
+  }
+  fail('exists', { id: base });
+}
+
+export interface CatalogProfile {
+  schema: 1;
+  author: string;
+  endpoint: string | null;
+  publisher: string | null;
+}
+
+const profileFile = (dir: string) => path.join(dir, 'profile.json');
+const credentialsFile = (dir: string) => path.join(dir, 'credentials.json');
+
+function readObject(file: string): Record<string, unknown> | null {
+  const buf = readBytes(file);
+  return buf ? parseRaw(buf) : null;
+}
+
+const plain = (o: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(o).filter(([k]) => k !== '__proto__'));
+
+function orNull(v: unknown, n?: number): string | null {
+  if (typeof v !== 'string') return null;
+  const s = n === undefined ? v.trim() : safe(v, n);
+  return s || null;
+}
+
+function profileOf(raw: Record<string, unknown>): CatalogProfile {
+  return {
+    schema: 1,
+    author: safe(raw.author, ENTRY_LIMITS.author),
+    endpoint: orNull(raw.endpoint),
+    publisher: orNull(raw.publisher, 64),
+  };
+}
+
+export function readProfile(dir = catalogDir()): CatalogProfile {
+  return profileOf(readObject(profileFile(dir)) ?? {});
+}
+
+export function writeProfile(
+  patch: Partial<Omit<CatalogProfile, 'schema'>>,
+  dir = catalogDir(),
+): CatalogProfile {
+  const raw = plain(readObject(profileFile(dir)) ?? {});
+  const next = profileOf(raw);
+  if (patch.author !== undefined) next.author = safe(patch.author, ENTRY_LIMITS.author);
+  if (patch.endpoint !== undefined) next.endpoint = orNull(patch.endpoint);
+  if (patch.publisher !== undefined) next.publisher = orNull(patch.publisher, 64);
+  const data = { ...raw, ...next };
+  writeAtomic(profileFile(dir), `${JSON.stringify(data, null, 2)}\n`, { class: 'settings' });
+  return next;
+}
+
+// no default endpoint: nothing leaves the machine
+export function marketEndpoint(env: NodeJS.ProcessEnv = process.env, dir = catalogDir()): string | null {
+  const v = env.CCINFOBAR_MARKETPLACE_URL;
+  if (typeof v === 'string' && v.trim()) return v.trim();
+  return readProfile(dir).endpoint;
+}
+
+function originOf(s: unknown): string | null {
+  try {
+    const o = new URL(String(s)).origin;
+    return o && o !== 'null' ? o : null;
+  } catch {
+    return null;
+  }
+}
+
+export function readCredential(origin: string, dir = catalogDir()): string | null {
+  const o = originOf(origin);
+  const raw = o ? readObject(credentialsFile(dir)) : null;
+  const v = raw && o && Object.hasOwn(raw, o) ? raw[o] : null;
+  return isObject(v) && typeof v.token === 'string' && v.token ? v.token : null;
+}
+
+export function writeCredential(origin: string, token: string, dir = catalogDir()): void {
+  const o = originOf(origin);
+  if (!o) fail('bad-endpoint');
+  const data = plain(readObject(credentialsFile(dir)) ?? {});
+  const cur = data[o];
+  if (typeof token === 'string' && token) data[o] = { ...(isObject(cur) ? plain(cur) : {}), token };
+  else delete data[o];
+  writeAtomic(credentialsFile(dir), `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600, class: 'settings' });
 }

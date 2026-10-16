@@ -394,7 +394,7 @@ export const PRESETS: Preset[] = [
   },
 ];
 
-const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+export const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 
 export function presetsDir(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(configDir(env), 'presets');
