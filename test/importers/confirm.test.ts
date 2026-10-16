@@ -165,8 +165,7 @@ describe('rerun hint quoting', () => {
       addCommand: false,
     });
     expect(rerunCommand('ccstatusline', { file: '/tmp/$(touch x).json', dryRun: true }, 'linux')).toEqual({
-      command:
-        "ccinfobar import ccstatusline --allow-commands --force --file '/tmp/$(touch x).json' --dry-run",
+      command: "ccinfobar import ccstatusline --allow-commands --file '/tmp/$(touch x).json' --dry-run",
       addFile: false,
       addCommand: false,
     });
@@ -175,6 +174,14 @@ describe('rerun hint quoting', () => {
       addFile: false,
       addCommand: false,
     });
+  });
+
+  it('names the program to run and adds --force only for a real import', () => {
+    const npx = rerunCommand('cship', { program: 'npx ccinfobar@latest' }, 'linux').command;
+    expect(npx).toBe('npx ccinfobar@latest import cship --allow-commands --force');
+    expect(rerunCommand('cship', { dryRun: true }, 'linux').command).toBe(
+      'ccinfobar import cship --allow-commands --dry-run',
+    );
   });
 
   it('passes the status line command it read, or asks to add it', () => {
@@ -424,7 +431,7 @@ describe('import --dry-run', () => {
     expect(fs.readdirSync(path.dirname(cfg))).toEqual(['config.json']);
     expect(f.lines).toContain(
       t('import.rerun', {
-        command: `ccinfobar import ccstatusline --allow-commands --force --file ${shellArg(src)} --dry-run`,
+        command: `ccinfobar import ccstatusline --allow-commands --file ${shellArg(src)} --dry-run`,
       }),
     );
     const head = f.lines.indexOf(t('import.dryRunHeader'));

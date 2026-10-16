@@ -87,6 +87,7 @@ export async function offerImport(
   args: Args,
   cfgFile: string,
   io: InstallIo = defaultIo(),
+  program = selfCommand(),
 ): Promise<void> {
   if (!tool.importable) {
     io.log(t('install.importManual', { tool: tool.name }));
@@ -103,7 +104,7 @@ export async function offerImport(
     yes: args.flags.yes === true,
     dryRun: false,
   };
-  await runImport(tool.tool as ImportSource, { command: tool.command, flags }, cfgFile, io);
+  await runImport(tool.tool as ImportSource, { command: tool.command, flags, program }, cfgFile, io);
 }
 
 function showPlan(io: InstallIo, plan: InstallPlan): void {
@@ -395,7 +396,7 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   }
 
   const tool = project ? null : detectTool(plan.current?.command);
-  if (tool) await offerImport(tool, args, cfgFile, io);
+  if (tool) await offerImport(tool, args, cfgFile, io, hint);
   let res: InstallResult;
   try {
     const hooks = hooksAsked || handlers ? { events, claudeCode, progress: handlers } : undefined;

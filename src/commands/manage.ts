@@ -21,6 +21,7 @@ import type { Config } from '../core/types.js';
 import { padVisible } from '../core/width.js';
 import { gsdInstalled } from '../data/gsd.js';
 import { executeJob, type Job, jobOff } from '../data/jobs/runner.js';
+import { selfCommand } from '../data/update-state.js';
 import { fetchUsage, type UsageCache, usageKey } from '../data/usage.js';
 import {
   dropTargets,
@@ -112,6 +113,8 @@ export interface RerunOpts {
   // the status line command the import read
   command?: string;
   dryRun?: boolean;
+  // how to call ccinfobar, when it may not be on PATH
+  program?: string;
 }
 
 export function rerunCommand(
@@ -119,7 +122,9 @@ export function rerunCommand(
   o: RerunOpts,
   platform: NodeJS.Platform = process.platform,
 ): Rerun {
-  const parts = ['ccinfobar', 'import', source, '--allow-commands', '--force'];
+  // a real import has written the config by then; a dry run needs no --force
+  const parts = [o.program ?? 'ccinfobar', 'import', source, '--allow-commands'];
+  if (!o.dryRun) parts.push('--force');
   const arg = o.file ? shellArg(o.file, platform) : null;
   if (arg) parts.push('--file', arg);
   // install replaces it before the hint is used
@@ -219,7 +224,7 @@ function dryRunPreview(config: Config, io: PromptIo): string[] {
 
 export async function runImport(
   source: ImportSource,
-  opts: { file?: string | undefined; command: string; flags?: ImportFlags },
+  opts: { file?: string | undefined; command: string; flags?: ImportFlags; program?: string },
   cfgFile: string,
   io: PromptIo = promptIo(),
 ): Promise<boolean> {
@@ -232,6 +237,7 @@ export async function runImport(
       file: opts.file ?? raw.file,
       command: opts.command,
       dryRun: flags.dryRun,
+      program: opts.program ?? selfCommand(),
     });
     const result = await confirmTargets(raw, flags, io, rerun);
     if (flags.dryRun) {
