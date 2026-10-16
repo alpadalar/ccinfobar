@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Bucket, ScanResult, SessionData } from '../../src/core/report-types.js';
 import { dayKey } from '../../src/core/time.js';
-import { indexDir, readReportData } from '../../src/data/report-index.js';
+import { indexDir, loadIndex, readReportData } from '../../src/data/report-index.js';
 import {
   appendTranscript,
   assistantLine,
@@ -65,7 +65,7 @@ function spies() {
     }
     return n;
   };
-  const keyReads = () => file.mock.calls.filter((c) => String(c[0]).endsWith('keys.bin')).length;
+  const keyReads = () => file.mock.calls.filter((c) => KEY_FILE.test(path.basename(String(c[0])))).length;
   return { opened, bytes, keyReads };
 }
 
@@ -85,20 +85,31 @@ function tree(root: string): string[] {
 
 const strip = (r: ScanResult) => ({ ...r, bytesRead: 0 });
 
+const KEY_FILE = /^keys-[0-9a-f]{8}\.bin$/;
+const keyFiles = (dir: string) => fs.readdirSync(dir).filter((n) => KEY_FILE.test(n));
+
+function keyFile(dir: string): string {
+  const [name, ...more] = keyFiles(dir);
+  expect(more).toEqual([]);
+  return path.join(dir, name!);
+}
+
 describe('report index persistence', () => {
-  it('writes index.json and keys.bin with private modes', () => {
+  it('writes index.json and the key file with private modes', () => {
     const { root, run, dir } = setup('persist');
     tree(root);
     const r = run();
     expect(r.files).toBe(3);
     expect(Object.keys(r.sessions).sort()).toEqual(['S1', 'S2', 'S3']);
     expect(fs.existsSync(path.join(dir, 'index.json'))).toBe(true);
-    expect(fs.existsSync(path.join(dir, 'keys.bin'))).toBe(true);
+    const keys = keyFile(dir);
+    const stamp = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8')).keys.stamp;
+    expect(path.basename(keys)).toBe(`keys-${stamp.toString(16).padStart(8, '0')}.bin`);
     expect(path.dirname(dir)).toBe(path.join(root, 'cache', 'report'));
     if (process.platform !== 'win32') {
       expect(fs.statSync(dir).mode & 0o777).toBe(0o700);
       expect(fs.statSync(path.join(dir, 'index.json')).mode & 0o777).toBe(0o600);
-      expect(fs.statSync(path.join(dir, 'keys.bin')).mode & 0o777).toBe(0o600);
+      expect(fs.statSync(keys).mode & 0o777).toBe(0o600);
     }
   });
 
@@ -223,7 +234,8 @@ describe('report index persistence', () => {
       'a bad file entry',
       (dir: string) => edit(dir, (j) => ({ ...j, files: { 'projects/x': { kind: 'x' } } })),
     ],
-    ['a bad key set header', (dir: string) => fs.writeFileSync(path.join(dir, 'keys.bin'), 'XXXX0000')],
+    ['a bad key set header', (dir: string) => fs.writeFileSync(keyFile(dir), 'XXXX0000')],
+    ['a missing key set', (dir: string) => fs.rmSync(keyFile(dir))],
     [
       'a key set from another index',
       (dir: string) => edit(dir, (j) => ({ ...j, keys: { ...j.keys, stamp: 1 } })),
@@ -239,6 +251,99 @@ describe('report index persistence', () => {
     expect(total(r.sessions.S2)).toMatchObject({ n: 1, out: 11 });
     expect(r.bytesRead).toBeGreaterThanOrEqual(fs.statSync(file!).size);
     expect(run().bytesRead).toBe(0);
+  });
+
+  it.each([
+    ['a missing key set', (dir: string) => fs.rmSync(keyFile(dir))],
+    ['a bad key set header', (dir: string) => fs.writeFileSync(keyFile(dir), 'XXXX0000')],
+    [
+      'a key set from another index',
+      (dir: string) => edit(dir, (j) => ({ ...j, keys: { ...j.keys, stamp: 1 } })),
+    ],
+    ['a bad key list', (dir: string) => edit(dir, (j) => ({ ...j, order: 7 }))],
+  ])('keeps deleted transcripts after %s', (_, spoil) => {
+    const { root, run, dir } = setup('lost');
+    const [s1] = tree(root);
+    run();
+    fs.rmSync(s1!);
+    expect(total(run().sessions.S1)).toMatchObject({ n: 2, out: 3 });
+    spoil(dir);
+    appendTranscript('projects/-w-a/S2.jsonl', [req(12)], root);
+    const r = run();
+    expect(r.sessions.S1).toMatchObject({ gone: true });
+    expect(total(r.sessions.S1)).toMatchObject({ n: 2, out: 3 });
+    expect(minutes(r.sessions.S1)).toBe(2);
+    expect(total(r.sessions.S2)).toMatchObject({ n: 2, out: 23 });
+    expect(total(r.sessions.S3)).toMatchObject({ n: 1, out: 21 });
+    expect(r.notes).toContainEqual({ code: 'keys-lost', count: 1 });
+    expect(run().notes).toContainEqual({ code: 'keys-lost', count: 1 });
+  });
+
+  it('still dedups the recent keys of a deleted transcript after the key set is lost', () => {
+    const { root, run, dir } = setup('lost-fork');
+    const a = writeTranscript('projects/-w-a/S1.jsonl', [userLine({ ts: min(0) }), req(1), req(2)], root);
+    run();
+    fs.rmSync(a);
+    run();
+    fs.rmSync(keyFile(dir));
+    writeTranscript('projects/-w-a/S2.jsonl', [req(1), req(2), req(3, 3, min(30))], root);
+    const r = run();
+    expect(total(r.sessions.S1)).toMatchObject({ n: 2, out: 3 });
+    expect(total(r.sessions.S2)).toMatchObject({ n: 1, out: 3 });
+  });
+
+  it('drops only a bad file entry', () => {
+    const { root, run, dir } = setup('bad-entry');
+    const [file] = tree(root);
+    run();
+    edit(dir, (j) => ({ ...j, files: { ...j.files, 'projects/-w-a/S2.jsonl': { kind: 'x' } } }));
+    const before = fs.statSync(file!).size;
+    appendTranscript('projects/-w-a/S1.jsonl', [req(3)], root);
+    const r = run();
+    expect(r.bytesRead).toBe(
+      fs.statSync(file!).size - before + fs.statSync(path.join(root, 'projects', '-w-a', 'S2.jsonl')).size,
+    );
+    expect(total(r.sessions.S1)).toMatchObject({ n: 3, out: 6 });
+    expect(total(r.sessions.S2)).toMatchObject({ n: 1, out: 11 });
+    expect(r.notes).toEqual([]);
+  });
+
+  it('keeps the last pair when a run stops between the key file and index.json', () => {
+    const { root, run, dir } = setup('crash');
+    const [file] = tree(root);
+    run();
+    const keys = keyFile(dir);
+    appendTranscript('projects/-w-a/S1.jsonl', [req(3)], root);
+    const rename = fs.renameSync;
+    const spy = vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+      if (String(to).endsWith('index.json')) throw Object.assign(new Error('killed'), { code: 'EIO' });
+      rename(from, to);
+    });
+    run();
+    spy.mockRestore();
+    expect(fs.existsSync(keys)).toBe(true);
+    const orphan = keyFiles(dir).filter((n) => n !== path.basename(keys));
+    expect(orphan).toHaveLength(1);
+    const old = (Date.now() - 11 * 60_000) / 1000;
+    fs.utimesSync(path.join(dir, orphan[0]!), old, old);
+    appendTranscript('projects/-w-a/S1.jsonl', [req(4)], root);
+    const r = run();
+    expect(r.notes).toEqual([]);
+    expect(total(r.sessions.S1)).toMatchObject({ n: 4, out: 10 });
+    expect(r.bytesRead).toBeLessThan(fs.statSync(file!).size - 40);
+    expect(fs.existsSync(keys)).toBe(false);
+    expect(keyFiles(dir)).toHaveLength(1);
+  });
+
+  it('accepts its own index under another letter case on Windows', () => {
+    const { root, run, dir } = setup('case');
+    tree(root);
+    run();
+    const upper = path.resolve(root).toUpperCase();
+    expect(loadIndex(dir, upper, 'win32')).not.toBeNull();
+    expect(loadIndex(dir, path.resolve(root).normalize('NFD'), 'linux')).not.toBeNull();
+    if (upper !== path.resolve(root)) expect(loadIndex(dir, upper, 'linux')).toBeNull();
+    expect(loadIndex(dir, path.join(root, 'other'), 'win32')).toBeNull();
   });
 
   it('keeps profiles apart', () => {

@@ -75,4 +75,9 @@ export const reportMessages = {
     one: 'The rebuild kept {count} deleted transcript from the old index.',
     other: 'The rebuild kept {count} deleted transcripts from the old index.',
   },
+  'report.note.keys-lost': {
+    one: 'The report index lost its request keys, so requests copied from {count} deleted transcript may be counted twice.',
+    other:
+      'The report index lost its request keys, so requests copied from {count} deleted transcripts may be counted twice.',
+  },
 } as const;

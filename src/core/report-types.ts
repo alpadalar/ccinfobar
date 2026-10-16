@@ -47,6 +47,8 @@ export interface FileEntry {
   // first entry timestamp and birth time decide which copy owns a request
   first: number | null;
   born: number;
+  // gone file kept while the key set was lost
+  lost: boolean;
 }
 
 // files keyed by relPath with / separators; owners maps key hash to the owning relPath
@@ -66,7 +68,7 @@ export interface SessionData {
   gone: boolean;
 }
 
-export type ScanNoteCode = 'file-cap' | 'line-skipped' | 'deleted-transcripts' | 'rebuild-kept';
+export type ScanNoteCode = 'file-cap' | 'line-skipped' | 'deleted-transcripts' | 'rebuild-kept' | 'keys-lost';
 
 export interface ScanNote {
   code: ScanNoteCode;

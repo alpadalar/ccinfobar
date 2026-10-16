@@ -298,6 +298,7 @@ describe('report messages', () => {
     'line-skipped',
     'deleted-transcripts',
     'rebuild-kept',
+    'keys-lost',
   ];
 
   it('has an English and a Turkish text for every note code', () => {

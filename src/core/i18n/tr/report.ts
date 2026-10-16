@@ -80,4 +80,9 @@ export const reportMessages = {
     one: 'Yeniden oluşturma, silinmiş {count} transkripti eski indeksten korudu.',
     other: 'Yeniden oluşturma, silinmiş {count} transkripti eski indeksten korudu.',
   },
+  'report.note.keys-lost': {
+    one: 'Rapor indeksi istek anahtarlarını kaybetti; silinmiş {count} transkriptten kopyalanan istekler iki kez sayılabilir.',
+    other:
+      'Rapor indeksi istek anahtarlarını kaybetti; silinmiş {count} transkriptten kopyalanan istekler iki kez sayılabilir.',
+  },
 } satisfies Record<keyof typeof enReport, Message>;

@@ -160,6 +160,7 @@ function newEntry(f: WalkedFile): FileEntry {
     skipped: 0,
     first: null,
     born: 0,
+    lost: false,
   };
 }
 
@@ -585,8 +586,15 @@ export function scanTree(claudeDir: string, state: IndexState | null, opts: Scan
     keysLoaded = true;
     if (owners) st.owners = owners;
     else {
-      // dedup cannot hold without the key set: cold scan
-      st = emptyState();
+      // without the key set present files are read again; gone totals are final
+      const kept = emptyState();
+      for (const [rel, f] of Object.entries(st.files)) {
+        if (!f.gone) continue;
+        kept.files[rel] = f;
+        f.lost = true;
+        for (const r of f.recent) kept.owners.set(r.k, rel);
+      }
+      st = kept;
       p = plan(st, files, capped, claudeDir, opts);
     }
   }
@@ -604,12 +612,15 @@ export function scanTree(claudeDir: string, state: IndexState | null, opts: Scan
   if (capped) notes.push({ code: 'file-cap', count: files.length });
   let skipped = 0;
   let gone = 0;
+  let lost = 0;
   for (const f of Object.values(st.files)) {
     skipped += f.skipped;
     if (f.gone) gone++;
+    if (f.gone && f.lost) lost++;
   }
   if (skipped > 0) notes.push({ code: 'line-skipped', count: skipped });
   if (gone > 0) notes.push({ code: 'deleted-transcripts', count: gone });
+  if (lost > 0) notes.push({ code: 'keys-lost', count: lost });
   return { state: st, notes, bytesRead, files: files.length, changed: p.changed, keysLoaded };
 }
 
@@ -664,10 +675,17 @@ export interface ReportIndex {
   order: string[];
   keys: { n: number; stamp: number };
   loaded: boolean;
+  // entries read from index.json; keys of any other path are released
+  known?: Set<string>;
 }
 
 const INDEX = 'index.json';
-const KEYS = 'keys.bin';
+const OLD_KEYS = 'keys.bin';
+const KEYS_RE = /^keys-[0-9a-f]{8}\.bin$/;
+const ORPHAN_MS = 600_000;
+
+// named by stamp, so a crash leaves the pair index.json names
+const keysFile = (stamp: number) => `keys-${stamp.toString(16).padStart(8, '0')}.bin`;
 const MAGIC = 'CCRK';
 const HEAD = 16;
 const ENTRY = 12;
@@ -676,10 +694,16 @@ const MONTH_KEY = /^\d{4}-\d{2}$/;
 const KINDS: ReadonlySet<unknown> = new Set(['main', 'agent', 'aside']);
 const SEGMENTS = 16;
 
+export function dirKey(dir: string, platform: NodeJS.Platform = process.platform): string {
+  const d = dir.normalize('NFC');
+  return platform === 'win32' ? d.toLowerCase() : d;
+}
+
 export function indexDir(env: NodeJS.ProcessEnv = process.env): string {
-  let dir = path.resolve(claudeDir(env)).normalize('NFC');
-  if (process.platform === 'win32') dir = dir.toLowerCase();
-  const h = createHash('sha256').update(dir).digest('hex').slice(0, 16);
+  const h = createHash('sha256')
+    .update(dirKey(path.resolve(claudeDir(env))))
+    .digest('hex')
+    .slice(0, 16);
   return path.join(cacheDir(env), 'report', h);
 }
 
@@ -736,7 +760,8 @@ function entryOf(v: unknown): FileEntry | null {
   if (!uint(v.skipped) || !isObj(v.buckets) || !Array.isArray(v.recent) || v.recent.length > RECENT)
     return null;
   if (!(v.first === undefined || v.first === null || fin(v.first))) return null;
-  if (!(v.born === undefined || fin(v.born))) return null;
+  if (!(v.born === undefined || fin(v.born)) || !(v.lost === undefined || typeof v.lost === 'boolean'))
+    return null;
   const buckets = map<Bucket>();
   for (const [k, b] of Object.entries(v.buckets)) {
     const x = bucketOf(b);
@@ -770,6 +795,7 @@ function entryOf(v: unknown): FileEntry | null {
     skipped: v.skipped,
     first: (v.first ?? null) as number | null,
     born: (v.born ?? 0) as number,
+    lost: v.lost === true,
   };
 }
 
@@ -792,45 +818,55 @@ function ledgerOf(v: unknown): LedgerState | null {
   return lg;
 }
 
-// anything unexpected gives null, so the caller scans cold
-export function loadIndex(dir: string, root?: string): ReportIndex | null {
+const NO_KEYS = { n: -1, stamp: 0 };
+
+// null only for an unreadable or foreign index; bad parts are dropped one by one
+export function loadIndex(
+  dir: string,
+  root?: string,
+  platform: NodeJS.Platform = process.platform,
+): ReportIndex | null {
   const raw = readJsonSafe<unknown>(path.join(dir, INDEX));
-  if (!isObj(raw) || raw.v !== 1 || !str(raw.claudeDir) || (root !== undefined && raw.claudeDir !== root))
-    return null;
+  if (!isObj(raw) || raw.v !== 1 || !str(raw.claudeDir) || !isObj(raw.files)) return null;
+  if (root !== undefined && dirKey(raw.claudeDir, platform) !== dirKey(root, platform)) return null;
   const keys = raw.keys;
-  if (!isObj(keys) || !uint(keys.n) || !uint(keys.stamp) || !isObj(raw.files)) return null;
-  if (!Array.isArray(raw.order) || !raw.order.every((o) => str(o))) return null;
-  const ledger = ledgerOf(raw.ledger);
-  if (!ledger) return null;
+  const order = raw.order;
+  const keysOk =
+    isObj(keys) && uint(keys.n) && uint(keys.stamp) && Array.isArray(order) && order.every((o) => str(o));
   const state = emptyState();
+  const known = new Set<string>();
   for (const [rel, v] of Object.entries(raw.files)) {
     const f = entryOf(v);
-    if (!f || !rel.startsWith('projects/')) return null;
+    if (!f || !rel.startsWith('projects/')) continue;
     state.files[rel] = f;
+    known.add(rel);
   }
   return {
     claudeDir: raw.claudeDir,
     state,
-    ledger,
-    order: raw.order as string[],
-    keys: { n: keys.n, stamp: keys.stamp },
+    ledger: ledgerOf(raw.ledger) ?? emptyLedger(),
+    order: keysOk ? (order as string[]) : [],
+    keys: keysOk ? { n: keys.n as number, stamp: keys.stamp as number } : { ...NO_KEYS },
     loaded: false,
+    known,
   };
 }
 
 export function loadKeys(dir: string, idx: ReportIndex): Map<number, string> | null {
+  if (idx.keys.n < 0) return null;
   try {
-    const b = fs.readFileSync(path.join(dir, KEYS));
+    const b = fs.readFileSync(path.join(dir, keysFile(idx.keys.stamp)));
     if (b.length < HEAD || b.toString('latin1', 0, 4) !== MAGIC || b.readUInt32LE(4) !== 1) return null;
     const n = b.readUInt32LE(8);
     if (n !== idx.keys.n || b.readUInt32LE(12) !== idx.keys.stamp || b.length !== HEAD + n * ENTRY)
       return null;
     const owners = new Map<number, string>();
+    const known = idx.known;
     for (let i = 0, o = HEAD; i < n; i++, o += ENTRY) {
       const k = b.readDoubleLE(o);
       const rel = idx.order[b.readUInt32LE(o + 8)];
       if (rel === undefined || !Number.isSafeInteger(k) || k < 0) return null;
-      owners.set(k, rel);
+      if (!known || known.has(rel)) owners.set(k, rel);
     }
     return owners;
   } catch {
@@ -865,11 +901,28 @@ function keysBuffer(idx: ReportIndex): Buffer {
   return b;
 }
 
-// keys.bin first; its stamp ties it to the index.json written after it
+// old key files; a fresh one may belong to a concurrent run
+function dropKeys(dir: string, keep: string, prev: string): void {
+  const now = Date.now();
+  for (const { name } of list(dir)) {
+    if (name === keep || !(name === OLD_KEYS || KEYS_RE.test(name))) continue;
+    const file = path.join(dir, name);
+    try {
+      if (name !== prev && name !== OLD_KEYS && now - fs.statSync(file).mtimeMs < ORPHAN_MS) continue;
+      fs.unlinkSync(file);
+    } catch {}
+  }
+}
+
+// the key file first; index.json names its stamp, older key files go after
 export function saveIndex(dir: string, idx: ReportIndex, now = Date.now()): boolean {
   try {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    if (idx.loaded && !writeAtomic(path.join(dir, KEYS), keysBuffer(idx), { mode: 0o600 })) return false;
+    const prev = idx.keys.n < 0 ? '' : keysFile(idx.keys.stamp);
+    if (idx.loaded) {
+      const buf = keysBuffer(idx);
+      if (!writeAtomic(path.join(dir, keysFile(idx.keys.stamp)), buf, { mode: 0o600 })) return false;
+    }
     const sessions = map<Obj>();
     for (const [sid, row] of Object.entries(idx.ledger.rows)) {
       sessions[sid] = { h: row.h, seen: row.seen, ...idx.ledger.sessions[sid] };
@@ -883,7 +936,9 @@ export function saveIndex(dir: string, idx: ReportIndex, now = Date.now()): bool
       files: idx.state.files,
       ledger: { files: idx.ledger.files, sessions },
     };
-    return writeAtomic(path.join(dir, INDEX), JSON.stringify(out), { mode: 0o600 });
+    const ok = writeAtomic(path.join(dir, INDEX), JSON.stringify(out), { mode: 0o600 });
+    if (ok && idx.loaded) dropKeys(dir, keysFile(idx.keys.stamp), prev);
+    return ok;
   } catch {
     return false;
   }
