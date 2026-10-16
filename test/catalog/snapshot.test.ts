@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { contentFromConfig, hasAppearanceOverrides, themeFromConfig } from '../../src/catalog/snapshot.js';
+import { installEntryTheme } from '../../src/catalog/store.js';
 import { defaultConfig, normalizeConfig } from '../../src/core/config.js';
 import { applyCatalogContent, LAYOUT_KEYS, PERSONAL_KEYS } from '../../src/core/edit.js';
 import { resolveAppearance } from '../../src/core/renderer.js';
@@ -241,5 +242,22 @@ describe('contentFromConfig', () => {
     expect(Object.keys(content).sort()).toStrictEqual(['appearance', 'layout', 'theme']);
     expect(content.layout).toStrictEqual(contentFromConfig(config, 'preset').layout);
     expect(content.theme).toStrictEqual(contentFromConfig(config, 'theme').theme);
+  });
+
+  it('applying your own bundle on the same machine reuses your theme (WR-03)', () => {
+    saveUserTheme({ id: 'mytheme', extends: 'nord', colors: { fg: '#123456' } }, themes());
+    const config: Config = { ...defaultConfig(), theme: 'mytheme' };
+    for (const kind of ['bundle', 'theme'] as const) {
+      const content = contentFromConfig(config, kind);
+      expect(content.theme).toBeDefined();
+      expect(installEntryTheme(content, themes())).toEqual({ id: 'mytheme', written: false, renamed: false });
+    }
+    expect(fs.readdirSync(themes())).toEqual(['mytheme.json']);
+    // different content still gets its own id
+    const other = contentFromConfig(config, 'bundle');
+    other.theme = { ...other.theme!, colors: { ...other.theme!.colors, fg: '#654321' } };
+    expect(installEntryTheme(other, themes())).toEqual({ id: 'mytheme-2', written: true, renamed: true });
+    const styled = contentFromConfig({ ...config, separator: ' | ' }, 'bundle');
+    expect(installEntryTheme(styled, themes())).toMatchObject({ id: 'mytheme-3', written: true });
   });
 });

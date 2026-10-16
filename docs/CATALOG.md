@@ -49,7 +49,7 @@ Click a card (or press Enter on it) to apply it. Only the keys of the entry's ki
 
 In the editor, applying is one undoable step. If you have unsaved changes, it asks first; they stay in the undo history. Nothing is written to your config until you click Save. Built-in labels follow the editor language.
 
-A theme or bundle can carry its own theme. Applying it installs that theme into your `themes` folder (this happens at apply time, even before you save the config). If a different theme already uses that id, the new one is installed as `<id>-2` (then `-3`, and so on), and you get a message with the new id. An identical theme is reused.
+A theme or bundle can carry its own theme. Applying it installs that theme into your `themes` folder (this happens at apply time, even before you save the config). If a different theme already uses that id, the new one is installed as `<id>-2` (then `-3`, and so on), and you get a message with the new id. A theme that looks the same (same colors, style, separator, padding and glyphs) is reused, so applying a bundle you saved from your own theme keeps using that theme.
 
 `ccinfobar catalog apply <ref>` applies an entry to the config file directly. It keeps your `language`, backs up the existing config first (`config.json.<time>.bak`) and refuses a config with a syntax error. Command, HTTP and link widgets in an entry go through the same consent step as `ccinfobar import`: a terminal asks, `--allow-commands` keeps them, and `--yes` or a run without a terminal drops them.
 

@@ -11,6 +11,8 @@ import {
   deleteUserTheme,
   listThemes,
   parseThemeInput,
+  resolveTheme,
+  resolveThemeInput,
   saveUserTheme,
   type Theme,
   themesDir,
@@ -592,6 +594,12 @@ function canon(v: unknown): string {
   return JSON.stringify(v) ?? 'null';
 }
 
+// what a theme looks like; names and authors do not count
+function look(t: Theme): string {
+  const { style, separator, padding, bold, statusColors, gradient, glyphs, colors } = t;
+  return canon({ style, separator, padding, bold, statusColors, gradient, glyphs, colors });
+}
+
 function suffixed(id: string, n: number): string {
   const s = `-${n}`;
   return `${id.slice(0, 64 - s.length)}${s}`;
@@ -607,6 +615,8 @@ export function installEntryTheme(content: EntryContent, themes = themesDir()): 
     input.id && ID_RE.test(input.id) ? input.id : typeof app === 'string' && ID_RE.test(app) ? app : 'theme';
   const want = themeBody(input);
   const key = canon(want);
+  // a saved bundle embeds the resolved theme, so compare resolved looks too
+  const wanted = look(resolveThemeInput(want, themes));
   for (let n = 1; n < 1000; n++) {
     const id = n === 1 ? base : suffixed(base, n);
     const renamed = n > 1;
@@ -614,7 +624,8 @@ export function installEntryTheme(content: EntryContent, themes = themesDir()): 
     if (fs.existsSync(file)) {
       const buf = readBytes(file);
       const raw = buf ? parseRaw(buf) : null;
-      if (raw && canon(themeBody(raw)) === key) return { id, written: false, renamed };
+      if (raw && (canon(themeBody(raw)) === key || look(resolveTheme(id, themes)) === wanted))
+        return { id, written: false, renamed };
       continue;
     }
     const builtin = BUILTIN_BY_ID.get(id);
