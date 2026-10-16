@@ -26,18 +26,22 @@ export interface ModalOpts {
   xl?: boolean;
 }
 
+// open dialogs, topmost last
+const stack: HTMLElement[] = [];
+
 export function modal<T = unknown>(opts: ModalOpts): Promise<T | undefined> {
   return new Promise((resolve) => {
     const previous = document.activeElement as HTMLElement | null;
     const close = (value?: unknown) => {
       document.removeEventListener('keydown', onKey, true);
+      if (stack.includes(overlay)) stack.splice(stack.indexOf(overlay), 1);
       overlay.classList.add('leaving');
       setTimeout(() => overlay.remove(), 140);
       previous?.focus?.();
       resolve(value as T | undefined);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && stack.at(-1) === overlay) {
         e.stopPropagation();
         close();
       }
@@ -75,6 +79,7 @@ export function modal<T = unknown>(opts: ModalOpts): Promise<T | undefined> {
       if (e.target === overlay) close();
     });
     document.addEventListener('keydown', onKey, true);
+    stack.push(overlay);
     document.body.append(overlay);
     const first =
       dialog.querySelector<HTMLElement>('textarea, input, select') ??

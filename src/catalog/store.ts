@@ -339,6 +339,7 @@ export function deleteEntry(id: string, dir = catalogDir(), now = new Date()): s
   if (typeof id !== 'string' || !ENTRY_ID_RE.test(id)) fail('bad-id', { id });
   const file = entryFile(dir, id);
   if (!fs.existsSync(file)) fail('not-found', { id });
+  const linked = readEntry(id, dir)?.entry.legacy;
   const trash = path.join(dir, 'trash');
   fs.mkdirSync(trash, { recursive: true });
   const target = trashTarget(trash, `${id}-${stamp(now)}`);
@@ -346,6 +347,9 @@ export function deleteEntry(id: string, dir = catalogDir(), now = new Date()): s
   try {
     fs.rmSync(`${file}.bak`, { force: true });
   } catch {}
+  // else the adopted file shows up again
+  if (linked?.preset) deleteLegacy(`legacy:preset/${linked.preset}`, dir, now);
+  if (linked?.theme) deleteLegacy(`legacy:theme/${linked.theme}`, dir, now);
   rotateTrash(trash);
   return target;
 }

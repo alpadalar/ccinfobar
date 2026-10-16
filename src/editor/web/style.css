@@ -2247,6 +2247,55 @@ input[type="range"]:disabled {
   flex-wrap: wrap;
 }
 
+.catalog-clash {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  box-shadow: 0 0 0 0.0625rem color-mix(in srgb, var(--warn) 35%, transparent);
+}
+
+.catalog-clash .modal-text {
+  margin: 0;
+}
+
+.catalog-clash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.catalog-history {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-history-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 0.0625rem var(--line);
+  font-size: 0.8125rem;
+}
+
+.catalog-history-at,
+.catalog-history-extra {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.catalog-history-note {
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 70rem) {
   .catalog-tabs {
     flex: 1 0 100%;

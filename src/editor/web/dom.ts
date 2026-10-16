@@ -50,6 +50,8 @@ const PATHS: Record<string, string> = {
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   download: '<path d="M12 4v12m0 0-4-4m4 4 4-4M4 20h16"/>',
   upload: '<path d="M12 16V4m0 0-4 4m4-4 4 4M4 20h16"/>',
+  'upload-off': '<path d="M12 16V4m0 0-4 4m4-4 4 4M4 20h16M3 3l18 18"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   check: '<path d="m5 12 5 5 9-10"/>',
   save: '<path d="M5 3h11l4 4v14H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>',
   terminal: '<path d="m4 7 5 5-5 5M12 18h8"/>',

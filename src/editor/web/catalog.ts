@@ -11,7 +11,8 @@ import { presetLabels } from '../../core/i18n/catalog-text.js';
 import { type MessageId, t } from '../../core/i18n/index.js';
 import type { Config } from '../../core/types.js';
 import { api, previewSource } from './api.js';
-import { clear, h } from './dom.js';
+import { deleteEntryDialog, historyDialog, saveCurrentDialog, toggleShare } from './catalog-dialogs.js';
+import { clear, h, icon } from './dom.js';
 import { fitCols, previewBox } from './presets.js';
 import { type CatalogEntryInfo, type CatalogState, isDirty, replaceAll, S } from './store.js';
 import { askThemeColors } from './themes.js';
@@ -122,6 +123,7 @@ export async function openCatalog(): Promise<void> {
   const asked = new Set<string>();
   let inflight = 0;
   const slots = new Map<string, HTMLElement>();
+  const cards = new Map<string, HTMLElement>();
   const tabs = h('div', { class: 'tabs catalog-tabs', role: 'tablist', 'aria-label': t('catalog.title') });
   const status = h('span', { class: 'hint catalog-status', role: 'status' });
   const list = h('div', { class: 'catalog-list' });
@@ -165,6 +167,74 @@ export async function openCatalog(): Promise<void> {
     }
   }
 
+  // re-render from the server's list; changed entries get new previews
+  function update(next: CatalogState, focus?: string) {
+    const old = new Map(st.data.user.map((e) => [e.ref, JSON.stringify(e.content)]));
+    for (const e of next.user) {
+      if (old.has(e.ref) && old.get(e.ref) !== JSON.stringify(e.content)) {
+        st.previews.delete(e.ref);
+        asked.delete(e.ref);
+      }
+    }
+    st.data = next;
+    renderList();
+    void loadPreviews();
+    if (focus) cards.get(focus)?.focus();
+  }
+
+  async function act(e: CatalogEntryInfo, run: (e: CatalogEntryInfo) => Promise<CatalogState | null>) {
+    const next = await run(e);
+    if (next && !st.closed) update(next, e.ref);
+  }
+
+  function actionButton(cls: string, glyph: string, title: string, label: string, onClick: () => void) {
+    return h(
+      'button',
+      {
+        class: `icon-btn sm${cls}`,
+        type: 'button',
+        title,
+        'aria-label': label,
+        onClick: (ev: Event) => {
+          ev.stopPropagation();
+          onClick();
+        },
+      },
+      icon(glyph, 14),
+    );
+  }
+
+  function actions(e: CatalogEntryInfo): HTMLElement {
+    const box = h('span', { class: 'theme-actions' });
+    if (e.source === 'system') return box;
+    const name = e.name;
+    const shared = e.share?.wanted ?? false;
+    box.append(
+      actionButton('', 'clock', t('catalog.action.history'), t('catalog.action.historyName', { name }), () =>
+        act(e, historyDialog),
+      ),
+      shared
+        ? actionButton(
+            '',
+            'upload-off',
+            t('catalog.action.unshare'),
+            t('catalog.action.unshareName', { name }),
+            () => act(e, toggleShare),
+          )
+        : actionButton('', 'upload', t('catalog.action.share'), t('catalog.action.shareName', { name }), () =>
+            act(e, toggleShare),
+          ),
+      actionButton(
+        ' danger',
+        'trash',
+        t('catalog.action.delete'),
+        t('catalog.action.deleteName', { name }),
+        () => act(e, deleteEntryDialog),
+      ),
+    );
+    return box;
+  }
+
   function card(e: CatalogEntryInfo): HTMLElement {
     const slot = h('div', { class: 'catalog-preview' }, previewBox(st.previews.get(e.ref)));
     slots.set(e.ref, slot);
@@ -195,7 +265,7 @@ export async function openCatalog(): Promise<void> {
         chip(e),
         e.source === 'legacy' ? h('span', { class: 'theme-tag' }, t('catalog.source.legacy')) : null,
         h('span', { class: 'spacer' }),
-        h('span', { class: 'theme-actions' }),
+        actions(e),
       ),
       e.description ? h('div', { class: 'theme-desc' }, e.description) : null,
       slot,
@@ -203,12 +273,14 @@ export async function openCatalog(): Promise<void> {
     el.addEventListener('pointerdown', (ev) => {
       if ((ev.target as HTMLElement).closest?.('button')) ev.stopPropagation();
     });
+    cards.set(e.ref, el);
     return el;
   }
 
   function renderList() {
     clear(list);
     slots.clear();
+    cards.clear();
     const groups = groupEntries(st.data, st.tab);
     for (const section of sectionsOf(st.tab)) {
       const own = groups.filter((g) => g.section === section);
@@ -270,6 +342,18 @@ export async function openCatalog(): Promise<void> {
       void loadPreviews();
       return [
         h('span', { class: 'spacer' }),
+        h(
+          'button',
+          {
+            class: 'btn',
+            type: 'button',
+            onClick: async () => {
+              const next = await saveCurrentDialog(st.data);
+              if (next && !st.closed) update(next);
+            },
+          },
+          t('catalog.saveCurrent'),
+        ),
         h('button', { class: 'btn primary', type: 'button', onClick: () => done() }, t('web.settings.done')),
       ];
     },

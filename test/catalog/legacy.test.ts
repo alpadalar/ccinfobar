@@ -7,6 +7,7 @@ import { contentFromConfig } from '../../src/catalog/snapshot.js';
 import {
   adoptLegacy,
   CatalogStoreError,
+  deleteEntry,
   deleteLegacy,
   installEntryTheme,
   listEntries,
@@ -240,6 +241,17 @@ describe('deleteLegacy', () => {
     const left = fs.readdirSync(path.join(cat, 'trash')).sort();
     expect(left).toHaveLength(20);
     expect(left[0]).toBe('legacy-theme-t1-20261016T100002000Z.json');
+  });
+
+  it('goes with its adopted entry, so it does not come back', () => {
+    seed();
+    const e = adoptLegacy('legacy:preset/mine', NOW, cat);
+    const bytes = fs.readFileSync(path.join(presets, 'mine.json'));
+    deleteEntry(e.id, cat, NOW);
+    expect(listLegacy({ dir: cat }).map((i) => i.ref)).not.toContain('legacy:preset/mine');
+    expect(fs.existsSync(path.join(presets, 'mine.json'))).toBe(false);
+    const copy = path.join(cat, 'trash', 'legacy-preset-mine-20261016T100000000Z.json');
+    expect(fs.readFileSync(copy)).toEqual(bytes);
   });
 
   it('returns false for missing files and bad refs', () => {
