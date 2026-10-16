@@ -37,6 +37,7 @@ const SWEPT: string[] = [
   'src/core/preview.ts',
   'src/core/edit.ts',
   'src/catalog/model.ts',
+  'src/catalog/system.ts',
   'src/core/brew.ts',
   'src/editor/server.ts',
   'src/editor/detach.ts',
@@ -392,7 +393,12 @@ function prose(raw: string): boolean {
 const META_KEY = /\b(?:name|description|label|help|sample)\s*:\s*$/;
 // theme, style and preset names and descriptions go through catalog-text (08-12)
 const CATALOG_KEY = /\b(?:name|description)\s*:\s*$/;
-const CATALOG = ['src/core/themes/builtin.ts', 'src/core/themes/style.ts', 'src/core/presets.ts'];
+const CATALOG = [
+  'src/core/themes/builtin.ts',
+  'src/core/themes/style.ts',
+  'src/core/presets.ts',
+  'src/catalog/system.ts',
+];
 function metadata(file: string, src: string, lit: Lit): boolean {
   const before = src.slice(Math.max(0, lit.at - 40), lit.at);
   if (CATALOG.includes(file)) return CATALOG_KEY.test(before);
