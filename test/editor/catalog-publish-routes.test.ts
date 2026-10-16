@@ -243,6 +243,16 @@ describe('editor publish routes', () => {
     ]);
     expect(await stateOf(e.ref)).toBe('withdrawn');
     expect((await request('GET', '/api/catalog/remote')).json().entries).toEqual([]);
+    // WR-04: sharing it again is refused up front
+    const on = await request('POST', '/api/catalog/share', { ref: e.ref, share: true });
+    expect(on.status).toBe(409);
+    expect(on.json()).toMatchObject({
+      errorId: 'catalog.publish.reserved',
+      errorParams: { name: 'X' },
+      error:
+        'X was withdrawn from the marketplace, and withdrawn ids stay reserved. Save it under a new name to publish it again.',
+    });
+    expect(await stateOf(e.ref)).toBe('withdrawn');
   });
 
   it('limits the plan to the given refs and checks them', async () => {

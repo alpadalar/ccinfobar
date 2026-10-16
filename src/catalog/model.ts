@@ -216,6 +216,11 @@ function withShare(e: CatalogEntry, share: Partial<EntryShare>): CatalogEntry {
   return next;
 }
 
+// a withdrawn id stays reserved on its marketplace, so sharing it again cannot publish
+export function isReserved(e: CatalogEntry): boolean {
+  return e.share.state === 'withdrawn' && e.share.remote !== null;
+}
+
 export function setShare(e: CatalogEntry, wanted: boolean): CatalogEntry {
   const s = e.share.state;
   let state = s;

@@ -47,6 +47,7 @@ const REASONS: Record<string, MessageId> = {
   unreviewed: 'market.error.unreviewed',
   'bad-content': 'err.catalog.badContent',
   busy: 'err.catalog.busy',
+  reserved: 'catalog.publish.reserved',
 };
 
 const ITEMS: Record<PublishItem['action'], MessageId> = {

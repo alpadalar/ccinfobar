@@ -26,6 +26,7 @@ import {
   ENTRY_LIMITS,
   type EntryContent,
   type EntryKind,
+  isReserved,
   LAYOUT_KEYS,
   mergeRaw,
   newEntry,
@@ -52,7 +53,8 @@ export type StoreCode =
   | 'bad-content'
   | 'bad-endpoint'
   | 'no-version'
-  | 'busy';
+  | 'busy'
+  | 'reserved';
 
 export class CatalogStoreError extends Error {
   readonly code: StoreCode;
@@ -319,6 +321,7 @@ function saveLocked(input: SaveInput, dir: string): CatalogEntry {
   next.description = clip(input.description, ENTRY_LIMITS.description);
   if (input.author !== undefined) next.author = clip(input.author, ENTRY_LIMITS.author);
   const change = input.shareChange;
+  if (change === true && isReserved(cur)) fail('reserved', { id, name: cur.name });
   const shared = typeof change === 'boolean' && change !== cur.share.wanted ? setShare(next, change) : next;
   return commitEntry(shared, rev, dir, now);
 }
@@ -340,7 +343,11 @@ export function restoreEntry(
 }
 
 export function updateShare(id: string, wanted: boolean, rev: number, dir = catalogDir()): CatalogEntry {
-  return withStoreLock(dir, () => commitEntry(setShare(load(id, dir, rev), wanted), rev, dir));
+  return withStoreLock(dir, () => {
+    const cur = load(id, dir, rev);
+    if (wanted && isReserved(cur)) fail('reserved', { id, name: cur.name });
+    return commitEntry(setShare(cur, wanted), rev, dir);
+  });
 }
 
 function stamp(d: Date): string {

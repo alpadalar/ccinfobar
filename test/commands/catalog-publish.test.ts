@@ -297,24 +297,35 @@ describe('catalog publish', () => {
     expect(list.out).toContain('  The marketplace has no entries yet.');
   });
 
-  it('says withdrawn ids stay reserved when a withdrawn entry is shared again', async () => {
+  it('refuses to share a withdrawn entry again: withdrawn ids stay reserved (WR-04)', async () => {
     await saveMine();
     const s = await server();
     await run(['publish', '--yes'], { env: s.env });
     await run(['unshare', entryOf('Mine').id]);
     await run(['publish', '--yes'], { env: s.env });
-    await run(['share', entryOf('Mine').id]);
+    const msg =
+      'Mine was withdrawn from the marketplace, and withdrawn ids stay reserved. Save it under a new name to publish it again.';
+    for (const extra of [[], ['--dry-run']]) {
+      const r = await run(['share', entryOf('Mine').id, ...extra]);
+      expect(r.code).toBe(1);
+      expect(r.err).toEqual([msg]);
+    }
+    expect(stateOf('Mine')).toBe('withdrawn');
+    const up = await run(['save', 'Mine', '--kind', 'preset', '--update', '--share']);
+    expect(up.err).toEqual([msg]);
+    expect(entryOf('Mine').version).toBe(1);
     const f = counted();
     const r = await run(['publish', '--yes'], { env: s.env, fetch: f.fetch });
-    expect(r.out).toEqual([
-      'Mine was withdrawn from the marketplace, and withdrawn ids stay reserved. Save it under a new name to publish it again.',
-      'Nothing is waiting to publish.',
-    ]);
-    // the review reads meta.json only
-    expect(f.calls()).toBe(1);
-    const tr = await withLangAsync('tr', () => run(['publish', '--yes'], { env: s.env }));
-    expect(tr.out[0]).toBe(
+    expect(r.out).toEqual(['Nothing is waiting to publish.']);
+    expect(f.calls()).toBe(0);
+    const tr = await withLangAsync('tr', () => run(['share', entryOf('Mine').id]));
+    expect(tr.err[0]).toBe(
       'Mine pazar yerinden geri çekildi ve geri çekilen kimlikler ayrılmış kalır. Yeniden yayımlamak için farklı bir adla kaydedin.',
+    );
+    const copy = await run(['save', 'Mine again', '--kind', 'preset']);
+    expect(copy.code).toBeUndefined();
+    expect((await run(['publish', '--yes'], { env: s.env })).out.at(-1)).toBe(
+      'Published Mine again v1 as alperen/mine-again',
     );
   });
 

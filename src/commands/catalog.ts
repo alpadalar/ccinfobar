@@ -6,6 +6,7 @@ import {
   ENTRY_LIMITS,
   type EntryContent,
   type EntryKind,
+  isReserved,
   latest,
   newEntry,
   restoreVersion,
@@ -388,6 +389,7 @@ const STORE_IDS: Record<StoreCode, MessageId> = {
   'bad-endpoint': 'err.catalog.badEndpoint',
   'no-version': 'err.catalog.noVersion',
   busy: 'err.catalog.busy',
+  reserved: 'catalog.publish.reserved',
 };
 
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
@@ -667,6 +669,10 @@ function shareCommand(wanted: boolean): (c: Ctx) => void {
     if (!hit) return;
     const e = writable(c, hit);
     if (!e) return;
+    if (wanted && isReserved(e)) {
+      c.fail(t('catalog.publish.reserved', { name: clean(e.name) }));
+      return;
+    }
     const next = c.dryRun ? setShare(e, wanted) : updateShare(e.id, wanted, e.rev, c.dir);
     const state = shareState(next);
     if (c.json) {

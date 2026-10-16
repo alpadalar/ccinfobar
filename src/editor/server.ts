@@ -494,6 +494,7 @@ const STORE_ERRORS: Record<StoreCode, [number, MessageId]> = {
   'bad-endpoint': [400, 'err.catalog.badEndpoint'],
   'no-version': [404, 'err.catalog.noVersion'],
   busy: [409, 'err.catalog.busy'],
+  reserved: [409, 'catalog.publish.reserved'],
 };
 
 function storeError(err: CatalogStoreError, kind = ''): HttpError {
@@ -512,6 +513,7 @@ function storeError(err: CatalogStoreError, kind = ''): HttpError {
   }
   if (err.code === 'not-found') return httpError(status, id, { ref });
   if (err.code === 'no-version') return httpError(status, id, { ref, version: version ?? '' });
+  if (err.code === 'reserved') return httpError(status, id, { name: clean(d.name) });
   return httpError(status, id);
 }
 
