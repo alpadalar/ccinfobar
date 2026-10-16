@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
+import { themeFromConfig } from '../catalog/snapshot.js';
 import { envLanguage } from '../cli/lang.js';
 import { hookEntryState } from '../commands/hooks-doctor.js';
 import {
@@ -52,7 +53,6 @@ import { availablePresets, loadForUse } from '../core/load.js';
 import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { deleteUserPreset, listPresets, presetsDir, saveUserPreset } from '../core/presets.js';
 import { type PreviewSource, renderPreview, renderPreviewReport } from '../core/preview.js';
-import { resolveAppearance } from '../core/renderer.js';
 import { getScenario, scenarioList } from '../core/scenarios.js';
 import {
   deleteUserTheme,
@@ -62,7 +62,6 @@ import {
   STYLES,
   saveUserTheme,
   themesDir,
-  themeToInput,
 } from '../core/themes.js';
 import type { Config, ProgressConfig, WidgetItem } from '../core/types.js';
 import { gsdInstalled } from '../data/gsd.js';
@@ -541,21 +540,10 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const body = asObject(await readBody(req));
         let input = parseThemeInput(body.theme);
         if (body.fromConfig !== undefined && input.id && ID_RE.test(input.id)) {
-          const a = resolveAppearance(normalizeConfig(body.fromConfig));
-          const base = themeToInput(a.theme, input.id, a.theme.id === input.id ? undefined : a.theme.id);
-          input = parseThemeInput({
-            ...base,
+          input = themeFromConfig(normalizeConfig(body.fromConfig), input.id, {
             name: input.name ?? input.id,
             description: input.description ?? '',
-            author: '',
-            style: a.style,
-            separator: a.separator,
-            padding: a.padding,
-            glyphs: a.glyphs,
-            colors: { ...a.theme.colors, muted: a.separatorColor },
           });
-          input.id = base.id;
-          if (base.extends) input.extends = base.extends;
         }
         if (!input.id || !ID_RE.test(input.id)) {
           throw httpError(400, 'err.theme.badId');
