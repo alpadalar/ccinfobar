@@ -2,7 +2,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { isLoopback } from '../../../src/core/http-spec.js';
-import { errorCode, fetchJson, JobFetchError } from '../../../src/data/jobs/fetch.js';
+import { errorCode, fetchJson, JobFetchError, requestJson } from '../../../src/data/jobs/fetch.js';
 import { fakeFetch, json, redirect, streamed } from '../../fake-fetch.js';
 
 const NOW = 1_800_000_000_000;
@@ -155,6 +155,132 @@ describe('fetchJson', () => {
   });
 });
 
+describe('requestJson', () => {
+  const send = (f: typeof fetch, extra: Partial<Parameters<typeof requestJson>[1]> = {}, url = URL_A) =>
+    requestJson(url, { fetch: f, timeoutMs: 5000, now: NOW, ...extra });
+
+  it('sends a JSON body with the fixed headers', async () => {
+    const { fetch: f, calls } = fakeFetch([json({ id: 'x' }, 201)]);
+    const res = await send(f, { method: 'POST', body: { a: 1 }, headers: { Authorization: 'Bearer t' } });
+    expect([res.status, res.body]).toEqual([201, { id: 'x' }]);
+    expect(res.headers.get('content-type')).toBe('application/json');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ method: 'POST', redirect: 'manual', body: '{"a":1}' });
+    expect(calls[0]?.headers).toEqual({
+      accept: 'application/json',
+      'content-type': 'application/json',
+      'user-agent': 'ccinfobar',
+      authorization: 'Bearer t',
+    });
+  });
+
+  it('sends no body or content-type without one', async () => {
+    const { fetch: f, calls } = fakeFetch([new Response(null, { status: 204 })]);
+    expect(await send(f, { method: 'DELETE' })).toMatchObject({ status: 204, body: null });
+    expect(calls[0]?.method).toBe('DELETE');
+    expect(calls[0]?.body).toBeUndefined();
+    expect(calls[0]?.headers['content-type']).toBeUndefined();
+  });
+
+  it('reads a zero-byte 200 as null', async () => {
+    expect((await send(fakeFetch([new Response('')]).fetch, { method: 'PUT', body: [] })).body).toBeNull();
+  });
+
+  it.each([
+    ['POST', 307],
+    ['PUT', 308],
+    ['DELETE', 302],
+  ] as const)('never follows a redirect on %s', async (method, status) => {
+    const { fetch: f, calls } = fakeFetch([redirect('/v2/same', status), json({ leaked: true })]);
+    const e = await failure(send(f, { method, body: { token: 'x' } }));
+    expect(e.code).toBe('redirect');
+    expect(errorCode(e)).toBe('redirect');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('follows same-origin redirects on GET only', async () => {
+    const { fetch: f, calls } = fakeFetch([redirect('/1'), redirect('/2'), json({ n: 2 })]);
+    expect(await send(f)).toMatchObject({ status: 200, body: { n: 2 } });
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'GET', 'GET']);
+    const { fetch: g } = fakeFetch([redirect('https://evil.example.net/x'), json({})]);
+    expect((await failure(send(g))).code).toBe('cross-origin-redirect');
+  });
+
+  it('keeps a protocol error code and drops the server message', async () => {
+    const body = { error: { code: 'conflict', message: '<script>alert(1)</script>' } };
+    const e = await failure(
+      send(fakeFetch([json(body, 409)]).fetch, { method: 'PUT', body: {}, errorBody: true }),
+    );
+    expect([e.code, e.status, e.remoteCode, e.retryAfterMs]).toEqual(['http-409', 409, 'conflict', null]);
+    expect(e.message).toBe('http-409');
+    expect(`${String(e)} ${JSON.stringify(e)} ${e.stack}`).not.toContain('script');
+  });
+
+  it('reads no error body unless asked', async () => {
+    const s = streamed(['{"error":', '{"code":', '"conflict"', '}', '}']);
+    const e = await failure(
+      send(fakeFetch([new Response(s.body, { status: 409 })]).fetch, { method: 'POST' }),
+    );
+    expect([e.status, e.remoteCode]).toEqual([409, null]);
+    expect(s.cancelled()).toBe(true);
+  });
+
+  it.each([
+    ['a bad code', JSON.stringify({ error: { code: 'Bad Code!' } })],
+    ['a long code', JSON.stringify({ error: { code: 'a'.repeat(33) } })],
+    ['a number', JSON.stringify({ error: { code: 7 } })],
+    ['no error object', JSON.stringify({ code: 'conflict' })],
+    ['invalid JSON', '{"error":'],
+    ['a body over 8 KiB', JSON.stringify({ error: { code: 'conflict' }, pad: 'x'.repeat(9 * 1024) })],
+  ])('drops %s', async (_n, text) => {
+    const res = new Response(text, { status: 400 });
+    const e = await failure(send(fakeFetch([res]).fetch, { method: 'POST', errorBody: true }));
+    expect([e.code, e.status, e.remoteCode]).toEqual(['http-400', 400, null]);
+  });
+
+  it('cancels a streamed error body past 8 KiB', async () => {
+    const s = streamed([
+      '{"error":{"code":"conflict"},"pad":"',
+      ...Array.from({ length: 10 }, () => 'x'.repeat(4096)),
+    ]);
+    const e = await failure(
+      send(fakeFetch([new Response(s.body, { status: 422 })]).fetch, { errorBody: true }),
+    );
+    expect(e.remoteCode).toBeNull();
+    expect(s.cancelled()).toBe(true);
+  });
+
+  it('carries Retry-After on 429', async () => {
+    const res = json({ error: { code: 'rate-limited' } }, 429, { 'retry-after': '30' });
+    const e = await failure(send(fakeFetch([res]).fetch, { method: 'POST', errorBody: true }));
+    expect([e.code, e.status, e.remoteCode, e.retryAfterMs]).toEqual([
+      'http-429',
+      429,
+      'rate-limited',
+      30_000,
+    ]);
+  });
+
+  it('fails a 300 KiB response as too-large', async () => {
+    const big = new Response(JSON.stringify({ pad: 'x'.repeat(300 * 1024) }), { status: 200 });
+    expect((await failure(send(fakeFetch([big]).fetch, { method: 'POST', body: {} }))).code).toBe(
+      'too-large',
+    );
+  });
+
+  it('keeps fetchJson strict about empty bodies', async () => {
+    expect((await failure(get(fakeFetch([new Response('')]).fetch))).code).toBe('bad-json');
+    expect((await failure(get(fakeFetch([new Response(null, { status: 204 })]).fetch))).code).toBe(
+      'bad-json',
+    );
+  });
+
+  it('gives other errors no status or remote code', () => {
+    const e = new JobFetchError('too-large');
+    expect([e.status, e.remoteCode, e.retryAfterMs]).toEqual([null, null, null]);
+  });
+});
+
 describe('errorCode', () => {
   const withCause = (code: string) => Object.assign(new TypeError('fetch failed'), { cause: { code } });
   const timeout = Object.assign(new Error('The operation was aborted due to timeout'), {
@@ -250,6 +376,13 @@ describe('fetchJson against a local server', () => {
       'cross-origin-redirect',
     );
     expect(seen.length).toBe(n + 1);
+  });
+
+  it('never re-sends a POST on a redirect with real fetch', async () => {
+    const n = seen.length;
+    const p = requestJson(new URL(`${base}/hop`), { fetch, timeoutMs: 3000, method: 'POST', body: { a: 1 } });
+    expect((await failure(p)).code).toBe('redirect');
+    expect(seen.slice(n)).toEqual(['POST /hop ccinfobar']);
   });
 
   it('times out a body that never ends', async () => {

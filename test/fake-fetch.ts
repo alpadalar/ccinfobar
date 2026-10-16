@@ -3,6 +3,7 @@ export interface FakeCall {
   method: string;
   redirect: string | undefined;
   headers: Record<string, string>;
+  body?: string;
 }
 
 export type FakeStep = Response | Error | ((url: string, init: RequestInit) => Response | Promise<Response>);
@@ -46,7 +47,9 @@ export function fakeFetch(steps: FakeStep[]): { fetch: typeof fetch; calls: Fake
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const headers: Record<string, string> = {};
     for (const [k, v] of new Headers(init.headers).entries()) headers[k] = v;
-    calls.push({ url, method: init.method ?? 'GET', redirect: init.redirect, headers });
+    const call: FakeCall = { url, method: init.method ?? 'GET', redirect: init.redirect, headers };
+    if (typeof init.body === 'string') call.body = init.body;
+    calls.push(call);
     const step = queue.shift();
     if (!step) throw new Error(`fakeFetch: no step for ${url}`);
     if (step instanceof Error) throw step;

@@ -14,11 +14,20 @@ export function retryAfterMs(header: string | null, now = Date.now()): number | 
 export class JobFetchError extends Error {
   readonly code: string;
   readonly retryAfterMs: number | null;
-  constructor(code: string, retryAfter: number | null = null) {
+  readonly status: number | null;
+  readonly remoteCode: string | null;
+  constructor(
+    code: string,
+    retryAfter: number | null = null,
+    status: number | null = null,
+    remote: string | null = null,
+  ) {
     super(code);
     this.name = 'JobFetchError';
     this.code = code;
     this.retryAfterMs = retryAfter;
+    this.status = status;
+    this.remoteCode = remote;
   }
 }
 
@@ -31,6 +40,21 @@ export interface FetchJsonOpts {
   now?: number;
   signal?: AbortSignal;
 }
+
+export interface RequestJsonOpts extends FetchJsonOpts {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  body?: unknown;
+  errorBody?: boolean;
+}
+
+export interface JsonResponse {
+  status: number;
+  headers: Headers;
+  body: unknown;
+}
+
+const ERROR_CAP = 8 * 1024;
+const REMOTE_CODE = /^[a-z-]{1,32}$/;
 
 async function discard(res: Response): Promise<void> {
   try {
@@ -89,7 +113,34 @@ function anySignal(a: AbortSignal, b?: AbortSignal): AbortSignal {
   return c.signal;
 }
 
-export async function fetchJson(url: URL, opts: FetchJsonOpts): Promise<unknown> {
+function parse(buf: Buffer): unknown {
+  const raw = buf.toString('utf8');
+  const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new JobFetchError('bad-json');
+  }
+}
+
+// only a short code from `{ error: { code } }`; server text never surfaces
+async function remoteCode(res: Response): Promise<string | null> {
+  try {
+    const err = (parse(await readCapped(res, ERROR_CAP)) as { error?: { code?: unknown } } | null)?.error;
+    const code = err && typeof err === 'object' ? err.code : undefined;
+    return typeof code === 'string' && REMOTE_CODE.test(code) ? code : null;
+  } catch {
+    await discard(res);
+    return null;
+  }
+}
+
+export async function requestJson(
+  url: URL,
+  opts: RequestJsonOpts,
+  strictEmpty = false,
+): Promise<JsonResponse> {
+  const method = opts.method ?? 'GET';
   const cap = opts.capBytes ?? CAP_BYTES;
   const max = opts.maxRedirects ?? 3;
   // one timeout covers every hop and the body; the job's signal stops it early
@@ -99,31 +150,40 @@ export async function fetchJson(url: URL, opts: FetchJsonOpts): Promise<unknown>
   for (const [k, v] of Object.entries(opts.headers ?? {})) headers[k.toLowerCase()] = v;
   headers.accept = 'application/json';
   headers['user-agent'] = 'ccinfobar';
+  const init: RequestInit = { method, redirect: 'manual', signal, headers };
+  if (opts.body !== undefined) {
+    headers['content-type'] = 'application/json';
+    init.body = JSON.stringify(opts.body);
+  }
   let cur = url;
   for (let hop = 0; ; hop++) {
-    const res = await opts.fetch(cur, { method: 'GET', redirect: 'manual', signal, headers });
+    const res = await opts.fetch(cur, init);
     if (res.status >= 300 && res.status < 400) {
       await discard(res);
+      // a write is never re-sent elsewhere
+      if (method !== 'GET') throw new JobFetchError('redirect');
       if (hop >= max) throw new JobFetchError('too-many-redirects');
       cur = nextHop(cur, res.headers.get('location'));
       continue;
     }
     if (!res.ok) {
-      await discard(res);
+      let remote: string | null = null;
+      if (opts.errorBody) remote = await remoteCode(res);
+      else await discard(res);
       const wait =
         res.status === 429 || res.status === 503
           ? retryAfterMs(res.headers.get('retry-after'), opts.now)
           : null;
-      throw new JobFetchError(`http-${res.status}`, wait);
+      throw new JobFetchError(`http-${res.status}`, wait, res.status, remote);
     }
-    const raw = (await readCapped(res, cap)).toString('utf8');
-    const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
-    try {
-      return JSON.parse(text) as unknown;
-    } catch {
-      throw new JobFetchError('bad-json');
-    }
+    const buf = await readCapped(res, cap);
+    const body = buf.length === 0 && !strictEmpty ? null : parse(buf);
+    return { status: res.status, headers: res.headers, body };
   }
+}
+
+export async function fetchJson(url: URL, opts: FetchJsonOpts): Promise<unknown> {
+  return (await requestJson(url, { ...opts, method: 'GET' }, true)).body;
 }
 
 const TLS = /^(ERR_TLS|ERR_SSL|CERT|UNABLE_TO_VERIFY|DEPTH_ZERO_SELF_SIGNED|SELF_SIGNED_CERT)/;
