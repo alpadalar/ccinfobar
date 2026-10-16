@@ -186,6 +186,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The terminal editor's settings no longer cut long field labels at 80 columns; the label column widens when there is room, and four long option labels are shorter, with the rest moved to their help
 - `ccinfobar import` exits with status 1 when the import fails
 - Importing a ccstatusline widget whose type is `constructor`, `toString` or another built-in object name reports it as having no ccinfobar equivalent instead of counting it and dropping it silently
+- Importing a ccstatusline `link` widget keeps its URL and text, and lists the URL for confirmation like other imported links, instead of importing an empty link
 
 ### Security
 

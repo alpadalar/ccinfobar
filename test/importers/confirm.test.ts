@@ -294,6 +294,15 @@ describe('runImport confirmation', () => {
     expect(f.lines.join('\n')).not.toMatch(/\u001b/);
   });
 
+  it('lists a ccstatusline link and drops it without consent', async () => {
+    const f = fake(false);
+    const src = path.join(__dirname, '../fixtures/import/ccstatusline-link.json');
+    const { cfg } = await run(f.io, {}, src);
+    expect(f.lines).toContain('  link: https://example.com/docs');
+    expect(f.lines).toContain(t('import.targetsDropped', { count: 1 }));
+    expect(items(cfg)).toEqual(['model']);
+  });
+
   it('keeps the command when the TTY user says yes', async () => {
     const f = fake(true, true);
     const { cfg } = await run(f.io, {});

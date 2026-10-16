@@ -127,6 +127,11 @@ function convertItem(raw: Raw, notes: ImportNote[]): WidgetItem | null {
   hideNotes(type, meta.hide, notes);
   if (type === 'skills' && typeof meta.mode === 'string' && meta.mode)
     item.options = { ...item.options, mode: meta.mode };
+  if (type === 'link') {
+    // sanitizeImport and the consent step check the URL
+    if (typeof meta.url === 'string' && meta.url) item.options = { ...item.options, url: meta.url };
+    if (typeof meta.text === 'string' && meta.text) item.options = { ...item.options, text: meta.text };
+  }
   const color = convertColor(raw.color);
   if (color) item.color = color;
   const bg = convertColor(raw.backgroundColor);

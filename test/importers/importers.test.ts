@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it, onTestFinished } from 'vitest';
 import { stripAnsi } from '../../src/core/ansi.js';
 import { createContext } from '../../src/core/context.js';
+import { t } from '../../src/core/i18n/index.js';
 import { render } from '../../src/core/renderer.js';
 import { sampleGit, sampleGsd, samplePayload, sampleTranscript } from '../../src/core/sample.js';
 import type { Config } from '../../src/core/types.js';
@@ -13,6 +14,7 @@ import {
   TARGETS as PL_TARGETS,
   parsePowerlineArgs,
 } from '../../src/importers/claude-powerline.js';
+import { importTargets, sanitizeImport } from '../../src/importers/confirm.js';
 import {
   detectTool,
   IMPORT_SOURCES,
@@ -51,6 +53,24 @@ describe('ccstatusline import', () => {
       'Ctx ███░░░░░░░ 34% | Hit 94% | Tokens 450k | 72 t/s',
       '5h Limit: 42% | Resets 2h 14m | Weekly Limit: 61% | Resets 1d 5h',
     ]);
+  });
+
+  it('imports link items with their URL and text, so the consent step sees them', () => {
+    const r = importCcstatusline(fixture('ccstatusline-link.json'));
+    expect(r.config.lines![0]![1]).toEqual({
+      id: 'docs',
+      type: 'link',
+      color: 'blue',
+      options: { url: 'https://example.com/docs', text: 'docs' },
+    });
+    const safe = sanitizeImport(r);
+    expect(importTargets(safe.config)).toEqual([
+      { kind: 'link', line: 0, index: 1, target: 'https://example.com/docs' },
+    ]);
+    expect(safe.config.lines![0]!.map((i) => i.id)).toEqual(['m', 'docs']);
+    expect(safe.notes.map((n) => n.text)).toContain(
+      t('import.note.unsafeLink', { url: 'javascript:alert(1)' }),
+    );
   });
 
   it('imports the usable context widget as basis usable', () => {

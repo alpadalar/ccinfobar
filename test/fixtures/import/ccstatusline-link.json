@@ -1,0 +1,28 @@
+{
+  "version": 4,
+  "lines": [
+    [
+      {
+        "id": "m",
+        "type": "model"
+      },
+      {
+        "id": "docs",
+        "type": "link",
+        "color": "blue",
+        "metadata": {
+          "url": "https://example.com/docs",
+          "text": "docs"
+        }
+      },
+      {
+        "id": "bad",
+        "type": "link",
+        "metadata": {
+          "url": "javascript:alert(1)",
+          "text": "bad"
+        }
+      }
+    ]
+  ]
+}
