@@ -27,6 +27,7 @@ import {
   dropTargets,
   type ImportTarget,
   importTargets,
+  kindText,
   MAX_TARGET_CHARS,
   sanitizeImport,
   shortTarget,
@@ -134,14 +135,6 @@ export function rerunCommand(
   if (o.dryRun) parts.push('--dry-run');
   return { command: sanitizeText(parts.join(' ')), addFile: !!o.file && !arg, addCommand: !!command && !cmd };
 }
-
-const KINDS: Record<ImportTarget['kind'], MessageId> = {
-  command: 'import.kind.command',
-  http: 'import.kind.http',
-  link: 'import.kind.link',
-};
-
-const kindText = (kind: ImportTarget['kind']): string => t(KINDS[kind]);
 
 function rerunId(r: Rerun): MessageId {
   if (r.addFile) return r.addCommand ? 'import.rerunAddBoth' : 'import.rerunAddFile';

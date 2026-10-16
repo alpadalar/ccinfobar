@@ -64,6 +64,8 @@ export const importMessages = {
     '{tool} runs --extra-cmd only when CLAUDE_HUD_ALLOW_EXTRA_CMD is set, and it is not set in your environment or settings.json',
   'import.note.hideState': '{name}: hiding when "{state}" is not supported, it stays visible',
   'import.note.targetDropped': '{kind} "{target}" was dropped (not confirmed)',
+  'import.note.targetChanged':
+    '{kind} "{target}" changed when it was cleaned: line breaks became spaces, escape and control characters were removed',
   'import.note.unsafeLink': 'link "{url}" has an unsafe URL and was dropped',
   'import.kind.command': 'command',
   'import.kind.http': 'http',

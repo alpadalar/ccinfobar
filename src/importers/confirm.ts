@@ -1,5 +1,5 @@
 import { externalTargets } from '../core/http-report.js';
-import { t } from '../core/i18n/index.js';
+import { type MessageId, t } from '../core/i18n/index.js';
 import { deepSanitize, safeConfigUrl, sanitizeText } from '../core/sanitize.js';
 import type { Config, WidgetItem } from '../core/types.js';
 import { charWidth, truncate, visibleWidth } from '../core/width.js';
@@ -75,9 +75,27 @@ export function wrapLine(text: string, width: number, indent: string): string[] 
 
 export const shortTarget = (s: string, max = 60): string => truncate(visibleTarget(sanitizeText(s)), max);
 
+const KINDS: Record<ImportTarget['kind'], MessageId> = {
+  command: 'import.kind.command',
+  http: 'import.kind.http',
+  link: 'import.kind.link',
+};
+
+export const kindText = (kind: ImportTarget['kind']): string => t(KINDS[kind]);
+
 export function sanitizeImport(result: ImportResult): ImportResult {
   const config = deepSanitize(result.config);
   const notes = result.notes.map((n) => ({ ...n, text: sanitizeText(n.text) }));
+  // a multi-line command runs differently once its line breaks are spaces
+  const before = new Map(importTargets(result.config).map((x) => [`${x.line}:${x.index}`, x.target]));
+  for (const x of importTargets(config)) {
+    const raw = before.get(`${x.line}:${x.index}`);
+    if (raw === undefined || raw === x.target) continue;
+    notes.push({
+      kind: 'approx',
+      text: t('import.note.targetChanged', { kind: kindText(x.kind), target: shortTarget(x.target) }),
+    });
+  }
   const unsafe: ImportTarget[] = [];
   for (const x of importTargets(config)) {
     if (x.kind !== 'link' || safeConfigUrl(x.target)) continue;

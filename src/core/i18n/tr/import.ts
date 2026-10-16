@@ -66,6 +66,8 @@ export const importMessages = {
     '{tool}, --extra-cmd komutunu yalnızca CLAUDE_HUD_ALLOW_EXTRA_CMD ayarlıysa çalıştırır; bu değişken ortamınızda veya settings.json içinde ayarlı değil',
   'import.note.hideState': '{name}: "{state}" durumunda gizleme desteklenmiyor, bileşen görünür kalır',
   'import.note.targetDropped': '{kind} "{target}" onaylanmadığı için çıkarıldı',
+  'import.note.targetChanged':
+    '{kind} "{target}" temizlenirken değişti: satır sonları boşluk oldu, kaçış ve kontrol karakterleri çıkarıldı',
   'import.note.unsafeLink': 'bağlantı "{url}" güvenli olmayan bir URL içeriyor, çıkarıldı',
   'import.kind.command': 'komut',
   'import.kind.http': 'http',

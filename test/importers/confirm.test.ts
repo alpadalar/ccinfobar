@@ -287,6 +287,8 @@ describe('runImport confirmation', () => {
     ]);
     expect(f.lines[4]).toMatch(/^✓ Imported 1 widgets from ccstatusline \(/);
     expect(f.lines.slice(5)).toEqual([
+      '  Approximated:',
+      `    - ${t('import.note.targetChanged', { kind: 'command', target: 'echo hi' })}`,
       '  Dropped:',
       `    - ${t('import.note.targetDropped', { kind: 'command', target: 'echo hi' })}`,
     ]);
@@ -301,6 +303,28 @@ describe('runImport confirmation', () => {
     expect(f.lines).toContain('  link: https://example.com/docs');
     expect(f.lines).toContain(t('import.targetsDropped', { count: 1 }));
     expect(items(cfg)).toEqual(['model']);
+  });
+
+  it('says when cleaning changed a multi-line command', () => {
+    const r = sanitizeImport({
+      config: {
+        lines: [
+          [
+            { id: 'a', type: 'command', options: { command: 'git fetch\ngit status' } },
+            { id: 'b', type: 'command', options: { command: 'date' } },
+          ],
+        ],
+      },
+      notes: [],
+      source: 'ccstatusline',
+    });
+    expect(r.config.lines![0]![0]!.options!.command).toBe('git fetch git status');
+    expect(r.notes).toEqual([
+      {
+        kind: 'approx',
+        text: t('import.note.targetChanged', { kind: 'command', target: 'git fetch git status' }),
+      },
+    ]);
   });
 
   it('names the target kind in Turkish', async () => {
