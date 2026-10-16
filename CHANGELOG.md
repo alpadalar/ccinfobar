@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-16
+
 ### Added
 
 - In a terminal, `install` shows the current and new status line and asks `Replace? [y/N]` before replacing another tool's; `--yes` (`-y`) replaces without asking. Non-interactive runs replace it and print the replaced command (`Replaced: <command>`); use `--dry-run` to preview the plan without writing anything (no backup, no npm install)
@@ -436,7 +438,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/alpadalar/ccinfobar/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/alpadalar/ccinfobar/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/alpadalar/ccinfobar/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/alpadalar/ccinfobar/compare/v0.5.6...v0.6.0
