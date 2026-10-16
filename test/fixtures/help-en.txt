@@ -24,6 +24,11 @@ Usage
   ccinfobar theme <id>            Switch theme
   ccinfobar theme new <id>        Create your own theme (--from <theme>)
   ccinfobar init [preset]         Write a preset config (default, cockpit, dashboard, minimal, gsd, powerline, full, cost, limits, git, workspace, compact, two-line, agents, charts, session)
+  ccinfobar catalog list|show|history
+                                  Browse built-in and saved presets, themes and bundles (--remote: the marketplace)
+  ccinfobar catalog apply|save <name>
+                                  Apply a catalog entry or save your setup as one; run ccinfobar catalog for all subcommands
+  ccinfobar catalog publish       Show your shared entries, then send them to the marketplace endpoint
   ccinfobar preview               Print the status line with sample data
   ccinfobar preview --scenario <name>
                                   Preview a named situation (list them with --scenario)

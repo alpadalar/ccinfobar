@@ -28,6 +28,11 @@ export const cliMessages = {
   'help.cmd.theme': 'Temayı değiştirir',
   'help.cmd.themeNew': 'Kendi temanızı oluşturur (--from <theme>)',
   'help.cmd.init': 'Hazır ayar yapılandırması yazar ({presets})',
+  'help.cmd.catalog':
+    'Yerleşik ve kayıtlı hazır ayarlara, temalara ve paketlere göz atar (--remote: pazar yeri)',
+  'help.cmd.catalogSave':
+    'Bir katalog girdisini uygular veya düzeninizi girdi olarak kaydeder; tüm alt komutlar için ccinfobar catalog çalıştırın',
+  'help.cmd.catalogPublish': 'Paylaşılan girdilerinizi gösterir, sonra pazar yeri adresine gönderir',
   'help.cmd.preview': 'Durum satırını örnek verilerle yazdırır',
   'help.cmd.previewScenario': 'Adı verilen bir durumu önizler (liste için --scenario)',
   'help.cmd.previewGlyphMode': "Bir glif moduyla önizler, örn. GitHub issue'ları için paste-safe",

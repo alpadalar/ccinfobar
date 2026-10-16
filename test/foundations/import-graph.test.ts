@@ -171,6 +171,21 @@ describe('import graph', () => {
     );
   });
 
+  // a lazy client or publish entry splits the render chunks; catalog-market is the one entry
+  it('loads marketplace code through the catalog-market entry only', () => {
+    const files = closure('commands/catalog-market.ts');
+    expect(files.has('src/commands/catalog.ts')).toBe(true);
+    expect(files.has('src/market/client.ts')).toBe(true);
+    expect(closure('commands/catalog.ts').has('src/catalog/publish.ts')).toBe(false);
+    const lazy = walk(src).filter((f) =>
+      /import\('[./]+(?:market\/client|catalog\/publish)\.js'\)/.test(fs.readFileSync(f, 'utf8')),
+    );
+    expect(lazy.map((f) => path.relative(root, f))).toEqual([]);
+    expect(fs.readFileSync(path.join(src, 'commands/catalog.ts'), 'utf8')).toContain(
+      "await import('./catalog-market.js')",
+    );
+  });
+
   it('loads the lazy tables in every module that prints their ids', () => {
     const users = walk(src)
       .filter((f) => !f.includes(`${path.sep}i18n${path.sep}`))

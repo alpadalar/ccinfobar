@@ -90,7 +90,7 @@ interface VersionRow {
   overwrittenAt: string | null;
 }
 
-interface Ctx {
+export interface Ctx {
   args: Args;
   cfgFile: string;
   io: PromptIo;
@@ -100,11 +100,12 @@ interface Ctx {
   now: () => Date;
   json: boolean;
   dryRun: boolean;
+  fetch?: typeof fetch;
   fail(msg: string): void;
 }
 
-const KINDS: readonly EntryKind[] = ['bundle', 'preset', 'theme'];
-const GROUPS: Record<EntryKind, MessageId> = {
+export const KINDS: readonly EntryKind[] = ['bundle', 'preset', 'theme'];
+export const GROUPS: Record<EntryKind, MessageId> = {
   bundle: 'catalog.group.bundles',
   preset: 'catalog.group.presets',
   theme: 'catalog.group.themes',
@@ -118,7 +119,7 @@ const SHARE_IDS: Record<ShareState, MessageId> = {
   withdrawn: 'catalog.share.withdrawn',
 };
 
-const clean = (v: unknown): string => sanitizeText(typeof v === 'string' ? v : '');
+export const clean = (v: unknown): string => sanitizeText(typeof v === 'string' ? v : '');
 
 const kindOf = (a: AnyEntry): EntryKind => (a.source === 'legacy' ? a.item.kind : a.entry.kind);
 
@@ -218,7 +219,7 @@ function draftTheme(raw: unknown): Theme | undefined {
   }
 }
 
-function when(at: string): string {
+export function when(at: string): string {
   const d = new Date(at);
   return Number.isNaN(d.getTime()) ? clean(at) : formatDateTime(d, languageLocale());
 }
@@ -230,7 +231,7 @@ function collect(c: Ctx): AnyEntry[] {
   return [...user, ...legacy, ...system];
 }
 
-function find(c: Ctx, ref: string | undefined): AnyEntry | null {
+export function find(c: Ctx, ref: string | undefined): AnyEntry | null {
   if (!ref) {
     c.fail(t('catalog.usage'));
     return null;
@@ -390,7 +391,8 @@ const STORE_IDS: Record<StoreCode, MessageId> = {
 
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
 
-const kindWord = (kind: EntryKind): string => t(`catalog.kind.${kind}`).toLocaleLowerCase(languageLocale());
+export const kindWord = (kind: EntryKind): string =>
+  t(`catalog.kind.${kind}`).toLocaleLowerCase(languageLocale());
 
 function flagKind(c: Ctx): EntryKind | null {
   const flag = c.args.flags.kind;
@@ -771,9 +773,22 @@ async function runEndpoint(c: Ctx): Promise<void> {
   if (changed) dryRunDone(c);
 }
 
+// marketplace code loads only for publish and --remote
+async function market(c: Ctx, sub: 'publish' | 'list' | 'show'): Promise<void> {
+  const m = await import('./catalog-market.js');
+  if (sub === 'publish') await m.runPublishCommand(c);
+  else if (sub === 'list') await m.runRemoteList(c);
+  else await m.runRemoteShow(c);
+}
+
+const local =
+  (sub: 'list' | 'show', run: (c: Ctx) => void) =>
+  (c: Ctx): void | Promise<void> =>
+    c.args.flags.remote === true ? market(c, sub) : run(c);
+
 const SUBCOMMANDS: Record<string, (c: Ctx) => void | Promise<void>> = {
-  list: runList,
-  show: runShow,
+  list: local('list', runList),
+  show: local('show', runShow),
   history: runHistory,
   apply: runApply,
   save: runSave,
@@ -783,6 +798,7 @@ const SUBCOMMANDS: Record<string, (c: Ctx) => void | Promise<void>> = {
   delete: runDelete,
   author: runAuthor,
   endpoint: runEndpoint,
+  publish: (c) => market(c, 'publish'),
 };
 
 export async function runCatalog(args: Args, cfgFile: string, deps: CatalogDeps = {}): Promise<void> {
@@ -809,6 +825,7 @@ export async function runCatalog(args: Args, cfgFile: string, deps: CatalogDeps 
     now: deps.now ?? (() => new Date()),
     json: args.flags.json === true,
     dryRun: args.flags['dry-run'] === true,
+    ...(deps.fetch ? { fetch: deps.fetch } : {}),
     fail,
   };
   try {

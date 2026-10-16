@@ -29,6 +29,7 @@ const SWEPT: string[] = [
   'src/commands/settings-file.ts',
   'src/commands/hooks-install.ts',
   'src/commands/update.ts',
+  'src/commands/catalog-market.ts',
   'src/commands/catalog.ts',
   'src/core/http-spec.ts',
   'src/core/jsonpath.ts',
@@ -201,6 +202,9 @@ const ALLOW: Record<string, string[]> = {
     'ccinfobar config get <path>',
     'ccinfobar config set <path> <value>',
     'ccinfobar config unset <path>',
+    'ccinfobar catalog list|show|history',
+    'ccinfobar catalog apply|save <name>',
+    'ccinfobar catalog publish',
   ],
   // simulated payload data
   'src/commands/bench.ts': ['Step X: refactor the status line renderer', 'Done with step X.'],

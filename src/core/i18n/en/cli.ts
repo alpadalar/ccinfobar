@@ -24,6 +24,10 @@ export const cliMessages = {
   'help.cmd.theme': 'Switch theme',
   'help.cmd.themeNew': 'Create your own theme (--from <theme>)',
   'help.cmd.init': 'Write a preset config ({presets})',
+  'help.cmd.catalog': 'Browse built-in and saved presets, themes and bundles (--remote: the marketplace)',
+  'help.cmd.catalogSave':
+    'Apply a catalog entry or save your setup as one; run ccinfobar catalog for all subcommands',
+  'help.cmd.catalogPublish': 'Show your shared entries, then send them to the marketplace endpoint',
   'help.cmd.preview': 'Print the status line with sample data',
   'help.cmd.previewScenario': 'Preview a named situation (list them with --scenario)',
   'help.cmd.previewGlyphMode': 'Preview with a glyph mode, e.g. paste-safe for GitHub issues',

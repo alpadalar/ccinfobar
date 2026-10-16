@@ -24,6 +24,11 @@ Kullanım
   ccinfobar theme <id>            Temayı değiştirir
   ccinfobar theme new <id>        Kendi temanızı oluşturur (--from <theme>)
   ccinfobar init [preset]         Hazır ayar yapılandırması yazar (default, cockpit, dashboard, minimal, gsd, powerline, full, cost, limits, git, workspace, compact, two-line, agents, charts, session)
+  ccinfobar catalog list|show|history
+                                  Yerleşik ve kayıtlı hazır ayarlara, temalara ve paketlere göz atar (--remote: pazar yeri)
+  ccinfobar catalog apply|save <name>
+                                  Bir katalog girdisini uygular veya düzeninizi girdi olarak kaydeder; tüm alt komutlar için ccinfobar catalog çalıştırın
+  ccinfobar catalog publish       Paylaşılan girdilerinizi gösterir, sonra pazar yeri adresine gönderir
   ccinfobar preview               Durum satırını örnek verilerle yazdırır
   ccinfobar preview --scenario <name>
                                   Adı verilen bir durumu önizler (liste için --scenario)

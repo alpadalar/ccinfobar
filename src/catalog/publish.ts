@@ -1,3 +1,4 @@
+import { createMarketClient, type MarketClient, type Received } from '../market/client.js';
 import {
   isRemoteId,
   type MarketEntry,
@@ -31,10 +32,6 @@ import {
   writeCredential,
   writeProfile,
 } from './store.js';
-
-// type only; the client loads on demand
-type MarketClient = import('../market/client.js').MarketClient;
-type Received = import('../market/client.js').Received;
 
 export { entryHash };
 
@@ -204,12 +201,11 @@ export async function runPublish(
   if (!endpoint) return { code: 'no-endpoint', results: [] };
   const entries = listEntries(dir).filter((e) => ids === null || ids.includes(e.id));
   if (!publishPlan(entries, endpoint).length) return { code: null, results: [] };
-  const mod = await import('../market/client.js');
   const fetchFn = deps.fetch ?? globalThis.fetch;
   const now = deps.now ?? (() => new Date());
   let anon: MarketClient;
   try {
-    anon = mod.createMarketClient({ endpoint, fetch: fetchFn });
+    anon = createMarketClient({ endpoint, fetch: fetchFn });
   } catch {
     return { code: 'bad-endpoint', results: [] };
   }
@@ -242,7 +238,7 @@ export async function runPublish(
       return { code: c === 'conflict' ? 'handle-taken' : c, results: [] };
     }
   }
-  const client = mod.createMarketClient({ endpoint, fetch: fetchFn, token });
+  const client = createMarketClient({ endpoint, fetch: fetchFn, token });
   const results: PublishResult[] = [];
   for (const item of items) {
     const e = entries.find((x) => x.id === item.id)!;
@@ -279,10 +275,9 @@ async function reader(deps: PublishDeps): Promise<{ client: MarketClient | null;
   const { env, dir } = envOf(deps);
   const endpoint = marketEndpoint(env, dir);
   if (!endpoint) return { client: null, code: 'no-endpoint' };
-  const mod = await import('../market/client.js');
   try {
     return {
-      client: mod.createMarketClient({ endpoint, fetch: deps.fetch ?? globalThis.fetch }),
+      client: createMarketClient({ endpoint, fetch: deps.fetch ?? globalThis.fetch }),
       code: null,
     };
   } catch {

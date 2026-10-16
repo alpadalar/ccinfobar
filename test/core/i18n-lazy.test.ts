@@ -91,10 +91,11 @@ describe('catalog text (D-17, D-18)', () => {
     const { catalogMessages: tr } = await import('../../src/core/i18n/tr/catalog.js');
     const { lazyMessages: enLazy } = await import('../../src/core/i18n/en/lazy.js');
     const { lazyMessages: trLazy } = await import('../../src/core/i18n/tr/lazy.js');
-    const ph = (s: string) => [...s.matchAll(/\{\w+\}/g)].map((m) => m[0]).sort();
+    const flat = (m: unknown) => (typeof m === 'string' ? m : Object.values(m as object).join(' '));
+    const ph = (m: unknown) => [...flat(m).matchAll(/\{\w+\}/g)].map((x) => x[0]).sort();
     expect(Object.keys(tr).sort()).toEqual(Object.keys(en).sort());
     for (const [id, text] of Object.entries(en)) {
-      expect(ph((tr as Record<string, string>)[id]!), id).toEqual(ph(text));
+      expect(ph((tr as Record<string, unknown>)[id]), id).toEqual(ph(text));
       expect(Object.hasOwn(enLazy, id) && Object.hasOwn(trLazy, id), id).toBe(true);
       expect(/^(?:catalog|err\.catalog|market)\./.test(id), id).toBe(true);
     }

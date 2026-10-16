@@ -331,6 +331,4 @@ describe('catalog command', () => {
     const usage = await withLangAsync('tr', () => run([]));
     expect(usage.err[0]).toMatch(/^Kullanım: ccinfobar catalog list/);
   });
-
-  it.todo('publish with no endpoint sends nothing and keeps entries waiting (D-09)');
 });
