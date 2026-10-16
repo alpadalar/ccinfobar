@@ -645,6 +645,37 @@ describe('remote browse', () => {
     expect(f2.calls[0]!.headers.authorization).toBeUndefined();
   });
 
+  it('refuses a version file that does not match the entry history (WR-10)', async () => {
+    const env = { CCINFOBAR_MARKETPLACE_URL: 'https://market.example.com' };
+    const good = preset('model');
+    const evil = preset('cwd');
+    const entryDoc = (hash: string, history = hash) => ({
+      id: 'alp/x',
+      kind: 'preset',
+      name: 'X',
+      description: '',
+      author: '',
+      publisher: 'alp',
+      version: 1,
+      updatedAt: '',
+      hash,
+      versions: [{ version: 1, at: '2026-10-16T10:00:00.000Z', note: '', hash: history }],
+    });
+    const swapped = fakeFetch([
+      json(entryDoc(entryHash(good))),
+      json({ version: 1, content: evil, hash: entryHash(evil) }),
+    ]);
+    const a = await remoteShow('alp/x', { dir, env, fetch: swapped.fetch });
+    expect(a).toMatchObject({ code: 'bad-hash', latest: null });
+    expect(a.entry!.id).toBe('alp/x');
+    const split = fakeFetch([json(entryDoc(entryHash(good), entryHash(evil)))]);
+    expect(await remoteShow('alp/x', { dir, env, fetch: split.fetch })).toMatchObject({
+      code: 'bad-hash',
+      latest: null,
+    });
+    expect(split.calls).toHaveLength(1);
+  });
+
   it('sanitizes remote text and reports failures as codes', async () => {
     const ESC = '\u001b';
     const hash = 'a'.repeat(64);

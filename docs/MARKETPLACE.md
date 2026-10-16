@@ -46,7 +46,7 @@ Every request can get `429 rate-limited`. Every write can also answer `415 unsup
 
 ### Hashes
 
-`hash` is the lowercase hex sha256 of the canonical JSON of `content`: object keys sorted by code unit, no whitespace, `undefined` values dropped. The server hashes the content after sanitizing its text (control characters, escape sequences and bidi marks removed; tabs and newlines become spaces), and ccinfobar sanitizes the same way before it shows, hashes and sends a payload, so the hash it keeps matches the server's. The client recomputes it on every download and refuses a mismatch (`bad-hash`).
+`hash` is the lowercase hex sha256 of the canonical JSON of `content`: object keys sorted by code unit, no whitespace, `undefined` values dropped. The server hashes the content after sanitizing its text (control characters, escape sequences and bidi marks removed; tabs and newlines become spaces), and ccinfobar sanitizes the same way before it shows, hashes and sends a payload, so the hash it keeps matches the server's. The client recomputes it on every download and refuses a mismatch (`bad-hash`). It also requires the version file's hash to equal the one listed for that version in the entry's history, which it fetches separately, and the entry's own `hash` for the latest version. That catches a swapped, stale or cached version file; a host that rewrites the entry and its version files together can only be caught by comparing with a copy you trust.
 
 ### Content and policy
 
@@ -88,7 +88,7 @@ Error bodies are `{ "error": { "code": "<code>", "message": "<text>" } }`. Codes
 - **Endpoint**: https only, except http on `localhost`, `127.0.0.1` and `[::1]` (for the reference server). No user name or password, query or fragment.
 - **Bounds**: one 10 s timeout covers all hops and the body. Responses are capped per document (`RESPONSE_CAPS`, shared with the reference server): an index page at 1 MiB, an entry or version document at 320 KiB (the 256 KiB content limit plus 64 KiB), anything else at 256 KiB. So everything the reference server accepts can be read back.
 - **Redirects**: GET follows at most 3, same origin only (or http to https on the same host). A write that gets a redirect stops with `redirect` and is never re-sent elsewhere.
-- **Received content** is hash-checked and treated like an import: sanitized, checked against the content policy, normalized, and its command and URL targets listed for the import consent step.
+- **Received content** is hash-checked against its own hash and the entry's version history, and treated like an import: sanitized, checked against the content policy, normalized, and its command and URL targets listed for the import consent step.
 - **No endpoint, no request**: with no endpoint, publish and remote browse stop before any request is made.
 - **Explicit only**: the client is used by `ccinfobar catalog publish`, `catalog list --remote`, `catalog show --remote` and the matching web editor routes. No background job and nothing on the status line render path loads it (`test/foundations/import-graph.test.ts` checks this).
 - **Confirmation**: publish shows each payload and names the endpoint before anything is sent. It is not blocked by `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, because the user asked for it, and the confirmation says so. The web editor sends a hash of the reviewed plan and refuses with "the entries changed" if it differs.

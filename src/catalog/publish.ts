@@ -318,8 +318,10 @@ export async function remoteShow(
     return { code: codeOf(err), entry: null, latest: null };
   }
   if (entry.withdrawn) return { code: null, entry, latest: null };
+  const want = entry.versions.find((v) => v.version === entry.version)?.hash;
+  if (!want || want !== entry.hash) return { code: 'bad-hash', entry, latest: null };
   try {
-    return { code: null, entry, latest: await client.version(id, entry.version, entry.kind) };
+    return { code: null, entry, latest: await client.version(id, entry.version, entry.kind, want) };
   } catch (err) {
     return { code: codeOf(err), entry, latest: null };
   }

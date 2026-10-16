@@ -138,7 +138,7 @@ describe('market client', () => {
   it('bad ids fail with invalid before any call', async () => {
     const { c, calls } = client([]);
     expect((await failure(c.entry('../x'))).code).toBe('invalid');
-    expect((await failure(c.version('alp/mini', 0, 'preset'))).code).toBe('invalid');
+    expect((await failure(c.version('alp/mini', 0, 'preset', H))).code).toBe('invalid');
     expect((await failure(c.withdraw('a/b/c'))).code).toBe('invalid');
     expect(calls).toHaveLength(0);
   });
@@ -149,8 +149,8 @@ describe('market client', () => {
       json({ version: 1, content, hash: H }),
       json({ version: 1, content, hash: sha(content) }),
     ]);
-    expect((await failure(c.version('alp/mini', 1, 'preset'))).code).toBe('bad-hash');
-    const v = await c.version('alp/mini', 1, 'preset');
+    expect((await failure(c.version('alp/mini', 1, 'preset', H))).code).toBe('bad-hash');
+    const v = await c.version('alp/mini', 1, 'preset', sha(content));
     expect(calls[1]!.url).toBe(`${BASE}/v1/entries/alp/mini/1.json`);
     expect(v.version).toBe(1);
     expect(v.hash).toBe(sha(content));
@@ -159,31 +159,38 @@ describe('market client', () => {
     expect(contentHash(content)).toBe(sha(content));
   });
 
+  it('a version that matches itself but not the expected history hash is rejected (WR-10)', async () => {
+    const content = preset();
+    const other = preset([{ id: 'x', type: 'cwd' }]);
+    const { c } = client([json({ version: 1, content, hash: sha(content) })]);
+    expect((await failure(c.version('alp/mini', 1, 'preset', sha(other)))).code).toBe('bad-hash');
+  });
+
   it('hashes the parsed content, so served extras fail the check', async () => {
     const content = preset();
     const served = { ...content, extra: { x: 1 } };
     const { c } = client([json({ version: 1, content: served, hash: sha(served) })]);
-    expect((await failure(c.version('alp/mini', 1, 'preset'))).code).toBe('bad-hash');
+    expect((await failure(c.version('alp/mini', 1, 'preset', sha(served)))).code).toBe('bad-hash');
   });
 
   it('a version number other than the one asked for is rejected', async () => {
     const content = preset();
     const { c } = client([json({ version: 2, content, hash: sha(content) })]);
-    expect((await failure(c.version('alp/mini', 1, 'preset'))).code).toBe('bad-json');
+    expect((await failure(c.version('alp/mini', 1, 'preset', sha(content)))).code).toBe('bad-json');
   });
 
   it('received command, http and env widgets are refused; links become consent targets', async () => {
     for (const type of ['command', 'http', 'env']) {
       const content = preset([{ id: 'x', type, options: { command: 'id', url: 'https://e.example' } }]);
       const { c } = client([json({ version: 1, content, hash: sha(content) })]);
-      expect((await failure(c.version('alp/mini', 1, 'preset'))).code).toBe('invalid');
+      expect((await failure(c.version('alp/mini', 1, 'preset', sha(content)))).code).toBe('invalid');
     }
     const content = preset([
       { id: 'm', type: 'model' },
       { id: 'l', type: 'link', options: { url: 'https://docs.example/x', text: 'docs' } },
     ]);
     const { c } = client([json({ version: 1, content, hash: sha(content) })]);
-    const v = await c.version('alp/mini', 1, 'preset');
+    const v = await c.version('alp/mini', 1, 'preset', sha(content));
     expect(v.targets).toEqual([{ kind: 'link', line: 0, index: 1, target: 'https://docs.example/x' }]);
   });
 
@@ -371,9 +378,9 @@ describe('market client', () => {
     const meta = client([json({ protocol: 1, name: 'm', capabilities: {}, x: pad(300) })]);
     expect((await failure(meta.c.meta())).code).toBe('too-large');
     const big = client([json({ version: 1, hash: 'a'.repeat(64), content: {}, x: pad(330) })]);
-    expect((await failure(big.c.version('a/b', 1, 'preset'))).code).toBe('too-large');
+    expect((await failure(big.c.version('a/b', 1, 'preset', H))).code).toBe('too-large');
     const fitting = client([json({ version: 1, hash: 'a'.repeat(64), content: {}, x: pad(300) })]);
-    expect((await failure(fitting.c.version('a/b', 1, 'preset'))).code).not.toBe('too-large');
+    expect((await failure(fitting.c.version('a/b', 1, 'preset', H))).code).not.toBe('too-large');
     expect(RESPONSE_CAPS).toEqual({ index: 1024 * 1024, document: (256 + 64) * 1024 });
   });
 

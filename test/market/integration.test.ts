@@ -71,15 +71,15 @@ describe('market client against the reference server', () => {
     expect(entry.versions.map((v) => v.version)).toEqual([1, 2]);
     expect(entry.versions[1]).toMatchObject({ note: 'v2 fixed', hash: contentHash(fixed) });
 
-    const got = await anon.version('alp/mine', 2, 'preset');
+    const got = await anon.version('alp/mine', 2, 'preset', contentHash(fixed));
     expect(got.hash).toBe(contentHash(fixed));
     expect(got.content.layout?.lines).toHaveLength(1);
     expect(got.content.layout?.lines?.[0]?.map((w) => w.type)).toEqual(['model', 'git-branch']);
-    expect((await anon.version('alp/mine', 1, 'preset')).hash).toBe(pub.hash);
+    expect((await anon.version('alp/mine', 1, 'preset', pub.hash)).hash).toBe(pub.hash);
 
     await expect(anon.withdraw('alp/mine')).rejects.toMatchObject({ code: 'unauthorized' });
     await client.withdraw('alp/mine');
-    await expect(anon.version('alp/mine', 2, 'preset')).rejects.toMatchObject({
+    await expect(anon.version('alp/mine', 2, 'preset', contentHash(fixed))).rejects.toMatchObject({
       code: 'withdrawn',
       status: 410,
     });
@@ -248,7 +248,7 @@ describe('reference server filled to its caps', () => {
         content: big,
         note: '',
       });
-      const v = await anon.version(pub.id, 1, 'preset');
+      const v = await anon.version(pub.id, 1, 'preset', pub.hash);
       expect(v.hash).toBe(contentHash(big));
 
       const small = preset([[{ type: 'model' }]]);
@@ -266,7 +266,9 @@ describe('reference server filled to its caps', () => {
       expect(latest).toBeGreaterThan(100);
       const entry = await anon.entry(pub.id);
       expect(entry.versions).toHaveLength(latest);
-      expect((await anon.version(pub.id, latest, 'preset')).hash).toBe(contentHash(small));
+      expect((await anon.version(pub.id, latest, 'preset', contentHash(small))).hash).toBe(
+        contentHash(small),
+      );
     } finally {
       await s.close();
     }

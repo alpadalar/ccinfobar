@@ -800,7 +800,7 @@ describe('reference market server', () => {
     });
     const entry = await anon.entry('alp/mine');
     expect(entry.versions.map((v) => v.version)).toEqual([1, 2]);
-    const got = await anon.version('alp/mine', 1, 'preset');
+    const got = await anon.version('alp/mine', 1, 'preset', pub.hash);
     expect(got.hash).toBe(pub.hash);
     expect(got.targets.length).toBe(1);
     expect((await anon.index()).entries.map((e) => e.id)).toEqual(['alp/mine']);

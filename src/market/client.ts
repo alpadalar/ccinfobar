@@ -231,12 +231,18 @@ export function createMarketClient(opts: MarketClientOpts) {
       if (e.id !== id) throw new MarketError('bad-json');
       return e;
     },
-    async version(id: string, n: number, kind: EntryKind): Promise<MarketVersion & Received> {
+    // expected comes from the entry history, fetched on its own
+    async version(
+      id: string,
+      n: number,
+      kind: EntryKind,
+      expected: string,
+    ): Promise<MarketVersion & Received> {
       const p = route(() => versionPath(id, n));
       const v = need(parseRemoteVersion(await call('GET', p, undefined, {}, RESPONSE_CAPS.document)));
       if (v.version !== n) throw new MarketError('bad-json');
       // the hash covers the parsed content, as on the server
-      if (contentHash(v.content) !== v.hash) throw new MarketError('bad-hash');
+      if (contentHash(v.content) !== v.hash || v.hash !== expected) throw new MarketError('bad-hash');
       const r = validateReceived(kind, v.content);
       if (!r) throw new MarketError('invalid');
       return { version: v.version, hash: v.hash, ...r };
