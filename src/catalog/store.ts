@@ -551,7 +551,8 @@ function adoptLocked(
   dir: string,
   opts: Omit<LegacyDirs, 'dir'>,
 ): CatalogEntry {
-  const hit = listEntries(dir).find((e) => linkedTo(e, r.type, r.id));
+  const all = listEntries(dir);
+  const hit = all.find((e) => linkedTo(e, r.type, r.id));
   if (hit) return hit;
   const item = legacyItems(legacyDirs({ ...opts, dir }), r)[0];
   if (!item) fail('not-found', { ref: `legacy:${r.type}/${r.id}` });
@@ -566,6 +567,9 @@ function adoptLocked(
     now: now.toISOString(),
   });
   e.legacy = r.type === 'preset' ? { preset: r.id } : { theme: r.id };
+  // a free slug, so findByName and bare refs never pick the wrong entry
+  const taken = new Set(all.filter((x) => x.kind === e.kind).map((x) => x.slug));
+  for (let n = 2; taken.has(e.slug); n++) e.slug = suffixed(slug(e.name) || 'entry', n);
   return normalizeEntry(commitEntry(e, 0, dir, now));
 }
 

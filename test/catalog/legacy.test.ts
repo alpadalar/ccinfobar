@@ -9,6 +9,7 @@ import {
   CatalogStoreError,
   deleteEntry,
   deleteLegacy,
+  findByName,
   installEntryTheme,
   listEntries,
   listLegacy,
@@ -269,6 +270,27 @@ describe('deleteLegacy', () => {
     const again = adoptLegacy('legacy:theme/t1', NOW, cat);
     expect(deleteEntry(again.id, cat, NOW, { themesInUse: themeChain('dracula', themes) }).kept).toBeNull();
     expect(fs.existsSync(path.join(themes, 't1.json'))).toBe(false);
+  });
+
+  it('adopting a file whose name an entry already has picks a free slug (IN-05)', () => {
+    seed();
+    const own = saveEntry(
+      {
+        kind: 'bundle',
+        name: 'Mine',
+        description: '',
+        author: '',
+        content: { layout: { lines }, appearance: { theme: 'nord' } },
+        share: false,
+        mode: 'new',
+      },
+      cat,
+    );
+    const adopted = adoptLegacy('legacy:preset/mine', NOW, cat);
+    expect(adopted.kind).toBe('bundle');
+    expect(adopted.name).toBe('Mine');
+    expect(adopted.slug).toBe('mine-2');
+    expect(findByName('bundle', 'Mine', cat)?.id).toBe(own.id);
   });
 
   it('returns false for missing files and bad refs', () => {
