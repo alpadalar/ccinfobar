@@ -137,6 +137,9 @@ export const catalogMessages = {
   'catalog.share.off': '{name} paylaşılmıyor: {state}',
   'catalog.share.withdrawLater': 'Bir sonraki yayımlama onu geri çekene kadar pazar yerinde kalır.',
   'catalog.delete.ask': '{name} silinsin mi? {dir} klasörüne taşınır.',
+  'catalog.delete.askPublished':
+    '{name} silinsin mi? {dir} klasörüne taşınır. Yayımlanan kopya pazar yerinde kalır; geri çekmek için önce paylaşmayı durdurup yayımlayın.',
+  'catalog.delete.publishedStays': 'Yayımlanan kopya {id} pazar yerinde kalır.',
   'catalog.delete.done': '{name}, {file} konumuna taşındı',
   'catalog.delete.keptTheme': 'Yapılandırmanız kullandığı için {file} tema dosyası korundu.',
   'catalog.delete.needsYes': '{name} girdisini silmek için --yes ile tekrar çalıştırın.',

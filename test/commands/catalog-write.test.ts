@@ -436,6 +436,21 @@ describe('catalog restore, share, unshare and delete', () => {
     expect(sys.err).toEqual(['Built-in entries cannot be changed']);
   });
 
+  it('delete says the published copy stays (IN-07)', async () => {
+    const e = userEntry([model]);
+    const cur = readEntry(e.id, cat)!.entry;
+    const remote = { endpoint: 'https://m.example.com', id: 'alp/tools', version: 1, hash: 'a'.repeat(64) };
+    commitEntry(markPublished(cur, { ...remote, publishedAt: '2026-10-16T10:00:00.000Z' }), cur.rev, cat);
+    const no = await run(['delete', e.id], { tty: true, answers: [false] });
+    expect(no.asked).toEqual([
+      `Delete Tools? It goes to ${tildify(path.join(cat, 'trash'))}. The published copy stays on the marketplace; stop sharing and publish first to withdraw it.`,
+    ]);
+    const dry = JSON.parse((await run(['delete', e.id, '--dry-run', '--json'])).out[0]!);
+    expect(dry.published).toBe(true);
+    const yes = await run(['delete', e.id, '--yes']);
+    expect(yes.out[1]).toBe('The published copy alp/tools stays on the marketplace.');
+  });
+
   it('deletes a legacy preset with a trash copy', async () => {
     const file = path.join(root, 'presets', 'old.json');
     fs.writeFileSync(file, JSON.stringify({ name: 'Old one', config: { lines: [model] } }));

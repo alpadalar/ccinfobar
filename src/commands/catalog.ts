@@ -715,12 +715,15 @@ async function runDelete(c: Ctx): Promise<void> {
   }
   const name = summary(hit).name;
   const trash = path.join(c.dir, 'trash');
+  // ccinfobar cannot withdraw the copy once the entry is gone
+  const remote = hit.source === 'user' ? hit.entry.share.remote : null;
   if (!c.dryRun && c.args.flags.yes !== true) {
     if (!c.io.tty || c.json) {
       c.fail(t('catalog.delete.needsYes', { name }));
       return;
     }
-    if (!(await c.io.ask(t('catalog.delete.ask', { name, dir: shown(trash) }), false))) {
+    const ask = remote ? 'catalog.delete.askPublished' : 'catalog.delete.ask';
+    if (!(await c.io.ask(t(ask, { name, dir: shown(trash) }), false))) {
       c.io.log(t('catalog.delete.kept', { name }));
       return;
     }
@@ -738,10 +741,17 @@ async function runDelete(c: Ctx): Promise<void> {
     }
   }
   if (c.json) {
-    json(c, () => ({ deleted: refOf(hit), trash: file, kept, ...(c.dryRun ? { dryRun: true } : {}) }));
+    json(c, () => ({
+      deleted: refOf(hit),
+      trash: file,
+      kept,
+      published: remote !== null,
+      ...(c.dryRun ? { dryRun: true } : {}),
+    }));
     return;
   }
   c.io.log(t('catalog.delete.done', { name, file: shown(file) }));
+  if (remote) c.io.log(t('catalog.delete.publishedStays', { id: clean(remote.id) }));
   if (kept) c.io.log(t('catalog.delete.keptTheme', { file: shown(path.join(themesOf(c), `${kept}.json`)) }));
   dryRunDone(c);
 }
