@@ -220,7 +220,7 @@ describe('catalog store', () => {
     expect(codeOf(() => commitEntry({ ...cur, id: '../evil' }, 0, dir))?.code).toBe('bad-id');
     expect(bytes(e.id).equals(before)).toBe(true);
     expect(fs.readFileSync(`${fileOf(e.id)}.bak`).equals(bak)).toBe(true);
-    const fresh = newEntry({ ...input(), id: e.id, now: at(5).toISOString() });
+    const fresh = newEntry({ ...input(), author: 'me', id: e.id, now: at(5).toISOString() });
     expect(codeOf(() => commitEntry(fresh, 0, dir))?.code).toBe('changed');
     expect(bytes(e.id).equals(before)).toBe(true);
   });

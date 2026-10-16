@@ -62,7 +62,7 @@ In the Catalog page, click **Save current as…**. The form has:
 | Save | **Preset + theme** (default), **Preset only** or **Theme only** |
 | Name | 1 to 64 characters |
 | Description | Up to 200 characters |
-| Author | Up to 64 characters. Prefilled with the author of your last save, and remembered for the next one |
+| Author | Up to 64 characters. Prefilled with the author of your last save, and remembered for the next one when you change it. On Update or Overwrite it shows the entry's own author, which stays unless you type another |
 | Share to marketplace | On by default. Without a marketplace endpoint the entry waits to publish and nothing is sent |
 
 When you save a theme or bundle, a built-in theme without overrides is stored as a reference to its id. Anything else (your own theme, a built-in with style overrides, or a user theme that replaces a built-in id) is stored as the full theme, so it looks the same on another machine. Your charset and glyph mode are not baked in; the machine that applies it uses its own.

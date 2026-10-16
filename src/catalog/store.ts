@@ -75,7 +75,8 @@ export interface SaveInput {
   kind: EntryKind;
   name: string;
   description: string;
-  author: string;
+  // update and overwrite keep the entry author when undefined
+  author?: string;
   content: EntryContent;
   note?: string;
   share: boolean;
@@ -316,7 +317,7 @@ function saveLocked(input: SaveInput, dir: string): CatalogEntry {
       ? appendVersion(cur, content, note, at)
       : overwriteVersion(cur, content, note, at);
   next.description = clip(input.description, ENTRY_LIMITS.description);
-  next.author = clip(input.author, ENTRY_LIMITS.author);
+  if (input.author !== undefined) next.author = clip(input.author, ENTRY_LIMITS.author);
   const change = input.shareChange;
   const shared = typeof change === 'boolean' && change !== cur.share.wanted ? setShare(next, change) : next;
   return commitEntry(shared, rev, dir, now);

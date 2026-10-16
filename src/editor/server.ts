@@ -998,14 +998,14 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         if (mode !== 'new' && mode !== 'update' && mode !== 'overwrite')
           throw httpError(400, 'err.catalog.badRequest');
         const config = normalizeConfig(body.config);
-        const author = str(body.author);
+        const author = typeof body.author === 'string' ? body.author : undefined;
         let e: CatalogEntry;
         try {
           e = saveEntry({
             kind,
             name: str(body.name),
             description: str(body.description),
-            author,
+            ...(author === undefined ? {} : { author }),
             content: contentFromConfig(config, kind),
             note: str(body.note),
             share: body.share !== false,
@@ -1017,7 +1017,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         } catch (err) {
           throw err instanceof CatalogStoreError ? storeError(err, kind) : err;
         }
-        if (typeof body.author === 'string') writeProfile({ author });
+        if (author !== undefined && author.trim() !== readProfile().author) writeProfile({ author });
         send(res, 200, userResult(e, uiLang(body.lang, config)));
         return;
       }

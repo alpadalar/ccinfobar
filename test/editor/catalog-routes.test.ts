@@ -373,6 +373,21 @@ describe('editor catalog routes: save, restore, share, delete and install-theme'
     expect(fs.readFileSync(`${file}.bak`).equals(v2)).toBe(true);
   });
 
+  it('update without an author keeps the entry author and the remembered one (IN-02)', async () => {
+    const first = (await save({ author: 'Bob' })).json().entry;
+    expect((await catalog()).profile.author).toBe('Bob');
+    await request('POST', '/api/catalog/save', {
+      body: { kind: 'bundle', name: 'Other', description: '', author: 'Alp', mode: 'new', config: oneLine() },
+    });
+    expect((await catalog()).profile.author).toBe('Alp');
+    const up = await save({ mode: 'update', id: first.id, rev: first.rev, author: undefined });
+    expect(up.json().entry.author).toBe('Bob');
+    expect((await catalog()).profile.author).toBe('Alp');
+    const typed = await save({ mode: 'update', id: first.id, rev: first.rev + 1, author: 'Cy' });
+    expect(typed.json().entry.author).toBe('Cy');
+    expect((await catalog()).profile.author).toBe('Cy');
+  });
+
   it('rejects a bad name, kind, mode or missing config', async () => {
     const cases: [Record<string, unknown>, number, string][] = [
       [{ name: '' }, 400, 'err.catalog.badName'],

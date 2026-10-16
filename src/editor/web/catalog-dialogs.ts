@@ -48,12 +48,14 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
   let kind: EntryKind = 'bundle';
   let share = true;
   let shareTouched = false;
+  let authorTouched = false;
   let clash: Clash | null = null;
   let latest: CatalogState | null = null;
   let busy = false;
   const name = textInput('', 64);
   const desc = textInput('', 200);
-  const author = textInput(data.profile?.author ?? '', 64);
+  const remembered = data.profile?.author ?? '';
+  const author = textInput(remembered, 64);
   const note = textInput('', 200, t('catalog.save.notePlaceholder'));
   const kindBox = h('div', { class: 'catalog-kind' });
   const kindHint = h('div', { class: 'hint' });
@@ -103,8 +105,10 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
     clashBox.hidden = !c;
     noteField.hidden = !c;
     submit.hidden = !!c;
+    const old = c ? (latest ?? data).user.find((u) => u.id === c.id) : undefined;
+    // the entry keeps its own author unless one is typed
+    if (!authorTouched) author.value = c ? (old?.author ?? author.value) : remembered;
     if (!c) return;
-    const old = (latest ?? data).user.find((u) => u.id === c.id);
     // update and overwrite keep the old description and share choice, as the CLI does
     if (!desc.value.trim()) desc.value = old?.description ?? '';
     if (!shareTouched && old?.share) {
@@ -133,7 +137,7 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
         kind,
         name: title,
         description: desc.value.trim(),
-        author: author.value.trim(),
+        ...(mode === 'new' || authorTouched ? { author: author.value.trim() } : {}),
         ...(mode === 'new' || shareTouched ? { share } : {}),
         mode,
         ...(target ? { id: target.id, note: note.value.trim() } : {}),
@@ -155,6 +159,9 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
   }
 
   name.addEventListener('input', () => setClash(null));
+  author.addEventListener('input', () => {
+    authorTouched = true;
+  });
   renderKind();
   setClash(null);
   const r = await modal<CatalogState>({

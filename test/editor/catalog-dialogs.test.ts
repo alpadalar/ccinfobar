@@ -367,6 +367,43 @@ describe('save current dialog', () => {
     expect(saves()[1]!.body).toMatchObject({ mode: 'update', share: true });
   });
 
+  it('keeps the clashing entry author unless one is typed (IN-02)', async () => {
+    await init();
+    catalog.user = [{ ...local(), author: 'Bob' }, pub()];
+    const clash = {
+      error: 'exists',
+      errorId: 'err.catalog.exists',
+      errorParams: { kind: 'preset', name: 'Local one', version: 1 },
+      exists: { id: 'u-l', version: 1, name: 'Local one' },
+    };
+    reply('POST /api/catalog/save', 409, clash);
+    reply('POST /api/catalog/save', 200, { ok: true, entry: local(), catalog });
+    await saveDialog();
+    button('Preset only').dispatch('click');
+    type(input('Name'), 'Local one');
+    expect(input('Author').value).toBe('Alp');
+    button('Save').dispatch('click');
+    await flush();
+    expect(input('Author').value).toBe('Bob');
+    button('Overwrite v1').dispatch('click');
+    await flush();
+    expect(saves()[0]!.body.author).toBe('Alp');
+    expect('author' in saves()[1]!.body).toBe(false);
+
+    calls = [];
+    reply('POST /api/catalog/save', 409, clash);
+    reply('POST /api/catalog/save', 200, { ok: true, entry: local(), catalog });
+    await saveDialog();
+    button('Preset only').dispatch('click');
+    type(input('Name'), 'Local one');
+    button('Save').dispatch('click');
+    await flush();
+    type(input('Author'), 'Cy');
+    button('Update (adds v2)').dispatch('click');
+    await flush();
+    expect(saves()[1]!.body).toMatchObject({ mode: 'update', author: 'Cy' });
+  });
+
   it('keeps the old description on update unless one is typed', async () => {
     await init();
     catalog.user = [{ ...local(), description: 'Old words' }, pub()];
