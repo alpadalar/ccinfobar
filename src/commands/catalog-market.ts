@@ -300,7 +300,8 @@ export async function runRemoteShow(c: Ctx): Promise<void> {
   const meta = [t(`catalog.kind.${e.kind}`), t('catalog.version', { version: e.version })];
   meta.push(t('catalog.by', { author: authorText(e) }));
   if (e.withdrawn) meta.push(t('catalog.share.withdrawn'));
-  c.io.log(`${clean(e.name)}  ${clean(e.id)}`);
+  // a tombstone has no name
+  c.io.log(e.name ? `${clean(e.name)}  ${clean(e.id)}` : clean(e.id));
   c.io.log(meta.join(' · '));
   if (e.description) c.io.log(clean(e.description));
   c.io.log('');

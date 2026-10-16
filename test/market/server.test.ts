@@ -206,6 +206,13 @@ describe('reference market server', () => {
     const entry = (await request('GET', '/v1/entries/alp/mine.json')).json();
     expect(entry).toMatchObject({ withdrawn: true, withdrawnAt: '2026-10-16T12:01:00.000Z' });
     expect(entry.versions.map((v: any) => v.version)).toEqual([1, 2]);
+    // WR-08: no name, description, author or notes stay public
+    expect(entry).toMatchObject({ name: '', description: '', author: '', publisher: 'alp', kind: 'preset' });
+    expect(entry.versions.map((v: any) => v.note)).toEqual(['', '']);
+    expect(index.entries[0]).toMatchObject({ name: '', description: '', author: '' });
+    const raw = fs.readFileSync(file('v1', 'entries', 'alp', 'mine.json'), 'utf8');
+    const indexRaw = fs.readFileSync(file('v1', 'index.json'), 'utf8');
+    for (const text of [raw, indexRaw]) expect(text).not.toMatch(/Name mine|"desc"|"Alp"|"first"|"two"/);
     for (const n of [1, 2, 3]) {
       const g = await request('GET', `/v1/entries/alp/mine/${n}.json`);
       expect(g.status, String(n)).toBe(410);
@@ -236,6 +243,21 @@ describe('reference market server', () => {
     const idx = parseIndex((await request('GET', '/v1/index.json')).json())!;
     expect(idx.entries[0]?.withdrawn).toBe(true);
     expect((await request('GET', '/v1/entries/alp/mine/1.json')).status).toBe(410);
+  });
+
+  it('blanks an older tombstone that still has personal data at start (WR-08)', async () => {
+    const alp = await register('alp');
+    await withTwo(alp);
+    expect((await request('DELETE', '/v1/entries/alp/mine', { token: alp })).status).toBe(200);
+    const f = file('v1', 'entries', 'alp', 'mine.json');
+    const old = { ...JSON.parse(fs.readFileSync(f, 'utf8')), name: 'Mine', author: 'Alperen' };
+    old.versions[0].note = 'secret note';
+    fs.writeFileSync(f, JSON.stringify(old));
+    await restart();
+    const now = JSON.parse(fs.readFileSync(f, 'utf8'));
+    expect(now).toMatchObject({ name: '', author: '', withdrawn: true });
+    expect(now.versions[0].note).toBe('');
+    expect(fs.readFileSync(file('v1', 'index.json'), 'utf8')).not.toMatch(/Alperen|Mine/);
   });
 
   it('413 over 1 MiB with connection close, 415 without JSON', async () => {
@@ -342,10 +364,13 @@ describe('reference market server', () => {
     expect(full.json().error.message).toBe('too many entries');
     expect(fs.existsSync(file('v1', 'entries', 'bob', 'two.json'))).toBe(false);
 
-    // tombstones still count, also after a restart
+    // IN-09: tombstones do not count, also after a restart, but their slug stays reserved
     expect((await request('DELETE', '/v1/entries/alp/one', { token: a })).status).toBe(200);
     await restart({ caps: { publishers: 2, entries: 3, entriesPerPublisher: 2 } });
-    expect((await request('POST', '/v1/entries', { token: a, body: publishBody('four') })).status).toBe(413);
+    expect((await request('POST', '/v1/entries', { token: a, body: publishBody('one') })).status).toBe(409);
+    expect((await request('POST', '/v1/entries', { token: a, body: publishBody('four') })).status).toBe(201);
+    const again = await request('POST', '/v1/entries', { token: b, body: publishBody('two') });
+    expect(again.json().error.message).toBe('too many entries');
     expect((await request('POST', '/v1/publishers', { body: { handle: 'cem' } })).status).toBe(413);
   });
 
@@ -381,11 +406,12 @@ describe('reference market server', () => {
       spy.mockRestore();
     }
     const index = parseIndex((await request('GET', '/v1/index.json')).json())!;
+    // tombstones go after the live entries
     expect(index.entries.map((e) => [e.id, e.version, e.withdrawn ?? false])).toEqual([
-      ['alp/aa', 2, true],
       ['alp/bb', 1, false],
       ['alp/cc', 1, false],
       ['alp/dd', 1, false],
+      ['alp/aa', 2, true],
     ]);
     const before = fs.readFileSync(file('v1', 'index.json'), 'utf8');
     await restart();

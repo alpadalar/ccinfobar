@@ -310,7 +310,7 @@ export async function remoteEntryDialog(id: string): Promise<void> {
     body.push(h('div', { class: 'form-error', role: 'alert' }, idText(info.errorId, null, unknownReason())));
   body.push(h('p', { class: 'hint' }, t('catalog.remote.readOnly')));
   await modal({
-    title: shown(e.name),
+    title: shown(e.name || e.id),
     wide: true,
     body,
     actions: (done) => [

@@ -269,10 +269,13 @@ function parseSummary(raw: unknown): MarketSummary | null {
   const version = own(raw, 'version');
   const updatedAt = optText(own(raw, 'updatedAt'), STAMP);
   const h = hash(own(raw, 'hash'));
-  if (!k || !name || description === null || author === null || !isVersion(version)) return null;
+  const withdrawn = own(raw, 'withdrawn') === true;
+  // a tombstone carries no name
+  if (!k || name === null || (!name && !withdrawn) || description === null || author === null) return null;
+  if (!isVersion(version)) return null;
   if (updatedAt === null || !h) return null;
   const s: MarketSummary = { id, kind: k, name, description, author, publisher, version, updatedAt, hash: h };
-  if (own(raw, 'withdrawn') === true) s.withdrawn = true;
+  if (withdrawn) s.withdrawn = true;
   return s;
 }
 

@@ -35,7 +35,7 @@ Every request can get `429 rate-limited`. Every write can also answer `415 unsup
 
 - **Summary**: `{ id, kind, name, description, author, publisher, version, updatedAt, hash, withdrawn? }`. `publisher` must equal the first part of `id`, or the client drops the row.
 - **Index pages**: `index.json` holds at most 500 summaries. When there are more, `next` names the next page relative to `v1/` (`index-2.json`, then `index-3.json`), up to `index-10.json` (5000 entries). A page may only link to the page right after it; any other `next` ends the list, and the client stops at 5000 entries. A static host serves the pages as plain files.
-- **Withdraw** is soft. The entry file stays as a tombstone with `withdrawn: true` and the version hashes, version content answers `410`, and the id stays reserved: publishing the same slug again gives `409`.
+- **Withdraw** is soft. The entry file stays as a tombstone with `withdrawn: true` that keeps only the id, kind, publisher, version numbers, times and hashes; the name, description, author and version notes are blanked in the tombstone and the index, because they are personal data. Version content answers `410`, and the id stays reserved: publishing the same slug again gives `409`. A tombstone summary is the only one that may have an empty name. The index lists tombstones after the live entries, so they never push a live entry past the 5000-entry limit.
 - **Overwrite** is allowed only when `capabilities.overwrite` is true. When a server answers `403 overwrite-disabled`, ccinfobar sends a new version instead.
 
 ### Ids and versions
@@ -133,7 +133,7 @@ The layout under `v1/` is exactly the request paths, so `v1/` can be copied to a
     └── owners/<publisher>/<slug>.json    who may change the entry (0600)
 ```
 
-Withdrawing deletes the version content files and keeps the tombstone, so a copied `v1/` never leaks withdrawn content. Every file is written atomically, and the files under `v1/` are compact JSON so they stay within the client caps.
+Withdrawing deletes the version content files and keeps a blanked tombstone, so a copied `v1/` never leaks withdrawn content or the author's name. A tombstone written by an older server that still has a name is blanked at the next start. Every file is written atomically, and the files under `v1/` are compact JSON so they stay within the client caps.
 
 ### Limits and hardening
 
@@ -144,7 +144,7 @@ Withdrawing deletes the version content files and keeps the tombstone, so a copi
 | Publisher registration | 5 per minute per IP |
 | Rate limiter table | 50,000 keys, cleared every minute; a full table answers `429` (fails closed) |
 | Publishers | 10,000 |
-| Entries | 5000 in total, 200 per publisher (`413 too-large`, also after a restart) |
+| Entries | 5000 in total, 200 per publisher (`413 too-large`, also after a restart). Withdrawn entries do not count, but their ids stay reserved |
 | Versions | 5000 per entry; a new version or overwrite that would make the entry document larger than 320 KiB answers `413 too-large` |
 | Request body | 1 MiB; bodies up to 4 MiB are drained so the `413` reaches the client, a declared size over 4 MiB gets `413` at once, and a stream past 4 MiB is cut off |
 | Connections | 256 at once; request timeout 30 s, header timeout 15 s, keep-alive 5 s |
@@ -210,6 +210,7 @@ This is not legal advice; check with someone qualified before going live.
 - The author field is optional free text: prefilled from the last save, editable, and it can be blank.
 - The publisher handle is separate from the author. With GitHub-based auth it would be the GitHub login, which is already public.
 - ccinfobar sends only the payload it shows: the name, description, author, note and content. No machine ids, paths, personal settings or telemetry.
+- Withdrawing an entry removes its name, description, author and version notes from the published files (the tombstone and the index). With option A, git history and forks still keep them.
 - Go-live needs a public note that published content is public, and a way to request removal.
 
 ## Recommendation

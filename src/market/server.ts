@@ -14,6 +14,7 @@ import {
   indexFile,
   indexPath,
   MARKET_LIMITS,
+  MAX_INDEX,
   MAX_PAGES,
   type MarketEntry,
   type MarketMeta,
@@ -201,13 +202,36 @@ function readJson(file: string): unknown {
   }
 }
 
+const personal = (e: MarketEntry): boolean =>
+  !!(e.name || e.description || e.author || e.versions.some((v) => v.note));
+
+// ids, versions and hashes only: names, authors and notes are personal data
+function tombOf(e: MarketEntry, at: string): MarketEntry & { withdrawnAt: string } {
+  return {
+    id: e.id,
+    kind: e.kind,
+    name: '',
+    description: '',
+    author: '',
+    publisher: e.publisher,
+    version: e.version,
+    updatedAt: at,
+    hash: e.hash,
+    versions: e.versions.map((v) => ({ version: v.version, at: v.at, note: '', hash: v.hash })),
+    withdrawn: true,
+    withdrawnAt: at,
+  };
+}
+
+// a withdrawn entry keeps no personal data, also from older tombstones
 function toSummary(e: MarketEntry): MarketSummary {
+  const gone = e.withdrawn === true;
   const s: MarketSummary = {
     id: e.id,
     kind: e.kind,
-    name: e.name,
-    description: e.description,
-    author: e.author,
+    name: gone ? '' : e.name,
+    description: gone ? '' : e.description,
+    author: gone ? '' : e.author,
     publisher: e.publisher,
     version: e.version,
     updatedAt: e.updatedAt,
@@ -255,7 +279,6 @@ export async function startMarketServer(
   };
 
   const summaries = new Map<string, MarketSummary>();
-  const byPublisher = new Map<string, number>();
   const caps = { ...CAPS, ...opts.caps };
 
   // ids compare as (publisher, slug), like the dir walk
@@ -266,9 +289,12 @@ export async function startMarketServer(
     return as < bs ? -1 : as > bs ? 1 : 0;
   };
 
-  // pages of INDEX_PAGE, each linking the next
+  // pages of INDEX_PAGE, each linking the next; tombstones go last, so
+  // they never push a live entry past MAX_INDEX
   function writeIndex(): void {
-    const entries = [...summaries.values()].sort(order);
+    const all = [...summaries.values()];
+    const live = all.filter((x) => !x.withdrawn).sort(order);
+    const entries = [...live, ...all.filter((x) => x.withdrawn).sort(order)].slice(0, MAX_INDEX);
     const pages = Math.max(1, Math.ceil(entries.length / INDEX_PAGE));
     const generatedAt = iso();
     for (let n = 1; n <= pages; n++) {
@@ -284,7 +310,6 @@ export async function startMarketServer(
 
   // only the changed entry is updated, nothing is re-read
   function indexEntry(e: MarketEntry): void {
-    if (!summaries.has(e.id)) byPublisher.set(e.publisher, (byPublisher.get(e.publisher) ?? 0) + 1);
     summaries.set(e.id, toSummary(e));
     writeIndex();
   }
@@ -306,10 +331,13 @@ export async function startMarketServer(
       for (const f of files) {
         const s = f.endsWith('.json') ? f.slice(0, -5) : '';
         if (!ID_PART_RE.test(s)) continue;
-        const e = parseRemoteEntry(readJson(entryFile(p, s)));
+        let e = parseRemoteEntry(readJson(entryFile(p, s)));
         if (!e || e.id !== `${p}/${s}`) continue;
+        if (e.withdrawn && personal(e)) {
+          e = tombOf(e, iso());
+          writeJson(entryFile(p, s), e);
+        }
         summaries.set(e.id, toSummary(e));
-        byPublisher.set(p, (byPublisher.get(p) ?? 0) + 1);
       }
     }
     writeIndex();
@@ -408,9 +436,9 @@ export async function startMarketServer(
     const handle = publisherOf(req);
     const entry = loadEntry(p, s);
     checkOwner(handle, p, s);
-    if (!entry.withdrawn) {
+    if (!entry.withdrawn || personal(entry)) {
       // tombstone first, so a failed delete still answers 410
-      const tomb = { ...entry, withdrawn: true, withdrawnAt: iso() };
+      const tomb = tombOf(entry, iso());
       writeJson(entryFile(p, s), tomb);
       indexEntry(tomb);
     }
@@ -485,8 +513,16 @@ export async function startMarketServer(
     checkContent(payload.kind, payload.content);
     const s = payload.slug;
     if (fs.existsSync(entryFile(handle, s))) throw fail(409, 'conflict');
-    if (summaries.size >= caps.entries) throw fail(413, 'too-large', 'too many entries');
-    if ((byPublisher.get(handle) ?? 0) >= caps.entriesPerPublisher) {
+    // withdrawn slugs stay reserved but do not count
+    let live = 0;
+    let mine = 0;
+    for (const x of summaries.values()) {
+      if (x.withdrawn) continue;
+      live++;
+      if (x.publisher === handle) mine++;
+    }
+    if (live >= caps.entries) throw fail(413, 'too-large', 'too many entries');
+    if (mine >= caps.entriesPerPublisher) {
       throw fail(413, 'too-large', 'too many entries for this publisher');
     }
     const id = `${handle}/${s}`;

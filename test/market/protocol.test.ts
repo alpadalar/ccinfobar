@@ -142,6 +142,12 @@ describe('market protocol', () => {
     expect(parseIndex([])).toBeNull();
   });
 
+  it('a summary may have an empty name only when withdrawn (WR-08)', () => {
+    const tomb = { ...summary({ name: '', description: '', author: '' }), withdrawn: true };
+    expect(parseIndex({ entries: [tomb] })!.entries).toHaveLength(1);
+    expect(parseIndex({ entries: [{ ...tomb, withdrawn: false }] })!.entries).toEqual([]);
+  });
+
   it('parseIndex keeps a next link only to the following page, up to the last page (CR-03)', () => {
     const next = (link: unknown, page?: number) => parseIndex({ entries: [], next: link }, page)?.next;
     expect(next('index-2.json')).toBe('index-2.json');
