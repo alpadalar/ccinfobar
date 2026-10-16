@@ -77,7 +77,13 @@ describe('runDoctor on a Homebrew copy', () => {
   it('tells brew users to run brew upgrade for a newer version', () => {
     writeUpdateState({ checkedAt: Date.now(), latest: '99.0.0' });
     const out = doctor('brew');
-    expect(out).toContain(t('doctor.update.availableBrew', { current: VERSION, latest: '99.0.0' }));
+    expect(out).toContain(
+      t('doctor.update.availableBrew', {
+        current: VERSION,
+        latest: '99.0.0',
+        command: 'brew upgrade ccinfobar',
+      }),
+    );
     expect(out).toContain(`✗ Update available: ${VERSION} → 99.0.0 (run \`brew upgrade ccinfobar\`)`);
     expect(out.some((l) => l.includes('run `ccinfobar update`'))).toBe(false);
     expect(out.join('\n')).not.toMatch(/[\u0007\u001b]/);

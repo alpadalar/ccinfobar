@@ -38,6 +38,7 @@ import {
   readUpdateState,
   writeUpdateState,
 } from '../commands/update.js';
+import { BREW_UPGRADE } from '../core/brew.js';
 import { ConfigBrokenError, loadConfig, normalizeConfig, saveConfig } from '../core/config.js';
 import {
   applyStyle,
@@ -735,7 +736,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const newer = compareVersions(latest, VERSION) > 0;
         const kind = kindOf();
         if (body.install === true && newer) {
-          if (kind === 'brew') throw httpError(409, 'update.brewRefused');
+          if (kind === 'brew') throw httpError(409, 'update.brewRefused', { command: BREW_UPGRADE });
           if (kind !== 'npm-global' && kind !== 'local') {
             throw httpError(409, 'err.server.cannotUpdate', { kind });
           }

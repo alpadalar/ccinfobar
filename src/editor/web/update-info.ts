@@ -1,3 +1,4 @@
+import { BREW_UPGRADE } from '../../core/brew.js';
 import { type MessageId, t } from '../../core/i18n/index.js';
 
 const KIND: Record<string, MessageId> = {
@@ -19,10 +20,11 @@ export function canSelfUpdate(kind: string | undefined): boolean {
 }
 
 export function updateCommand(kind: string | undefined): string | null {
-  return kind === 'brew' ? 'brew upgrade ccinfobar' : null;
+  return kind === 'brew' ? BREW_UPGRADE : null;
 }
 
 // off never checks, so no hint
 export function brewHint(kind: string | undefined, update: string | undefined): string | null {
-  return updateCommand(kind) && update !== 'off' ? t('update.brewSettingsHint') : null;
+  const command = updateCommand(kind);
+  return command && update !== 'off' ? t('update.brewSettingsHint', { command }) : null;
 }

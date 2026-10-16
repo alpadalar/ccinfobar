@@ -36,6 +36,7 @@ const SWEPT: string[] = [
   'src/core/http-report.ts',
   'src/core/preview.ts',
   'src/core/edit.ts',
+  'src/core/brew.ts',
   'src/editor/server.ts',
   'src/editor/detach.ts',
   'src/editor/web/api.ts',
@@ -204,9 +205,8 @@ const ALLOW: Record<string, string[]> = {
     'Usage of the weekly rate limit',
     'Weekly reset',
   ],
-  // shell command in the render notice (10-01)
-  'src/data/update-state.ts': ['brew upgrade ccinfobar'],
-  'src/editor/web/update-info.ts': ['brew upgrade ccinfobar'],
+  // shell command passed to messages as {command} (10-01)
+  'src/core/brew.ts': ['brew upgrade ccinfobar'],
   // compact duration units stay ASCII (D-17)
   'src/widgets/shared.ts': ['Xd Xh', 'Xh Xm'],
   // English catalog data, shown through styleGroupName (08-12)

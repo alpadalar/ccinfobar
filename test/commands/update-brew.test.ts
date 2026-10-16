@@ -173,7 +173,7 @@ describe('manual update on a brew copy', () => {
       'New version available: 0.1.0 → 9.9.9',
       '  Installed with Homebrew: run `brew upgrade ccinfobar`',
     ]);
-    expect(r.out[1]).toBe(t('update.brewManual'));
+    expect(r.out[1]).toBe(t('update.brewManual', { command: BREW_UPGRADE }));
     expect(r.installVersion).not.toHaveBeenCalled();
     expect(r.writeState).toHaveBeenCalledTimes(1);
     expect(r.writeState.mock.calls[0]?.[0]).not.toHaveProperty('installed');
@@ -206,9 +206,11 @@ describe('manual update on a brew copy', () => {
 
 describe('update strings and helpers', () => {
   it('has the brew messages', () => {
-    expect(t('update.brewRefused')).toContain('brew upgrade ccinfobar');
+    expect(t('update.brewRefused', { command: BREW_UPGRADE })).toBe(
+      'Installed with Homebrew: run `brew upgrade ccinfobar`',
+    );
     expect(t('update.kindBrew')).toBe('Homebrew install');
-    expect(t('update.brewSettingsHint')).toContain('brew upgrade ccinfobar');
+    expect(t('update.brewSettingsHint', { command: BREW_UPGRADE })).toContain('brew upgrade ccinfobar');
   });
 
   it('re-exports the shared helpers', () => {

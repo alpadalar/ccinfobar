@@ -95,11 +95,10 @@ export const doctorMessages = {
   'doctor.update.available': '✗ Update available: {current} → {latest} (run `ccinfobar update`)',
   'doctor.update.upToDate': '✓ Up to date ({mode} mode, {kind} install, last checked {when})',
   'doctor.update.neverChecked': '✓ Up to date ({mode} mode, {kind} install, not checked yet)',
-  'doctor.update.availableBrew': '✗ Update available: {current} → {latest} (run `brew upgrade ccinfobar`)',
-  'doctor.update.brew':
-    '✓ Up to date ({mode}, updates via brew upgrade ccinfobar, Homebrew install, last checked {when})',
+  'doctor.update.availableBrew': '✗ Update available: {current} → {latest} (run `{command}`)',
+  'doctor.update.brew': '✓ Up to date ({mode}, updates via {command}, Homebrew install, last checked {when})',
   'doctor.update.neverCheckedBrew':
-    '✓ Up to date ({mode}, updates via brew upgrade ccinfobar, Homebrew install, not checked yet)',
+    '✓ Up to date ({mode}, updates via {command}, Homebrew install, not checked yet)',
   'doctor.brewMode.notify': 'notify mode',
   'doctor.brewMode.auto': 'notify mode, auto acts as notify',
   'doctor.update.failed': '  Last update check failed: {error}',

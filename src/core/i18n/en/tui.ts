@@ -47,7 +47,7 @@ export const tuiMessages = {
   'tui.field.updatesHelp':
     'auto installs new releases in the background, notify shows a note, off never checks',
   'tui.field.updatesHelpBrew':
-    'Homebrew updates this copy: run brew upgrade ccinfobar. auto acts like notify and shows a note, off never checks',
+    'Homebrew updates this copy: run {command}. auto acts like notify and shows a note, off never checks',
   'tui.field.charset': 'Charset',
   'tui.field.charsetHelp':
     'auto: Nerd Font glyphs except in Apple Terminal · unicode: no Nerd Font needed · text: ASCII only',

@@ -186,6 +186,7 @@ describe('import graph', () => {
       'src/data/jobs/runner.ts',
       'src/data/jobs/update.ts',
       'src/data/store.ts',
+      'src/core/brew.ts',
       'src/core/builtins.ts',
       'src/core/paths.ts',
       'src/core/sanitize.ts',

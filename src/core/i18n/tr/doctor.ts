@@ -101,12 +101,11 @@ export const doctorMessages = {
   'doctor.update.available': '✗ Güncelleme var: {current} → {latest} (`ccinfobar update` çalıştırın)',
   'doctor.update.upToDate': '✓ Güncel (güncelleme: {mode}, kurulum: {kind}, son denetim: {when})',
   'doctor.update.neverChecked': '✓ Güncel (güncelleme: {mode}, kurulum: {kind}, henüz denetlenmedi)',
-  'doctor.update.availableBrew':
-    '✗ Güncelleme var: {current} → {latest} (`brew upgrade ccinfobar` çalıştırın)',
+  'doctor.update.availableBrew': '✗ Güncelleme var: {current} → {latest} (`{command}` çalıştırın)',
   'doctor.update.brew':
-    '✓ Güncel (güncelleme: {mode}, brew upgrade ccinfobar ile güncellenir, Homebrew kurulumu, son denetim: {when})',
+    '✓ Güncel (güncelleme: {mode}, {command} ile güncellenir, Homebrew kurulumu, son denetim: {when})',
   'doctor.update.neverCheckedBrew':
-    '✓ Güncel (güncelleme: {mode}, brew upgrade ccinfobar ile güncellenir, Homebrew kurulumu, henüz denetlenmedi)',
+    '✓ Güncel (güncelleme: {mode}, {command} ile güncellenir, Homebrew kurulumu, henüz denetlenmedi)',
   'doctor.brewMode.notify': 'yalnızca bildir',
   'doctor.brewMode.auto': 'yalnızca bildir, otomatik bildir gibi çalışır',
   'doctor.update.failed': '  Son güncelleme denetimi başarısız oldu: {error}',

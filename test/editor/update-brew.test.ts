@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InstallKind } from '../../src/commands/update.js';
-import { t } from '../../src/core/i18n/index.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
 
 const install = vi.hoisted(() => vi.fn(async () => {}));
@@ -81,8 +80,9 @@ describe('editor update api on a Homebrew copy', () => {
     const res = await request('POST', '/api/update', '{"install":true}');
     expect(res.status).toBe(409);
     expect(res.json().error).toContain('brew upgrade ccinfobar');
-    expect(res.json().error).toBe(t('update.brewRefused'));
+    expect(res.json().error).toBe('Installed with Homebrew: run `brew upgrade ccinfobar`');
     expect(res.json().errorId).toBe('update.brewRefused');
+    expect(res.json().errorParams).toEqual({ command: 'brew upgrade ccinfobar' });
     expect(install).not.toHaveBeenCalled();
   });
 

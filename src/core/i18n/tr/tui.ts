@@ -52,7 +52,7 @@ export const tuiMessages = {
   'tui.field.updatesHelp':
     'auto yeni sürümleri arka planda kurar, notify bir not gösterir, off hiç denetlemez',
   'tui.field.updatesHelpBrew':
-    'Bu kopyayı Homebrew güncelliyor: brew upgrade ccinfobar çalıştırın. auto, notify gibi bir not gösterir, off hiç denetlemez',
+    'Bu kopyayı Homebrew güncelliyor: {command} çalıştırın. auto, notify gibi bir not gösterir, off hiç denetlemez',
   'tui.field.charset': 'Karakter seti',
   'tui.field.charsetHelp':
     'auto: Apple Terminal dışında Nerd Font glifleri · unicode: Nerd Font gerekmez · text: yalnızca ASCII',

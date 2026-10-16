@@ -8,6 +8,7 @@ import { executeJob, type JobEnvelope, jobOff } from '../data/jobs/runner.js';
 import { type UpdateValue, updateJob } from '../data/jobs/update.js';
 import { fetchLatest, installVersion } from '../data/self-update.js';
 import {
+  BREW_UPGRADE,
   compareVersions,
   type InstallKind,
   installKind,
@@ -105,7 +106,7 @@ export async function manualUpdate(
   if (checkOnly) return 0;
   const kind = d.installKind();
   if (kind === 'brew') {
-    d.log(t('update.brewManual'));
+    d.log(t('update.brewManual', { command: BREW_UPGRADE }));
     return 0;
   }
   if (kind === 'source') {

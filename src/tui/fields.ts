@@ -1,4 +1,5 @@
 import { parseColor } from '../core/ansi.js';
+import { BREW_UPGRADE } from '../core/brew.js';
 import { describeRuleError, type RuleKey, validateRule } from '../core/conditions.js';
 import { normalizeTui } from '../core/config.js';
 import {
@@ -711,7 +712,7 @@ function baseGlobalFields(autoLanguage?: LanguageId, brew = false): Field[] {
       (c, v) => ({ ...c, update: v === 'notify' || v === 'off' ? v : 'auto' }),
       {
         choices: choices(['auto', 'notify', 'off']),
-        help: t(brew ? 'tui.field.updatesHelpBrew' : 'tui.field.updatesHelp'),
+        help: brew ? t('tui.field.updatesHelpBrew', { command: BREW_UPGRADE }) : t('tui.field.updatesHelp'),
       },
     ),
     globalField(

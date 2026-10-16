@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { BREW_UPGRADE } from '../core/brew.js';
 import { configDir } from '../core/paths.js';
 import type { Config, StatusPayload } from '../core/types.js';
 import {
@@ -95,7 +96,7 @@ export function updateNotice(
 
 export type InstallKind = 'npm-global' | 'local' | 'npx' | 'brew' | 'source' | 'unknown';
 
-export const BREW_UPGRADE = 'brew upgrade ccinfobar';
+export { BREW_UPGRADE };
 
 // package manager owns brew copies
 export function effectiveUpdate(config: Pick<Config, 'update'>, kind: InstallKind): Config['update'] {

@@ -32,6 +32,7 @@ import { pruneTmp } from '../data/store.js';
 import { cachedTerminalWidth } from '../data/terminal.js';
 import {
   availableUpdate,
+  BREW_UPGRADE,
   type InstallKind,
   installKind,
   nonessentialTrafficOff,
@@ -514,6 +515,7 @@ export function runDoctor(
       t(kind === 'brew' ? 'doctor.update.availableBrew' : 'doctor.update.available', {
         current: VERSION,
         latest: newer,
+        command: BREW_UPGRADE,
       }),
     );
   else {
@@ -521,7 +523,7 @@ export function runDoctor(
     const mode = brew
       ? t(loaded.config.update === 'auto' ? 'doctor.brewMode.auto' : 'doctor.brewMode.notify')
       : t(MODES[loaded.config.update]);
-    const params = { mode, kind: t(KINDS[kind]) };
+    const params = { mode, kind: t(KINDS[kind]), command: BREW_UPGRADE };
     console.log(
       upd
         ? t(brew ? 'doctor.update.brew' : 'doctor.update.upToDate', {
