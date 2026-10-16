@@ -1,6 +1,7 @@
 import '../../core/i18n/lazy.js';
 import { formatDateTime } from '../../core/i18n/format.js';
 import { languageLocale, type MessageId, t } from '../../core/i18n/index.js';
+import { visibleTarget } from '../../importers/confirm.js';
 import { ApiError, api, idText } from './api.js';
 import { h } from './dom.js';
 import { field } from './inspector.js';
@@ -349,7 +350,8 @@ export async function remoteEntryDialog(id: string): Promise<void> {
               'li',
               null,
               h('span', { class: 'theme-tag' }, TARGET[x.kind] ? t(TARGET[x.kind]!) : shown(x.kind)),
-              h('code', null, shown(x.target)),
+              // as in the CLI: in full, invisible characters named
+              h('code', { class: 'catalog-consent-target' }, visibleTarget(x.target)),
             ),
           ),
         ),

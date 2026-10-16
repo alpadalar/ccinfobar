@@ -609,6 +609,7 @@ describe('marketplace tab', () => {
         targets: [
           { kind: 'command', target: 'echo <b>hi</b>' },
           { kind: 'link', target: 'https://example.com/x' },
+          { kind: 'command', target: 'ls \u202ex  \u200b     y' },
         ],
       },
     });
@@ -638,6 +639,7 @@ describe('marketplace tab', () => {
         'echo <b>hi</b>',
         'link',
         'https://example.com/x',
+        'ls \u27e8U+202E\u27e9x  \u27e8U+200B\u27e9\u27e85 spaces\u27e9y',
         'Read only: installing from the marketplace is not available yet.',
       ]),
     );
