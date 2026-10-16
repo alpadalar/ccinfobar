@@ -125,6 +125,42 @@ describe('install kind', () => {
     expect(updateNotice(cfg('auto'), '0.2.0', { ...env, CCINFOBAR_NO_UPDATE: '1' }, as('brew'))).toBeNull();
   });
 
+  it('resolves the kind only when a newer version is known', () => {
+    const env = envWith();
+    const kindOf = vi.fn((): InstallKind => 'brew');
+    for (const mode of ['auto', 'notify'] as const)
+      expect(updateNotice(cfg(mode), '0.2.0', env, kindOf)).toBeNull();
+    writeUpdateState({ checkedAt: Date.now(), latest: '0.2.0' }, env);
+    for (const mode of ['auto', 'notify'] as const)
+      expect(updateNotice(cfg(mode), '0.2.0', env, kindOf)).toBeNull();
+    expect(kindOf).not.toHaveBeenCalled();
+    writeUpdateState({ checkedAt: Date.now(), latest: '0.3.0' }, env);
+    expect(updateNotice(cfg('auto'), '0.2.0', env, kindOf)).toBe(
+      '⬆ ccinfobar 0.3.0 · brew upgrade ccinfobar',
+    );
+    expect(kindOf).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the same notice for every mode and kind', () => {
+    const env = envWith();
+    const kinds: InstallKind[] = ['npm-global', 'local', 'npx', 'brew', 'source', 'unknown'];
+    const want = (mode: Config['update'], kind: InstallKind, latest: string | null) => {
+      if (mode === 'off' || !latest) return null;
+      if (effectiveUpdate(cfg(mode), kind) !== 'notify' || kind === 'npx') return null;
+      return `⬆ ccinfobar ${latest} · ${updateHint(kind)}`;
+    };
+    for (const latest of [null, '0.1.0', '0.2.0', '0.3.0']) {
+      if (latest) writeUpdateState({ checkedAt: Date.now(), latest }, env);
+      const newer = latest && latest > '0.2.0' ? latest : null;
+      for (const mode of ['auto', 'notify', 'off'] as const)
+        for (const kind of kinds)
+          expect(
+            updateNotice(cfg(mode), '0.2.0', env, () => kind),
+            `${latest} ${mode} ${kind}`,
+          ).toBe(want(mode, kind, newer));
+    }
+  });
+
   it('never resolves the kind when updates are off', () => {
     const env = envWith();
     writeUpdateState({ checkedAt: Date.now(), latest: '0.3.0' }, env);

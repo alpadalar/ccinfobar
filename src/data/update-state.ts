@@ -88,10 +88,12 @@ export function updateNotice(
   kindOf: () => InstallKind = installKind,
 ): string | null {
   if (config.update === 'off' || updatesDisabled(config, env)) return null;
+  // most renders know no newer version, so skip the realpath
+  const latest = availableUpdate(current, env);
+  if (!latest) return null;
   const kind = kindOf();
   if (effectiveUpdate(config, kind) !== 'notify' || kind === 'npx') return null;
-  const latest = availableUpdate(current, env);
-  return latest ? `⬆ ccinfobar ${latest} · ${updateHint(kind)}` : null;
+  return `⬆ ccinfobar ${latest} · ${updateHint(kind)}`;
 }
 
 export type InstallKind = 'npm-global' | 'local' | 'npx' | 'brew' | 'source' | 'unknown';
