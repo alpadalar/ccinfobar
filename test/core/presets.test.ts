@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { visibleWidth } from '../../src/core/ansi.js';
 import { defaultConfig, saveConfig } from '../../src/core/config.js';
-import { presetLabels } from '../../src/core/i18n/catalog-text.js';
+import { presetLabels, presetText } from '../../src/core/i18n/catalog-text.js';
 import { t } from '../../src/core/i18n/index.js';
 import { loadForUse } from '../../src/core/load.js';
 import {
@@ -14,9 +16,12 @@ import {
   getPreset,
   hasGsd,
   listPresets,
+  PRESETS,
   saveUserPreset,
   starterConfig,
 } from '../../src/core/presets.js';
+import { renderPreview } from '../../src/core/preview.js';
+import { getWidget } from '../../src/widgets/index.js';
 import { withLang } from '../helpers.js';
 
 const types = (lines: { type: string }[][]) => lines.map((l) => l.map((i) => i.type));
@@ -104,5 +109,89 @@ describe('preset labels', () => {
     expect(labels(out)).toEqual(['Mine: ', 'Süre: ', '5h limiti: ', 'Haftalık limit: ']);
     expect(labels(wire)).toEqual(['Mine: ', 'Elapsed: ', '5h Limit: ', 'Weekly Limit: ']);
     expect(presetLabels(cockpitConfig())).toEqual(cockpitConfig());
+  });
+});
+
+const OLD = {
+  default: '598fbcf0532377c84ff5206c00df3b29f3067d037e5a07b3866a78df7d50b7aa',
+  cockpit: '00ba694e8bf3b670a37ab8f34121c9ba3534d04d25802a73048d7a6d22f3245b',
+  dashboard: '5cdc0f69ed694412c7874f476fa7302fb3d73c393782cd830ef5ac1c09c05f1f',
+  minimal: 'b7597333fb4397315e3362d12dbe505f44b54825dad84e42ab712324f5633328',
+  gsd: '1c374c226e25f16df7a9ed777940469927c14a88a49dfded6522cc735175ab73',
+  powerline: '0cec9170b7433667926f8fa057cd05762d66f23e76a96cfab6ff9c791c4a3671',
+  full: '5c435b838f210b9454c69f732b4b97cfb2b2bbb876843a0cb16794193d610a94',
+};
+const NEW = ['cost', 'limits', 'git', 'workspace', 'compact', 'two-line', 'agents', 'charts', 'session'];
+const PRIVATE = ['hostname', 'username', 'memory', 'load-average', 'clock'];
+
+describe('built-in presets', () => {
+  it('keeps the existing presets byte for byte', () => {
+    for (const [id, sha] of Object.entries(OLD)) {
+      const p = PRESETS.find((x) => x.id === id)!;
+      expect(createHash('sha256').update(JSON.stringify(p.build())).digest('hex'), id).toBe(sha);
+    }
+  });
+
+  it('lists the new presets after the existing ones', () => {
+    expect(PRESETS.map((p) => p.id)).toEqual([...Object.keys(OLD), ...NEW]);
+  });
+
+  it('uses only known widgets, options and choices with unique ids', () => {
+    for (const p of PRESETS) {
+      const items = p.build().lines.flat();
+      expect(new Set(items.map((i) => i.id)).size, p.id).toBe(items.length);
+      for (const item of items) {
+        const def = getWidget(item.type);
+        expect(def, `${p.id} ${item.type}`).toBeDefined();
+        expect(PRIVATE, `${p.id} ${item.type}`).not.toContain(item.type);
+        for (const [key, value] of Object.entries(item.options ?? {})) {
+          const spec = def!.options?.find((o) => o.key === key);
+          expect(spec, `${p.id} ${item.type}.${key}`).toBeDefined();
+          if (spec!.kind === 'select') {
+            expect(
+              spec!.choices!.map((c) => c.value),
+              `${p.id} ${item.type}.${key}`,
+            ).toContain(value);
+          } else expect(typeof value, `${p.id} ${item.type}.${key}`).toBe(spec!.kind);
+        }
+      }
+    }
+  });
+
+  it.each(NEW)('%s renders a sample preview at 120 and 80 columns', (id) => {
+    const config = PRESETS.find((p) => p.id === id)!.build();
+    for (const width of [120, 80]) {
+      const lines = renderPreview(config, 'sample', width);
+      expect(lines.length, `${id} ${width}`).toBeGreaterThan(0);
+      expect(
+        lines.some((l) => l.trim() !== ''),
+        `${id} ${width}`,
+      ).toBe(true);
+      for (const l of lines) expect(visibleWidth(l), `${id} ${width}`).toBeLessThanOrEqual(width);
+    }
+    expect(renderPreview(config, 'sample', 120).join('\n')).toContain('Opus');
+  });
+
+  it('keeps names within 16 cells in English and Turkish', () => {
+    for (const p of PRESETS) {
+      expect(visibleWidth(p.name), p.id).toBeLessThanOrEqual(16);
+      const tr = withLang('tr', () => presetText(p, 'name'));
+      expect(visibleWidth(tr), p.id).toBeLessThanOrEqual(16);
+    }
+    for (const id of NEW) {
+      const p = PRESETS.find((x) => x.id === id)!;
+      expect(
+        withLang('tr', () => presetText(p, 'description')),
+        id,
+      ).not.toBe(p.description);
+    }
+    const cost = PRESETS.find((x) => x.id === 'cost')!;
+    expect(withLang('tr', () => presetText(cost, 'name'))).toBe('Maliyet takibi');
+  });
+
+  it('lists every preset id in the init help row', () => {
+    const help = fs.readFileSync(path.resolve(__dirname, '../fixtures/help-en.txt'), 'utf8');
+    const row = help.split('\n').find((l) => l.includes('ccinfobar init [preset]'))!;
+    expect(row).toContain(PRESETS.map((p) => p.id).join(', '));
   });
 });

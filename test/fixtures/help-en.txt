@@ -23,7 +23,7 @@ Usage
   ccinfobar themes --list         List theme ids and names only
   ccinfobar theme <id>            Switch theme
   ccinfobar theme new <id>        Create your own theme (--from <theme>)
-  ccinfobar init [preset]         Write a preset config (default, cockpit, dashboard, minimal, gsd, powerline, full)
+  ccinfobar init [preset]         Write a preset config (default, cockpit, dashboard, minimal, gsd, powerline, full, cost, limits, git, workspace, compact, two-line, agents, charts, session)
   ccinfobar preview               Print the status line with sample data
   ccinfobar preview --scenario <name>
                                   Preview a named situation (list them with --scenario)

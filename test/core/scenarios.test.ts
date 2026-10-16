@@ -305,6 +305,10 @@ const raw = (id: string, type: string) =>
 
 const PHASE5 = ['workspace-repos', 'tool-activity', 'turn-timer', 'permission-wait', 'env-counts'];
 const OPT_IN = [...PHASE5, 'provider', 'service-status', 'http', 'activity-strip', 'pet', 'kaomoji', 'quip'];
+const PRESET_WIDGETS: Record<string, string[]> = {
+  workspace: ['workspace-repos'],
+  agents: ['tool-activity', 'turn-timer', 'permission-wait'],
+};
 
 describe('new widgets across scenarios', () => {
   it('cover every live session widget', () => {
@@ -314,19 +318,21 @@ describe('new widgets across scenarios', () => {
     expect(NEW_WIDGETS).toContain('activity-strip');
   });
 
-  it('are in no preset and no default layout', () => {
+  it('are in no default layout and only in their own presets', () => {
     const configs = [
       defaultConfig(),
       starterConfig(true),
       starterConfig(false),
       ...PRESETS.map((p) => p.build()),
     ];
-    for (const c of configs) {
+    for (const [n, c] of configs.entries()) {
       const text = JSON.stringify(c);
-      for (const type of OPT_IN) {
+      const own = PRESET_WIDGETS[PRESETS[n - 3]?.id ?? ''] ?? [];
+      for (const type of OPT_IN.filter((x) => !own.includes(x))) {
         expect(text, type).not.toContain(`"${type}"`);
         expect(text, type).not.toContain(`{${type}}`);
       }
+      for (const type of own) expect(text, type).toContain(`"${type}"`);
     }
   });
 

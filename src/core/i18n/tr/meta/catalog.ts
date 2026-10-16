@@ -61,6 +61,43 @@ export const catalog: CatalogMeta = {
       description: 'Tokyo Night temasıyla powerline okları (Nerd Font gerekir)',
     },
     full: { name: 'Her şey', description: 'Geniş terminaller için yoğun satırlar' },
+    cost: {
+      name: 'Maliyet takibi',
+      description: 'Oturum, günlük ve haftalık maliyet, harcama hızı ve bir bütçe çubuğu',
+    },
+    limits: {
+      name: 'Limitler',
+      description: 'Tempo, tahmin ve sıfırlanma süreleriyle beş saatlik ve haftalık limitler',
+    },
+    git: {
+      name: 'Git odaklı',
+      description: 'Depo, dal, eşitleme, hazır ve değişen dosyalar, stash, worktree ve PR',
+    },
+    workspace: {
+      name: 'Çalışma alanı',
+      description: 'Proje klasöründeki her depo, dalı ve değişiklik işaretiyle',
+    },
+    compact: {
+      name: 'Kompakt',
+      description: 'Tek, yoğun bir satır: model, yol, git, bağlam, maliyet ve 5h limiti',
+    },
+    'two-line': {
+      name: 'İki satır',
+      description: 'Üstte model, yol, git ve süre; altta bağlam, token, önbellek, maliyet ve limitler',
+    },
+    agents: {
+      name: 'Ajan etkinliği',
+      description:
+        "Claude'un o an yaptıkları: tur süresi, araçlar, alt ajanlar, izin beklemeleri ve görevler",
+    },
+    charts: {
+      name: 'Grafikler',
+      description: 'Bağlam, token hızı, çıktı hızı, harcama hızı ve kullanım için küçük grafikler',
+    },
+    session: {
+      name: 'Oturum özeti',
+      description: 'Oturum adı, kimliği ve süresi, bağlam boyutu, token, önbellek isabetleri ve mesajlar',
+    },
   },
   scenarios: {
     'fresh-session': { label: 'Yeni oturum', description: 'İlk yanıttan önce yeni bir oturum' },
