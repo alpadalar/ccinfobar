@@ -493,6 +493,7 @@ const STORE_ERRORS: Record<StoreCode, [number, MessageId]> = {
   'bad-content': [400, 'err.catalog.badContent'],
   'bad-endpoint': [400, 'err.catalog.badEndpoint'],
   'no-version': [404, 'err.catalog.noVersion'],
+  busy: [409, 'err.catalog.busy'],
 };
 
 function storeError(err: CatalogStoreError, kind = ''): HttpError {

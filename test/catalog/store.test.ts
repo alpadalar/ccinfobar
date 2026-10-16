@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,8 +15,10 @@ import {
   readEntry,
   restoreEntry,
   type SaveInput,
+  STORE_LOCK,
   saveEntry,
   updateShare,
+  writeProfile,
 } from '../../src/catalog/store.js';
 
 let dir = '';
@@ -416,5 +420,72 @@ describe('catalog store', () => {
     expect(s.file).toBe(fileOf(e.id));
     expect(s.raw.id).toBe(e.id);
     expect(s.entry).toEqual(e);
+  });
+
+  describe('store lock (WR-11)', () => {
+    const lockFile = () => path.join(dir, '.lock');
+    const wait = STORE_LOCK.waitMs;
+    afterEach(() => {
+      STORE_LOCK.waitMs = wait;
+    });
+
+    it('a write takes the lock and removes it afterwards, also after a refused write', () => {
+      const e = saveEntry(input(), dir);
+      expect(fs.existsSync(lockFile())).toBe(false);
+      expect(codeOf(() => updateShare(e.id, false, 7, dir))?.code).toBe('changed');
+      expect(fs.existsSync(lockFile())).toBe(false);
+      expect(updateShare(e.id, false, 1, dir).rev).toBe(2);
+    });
+
+    it('a second writer is refused with busy while another holds the lock', () => {
+      const e = saveEntry(input(), dir);
+      const before = bytes(e.id);
+      fs.writeFileSync(lockFile(), '');
+      STORE_LOCK.waitMs = 60;
+      expect(codeOf(() => updateShare(e.id, false, 1, dir))?.code).toBe('busy');
+      expect(codeOf(() => saveEntry(input({ name: 'Other' }), dir))?.code).toBe('busy');
+      expect(codeOf(() => writeProfile({ author: 'x' }, dir))?.code).toBe('busy');
+      expect(bytes(e.id).equals(before)).toBe(true);
+      expect(listEntries(dir)).toHaveLength(1);
+      expect(fs.existsSync(lockFile())).toBe(true);
+    });
+
+    it('a writer waits for another process to finish, then goes ahead', async () => {
+      const e = saveEntry(input(), dir);
+      fs.writeFileSync(lockFile(), '');
+      const child = spawn(
+        process.execPath,
+        ['-e', 'setTimeout(() => require("fs").rmSync(process.argv[1], { force: true }), 300)', lockFile()],
+        { stdio: 'ignore' },
+      );
+      const exited = once(child, 'exit');
+      await once(child, 'spawn');
+      STORE_LOCK.waitMs = 10_000;
+      const next = updateShare(e.id, false, 1, dir);
+      expect(next.rev).toBe(2);
+      expect(fs.existsSync(lockFile())).toBe(false);
+      await exited;
+    });
+
+    it('a lock older than 10 s is taken over', () => {
+      const e = saveEntry(input(), dir);
+      fs.writeFileSync(lockFile(), '');
+      const old = new Date(Date.now() - 20_000);
+      fs.utimesSync(lockFile(), old, old);
+      STORE_LOCK.waitMs = 60;
+      expect(updateShare(e.id, false, 1, dir).rev).toBe(2);
+      expect(fs.existsSync(lockFile())).toBe(false);
+    });
+
+    it('two writers with the same rev: the second sees the first and is refused', () => {
+      const e = saveEntry(input(), dir);
+      const a = readEntry(e.id, dir)!.entry;
+      const b = readEntry(e.id, dir)!.entry;
+      commitEntry({ ...a, description: 'from the CLI' }, a.rev, dir);
+      expect(codeOf(() => commitEntry({ ...b, description: 'from the editor' }, b.rev, dir))?.code).toBe(
+        'changed',
+      );
+      expect(rawOf(e.id).description).toBe('from the CLI');
+    });
   });
 });

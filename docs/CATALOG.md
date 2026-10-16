@@ -78,7 +78,7 @@ A name that already exists for the same kind (compared ignoring case and accents
 
 Both take an optional note ("what changed"). The same name with a different kind is a separate entry.
 
-If the editor and the CLI change the same entry at once, the second write is refused with "This entry changed since you opened it; reload and try again", so nothing is lost.
+If the editor and the CLI change the same entry at once, only one writes at a time (a short lock in the catalog folder), and the second write is refused with "This entry changed since you opened it; reload and try again", so nothing is lost. If another ccinfobar holds the lock for more than 3 s, a write stops with "Another ccinfobar window is changing the catalog; try again in a moment".
 
 ## History and restore
 
@@ -113,6 +113,7 @@ Everything lives in the ccinfobar config folder (`~/.config/ccinfobar` on Linux 
 | --- | --- |
 | `catalog/entries/<id>.json` | One file per entry. Ids are `u-` plus 12 hex characters, so names never become file names |
 | `catalog/entries/<id>.json.bak` | The previous content of the entry file, written before every change |
+| `catalog/.lock` | Held for a moment while ccinfobar writes an entry, the profile or a token, so the editor and the CLI never write at once. A lock older than 10 s is taken over |
 | `catalog/trash/` | Deleted entries and copies of deleted pre-catalog files. The newest 20 are kept |
 | `catalog/profile.json` | Your remembered author, the marketplace endpoint and, after a first publish, your publisher handle |
 | `catalog/credentials.json` | Publisher tokens per marketplace origin, only after a publish. Mode 0600 on Linux and macOS; on Windows the mode bits do not apply and the file is protected by the access rules of your user profile folder |

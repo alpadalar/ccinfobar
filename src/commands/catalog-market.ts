@@ -42,6 +42,7 @@ const REASONS: Record<string, MessageId> = {
   'handle-taken': 'market.error.handle-taken',
   changed: 'market.error.changed',
   'bad-content': 'err.catalog.badContent',
+  busy: 'err.catalog.busy',
 };
 
 const ITEMS: Record<PublishItem['action'], MessageId> = {

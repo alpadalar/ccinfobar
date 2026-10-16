@@ -178,6 +178,7 @@ export const catalogMessages = {
   'err.catalog.ambiguousRef': '{ref} birden fazla girdiyle eşleşiyor: {refs}',
   'err.catalog.exists': '{name} adlı bir {kind} zaten var (v{version})',
   'err.catalog.changed': 'Bu girdi siz açtıktan sonra değişti; yeniden yükleyip tekrar deneyin',
+  'err.catalog.busy': 'Başka bir ccinfobar penceresi kataloğu değiştiriyor; biraz sonra tekrar deneyin',
   'err.catalog.tooLarge': 'Girdi 1 MiB sınırını aşacaktı; kaydedilmedi',
   'err.catalog.badId': 'Geçerli bir katalog girdisi kimliği değil',
   'err.catalog.badRef': 'Geçerli bir katalog başvurusu değil',

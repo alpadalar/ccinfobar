@@ -169,6 +169,7 @@ export const catalogMessages = {
   'err.catalog.ambiguousRef': '{ref} matches more than one entry: {refs}',
   'err.catalog.exists': 'A {kind} named {name} already exists (v{version})',
   'err.catalog.changed': 'This entry changed since you opened it; reload and try again',
+  'err.catalog.busy': 'Another ccinfobar window is changing the catalog; try again in a moment',
   'err.catalog.tooLarge': 'The entry would be larger than 1 MiB; it was not saved',
   'err.catalog.badId': 'Not a catalog entry id',
   'err.catalog.badRef': 'Not a catalog reference',

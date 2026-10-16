@@ -14,7 +14,7 @@ const sleeper = new Int32Array(new SharedArrayBuffer(4));
 const TMP_RE = /\.\d+\.[0-9a-f]{8}\.tmp$/;
 const LEGACY_TMP_RE = /\.\d+\.tmp$/;
 
-function sleepSync(ms: number): void {
+export function sleepSync(ms: number): void {
   Atomics.wait(sleeper, 0, 0, ms);
 }
 

@@ -387,6 +387,7 @@ const STORE_IDS: Record<StoreCode, MessageId> = {
   'bad-content': 'err.catalog.badContent',
   'bad-endpoint': 'err.catalog.badEndpoint',
   'no-version': 'err.catalog.noVersion',
+  busy: 'err.catalog.busy',
 };
 
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;

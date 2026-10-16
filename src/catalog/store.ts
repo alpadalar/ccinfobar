@@ -17,7 +17,7 @@ import {
   themeToInput,
 } from '../core/themes.js';
 import type { Config } from '../core/types.js';
-import { renameWithRetry, writeAtomic } from '../data/store.js';
+import { acquireLock, renameWithRetry, sleepSync, writeAtomic } from '../data/store.js';
 import {
   APPEARANCE_KEYS,
   appendVersion,
@@ -51,7 +51,8 @@ export type StoreCode =
   | 'bad-name'
   | 'bad-content'
   | 'bad-endpoint'
-  | 'no-version';
+  | 'no-version'
+  | 'busy';
 
 export class CatalogStoreError extends Error {
   readonly code: StoreCode;
@@ -94,6 +95,29 @@ const TRASH_RE =
 
 function fail(code: StoreCode, data: Record<string, unknown> = {}): never {
   throw new CatalogStoreError(code, data);
+}
+
+export const STORE_LOCK = { waitMs: 3000, staleMs: 10_000 };
+const held = new Set<string>();
+
+// one writer at a time across processes; read, compare and rename happen inside
+export function withStoreLock<T>(dir: string, fn: () => T): T {
+  const file = path.join(dir, '.lock');
+  if (held.has(file)) return fn();
+  const start = Date.now();
+  for (let wait = 10; !acquireLock(file, STORE_LOCK.staleMs); wait = Math.min(100, wait + 10)) {
+    if (Date.now() - start + wait > STORE_LOCK.waitMs) fail('busy');
+    sleepSync(wait);
+  }
+  held.add(file);
+  try {
+    return fn();
+  } finally {
+    held.delete(file);
+    try {
+      fs.rmSync(file, { force: true });
+    } catch {}
+  }
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -208,6 +232,10 @@ export function commitEntry(
   dir = catalogDir(),
   now = new Date(),
 ): CatalogEntry {
+  return withStoreLock(dir, () => commitLocked(next, expectedRev, dir, now));
+}
+
+function commitLocked(next: CatalogEntry, expectedRev: number, dir: string, now: Date): CatalogEntry {
   const id = next.id;
   if (typeof id !== 'string' || !ENTRY_ID_RE.test(id)) fail('bad-id', { id });
   const file = entryFile(dir, id);
@@ -242,6 +270,10 @@ export function commitEntry(
 }
 
 export function saveEntry(input: SaveInput, dir = catalogDir()): CatalogEntry {
+  return withStoreLock(dir, () => saveLocked(input, dir));
+}
+
+function saveLocked(input: SaveInput, dir: string): CatalogEntry {
   const now = input.now ?? new Date();
   const at = now.toISOString();
   const name = (typeof input.name === 'string' ? input.name : '').normalize('NFC').trim();
@@ -294,14 +326,16 @@ export function restoreEntry(
   dir = catalogDir(),
   now = new Date(),
 ): CatalogEntry {
-  const cur = load(id, dir, rev);
-  const next = restoreVersion(cur, version, note, now.toISOString());
-  if (!next) fail('no-version', { id, version });
-  return commitEntry(next, rev, dir, now);
+  return withStoreLock(dir, () => {
+    const cur = load(id, dir, rev);
+    const next = restoreVersion(cur, version, note, now.toISOString());
+    if (!next) fail('no-version', { id, version });
+    return commitEntry(next, rev, dir, now);
+  });
 }
 
 export function updateShare(id: string, wanted: boolean, rev: number, dir = catalogDir()): CatalogEntry {
-  return commitEntry(setShare(load(id, dir, rev), wanted), rev, dir);
+  return withStoreLock(dir, () => commitEntry(setShare(load(id, dir, rev), wanted), rev, dir));
 }
 
 function stamp(d: Date): string {
@@ -337,6 +371,10 @@ function rotateTrash(trash: string): void {
 
 export function deleteEntry(id: string, dir = catalogDir(), now = new Date()): string {
   if (typeof id !== 'string' || !ENTRY_ID_RE.test(id)) fail('bad-id', { id });
+  return withStoreLock(dir, () => deleteLocked(id, dir, now));
+}
+
+function deleteLocked(id: string, dir: string, now: Date): string {
   const file = entryFile(dir, id);
   if (!fs.existsSync(file)) fail('not-found', { id });
   const linked = readEntry(id, dir)?.entry.legacy;
@@ -466,10 +504,19 @@ export function adoptLegacy(
 ): CatalogEntry {
   const r = parseRef(ref);
   if (!r) fail('bad-id', { id: ref });
+  return withStoreLock(dir, () => adoptLocked(r, now, dir, opts));
+}
+
+function adoptLocked(
+  r: { type: LegacyType; id: string },
+  now: Date,
+  dir: string,
+  opts: Omit<LegacyDirs, 'dir'>,
+): CatalogEntry {
   const hit = listEntries(dir).find((e) => linkedTo(e, r.type, r.id));
   if (hit) return hit;
   const item = legacyItems(legacyDirs({ ...opts, dir }), r)[0];
-  if (!item) fail('not-found', { ref });
+  if (!item) fail('not-found', { ref: `legacy:${r.type}/${r.id}` });
   const e = newEntry({
     id: `u-${randomHex(6)}`,
     kind: item.kind,
@@ -610,14 +657,16 @@ export function writeProfile(
   patch: Partial<Omit<CatalogProfile, 'schema'>>,
   dir = catalogDir(),
 ): CatalogProfile {
-  const raw = plain(readObject(profileFile(dir)) ?? {});
-  const next = profileOf(raw);
-  if (patch.author !== undefined) next.author = safe(patch.author, ENTRY_LIMITS.author);
-  if (patch.endpoint !== undefined) next.endpoint = orNull(patch.endpoint);
-  if (patch.publisher !== undefined) next.publisher = orNull(patch.publisher, 64);
-  const data = { ...raw, ...next };
-  writeAtomic(profileFile(dir), `${JSON.stringify(data, null, 2)}\n`, { class: 'settings' });
-  return next;
+  return withStoreLock(dir, () => {
+    const raw = plain(readObject(profileFile(dir)) ?? {});
+    const next = profileOf(raw);
+    if (patch.author !== undefined) next.author = safe(patch.author, ENTRY_LIMITS.author);
+    if (patch.endpoint !== undefined) next.endpoint = orNull(patch.endpoint);
+    if (patch.publisher !== undefined) next.publisher = orNull(patch.publisher, 64);
+    const data = { ...raw, ...next };
+    writeAtomic(profileFile(dir), `${JSON.stringify(data, null, 2)}\n`, { class: 'settings' });
+    return next;
+  });
 }
 
 // no default endpoint: nothing leaves the machine
@@ -646,9 +695,14 @@ export function readCredential(origin: string, dir = catalogDir()): string | nul
 export function writeCredential(origin: string, token: string, dir = catalogDir()): void {
   const o = originOf(origin);
   if (!o) fail('bad-endpoint');
-  const data = plain(readObject(credentialsFile(dir)) ?? {});
-  const cur = data[o];
-  if (typeof token === 'string' && token) data[o] = { ...(isObject(cur) ? plain(cur) : {}), token };
-  else delete data[o];
-  writeAtomic(credentialsFile(dir), `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600, class: 'settings' });
+  withStoreLock(dir, () => {
+    const data = plain(readObject(credentialsFile(dir)) ?? {});
+    const cur = data[o];
+    if (typeof token === 'string' && token) data[o] = { ...(isObject(cur) ? plain(cur) : {}), token };
+    else delete data[o];
+    writeAtomic(credentialsFile(dir), `${JSON.stringify(data, null, 2)}\n`, {
+      mode: 0o600,
+      class: 'settings',
+    });
+  });
 }
