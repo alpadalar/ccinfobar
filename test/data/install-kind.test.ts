@@ -47,7 +47,12 @@ describe('install kind', () => {
       installKind('C:\\Users\\u\\AppData\\Roaming\\npm\\node_modules\\ccinfobar\\dist\\ccinfobar.js'),
     ).toBe('npm-global');
     expect(installKind('/home/u/.npm/_npx/abc/node_modules/ccinfobar/dist/ccinfobar.js')).toBe('npx');
-    expect(installKind(path.resolve(__dirname, '../../dist/ccinfobar.js'))).toBe('source');
+    const checkout = tmp('source');
+    fs.mkdirSync(path.join(checkout, '.git'));
+    fs.mkdirSync(path.join(checkout, 'dist'));
+    fs.writeFileSync(path.join(checkout, 'dist', 'ccinfobar.js'), '');
+    expect(installKind(path.join(checkout, 'dist', 'ccinfobar.js'))).toBe('source');
+    expect(installKind(path.join(tmp('nogit'), 'dist', 'ccinfobar.js'))).toBe('unknown');
     expect(installKind(path.join(localPrefix(), 'node_modules', 'ccinfobar', 'dist', 'ccinfobar.js'))).toBe(
       'local',
     );

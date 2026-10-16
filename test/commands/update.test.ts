@@ -196,7 +196,15 @@ describe('update', () => {
       installKind('C:\\Users\\u\\AppData\\Roaming\\npm\\node_modules\\ccinfobar\\dist\\ccinfobar.js'),
     ).toBe('npm-global');
     expect(installKind('/home/u/.npm/_npx/abc/node_modules/ccinfobar/dist/ccinfobar.js')).toBe('npx');
-    expect(installKind(path.resolve(__dirname, '../../dist/ccinfobar.js'))).toBe('source');
+    const checkout = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-src-'));
+    try {
+      fs.mkdirSync(path.join(checkout, '.git'));
+      fs.mkdirSync(path.join(checkout, 'dist'));
+      fs.writeFileSync(path.join(checkout, 'dist', 'ccinfobar.js'), '');
+      expect(installKind(path.join(checkout, 'dist', 'ccinfobar.js'))).toBe('source');
+    } finally {
+      fs.rmSync(checkout, { recursive: true, force: true });
+    }
   });
 });
 
