@@ -212,6 +212,7 @@ describe('formatJson', () => {
           costSource: 'mixed',
           partial: false,
           activeMs: 1320000,
+          tokensPartial: false,
         },
         {
           period: '2026-10-14',
@@ -223,6 +224,7 @@ describe('formatJson', () => {
           costSource: null,
           partial: true,
           activeMs: null,
+          tokensPartial: false,
           costOther: { CNY: 2.5 },
         },
       ],
@@ -233,6 +235,7 @@ describe('formatJson', () => {
         costSource: 'transcript',
         partial: false,
         activeMs: 1320000,
+        tokensPartial: false,
       },
       unpriced: { models: ['mystery-1'], requests: 4 },
       notes: [
@@ -259,6 +262,7 @@ describe('formatJson', () => {
       'costSource',
       'partial',
       'activeMs',
+      'tokensPartial',
       'costOther',
     ]);
   });
@@ -294,6 +298,7 @@ describe('report messages', () => {
     'profile-price',
     'approx-project',
     'ledger-only',
+    'tokens-partial',
     'file-cap',
     'line-skipped',
     'deleted-transcripts',
@@ -420,6 +425,20 @@ describe('formatTable', () => {
     expect(ls[1]).toMatch(/\$0\.94\*\s+22m$/);
     expect(ls[2]).toMatch(/1(?:\s+\u2014){7}$/);
     expect(ls.at(-1)).toBe(en['report.note.partial']);
+  });
+
+  it('marks tokens and time of a row that leaves out ledger-only sessions', () => {
+    const ls = table(
+      report([row({ tokensPartial: true }), row({ project: '/a/b' })], {
+        notes: [{ code: 'estimate' }],
+        total: null,
+      }),
+    );
+    expect(ls[1]).toMatch(/872k\+\s+\$0\.94\s+22m\+$/);
+    expect(ls[2]).toMatch(/872k\s+\$0\.94\s+22m$/);
+    expect(visibleWidth(ls[1]!)).toBe(visibleWidth(`${ls[2]!} `));
+    expect(ls.at(-1)).toBe(en['report.note.tokens-partial']);
+    expect(formatJson(report([row({ tokensPartial: true })]), META)).toContain('"tokensPartial": true');
   });
 
   it('styles only the header and footnotes', () => {

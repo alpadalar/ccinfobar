@@ -17,6 +17,7 @@ export const reportMessages = {
   'report.subtotal': 'ara toplam',
   'report.total': 'toplam',
   'report.partialMark': '*',
+  'report.tokensMark': '+',
   'report.empty': '{dir} içinde kullanım bulunamadı',
   'report.badPeriod': 'Bilinmeyen dönem "{value}". day, week ya da month kullanın.',
   'report.badSince':
@@ -64,6 +65,8 @@ export const reportMessages = {
     one: '{count} oturumun maliyeti var ama transkripti kalmadı; token ve süre — gösterir.',
     other: '{count} oturumun maliyeti var ama transkripti kalmadı; token ve süre — gösterir.',
   },
+  'report.note.tokens-partial':
+    '+ Token ve süre, satırda maliyeti olup transkripti kalmayan oturumları içermez.',
   'report.note.file-cap': {
     one: '{count} transkript dosyasından sonra durduruldu; bazı kullanımlar eksik olabilir.',
     other: '{count} transkript dosyasından sonra durduruldu; bazı kullanımlar eksik olabilir.',

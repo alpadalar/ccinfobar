@@ -14,6 +14,7 @@ export const reportMessages = {
   'report.subtotal': 'subtotal',
   'report.total': 'total',
   'report.partialMark': '*',
+  'report.tokensMark': '+',
   'report.empty': 'No usage found in {dir}',
   'report.badPeriod': 'Unknown period "{value}". Use day, week or month.',
   'report.badSince':
@@ -59,6 +60,8 @@ export const reportMessages = {
     one: '{count} session has a cost but no transcript left, so tokens and time show —.',
     other: '{count} sessions have a cost but no transcript left, so tokens and time show —.',
   },
+  'report.note.tokens-partial':
+    '+ Tokens and time leave out sessions in the row that have a cost but no transcript left.',
   'report.note.file-cap': {
     one: 'Stopped after {count} transcript file; some usage may be missing.',
     other: 'Stopped after {count} transcript files; some usage may be missing.',

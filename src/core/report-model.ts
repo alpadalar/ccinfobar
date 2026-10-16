@@ -125,6 +125,8 @@ interface Acc {
   project: string;
   approx: boolean;
   sids: Set<string>;
+  // sessions with transcript data here
+  tsids: Set<string>;
   t: Tokens;
   transcript: boolean;
   ms: number;
@@ -176,6 +178,7 @@ function newAcc(period: string, project: string, approx: boolean): Acc {
     project,
     approx,
     sids: new Set(),
+    tsids: new Set(),
     t: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
     transcript: false,
     ms: 0,
@@ -189,6 +192,7 @@ function newAcc(period: string, project: string, approx: boolean): Acc {
 
 function merge(into: Acc, a: Acc): void {
   for (const s of a.sids) into.sids.add(s);
+  for (const s of a.tsids) into.tsids.add(s);
   into.t.input += a.t.input;
   into.t.output += a.t.output;
   into.t.cacheRead += a.t.cacheRead;
@@ -214,6 +218,7 @@ function toRow(a: Acc): ReportRow {
     costSource: (a.src.size > 1 ? 'mixed' : ([...a.src][0] ?? null)) as CostSource,
     partial: a.partial,
     activeMs: a.transcript ? a.ms : null,
+    tokensPartial: a.transcript && a.tsids.size < a.sids.size,
   };
   if (Object.keys(a.other).length > 0) row.costOther = { ...a.other };
   return row;
@@ -395,6 +400,7 @@ export function buildReport(data: ScanResult, opts: ReportOptions): Report {
         cells.set(ck, a);
       }
       a.sids.add(sid);
+      if (x.transcript) a.tsids.add(sid);
       a.t.input += x.in;
       a.t.output += x.out;
       a.t.cacheRead += x.cr;
@@ -447,6 +453,7 @@ export function buildReport(data: ScanResult, opts: ReportOptions): Report {
   if (rows.some((r) => r.partial)) notes.push({ code: 'partial' });
   if (approxCount > 0) notes.push({ code: 'approx-project', params: { count: approxCount } });
   if (ledgerOnly > 0) notes.push({ code: 'ledger-only', params: { count: ledgerOnly } });
+  if (rows.some((r) => r.tokensPartial)) notes.push({ code: 'tokens-partial' });
   for (const n of data.notes) notes.push({ code: n.code, params: { count: n.count } });
 
   return {

@@ -407,9 +407,29 @@ describe('buildReport cost source (D-04)', () => {
         costSource: 'ledger',
         partial: false,
         activeMs: null,
+        tokensPartial: false,
       },
     ]);
     expect(r.notes).toContainEqual({ code: 'ledger-only', params: { count: 1 } });
+  });
+
+  it('marks tokens and time of a row with a ledger-only session as partial', () => {
+    const r = report(
+      scan({
+        sessions: [sess('a', { buckets: [{ day: '2026-10-10', in: 5 }], time: { '2026-10-10': 60_000 } })],
+        ledger: {
+          gone: led('/work/repo', 0, { '2026-10-10': 2 }),
+          b: led('/work/other', 0, { '2026-10-10': 1 }),
+        },
+      }),
+    );
+    expect(rowOf(r.rows, '2026-10-10')).toMatchObject({ sessions: 2, tokensPartial: true, activeMs: 60_000 });
+    expect(rowOf(r.rows, '2026-10-10', '/work/other')).toMatchObject({ tokens: null, tokensPartial: false });
+    expect(r.total).toMatchObject({ sessions: 3, tokensPartial: true });
+    expect(r.notes).toContainEqual({ code: 'tokens-partial' });
+    const clean = report(scan({ sessions: [sess('a', { buckets: [{ day: '2026-10-10', in: 5 }] })] }));
+    expect(clean.rows[0]!.tokensPartial).toBe(false);
+    expect(clean.notes).not.toContainEqual({ code: 'tokens-partial' });
   });
 });
 

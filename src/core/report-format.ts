@@ -85,6 +85,7 @@ function rowJson(r: ReportRow, full: boolean): Record<string, unknown> {
   out.costSource = r.costSource;
   out.partial = r.partial;
   out.activeMs = r.activeMs === null ? null : Math.round(r.activeMs);
+  out.tokensPartial = r.tokensPartial === true;
   if (r.costOther) {
     const other: Record<string, number> = {};
     for (const [c, v] of Object.entries(r.costOther)) other[sanitizeText(c)] = usd(v)!;
@@ -211,8 +212,12 @@ export function formatTable(
 
   const mark = t('report.partialMark');
   const anyPartial = entries.some((e) => e.row.partial);
+  const low = t('report.tokensMark');
+  const anyLow = entries.some((e) => e.row.tokensPartial);
   const none = '\u2014';
-  const tok = (k: Tokens | null, c: keyof Tokens) => (k ? formatTokens(k[c]) : none);
+  const lowMark = (r: ReportRow, s: string) =>
+    r.tokensPartial ? s + low : anyLow ? s + ' '.repeat(visibleWidth(low)) : s;
+  const tok = (r: ReportRow, c: keyof Tokens) => (r.tokens ? lowMark(r, formatTokens(r.tokens[c])) : none);
   const cost = (r: ReportRow) => {
     const s = r.costUsd === null ? none : formatCurrency(r.costUsd);
     return r.partial ? s + mark : anyPartial ? s + ' '.repeat(visibleWidth(mark)) : s;
@@ -234,13 +239,13 @@ export function formatTable(
       period: sum ? '' : r.period,
       project: label,
       sessions: String(r.sessions),
-      input: tok(r.tokens, 'input'),
-      output: tok(r.tokens, 'output'),
-      cacheRead: tok(r.tokens, 'cacheRead'),
-      cacheWrite: tok(r.tokens, 'cacheWrite'),
-      total: tok(r.tokens, 'total'),
+      input: tok(r, 'input'),
+      output: tok(r, 'output'),
+      cacheRead: tok(r, 'cacheRead'),
+      cacheWrite: tok(r, 'cacheWrite'),
+      total: tok(r, 'total'),
       cost: cost(r),
-      active: r.activeMs === null ? none : formatDuration(r.activeMs),
+      active: r.activeMs === null ? none : lowMark(r, formatDuration(r.activeMs)),
     }),
   );
 
@@ -271,6 +276,8 @@ export function formatTable(
   const notes = report.notes.map(noteText);
   if (anyPartial && !report.notes.some((n) => n.code === 'partial'))
     notes.push(noteText({ code: 'partial' }));
+  if (anyLow && !report.notes.some((n) => n.code === 'tokens-partial'))
+    notes.push(noteText({ code: 'tokens-partial' }));
   return [
     style(line(header), { bold: true }, opts.level),
     ...body.map(line),

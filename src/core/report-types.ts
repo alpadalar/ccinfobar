@@ -129,6 +129,8 @@ export interface ReportRow {
   costSource: CostSource;
   partial: boolean;
   activeMs: number | null;
+  // some sessions of the row have no transcript, so tokens and time are low
+  tokensPartial?: boolean;
   costOther?: Record<string, number>;
 }
 
@@ -141,6 +143,7 @@ export type NoteCode =
   | 'profile-price'
   | 'approx-project'
   | 'ledger-only'
+  | 'tokens-partial'
   | ScanNoteCode;
 
 export interface ReportNote {
