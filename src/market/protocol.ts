@@ -6,7 +6,7 @@ import {
   LAYOUT_KEYS,
   PERSONAL_KEYS,
 } from '../core/edit.js';
-import { deepSanitize, safeConfigUrl, safeUrl, sanitizeText } from '../core/sanitize.js';
+import { deepSanitize, safeUrl, sanitizeText } from '../core/sanitize.js';
 
 export const PROTOCOL_VERSION = 1;
 export const ID_PART_RE = /^[a-z0-9][a-z0-9-]{0,38}$/;
@@ -60,6 +60,15 @@ const THEME_KEYS = new Set([
 const LAYOUT = new Set<string>(LAYOUT_KEYS);
 const APPEARANCE = new Set<string>(APPEARANCE_KEYS);
 const PERSONAL = new Set<string>(PERSONAL_KEYS);
+const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+// https, or http on loopback only
+function submitHref(v: unknown): string | null {
+  const href = typeof v === 'string' ? safeUrl(v) : null;
+  if (!href) return null;
+  const u = new URL(href);
+  return u.protocol === 'https:' || LOOPBACK.has(u.hostname) ? href : null;
+}
 
 export interface MarketMeta {
   protocol: 1;
@@ -227,8 +236,7 @@ export function parseMeta(raw: unknown): MarketMeta | null {
       if (isVersion(v)) m.limits[k] = v;
     }
   }
-  const url = own(raw, 'submitUrl');
-  const href = typeof url === 'string' ? safeUrl(url) : null;
+  const href = submitHref(own(raw, 'submitUrl'));
   if (href) m.submitUrl = href;
   return m;
 }
@@ -385,9 +393,11 @@ function widgetProblems(lines: unknown, out: string[]): void {
     const opts = own(item, 'options');
     if (type === 'command') out.push('command-widget');
     else if (type === 'http') out.push('http-widget');
+    // can put a secret on screen
+    else if (type === 'env') out.push('env-widget');
     else if (type === 'link' && isObject(opts)) {
       const url = own(opts, 'url');
-      if (url !== undefined && (typeof url !== 'string' || !safeConfigUrl(url))) out.push('unsafe-link');
+      if (url !== undefined && (typeof url !== 'string' || !safeUrl(url))) out.push('unsafe-link');
     }
   }
 }

@@ -190,6 +190,14 @@ describe('market protocol', () => {
     expect(s.auth).toEqual([]);
     expect(s.limits).toEqual({});
     expect('submitUrl' in s).toBe(false);
+    const submit = (u: string) =>
+      parseMeta({ protocol: 1, name: 'x', capabilities: {}, submitUrl: u })!.submitUrl;
+    expect(submit('http://example.com/submit')).toBeUndefined();
+    expect(submit('https://example.com/submit')).toBe('https://example.com/submit');
+    expect(submit('http://127.0.0.1:4000/submit')).toBe('http://127.0.0.1:4000/submit');
+    expect(submit('http://[::1]:4000/s')).toBe('http://[::1]:4000/s');
+    expect(submit('http://localhost/s')).toBe('http://localhost/s');
+    expect(submit('file:///etc/passwd')).toBeUndefined();
     expect(parseMeta({ protocol: 2, name: 'x', capabilities: {} })).toBeNull();
     expect(parseMeta({ protocol: 1, capabilities: {} })).toBeNull();
     expect(parseMeta({ protocol: 1, name: 'x' })).toBeNull();
@@ -329,7 +337,7 @@ describe('market protocol', () => {
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 
-  it('content policy rejects command and http widgets and unsafe links', () => {
+  it('content policy rejects command, http and env widgets and unsafe links', () => {
     const bundle = (items: unknown[]) => ({ layout: layout(items), appearance: { theme: 'nord' } });
     expect(
       contentProblems('bundle', bundle([{ id: 'c', type: 'command', options: { command: 'id' } }])),
@@ -344,6 +352,26 @@ describe('market protocol', () => {
     expect(
       contentProblems('bundle', bundle([{ id: 'l', type: 'link', options: { url: 'data:text/html,x' } }])),
     ).toContain('unsafe-link');
+    for (const url of [
+      'file:///etc/passwd',
+      'vbscript:msgbox(1)',
+      'mailto:a@example.com',
+      'ftp://example.com/x',
+    ]) {
+      expect(contentProblems('bundle', bundle([{ id: 'l', type: 'link', options: { url } }]))).toContain(
+        'unsafe-link',
+      );
+    }
+    expect(
+      contentProblems('bundle', bundle([{ id: 'e', type: 'env', options: { name: 'GITHUB_TOKEN' } }])),
+    ).toContain('env-widget');
+    expect(contentProblems('preset', { layout: layout([{ id: 'e', type: 'env' }]) })).toContain('env-widget');
+    expect(
+      contentProblems(
+        'bundle',
+        bundle([{ id: 'l', type: 'link', options: { url: 'http://example.com/a' } }]),
+      ),
+    ).toEqual([]);
     expect(
       contentProblems(
         'bundle',
@@ -388,7 +416,7 @@ describe('market protocol', () => {
   });
 
   it('clean system content passes the policy', () => {
-    const all = systemEntries({ gsd: true });
+    const all = [...systemEntries({ gsd: true }), ...systemEntries({ gsd: false })];
     expect(all.some((e) => e.kind === 'bundle')).toBe(true);
     for (const e of all) expect(contentProblems(e.kind, e.content), e.ref).toEqual([]);
   });
