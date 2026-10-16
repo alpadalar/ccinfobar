@@ -31,6 +31,13 @@ export function presetText(
   return own(catalog()?.presets, preset.id)?.[field] ?? preset[field];
 }
 
+export function bundleText(
+  b: { id: string; name: string; description: string },
+  field: 'name' | 'description',
+): string {
+  return own(catalog()?.bundles, b.id)?.[field] ?? b[field];
+}
+
 export function scenarioText(
   s: { id: string; label: string; description: string },
   field: 'label' | 'description',

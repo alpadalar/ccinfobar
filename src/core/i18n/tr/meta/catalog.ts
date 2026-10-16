@@ -99,6 +99,68 @@ export const catalog: CatalogMeta = {
       description: 'Oturum adı, kimliği ve süresi, bağlam boyutu, token, önbellek isabetleri ve mesajlar',
     },
   },
+  bundles: {
+    'catppuccin-cockpit': {
+      name: 'Mocha kokpit',
+      description: 'Catppuccin Mocha powerline renklerinde Kokpit düzeni',
+    },
+    'nord-minimal': {
+      name: 'Nord minimal',
+      description: 'Serin Nord powerline renklerinde tek, kompakt bir satır',
+    },
+    'dracula-powerline': {
+      name: 'Dracula okları',
+      description: 'Dracula renklerinde Powerline düzeni (Nerd Font gerekir)',
+    },
+    'gruvbox-git': {
+      name: 'Gruvbox git',
+      description: 'Sıcak Gruvbox powerline renklerinde Git odaklı düzen',
+    },
+    'tokyo-night-limits': {
+      name: 'Tokyo limitler',
+      description: 'Tokyo Night renklerinde tempo ve tahminle kullanım limitleri',
+    },
+    'mono-compact': {
+      name: 'Mono kompakt',
+      description: 'Renksiz ve powerline glifsiz tek, yoğun bir satır; düz terminaller ve yapıştırmak için',
+    },
+    'everforest-workspace': {
+      name: 'Everforest depo',
+      description: 'Yumuşak Everforest renklerinde proje klasöründeki her depo',
+    },
+    'kanagawa-agents': {
+      name: 'Kanagawa ajanlar',
+      description: 'Kanagawa renklerinde tur süresi, araçlar, alt ajanlar ve görevler',
+    },
+    'rose-pine-two-line': {
+      name: 'Rosé iki satır',
+      description: 'Rosé Pine renklerinde dengeli, iki satırlık bir düzen',
+    },
+    'one-dark-cost': {
+      name: 'One Dark maliyet',
+      description: 'One Dark kapsüllerinde bütçe çubuğuyla oturum, günlük ve haftalık maliyet',
+    },
+    'solarized-gsd': {
+      name: 'Solarized GSD',
+      description: "Solarized renklerinde GSD'nin izlediği her şey",
+    },
+    'panel-dashboard': {
+      name: 'Kutulu pano',
+      description: 'Kullanım hücreleri, bağlam çubuğu ve token grafiğiyle kutulu pano',
+    },
+    'paper-default': {
+      name: 'Paper varsayılan',
+      description: 'Açık renkli terminaller için açık Paper bloklarında varsayılan düzen',
+    },
+    'neon-charts': {
+      name: 'Neon grafikler',
+      description: 'Canlı Neon renklerinde bağlam, token, hız, harcama ve kullanım için küçük grafikler',
+    },
+    'amber-session': {
+      name: 'Amber oturum',
+      description: 'Retro kehribar terminal görünümünde oturum özeti',
+    },
+  },
   scenarios: {
     'fresh-session': { label: 'Yeni oturum', description: 'İlk yanıttan önce yeni bir oturum' },
     'context-full': { label: 'Bağlam neredeyse dolu', description: 'Bağlam penceresi yaklaşık %94 dolu' },

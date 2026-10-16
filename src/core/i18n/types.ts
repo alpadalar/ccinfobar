@@ -27,6 +27,7 @@ export interface CatalogMeta {
   themes?: Record<string, { description: string }>;
   styles?: Record<string, { name: string; description: string }>;
   presets?: Record<string, { name: string; description: string }>;
+  bundles?: Record<string, { name: string; description: string }>;
   scenarios?: Record<string, { label: string; description: string }>;
   styleGroups?: Record<string, string>;
 }
