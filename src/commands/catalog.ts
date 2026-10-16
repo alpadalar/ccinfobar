@@ -37,6 +37,7 @@ import {
   restoreEntry,
   type StoreCode,
   saveEntry,
+  themeChain,
   updateShare,
   writeProfile,
   writePublisher,
@@ -692,6 +693,15 @@ function shareCommand(wanted: boolean): (c: Ctx) => void {
   };
 }
 
+const themesOf = (c: Ctx): string => path.join(path.dirname(c.dir), 'themes');
+
+// the config theme and its parents; an unreadable config keeps the file
+function themesInUse(c: Ctx, e: CatalogEntry): string[] {
+  const loaded = loadForUse(c.cfgFile, () => c.gsd);
+  if (loaded.issue || loaded.error) return e.legacy?.theme ? [e.legacy.theme] : [];
+  return themeChain(loaded.config.theme, themesOf(c));
+}
+
 async function runDelete(c: Ctx): Promise<void> {
   const hit = find(c, c.args.positional[1]);
   if (!hit) return;
@@ -712,18 +722,23 @@ async function runDelete(c: Ctx): Promise<void> {
     }
   }
   let file = trash;
+  let kept: string | null = null;
   if (!c.dryRun) {
-    if (hit.source === 'user') file = deleteEntry(hit.entry.id, c.dir, c.now());
-    else if (!deleteLegacy(hit.item.ref, c.dir, c.now())) {
+    if (hit.source === 'user') {
+      const done = deleteEntry(hit.entry.id, c.dir, c.now(), { themesInUse: themesInUse(c, hit.entry) });
+      file = done.file;
+      kept = done.kept;
+    } else if (!deleteLegacy(hit.item.ref, c.dir, c.now())) {
       c.fail(t('err.catalog.unknownRef', { ref: clean(hit.item.ref) }));
       return;
     }
   }
   if (c.json) {
-    json(c, () => ({ deleted: refOf(hit), trash: file, ...(c.dryRun ? { dryRun: true } : {}) }));
+    json(c, () => ({ deleted: refOf(hit), trash: file, kept, ...(c.dryRun ? { dryRun: true } : {}) }));
     return;
   }
   c.io.log(t('catalog.delete.done', { name, file: shown(file) }));
+  if (kept) c.io.log(t('catalog.delete.keptTheme', { file: shown(path.join(themesOf(c), `${kept}.json`)) }));
   dryRunDone(c);
 }
 

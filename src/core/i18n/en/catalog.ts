@@ -121,6 +121,7 @@ export const catalogMessages = {
   'catalog.share.withdrawLater': 'It stays on the marketplace until the next publish withdraws it.',
   'catalog.delete.ask': 'Delete {name}? It goes to {dir}.',
   'catalog.delete.done': 'Moved {name} to {file}',
+  'catalog.delete.keptTheme': 'Kept the theme file {file} because your config uses it.',
   'catalog.delete.needsYes': 'Run again with --yes to delete {name}.',
   'catalog.delete.kept': '{name} was kept.',
   'catalog.author.show': 'Author: {author}',

@@ -33,6 +33,7 @@ import {
   restoreEntry,
   type StoreCode,
   saveEntry,
+  themeChain,
   updateShare,
   writeProfile,
   writePublisher,
@@ -650,6 +651,14 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     return { type, ref: ref as string };
   }
 
+  // the saved config's theme and its parents; an unreadable config keeps the file
+  function liveThemes(id: string): string[] {
+    const loaded = loadForUse(opts.configPath, () => gsd);
+    const linked = readEntry(id)?.entry.legacy?.theme;
+    if (loaded.issue || loaded.error) return linked ? [linked] : [];
+    return themeChain(loaded.config.theme);
+  }
+
   function currentRev(id: string, rev: unknown): number {
     if (Number.isInteger(rev)) return rev as number;
     const s = readEntry(id);
@@ -823,9 +832,11 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         mustFind(ref);
         throw httpError(403, 'err.catalog.systemReadOnly');
       }
-      if (type === 'user') deleteEntry(ref);
+      let kept: string | null = null;
+      if (type === 'user')
+        kept = deleteEntry(ref, undefined, undefined, { themesInUse: liveThemes(ref) }).kept;
       else if (!deleteLegacy(ref)) throw httpError(404, 'err.catalog.unknownRef', { ref: clean(ref) });
-      send(res, 200, { ok: true, catalog: catalogBody(lang) });
+      send(res, 200, { ok: true, kept, catalog: catalogBody(lang) });
       return;
     }
 

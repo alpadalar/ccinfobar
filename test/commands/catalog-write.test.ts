@@ -446,6 +446,27 @@ describe('catalog restore, share, unshare and delete', () => {
   });
 });
 
+describe('catalog delete keeps a theme the config uses (WR-09)', () => {
+  it('keeps the adopted theme file and says so', async () => {
+    saveUserTheme({ id: 'mine', extends: 'nord', colors: { fg: '#111111' } }, themes);
+    fs.writeFileSync(cfg, JSON.stringify({ theme: 'mine', lines: [model] }));
+    await run(['share', 'legacy:theme/mine']);
+    const e = listEntries(cat)[0]!;
+    const file = path.join(themes, 'mine.json');
+    const r = await run(['delete', e.id, '--yes']);
+    expect(r.out[1]).toBe(`Kept the theme file ${tildify(file)} because your config uses it.`);
+    expect(fs.existsSync(file)).toBe(true);
+    await run(['share', 'legacy:theme/mine']);
+    const j = JSON.parse((await run(['delete', listEntries(cat)[0]!.id, '--yes', '--json'])).out[0]!);
+    expect(j.kept).toBe('mine');
+    fs.writeFileSync(cfg, JSON.stringify({ theme: 'nord', lines: [model] }));
+    await run(['share', 'legacy:theme/mine']);
+    const gone = await run(['delete', listEntries(cat)[0]!.id, '--yes']);
+    expect(gone.out).toHaveLength(1);
+    expect(fs.existsSync(file)).toBe(false);
+  });
+});
+
 describe('catalog author and endpoint', () => {
   it('shows and sets the remembered author', async () => {
     expect((await run(['author'])).out).toEqual([

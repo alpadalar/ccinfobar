@@ -370,7 +370,7 @@ describe('catalog store', () => {
     const e = saveEntry(input(), dir);
     saveEntry(input({ mode: 'update', content: content('cost') }), dir);
     const before = bytes(e.id);
-    const trashed = deleteEntry(e.id, dir, at(10));
+    const trashed = deleteEntry(e.id, dir, at(10)).file;
     expect(path.dirname(trashed)).toBe(path.join(dir, 'trash'));
     expect(path.basename(trashed).startsWith(`${e.id}-`)).toBe(true);
     expect(fs.readFileSync(trashed).equals(before)).toBe(true);

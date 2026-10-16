@@ -181,7 +181,8 @@ export const api = {
     call<CatalogResult>('POST', '/api/catalog/restore', { id, version, rev, lang: language() }),
   catalogShare: (ref: string, share: boolean, rev?: number | null) =>
     call<CatalogResult>('POST', '/api/catalog/share', { ref, share, rev, lang: language() }),
-  catalogDelete: (ref: string) => call<{ ok: boolean; catalog: CatalogState }>('DELETE', entryPath(ref)),
+  catalogDelete: (ref: string) =>
+    call<{ ok: boolean; kept?: string | null; catalog: CatalogState }>('DELETE', entryPath(ref)),
   catalogInstallTheme: (ref: string, version?: number) =>
     call<{
       ok: boolean;

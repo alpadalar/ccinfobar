@@ -388,6 +388,21 @@ describe('editor catalog routes: save, restore, share, delete and install-theme'
     expect((await catalog()).profile.author).toBe('Cy');
   });
 
+  it('deleting an adopted theme entry keeps the theme file the saved config uses (WR-09)', async () => {
+    const themes = path.join(cfgDir(), 'themes');
+    fs.mkdirSync(themes, { recursive: true });
+    fs.writeFileSync(path.join(themes, 'mine.json'), JSON.stringify({ name: 'Mine', extends: 'nord' }));
+    fs.writeFileSync(file, JSON.stringify({ theme: 'mine', lines: oneLine().lines }));
+    const shared = await request('POST', '/api/catalog/share', {
+      body: { ref: 'legacy:theme/mine', share: false },
+    });
+    const id = shared.json().entry.ref;
+    const res = await request('DELETE', `/api/catalog/entries/${id}`);
+    expect(res.status).toBe(200);
+    expect(res.json().kept).toBe('mine');
+    expect(fs.existsSync(path.join(themes, 'mine.json'))).toBe(true);
+  });
+
   it('rejects a bad name, kind, mode or missing config', async () => {
     const cases: [Record<string, unknown>, number, string][] = [
       [{ name: '' }, 400, 'err.catalog.badName'],

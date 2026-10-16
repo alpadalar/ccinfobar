@@ -13,6 +13,7 @@ import {
   listEntries,
   listLegacy,
   saveEntry,
+  themeChain,
 } from '../../src/catalog/store.js';
 import { defaultConfig, normalizeConfig } from '../../src/core/config.js';
 import { resolveAppearance } from '../../src/core/renderer.js';
@@ -252,6 +253,22 @@ describe('deleteLegacy', () => {
     expect(fs.existsSync(path.join(presets, 'mine.json'))).toBe(false);
     const copy = path.join(cat, 'trash', 'legacy-preset-mine-20261016T100000000Z.json');
     expect(fs.readFileSync(copy)).toEqual(bytes);
+  });
+
+  it('keeps an adopted theme file the config uses, also as a parent (WR-09)', () => {
+    writeJson(path.join(themes, 't1.json'), { name: 'T1', extends: 'nord', colors: { fg: '#111111' } });
+    writeJson(path.join(themes, 'child.json'), { name: 'Child', extends: 't1' });
+    expect(themeChain('child', themes)).toEqual(['child', 't1', 'nord']);
+    expect(themeChain(undefined, themes)).toEqual([]);
+    const e = adoptLegacy('legacy:theme/t1', NOW, cat);
+    const kept = deleteEntry(e.id, cat, NOW, { themesInUse: themeChain('child', themes) });
+    expect(kept.kept).toBe('t1');
+    expect(fs.existsSync(path.join(themes, 't1.json'))).toBe(true);
+    expect(fs.existsSync(kept.file)).toBe(true);
+    // not in use: the old file goes to the trash with the entry
+    const again = adoptLegacy('legacy:theme/t1', NOW, cat);
+    expect(deleteEntry(again.id, cat, NOW, { themesInUse: themeChain('dracula', themes) }).kept).toBeNull();
+    expect(fs.existsSync(path.join(themes, 't1.json'))).toBe(false);
   });
 
   it('returns false for missing files and bad refs', () => {

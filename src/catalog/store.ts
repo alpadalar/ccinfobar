@@ -383,12 +383,35 @@ function rotateTrash(trash: string): void {
   }
 }
 
-export function deleteEntry(id: string, dir = catalogDir(), now = new Date()): string {
-  if (typeof id !== 'string' || !ENTRY_ID_RE.test(id)) fail('bad-id', { id });
-  return withStoreLock(dir, () => deleteLocked(id, dir, now));
+export interface Deleted {
+  file: string;
+  // a linked theme file the config still uses stays
+  kept: string | null;
 }
 
-function deleteLocked(id: string, dir: string, now: Date): string {
+// the theme and the user themes it extends
+export function themeChain(id: string | undefined, themes = themesDir()): string[] {
+  const out: string[] = [];
+  let cur = id;
+  while (cur && ID_RE.test(cur) && out.length < 8 && !out.includes(cur)) {
+    out.push(cur);
+    const raw = readObject(path.join(themes, `${cur}.json`));
+    cur = raw && typeof raw.extends === 'string' ? raw.extends : undefined;
+  }
+  return out;
+}
+
+export function deleteEntry(
+  id: string,
+  dir = catalogDir(),
+  now = new Date(),
+  opts: { themesInUse?: readonly string[] } = {},
+): Deleted {
+  if (typeof id !== 'string' || !ENTRY_ID_RE.test(id)) fail('bad-id', { id });
+  return withStoreLock(dir, () => deleteLocked(id, dir, now, opts.themesInUse ?? []));
+}
+
+function deleteLocked(id: string, dir: string, now: Date, inUse: readonly string[]): Deleted {
   const file = entryFile(dir, id);
   if (!fs.existsSync(file)) fail('not-found', { id });
   const linked = readEntry(id, dir)?.entry.legacy;
@@ -399,11 +422,12 @@ function deleteLocked(id: string, dir: string, now: Date): string {
   try {
     fs.rmSync(`${file}.bak`, { force: true });
   } catch {}
-  // else the adopted file shows up again
+  // else the adopted file shows up again; the status line may still use a theme
   if (linked?.preset) deleteLegacy(`legacy:preset/${linked.preset}`, dir, now);
-  if (linked?.theme) deleteLegacy(`legacy:theme/${linked.theme}`, dir, now);
+  const kept = linked?.theme && inUse.includes(linked.theme) ? linked.theme : null;
+  if (linked?.theme && !kept) deleteLegacy(`legacy:theme/${linked.theme}`, dir, now);
   rotateTrash(trash);
-  return target;
+  return { file: target, kept };
 }
 
 export interface LegacyItem {

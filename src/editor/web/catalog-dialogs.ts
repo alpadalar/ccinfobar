@@ -290,6 +290,7 @@ export async function deleteEntryDialog(e: CatalogEntryInfo): Promise<CatalogSta
   try {
     const r = await api.catalogDelete(e.ref);
     toast(t('catalog.delete.doneWeb', { name: e.name }), 'info');
+    if (r.kept) toast(t('catalog.delete.keptTheme', { file: `themes/${r.kept}.json` }), 'info');
     return r.catalog;
   } catch (err) {
     return failed(err);
