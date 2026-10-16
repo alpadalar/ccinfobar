@@ -196,8 +196,10 @@ describe('report ledger fold', () => {
       root,
     );
     if (!copy) return ctx.skip();
-    fs.utimesSync(copy, new Date(D2), new Date(D2));
-    fs.utimesSync(orig, new Date(D2 + 60_000), new Date(D2 + 60_000));
+    // after birth: macOS moves birth time back with an older mtime
+    const later = new Date(Date.now() + 60_000);
+    fs.utimesSync(copy, later, later);
+    fs.utimesSync(orig, new Date(later.getTime() + 60_000), new Date(later.getTime() + 60_000));
     const cost = (r: ReturnType<typeof run>) =>
       buildReport(r, {
         period: 'day',

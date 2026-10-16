@@ -177,8 +177,10 @@ describe('scanTree requests', () => {
     const fork = [...reqs, { id: 'm4', requestId: 'r4', ts: min(20), in: 1, out: 10 }];
     const copy = bornAfter(orig, 'projects/-w-a/S1.jsonl', fork.map(assistantLine), root);
     if (!copy) return ctx.skip();
-    age(copy, T0 + 60_000);
-    age(orig, T0 + 120_000);
+    // after birth: macOS moves birth time back with an older mtime
+    const later = Date.now() + 60_000;
+    age(copy, later);
+    age(orig, later + 60_000);
     const s = scan(root);
     expect(total(s.S9).n).toBe(3);
     expect(total(s.S1).n).toBe(1);
@@ -511,8 +513,10 @@ describe('scanTree active time', () => {
     }
     const copy = bornAfter(orig, 'projects/-w-a/S1.jsonl', [...history, ...fresh], root);
     if (!copy) return ctx.skip();
-    age(copy, T0 + 60_000);
-    age(orig, T0 + 120_000);
+    // after birth: macOS moves birth time back with an older mtime
+    const later = Date.now() + 60_000;
+    age(copy, later);
+    age(orig, later + 60_000);
     const s = scan(root);
     expect(minutes(s.S9)).toBe(30);
     expect(minutes(s.S1)).toBe(15);

@@ -6,7 +6,7 @@ import { main } from '../../src/cli/main.js';
 import { type ReportIo, runReport } from '../../src/commands/report.js';
 import { setLanguage } from '../../src/core/i18n/index.js';
 import { tildify } from '../../src/core/paths.js';
-import { normalizeRoot } from '../../src/data/ledger.js';
+import { displayRoot } from '../../src/data/ledger.js';
 import { accountKeyFor } from '../../src/data/limits.js';
 import {
   assistantLine,
@@ -214,7 +214,7 @@ describe('report command', () => {
     expect(csv.replace(/\r\n/g, '')).not.toMatch(/[\r\n]/);
     const lines = csv.split('\r\n').slice(1, -1);
     expect(lines).toHaveLength(5);
-    const quoted = `"${normalizeRoot(cwd).replace(/"/g, '""')}"`;
+    const quoted = `"${displayRoot(cwd).replace(/"/g, '""')}"`;
     expect(lines.filter((l) => l.startsWith(`2026-10-05,${quoted},1,`))).toHaveLength(1);
     expect(io.out).toEqual([]);
   });
