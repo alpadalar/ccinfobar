@@ -183,6 +183,7 @@ const NOT_SWEPT: Record<string, string> = {
   'src/core/profiles.ts': 'vendor and model names, price notes translated in the editor by vendor id (08-19)',
   'src/core/scenarios.ts': 'simulated payload data; labels and descriptions go through catalog-text (08-12)',
   'src/core/eaw-table.ts': 'generated Unicode width table',
+  'src/market/protocol.ts': 'marketplace protocol, English JSON on the wire',
 };
 
 // exact literal texts allowed per file

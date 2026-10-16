@@ -105,6 +105,7 @@ const PURE = [
   'src/core/themes/style.ts',
   'src/data/live.ts',
   'src/catalog/model.ts',
+  'src/market/protocol.ts',
 ];
 
 function walk(dir: string): string[] {
