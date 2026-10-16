@@ -94,7 +94,7 @@ function expectBrew(file: string, cache: string, env: NodeJS.ProcessEnv) {
   const fresh = doctor(file, env);
   expect(fresh.status).toBe(0);
   expect(fresh.out).toContain(
-    '✓ Up to date (auto mode, updates via brew upgrade ccinfobar (Homebrew install), not checked yet)',
+    '✓ Up to date (notify mode, auto acts as notify, updates via brew upgrade ccinfobar, Homebrew install, not checked yet)',
   );
   expect(fresh.out).not.toContain('npm-global install');
 

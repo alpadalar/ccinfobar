@@ -518,7 +518,10 @@ export function runDoctor(
     );
   else {
     const brew = kind === 'brew';
-    const params = { mode: t(MODES[loaded.config.update]), kind: t(KINDS[kind]) };
+    const mode = brew
+      ? t(loaded.config.update === 'auto' ? 'doctor.brewMode.auto' : 'doctor.brewMode.notify')
+      : t(MODES[loaded.config.update]);
+    const params = { mode, kind: t(KINDS[kind]) };
     console.log(
       upd
         ? t(brew ? 'doctor.update.brew' : 'doctor.update.upToDate', {

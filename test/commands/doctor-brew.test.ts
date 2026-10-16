@@ -35,7 +35,7 @@ const plain = (update?: string) =>
 const doctor = (kind: InstallKind, update?: string) =>
   capture(() => runDoctor(plain(update), { managedFiles: [], installKind: () => kind }));
 
-const BREW = 'updates via brew upgrade ccinfobar (Homebrew install)';
+const BREW = 'updates via brew upgrade ccinfobar, Homebrew install';
 
 beforeEach(() => {
   vi.stubEnv('CCINFOBAR_NO_UPDATE', '');
@@ -55,12 +55,16 @@ describe('runDoctor on a Homebrew copy', () => {
   it('names Homebrew and brew upgrade when up to date', () => {
     writeUpdateState({ checkedAt: Date.now(), latest: VERSION });
     const out = doctor('brew');
-    expect(out.some((l) => l.startsWith(`✓ Up to date (auto mode, ${BREW}, last checked `))).toBe(true);
+    expect(
+      out.some((l) => l.startsWith(`✓ Up to date (notify mode, auto acts as notify, ${BREW}, last checked `)),
+    ).toBe(true);
     expect(out.join('\n')).not.toMatch(/[\u0007\u001b]/);
   });
 
   it('says not checked yet without update state', () => {
-    expect(doctor('brew')).toContain(`✓ Up to date (auto mode, ${BREW}, not checked yet)`);
+    expect(doctor('brew')).toContain(
+      `✓ Up to date (notify mode, auto acts as notify, ${BREW}, not checked yet)`,
+    );
   });
 
   it('shows the configured notify mode', () => {
@@ -92,7 +96,10 @@ describe('runDoctor on a Homebrew copy', () => {
     expect(out).toContain(`✗ Güncelleme var: ${VERSION} → 99.0.0 (\`brew upgrade ccinfobar\` çalıştırın)`);
     fs.rmSync(envelopeFile('update'), { force: true });
     expect(withEnvLang('tr', () => doctor('brew'))).toContain(
-      '✓ Güncel (güncelleme: otomatik, brew upgrade ccinfobar ile güncellenir (Homebrew kurulumu), henüz denetlenmedi)',
+      '✓ Güncel (güncelleme: yalnızca bildir, otomatik bildir gibi çalışır, brew upgrade ccinfobar ile güncellenir, Homebrew kurulumu, henüz denetlenmedi)',
+    );
+    expect(withEnvLang('tr', () => doctor('brew', 'notify'))).toContain(
+      '✓ Güncel (güncelleme: yalnızca bildir, brew upgrade ccinfobar ile güncellenir, Homebrew kurulumu, henüz denetlenmedi)',
     );
   });
 });
