@@ -299,6 +299,7 @@ describe('report messages', () => {
     'deleted-transcripts',
     'rebuild-kept',
     'keys-lost',
+    'old-zone',
   ];
 
   it('has an English and a Turkish text for every note code', () => {

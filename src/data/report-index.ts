@@ -161,6 +161,7 @@ function newEntry(f: WalkedFile): FileEntry {
     first: null,
     born: 0,
     lost: false,
+    tz: '',
   };
 }
 
@@ -411,6 +412,7 @@ function resetEntry(f: FileEntry): void {
     skipped: 0,
     first: null,
     born: 0,
+    tz: '',
   });
 }
 
@@ -448,6 +450,8 @@ export interface ScanOpts {
   now?: number;
   // lazy owners; null means unusable
   loadOwners?: () => Map<number, string> | null;
+  // current zone; present files cut in another one are read again
+  tz?: string;
 }
 
 export interface ScanOut {
@@ -536,7 +540,8 @@ function plan(
       st.files[w.rel] = f;
     } else {
       const same = s.id === f.id || s.id === null || f.id === null;
-      if (opts.rebuild || !same || s.size < f.offset) reset(w.rel, f);
+      const zone = opts.tz !== undefined && f.tz !== opts.tz;
+      if (opts.rebuild || zone || !same || s.size < f.offset) reset(w.rel, f);
       else if (!f.gone && s.id === f.id && s.size === f.size && s.mtime === f.mtimeMs) continue;
       else if (f.offset > 0) {
         const b = readTail(w.abs, f.offset);
@@ -549,6 +554,7 @@ function plan(
     f.id = s.id;
     f.mtimeMs = s.mtime;
     if (f.offset === 0) {
+      f.tz = opts.tz ?? '';
       f.born = s.born;
       f.first = s.size > 0 ? peekFirst(w.abs, s.size) : null;
     }
@@ -613,14 +619,17 @@ export function scanTree(claudeDir: string, state: IndexState | null, opts: Scan
   let skipped = 0;
   let gone = 0;
   let lost = 0;
+  let zoned = 0;
   for (const f of Object.values(st.files)) {
     skipped += f.skipped;
     if (f.gone) gone++;
     if (f.gone && f.lost) lost++;
+    if (f.gone && opts.tz !== undefined && f.tz !== opts.tz) zoned++;
   }
   if (skipped > 0) notes.push({ code: 'line-skipped', count: skipped });
   if (gone > 0) notes.push({ code: 'deleted-transcripts', count: gone });
   if (lost > 0) notes.push({ code: 'keys-lost', count: lost });
+  if (zoned > 0) notes.push({ code: 'old-zone', count: zoned });
   return { state: st, notes, bytesRead, files: files.length, changed: p.changed, keysLoaded };
 }
 
@@ -675,6 +684,8 @@ export interface ReportIndex {
   order: string[];
   keys: { n: number; stamp: number };
   loaded: boolean;
+  // zone the ledger days were cut in
+  ledgerTz: string;
   // entries read from index.json; keys of any other path are released
   known?: Set<string>;
 }
@@ -762,6 +773,7 @@ function entryOf(v: unknown): FileEntry | null {
   if (!(v.first === undefined || v.first === null || fin(v.first))) return null;
   if (!(v.born === undefined || fin(v.born)) || !(v.lost === undefined || typeof v.lost === 'boolean'))
     return null;
+  if (!(v.tz === undefined || str(v.tz, 100))) return null;
   const buckets = map<Bucket>();
   for (const [k, b] of Object.entries(v.buckets)) {
     const x = bucketOf(b);
@@ -796,6 +808,7 @@ function entryOf(v: unknown): FileEntry | null {
     first: (v.first ?? null) as number | null,
     born: (v.born ?? 0) as number,
     lost: v.lost === true,
+    tz: (v.tz ?? '') as string,
   };
 }
 
@@ -848,6 +861,7 @@ export function loadIndex(
     order: keysOk ? (order as string[]) : [],
     keys: keysOk ? { n: keys.n as number, stamp: keys.stamp as number } : { ...NO_KEYS },
     loaded: false,
+    ledgerTz: str(raw.ledgerTz, 100) ? raw.ledgerTz : '',
     known,
   };
 }
@@ -935,6 +949,7 @@ export function saveIndex(dir: string, idx: ReportIndex, now = Date.now()): bool
       order: idx.order,
       files: idx.state.files,
       ledger: { files: idx.ledger.files, sessions },
+      ledgerTz: idx.ledgerTz,
     };
     const ok = writeAtomic(path.join(dir, INDEX), JSON.stringify(out), { mode: 0o600 });
     if (ok && idx.loaded) dropKeys(dir, keysFile(idx.keys.stamp), prev);
@@ -1067,11 +1082,20 @@ export interface ReportOpts {
   maxLine?: number;
 }
 
+export function timeZone(): string {
+  try {
+    return new Intl.DateTimeFormat('en-US').resolvedOptions().timeZone ?? '';
+  } catch {
+    return '';
+  }
+}
+
 // never writes the ledger or its summary
 export function readReportData(env: NodeJS.ProcessEnv = process.env, opts: ReportOpts = {}): ScanResult {
   const root = path.resolve(claudeDir(env));
   const now = opts.now ?? Date.now();
   const dir = indexDir(env);
+  const tz = timeZone();
   const idx: ReportIndex = loadIndex(dir, root) ?? {
     claudeDir: root,
     state: emptyState(),
@@ -1079,6 +1103,7 @@ export function readReportData(env: NodeJS.ProcessEnv = process.env, opts: Repor
     order: [],
     keys: { n: 0, stamp: 0 },
     loaded: true,
+    ledgerTz: tz,
   };
   const scan = scanTree(root, idx.state, {
     maxLine: opts.maxLine,
@@ -1087,12 +1112,15 @@ export function readReportData(env: NodeJS.ProcessEnv = process.env, opts: Repor
     rebuild: opts.rebuild,
     now,
     loadOwners: idx.loaded ? undefined : () => loadKeys(dir, idx),
+    tz,
   });
   idx.state = scan.state;
   idx.loaded ||= scan.keysLoaded;
-  const lg = foldLedger(env, opts.rebuild ? emptyLedger() : idx.ledger, now);
+  const rezone = idx.ledgerTz !== tz;
+  const lg = foldLedger(env, opts.rebuild || rezone ? emptyLedger() : idx.ledger, now);
   idx.ledger = lg.ledger;
-  if (scan.changed || lg.changed || opts.rebuild) saveIndex(dir, idx, now);
+  idx.ledgerTz = tz;
+  if (scan.changed || lg.changed || rezone || opts.rebuild) saveIndex(dir, idx, now);
   let ledgerSince: number | null = null;
   for (const s of Object.values(lg.ledger.sessions)) {
     if (ledgerSince === null || s.firstT < ledgerSince) ledgerSince = s.firstT;

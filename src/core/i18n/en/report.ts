@@ -80,4 +80,8 @@ export const reportMessages = {
     other:
       'The report index lost its request keys, so requests copied from {count} deleted transcripts may be counted twice.',
   },
+  'report.note.old-zone': {
+    one: '{count} deleted transcript keeps its days in the time zone it was read in.',
+    other: '{count} deleted transcripts keep their days in the time zone they were read in.',
+  },
 } as const;

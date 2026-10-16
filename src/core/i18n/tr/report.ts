@@ -85,4 +85,8 @@ export const reportMessages = {
     other:
       'Rapor indeksi istek anahtarlarını kaybetti; silinmiş {count} transkriptten kopyalanan istekler iki kez sayılabilir.',
   },
+  'report.note.old-zone': {
+    one: 'Silinmiş {count} transkriptin günleri, okunduğu saat dilimine göre kalıyor.',
+    other: 'Silinmiş {count} transkriptin günleri, okundukları saat dilimine göre kalıyor.',
+  },
 } satisfies Record<keyof typeof enReport, Message>;

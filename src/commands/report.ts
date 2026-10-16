@@ -11,7 +11,7 @@ import { buildReport, parseRange, type Range, type RangeError as RangeFail } fro
 import type { ProjectFilter, ScanResult } from '../core/report-types.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { ledgerDir, monthFiles, normalizeRoot, rebuildSummary } from '../data/ledger.js';
-import { readReportData } from '../data/report-index.js';
+import { readReportData, timeZone as zoneOf } from '../data/report-index.js';
 
 export interface ReportIo {
   tty: boolean;
@@ -165,7 +165,7 @@ export function runReport(args: Args, cfgFile: string, io: ReportIo = reportIo()
   const report = buildReport(data, { ...plan.range, filter: plan.filter, config: loaded.config });
   if (plan.format === 'csv') io.write(formatCsv(report));
   else if (plan.format === 'json') {
-    const timeZone = new Intl.DateTimeFormat('en-US').resolvedOptions().timeZone;
+    const timeZone = zoneOf();
     const generatedAt = new Date(now).toISOString();
     io.write(formatJson(report, { generatedAt, timeZone, claudeDir: data.claudeDir }));
   } else {

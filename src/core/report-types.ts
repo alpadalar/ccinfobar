@@ -49,6 +49,8 @@ export interface FileEntry {
   born: number;
   // gone file kept while the key set was lost
   lost: boolean;
+  // time zone its days were cut in
+  tz: string;
 }
 
 // files keyed by relPath with / separators; owners maps key hash to the owning relPath
@@ -68,7 +70,13 @@ export interface SessionData {
   gone: boolean;
 }
 
-export type ScanNoteCode = 'file-cap' | 'line-skipped' | 'deleted-transcripts' | 'rebuild-kept' | 'keys-lost';
+export type ScanNoteCode =
+  | 'file-cap'
+  | 'line-skipped'
+  | 'deleted-transcripts'
+  | 'rebuild-kept'
+  | 'keys-lost'
+  | 'old-zone';
 
 export interface ScanNote {
   code: ScanNoteCode;

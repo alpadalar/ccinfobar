@@ -3,14 +3,18 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Bucket, ScanResult, SessionData } from '../../src/core/report-types.js';
 import { dayKey } from '../../src/core/time.js';
+import { accountKeyFor } from '../../src/data/limits.js';
 import { indexDir, loadIndex, readReportData } from '../../src/data/report-index.js';
 import {
   appendTranscript,
   assistantLine,
+  ledgerLine,
   scratch,
   userLine,
+  writeLedger,
   writeTranscript,
 } from '../fixtures/report/build.js';
+import { withTz } from '../helpers.js';
 
 const T0 = Date.parse('2026-10-12T10:00:00.000Z');
 const NOW = Date.parse('2026-10-14T12:00:00.000Z');
@@ -344,6 +348,45 @@ describe('report index persistence', () => {
     expect(loadIndex(dir, path.resolve(root).normalize('NFD'), 'linux')).not.toBeNull();
     if (upper !== path.resolve(root)) expect(loadIndex(dir, upper, 'linux')).toBeNull();
     expect(loadIndex(dir, path.join(root, 'other'), 'win32')).toBeNull();
+  });
+
+  it('cuts days again in a new time zone and keeps deleted ones with a note', () => {
+    const { root, run } = setup('zone');
+    const late = Date.parse('2026-10-12T22:30:00.000Z');
+    writeTranscript('projects/-w-a/S1.jsonl', [req(1, 1, late)], root);
+    const gone = writeTranscript('projects/-w-a/S2.jsonl', [req(2, 2, late)], root);
+    const days = (r: ScanResult, sid: string) =>
+      Object.keys(r.sessions[sid]!.buckets).map((k) => k.slice(0, 10));
+    const first = withTz('UTC', () => run());
+    expect(days(first, 'S1')).toEqual(['2026-10-12']);
+    expect(first.notes).toEqual([]);
+    fs.rmSync(gone);
+    const tokyo = withTz('Asia/Tokyo', () => run());
+    expect(days(tokyo, 'S1')).toEqual(['2026-10-13']);
+    expect(days(tokyo, 'S2')).toEqual(['2026-10-12']);
+    expect(tokyo.notes).toContainEqual({ code: 'old-zone', count: 1 });
+    const again = withTz('Asia/Tokyo', () => run());
+    expect(again.bytesRead).toBe(0);
+    expect(withTz('UTC', () => run()).notes).not.toContainEqual(
+      expect.objectContaining({ code: 'old-zone' }),
+    );
+  });
+
+  it('folds the ledger again in a new time zone', () => {
+    const { env, run } = setup('zone-ledger');
+    const cache = env.CCINFOBAR_CACHE_DIR;
+    const a = accountKeyFor('apiKey', env);
+    const late = Date.parse('2026-10-12T22:30:00.000Z');
+    writeLedger(
+      '2026-10',
+      [
+        ledgerLine({ a, s: 'A', p: '/w/a', c: 0.001, t: late }),
+        ledgerLine({ a, s: 'A', p: '/w/a', c: 2, t: late + 1000 }),
+      ],
+      cache,
+    );
+    expect(Object.keys(withTz('UTC', () => run()).ledger.A!.days)).toEqual(['2026-10-12']);
+    expect(Object.keys(withTz('Asia/Tokyo', () => run()).ledger.A!.days)).toEqual(['2026-10-13']);
   });
 
   it('keeps profiles apart', () => {
