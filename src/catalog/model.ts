@@ -249,13 +249,16 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+const own = (o: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(o).filter(([k]) => k !== '__proto__'));
+
 export function mergeRaw(raw: Record<string, unknown>, next: CatalogEntry): Record<string, unknown> {
   const old = Array.isArray(raw.versions) ? raw.versions.filter(isObject) : [];
   const versions = next.versions.map((v) => {
     const r = old.find((o) => o.version === v.version);
-    return r ? { ...r, ...v } : v;
+    return r ? { ...own(r), ...v } : v;
   });
-  return { ...raw, ...next, versions };
+  return { ...own(raw), ...next, versions };
 }
 
 const isInt = (v: unknown, min: number): v is number => Number.isInteger(v) && (v as number) >= min;

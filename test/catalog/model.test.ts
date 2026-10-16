@@ -243,6 +243,21 @@ describe('catalog model', () => {
     expect(out.version).toBe(2);
   });
 
+  it('mergeRaw drops own __proto__ keys from hand-edited files', () => {
+    const e = entry();
+    const raw = JSON.parse(
+      `{"__proto__":{"polluted":true},"futureKey":1,"versions":[{"__proto__":{"x":1},"version":1,"extra":true}]}`,
+    ) as Record<string, unknown>;
+    const out = mergeRaw(raw, appendVersion(e, content(2), '', T1));
+    expect(Object.hasOwn(out, '__proto__')).toBe(false);
+    expect(Object.getPrototypeOf(out)).toBe(Object.prototype);
+    expect(out.futureKey).toBe(1);
+    const v0 = (out.versions as Record<string, unknown>[])[0]!;
+    expect(Object.hasOwn(v0, '__proto__')).toBe(false);
+    expect(v0.extra).toBe(true);
+    expect(JSON.stringify(out)).not.toContain('polluted');
+  });
+
   it('parseEntry keeps a valid entry and rejects bad shapes', () => {
     const e = appendVersion(entry(), content(2), 'two', T1);
     expect(parseEntry(JSON.parse(JSON.stringify(e)))).toEqual(e);
