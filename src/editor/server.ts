@@ -78,7 +78,7 @@ import {
   setProgress,
   upgradeOptions,
 } from '../core/edit.js';
-import { bundleText, presetText, themeDescription } from '../core/i18n/catalog-text.js';
+import { bundleText, presetLabels, presetText, themeDescription } from '../core/i18n/catalog-text.js';
 import { type MessageId, type Params, setLanguage, t, withLanguage } from '../core/i18n/index.js';
 import { isLanguageId, type LanguageId } from '../core/i18n/languages.js';
 import { availablePresets, loadForUse } from '../core/load.js';
@@ -655,7 +655,10 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     const content = contentOf(a);
     const theme = kind !== 'preset' && content.theme ? draftTheme(content.theme) : undefined;
     try {
-      return renderPreview(applyCatalogContent(current, content, kind), source, width, theme);
+      const next = applyCatalogContent(current, content, kind);
+      // built-in layouts carry English labels
+      const shown = a.source === 'system' && kind !== 'theme' ? presetLabels(next) : next;
+      return renderPreview(shown, source, width, theme);
     } catch {
       return [];
     }

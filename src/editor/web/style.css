@@ -2171,6 +2171,88 @@ input[type="range"]:disabled {
   box-shadow: none;
 }
 
+.catalog-bar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.catalog-tabs {
+  padding: 0;
+}
+
+.catalog-list {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.catalog-section {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.catalog-section-head {
+  margin: 0;
+  font-size: 0.9375rem;
+  letter-spacing: -0.01em;
+}
+
+.catalog-group-head {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.catalog-version,
+.catalog-author {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  overflow-wrap: anywhere;
+}
+
+.catalog-chip {
+  --c: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  padding: 0.0625rem 0.45rem;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+  color: var(--c);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.catalog-chip.pending,
+.catalog-chip.withdraw-pending {
+  --c: var(--warn);
+}
+
+.catalog-chip.published {
+  --c: var(--ok);
+}
+
+.catalog-chip.outdated {
+  --c: var(--accent);
+}
+
+.catalog-chip.withdrawn {
+  --c: var(--danger);
+}
+
+.catalog-section .theme-card-head {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 70rem) {
+  .catalog-tabs {
+    flex: 1 0 100%;
+  }
+}
+
 .theme-current {
   display: grid;
   gap: 0.6rem;

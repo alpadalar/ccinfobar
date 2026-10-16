@@ -9,6 +9,7 @@ import {
   setLineAlign,
   uniqueId,
 } from '../../core/edit.js';
+import '../../core/i18n/lazy.js';
 import { installBundled } from '../../core/i18n/bundled.js';
 import { scenarioText } from '../../core/i18n/catalog-text.js';
 import { type LanguageId, language, type MessageId, setLanguage, t } from '../../core/i18n/index.js';
@@ -18,6 +19,7 @@ import { titleWidgets } from '../../core/panel.js';
 import type { Config } from '../../core/types.js';
 import { ansiToHtml } from './ansi-html.js';
 import { ApiError, api, previewSource, setToken } from './api.js';
+import { openCatalog } from './catalog.js';
 import { colorToCss } from './colors.js';
 import { type DragSpec, type DropTarget, press } from './dnd.js';
 import { clear, h, icon } from './dom.js';
@@ -700,6 +702,7 @@ function setupStatic(): void {
     ['save', 'save'],
     ['theme-btn', 'palette'],
     ['preset-btn', 'layers'],
+    ['catalog-btn', 'grid'],
     ['settings-btn', 'gear'],
     ['import', 'upload'],
     ['export', 'download'],
@@ -713,6 +716,7 @@ function setupStatic(): void {
   $('config-path').textContent = S.api.configPath;
   $('theme-btn').addEventListener('click', () => void openGallery());
   $('preset-btn').addEventListener('click', () => void openPresets());
+  $('catalog-btn').addEventListener('click', () => void openCatalog());
   $('settings-btn').addEventListener('click', () => void openSettings());
   $('undo').addEventListener('click', undo);
   $('redo').addEventListener('click', redo);

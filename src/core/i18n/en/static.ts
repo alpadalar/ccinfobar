@@ -2,6 +2,8 @@ export const staticMessages = {
   'web.static.presets': 'Presets',
   'web.static.presetsTitle': 'Browse presets',
   'web.static.themesTitle': 'Browse themes',
+  'web.static.catalog': 'Catalog',
+  'web.static.catalogTitle': 'Browse presets, themes and bundles',
   'web.static.undo': 'Undo',
   'web.static.undoTitle': 'Undo (Ctrl+Z)',
   'web.static.redo': 'Redo',

@@ -7,7 +7,7 @@ import { systemEntries } from '../../src/catalog/system.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { bundleText } from '../../src/core/i18n/catalog-text.js';
 import type { Config } from '../../src/core/types.js';
-import { visibleWidth } from '../../src/core/width.js';
+import { stripAnsi, visibleWidth } from '../../src/core/width.js';
 import { gsdInstalled } from '../../src/data/gsd.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
 import { withLang } from '../helpers.js';
@@ -242,6 +242,22 @@ describe('editor catalog routes: list, entry and previews', () => {
     const two = twoLines();
     const t = (await request('POST', '/api/catalog/previews', body(['theme/nord'], two))).json();
     expect(t.previews['theme/nord']).toHaveLength(2);
+  });
+
+  it('previews built-in labels in the UI language', async () => {
+    const body = (lang: string) => ({
+      body: { config: defaultConfig(), width: 200, refs: ['preset/cockpit'], lang },
+    });
+    const text = async (lang: string) =>
+      stripAnsi(
+        (
+          (await request('POST', '/api/catalog/previews', body(lang))).json().previews[
+            'preset/cockpit'
+          ] as string[]
+        ).join('\n'),
+      );
+    expect(await text('tr')).toContain('Süre: ');
+    expect(await text('en')).toContain('Elapsed: ');
   });
 
   it('cuts the ref list at 100 and clamps the width', async () => {

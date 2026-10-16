@@ -29,6 +29,19 @@ export function previewBox(lines: string[] | undefined): HTMLElement {
   });
 }
 
+// columns that fit a card preview
+export function fitCols(root: ParentNode): number {
+  const box = root.querySelector<HTMLElement>('.theme-preview');
+  if (!box) return 96;
+  const probe = h('span', { class: 'theme-preview cols-probe' }, '0'.repeat(50));
+  document.body.append(probe);
+  const ch = probe.getBoundingClientRect().width / 50;
+  probe.remove();
+  const cs = getComputedStyle(box);
+  const inner = box.clientWidth - Number.parseFloat(cs.paddingLeft) - Number.parseFloat(cs.paddingRight);
+  return ch > 0 ? Math.max(40, Math.floor(inner / ch)) : 96;
+}
+
 async function saveCurrent(): Promise<boolean> {
   const name = h('input', {
     class: 'input',
@@ -188,23 +201,10 @@ export async function openPresets(): Promise<void> {
     }
   }
 
-  // columns that fit a card preview
-  function fitCols(): number {
-    const box = grid.querySelector<HTMLElement>('.theme-preview');
-    if (!box) return 96;
-    const probe = h('span', { class: 'theme-preview cols-probe' }, '0'.repeat(50));
-    document.body.append(probe);
-    const ch = probe.getBoundingClientRect().width / 50;
-    probe.remove();
-    const cs = getComputedStyle(box);
-    const inner = box.clientWidth - Number.parseFloat(cs.paddingLeft) - Number.parseFloat(cs.paddingRight);
-    return ch > 0 ? Math.max(40, Math.floor(inner / ch)) : 96;
-  }
-
   async function loadPreviews(close: (v?: unknown) => void) {
     const v = ++version;
     await new Promise((r) => requestAnimationFrame(r));
-    const cols = fitCols();
+    const cols = fitCols(grid);
     await Promise.all(
       S.api.presets.map(async (p) => {
         try {

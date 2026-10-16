@@ -22,6 +22,16 @@ export const catalogMessages = {
   'catalog.share.withdrawn': 'Geri çekildi',
   'catalog.version': 'v{version}',
   'catalog.by': '{author} tarafından',
+  'catalog.title': 'Katalog',
+  'catalog.apply': 'Uygula',
+  'catalog.applyName': 'Uygula: {name}',
+  'catalog.applyTitle': '{name} uygulansın mı?',
+  'catalog.applyText': 'Kaydedilmemiş değişiklikleriniz geri alma geçmişinde kalır.',
+  'catalog.applied': '{name} uygulandı. Kalıcı olması için kaydedin.',
+  'catalog.themeRenamed': '{id} teması başka renklerle zaten var; {newId} olarak yüklendi',
+  'catalog.empty.user':
+    'Henüz kayıtlı bir şey yok. Kurulumunuzu eklemek için Mevcut olanı kaydet… düğmesini kullanın.',
+  'catalog.loading': 'Önizlemeler yükleniyor…',
   'catalog.usage':
     'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--clear] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]',
   'catalog.section.user': 'Sizin girdileriniz',

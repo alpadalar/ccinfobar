@@ -65,6 +65,7 @@ const PATHS: Record<string, string> = {
     '<path d="M9 4h6v3H9z"/><path d="M15 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',
   brush:
     '<path d="M18.4 2.6a2 2 0 0 1 2.9 2.9L12 14.8l-2.9-2.9z"/><path d="M9.1 11.9c-2.1 0-4.1 1.6-4.1 4.1 0 1.5-1 2.5-2.5 3 1 1.4 2.7 2 4.5 2 3 0 5-2.2 5-5z"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   layers: '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/>',
   'align-left': '<path d="M4 6h16M4 12h10M4 18h13"/>',
   'align-center': '<path d="M4 6h16M7 12h10M5.5 18h13"/>',
