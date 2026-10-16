@@ -282,6 +282,8 @@ function parseRoadmap(text: string): {
   let name: string | null = null;
   const shippedRanges: [number, number][] = [];
   let currentRange: [number, number] | null = null;
+  // phase.add writes only a details heading, not a checklist line
+  const headings: { phase: RoadmapPhase; shipped: boolean }[] = [];
   for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
     const range = /Phases?\s+(\d+)(?:\s*[-–]\s*(\d+))?/i.exec(line);
     if (range && /\bv\d/.test(line)) {
@@ -302,6 +304,14 @@ function parseRoadmap(text: string): {
       milestone = ms[1]!;
       name = ms[2]!.replace(/[\s:-]+$/, '').trim() || null;
     }
+    const h = /^#{2,4}\s+Phase\s+(\d+(?:\.\d+)*)\s*:\s*(.+?)\s*$/.exec(line);
+    if (h) {
+      headings.push({
+        phase: { number: normalizePhaseNumber(h[1]!), name: h[2]!.replace(/\*+/g, '').trim(), done: false },
+        shipped: inDetails && detailsShipped,
+      });
+      continue;
+    }
     const m = /^\s*[-*]\s+\[([ xX])\]\s+(?:\*\*)?Phase\s+(\d+(?:\.\d+)*)\s*:\s*(.*)$/.exec(line);
     if (!m) continue;
     let rest = m[3]!;
@@ -318,6 +328,12 @@ function parseRoadmap(text: string): {
     };
     const target = inDetails && detailsShipped ? shipped : current;
     if (!target.some((p) => p.number === phase.number)) target.push(phase);
+  }
+  const listed = current.length + shipped.length > 0;
+  for (const { phase, shipped: old } of headings) {
+    if (!listed || current.some((p) => p.number === phase.number)) continue;
+    if (shipped.some((p) => p.number === phase.number)) continue;
+    (old ? shipped : current).push(phase);
   }
   const inRange = (p: RoadmapPhase, [a, b]: [number, number]) => {
     const n = Number.parseFloat(p.number);

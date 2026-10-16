@@ -33,6 +33,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Fixed
 
 - Escape in a dialog opened over another one (the Presets save dialog, or a delete confirmation over the Catalog page) now closes only that dialog instead of every open one
+- GSD widgets count a phase that the roadmap lists only as a `### Phase N:` heading (what `gsd-sdk phase.add` writes), so a newly added phase no longer shows as `Phase 11 (11/10)` at 100% with no plan count
 - In the web editor's Catalog save dialog, choosing Update or Overwrite on an existing name no longer clears the entry's description
 
 ### Security

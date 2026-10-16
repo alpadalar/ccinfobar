@@ -137,6 +137,44 @@ describe('readGsd', () => {
     expect(info.phaseIndex).toBe(1);
   });
 
+  it('counts a phase that only has a details heading, as phase.add writes it', () => {
+    const dir = fs.mkdtempSync(path.join(tmp, 'added-'));
+    const planning = path.join(dir, '.planning');
+    const phase = path.join(planning, 'phases', '03-catalog');
+    fs.mkdirSync(phase, { recursive: true });
+    for (const f of ['03-01-PLAN.md', '03-01-SUMMARY.md', '03-02-PLAN.md']) {
+      fs.writeFileSync(path.join(phase, f), '# x\n');
+    }
+    fs.writeFileSync(
+      path.join(planning, 'ROADMAP.md'),
+      [
+        '## Phases',
+        '- [x] **Phase 1: Parser** - done',
+        '- [x] **Phase 2: Reports** - done',
+        '## Phase Details',
+        '### Phase 1: Parser',
+        '### Phase 2: Reports',
+        '## Progress',
+        '### Phase 3: Catalog',
+        '**Goal:** more',
+      ].join('\n'),
+    );
+    fs.writeFileSync(path.join(planning, 'STATE.md'), '# Project State\n\nPhase: 3\nStatus: Executing\n');
+    const info = readGsd(dir, {})!;
+    expect(info.phasesTotal).toBe(3);
+    expect(info.phasesCompleted).toBe(2);
+    expect(info.phaseIndex).toBe(3);
+    expect(info.phase).toMatchObject({
+      number: '3',
+      name: 'Catalog',
+      plans: 2,
+      summaries: 1,
+      complete: false,
+    });
+    expect(info.plansTotal).toBe(2);
+    expect(info.percent).toBeLessThan(100);
+  });
+
   it('counts nested plans/ directory files', () => {
     const info = readGsd(fx('nested'), {})!;
     expect(info.phase).toMatchObject({ plans: 2, summaries: 1, complete: false });
