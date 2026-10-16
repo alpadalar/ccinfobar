@@ -1,4 +1,5 @@
-import type { StyleGroup, StyleHistory, StyleSnapshot } from '../../core/edit.js';
+import type { ShareState } from '../../catalog/model.js';
+import type { EntryContent, EntryKind, StyleGroup, StyleHistory, StyleSnapshot } from '../../core/edit.js';
 import type { Config, OptionSpec, WidgetCategory } from '../../core/types.js';
 
 export type HiddenWhy = 'rule' | 'priority';
@@ -91,6 +92,86 @@ export interface ApiState {
   scenarios: { id: string; label: string; description: string }[];
   terminal: import('./terminals.js').DetectedColors | null;
   language?: { id: string; source: string };
+}
+
+export interface CatalogEntryInfo {
+  ref: string;
+  source: 'user' | 'legacy' | 'system';
+  id: string;
+  kind: EntryKind;
+  name: string;
+  description: string;
+  author: string;
+  version: number;
+  rev: number | null;
+  share: { wanted: boolean; state: ShareState } | null;
+  remote: { id: string; version: number } | null;
+  updatedAt: string | null;
+  scenario: string | null;
+  content: EntryContent;
+}
+
+export interface CatalogState {
+  system: CatalogEntryInfo[];
+  user: CatalogEntryInfo[];
+  profile: { author: string };
+  endpoint: string | null;
+  publishable: boolean;
+}
+
+export interface CatalogVersionInfo {
+  version: number;
+  at: string | null;
+  note: string;
+  restoredFrom: number | null;
+  overwrittenAt: string | null;
+  content: EntryContent;
+}
+
+export type CatalogResult = { ok: boolean; entry: CatalogEntryInfo; catalog: CatalogState };
+
+export type PublishAction = 'publish' | 'version' | 'overwrite' | 'withdraw';
+
+export interface PublishPlanInfo {
+  endpoint: string;
+  planHash: string;
+  notice: string;
+  plan: {
+    id: string;
+    rev: number;
+    name: string;
+    kind: EntryKind;
+    action: PublishAction;
+    remoteId: string | null;
+    payload: unknown;
+  }[];
+  skipped: { id: string; reason: 'not-shared' | 'up-to-date' | 'withdrawn' }[];
+}
+
+export interface PublishResultInfo {
+  id: string;
+  ok: boolean;
+  code: string | null;
+  remoteId: string | null;
+  version: number | null;
+  errorId: string | null;
+}
+
+export interface MarketSummaryInfo {
+  id: string;
+  kind: EntryKind;
+  name: string;
+  description: string;
+  author: string;
+  publisher: string;
+  version: number;
+  updatedAt: string;
+  hash: string;
+  withdrawn?: boolean;
+}
+
+export interface MarketEntryInfo extends MarketSummaryInfo {
+  versions: { version: number; at: string; note: string; hash: string }[];
 }
 
 export interface Store {

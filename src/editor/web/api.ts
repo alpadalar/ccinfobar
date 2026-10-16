@@ -1,8 +1,25 @@
-import type { StyleHistory } from '../../core/edit.js';
+import type { EntryContent, EntryKind, StyleHistory } from '../../core/edit.js';
+import '../../core/i18n/lazy.js';
 import { en } from '../../core/i18n/en/index.js';
-import { type MessageId, type Params, t } from '../../core/i18n/index.js';
+import { lazyMessages } from '../../core/i18n/en/lazy.js';
+import { language, languageLocale, type MessageId, type Params, t } from '../../core/i18n/index.js';
 import type { Config, ProgressConfig } from '../../core/types.js';
-import type { ApiState, ClaudeInfo, HooksInfo, PresetInfo, Store, ThemeInfo } from './store.js';
+import type {
+  ApiState,
+  CatalogEntryInfo,
+  CatalogResult,
+  CatalogState,
+  CatalogVersionInfo,
+  ClaudeInfo,
+  HooksInfo,
+  MarketEntryInfo,
+  MarketSummaryInfo,
+  PresetInfo,
+  PublishPlanInfo,
+  PublishResultInfo,
+  Store,
+  ThemeInfo,
+} from './store.js';
 
 export type PreviewSrc = { source: 'sample' | 'last' | 'scenario'; scenario?: string };
 
@@ -18,6 +35,19 @@ export interface InstallPlanInfo {
   owner: string;
   needsConfirm: boolean;
   changes: boolean;
+}
+
+export interface CatalogSaveBody {
+  kind: EntryKind;
+  name: string;
+  description: string;
+  author?: string;
+  share: boolean;
+  mode: 'new' | 'update' | 'overwrite';
+  note?: string;
+  id?: string;
+  rev?: number;
+  config: Config;
 }
 
 let token = '';
@@ -38,11 +68,15 @@ export function setToken(value: string): void {
 
 // server ids; an unknown id keeps the English text
 export function idText(id: unknown, params: unknown, fallback: string): string {
-  if (typeof id !== 'string' || !Object.hasOwn(en, id)) return fallback;
+  if (typeof id !== 'string' || !(Object.hasOwn(en, id) || Object.hasOwn(lazyMessages, id))) return fallback;
   const p: Params = Object.create(null);
   if (params && typeof params === 'object' && !Array.isArray(params)) {
     for (const [k, v] of Object.entries(params)) if (typeof v === 'string' || typeof v === 'number') p[k] = v;
   }
+  // catalog errors carry the raw kind id
+  const kind = p.kind;
+  if (id.startsWith('err.catalog.') && (kind === 'preset' || kind === 'theme' || kind === 'bundle'))
+    p.kind = t(`catalog.kind.${kind}`).toLocaleLowerCase(languageLocale());
   return t(id as MessageId, p);
 }
 
@@ -67,6 +101,9 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   }
   return data as T;
 }
+
+const lang = () => encodeURIComponent(language());
+const entryPath = (ref: string) => `/api/catalog/entries/${encodeURIComponent(ref)}?lang=${lang()}`;
 
 export const api = {
   state: () => call<ApiState>('GET', '/api/state'),
@@ -127,4 +164,47 @@ export const api = {
     ),
   saveStyles: (history: StyleHistory) => call<{ ok: boolean }>('PUT', '/api/styles', { history }),
   shutdown: () => call<{ ok: boolean }>('POST', '/api/shutdown', {}),
+  catalog: () => call<CatalogState>('GET', `/api/catalog?lang=${lang()}`),
+  catalogEntry: (ref: string) =>
+    call<{ entry: CatalogEntryInfo; versions: CatalogVersionInfo[] }>('GET', entryPath(ref)),
+  catalogPreviews: (config: Config, src: PreviewSrc, width: number, refs?: string[]) =>
+    call<{ previews: Record<string, string[]> }>('POST', '/api/catalog/previews', {
+      config,
+      ...src,
+      width,
+      refs,
+      lang: language(),
+    }),
+  catalogSave: (body: CatalogSaveBody) =>
+    call<CatalogResult>('POST', '/api/catalog/save', { ...body, lang: language() }),
+  catalogRestore: (id: string, version: number, rev: number | null) =>
+    call<CatalogResult>('POST', '/api/catalog/restore', { id, version, rev, lang: language() }),
+  catalogShare: (ref: string, share: boolean, rev?: number | null) =>
+    call<CatalogResult>('POST', '/api/catalog/share', { ref, share, rev, lang: language() }),
+  catalogDelete: (ref: string) => call<{ ok: boolean; catalog: CatalogState }>('DELETE', entryPath(ref)),
+  catalogInstallTheme: (ref: string, version?: number) =>
+    call<{
+      ok: boolean;
+      theme: { id: string; written: boolean; renamed: boolean } | null;
+      themes: ThemeInfo[];
+    }>('POST', '/api/catalog/install-theme', { ref, version }),
+  catalogPublishPlan: (refs?: string[]) =>
+    call<PublishPlanInfo>('POST', '/api/catalog/publish/plan', { refs }),
+  catalogPublish: (refs: string[] | undefined, planHash: string) =>
+    call<{
+      ok: boolean;
+      code: 'read-only' | null;
+      submitUrl?: string;
+      results: PublishResultInfo[];
+      catalog: CatalogState;
+    }>('POST', '/api/catalog/publish', { refs, confirm: true, planHash, lang: language() }),
+  catalogRemote: () => call<{ endpoint: string; entries: MarketSummaryInfo[] }>('GET', '/api/catalog/remote'),
+  // <publisher>/<slug>, each part encoded
+  catalogRemoteEntry: (id: string) =>
+    call<{
+      entry: MarketEntryInfo;
+      latest: { version: number; content: EntryContent; targets: { kind: string; target: string }[] } | null;
+      code?: string;
+      errorId?: string;
+    }>('GET', `/api/catalog/remote/${id.split('/').map(encodeURIComponent).join('/')}`),
 };
