@@ -132,7 +132,9 @@ function prices(
 // built-in notes are English data; a stale translation falls back to it
 function noteText(v: ProfileVendor): string | undefined {
   const id = `web.profile.note.${v.id}`;
-  return Object.hasOwn(en, id) && en[id as MessageId] === v.priceNote ? t(id as MessageId) : v.priceNote;
+  return Object.hasOwn(en, id) && en[id as keyof typeof en] === v.priceNote
+    ? t(id as MessageId)
+    : v.priceNote;
 }
 
 function builtInList(): HTMLElement {

@@ -15,6 +15,8 @@ import { funMessages } from '../../src/core/i18n/en/fun.js';
 import { hookMessages } from '../../src/core/i18n/en/hooks.js';
 import { importMessages } from '../../src/core/i18n/en/import.js';
 import { en } from '../../src/core/i18n/en/index.js';
+import { lazyMessages as enLazy } from '../../src/core/i18n/en/lazy.js';
+import '../../src/core/i18n/lazy.js';
 import { inspectorMessages } from '../../src/core/i18n/en/inspector.js';
 import { installMessages } from '../../src/core/i18n/en/install.js';
 import { jobsMessages } from '../../src/core/i18n/en/jobs.js';
@@ -62,6 +64,7 @@ import { tr } from '../../src/core/i18n/tr/index.js';
 import { inspectorMessages as trInspector } from '../../src/core/i18n/tr/inspector.js';
 import { installMessages as trInstall } from '../../src/core/i18n/tr/install.js';
 import { jobsMessages as trJobs } from '../../src/core/i18n/tr/jobs.js';
+import { lazyMessages as trLazy } from '../../src/core/i18n/tr/lazy.js';
 import { previewMessages as trPreview } from '../../src/core/i18n/tr/preview.js';
 import { reportMessages as trReport } from '../../src/core/i18n/tr/report.js';
 import { staticMessages as trStatic } from '../../src/core/i18n/tr/static.js';
@@ -288,8 +291,9 @@ const CONTROL = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u200E\u200F\u202A-\u20
 describe('tr table', () => {
   it('merges every area without overlap', () => {
     const sum = AREA_PAIRS.reduce((n, [, , a]) => n + Object.keys(a).length, 0);
-    expect(Object.keys(tr).length).toBe(sum);
+    expect(Object.keys(tr).length + Object.keys(trLazy).length).toBe(sum);
     expect(TR.messages).toBe(tr);
+    expect(TR.lazy).toBe(trLazy);
   });
 
   it('keeps compact units and acronyms in widget words', () => {
@@ -428,7 +432,10 @@ describe('en table', () => {
       importMessages,
     ];
     const sum = areas.reduce((n, a) => n + Object.keys(a).length, 0);
-    expect(Object.keys(en).length).toBe(sum);
+    expect(Object.keys(en).length + Object.keys(enLazy).length).toBe(sum);
+    expect(EN.lazy).toBe(enLazy);
+    expect(Object.keys(trLazy).sort()).toEqual(Object.keys(enLazy).sort());
+    for (const id of Object.keys(enLazy)) expect(Object.hasOwn(en, id), id).toBe(false);
   });
 
   it('hook messages take versions as params and every hook id is used', () => {

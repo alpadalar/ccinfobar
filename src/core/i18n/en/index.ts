@@ -9,15 +9,12 @@ import { errorMessages } from './errors.js';
 import { explainMessages } from './explain.js';
 import { funMessages } from './fun.js';
 import { hookMessages } from './hooks.js';
-import { importMessages } from './import.js';
 import { inspectorMessages } from './inspector.js';
 import { installMessages } from './install.js';
 import { jobsMessages } from './jobs.js';
 import { previewMessages } from './preview.js';
-import { reportMessages } from './report.js';
 import { staticMessages } from './static.js';
 import { themeEditorMessages } from './theme-editor.js';
-import { tomlMessages } from './toml.js';
 import { tuiMessages } from './tui.js';
 import { widgetMessages } from './widgets.js';
 
@@ -41,7 +38,4 @@ export const en = {
   ...themeEditorMessages,
   ...staticMessages,
   ...tuiMessages,
-  ...reportMessages,
-  ...tomlMessages,
-  ...importMessages,
 } as const;

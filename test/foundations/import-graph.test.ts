@@ -60,6 +60,14 @@ const EXCLUDED_FILES = [
   'src/core/report-types.ts',
 ];
 const REPORT_FILES = EXCLUDED_FILES.filter((f) => /\/(report|prices)/.test(f));
+// report, import and TOML text load with the commands that print it (D-33)
+const LAZY_TABLES = [
+  'src/core/i18n/lazy.ts',
+  'src/core/i18n/en/lazy.ts',
+  'src/core/i18n/en/report.ts',
+  'src/core/i18n/en/import.ts',
+  'src/core/i18n/en/toml.ts',
+];
 const EXCLUDED_DIRS = ['src/importers/', 'src/editor/', 'src/tui/'];
 // non-English tables load with import() (D-25)
 const LANG_TABLES = /^src\/core\/i18n\/(?!en\/)[a-z]{2,3}\//;
@@ -111,7 +119,10 @@ describe('import graph', () => {
       expect(files.has(`src/${entry}`)).toBe(true);
       const bad = [...files].filter(
         (f) =>
-          EXCLUDED_FILES.includes(f) || EXCLUDED_DIRS.some((d) => f.startsWith(d)) || LANG_TABLES.test(f),
+          EXCLUDED_FILES.includes(f) ||
+          LAZY_TABLES.includes(f) ||
+          EXCLUDED_DIRS.some((d) => f.startsWith(d)) ||
+          LANG_TABLES.test(f),
       );
       expect(bad).toEqual([]);
     });
@@ -154,6 +165,18 @@ describe('import graph', () => {
     expect(fs.readFileSync(path.join(src, 'cli/main.ts'), 'utf8')).toContain(
       'runReport(args, cfgFile, reportDeps())',
     );
+  });
+
+  it('loads the lazy tables in every module that prints their ids', () => {
+    const users = walk(src)
+      .filter((f) => !f.includes(`${path.sep}i18n${path.sep}`))
+      .filter((f) => /['`](?:report|import|toml)\.[a-zA-Z]/.test(fs.readFileSync(f, 'utf8')));
+    expect(users.length).toBeGreaterThan(5);
+    for (const f of users) {
+      expect(fs.readFileSync(f, 'utf8'), path.relative(root, f)).toMatch(
+        /^import '[./]+(?:core\/)?i18n\/lazy\.js';$/m,
+      );
+    }
   });
 
   // the hook lazy-loads update-state; it must not reach the registry, config or widgets
@@ -252,7 +275,7 @@ describe('import graph', () => {
         (m) => m[1]!,
       );
       expect(roots).toHaveLength(2);
-      expect(entry).not.toMatch(/TomlError|report-index/);
+      expect(entry).not.toMatch(/TomlError|report-index|Scanning transcripts|This layout runs commands/);
       const seen = new Set<string>();
       const stack = [...roots];
       while (stack.length) {
@@ -260,7 +283,7 @@ describe('import graph', () => {
         if (seen.has(f)) continue;
         seen.add(f);
         const text = fs.readFileSync(path.join(dist, 'chunks', f), 'utf8');
-        expect(text, f).not.toMatch(/TomlError|report-index/);
+        expect(text, f).not.toMatch(/TomlError|report-index|Scanning transcripts|This layout runs commands/);
         for (const m of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(m[1]!);
       }
       expect(seen.size).toBeGreaterThan(2);

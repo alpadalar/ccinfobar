@@ -1,3 +1,4 @@
+import '../core/i18n/lazy.js';
 import { type MessageId, type Params, t } from '../core/i18n/index.js';
 
 export const MAX_TOML_CHARS = 1_048_576;

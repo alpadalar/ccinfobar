@@ -1,8 +1,9 @@
 import type { en } from './en/index.js';
+import type { lazyMessages } from './en/lazy.js';
 import { EN, type LanguageId, languageDef } from './languages.js';
 import type { LanguageDef, Message, Params, Plural } from './types.js';
 
-export type MessageId = keyof typeof en;
+export type MessageId = keyof typeof en | keyof typeof lazyMessages;
 export type { LanguageId, LanguageSetting } from './languages.js';
 export type { LanguageSource, Resolved } from './resolve.js';
 export type {
@@ -71,9 +72,9 @@ function pick(msg: Plural, locale: string, params?: Params): string {
 }
 
 function lookup(def: LanguageDef, id: string): Message | undefined {
-  return Object.hasOwn(def.messages, id)
-    ? (def.messages as Record<string, Message | undefined>)[id]
-    : undefined;
+  if (Object.hasOwn(def.messages, id)) return (def.messages as Record<string, Message | undefined>)[id];
+  const more = def.lazy;
+  return more && Object.hasOwn(more, id) ? (more as Record<string, Message | undefined>)[id] : undefined;
 }
 
 export function t(id: MessageId, params?: Params): string {

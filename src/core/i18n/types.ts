@@ -45,6 +45,8 @@ export interface LanguageDef {
   locale: string;
   messages: Partial<Record<MessageId, Message>>;
   meta?: MetaTable;
+  // command-only areas, installed by i18n/lazy.ts
+  lazy?: Partial<Record<MessageId, Message>>;
 }
 
 export interface LanguageTables {

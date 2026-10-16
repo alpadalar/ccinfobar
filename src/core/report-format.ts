@@ -1,3 +1,4 @@
+import './i18n/lazy.js';
 import { formatCurrency, formatDuration, formatMoney, formatTokens } from '../widgets/shared.js';
 import { type Level, style, truncate, visibleWidth } from './ansi.js';
 import { type MessageId, t, withLanguage } from './i18n/index.js';

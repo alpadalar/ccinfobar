@@ -7,7 +7,8 @@ export const EN = {
   aliases: [],
   locale: 'en',
   messages: en,
-} as const satisfies LanguageDef;
+  lazy: undefined as LanguageDef['lazy'],
+} satisfies LanguageDef;
 
 // tables arrive through loadLanguage or installTables
 export const TR = {
@@ -17,6 +18,7 @@ export const TR = {
   locale: 'tr',
   messages: {} as LanguageDef['messages'],
   meta: undefined as MetaTable | undefined,
+  lazy: undefined as LanguageDef['lazy'],
 } satisfies LanguageDef;
 
 // dynamic, so an English render never parses other tables
@@ -64,6 +66,11 @@ export function installTables(id: string, tables: LanguageTables): void {
   def.messages = tables.messages;
   def.meta = tables.meta;
   installed.add(id);
+}
+
+export function installLazy(id: string, table: LanguageDef['lazy']): void {
+  const def = languageDef(id);
+  if (def) def.lazy = table;
 }
 
 export function hasTables(id: string): boolean {

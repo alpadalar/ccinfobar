@@ -1,3 +1,4 @@
+import '../core/i18n/lazy.js';
 import { externalTargets } from '../core/http-report.js';
 import { type MessageId, t } from '../core/i18n/index.js';
 import { deepSanitize, safeConfigUrl, sanitizeText } from '../core/sanitize.js';

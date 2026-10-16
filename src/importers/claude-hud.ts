@@ -1,3 +1,4 @@
+import '../core/i18n/lazy.js';
 import { type MessageId, t } from '../core/i18n/index.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionValue, WidgetItem } from '../core/types.js';
