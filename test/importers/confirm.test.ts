@@ -114,8 +114,6 @@ describe('importTargets, dropTargets, sanitizeImport', () => {
   });
 });
 
-const quoted = (p: string) => (process.platform === 'win32' ? `"${p}"` : `'${p}'`);
-
 describe('rerun hint quoting', () => {
   const posix = (s: string) => shellArg(s, 'linux');
   const win = (s: string) => shellArg(s, 'win32');
@@ -124,7 +122,12 @@ describe('rerun hint quoting', () => {
     expect(posix('/home/a/.config/ccstatusline/settings.json')).toBe(
       '/home/a/.config/ccstatusline/settings.json',
     );
-    expect(win('C:\\Users\\RUNNER~1\\cc.json')).toBe('C:\\Users\\RUNNER~1\\cc.json');
+  });
+
+  it('always double-quotes on Windows so Git Bash keeps backslashes and PowerShell commas', () => {
+    expect(win('C:\\Users\\RUNNER~1\\cc.json')).toBe('"C:\\Users\\RUNNER~1\\cc.json"');
+    expect(win('C:\\Users\\me\\.config\\cship.toml')).toBe('"C:\\Users\\me\\.config\\cship.toml"');
+    expect(win('C:\\Users\\a,b\\x.json')).toBe('"C:\\Users\\a,b\\x.json"');
   });
 
   it('single-quotes anything else on POSIX so nothing expands', () => {
@@ -247,7 +250,9 @@ describe('runImport confirmation', () => {
       t('import.targetsHeader'),
       '  command: echo hi',
       t('import.targetsDropped', { count: 1 }),
-      t('import.rerun', { command: `ccinfobar import ccstatusline --allow-commands --force --file ${src}` }),
+      t('import.rerun', {
+        command: `ccinfobar import ccstatusline --allow-commands --force --file ${shellArg(src)}`,
+      }),
     ]);
     expect(f.lines[4]).toMatch(/^✓ Imported 1 widgets from ccstatusline \(/);
     expect(f.lines.slice(5)).toEqual([
@@ -283,7 +288,7 @@ describe('runImport confirmation', () => {
       const src = path.join(root, ' with space', 'cc.json');
       expect(f.lines).toContain(
         t('import.rerun', {
-          command: `ccinfobar import ccstatusline --allow-commands --force --file ${quoted(src)}`,
+          command: `ccinfobar import ccstatusline --allow-commands --force --file ${shellArg(src)}`,
         }),
       );
       expect(items(cfg)).toEqual(['text']);
@@ -395,7 +400,7 @@ describe('import --dry-run', () => {
     expect(fs.readdirSync(path.dirname(cfg))).toEqual(['config.json']);
     expect(f.lines).toContain(
       t('import.rerun', {
-        command: `ccinfobar import ccstatusline --allow-commands --force --file ${src} --dry-run`,
+        command: `ccinfobar import ccstatusline --allow-commands --force --file ${shellArg(src)} --dry-run`,
       }),
     );
     const head = f.lines.indexOf(t('import.dryRunHeader'));

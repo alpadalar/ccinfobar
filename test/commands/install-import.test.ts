@@ -81,7 +81,7 @@ describe('install import offer', () => {
     expect(f.lines).toContain('  command: echo hi');
     expect(f.lines).toContain(
       t('import.rerun', {
-        command: `ccinfobar import ccstatusline --allow-commands --force --file ${ccFile}`,
+        command: `ccinfobar import ccstatusline --allow-commands --force --file ${shellArg(ccFile)}`,
       }),
     );
   });

@@ -91,14 +91,13 @@ const TARGET_INDENT = '      ';
 const NO_FLAGS: ImportFlags = { allowCommands: false, yes: false, dryRun: false };
 
 const POSIX_SAFE = /^[\w@%+=:,./][\w@%+=:,./~-]*$/;
-const WIN_SAFE = /^[\w@+=:,./\\~-]+$/;
 // cmd and PowerShell expand these inside double quotes
 const WIN_BAD = /["%!`$]/;
 
-// null when the path cannot be pasted safely
+// null when the path cannot be pasted safely; on Windows always quoted, for Git Bash and PowerShell
 export function shellArg(s: string, platform: NodeJS.Platform = process.platform): string | null {
   if (!s || sanitizeText(s) !== s) return null;
-  if (platform === 'win32') return WIN_SAFE.test(s) ? s : WIN_BAD.test(s) ? null : `"${s}"`;
+  if (platform === 'win32') return WIN_BAD.test(s) ? null : `"${s}"`;
   return POSIX_SAFE.test(s) ? s : `'${s.replace(/'/g, "'\\''")}'`;
 }
 
