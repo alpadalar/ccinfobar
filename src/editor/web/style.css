@@ -235,30 +235,21 @@ button:disabled {
 }
 
 .logo {
-  display: grid;
-  gap: 0.15625rem;
-  width: 1.375rem;
-  padding: 0.3125rem 0.25rem;
-  border-radius: 0.4375rem;
-  background: var(--surface-3);
-  box-shadow: inset 0 0 0 0.0625rem var(--line);
-}
-
-.logo i {
   display: block;
-  height: 0.15625rem;
-  border-radius: 0.125rem;
-  background: var(--accent);
+  width: 1.375rem;
+  height: 1.375rem;
+  flex: none;
 }
 
-.logo i:nth-child(2) {
-  width: 65%;
-  opacity: 0.75;
+.logo-tile {
+  fill: var(--surface-3);
+  stroke: var(--line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
-.logo i:nth-child(3) {
-  width: 85%;
-  opacity: 0.5;
+.logo-ink {
+  fill: var(--accent);
 }
 
 .brand-version {

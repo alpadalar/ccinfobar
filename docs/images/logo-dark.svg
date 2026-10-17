@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="t">
+  <title id="t">ccinfobar</title>
+  <rect width="64" height="64" rx="16" fill="#131317"/>
+  <g fill="#E8895A">
+    <circle cx="15" cy="20" r="3.5"/>
+    <rect x="22" y="17" width="20" height="6" rx="3" opacity="0.7"/>
+    <rect x="10" y="29" width="44" height="10" rx="5" opacity="0.22"/>
+    <rect x="10" y="29" width="30" height="10" rx="5"/>
+    <rect x="10" y="45" width="24" height="5" rx="2.5" opacity="0.45"/>
+  </g>
+</svg>
