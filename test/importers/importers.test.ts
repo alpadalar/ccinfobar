@@ -220,6 +220,31 @@ describe('legacy command flags', () => {
   });
 });
 
+describe('legacy importers home', () => {
+  it('read the injected home, not the process home', () => {
+    const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-home-')));
+    onTestFinished(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const home = path.join(dir, 'home');
+    const put = (rel: string, text: string) => {
+      const file = path.join(home, ...rel.split('/'));
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, text);
+      return file;
+    };
+    const env = { HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: path.join(dir, 'claude') };
+    expect(path.resolve(os.homedir())).not.toBe(home);
+    const ccline = put('.claude/ccline/config.toml', '[style]\nmode = "plain"\n');
+    expect(importFrom('ccometixline', { env, cwd: dir }).file).toBe(ccline);
+    const cc = put('.config/ccstatusline/settings.json', '{"lines": [[{"id": "m", "type": "model"}]]}\n');
+    expect(importFrom('ccstatusline', { env, cwd: dir }).file).toBe(cc);
+    const pl = put('.config/claude-powerline/config.json', '{}\n');
+    expect(importFrom('claude-powerline', { env, cwd: dir }).file).toBe(pl);
+    const named = put('pl.json', '{}\n');
+    const command = 'claude-powerline --config ~/pl.json';
+    expect(importFrom('claude-powerline', { command, env, cwd: dir }).file).toBe(named);
+  });
+});
+
 describe('detectTool', () => {
   it('recognises known status lines', () => {
     expect(detectTool('/home/u/.npm-global/bin/ccstatusline')).toMatchObject({

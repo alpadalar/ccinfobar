@@ -1,6 +1,5 @@
 import '../core/i18n/lazy.js';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { defaultConfig, normalizeConfig } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
@@ -17,6 +16,7 @@ import { importClaudePowerline, isPowerline, parsePowerlineArgs } from './claude
 import { importCship, isCship, parseCshipConfigFlag } from './cship.js';
 import {
   expand,
+  homeOf,
   isFile,
   isPlainFile,
   readJson,
@@ -210,8 +210,9 @@ const isCcstatusline = isBin('ccstatusline', 'ccstatusline-zh');
 
 export function ccstatuslinePath(env: NodeJS.ProcessEnv = process.env, command = ''): string {
   const flag = flagValue(toolArgs(commandArgs(command), isCcstatusline) ?? [], ['--config']);
-  if (flag) return expand(flag);
-  const base = env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config');
+  const home = homeOf(env);
+  if (flag) return expand(flag, home);
+  const base = env.XDG_CONFIG_HOME ?? path.join(home, '.config');
   return path.join(base, 'ccstatusline', 'settings.json');
 }
 
@@ -221,12 +222,13 @@ export function powerlinePaths(
   cwd = process.cwd(),
 ): string[] {
   const args = parsePowerlineArgs(command);
-  if (args.config) return [expand(args.config)];
-  if (env.CLAUDE_POWERLINE_CONFIG) return [expand(env.CLAUDE_POWERLINE_CONFIG)];
+  const home = homeOf(env);
+  if (args.config) return [expand(args.config, home)];
+  if (env.CLAUDE_POWERLINE_CONFIG) return [expand(env.CLAUDE_POWERLINE_CONFIG, home)];
   return [
     path.join(cwd, '.claude-powerline.json'),
     path.join(claudeDir(env), 'claude-powerline.json'),
-    path.join(os.homedir(), '.config', 'claude-powerline', 'config.json'),
+    path.join(home, '.config', 'claude-powerline', 'config.json'),
   ];
 }
 
@@ -252,7 +254,7 @@ export function cshipDiscover(opts: {
 }): CshipFound | null {
   const flag = parseCshipConfigFlag(opts.command);
   if (flag) {
-    const file = path.resolve(opts.cwd, expand(flag));
+    const file = path.resolve(opts.cwd, expand(flag, homeOf(opts.env)));
     return { file, table: cshipTable(file), note: null };
   }
   const home = [opts.env.CLAUDE_HOME, opts.env.HOME, opts.env.USERPROFILE].find((h) => h);
@@ -272,7 +274,7 @@ export function cshipDiscover(opts: {
     const starship = path.join(home, '.config', 'starship.toml');
     if (isFile(starship)) return { file: starship, table: 'cship-only', note: null };
   }
-  const env = opts.env.STARSHIP_CONFIG ? expand(opts.env.STARSHIP_CONFIG) : '';
+  const env = opts.env.STARSHIP_CONFIG ? expand(opts.env.STARSHIP_CONFIG, homeOf(opts.env)) : '';
   if (env && path.isAbsolute(env) && isFile(env)) {
     return { file: env, table: 'cship-only', note: 'starship-config' };
   }
@@ -306,7 +308,7 @@ export function hudPaths(env: NodeJS.ProcessEnv = process.env): {
   config: string;
   override: string;
 } {
-  const home = os.homedir();
+  const home = homeOf(env);
   const raw = env.CLAUDE_CONFIG_DIR?.trim();
   const tilde = raw === '~' ? home : raw && /^~[\\/]/.test(raw) ? path.join(home, raw.slice(2)) : raw;
   const dir = tilde ? path.resolve(tilde) : path.join(home, '.claude');
@@ -422,10 +424,10 @@ function importLegacy(
     return { ...importCcstatusline(raw), file };
   }
   if (source === 'ccometixline') {
-    return importCclineFamily(opts.file, { command, home: os.homedir() }, CCOMETIXLINE);
+    return importCclineFamily(opts.file, { command, home: homeOf(env) }, CCOMETIXLINE);
   }
   if (source === 'claude-hud') return importHud(opts.file, command, env);
-  const files = opts.file ? [opts.file] : powerlinePaths(env, command);
+  const files = opts.file ? [opts.file] : powerlinePaths(env, command, opts.cwd ?? process.cwd());
   const file = files.find(isFile) ?? null;
   const raw = file ? readJson(file) : {};
   if (file && raw === null) throw new Error(t('import.cannotParse', { file }));
