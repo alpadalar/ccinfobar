@@ -105,6 +105,8 @@ export const importMessages = {
   'import.note.envFlagsIgnored':
     '{tool} geçersiz kılmaları ({names}) okunmadı; yalnızca yapılandırma dosyası içe aktarıldı',
   'import.note.toolDisabled': '{tool} kapalı ("enabled": false), satırları yine de içe aktarıldı',
+  'import.note.planUnknown': '{tool} planı "{name}" bilinmiyor, {plan} planı olarak içe aktarıldı',
+  'import.note.usageCacheTtl': '{tool} {name} içe aktarılmadı: ccinfobar kendi kullanım önbelleğini kullanır',
   'import.note.separatorMerged':
     '{tool} satırları farklı ayraçlar kullanıyor; artık her satır en sık kullanılan ayracı ({separator}) kullanıyor',
   'import.note.hudIgnored': '{file} bir JSON nesnesi değil, yok sayıldı',

@@ -17,6 +17,7 @@ import { TARGETS as CCS_TARGETS } from '../../src/importers/claude-code-statusli
 import { TARGETS as HUD_TARGETS } from '../../src/importers/claude-hud.js';
 import { TARGETS as PL_TARGETS } from '../../src/importers/claude-powerline.js';
 import { TARGETS as CSB_TARGETS } from '../../src/importers/claude-statusbar.js';
+import { TARGETS as CUH_TARGETS } from '../../src/importers/claude-ultimate-hud.js';
 import { TARGETS as CLAUDEBAR_TARGETS } from '../../src/importers/claudebar.js';
 import { sanitizeImport } from '../../src/importers/confirm.js';
 import { TARGETS as CORALLINE_TARGETS } from '../../src/importers/coralline.js';
@@ -245,6 +246,16 @@ const TOOLS: Tool[] = [
     hostileIn: 'notes',
     hostile: JSON.stringify({ [HOSTILE]: true, dir: true }),
     protoText: `{"__proto__": ${EVIL}, "constructor": true, "prototype": false, "dir": true, "summary": false}`,
+  },
+  {
+    source: 'claude-ultimate-hud',
+    targets: CUH_TARGETS,
+    fixtures: ['claude-ultimate-hud.json'],
+    ext: 'json',
+    hasDefault: true,
+    hostileIn: 'notes',
+    hostile: JSON.stringify({ plan: HOSTILE, language: HOSTILE }),
+    protoText: `{"__proto__": ${EVIL}, "plan": "pro", "display": {"__proto__": ${EVIL}, "constructor": false, "showTools": false}}`,
   },
   {
     source: 'cship',

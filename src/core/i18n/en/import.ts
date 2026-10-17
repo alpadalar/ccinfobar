@@ -101,6 +101,8 @@ export const importMessages = {
   'import.note.envFlagsIgnored':
     '{tool} overrides in {names} were not read; only its config file was imported',
   'import.note.toolDisabled': '{tool} is turned off ("enabled": false), its rows were imported anyway',
+  'import.note.planUnknown': '{tool} plan "{name}" is unknown, imported it as the {plan} plan',
+  'import.note.usageCacheTtl': '{tool} {name} was not imported: ccinfobar keeps its own usage cache',
   'import.note.separatorMerged':
     '{tool} lines use different separators; every line now uses the most common one, {separator}',
   'import.note.hudIgnored': '{file} is not a JSON object and was ignored',

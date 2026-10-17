@@ -50,6 +50,7 @@ export const IMPORT_SOURCES = [
   'coralline',
   'claude-statusbar',
   'nycu-cc-statusline',
+  'claude-ultimate-hud',
 ] as const;
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];

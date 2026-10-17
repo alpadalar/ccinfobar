@@ -1,0 +1,14 @@
+{
+  "language": "ko",
+  "plan": "enterprise",
+  "cache": {
+    "ttlSeconds": 30
+  },
+  "display": {
+    "showTools": true,
+    "showAgents": true,
+    "showTodos": false,
+    "showStats": false,
+    "showTokenBreakdown": true
+  }
+}
