@@ -1,17 +1,25 @@
 // admin review and moderation (D-09, R-08); every action is logged
 import { sanitizeText } from '../../core/sanitize.js';
 import { LIST_CAP, REPORT_REASON_MAX } from '../protocol.js';
-import { fail } from '../rules.js';
+import { fail, tombOf } from '../rules.js';
 import type { Env, WorkerDeps } from './env.js';
 import { json, readJsonBody } from './http.js';
+import { buckets, check } from './rate.js';
 import {
   approveStatements,
+  banStatements,
   dropPendingStatements,
+  entryStatus,
+  insertReport,
   type LogRow,
   noteSize,
+  openReports,
   pendingEntries,
+  publisherRow,
   readEntryRow,
   rebuildIndex,
+  removeStatements,
+  resolveStatements,
   reviewRow,
   writeConflict,
 } from './store.js';
@@ -22,16 +30,19 @@ const NOTE_BODY_CAP = 4096;
 const iso = (deps: WorkerDeps): string => new Date(deps.now()).toISOString();
 
 // numeric GitHub ids only; logins are display only (R-08)
-export const isAdmin = (env: Env, id: number): boolean =>
+const adminIds = (env: Env): string[] =>
   (env.ADMIN_GITHUB_IDS ?? '')
     .split(',')
     .map((s) => s.trim())
-    .includes(String(id));
+    .filter(Boolean);
+
+export const isAdmin = (env: Env, id: number): boolean => adminIds(env).includes(String(id));
 
 export async function adminOf(env: Env, req: Request): Promise<Publisher> {
   const who = await authPublisher(env.DB, req);
   if (!who) throw fail(401, 'unauthorized');
   if (!isAdmin(env, who.githubId)) throw fail(403, 'not-admin');
+  if (who.banned) throw fail(403, 'banned');
   return who;
 }
 
@@ -115,3 +126,96 @@ export const reject: AdminRoute = async (env, deps, req, who, p, s) => {
   }
   return json(200, { id: `${p}/${s}`, rejected: true });
 };
+
+const gone = (state: string): boolean => state === 'withdrawn' || state === 'removed';
+
+// a racing new version is retried into the tombstone, like withdraw
+export const remove: AdminRoute = async (env, deps, req, who, p, s) => {
+  const db = env.DB;
+  const log = await logFor(deps, req, who, 'remove', `${p}/${s}`);
+  for (let i = 0; i < 3; i++) {
+    const row = await readEntryRow(db, p, s);
+    if (!row) throw fail(404, 'not-found');
+    if (gone(row.state)) throw fail(409, 'conflict', 'entry is already gone');
+    try {
+      const tomb = tombOf(row.entry, log.at);
+      await noteSize(db, await db.batch(removeStatements(db, who.digest, tomb, row.version, log)));
+    } catch (err) {
+      if (writeConflict(err) !== 'guard') throw err;
+      await adminOf(env, req);
+      continue;
+    }
+    await rebuildIndex(db, log.at);
+    return json(200, { id: `${p}/${s}`, removed: true });
+  }
+  throw fail(409, 'conflict');
+};
+
+export async function setBan(
+  env: Env,
+  deps: WorkerDeps,
+  req: Request,
+  who: Publisher,
+  handle: string,
+  ban: boolean,
+): Promise<Response> {
+  const log = await logFor(deps, req, who, ban ? 'ban' : 'unban', handle);
+  const target = await publisherRow(env.DB, handle);
+  if (!target) throw fail(404, 'not-found');
+  const admins = adminIds(env);
+  if (ban && admins.includes(String(target.githubId))) throw fail(409, 'conflict', 'admins cannot be banned');
+  try {
+    await env.DB.batch(banStatements(env.DB, who.digest, handle, ban, admins, log));
+  } catch (err) {
+    if (writeConflict(err) !== 'guard') throw err;
+    await adminOf(env, req);
+    throw fail(409, 'conflict');
+  }
+  await rebuildIndex(env.DB, log.at);
+  return json(200, { handle, banned: ban });
+}
+
+const REPORT_BODY_CAP = 4096;
+
+export async function report(env: Env, deps: WorkerDeps, req: Request, p: string, s: string) {
+  const db = env.DB;
+  const raw = await readJsonBody(req, REPORT_BODY_CAP);
+  const who = await authPublisher(db, req);
+  if (!who) throw fail(401, 'unauthorized');
+  if (who.banned) throw fail(403, 'banned');
+  const r =
+    raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as { reason?: unknown }).reason : null;
+  if (typeof r !== 'string' || [...sanitizeText(r).trim()].length > REPORT_REASON_MAX) {
+    throw fail(400, 'invalid');
+  }
+  const reason = cleanText(r, REPORT_REASON_MAX);
+  if (!reason) throw fail(400, 'invalid');
+  const now = deps.now();
+  await check(db, `r:${who.handle}`, buckets(env).report, now);
+  const row = { publisher: p, slug: s, reporter: who.handle, reason, at: new Date(now).toISOString() };
+  const id = await insertReport(db, who.digest, row);
+  if (id !== null) return json(201, { id });
+  // the insert checked everything at once; find out which part failed
+  const again = await authPublisher(db, req);
+  if (!again) throw fail(401, 'unauthorized');
+  if (again.banned) throw fail(403, 'banned');
+  const e = await entryStatus(db, p, s);
+  if (e?.state !== 'live' || e.banned) throw fail(404, 'not-found');
+  throw fail(409, 'conflict', 'already reported');
+}
+
+export async function listReports(env: Env): Promise<Response> {
+  return json(200, { reports: await openReports(env.DB, LIST_CAP) });
+}
+
+export async function resolve(env: Env, deps: WorkerDeps, req: Request, who: Publisher, id: number) {
+  const log = await logFor(deps, req, who, 'resolve', `report/${id}`);
+  try {
+    await env.DB.batch(resolveStatements(env.DB, who.digest, id, log));
+  } catch (err) {
+    if (writeConflict(err) !== 'guard') throw err;
+    await adminOf(env, req);
+    throw fail(404, 'not-found');
+  }
+  return json(200, { id, resolved: true });
+}

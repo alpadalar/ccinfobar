@@ -611,3 +611,147 @@ export function dropPendingStatements(
     logStatement(db, log),
   ];
 }
+
+// fails the batch unless the condition holds inside it
+const requireSql = (cond: string): string =>
+  `SELECT json_extract(CASE WHEN ${cond} THEN '{}' ELSE 'x' END, '$') AS ok`;
+
+const ACTOR = `EXISTS (SELECT 1 FROM tokens t JOIN publishers p ON p.handle = t.handle
+  WHERE t.sha256 = ?1 AND p.banned_at IS NULL)`;
+
+// the token is still valid and its publisher not banned, in the same batch
+export const requireActor = (db: D1Database, digest: string): D1PreparedStatement =>
+  db.prepare(requireSql(ACTOR)).bind(digest);
+
+export function removeStatements(
+  db: D1Database,
+  digest: string,
+  tomb: StoredEntry,
+  expected: number,
+  log: LogRow,
+): D1PreparedStatement[] {
+  const [p, s] = idOf(tomb);
+  return [
+    requireActor(db, digest),
+    ...withdrawStatements(db, tomb, expected, 'removed'),
+    db
+      .prepare(
+        'UPDATE reports SET resolved_at = ?3 WHERE publisher = ?1 AND slug = ?2 AND resolved_at IS NULL',
+      )
+      .bind(p, s, tomb.updatedAt),
+    logStatement(db, log),
+  ];
+}
+
+export async function publisherRow(
+  db: D1Database,
+  handle: string,
+): Promise<{ githubId: number; banned: boolean } | null> {
+  const row = await db
+    .prepare('SELECT github_id, banned_at IS NOT NULL AS banned FROM publishers WHERE handle = ?1')
+    .bind(handle)
+    .first<{ github_id: number; banned: number }>();
+  return row ? { githubId: Number(row.github_id), banned: !!row.banned } : null;
+}
+
+// admins are never banned; the first ban time stays
+export function banStatements(
+  db: D1Database,
+  digest: string,
+  handle: string,
+  ban: boolean,
+  admins: string[],
+  log: LogRow,
+): D1PreparedStatement[] {
+  return [
+    requireActor(db, digest),
+    db
+      .prepare(
+        `UPDATE publishers SET banned_at = CASE WHEN ?3 = 1 THEN COALESCE(banned_at, ?2) ELSE NULL END
+         WHERE handle = ?1 AND (?3 = 0 OR CAST(github_id AS TEXT) NOT IN (SELECT value FROM json_each(?4)))`,
+      )
+      .bind(handle, log.at, ban ? 1 : 0, JSON.stringify(admins)),
+    db.prepare(GUARD),
+    logStatement(db, log),
+    bumpGen(db),
+  ];
+}
+
+export async function entryStatus(
+  db: D1Database,
+  p: string,
+  s: string,
+): Promise<{ state: EntryState; banned: boolean } | null> {
+  const row = await db
+    .prepare(
+      `SELECT e.state AS state, p.banned_at IS NOT NULL AS banned
+       FROM entries e LEFT JOIN publishers p ON p.handle = e.publisher WHERE e.publisher = ?1 AND e.slug = ?2`,
+    )
+    .bind(p, s)
+    .first<{ state: EntryState; banned: number }>();
+  return row ? { state: row.state, banned: !!row.banned } : null;
+}
+
+export interface NewReport {
+  publisher: string;
+  slug: string;
+  reporter: string;
+  reason: string;
+  at: string;
+}
+
+// null when the reporter, the entry or the uniqueness check stops it
+export async function insertReport(db: D1Database, digest: string, r: NewReport): Promise<number | null> {
+  const id = await db
+    .prepare(
+      `INSERT INTO reports (publisher, slug, reporter, reason, created_at)
+       SELECT ?2, ?3, ?4, ?5, ?6 WHERE ${ACTOR}
+         AND EXISTS (SELECT 1 FROM entries e JOIN publishers p ON p.handle = e.publisher
+           WHERE e.publisher = ?2 AND e.slug = ?3 AND e.state = 'live' AND p.banned_at IS NULL)
+       ON CONFLICT DO NOTHING RETURNING id`,
+    )
+    .bind(digest, r.publisher, r.slug, r.reporter, r.reason, r.at)
+    .first<number>('id');
+  return id === null ? null : Number(id);
+}
+
+export async function openReports(
+  db: D1Database,
+  cap: number,
+): Promise<{ id: number; entry: string; reporter: string; reason: string; createdAt: string }[]> {
+  const rows = await db
+    .prepare(
+      `SELECT id, publisher, slug, reporter, reason, created_at FROM reports WHERE resolved_at IS NULL
+       ORDER BY created_at DESC, id DESC LIMIT ?1`,
+    )
+    .bind(cap)
+    .all<{
+      id: number;
+      publisher: string;
+      slug: string;
+      reporter: string;
+      reason: string;
+      created_at: string;
+    }>();
+  return rows.results.map((r) => ({
+    id: Number(r.id),
+    entry: `${r.publisher}/${r.slug}`,
+    reporter: String(r.reporter),
+    reason: String(r.reason),
+    createdAt: String(r.created_at),
+  }));
+}
+
+export function resolveStatements(
+  db: D1Database,
+  digest: string,
+  id: number,
+  log: LogRow,
+): D1PreparedStatement[] {
+  return [
+    requireActor(db, digest),
+    db.prepare('UPDATE reports SET resolved_at = COALESCE(resolved_at, ?2) WHERE id = ?1').bind(id, log.at),
+    db.prepare(GUARD),
+    logStatement(db, log),
+  ];
+}

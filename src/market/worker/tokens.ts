@@ -7,6 +7,7 @@ export interface Publisher {
   githubId: number;
   trusted: boolean;
   banned: boolean;
+  digest: string;
 }
 
 const hex = (b: Uint8Array): string => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
@@ -23,5 +24,7 @@ export function randomToken(): string {
 export async function authPublisher(db: D1Database, req: Request): Promise<Publisher | null> {
   const m = TOKEN_RE.exec(req.headers.get('authorization') ?? '');
   if (!m) return null;
-  return tokenPublisher(db, await sha256Hex(m[1]!));
+  const digest = await sha256Hex(m[1]!);
+  const who = await tokenPublisher(db, digest);
+  return who ? { ...who, digest } : null;
 }

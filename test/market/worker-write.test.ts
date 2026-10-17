@@ -171,6 +171,7 @@ describe.skipIf(!hasSqlite)('worker writes', () => {
         githubId: 7,
         trusted: true,
         banned: false,
+        digest: await sha256Hex(token),
       });
       expect(await authPublisher(db, req())).toBeNull();
       expect(await authPublisher(db, req(`Bearer ${'f'.repeat(64)}`))).toBeNull();

@@ -4,10 +4,16 @@ import {
   adminActionPath,
   adminEntryPath,
   adminPendingPath,
+  adminPublisherPath,
+  adminReportsPath,
+  adminResolvePath,
   parseIndex,
   parseMe,
   parsePending,
+  parseRemoteEntry,
+  parseReports,
   parseReview,
+  reportPath,
 } from '../../src/market/protocol.js';
 import type { D1Database, D1PreparedStatement, Env } from '../../src/market/worker/env.js';
 import { createHandler } from '../../src/market/worker/handler.js';
@@ -230,7 +236,7 @@ describe.skipIf(!hasSqlite)('worker review of new publishers', () => {
       code: 'conflict',
     });
     expect((await s.get('/v1/entries/pub/one.json')).status).toBe(200);
-    for (const a of ['approve', 'reject'] as const) {
+    for (const a of ['approve', 'reject', 'remove'] as const) {
       expect(await error(await s.call('POST', action('pub/nope', a), { token: admin }))).toEqual({
         status: 404,
         code: 'not-found',
@@ -282,6 +288,11 @@ describe.skipIf(!hasSqlite)('worker review of new publishers', () => {
       ['GET', adminEntryPath('pub/one')],
       ['POST', action('pub/one', 'approve')],
       ['POST', action('pub/one', 'reject')],
+      ['POST', action('pub/one', 'remove')],
+      ['POST', adminPublisherPath('pub', 'ban')],
+      ['POST', adminPublisherPath('pub', 'unban')],
+      ['GET', adminReportsPath()],
+      ['POST', adminResolvePath(1)],
     ];
     for (const [m, p] of routes) {
       expect(await error(await s.call(m, p)), p).toEqual({ status: 401, code: 'unauthorized' });
@@ -364,6 +375,10 @@ describe.skipIf(!hasSqlite)('worker review of new publishers', () => {
       ['GET', adminEntryPath('pub/a')],
       ['POST', action('pub/a', 'approve')],
       ['POST', action('pub/b', 'reject')],
+      ['POST', action('pub/a', 'remove')],
+      ['POST', adminPublisherPath('pub', 'ban')],
+      ['POST', adminPublisherPath('pub', 'unban')],
+      ['GET', adminReportsPath()],
     ] as const) {
       const r = await s.call(m, p, { token: admin });
       expect(r.status, p).toBe(200);
@@ -380,5 +395,272 @@ describe.skipIf(!hasSqlite)('worker review of new publishers', () => {
     expect((await s.call('POST', '/v1/admin/entries/Bad/x/approve')).status).toBe(401);
     expect((await s.call('POST', '/v1/admin/entries/a/b/frobnicate', { token: admin })).status).toBe(404);
     expect((await s.call('DELETE', adminPendingPath(), { token: admin })).status).toBe(404);
+  });
+});
+
+describe.skipIf(!hasSqlite)('worker moderation', () => {
+  // a trusted publisher with live entries
+  async function live(vars: Partial<Env> = {}, slugs = ['one', 'two']) {
+    const s = await setup(vars);
+    const pub = await s.signIn('pub');
+    const admin = await s.signIn('admin');
+    const other = await s.signIn('other');
+    const [first, ...rest] = slugs;
+    await s.call('POST', '/v1/entries', { token: pub, body: publishBody(first!) });
+    expect((await s.call('POST', action(`pub/${first}`, 'approve'), { token: admin })).status).toBe(200);
+    for (const slug of rest) {
+      expect((await s.call('POST', '/v1/entries', { token: pub, body: publishBody(slug) })).status).toBe(201);
+    }
+    return { ...s, pub, admin, other };
+  }
+  const reportOf = (s: Awaited<ReturnType<typeof live>>, id: string, reason: unknown, token = s.other) =>
+    s.call('POST', reportPath(id), { token, body: { reason } });
+
+  it('remove leaves a blanked tombstone, NULL bodies, freed bytes and resolved reports', async () => {
+    const s = await live();
+    expect((await reportOf(s, 'pub/one', 'bad')).status).toBe(201);
+    expect((await reportOf(s, 'pub/two', 'other')).status).toBe(201);
+    const r = await s.call('POST', action('pub/one', 'remove'), { token: s.admin, body: { note: 'abuse' } });
+    expect(r.status).toBe(200);
+    expect(r.headers.get('cache-control')).toBe('no-store');
+    expect(await r.json()).toEqual({ id: 'pub/one', removed: true });
+    expect(await s.indexIds()).toEqual(['pub/two']);
+    const doc = await s.get('/v1/entries/pub/one.json');
+    expect(doc.status).toBe(200);
+    const e = parseRemoteEntry(doc.json)!;
+    expect(e).toMatchObject({ name: '', description: '', author: '', withdrawn: true });
+    expect(e.versions.every((v) => v.note === '')).toBe(true);
+    expect(JSON.stringify(doc.json)).not.toContain('Name one');
+    expect((await s.get('/v1/entries/pub/one/1.json')).status).toBe(410);
+    expect(((await s.entry('pub', 'one')) as { state: string }).state).toBe('removed');
+    expect((await s.versionRows('pub', 'one')).map((v) => v.body)).toEqual([null]);
+    const reports = (await s.rows('reports')) as Record<string, unknown>[];
+    expect(reports.map((x) => [x.slug, x.resolved_at === null])).toEqual([
+      ['one', false],
+      ['two', true],
+    ]);
+    const bytes = Number((await s.publisher('pub'))!.bytes);
+    const left = (await s.versionRows('pub', 'two')).reduce(
+      (n, v) => n + new TextEncoder().encode(String(v.body)).length,
+      0,
+    );
+    expect(bytes).toBe(left);
+    expect(
+      await error(await s.call('POST', '/v1/entries', { token: s.pub, body: publishBody('one') })),
+    ).toEqual({
+      status: 409,
+      code: 'conflict',
+    });
+    expect(await error(await s.call('POST', action('pub/one', 'remove'), { token: s.admin }))).toEqual({
+      status: 409,
+      code: 'conflict',
+    });
+    expect((await s.get(adminEntryPath('pub/one'), s.admin)).status).toBe(410);
+    const log = (await s.rows('moderation')) as Record<string, unknown>[];
+    expect(log.at(-1)).toMatchObject({
+      admin: 'alpadalar',
+      action: 'remove',
+      target: 'pub/one',
+      note: 'abuse',
+    });
+  });
+
+  it('remove also takes a pending entry', async () => {
+    const s = await setup();
+    const pub = await s.signIn('pub');
+    const admin = await s.signIn('admin');
+    await s.call('POST', '/v1/entries', { token: pub, body: publishBody('wait') });
+    expect((await s.call('POST', action('pub/wait', 'remove'), { token: admin })).status).toBe(200);
+    expect(((await s.entry('pub', 'wait')) as { state: string }).state).toBe('removed');
+    expect(parsePending((await s.get(adminPendingPath(), admin)).json)?.entries).toEqual([]);
+    expect(parseMe((await s.get('/v1/me', pub)).json)?.entries).toEqual([]);
+  });
+
+  it('ban hides the entries and stops writes until unban', async () => {
+    const s = await live();
+    const before = (await s.get('/v1/index.json')).headers.get('etag');
+    const b = await s.call('POST', adminPublisherPath('pub', 'ban'), {
+      token: s.admin,
+      body: { note: 'spam' },
+    });
+    expect(b.status).toBe(200);
+    expect(await b.json()).toEqual({ handle: 'pub', banned: true });
+    expect((await s.get('/v1/index.json')).headers.get('etag')).not.toBe(before);
+    expect(await s.indexIds()).toEqual([]);
+    expect((await s.get('/v1/entries/pub/one.json')).status).toBe(404);
+    expect((await s.get('/v1/entries/pub/one/1.json')).status).toBe(404);
+    expect(
+      await error(await s.call('POST', '/v1/entries', { token: s.pub, body: publishBody('new') })),
+    ).toEqual({
+      status: 403,
+      code: 'banned',
+    });
+    expect((await s.call('DELETE', '/v1/entries/pub/one', { token: s.pub })).status).toBe(403);
+    expect((await reportOf(s, 'pub/one', 'x')).status).toBe(404);
+    expect((await reportOf(s, 'other/x', 'x', s.pub)).status).toBe(403);
+    const at = (await s.publisher('pub'))!.banned_at;
+    expect(typeof at).toBe('string');
+    expect((await s.call('POST', adminPublisherPath('pub', 'ban'), { token: s.admin })).status).toBe(200);
+    expect((await s.publisher('pub'))!.banned_at).toBe(at);
+
+    const u = await s.call('POST', adminPublisherPath('pub', 'unban'), { token: s.admin });
+    expect(u.status).toBe(200);
+    expect(await u.json()).toEqual({ handle: 'pub', banned: false });
+    expect(await s.indexIds()).toEqual(['pub/one', 'pub/two']);
+    expect((await s.get('/v1/entries/pub/one.json')).status).toBe(200);
+    expect((await s.call('POST', '/v1/entries', { token: s.pub, body: publishBody('new') })).status).toBe(
+      201,
+    );
+    const log = (await s.rows('moderation')) as Record<string, unknown>[];
+    expect(log.slice(-3).map((r) => [r.action, r.target, r.note])).toEqual([
+      ['ban', 'pub', 'spam'],
+      ['ban', 'pub', ''],
+      ['unban', 'pub', ''],
+    ]);
+  });
+
+  it('never bans an admin and answers 404 for unknown publishers', async () => {
+    const s = await live({ ADMIN_GITHUB_IDS: `${ADMIN_ID},12` });
+    expect(
+      await error(await s.call('POST', adminPublisherPath('alpadalar', 'ban'), { token: s.admin })),
+    ).toEqual({
+      status: 409,
+      code: 'conflict',
+    });
+    expect(await error(await s.call('POST', adminPublisherPath('other', 'ban'), { token: s.admin }))).toEqual(
+      {
+        status: 409,
+        code: 'conflict',
+      },
+    );
+    expect(
+      await error(await s.call('POST', adminPublisherPath('nobody', 'ban'), { token: s.admin })),
+    ).toEqual({
+      status: 404,
+      code: 'not-found',
+    });
+    expect((await s.call('POST', '/v1/admin/publishers/Bad/ban', { token: s.admin })).status).toBe(400);
+    expect((await s.call('POST', '/v1/admin/publishers/pub/mute', { token: s.admin })).status).toBe(404);
+    expect((await s.publisher('alpadalar'))!.banned_at).toBeNull();
+  });
+
+  it('takes one short sanitized report per entry and reporter', async () => {
+    const s = await live({}, ['one', 'two', 'three']);
+    const r = await reportOf(s, 'pub/one', '  spam  ');
+    expect(r.status).toBe(201);
+    expect(r.headers.get('cache-control')).toBe('no-store');
+    const { id } = (await r.json()) as { id: number };
+    expect(Number.isSafeInteger(id)).toBe(true);
+    expect(((await s.rows('reports')) as Record<string, unknown>[])[0]).toMatchObject({
+      id,
+      publisher: 'pub',
+      slug: 'one',
+      reporter: 'other',
+      reason: 'spam',
+      resolved_at: null,
+    });
+    expect(await error(await reportOf(s, 'pub/one', 'again'))).toEqual({ status: 409, code: 'conflict' });
+    for (const bad of ['', '   ', 'x'.repeat(201), 5, null, '\u001b[31m\u001b[0m']) {
+      expect(await error(await reportOf(s, 'pub/two', bad)), String(bad)).toEqual({
+        status: 400,
+        code: 'invalid',
+      });
+    }
+    expect(await error(await s.call('POST', reportPath('pub/two'), { token: s.other, body: '[1]' }))).toEqual(
+      {
+        status: 400,
+        code: 'invalid',
+      },
+    );
+    expect((await reportOf(s, 'pub/two', `\u001b[31m${'y'.repeat(200)}\u001b[0m`)).status).toBe(201);
+    expect((await reportOf(s, 'pub/three', 'x', s.pub)).status).toBe(201);
+    expect(await error(await reportOf(s, 'pub/nope', 'x'))).toEqual({ status: 404, code: 'not-found' });
+    expect(await error(await s.call('POST', reportPath('pub/one'), { body: { reason: 'x' } }))).toEqual({
+      status: 401,
+      code: 'unauthorized',
+    });
+    expect(
+      (await s.call('POST', '/v1/entries/Bad/x/reports', { token: s.other, body: { reason: 'x' } })).status,
+    ).toBe(400);
+  });
+
+  it('reports only reach live entries', async () => {
+    const s = await live();
+    await s.call('POST', '/v1/entries', { token: s.other, body: publishBody('wait') });
+    expect(await error(await reportOf(s, 'other/wait', 'x', s.pub))).toEqual({
+      status: 404,
+      code: 'not-found',
+    });
+    await s.call('DELETE', '/v1/entries/pub/two', { token: s.pub });
+    expect(await error(await reportOf(s, 'pub/two', 'x'))).toEqual({ status: 404, code: 'not-found' });
+    expect(await s.rows('reports')).toEqual([]);
+  });
+
+  it('rate limits reports per reporter', async () => {
+    const s = await live({ REPORT_LIMIT: '1' });
+    expect((await reportOf(s, 'pub/one', 'x')).status).toBe(201);
+    const r = await reportOf(s, 'pub/two', 'y');
+    expect(r.status).toBe(429);
+    expect(Number(r.headers.get('retry-after'))).toBeGreaterThan(0);
+    expect((await reportOf(s, 'pub/two', 'y', s.admin)).status).toBe(201);
+    s.clock.advance(3_600_000);
+    expect((await reportOf(s, 'pub/two', 'y')).status).toBe(201);
+  });
+
+  it('admins list open reports newest first and resolve them', async () => {
+    const s = await live();
+    const third = await s.signIn('third');
+    await reportOf(s, 'pub/one', 'first');
+    s.clock.advance(1000);
+    await reportOf(s, 'pub/two', 'second', third);
+    const list = await s.get(adminReportsPath(), s.admin);
+    expect(list.status).toBe(200);
+    expect(list.headers.get('cache-control')).toBe('no-store');
+    const parsed = parseReports(list.json)!;
+    expect(parsed.reports.map((r) => [r.entry, r.reporter, r.reason])).toEqual([
+      ['pub/two', 'third', 'second'],
+      ['pub/one', 'other', 'first'],
+    ]);
+    expect(list.json).toEqual(parsed);
+    const id = parsed.reports[1]!.id;
+    const r = await s.call('POST', adminResolvePath(id), { token: s.admin, body: { note: 'checked' } });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ id, resolved: true });
+    expect(
+      parseReports((await s.get(adminReportsPath(), s.admin)).json)!.reports.map((x) => x.entry),
+    ).toEqual(['pub/two']);
+    expect((await s.call('POST', adminResolvePath(id), { token: s.admin })).status).toBe(200);
+    expect(await error(await s.call('POST', adminResolvePath(999), { token: s.admin }))).toEqual({
+      status: 404,
+      code: 'not-found',
+    });
+    expect((await s.call('POST', '/v1/admin/reports/0/resolve', { token: s.admin })).status).toBe(400);
+    const log = (await s.rows('moderation')) as Record<string, unknown>[];
+    expect(log.filter((x) => x.action === 'resolve').map((x) => [x.target, x.note])).toEqual([
+      [`report/${id}`, 'checked'],
+      [`report/${id}`, ''],
+    ]);
+  });
+
+  it('keeps no IP address and no GitHub token in reports or the log', async () => {
+    const s = await live();
+    await reportOf(s, 'pub/one', 'spam');
+    await s.call('POST', action('pub/one', 'remove'), { token: s.admin, body: { note: 'gone' } });
+    await s.call('POST', adminPublisherPath('pub', 'ban'), { token: s.admin });
+    const text = JSON.stringify([await s.rows('reports'), await s.rows('moderation')]);
+    expect(text).not.toContain(IP);
+    for (const t of Object.values(GH)) expect(text).not.toContain(t);
+    for (const t of [s.pub, s.admin, s.other]) expect(text).not.toContain(t);
+    const cols = (table: string) =>
+      s.db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all<{ name: string }>();
+    expect((await cols('reports')).results.map((c) => c.name)).toEqual([
+      'id',
+      'publisher',
+      'slug',
+      'reporter',
+      'reason',
+      'created_at',
+      'resolved_at',
+    ]);
   });
 });

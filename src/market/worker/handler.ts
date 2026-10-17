@@ -1,5 +1,6 @@
 import {
   adminPendingPath,
+  adminReportsPath,
   authGithubPath,
   entriesPath,
   indexPath,
@@ -29,7 +30,19 @@ import {
 import { logout, me, signInWithGitHub } from './auth.js';
 import { type D1Database, type Env, intVar, overwriteOn, publisherBytes, type WorkerDeps } from './env.js';
 import { errorResponse, etagMatches, json, notModified, PUBLIC_HEADERS, publicJson } from './http.js';
-import { type AdminRoute, adminOf, approve, listPending, reject, review } from './moderation.js';
+import {
+  type AdminRoute,
+  adminOf,
+  approve,
+  listPending,
+  listReports,
+  reject,
+  remove,
+  report,
+  resolve,
+  review,
+  setBan,
+} from './moderation.js';
 import { landingPage } from './page.js';
 import { buckets, check, ipHash, readAllowed } from './rate.js';
 import { indexEtag, readEntryDoc, readIndexPage, readVersionDoc } from './store.js';
@@ -67,7 +80,10 @@ const gone = (state: string): boolean => state === 'withdrawn' || state === 'rem
 
 const ADMIN_ENTRY_RE = /^\/v1\/admin\/entries\/([^/]+)\/([^/]+)$/;
 const ADMIN_ACTION_RE = /^\/v1\/admin\/entries\/([^/]+)\/([^/]+)\/([a-z]+)$/;
-const ADMIN_ACTIONS: Record<string, AdminRoute> = { approve, reject };
+const ADMIN_ACTIONS: Record<string, AdminRoute> = { approve, reject, remove };
+const BAN_RE = /^\/v1\/admin\/publishers\/([^/]+)\/(ban|unban)$/;
+const RESOLVE_RE = /^\/v1\/admin\/reports\/([^/]+)\/resolve$/;
+const REPORT_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)\/reports$/;
 
 // one generation tag covers every page, so a match never reads a body
 async function indexPage(db: D1Database, n: number, inm: string | null): Promise<Response> {
@@ -122,6 +138,10 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
       await adminOf(env, req);
       return listPending(env);
     }
+    if (p === adminReportsPath()) {
+      await adminOf(env, req);
+      return listReports(env);
+    }
     const e = ADMIN_ENTRY_RE.exec(p);
     if (!e) throw fail(404, 'not-found');
     await adminOf(env, req);
@@ -129,6 +149,16 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
   }
 
   async function adminPost(req: Request, p: string): Promise<Response> {
+    const b = BAN_RE.exec(p);
+    if (b) {
+      const who = await adminOf(env, req);
+      return setBan(env, deps, req, who, part(b[1]!), b[2] === 'ban');
+    }
+    const r = RESOLVE_RE.exec(p);
+    if (r) {
+      const who = await adminOf(env, req);
+      return resolve(env, deps, req, who, versionNo(r[1]!));
+    }
     const a = ADMIN_ACTION_RE.exec(p);
     const fn = a && Object.hasOwn(ADMIN_ACTIONS, a[3]!) ? ADMIN_ACTIONS[a[3]!] : undefined;
     if (!a || !fn) throw fail(404, 'not-found');
@@ -165,6 +195,9 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
         await counted(req);
         return publish(env.DB, env, deps, req);
       }
+      // its own per-reporter bucket
+      const rp = REPORT_RE.exec(p);
+      if (rp) return report(env, deps, req, part(rp[1]!), part(rp[2]!));
       const v = VERSIONS_RE.exec(p);
       if (v) {
         const [pp, s] = [part(v[1]!), part(v[2]!)];
