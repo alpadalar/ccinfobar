@@ -3,10 +3,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import {
   InstallError,
   type InstallPlan,
+  installChanged,
   parseInstallRef,
   planInstall,
   runInstall,
 } from '../catalog/install.js';
+import { createLoginFlows, isFlowId } from '../catalog/login-flows.js';
 import type { CatalogEntry } from '../catalog/model.js';
 import {
   type PublishDeps,
@@ -27,9 +29,9 @@ import { forgetPublisher, listEntries, readCredential } from '../catalog/store.j
 import { type MessageId, t, withLanguage } from '../core/i18n/index.js';
 import { padVisible, visibleWidth } from '../core/width.js';
 import { kindText, MAX_TARGET_CHARS, visibleTarget, wrapLine } from '../importers/confirm.js';
-import { createMarketClient } from '../market/client.js';
+import { createMarketClient, MarketError } from '../market/client.js';
 import { VERIFY_URL } from '../market/github.js';
-import type { MarketSummary } from '../market/protocol.js';
+import { isRemoteId, type MarketSummary, REPORT_REASON_MAX } from '../market/protocol.js';
 // a static import of catalog.js keeps this chunk from splitting the render chunks
 import { type Ctx, clean, endpointOf, find, GROUPS, KINDS, kindWord, when } from './catalog.js';
 import { openBrowser } from './open.js';
@@ -85,8 +87,23 @@ export const reasonId = (code: string | null): MessageId =>
 export const reasonText = (code: string | null, status?: number): string =>
   t(reasonId(code), { status: status ?? '' });
 
-// the editor reaches publish.ts through this entry
-export { planHash, publishPlan, remoteList, remoteShow, reviewPublish, runPublish };
+// the editor reaches publish.ts, install.ts and sign-in through this entry
+export {
+  createLoginFlows,
+  InstallError,
+  installChanged,
+  isFlowId,
+  parseInstallRef,
+  planHash,
+  planInstall,
+  publishPlan,
+  remoteList,
+  remoteShow,
+  reviewPublish,
+  runInstall,
+  runPublish,
+  SignInError,
+};
 
 export const shownUrl = (url: string): string => visibleTarget(clean(url));
 
@@ -637,6 +654,16 @@ export async function runLogin(c: Ctx): Promise<void> {
 }
 
 // revoking is best effort; the local token goes either way
+export async function signOut(endpoint: string, fetchFn: typeof fetch, dir?: string): Promise<boolean> {
+  const token = readCredential(endpoint, dir);
+  if (token === null) return false;
+  try {
+    await createMarketClient({ endpoint, fetch: fetchFn, token }).logout();
+  } catch {}
+  forgetPublisher(endpoint, dir);
+  return true;
+}
+
 export async function runLogout(c: Ctx): Promise<void> {
   if (c.dryRun || c.args.positional.length > 1) {
     c.fail(t('catalog.usage'));
@@ -644,19 +671,46 @@ export async function runLogout(c: Ctx): Promise<void> {
   }
   const endpoint = noEndpoint(c);
   if (!endpoint) return;
-  const token = readCredential(endpoint, c.dir);
-  if (token !== null) {
-    try {
-      await createMarketClient({ endpoint, fetch: c.fetch ?? globalThis.fetch, token }).logout();
-    } catch {}
-    forgetPublisher(endpoint, c.dir);
-  }
+  const signedOut = await signOut(endpoint, c.fetch ?? globalThis.fetch, c.dir);
   if (c.json) {
-    jsonOut(c, { endpoint, signedOut: token !== null });
+    jsonOut(c, { endpoint, signedOut });
     return;
   }
   const where = { endpoint: shownUrl(endpoint) };
-  c.io.log(token !== null ? t('catalog.logout.done', where) : t('catalog.logout.none', where));
+  c.io.log(signedOut ? t('catalog.logout.done', where) : t('catalog.logout.none', where));
+}
+
+// the reason rule of catalog report: trimmed, 1 to REPORT_REASON_MAX code points
+export function reportReason(raw: unknown): string | null {
+  const reason = typeof raw === 'string' ? raw.trim() : '';
+  const size = [...reason].length;
+  return size < 1 || size > REPORT_REASON_MAX ? null : reason;
+}
+
+export type Reported =
+  | { reported: true; report: number }
+  | { reported: false; already: true }
+  | { reported: false; code: string; status?: number };
+
+// the editor's report; 'sign-in' when no token is stored
+export async function reportEntry(
+  endpoint: string,
+  id: string,
+  reason: string,
+  fetchFn: typeof fetch,
+  dir?: string,
+): Promise<Reported> {
+  if (!isRemoteId(id)) return { reported: false, code: 'invalid' };
+  const token = readCredential(endpoint, dir);
+  if (token === null) return { reported: false, code: 'sign-in' };
+  try {
+    const res = await createMarketClient({ endpoint, fetch: fetchFn, token }).report(id, reason);
+    return { reported: true, report: res.id };
+  } catch (err) {
+    if (!(err instanceof MarketError)) return { reported: false, code: 'unknown' };
+    if (err.code === 'conflict') return { reported: false, already: true };
+    return { reported: false, code: err.code, ...(err.status === null ? {} : { status: err.status }) };
+  }
 }
 
 // moderation and reports load only when asked for

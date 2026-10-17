@@ -16,6 +16,7 @@ import { contentFromConfig, themeFromConfig } from '../catalog/snapshot.js';
 import {
   adoptLegacy,
   CatalogStoreError,
+  DEFAULT_MARKETPLACE,
   deleteEntry,
   deleteLegacy,
   installEntryTheme,
@@ -23,7 +24,7 @@ import {
   type LegacyItem,
   listEntries,
   listLegacy,
-  marketEndpoint,
+  marketEndpointInfo,
   normalizeEntry,
   readCredential,
   readEntry,
@@ -107,7 +108,8 @@ import { gsdInstalled } from '../data/gsd.js';
 import { PROGRESS_EVENTS, progressChannel } from '../data/progress.js';
 import { requestClear } from '../data/progress-clear.js';
 import { writeAtomic } from '../data/store.js';
-import { ID_PART_RE } from '../market/protocol.js';
+import type { ImportTarget } from '../importers/confirm.js';
+import { ID_PART_RE, isRemoteId, REPORT_REASON_MAX } from '../market/protocol.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import type { TerminalColors } from './terminal-colors.js';
 
@@ -130,6 +132,12 @@ export interface EditorOptions {
   installKind?: () => InstallKind;
   fetchLatest?: (timeoutMs: number) => Promise<string>;
   detached?: { idleMs: number; stateFile: string; checkMs?: number; now?: () => number };
+  // tests inject the network and the clock of marketplace and GitHub calls
+  market?: {
+    fetch?: typeof fetch;
+    now?: () => number;
+    defaultEndpoint?: string | null;
+  };
 }
 
 export interface HooksInfo {
@@ -349,6 +357,8 @@ export interface EntrySummary {
   rev: number | null;
   share: { wanted: boolean; state: string } | null;
   remote: { id: string; version: number } | null;
+  // where a marketplace install came from
+  origin: { endpoint: string; id: string; version: number } | null;
   updatedAt: string | null;
   scenario: string | null;
   content: EntryContent;
@@ -361,6 +371,8 @@ const MAX_PREVIEWS = 100;
 const MAX_PUBLISH_REFS = 500;
 
 type Market = typeof import('../commands/catalog-market.js');
+type LoginFlows = ReturnType<Market['createLoginFlows']>;
+type InstallPlan = Awaited<ReturnType<Market['planInstall']>>;
 type PlanItem = ReturnType<Market['publishPlan']>[number];
 type Skip = { id: string; reason: 'not-shared' | 'up-to-date' | 'withdrawn' };
 
@@ -373,6 +385,83 @@ function marketError(code: string | null, id: MessageId, status?: number): HttpE
 }
 
 const clean = (v: unknown): string => sanitizeText(typeof v === 'string' ? v : '');
+const MAX_TARGETS = 1000;
+const TARGET_KINDS: readonly ImportTarget['kind'][] = ['command', 'http', 'link'];
+const FLOW_PATH = '/api/catalog/login/';
+
+// install codes; a pinned version that is missing has no HTTP status
+function installError(m: Market, err: unknown, id: string, version: number | null): HttpError {
+  const e = err instanceof m.InstallError ? err : new m.InstallError('unknown');
+  const vars = { id: clean(id), version: version ?? '' };
+  const code = { code: e.code };
+  if (e.code === 'no-endpoint') return httpError(409, 'err.catalog.noEndpoint');
+  if (e.code === 'bad-ref') return httpError(400, 'catalog.remote.badId', { ref: clean(id) });
+  if (e.code === 'not-found' && e.status === null && version !== null)
+    return httpError(404, 'err.catalog.install.noVersion', vars, code);
+  if (e.code === 'withdrawn') return httpError(410, 'err.catalog.install.withdrawn', vars, code);
+  if (e.code === 'not-found') return httpError(404, 'err.catalog.install.not-found', vars, code);
+  if (e.code === 'bad-content' || e.code === 'hash-mismatch')
+    return httpError(502, `err.catalog.install.${e.code}`, vars, code);
+  return marketError(e.code, m.reasonId(e.code), e.status ?? undefined);
+}
+
+function installView(p: InstallPlan) {
+  return {
+    id: p.id,
+    version: p.version,
+    hash: p.hash,
+    kind: p.kind,
+    name: clean(p.name),
+    description: clean(p.description),
+    author: clean(p.author),
+    publisher: clean(p.publisher),
+    targets: p.targets.map((x) => ({ kind: x.kind, target: x.target })),
+    existing: p.existing,
+  };
+}
+
+// what the browser reviewed; anything else is not a review
+function reviewedTargets(v: unknown): { kind: ImportTarget['kind']; target: string }[] | null {
+  if (!Array.isArray(v) || v.length > MAX_TARGETS) return null;
+  const out: { kind: ImportTarget['kind']; target: string }[] = [];
+  for (const x of v) {
+    const o = asObject(x);
+    if (!TARGET_KINDS.includes(o.kind as ImportTarget['kind']) || typeof o.target !== 'string') return null;
+    out.push({ kind: o.kind as ImportTarget['kind'], target: o.target });
+  }
+  return out;
+}
+
+// publisher/slug with an optional pinned version
+function installRef(body: Record<string, unknown>): { id: string; version: number | null; ref: string } {
+  const id = typeof body.id === 'string' ? body.id.trim() : '';
+  if (!isRemoteId(id)) throw httpError(400, 'catalog.remote.badId', { ref: clean(id) });
+  const v = body.version;
+  if (v !== undefined && v !== null && !(Number.isInteger(v) && (v as number) >= 1 && (v as number) < 1e9))
+    throw httpError(400, 'err.catalog.badRequest');
+  const version = typeof v === 'number' ? v : null;
+  return { id, version, ref: version === null ? id : `${id}@${version}` };
+}
+
+const SIGN_IN_ERRORS: Record<string, [number, MessageId]> = {
+  'no-endpoint': [409, 'err.catalog.noEndpoint'],
+  'bad-endpoint': [400, 'err.catalog.badEndpoint'],
+  'not-github': [409, 'err.catalog.signIn.notGithub'],
+  disabled: [409, 'err.catalog.signIn.disabled'],
+  failed: [502, 'err.catalog.signIn.failed'],
+};
+
+function signInError(m: Market, err: unknown): HttpError {
+  const e = err instanceof m.SignInError ? err : new m.SignInError('failed');
+  const known = Object.hasOwn(SIGN_IN_ERRORS, e.code) ? SIGN_IN_ERRORS[e.code]! : null;
+  if (known)
+    return httpError(known[0], known[1], undefined, {
+      code: e.code,
+      ...(e.tokenMode ? { tokenMode: true } : {}),
+    });
+  return marketError(e.code, m.reasonId(e.code), e.status ?? undefined);
+}
+
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 const isKind = (v: unknown): v is EntryKind => KINDS.includes(v as EntryKind);
 
@@ -415,11 +504,14 @@ function summaryOf(a: Found): EntrySummary {
       rev: e.rev,
       share: { wanted: e.share.wanted, state: shareState(e) },
       remote: remote ? { id: clean(remote.id), version: remote.version } : null,
+      origin: e.origin
+        ? { endpoint: clean(e.origin.endpoint), id: clean(e.origin.id), version: e.origin.version }
+        : null,
       updatedAt: e.updatedAt,
       scenario: null,
     };
   }
-  const fixed = { version: 1, rev: null, share: null, remote: null, updatedAt: null };
+  const fixed = { version: 1, rev: null, share: null, remote: null, origin: null, updatedAt: null };
   if (a.source === 'legacy') {
     const i = a.item;
     return {
@@ -605,13 +697,22 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   function catalogBody(lang: LanguageId) {
     return withLanguage(lang, () => {
       const all = allEntries();
-      const endpoint = marketEndpoint();
+      const info = endpointInfo();
+      const endpoint = info.url;
+      const handle = endpoint === null ? null : readPublisher(endpoint);
       return {
         system: all.filter((a) => a.source === 'system').map(summaryOf),
         user: all.filter((a) => a.source !== 'system').map(summaryOf),
         profile: { author: readProfile().author },
         endpoint: endpoint === null ? null : clean(endpoint),
         publishable: endpoint !== null,
+        // local files only (R-11)
+        market: {
+          endpoint: endpoint === null ? null : clean(endpoint),
+          source: info.source,
+          signedIn: endpoint !== null && readCredential(endpoint) !== null,
+          handle: handle === null ? null : clean(handle),
+        },
       };
     });
   }
@@ -665,9 +766,32 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
 
   // marketplace code loads only after the endpoint check
   const loadMarket = (): Promise<Market> => import('../commands/catalog-market.js');
+  const fallback =
+    opts.market?.defaultEndpoint !== undefined ? opts.market.defaultEndpoint : DEFAULT_MARKETPLACE;
+  function endpointInfo() {
+    return marketEndpointInfo(process.env, undefined, fallback);
+  }
+  // read at call time, so the global fetch can change
+  const marketFetch = (): typeof fetch => opts.market?.fetch ?? globalThis.fetch;
+  const marketNow = (): number => (opts.market?.now ?? Date.now)();
+  const marketDeps = () => ({
+    fetch: marketFetch(),
+    now: () => new Date(marketNow()),
+    defaultEndpoint: fallback,
+  });
+  // created on the first sign-in; holds device codes in memory only
+  let flows: LoginFlows | null = null;
+  const loginFlows = (m: Market): LoginFlows => {
+    flows ??= m.createLoginFlows({
+      fetch: (input, init) => marketFetch()(input, init),
+      now: marketNow,
+      defaultEndpoint: fallback,
+    });
+    return flows;
+  };
 
   function needEndpoint(): string {
-    const endpoint = marketEndpoint();
+    const endpoint = endpointInfo().url;
     if (!endpoint) throw httpError(409, 'err.catalog.noEndpoint');
     return endpoint;
   }
@@ -695,7 +819,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   async function publishView(endpoint: string, refs: unknown) {
     const { ids, skipped } = publishRefs(refs);
     const m = await loadMarket();
-    const review = await m.reviewPublish(ids);
+    const review = await m.reviewPublish(ids, marketDeps());
     if (review.code && review.code !== 'read-only')
       throw marketError(review.code, m.reasonId(review.code), review.status);
     const entries = listEntries().filter((e) => ids === null || ids.includes(e.id));
@@ -834,7 +958,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       if (parts.length !== 2 || !parts.every((p) => ID_PART_RE.test(p)))
         throw httpError(400, 'catalog.remote.badId', { ref: clean(parts.join('/') || raw.join('/')) });
       const m = await loadMarket();
-      const out = await m.remoteShow(parts.join('/'));
+      const out = await m.remoteShow(parts.join('/'), marketDeps());
       if (!out.entry) throw marketError(out.code, m.reasonId(out.code), out.status);
       const v = out.latest;
       send(res, 200, {
@@ -851,6 +975,35 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
               ...(out.status ? { errorParams: { status: out.status } } : {}),
             }
           : {}),
+      });
+      return;
+    }
+
+    if ((method === 'GET' || method === 'DELETE') && url.pathname.startsWith(FLOW_PATH)) {
+      const flow = url.pathname.slice(FLOW_PATH.length);
+      const m = await loadMarket();
+      if (!m.isFlowId(flow)) throw httpError(400, 'err.catalog.badRequest');
+      // no flow was ever started: nothing to ask GitHub
+      if (method === 'DELETE' || !flows) {
+        flows?.cancel(flow);
+        send(res, 200, { status: 'cancelled' });
+        return;
+      }
+      const s = await flows.status(flow);
+      const failed =
+        s.status === 'failed' && s.code
+          ? {
+              code: s.code,
+              errorId: Object.hasOwn(SIGN_IN_ERRORS, s.code)
+                ? SIGN_IN_ERRORS[s.code]![1]
+                : m.reasonId(s.code),
+              ...(s.httpStatus ? { errorParams: { status: s.httpStatus } } : {}),
+            }
+          : {};
+      send(res, 200, {
+        status: s.status,
+        ...(s.status === 'ok' ? { handle: clean(s.handle), admin: s.admin === true } : {}),
+        ...failed,
       });
       return;
     }
@@ -1095,7 +1248,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const { m, view, review } = await publishView(endpoint, body.refs);
         // send only what was reviewed; runPublish also checks each entry rev
         if (body.planHash !== view.planHash) throw httpError(409, 'err.catalog.planChanged', undefined, view);
-        const out = await m.runPublish(review);
+        const out = await m.runPublish(review, marketDeps());
         if (out.code !== null && out.code !== 'read-only')
           throw marketError(out.code, m.reasonId(out.code), out.status);
         send(res, 200, {
@@ -1114,10 +1267,111 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       case 'GET /api/catalog/remote': {
         const endpoint = needEndpoint();
         const m = await loadMarket();
-        const out = await m.remoteList();
+        const out = await m.remoteList({ ...marketDeps(), refresh: url.searchParams.get('refresh') === '1' });
         if (out.code) throw marketError(out.code, m.reasonId(out.code), out.status);
-        send(res, 200, { endpoint: clean(endpoint), entries: out.entries });
+        send(res, 200, {
+          endpoint: clean(endpoint),
+          entries: out.entries,
+          checkedAt: out.checkedAt ?? null,
+          ...(out.stale ? { stale: true } : {}),
+        });
         return;
+      }
+      // D-07: the device code stays here; the browser gets the user code only
+      case 'POST /api/catalog/login': {
+        needEndpoint();
+        const m = await loadMarket();
+        let started: Awaited<ReturnType<LoginFlows['start']>>;
+        try {
+          started = await loginFlows(m).start();
+        } catch (err) {
+          throw signInError(m, err);
+        }
+        send(res, 200, {
+          flow: started.flow,
+          userCode: started.userCode,
+          verificationUri: started.verificationUri,
+          expiresIn: started.expiresIn,
+          interval: started.interval,
+        });
+        return;
+      }
+      case 'POST /api/catalog/logout': {
+        const endpoint = needEndpoint();
+        const m = await loadMarket();
+        const signedOut = await m.signOut(endpoint, marketFetch());
+        send(res, 200, { ok: true, signedOut, catalog: catalogBody(diskLang(url.searchParams.get('lang'))) });
+        return;
+      }
+      // D-11: shows what would be installed; nothing is written
+      case 'POST /api/catalog/install/plan': {
+        const body = asObject(await readBody(req));
+        needEndpoint();
+        const { id, version, ref } = installRef(body);
+        const m = await loadMarket();
+        let plan: InstallPlan;
+        try {
+          plan = await m.planInstall(ref, marketDeps());
+        } catch (err) {
+          throw installError(m, err, id, version);
+        }
+        send(res, 200, installView(plan));
+        return;
+      }
+      // downloads again and installs only what was reviewed
+      case 'POST /api/catalog/install': {
+        const body = asObject(await readBody(req));
+        needEndpoint();
+        const { id, version, ref } = installRef(body);
+        const targets = reviewedTargets(body.targets);
+        if (version === null || typeof body.hash !== 'string' || !targets)
+          throw httpError(400, 'err.catalog.badRequest');
+        const m = await loadMarket();
+        let plan: InstallPlan;
+        try {
+          plan = await m.planInstall(ref, marketDeps());
+        } catch (err) {
+          throw installError(m, err, id, version);
+        }
+        if (m.installChanged(plan, { hash: body.hash, targets }))
+          throw httpError(
+            409,
+            'err.catalog.install.changed',
+            { id: clean(id) },
+            { code: 'changed', plan: installView(plan) },
+          );
+        const done = m.runInstall(plan, { now: () => new Date(marketNow()) });
+        send(res, 200, {
+          ok: true,
+          entryId: done.entryId,
+          name: clean(done.name),
+          result: done.result,
+          catalog: catalogBody(diskLang(body.lang)),
+        });
+        return;
+      }
+      case 'POST /api/catalog/report': {
+        const body = asObject(await readBody(req));
+        const endpoint = needEndpoint();
+        const id = typeof body.id === 'string' ? body.id.trim() : '';
+        const m = await loadMarket();
+        const reason = m.reportReason(body.reason);
+        if (!isRemoteId(id)) throw httpError(400, 'catalog.remote.badId', { ref: clean(id) });
+        if (reason === null) throw httpError(400, 'err.catalog.report.badReason', { max: REPORT_REASON_MAX });
+        const out = await m.reportEntry(endpoint, id, reason, marketFetch());
+        if (out.reported) {
+          send(res, 201, { reported: true, report: out.report });
+          return;
+        }
+        if ('already' in out) {
+          send(res, 200, { reported: false, already: true });
+          return;
+        }
+        if (out.code === 'sign-in' || out.code === 'unauthorized')
+          throw httpError(401, 'err.catalog.signInFirst', undefined, { code: out.code });
+        if (out.code === 'not-found')
+          throw httpError(404, 'err.catalog.install.not-found', { id: clean(id) }, { code: out.code });
+        throw marketError(out.code, m.reasonId(out.code), out.status);
       }
       case 'POST /api/catalog/install-theme': {
         const body = asObject(await readBody(req));

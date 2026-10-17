@@ -249,6 +249,8 @@ export const catalogMessages = {
     "{id} ccinfobar'ın kullanamayacağı içerik taşıyor; hiçbir şey yüklenmedi",
   'err.catalog.install.hash-mismatch':
     'İndirilen {id} yayımlanan özet değeriyle eşleşmiyor; hiçbir şey yüklenmedi',
+  'err.catalog.install.changed':
+    "{id} siz inceledikten sonra marketplace'te değişti; hiçbir şey yüklenmedi. Yeniden inceleyin",
   'catalog.dryRun': 'Deneme çalıştırması: hiçbir şey yazılmadı.',
   'catalog.failed': 'Katalog komutu başarısız oldu: {error}',
   'err.catalog.unknownRef': 'Katalogda {ref} girdisi yok',
@@ -300,6 +302,7 @@ export const catalogMessages = {
   'catalog.report.already': '{id} girdisini zaten bildirdiniz.',
   'catalog.report.failed': '{id} bildirilemedi: {reason}',
   'err.catalog.report.reason': '--reason ile en az 1, en fazla {max} karakterlik bir neden yazın',
+  'err.catalog.report.badReason': 'En az 1, en fazla {max} karakterlik bir neden yazın',
   'catalog.admin.usage':
     'Kullanım: ccinfobar catalog admin pending [--json]\n          ccinfobar catalog admin show <publisher/slug> [--json]\n          ccinfobar catalog admin approve <publisher/slug> [--tag <review tag>] [--note <text>] [--json]\n          ccinfobar catalog admin reject|remove <publisher/slug> [--note <text>] [--yes] [--json]\n          ccinfobar catalog admin ban <handle> [--note <text>] [--yes] [--json]\n          ccinfobar catalog admin unban <handle> [--note <text>] [--json]\n          ccinfobar catalog admin reports [--json]\n          ccinfobar catalog admin resolve <number> [--json]',
   'catalog.admin.failed': 'Yönetici isteği başarısız oldu: {reason}',

@@ -181,7 +181,7 @@ describe('import graph', () => {
     expect(files.has('src/commands/catalog.ts')).toBe(true);
     expect(files.has('src/market/client.ts')).toBe(true);
     expect(closure('commands/catalog.ts').has('src/catalog/publish.ts')).toBe(false);
-    for (const f of ['src/market/github.ts', 'src/catalog/signin.ts']) {
+    for (const f of ['src/market/github.ts', 'src/catalog/signin.ts', 'src/catalog/login-flows.ts']) {
       expect(files.has(f), f).toBe(true);
       expect(closure('commands/catalog.ts').has(f), f).toBe(false);
       expect(closure('editor/server.ts').has(f), f).toBe(false);

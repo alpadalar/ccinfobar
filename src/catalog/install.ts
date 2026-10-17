@@ -188,7 +188,11 @@ export function runInstall(plan: InstallPlan, deps: Omit<InstallDeps, 'fetch'> =
   });
 }
 
-// the editor installs only what the user reviewed
-export function installChanged(a: InstallPlan, b: { hash: string; targets: ImportTarget[] }): boolean {
-  return a.hash !== b.hash || canonicalJson(a.targets) !== canonicalJson(b.targets);
+type Reviewed = { hash: string; targets: readonly Pick<ImportTarget, 'kind' | 'target'>[] };
+
+const shownTargets = (r: Reviewed) => r.targets.map((x) => ({ kind: x.kind, target: x.target }));
+
+// the editor installs only what the user reviewed: the hash and the listed targets
+export function installChanged(a: Reviewed, b: Reviewed): boolean {
+  return a.hash !== b.hash || canonicalJson(shownTargets(a)) !== canonicalJson(shownTargets(b));
 }

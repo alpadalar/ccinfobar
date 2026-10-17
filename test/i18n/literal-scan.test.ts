@@ -213,6 +213,7 @@ const NOT_SWEPT: Record<string, string> = {
   'src/market/github.ts': 'GitHub device-flow client, codes only (D-06)',
   'src/catalog/signin.ts': 'sign-in orchestration, codes only',
   'src/catalog/install.ts': 'install orchestration, codes only',
+  'src/catalog/login-flows.ts': 'editor sign-in flow state, codes only',
   'src/catalog/market-cache.ts': 'marketplace cache, codes only',
 };
 

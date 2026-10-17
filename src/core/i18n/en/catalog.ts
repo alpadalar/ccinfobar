@@ -238,6 +238,8 @@ export const catalogMessages = {
   'err.catalog.install.bad-content': '{id} has content ccinfobar cannot use; nothing was installed',
   'err.catalog.install.hash-mismatch':
     'The download of {id} does not match its published hash; nothing was installed',
+  'err.catalog.install.changed':
+    '{id} changed on the marketplace since you reviewed it; nothing was installed. Review it again',
   'catalog.dryRun': 'Dry run: nothing was written.',
   'catalog.failed': 'Catalog command failed: {error}',
   'err.catalog.unknownRef': 'No catalog entry {ref}',
@@ -287,6 +289,7 @@ export const catalogMessages = {
   'catalog.report.already': 'You already reported {id}.',
   'catalog.report.failed': 'Could not report {id}: {reason}',
   'err.catalog.report.reason': 'Give a reason of 1 to {max} characters with --reason',
+  'err.catalog.report.badReason': 'Give a reason of 1 to {max} characters',
   'catalog.admin.usage':
     'Usage: ccinfobar catalog admin pending [--json]\n       ccinfobar catalog admin show <publisher/slug> [--json]\n       ccinfobar catalog admin approve <publisher/slug> [--tag <review tag>] [--note <text>] [--json]\n       ccinfobar catalog admin reject|remove <publisher/slug> [--note <text>] [--yes] [--json]\n       ccinfobar catalog admin ban <handle> [--note <text>] [--yes] [--json]\n       ccinfobar catalog admin unban <handle> [--note <text>] [--json]\n       ccinfobar catalog admin reports [--json]\n       ccinfobar catalog admin resolve <number> [--json]',
   'catalog.admin.failed': 'The admin request failed: {reason}',

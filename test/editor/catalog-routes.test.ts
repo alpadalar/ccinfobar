@@ -101,7 +101,14 @@ describe('editor catalog routes: list, entry and previews', () => {
     await saveLegacyPreset('old');
     expect((await save({})).status).toBe(200);
     const body = await catalog();
-    expect(Object.keys(body).sort()).toEqual(['endpoint', 'profile', 'publishable', 'system', 'user']);
+    expect(Object.keys(body).sort()).toEqual([
+      'endpoint',
+      'market',
+      'profile',
+      'publishable',
+      'system',
+      'user',
+    ]);
     expect(body.user).toHaveLength(2);
     expect(body.user[0]).toMatchObject({ source: 'user', kind: 'bundle', name: 'Look', version: 1 });
     expect(body.user[0].ref).toMatch(/^u-[0-9a-f]{12}$/);
@@ -122,8 +129,10 @@ describe('editor catalog routes: list, entry and previews', () => {
     expect(body.profile).toEqual({ author: '' });
     expect(body.endpoint).toBeNull();
     expect(body.publishable).toBe(false);
+    expect(body.market).toEqual({ endpoint: null, source: 'none', signedIn: false, handle: null });
     for (const s of [...body.user, ...body.system]) {
       expect(s.content).toBeTypeOf('object');
+      expect(s.origin).toBeNull();
       expect(Object.keys(s).sort()).toEqual(
         [
           'author',
@@ -132,6 +141,7 @@ describe('editor catalog routes: list, entry and previews', () => {
           'id',
           'kind',
           'name',
+          'origin',
           'ref',
           'remote',
           'rev',
