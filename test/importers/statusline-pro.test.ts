@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { PromptIo } from '../../src/commands/io.js';
 import { runImport } from '../../src/commands/manage.js';
+import { detectTool, importFrom, resolveSource } from '../../src/importers/index.js';
 import { importStatuslinePro, TARGETS } from '../../src/importers/statusline-pro.js';
 import { parseToml } from '../../src/importers/toml.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
@@ -249,5 +250,135 @@ describe('importStatuslinePro', () => {
   it('targets only existing widgets', () => {
     const known = new Set(ALL_WIDGETS.map((w) => w.type));
     for (const type of TARGETS) expect(known.has(type), type).toBe(true);
+  });
+});
+
+describe('statusline-pro discovery', () => {
+  let dir: string;
+  let home: string;
+  let env: NodeJS.ProcessEnv;
+  const MINI = 'preset = "PM"\ntheme = "capsule"\n';
+  const write = (file: string, text = MINI) => {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+    return file;
+  };
+  const userFile = () => path.join(home, '.claude', 'statusline-pro', 'config.toml');
+  const LAYER = `${TOOL} project configs under ~/.claude/projects/ were not read; pass one with --file to import it`;
+
+  beforeEach(() => {
+    dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-ccsp-')));
+    home = path.join(dir, 'home');
+    fs.mkdirSync(home);
+    env = { HOME: home, USERPROFILE: home };
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('reads <home>/.claude/statusline-pro/config.toml', () => {
+    const file = write(userFile());
+    const r = importFrom('statusline-pro', { env, cwd: dir });
+    expect(r.file).toBe(file);
+    expect(types(r)).toEqual(['project-dir', 'model']);
+    expect(r.config.style).toBe('capsule');
+    expect(texts(r)).toEqual([LAYER]);
+  });
+
+  it('imports the default layout when no file exists', () => {
+    const r = importFrom('statusline-pro', { env, cwd: dir });
+    expect(r.file).toBeNull();
+    expect(texts(r)[0]).toBe(`no ${TOOL} config file found, imported its default layout`);
+    expect(texts(r)).toContain(LAYER);
+    expect(types(r)).toEqual([
+      'project-dir',
+      'model',
+      'git-branch',
+      'context-bar',
+      'context-length',
+      'session-cost',
+      'five-hour-usage',
+      'five-hour-reset',
+      'weekly-usage',
+      'weekly-reset',
+      'tool-activity',
+    ]);
+    expect(r.config).toMatchObject({ style: 'text', separator: ' | ', icons: 'emoji' });
+  });
+
+  it('applies --preset and --theme from the command', () => {
+    write(userFile());
+    for (const command of [
+      'ccsp --preset MB --theme powerline',
+      'npx ccsp@latest -p MB -t powerline',
+      'npx ccsp@latest MB --theme=powerline',
+    ]) {
+      const r = importFrom('statusline-pro', { command, env, cwd: dir });
+      expect(types(r), command).toEqual(['model', 'git-branch']);
+      expect(r.config.style, command).toBe('powerline');
+    }
+    const flagged = importFrom('statusline-pro', {
+      command: 'npx ccsp@latest PT --preset M --force-text --no-colors',
+      env,
+      cwd: dir,
+    });
+    expect(types(flagged)).toEqual(['model']);
+    expect(flagged.config).toMatchObject({ icons: 'text', colorLevel: 0 });
+  });
+
+  it('follows -c/--config and skips the layer note for --file', () => {
+    const custom = write(path.join(home, 'ccsp.toml'), 'preset = "U"\n');
+    const r = importFrom('statusline-pro', { command: 'ccsp --config ~/ccsp.toml', env, cwd: dir });
+    expect(r.file).toBe(custom);
+    expect(types(r)).toEqual(['session-cost']);
+    const rel = write(path.join(dir, 'rel', 'c.toml'), 'preset = "M"\n');
+    expect(importFrom('statusline-pro', { command: 'ccsp -c rel/c.toml', env, cwd: dir }).file).toBe(rel);
+    const other = importFrom('statusline-pro', { file: custom, env, cwd: dir });
+    expect(texts(other)).toEqual([]);
+  });
+
+  it('fails on a missing --file and shows TOML errors with their position', () => {
+    const file = path.join(dir, 'missing.toml');
+    expect(() => importFrom('statusline-pro', { file, env, cwd: dir })).toThrow(
+      `Cannot read ${TOOL} config at ${file}`,
+    );
+    const bad = write(path.join(dir, 'bad.toml'), 'preset = "unclosed\n');
+    expect(() => importFrom('statusline-pro', { file: bad, env, cwd: dir })).toThrow(/bad\.toml:1:\d+ /);
+  });
+
+  it('is detected from its documented commands and resolved by its aliases', () => {
+    for (const name of ['statusline-pro', 'ccsp', 'claude-code-statusline-pro', 'CCSP']) {
+      expect(resolveSource(name), name).toBe('statusline-pro');
+    }
+    for (const command of [
+      'npx ccsp@latest',
+      'npx claude-code-statusline-pro@latest',
+      'ccsp --preset PMBTURS --theme powerline',
+      'C:\\Users\\me\\AppData\\Roaming\\npm\\ccsp.cmd',
+    ]) {
+      expect(detectTool(command), command).toMatchObject({
+        tool: 'statusline-pro',
+        name: TOOL,
+        importable: true,
+      });
+    }
+    expect(detectTool('ccspx')!.tool).toBe('unknown');
+  });
+
+  it('leaves detection of the other tools unchanged', () => {
+    const cases: [string, string][] = [
+      ['npx ccstatusline@latest', 'ccstatusline'],
+      ['npx -y ccstatusline-zh@latest', 'ccstatusline'],
+      ['npx -y @owloops/claude-powerline@latest', 'claude-powerline'],
+      ['~/.claude/ccline/ccline', 'ccometixline'],
+      ['cship', 'cship'],
+      ['bash ~/.claude/plugins/claude-hud/run.sh', 'claude-hud'],
+      ['~/.claude/best-claude-hud/best-claude-hud', 'best-claude-hud'],
+      ['~/.claude/byebyecode/byebyecode', 'byebyecode'],
+      ['claudebar render', 'claudebar'],
+      ['bunx ccusage statusline', 'ccusage'],
+    ];
+    for (const [command, tool] of cases) expect(detectTool(command)!.tool, command).toBe(tool);
   });
 });
