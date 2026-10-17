@@ -56,7 +56,7 @@ describe('importHelp', () => {
       '',
       'Tools',
     ]);
-    expect(text).toContain('  ccstatusline  ');
+    expect(text).toContain('  ccstatusline, ccstatusline-zh  ');
     expect(text).toContain('~/.config/ccstatusline/settings.json');
     expect(text).toContain('Without --file');
     expectListing(text);

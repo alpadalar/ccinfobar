@@ -36,6 +36,7 @@ export const LEGACY_INFO: readonly ImporterInfo[] = [
     source: 'ccstatusline',
     name: 'ccstatusline',
     repo: 'sirmalloc/ccstatusline',
+    aliases: ['ccstatusline-zh'],
     shown: '~/.config/ccstatusline/settings.json',
   },
   {

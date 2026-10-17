@@ -84,6 +84,7 @@ interface Known {
 }
 
 const LEGACY_KNOWN: readonly Known[] = [
+  { re: /ccstatusline-zh/i, tool: 'ccstatusline', name: 'ccstatusline-zh', importable: true },
   { re: /ccstatusline/i, tool: 'ccstatusline', name: 'ccstatusline', importable: true },
   { re: /claude-powerline/i, tool: 'claude-powerline', name: 'claude-powerline', importable: true },
   { re: /ccline|cometix/i, tool: 'ccometixline', name: 'CCometixLine', importable: true },

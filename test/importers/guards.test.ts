@@ -75,7 +75,7 @@ const TOOLS: Tool[] = [
   {
     source: 'ccstatusline',
     targets: CC_TARGETS,
-    fixtures: ['ccstatusline-settings.json'],
+    fixtures: ['ccstatusline-settings.json', 'ccstatusline-new-widgets.json'],
     ext: 'json',
     hasDefault: false,
     protoText: `{"__proto__": ${EVIL}, "lines": [[{"id": "m", "type": "model", "__proto__": ${EVIL}}, {"type": "__proto__"}, {"type": "constructor"}, {"type": "toString"}]]}`,

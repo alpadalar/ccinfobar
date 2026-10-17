@@ -75,6 +75,45 @@ describe('ccstatusline import', () => {
     );
   });
 
+  it('maps the newer 1:1 ccstatusline widgets without notes', () => {
+    const r = importCcstatusline(fixture('ccstatusline-new-widgets.json'));
+    expect(r.notes).toEqual([]);
+    const items = r.config.lines!.map((l) => l.filter((i) => i.type !== 'separator'));
+    expect(items).toEqual([
+      [
+        {
+          id: 'status',
+          type: 'service-status',
+          color: 'green',
+          options: { showOk: true, showName: false },
+        },
+        { id: 'spend', type: 'spend-limit', color: 'brightMagenta' },
+        { id: 'wt', type: 'git-branch', color: 'yellow' },
+      ],
+      [
+        { id: 'staged', type: 'git-staged', color: 'green' },
+        { id: 'unstaged', type: 'git-unstaged', color: 'yellow' },
+        { id: 'untracked', type: 'git-untracked', color: 'red' },
+      ],
+    ]);
+  });
+
+  it('leaves approximate ccstatusline widgets unmapped', () => {
+    const types = [
+      'spend-limit-usage',
+      'git-upstream-owner-repo',
+      'git-upstream-repo',
+      'git-upstream-owner',
+      'git-origin-owner',
+      'total-speed',
+      'input-speed',
+      'block-timer',
+    ];
+    const r = importCcstatusline({ lines: [types.map((type, i) => ({ id: String(i), type }))] });
+    expect(r.config.lines!.flat()).toEqual([]);
+    expect(r.notes.map((n) => n.kind)).toEqual(types.map(() => 'drop'));
+  });
+
   it('imports the usable context widget as basis usable', () => {
     const r = importCcstatusline({ lines: [[{ id: '1', type: 'context-percentage-usable' }]] });
     expect(r.config.lines![0]).toEqual([
@@ -187,6 +226,24 @@ describe('detectTool', () => {
 
   it.each(legacy)('keeps %s on %s', (command, tool) => {
     expect(detectTool(command)?.tool).toBe(tool);
+  });
+
+  it('detects ccstatusline-zh by its own name and imports it as ccstatusline', () => {
+    for (const command of [
+      'npx -y ccstatusline-zh@latest',
+      'bunx ccstatusline-zh',
+      '/usr/bin/ccstatusline-zh',
+    ]) {
+      expect(detectTool(command), command).toEqual({
+        tool: 'ccstatusline',
+        name: 'ccstatusline-zh',
+        importable: true,
+        command,
+      });
+    }
+    expect(detectTool('npx -y ccstatusline@latest')!.name).toBe('ccstatusline');
+    expect(resolveSource('ccstatusline-zh')).toBe('ccstatusline');
+    expect(resolveSource('CCSTATUSLINE-ZH')).toBe('ccstatusline');
   });
 
   it('names recognised tools that cannot be imported', () => {

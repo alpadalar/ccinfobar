@@ -1,0 +1,19 @@
+{
+  "version": 3,
+  "lines": [
+    [
+      { "id": "status", "type": "claude-status", "color": "green" },
+      { "id": "s1", "type": "separator" },
+      { "id": "spend", "type": "spend-limit-amount", "color": "brightMagenta" },
+      { "id": "s2", "type": "separator" },
+      { "id": "wt", "type": "worktree-branch", "color": "yellow" }
+    ],
+    [
+      { "id": "staged", "type": "git-staged-files", "color": "green" },
+      { "id": "s3", "type": "separator" },
+      { "id": "unstaged", "type": "git-unstaged-files", "color": "yellow" },
+      { "id": "s4", "type": "separator" },
+      { "id": "untracked", "type": "git-untracked-files", "color": "red" }
+    ]
+  ]
+}
