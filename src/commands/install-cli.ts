@@ -13,7 +13,7 @@ import type { HookEvent } from '../data/hooks.js';
 import { progressChannel, progressSeq } from '../data/progress.js';
 import { requestClear } from '../data/progress-clear.js';
 import { selfCommand } from '../data/update-state.js';
-import { type DetectedTool, detectTool, type ImportSource } from '../importers/index.js';
+import { type DetectedTool, detectTool, type ImportSource, sniffTool } from '../importers/index.js';
 import { getWidget } from '../widgets/index.js';
 import {
   detectClaudeCode,
@@ -395,7 +395,11 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     adoptLegacy = legacy;
   }
 
-  const tool = project ? null : detectTool(plan.current?.command);
+  const found = project ? null : detectTool(plan.current?.command);
+  const tool =
+    found?.tool === 'unknown'
+      ? (sniffTool(found.command, { env: process.env, cwd: process.cwd() }) ?? found)
+      : found;
   if (tool) await offerImport(tool, args, cfgFile, io, hint);
   let res: InstallResult;
   try {

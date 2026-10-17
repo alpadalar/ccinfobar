@@ -23,6 +23,8 @@ export interface ImporterInfo {
 
 export interface ImporterDef extends ImporterInfo {
   detect?: readonly RegExp[];
+  // file header check for commands that do not name the tool
+  sniff?: { file(ctx: ImportCtx): string | null; marker: RegExp };
   hasDefault: boolean;
   discover(ctx: ImportCtx): string | null;
   load(file: string | null, ctx: ImportCtx): ImportResult;

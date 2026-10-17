@@ -7,7 +7,12 @@ import { type InstallIo, offerImport, runInstall } from '../../src/commands/inst
 import { shellArg } from '../../src/commands/manage.js';
 import { t } from '../../src/core/i18n/index.js';
 import { tildify } from '../../src/core/paths.js';
-import { ccstatuslinePath, detectTool, hudPaths } from '../../src/importers/index.js';
+import { ccstatuslinePath, detectTool, hudPaths, sniffTool } from '../../src/importers/index.js';
+
+vi.mock('../../src/importers/index.js', async (orig) => {
+  const mod = await orig<typeof import('../../src/importers/index.js')>();
+  return { ...mod, sniffTool: vi.fn(mod.sniffTool) };
+});
 
 const writeJson = (file: string, data: unknown) => {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -163,6 +168,52 @@ describe('install import offer', () => {
     expect(read(settings).statusLine.command).toBe('/bin/ccinfobar');
     expect(types()).toEqual(['model']);
     expect(f.lines).toContain(t('import.targetsDropped', { count: 1 }));
+  });
+
+  it('tells how to import a recognised tool by hand', async () => {
+    const f = fake(true);
+    const other = detectTool('~/.claude/arcade-statusline --theme pacman')!;
+    await offerImport(other, parseArgs(['install', '--yes']), cfg, f.io);
+    expect(f.lines).toEqual([t('install.importManual', { tool: 'arcade-statusline' })]);
+    expect(f.asked).toEqual([]);
+    expect(fs.existsSync(cfg)).toBe(false);
+  });
+
+  describe('header sniff', () => {
+    const sniff = vi.mocked(sniffTool);
+    const settings = () => path.join(dir, 'claude', 'settings.json');
+    const install = async (command: string) => {
+      writeJson(settings(), { statusLine: { type: 'command', command } });
+      const f = fake(false);
+      await runInstall(parseArgs(['install', '--command', '/bin/ccinfobar', '--yes']), cfg, f.io);
+      expect(read(settings()).statusLine.command).toBe('/bin/ccinfobar');
+      return f;
+    };
+
+    beforeEach(() => sniff.mockClear());
+
+    it('sniffs only an unknown command and offers what it finds', async () => {
+      const command = 'bash ~/.claude/statusline.sh';
+      sniff.mockReturnValueOnce({ tool: 'ccstatusline', name: 'Sniffed', importable: true, command });
+      const f = await install(command);
+      expect(sniff).toHaveBeenCalledTimes(1);
+      expect(sniff).toHaveBeenCalledWith(command, { env: process.env, cwd: process.cwd() });
+      expect(types()).toEqual(['model']);
+      expect(f.lines).toContain(t('import.targetsDropped', { count: 1 }));
+    });
+
+    it('keeps the custom line message when the sniff finds nothing', async () => {
+      const f = await install('bash ~/my-line.sh');
+      expect(sniff).toHaveBeenCalledTimes(1);
+      expect(f.lines).toContain(t('install.importManual', { tool: t('import.tool.custom') }));
+      expect(f.lines.some((l) => l.startsWith('✓ Imported'))).toBe(false);
+    });
+
+    it('never sniffs a recognised command', async () => {
+      await install('npx ccstatusline');
+      await install('~/.claude/arcade-statusline --theme pacman');
+      expect(sniff).not.toHaveBeenCalled();
+    });
   });
 
   describe('the three newer tools', () => {

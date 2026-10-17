@@ -25,7 +25,14 @@ import {
   safeThemeName,
   tableOf,
 } from './io.js';
-import { importerList, loadFromRegistry, registryDef } from './registry.js';
+import {
+  type ImporterDef,
+  importerList,
+  loadFromRegistry,
+  makeCtx,
+  REGISTRY,
+  registryDef,
+} from './registry.js';
 
 export { MAX_SOURCE_BYTES, readSource, SourceTooLargeError } from './io.js';
 
@@ -63,35 +70,111 @@ export function resolveSource(name: string | undefined): ImportSource | null {
 }
 
 export interface DetectedTool {
-  tool: ImportSource | 'ccusage' | 'gsd' | 'unknown';
+  tool: ImportSource | 'ccusage' | 'gsd' | 'other' | 'unknown';
   name: string;
   importable: boolean;
   command: string;
 }
 
-const KNOWN: {
+interface Known {
   re: RegExp;
   tool: DetectedTool['tool'];
   name: string | (() => string);
   importable: boolean;
-}[] = [
+}
+
+const LEGACY_KNOWN: readonly Known[] = [
   { re: /ccstatusline/i, tool: 'ccstatusline', name: 'ccstatusline', importable: true },
   { re: /claude-powerline/i, tool: 'claude-powerline', name: 'claude-powerline', importable: true },
   { re: /ccline|cometix/i, tool: 'ccometixline', name: 'CCometixLine', importable: true },
   { re: /\bcship\b/i, tool: 'cship', name: 'cship', importable: true },
   { re: /claude-hud/i, tool: 'claude-hud', name: 'claude-hud', importable: true },
+];
+
+// reviewed tools with nothing to import, matched by their documented install paths
+const OTHER_KNOWN: readonly Known[] = [
+  { re: /arcade-statusline/i, tool: 'other', name: 'arcade-statusline', importable: false },
+  { re: /awesome-statusline/i, tool: 'other', name: 'awesome-statusline', importable: false },
+  {
+    re: /yet-another-statusline|[\\/]claude[\\/]statusline_command\.py/i,
+    tool: 'other',
+    name: 'yet-another-statusline',
+    importable: false,
+  },
+  {
+    re: /[\\/]\.claude[\\/]statusline[\\/]statusline\.ps1/i,
+    tool: 'other',
+    name: 'ClaudeCodeStatusLine',
+    importable: false,
+  },
+];
+
+const TAIL_KNOWN: readonly Known[] = [
   { re: /ccusage/i, tool: 'ccusage', name: 'ccusage statusline', importable: false },
   { re: /gsd-statusline/i, tool: 'gsd', name: () => t('import.tool.gsd'), importable: false },
 ];
 
-export function detectTool(command: string | undefined | null): DetectedTool | null {
+// first match wins, so the most specific names go first
+function knownList(defs: readonly ImporterDef[]): Known[] {
+  const own = defs.flatMap((d) =>
+    (d.detect ?? []).map((re) => ({ re, tool: d.source, name: d.name, importable: true })),
+  );
+  return [...own, ...LEGACY_KNOWN, ...OTHER_KNOWN, ...TAIL_KNOWN];
+}
+
+export function detectTool(
+  command: string | undefined | null,
+  defs: readonly ImporterDef[] = REGISTRY,
+): DetectedTool | null {
   if (!command || /ccinfobar/i.test(command)) return null;
-  const hit = KNOWN.find((k) => k.re.test(command));
+  const hit = knownList(defs).find((k) => k.re.test(command));
   if (hit) {
     const name = typeof hit.name === 'string' ? hit.name : hit.name();
     return { tool: hit.tool, name, importable: hit.importable, command };
   }
   return { tool: 'unknown', name: t('import.tool.custom'), importable: false, command };
+}
+
+const SNIFF_BYTES = 512;
+
+function readHead(file: string): string | null {
+  let fd: number | null = null;
+  try {
+    // no symlink and no blocking open where the platform has the flags
+    const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0);
+    fd = fs.openSync(file, flags);
+    if (!fs.fstatSync(fd).isFile()) return null;
+    const buf = Buffer.alloc(SNIFF_BYTES);
+    const n = fs.readSync(fd, buf, 0, SNIFF_BYTES, 0);
+    return buf.subarray(0, n).toString('utf8');
+  } catch {
+    return null;
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+  }
+}
+
+// reads a few bytes of the named file, never runs it
+export function sniffTool(
+  command: string,
+  opts: { env?: NodeJS.ProcessEnv; cwd?: string; defs?: readonly ImporterDef[] } = {},
+): DetectedTool | null {
+  const ctx = makeCtx({ command, env: opts.env, cwd: opts.cwd });
+  for (const def of opts.defs ?? REGISTRY) {
+    if (!def.sniff) continue;
+    let file: string | null;
+    try {
+      file = def.sniff.file(ctx);
+    } catch {
+      continue;
+    }
+    if (!file || !isPlainFile(file)) continue;
+    const head = readHead(file);
+    if (head !== null && def.sniff.marker.test(head)) {
+      return { tool: def.source, name: def.name, importable: true, command };
+    }
+  }
+  return null;
 }
 
 export function ccstatuslinePath(env: NodeJS.ProcessEnv = process.env, command = ''): string {
