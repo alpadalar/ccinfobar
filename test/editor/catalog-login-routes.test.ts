@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readCredential, writeCredential, writePublisher } from '../../src/catalog/store.js';
+import { defaultConfig } from '../../src/core/config.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
 import { VERIFY_URL } from '../../src/market/github.js';
 import { json } from '../fake-fetch.js';
@@ -368,5 +369,57 @@ describe('editor sign-in routes', () => {
     const again = await request('POST', '/api/catalog/logout', {});
     expect(again.json()).toMatchObject({ ok: true, signedOut: false });
     expect(w.calls).toHaveLength(1);
+  });
+
+  async function saveShared(): Promise<string> {
+    const res = await request('POST', '/api/catalog/save', {
+      kind: 'preset',
+      name: 'X',
+      description: '',
+      author: 'Octo',
+      share: true,
+      mode: 'new',
+      config: defaultConfig(),
+    });
+    expect(res.status).toBe(200);
+    return res.json().entry.id;
+  }
+
+  it('a GitHub-only marketplace answers 401 sign-in to a publish review without a token', async () => {
+    const w = world();
+    await boot(w);
+    await saveShared();
+    const res = await request('POST', '/api/catalog/publish/plan', {});
+    expect(res.status).toBe(401);
+    expect(res.json()).toMatchObject({ errorId: 'err.catalog.signInFirst', code: 'sign-in' });
+    expect(w.calls.map((c) => c.url)).toEqual([`${ENDPOINT}/v1/meta.json`]);
+  });
+
+  it('lists an entry the marketplace holds for review with remote.review', async () => {
+    const w = world();
+    await boot(w);
+    const id = await saveShared();
+    const file = path.join(cat, 'entries', `${id}.json`);
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+    raw.share = {
+      ...raw.share,
+      state: 'published',
+      remote: {
+        endpoint: ENDPOINT,
+        id: 'octo-cat/x',
+        version: 1,
+        hash: 'f'.repeat(64),
+        publishedAt: '2026-10-17T12:00:00.000Z',
+        review: 'pending',
+      },
+    };
+    fs.writeFileSync(file, JSON.stringify(raw));
+    const user = (await request('GET', '/api/catalog')).json().user as any[];
+    expect(user.find((e) => e.id === id).remote).toEqual({ id: 'octo-cat/x', version: 1, review: 'pending' });
+    delete raw.share.remote.review;
+    fs.writeFileSync(file, JSON.stringify(raw));
+    const again = (await request('GET', '/api/catalog')).json().user as any[];
+    expect(again.find((e) => e.id === id).remote).toEqual({ id: 'octo-cat/x', version: 1 });
+    expect(w.calls).toEqual([]);
   });
 });

@@ -356,7 +356,7 @@ export interface EntrySummary {
   version: number;
   rev: number | null;
   share: { wanted: boolean; state: string } | null;
-  remote: { id: string; version: number } | null;
+  remote: { id: string; version: number; review?: 'pending' } | null;
   // where a marketplace install came from
   origin: { endpoint: string; id: string; version: number } | null;
   updatedAt: string | null;
@@ -380,7 +380,15 @@ type Skip = { id: string; reason: 'not-shared' | 'up-to-date' | 'withdrawn' };
 function marketError(code: string | null, id: MessageId, status?: number): HttpError {
   if (code === 'no-endpoint') return httpError(409, 'err.catalog.noEndpoint');
   const http =
-    code === 'not-found' ? 404 : code === 'handle-taken' ? 409 : code === 'bad-endpoint' ? 400 : 502;
+    code === 'not-found'
+      ? 404
+      : code === 'handle-taken'
+        ? 409
+        : code === 'bad-endpoint'
+          ? 400
+          : code === 'sign-in'
+            ? 401
+            : 502;
   return httpError(http, id, status === undefined ? undefined : { status }, { code });
 }
 
@@ -503,7 +511,13 @@ function summaryOf(a: Found): EntrySummary {
       version: e.version,
       rev: e.rev,
       share: { wanted: e.share.wanted, state: shareState(e) },
-      remote: remote ? { id: clean(remote.id), version: remote.version } : null,
+      remote: remote
+        ? {
+            id: clean(remote.id),
+            version: remote.version,
+            ...(remote.review === 'pending' ? { review: 'pending' as const } : {}),
+          }
+        : null,
       origin: e.origin
         ? { endpoint: clean(e.origin.endpoint), id: clean(e.origin.id), version: e.origin.version }
         : null,

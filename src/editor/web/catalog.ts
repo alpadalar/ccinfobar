@@ -37,8 +37,10 @@ export interface CatalogGroup {
 }
 
 const TABS: readonly CatalogTab[] = ['all', 'user', 'system'];
-// the marketplace tab needs an endpoint
-const tabsOf = (data: CatalogState): readonly CatalogTab[] => (data.publishable ? [...TABS, 'market'] : TABS);
+// any active endpoint, the shipped default too; none when switched off
+const marketOn = (data: CatalogState): boolean =>
+  data.market ? data.market.endpoint !== null : data.publishable;
+const tabsOf = (data: CatalogState): readonly CatalogTab[] => (marketOn(data) ? [...TABS, 'market'] : TABS);
 const WAITING: ReadonlySet<ShareState> = new Set(['pending', 'outdated', 'withdraw-pending']);
 const KINDS: readonly EntryKind[] = ['bundle', 'preset', 'theme'];
 const GROUP: Record<EntryKind, MessageId> = {
@@ -204,6 +206,9 @@ export async function applyEntry(e: CatalogEntryInfo, close: (v?: unknown) => vo
 function chip(e: CatalogEntryInfo): HTMLElement | null {
   if (!e.share) return null;
   const state = e.share.state;
+  // held by the marketplace until an admin approves
+  if (state === 'published' && e.remote?.review === 'pending')
+    return h('span', { class: 'catalog-chip review' }, t('catalog.share.review'));
   const version = state === 'published' ? (e.remote?.version ?? e.version) : e.version;
   return h('span', { class: `catalog-chip ${state}` }, t(STATE[state], { version }));
 }
@@ -529,7 +534,9 @@ export async function openCatalog(): Promise<void> {
     slots.clear();
     cards.clear();
     if (st.tab === 'market') {
-      market ??= marketplaceSection(st.data);
+      market ??= marketplaceSection(st.data, (next) => {
+        if (!st.closed) update(next);
+      });
       if (market) list.append(market);
       return;
     }

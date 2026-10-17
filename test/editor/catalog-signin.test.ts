@@ -4,7 +4,7 @@ import { defaultConfig } from '../../src/core/config.js';
 import { setLanguage } from '../../src/core/i18n/index.js';
 import { STYLES } from '../../src/core/themes/style.js';
 import { listThemes } from '../../src/core/themes.js';
-import type { CatalogState } from '../../src/editor/web/store.js';
+import type { CatalogEntryInfo, CatalogState, PublishPlanInfo } from '../../src/editor/web/store.js';
 import { CATEGORIES } from '../../src/widgets/index.js';
 import { FakeEl, texts } from '../i18n/fake-dom.js';
 
@@ -46,6 +46,56 @@ const reply = (key: string, ...rs: Reply[]) => {
   replies[key] = [...(replies[key] ?? []), ...rs];
 };
 const ok = (data: unknown): Reply => ({ status: 200, data });
+const needsSignIn: Reply = {
+  status: 401,
+  data: {
+    error: 'Sign in first: ccinfobar catalog login',
+    errorId: 'err.catalog.signInFirst',
+    code: 'sign-in',
+  },
+};
+
+const entry = (over: Partial<CatalogEntryInfo> = {}): CatalogEntryInfo => ({
+  ref: 'u-w',
+  source: 'user',
+  id: 'u-w',
+  kind: 'bundle',
+  name: 'My setup',
+  description: '',
+  author: 'Ada',
+  version: 1,
+  rev: 1,
+  share: { wanted: true, state: 'pending' },
+  remote: null,
+  updatedAt: '2026-10-16T10:00:00.000Z',
+  scenario: null,
+  content: { layout: { lines: [[{ id: 'm', type: 'model' }]] } },
+  ...over,
+});
+
+const plan = (over: Partial<PublishPlanInfo> = {}): PublishPlanInfo => ({
+  endpoint: ENDPOINT,
+  planHash: 'hash-1',
+  notice: 'catalog.publish.where',
+  plan: [
+    {
+      id: 'u-w',
+      rev: 1,
+      name: 'My setup',
+      kind: 'bundle',
+      action: 'publish',
+      remoteId: null,
+      payload: { kind: 'bundle', slug: 'my-setup', name: 'My setup', description: '', author: 'Ada' },
+    },
+  ],
+  skipped: [],
+  ...over,
+});
+
+const signedIn = (handle: string | null = 'alice'): CatalogState => ({
+  ...catalog,
+  market: { endpoint: ENDPOINT, source: 'default', signedIn: true, handle },
+});
 const pending = ok({ status: 'pending' });
 
 beforeAll(() => {
@@ -66,6 +116,13 @@ beforeAll(() => {
     if (key === 'POST /api/catalog/login') return res(200, start());
     if (key.startsWith('GET /api/catalog/login/')) return res(200, { status: 'pending' });
     if (key.startsWith('DELETE /api/catalog/login/')) return res(200, { status: 'cancelled' });
+    if (key === 'POST /api/catalog/publish/plan') return res(200, plan());
+    if (key === 'POST /api/catalog/logout')
+      return res(200, {
+        ok: true,
+        signedOut: true,
+        catalog: { ...catalog, market: { ...catalog.market!, signedIn: false, handle: null } },
+      });
     if (u.startsWith('/api/catalog/previews'))
       return res(200, { previews: Object.fromEntries((b.refs as string[]).map((r) => [r, [`line ${r}`]])) });
     if (u.startsWith('/api/catalog/remote')) return res(200, { endpoint: ENDPOINT, entries: [] });
@@ -390,5 +447,235 @@ describe('sign-in dialog', () => {
       'Kodun süresi doldu. Yeni bir kod için Tekrar dene düğmesine basın.',
     );
     expect(button('Tekrar dene')).toBeDefined();
+  });
+});
+
+const planCalls = () => calls.filter((c) => c.url === '/api/catalog/publish/plan');
+const logouts = () => calls.filter((c) => c.url.split('?')[0] === '/api/catalog/logout');
+const remoteCalls = () => calls.filter((c) => c.url.startsWith('/api/catalog/remote'));
+const tabNames = (root: FakeEl = top()) =>
+  root.all((e) => e.getAttribute('role') === 'tab').map((e) => e.textContent);
+const tab = (name: string, root: FakeEl = top()) =>
+  root.all((e) => e.getAttribute('role') === 'tab' && e.textContent === name)[0]!;
+const chips = (root: FakeEl = top()) =>
+  root.all((e) => e.classList.contains('catalog-chip')).map((e) => [e.className, e.textContent]);
+
+async function publish(data: CatalogState = catalog) {
+  await init();
+  const { publishDialog } = await import('../../src/editor/web/catalog-market.js');
+  const p = publishDialog(data);
+  await tick();
+  return { p };
+}
+
+async function openPage() {
+  await init();
+  const { openCatalog } = await import('../../src/editor/web/catalog.js');
+  const p = openCatalog();
+  await tick(50);
+  return { p };
+}
+
+describe('publish dialog sign-in step', () => {
+  it('asks to sign in, then reviews the plan again after sign-in', async () => {
+    catalog = { ...catalog, user: [entry()] };
+    reply('POST /api/catalog/publish/plan', needsSignIn);
+    reply(`GET /api/catalog/login/${FLOW}`, ok({ status: 'ok', handle: 'alice', admin: false }));
+    const { p } = await publish();
+    const d = top();
+    expect(texts(d)).toContain(
+      'This marketplace takes entries only from publishers signed in with GitHub. Sign in to continue; ccinfobar keeps only the marketplace token.',
+    );
+    expect(button('Publish', d)).toBeUndefined();
+    button('Sign in with GitHub', d)!.dispatch('click');
+    await tick();
+    expect(top()).not.toBe(d);
+    expect(starts()).toHaveLength(1);
+    await tick(5000);
+    expect(top()).toBe(d);
+    expect(planCalls()).toHaveLength(2);
+    expect(texts(d)).toEqual(expect.arrayContaining(['New', 'My setup', 'Signed in as @alice']));
+    expect(texts(d)).not.toContain(
+      'This marketplace takes entries only from publishers signed in with GitHub. Sign in to continue; ccinfobar keeps only the marketplace token.',
+    );
+    expect(button('Publish', d)).toBeDefined();
+    expect(calls.filter((c) => c.url === '/api/catalog/publish')).toEqual([]);
+    button('Cancel', d)!.dispatch('click');
+    const next = await p;
+    expect(next).not.toBeNull();
+  });
+
+  it('stays on the sign-in step when the sign-in dialog is cancelled', async () => {
+    reply('POST /api/catalog/publish/plan', needsSignIn);
+    await publish();
+    const d = top();
+    button('Sign in with GitHub', d)!.dispatch('click');
+    await tick();
+    button('Cancel')!.dispatch('click');
+    await tick();
+    expect(top()).toBe(d);
+    expect(planCalls()).toHaveLength(1);
+    expect(button('Sign in with GitHub', d)).toBeDefined();
+    await tick(HOUR);
+    expect(statusCalls()).toEqual([]);
+  });
+
+  it('other plan errors still close with a toast', async () => {
+    reply('POST /api/catalog/publish/plan', {
+      status: 502,
+      data: { error: 'x', errorId: 'market.error.network', code: 'network' },
+    });
+    const { p } = await publish();
+    expect(await p).toBeNull();
+    expect(open()).toEqual([]);
+    expect(starts()).toEqual([]);
+  });
+
+  it('signs out from the publish dialog and reviews again', async () => {
+    catalog = signedIn();
+    reply('POST /api/catalog/publish/plan', ok(plan()), needsSignIn);
+    await publish();
+    const d = top();
+    expect(texts(d)).toContain('Signed in as @alice');
+    button('Sign out', d)!.dispatch('click');
+    await tick();
+    button('Sign out')!.dispatch('click');
+    await tick();
+    expect(logouts()).toHaveLength(1);
+    expect(logouts()[0]!.method).toBe('POST');
+    expect(planCalls()).toHaveLength(2);
+    expect(texts(d)).not.toContain('Signed in as @alice');
+    expect(button('Sign in with GitHub', d)).toBeDefined();
+  });
+
+  it('keeps the sign-in when the sign-out is not confirmed', async () => {
+    catalog = signedIn();
+    await publish();
+    const d = top();
+    button('Sign out', d)!.dispatch('click');
+    await tick();
+    button('Cancel')!.dispatch('click');
+    await tick();
+    expect(logouts()).toEqual([]);
+    expect(texts(d)).toContain('Signed in as @alice');
+  });
+});
+
+describe('catalog page marketplace state', () => {
+  it('shows the Marketplace tab for the default endpoint and loads it only when opened', async () => {
+    await openPage();
+    expect(tabNames()).toContain('Marketplace');
+    expect(remoteCalls()).toEqual([]);
+    await tick(HOUR);
+    expect(remoteCalls()).toEqual([]);
+    tab('Marketplace').dispatch('click');
+    await tick();
+    expect(remoteCalls()).toHaveLength(1);
+  });
+
+  it('hides the Marketplace tab when the marketplace is off', async () => {
+    catalog = {
+      ...catalog,
+      endpoint: null,
+      publishable: false,
+      market: { endpoint: null, source: 'off', signedIn: false, handle: null },
+    };
+    await openPage();
+    expect(tabNames()).not.toContain('Marketplace');
+    expect(button('Publish…')).toBeUndefined();
+    await tick(HOUR);
+    expect(remoteCalls()).toEqual([]);
+  });
+
+  it('shows @handle and signs out from the Marketplace tab', async () => {
+    catalog = signedIn();
+    await openPage();
+    const d = top();
+    tab('Marketplace', d).dispatch('click');
+    await tick();
+    expect(texts(d)).toContain('Signed in as @alice');
+    button('Sign out', d)!.dispatch('click');
+    await tick();
+    expect(texts(top())).toContain(
+      `Sign out of ${ENDPOINT}? ccinfobar removes the marketplace token from this computer.`,
+    );
+    button('Sign out')!.dispatch('click');
+    await tick();
+    expect(logouts()).toHaveLength(1);
+    expect(top()).toBe(d);
+    expect(texts(d)).not.toContain('Signed in as @alice');
+    expect(button('Sign out', d)).toBeUndefined();
+    expect(toastText()).toContain(
+      `Signed out of ${ENDPOINT}. The marketplace token was removed from this computer.`,
+    );
+  });
+
+  it('has no account line when signed out', async () => {
+    await openPage();
+    tab('Marketplace').dispatch('click');
+    await tick();
+    expect(button('Sign out')).toBeUndefined();
+    expect(texts(top()).some((x) => x.startsWith('Signed in'))).toBe(false);
+  });
+
+  it('marks entries the marketplace holds for review', async () => {
+    catalog = {
+      ...catalog,
+      user: [
+        entry({
+          share: { wanted: true, state: 'published' },
+          remote: { id: 'alice/my-setup', version: 1, review: 'pending' },
+        }),
+        entry({
+          ref: 'u-2',
+          id: 'u-2',
+          name: 'Live one',
+          share: { wanted: true, state: 'published' },
+          remote: { id: 'alice/live-one', version: 2 },
+        }),
+      ],
+    };
+    await openPage();
+    tab('User').dispatch('click');
+    await tick();
+    expect(chips()).toEqual([
+      ['catalog-chip review', 'Waiting for review'],
+      ['catalog-chip published', 'Published v2'],
+    ]);
+    const card = top().all((e) => e.getAttribute('data-ref') === 'u-w')[0]!;
+    card.dispatch('click', { target: card });
+    await tick();
+    expect(chips()).toEqual([['catalog-chip review', 'Waiting for review']]);
+  });
+
+  it('speaks Turkish', async () => {
+    setLanguage('tr');
+    catalog = {
+      ...signedIn(),
+      user: [
+        entry({
+          share: { wanted: true, state: 'published' },
+          remote: { id: 'alice/x', version: 1, review: 'pending' },
+        }),
+      ],
+    };
+    reply('POST /api/catalog/publish/plan', needsSignIn);
+    await publish();
+    const d = top();
+    expect(texts(d)).toEqual(
+      expect.arrayContaining([
+        'Bu marketplace yalnızca GitHub ile giriş yapmış yayıncılardan girdi kabul eder. Devam etmek için giriş yapın; ccinfobar yalnızca marketplace belirtecini saklar.',
+        'GitHub ile giriş yap',
+      ]),
+    );
+    button('İptal', d)!.dispatch('click');
+    await tick(200);
+    await openPage();
+    tab('Marketplace').dispatch('click');
+    await tick();
+    expect(texts(top())).toEqual(expect.arrayContaining(['@alice olarak giriş yapıldı', 'Çıkış yap']));
+    tab('Kullanıcı').dispatch('click');
+    await tick();
+    expect(chips()).toEqual([['catalog-chip review', 'İnceleme bekliyor']]);
   });
 });

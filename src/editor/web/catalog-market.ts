@@ -3,6 +3,7 @@ import { formatDateTime } from '../../core/i18n/format.js';
 import { languageLocale, type MessageId, t } from '../../core/i18n/index.js';
 import { visibleTarget } from '../../importers/confirm.js';
 import { ApiError, api, idText } from './api.js';
+import { signInDialog } from './catalog-signin.js';
 import { h } from './dom.js';
 import { field } from './inspector.js';
 import type {
@@ -12,7 +13,7 @@ import type {
   PublishPlanInfo,
   PublishResultInfo,
 } from './store.js';
-import { modal, toast } from './ui.js';
+import { confirmDialog, modal, toast } from './ui.js';
 
 type PlanItem = PublishPlanInfo['plan'][number];
 type Published = Awaited<ReturnType<typeof api.catalogPublish>>;
@@ -38,6 +39,38 @@ const unknownReason = () => t('market.error.unknown');
 function when(at: string): string {
   const d = new Date(at);
   return Number.isNaN(d.getTime()) ? at : formatDateTime(d, languageLocale());
+}
+
+// a GitHub-only marketplace without a stored token
+const needsSignIn = (e: unknown) => e instanceof ApiError && e.data?.code === 'sign-in';
+
+const accountText = (handle: string | null) =>
+  handle ? t('catalog.login.done', { handle: shown(handle) }) : t('catalog.signin.signedIn');
+
+// asks first; the token cannot be shown again
+async function signOut(endpoint: string): Promise<CatalogState | null> {
+  const where = { endpoint: shown(endpoint) };
+  const sure = await confirmDialog(
+    t('catalog.signin.out'),
+    t('catalog.signin.outText', where),
+    t('catalog.signin.out'),
+  );
+  if (!sure) return null;
+  try {
+    const r = await api.logout();
+    toast(t(r.signedOut ? 'catalog.logout.done' : 'catalog.logout.none', where), 'info');
+    return r.catalog;
+  } catch (err) {
+    toast((err as Error).message, 'error');
+    return null;
+  }
+}
+
+function accountLine(handle: string | null, onSignOut: () => void): HTMLElement[] {
+  return [
+    h('span', null, accountText(handle)),
+    h('button', { class: 'btn sm', type: 'button', onClick: onSignOut }, t('catalog.signin.out')),
+  ];
 }
 
 const isPlan = (x: unknown): x is PublishPlanInfo =>
@@ -88,16 +121,24 @@ function resultText(r: PublishResultInfo, item: PlanItem | undefined): string[] 
 
 export async function publishDialog(data: CatalogState, refs?: string[]): Promise<CatalogState | null> {
   if (!data.publishable) return null;
-  let view: PublishPlanInfo;
+  // null: sign in first
+  let view: PublishPlanInfo | null;
   try {
     view = await api.catalogPublishPlan(refs);
   } catch (err) {
-    toast((err as Error).message, 'error');
-    return null;
+    if (!needsSignIn(err)) {
+      toast((err as Error).message, 'error');
+      return null;
+    }
+    view = null;
   }
+  const endpoint = view?.endpoint ?? data.endpoint ?? '';
+  let account = data.market?.signedIn ? { handle: data.market.handle } : null;
   let latest: CatalogState | null = null;
   let busy = false;
+  let sendShown = false;
   let close: (v?: unknown) => void = () => {};
+  const who = h('div', { class: 'catalog-account' });
   const note = h('p', { class: 'hint warn', role: 'status' });
   const err = h('div', { class: 'form-error', role: 'alert' });
   const content = h('div', { class: 'catalog-publish' });
@@ -151,6 +192,55 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
     );
   }
 
+  function showSend(on: boolean) {
+    if (on === sendShown) return;
+    sendShown = on;
+    if (on) cancel.after(send);
+    else send.remove();
+  }
+
+  function renderAccount() {
+    who.replaceChildren(...(account ? accountLine(account.handle, () => void leave()) : []));
+  }
+
+  // asks the server again, e.g. after a sign-in
+  async function reload() {
+    busy = true;
+    err.textContent = '';
+    try {
+      view = await api.catalogPublishPlan(refs);
+    } catch (e) {
+      if (needsSignIn(e)) view = null;
+      else err.textContent = (e as Error).message;
+    } finally {
+      busy = false;
+    }
+    note.textContent = '';
+    render();
+  }
+
+  async function enter() {
+    if (busy) return;
+    const done = await signInDialog();
+    if (!done) return;
+    account = { handle: done.handle };
+    renderAccount();
+    await reload();
+    try {
+      latest = await api.catalog();
+    } catch {}
+  }
+
+  async function leave() {
+    if (busy) return;
+    const next = await signOut(endpoint);
+    if (!next) return;
+    latest = next;
+    account = null;
+    renderAccount();
+    await reload();
+  }
+
   async function setHandle(value: string) {
     if (busy) return;
     busy = true;
@@ -167,9 +257,25 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
   }
 
   function render() {
+    if (!view) {
+      showSend(false);
+      content.replaceChildren(
+        h('p', { class: 'modal-text' }, t('catalog.signin.needed')),
+        h(
+          'p',
+          null,
+          h(
+            'button',
+            { class: 'btn primary', type: 'button', onClick: () => void enter() },
+            t('catalog.signin.title'),
+          ),
+        ),
+      );
+      return;
+    }
     const skipped = view.skipped.map((s) => h('li', null, skippedText(s)));
     if (view.code === 'read-only' || !view.plan.length) {
-      send.remove();
+      showSend(false);
       content.replaceChildren(
         h(
           'p',
@@ -181,6 +287,7 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
       return;
     }
     const reg = view.registration;
+    showSend(true);
     content.replaceChildren(
       h('p', { class: 'modal-text' }, t('catalog.publish.plan')),
       h('ol', { class: 'catalog-publish-list' }, ...view.plan.map(planItem)),
@@ -195,7 +302,7 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
   }
 
   function results(r: Published) {
-    const items = new Map(view.plan.map((i) => [i.id, i]));
+    const items = new Map((view?.plan ?? []).map((i) => [i.id, i]));
     const rows: HTMLElement[] = [];
     if (r.code === 'read-only')
       rows.push(h('li', { class: 'catalog-result failed' }, readOnlyText(r.submitUrl)));
@@ -209,7 +316,7 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
       );
     if (!rows.length) rows.push(h('li', { class: 'catalog-result' }, t('catalog.publish.nothing')));
     note.textContent = '';
-    send.remove();
+    showSend(false);
     cancel.textContent = t('web.settings.done');
     cancel.className = 'btn primary';
     content.replaceChildren(h('ul', { class: 'catalog-publish-results' }, ...rows));
@@ -217,7 +324,7 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
 
   // only this click sends, with the reviewed hash
   async function go() {
-    if (busy) return;
+    if (busy || !view) return;
     busy = true;
     send.disabled = true;
     err.textContent = '';
@@ -233,6 +340,11 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
         try {
           latest = await api.catalog();
         } catch {}
+      } else if (needsSignIn(e)) {
+        view = null;
+        account = null;
+        renderAccount();
+        render();
       } else err.textContent = (e as Error).message;
     } finally {
       busy = false;
@@ -240,20 +352,17 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
     }
   }
 
-  render();
   const shownDialog = modal<CatalogState>({
     title: t('catalog.publish.title'),
     wide: true,
-    body: [note, content, err],
+    body: [who, note, content, err],
     actions: (done) => {
       close = done;
-      return [
-        h('span', { class: 'spacer' }),
-        cancel,
-        view.plan.length && view.code !== 'read-only' ? send : null,
-      ];
+      return [h('span', { class: 'spacer' }), cancel];
     },
   });
+  renderAccount();
+  render();
   // Enter must not publish
   cancel.focus();
   return (await shownDialog) ?? latest;
@@ -292,15 +401,30 @@ function remoteRow(e: MarketSummaryInfo): HTMLElement {
   );
 }
 
-export function marketplaceSection(data: CatalogState): HTMLElement | null {
+export function marketplaceSection(
+  data: CatalogState,
+  onChange?: (next: CatalogState) => void,
+): HTMLElement | null {
   if (!data.publishable) return null;
   const status = h('p', { class: 'hint', role: 'status' }, t('catalog.remote.loading'));
   const list = h('div', { class: 'catalog-remote-list catalog-grid' });
   const head = h('h3', { class: 'catalog-section-head' }, t('catalog.tab.market'));
+  const who = h('div', { class: 'catalog-account' });
+  const market = data.market;
+  if (market?.signedIn)
+    who.replaceChildren(
+      ...accountLine(market.handle, async () => {
+        const next = await signOut(market.endpoint ?? data.endpoint ?? '');
+        if (!next) return;
+        who.remove();
+        onChange?.(next);
+      }),
+    );
   const box = h(
     'section',
     { class: 'catalog-section', 'data-section': 'market' },
     head,
+    market?.signedIn ? who : null,
     h('p', { class: 'hint' }, t('catalog.remote.readOnly')),
     status,
     list,
