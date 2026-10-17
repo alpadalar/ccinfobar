@@ -176,7 +176,8 @@ export function describeConformance(name: string, make: (o: TargetOpts) => Promi
             const index = await client(t).index();
             expect(index.entries.map((e) => e.id)).toEqual(ids);
           }),
-        60_000,
+        // 501 publishes write thousands of files, slow on Windows runners
+        240_000,
       );
     });
 
