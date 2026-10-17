@@ -199,6 +199,14 @@ const NOT_SWEPT: Record<string, string> = {
   'src/market/serve.ts': 'self-hosting entry for the reference server (D-24)',
 };
 
+// whole folders left out, with the reason
+const NOT_SWEPT_DIRS: Record<string, string> = {
+  'src/market/worker/': 'marketplace Worker, English protocol JSON and landing page (D-03)',
+};
+
+const notSwept = (f: string): boolean =>
+  f in NOT_SWEPT || Object.keys(NOT_SWEPT_DIRS).some((d) => f.startsWith(d));
+
 // exact literal texts allowed per file
 const ALLOW: Record<string, string[]> = {
   'src/cli/help.ts': [
@@ -497,6 +505,12 @@ describe('literal scan', () => {
     expect(new Set(all).size).toBe(all.length);
     for (const f of all) expect(fs.existsSync(path.join(root, f)), f).toBe(true);
     for (const reason of Object.values(NOT_SWEPT)) expect(reason.length).toBeGreaterThan(0);
+    for (const [d, reason] of Object.entries(NOT_SWEPT_DIRS)) {
+      expect(d.endsWith('/'), d).toBe(true);
+      expect(fs.statSync(path.join(root, d)).isDirectory(), d).toBe(true);
+      expect(reason.length).toBeGreaterThan(0);
+      for (const f of [...SWEPT, ...Object.keys(NOT_SWEPT)]) expect(f.startsWith(d), f).toBe(false);
+    }
   });
 
   it('covers every file in src/ outside src/core/i18n/', () => {
@@ -505,7 +519,7 @@ describe('literal scan', () => {
       .map((f) => `src/${f.replace(/\\/g, '/')}`)
       .filter((f) => f.endsWith('.ts') && !f.startsWith('src/core/i18n/'));
     expect(files.length).toBeGreaterThan(100);
-    for (const f of files) expect(SWEPT.includes(f) || f in NOT_SWEPT, f).toBe(true);
+    for (const f of files) expect(SWEPT.includes(f) || notSwept(f), f).toBe(true);
     for (const f of [...SWEPT, ...Object.keys(NOT_SWEPT)])
       expect(f.startsWith('src/core/i18n/'), f).toBe(false);
   });
