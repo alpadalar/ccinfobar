@@ -5,6 +5,7 @@ import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
 const cli = path.join(root, 'dist', 'ccinfobar.js');
+const marketJs = path.join(root, 'market', 'ccinfobar-market.mjs');
 const args = process.argv.slice(2);
 const flag = (name) => {
   const i = args.indexOf(name);
@@ -68,6 +69,68 @@ for (const d of [env.CLAUDE_CONFIG_DIR, env.CCINFOBAR_CONFIG_DIR, env.CCINFOBAR_
 }
 const config = path.join(env.CCINFOBAR_CONFIG_DIR, 'config.json');
 const run = (...a) => execFileSync(process.execPath, [cli, ...a, '--config', config], { env, stdio: 'pipe' });
+
+// a local marketplace, so the Marketplace tab shows without the network
+function startMarket() {
+  if (!fs.existsSync(marketJs))
+    execFileSync(process.execPath, [path.join(root, 'scripts', 'build.mjs'), '--market'], {
+      stdio: 'ignore',
+    });
+  const child = spawn(
+    process.execPath,
+    [marketJs, '--data', path.join(T, 'market'), '--host', '127.0.0.1', '--port', '0'],
+    { env, stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  return new Promise((resolve, reject) => {
+    let text = '';
+    const timer = setTimeout(() => reject(new Error(`marketplace did not start: ${text}`)), 15000);
+    child.stdout.on('data', (b) => {
+      text += b;
+      const m = text.match(/http:\/\/127\.0\.0\.1:\d+/);
+      if (m) {
+        clearTimeout(timer);
+        resolve({ child, url: m[0] });
+      }
+    });
+    child.on('exit', () => reject(new Error(`marketplace exited: ${text}`)));
+  });
+}
+
+// another publisher's entries
+function publishOthers() {
+  const dir = path.join(T, 'publisher');
+  const penv = { ...env, CCINFOBAR_CONFIG_DIR: dir };
+  const pconfig = path.join(dir, 'config.json');
+  const prun = (...a) =>
+    execFileSync(process.execPath, [cli, ...a, '--config', pconfig], { env: penv, stdio: 'pipe' });
+  const save = (ref, name, kind, description) => {
+    prun('catalog', 'apply', ref, '--yes');
+    prun('catalog', 'save', name, '--kind', kind, '--author', 'Mia', '--description', description);
+  };
+  save('bundle/nord-minimal', 'Arctic focus', 'bundle', 'Nord colors, one quiet line');
+  save('preset/cockpit', 'Pair session', 'preset', 'Cost, context and git for pairing');
+  prun('catalog', 'apply', 'bundle/panel-dashboard', '--yes');
+  // a link to show in the install review
+  const cfg = JSON.parse(fs.readFileSync(pconfig, 'utf8'));
+  cfg.lines[0].push({
+    id: 'docs',
+    type: 'link',
+    options: { url: 'https://example.com/night-shift', text: 'docs' },
+  });
+  fs.writeFileSync(pconfig, JSON.stringify(cfg));
+  prun(
+    'catalog',
+    'save',
+    'Night shift',
+    '--kind',
+    'bundle',
+    '--author',
+    'Mia',
+    '--description',
+    'Boxed panel with limits and pace',
+  );
+  prun('catalog', 'publish', '--yes');
+}
 
 function seed() {
   run('catalog', 'apply', 'bundle/tokyo-night-limits', '--yes');
@@ -194,14 +257,30 @@ const SCREENS = [
   {
     stem: 'catalog',
     open: `document.getElementById('catalog-btn').click()`,
-    wait: `document.querySelector('.catalog-card')`,
+    wait: `document.querySelectorAll('.catalog-remote-row').length >= 3`,
   },
   {
     stem: 'catalog-details',
     open: `document.getElementById('catalog-btn').click()`,
     wait: `document.querySelector('.catalog-card')`,
-    next: `[...document.querySelectorAll('.catalog-section[data-section="system"] .catalog-card')][0]?.click()`,
+    next: `(async () => {
+      document.querySelector('[data-tab="system"]')?.click();
+      await new Promise((r) => setTimeout(r, 400));
+      [...document.querySelectorAll('.catalog-section[data-section="system"] .catalog-card')][0]?.click();
+    })()`,
     nextWait: `document.querySelector('.catalog-detail-preview')`,
+  },
+  {
+    stem: 'catalog-install',
+    open: `document.getElementById('catalog-btn').click()`,
+    wait: `document.querySelectorAll('.catalog-remote-row').length >= 3`,
+    next: `(async () => {
+      [...document.querySelectorAll('.catalog-remote-row')].find((r) => r.textContent.includes('Night shift'))?.click();
+      for (let i = 0; i < 40 && !document.querySelector('.modal footer .btn.primary'); i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      [...document.querySelectorAll('.modal footer button')].find((b) => b.textContent.trim() === 'Install')?.click();
+    })()`,
+    nextWait: `document.querySelector('.catalog-install')`,
   },
   {
     stem: 'catalog-save',
@@ -247,7 +326,11 @@ async function main() {
   let editor;
   let chrome;
   let page;
+  let market;
   try {
+    market = await startMarket();
+    env.CCINFOBAR_MARKETPLACE_URL = market.url;
+    publishOthers();
     seed();
     editor = await startEditor();
     chrome = await startChrome();
@@ -358,6 +441,7 @@ async function main() {
     page?.close();
     if (chrome) chrome.child.kill();
     if (editor) editor.child.kill();
+    if (market) market.child.kill();
     await sleep(500);
     fs.rmSync(T, { recursive: true, force: true, maxRetries: 5 });
   }

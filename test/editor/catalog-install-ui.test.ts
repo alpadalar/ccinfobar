@@ -75,6 +75,7 @@ const installedEntry = (): CatalogEntryInfo => ({
   rev: 1,
   share: { wanted: false, state: 'local' },
   remote: null,
+  origin: { endpoint: ENDPOINT, id: 'bo/night-owl', version: 3 },
   updatedAt: '2026-10-17T10:00:00.000Z',
   scenario: null,
   content: { layout: { lines: [[{ id: 'm', type: 'model' }]] } },
@@ -262,7 +263,14 @@ describe('install from the marketplace (D-11)', () => {
     expect(top().all((e) => e.getAttribute('data-ref') === 'u-n')).toHaveLength(1);
     tab('user').dispatch('click');
     await tick(50);
-    expect(top().all((e) => e.getAttribute('data-ref') === 'u-n')).toHaveLength(1);
+    const card = top().all((e) => e.getAttribute('data-ref') === 'u-n')[0]!;
+    // installed entries cannot be shared as yours
+    expect(texts(card)).toContain('From the marketplace');
+    const titles = card.all((e) => e.tagName === 'BUTTON').map((b) => b.getAttribute('title'));
+    expect(titles).toEqual(['Apply', 'Version history', 'Delete']);
+    card.dispatch('click', { target: card });
+    await tick(50);
+    expect(footLabels()).toEqual(['Version history', 'Delete', 'Close', 'Apply']);
   });
 
   it('says when nothing runs and sends nothing on Cancel', async () => {

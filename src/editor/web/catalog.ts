@@ -205,6 +205,7 @@ export async function applyEntry(e: CatalogEntryInfo, close: (v?: unknown) => vo
 }
 
 function chip(e: CatalogEntryInfo): HTMLElement | null {
+  if (e.origin) return h('span', { class: 'catalog-chip installed' }, t('catalog.share.installed'));
   if (!e.share) return null;
   const state = e.share.state;
   // held by the marketplace until an admin approves
@@ -367,17 +368,23 @@ export async function openCatalog(): Promise<void> {
       actionButton('', 'clock', t('catalog.action.history'), t('catalog.action.historyName', { name }), () =>
         act(e, historyDialog),
       ),
-      shared
-        ? actionButton(
-            '',
-            'upload-off',
-            t('catalog.action.unshare'),
-            t('catalog.action.unshareName', { name }),
-            () => act(e, toggleShare),
-          )
-        : actionButton('', 'upload', t('catalog.action.share'), t('catalog.action.shareName', { name }), () =>
-            act(e, toggleShare),
-          ),
+      e.origin
+        ? ''
+        : shared
+          ? actionButton(
+              '',
+              'upload-off',
+              t('catalog.action.unshare'),
+              t('catalog.action.unshareName', { name }),
+              () => act(e, toggleShare),
+            )
+          : actionButton(
+              '',
+              'upload',
+              t('catalog.action.share'),
+              t('catalog.action.shareName', { name }),
+              () => act(e, toggleShare),
+            ),
       actionButton(
         ' danger',
         'trash',
@@ -429,7 +436,9 @@ export async function openCatalog(): Promise<void> {
             ? []
             : [
                 text(t('catalog.action.history'), run(historyDialog)),
-                text(t(shared ? 'catalog.action.unshare' : 'catalog.action.share'), run(toggleShare)),
+                ...(e.origin
+                  ? []
+                  : [text(t(shared ? 'catalog.action.unshare' : 'catalog.action.share'), run(toggleShare))]),
                 text(t('catalog.action.delete'), run(deleteEntryDialog)),
               ]),
           h('span', { class: 'spacer' }),

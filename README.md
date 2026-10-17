@@ -211,6 +211,17 @@ Mouse works too: click to select, drag a chip to move it.
 </details>
 
 <details>
+<summary>Install from the marketplace</summary>
+
+<p><b>Dark</b></p>
+<img src="docs/images/screenshots/catalog-install-dark.png" alt="Install from the marketplace, dark" width="100%">
+
+<p><b>Light</b></p>
+<img src="docs/images/screenshots/catalog-install-light.png" alt="Install from the marketplace, light" width="100%">
+
+</details>
+
+<details>
 <summary>Save to catalog</summary>
 
 <p><b>Dark</b></p>

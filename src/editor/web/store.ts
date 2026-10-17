@@ -107,6 +107,8 @@ export interface CatalogEntryInfo {
   share: { wanted: boolean; state: ShareState } | null;
   // review: the marketplace holds it for an admin
   remote: { id: string; version: number; review?: 'pending' } | null;
+  // installed from the marketplace; never shared as the user's own
+  origin?: { endpoint: string; id: string; version: number } | null;
   updatedAt: string | null;
   scenario: string | null;
   content: EntryContent;

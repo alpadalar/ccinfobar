@@ -333,6 +333,7 @@ export const catalogMessages = {
   'catalog.install.toastVersion':
     '{name} girdisine v{version} eklendi. Kullanıcı sekmesinden uygulayabilirsiniz.',
   'catalog.install.toastSame': '{name} zaten yüklü.',
+  'catalog.share.installed': "Marketplace'ten",
   'catalog.report.action': 'Bildir…',
   'catalog.report.title': '{name} girdisini bildir',
   'catalog.report.text':

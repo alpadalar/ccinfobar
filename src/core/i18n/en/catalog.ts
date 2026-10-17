@@ -319,6 +319,7 @@ export const catalogMessages = {
   'catalog.install.toast': 'Installed {name}. Apply it from the User tab.',
   'catalog.install.toastVersion': 'Added v{version} to {name}. Apply it from the User tab.',
   'catalog.install.toastSame': '{name} is already installed.',
+  'catalog.share.installed': 'From the marketplace',
   'catalog.report.action': 'Report…',
   'catalog.report.title': 'Report {name}',
   'catalog.report.text':

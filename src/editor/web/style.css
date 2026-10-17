@@ -2255,6 +2255,10 @@ input[type="range"]:disabled {
   --c: var(--warn);
 }
 
+.catalog-chip.installed {
+  --c: var(--accent);
+}
+
 .catalog-account {
   display: flex;
   flex-wrap: wrap;
@@ -2279,6 +2283,15 @@ input[type="range"]:disabled {
 
 .catalog-checked {
   font-size: 0.8125rem;
+}
+
+.catalog-install {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.catalog-install > p {
+  margin: 0;
 }
 
 .catalog-report-reason {
