@@ -109,6 +109,7 @@ const PURE = [
   'src/market/protocol.ts',
   'src/core/entry-keys.ts',
   'src/market/rules.ts',
+  'src/market/github.ts',
   'src/market/worker/',
 ];
 
@@ -411,6 +412,13 @@ describe('import graph', () => {
     for (const f of new Set([...files, ...own])) {
       const text = fs.readFileSync(path.join(root, f), 'utf8');
       expect(text, f).not.toMatch(/\bBuffer\b|process\.|require\(|__dirname|setImmediate|['"]node:/);
+    }
+  });
+
+  // D-06: github.com has no CORS; only the CLI and the editor server run the device flow
+  it('keeps the GitHub device flow out of the browser bundle and the Worker', () => {
+    for (const entry of ['editor/web/app.ts', 'market/worker/index.ts', 'cli/render.ts', 'cli/hook.ts']) {
+      expect(closure(entry).has('src/market/github.ts'), entry).toBe(false);
     }
   });
 

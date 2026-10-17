@@ -197,6 +197,7 @@ const NOT_SWEPT: Record<string, string> = {
   'src/market/server.ts': 'reference marketplace server, English protocol JSON (D-15)',
   'src/market/rules.ts': 'marketplace server rules, fixed English protocol messages (D-03)',
   'src/market/serve.ts': 'self-hosting entry for the reference server (D-24)',
+  'src/market/github.ts': 'GitHub device-flow client, codes only (D-06)',
 };
 
 // whole folders left out, with the reason
