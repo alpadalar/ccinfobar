@@ -90,6 +90,14 @@ export const importMessages = {
   },
   'import.note.gapsReplaced':
     '{tool}: {gaps} ile ayrılan modüller artık en sık kullanılan ayracı ({separator}) kullanıyor',
+  'import.note.shellSkipped': {
+    one: '{tool}: {lines}. satır düz bir atama değil ve atlandı; dosyadaki hiçbir şey çalıştırılmaz',
+    other: '{tool}: {lines}. satırlar düz atama değil ve atlandı; dosyadaki hiçbir şey çalıştırılmaz',
+  },
+  'import.note.numbersFormat':
+    '{tool} sayı biçimi "{value}" içe aktarılmadı, ccinfobar sayıları kısa biçimde gösterir',
+  'import.note.perfThresholds':
+    '{tool} performans eşikleri ilk değerleriyle rozet uyarılarına dönüştürüldü (isabet oranı %{hit} altında, süre {time} saniyenin üstünde)',
   'import.note.separatorMerged':
     '{tool} satırları farklı ayraçlar kullanıyor; artık her satır en sık kullanılan ayracı ({separator}) kullanıyor',
   'import.note.hudIgnored': '{file} bir JSON nesnesi değil, yok sayıldı',

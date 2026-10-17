@@ -26,6 +26,7 @@ import {
   importFrom,
   toConfig,
 } from '../../src/importers/index.js';
+import { TARGETS as PYCCSL_TARGETS } from '../../src/importers/pyccsl.js';
 import { TARGETS as SC_TARGETS } from '../../src/importers/starship-claude.js';
 import { TARGETS as CCSP_TARGETS } from '../../src/importers/statusline-pro.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
@@ -201,6 +202,17 @@ const TOOLS: Tool[] = [
       '',
     ].join('\n'),
     proto: 'format = "$directory"\n[palettes.custom]\n__proto__ = "#ffffff"\n',
+  },
+  {
+    source: 'pyccsl',
+    targets: PYCCSL_TARGETS,
+    fixtures: ['pyccsl.env'],
+    ext: 'env',
+    hasDefault: true,
+    command: 'python3 pyccsl.py model,cost',
+    hostileIn: 'notes',
+    hostile: `PYCCSL_FIELDS="model,${HOSTILE}"\nPYCCSL_THEME="${HOSTILE}"\n`,
+    protoText: '__proto__=1\nPYCCSL_THEME=nord\n',
   },
   {
     source: 'cship',

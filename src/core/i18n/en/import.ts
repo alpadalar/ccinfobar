@@ -86,6 +86,14 @@ export const importMessages = {
   },
   'import.note.gapsReplaced':
     '{tool}: modules separated by {gaps} now use the most common separator, {separator}',
+  'import.note.shellSkipped': {
+    one: '{tool}: line {lines} is not a plain assignment and was skipped; nothing in the file is run',
+    other: '{tool}: lines {lines} are not plain assignments and were skipped; nothing in the file is run',
+  },
+  'import.note.numbersFormat':
+    '{tool} number format "{value}" was not imported, ccinfobar shows compact numbers',
+  'import.note.perfThresholds':
+    '{tool} performance thresholds became the badge warnings from their first values (hit rate below {hit}%, time above {time}s)',
   'import.note.separatorMerged':
     '{tool} lines use different separators; every line now uses the most common one, {separator}',
   'import.note.hudIgnored': '{file} is not a JSON object and was ignored',

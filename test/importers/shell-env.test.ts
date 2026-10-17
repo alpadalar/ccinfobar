@@ -108,7 +108,7 @@ describe('parseShellEnv', () => {
     const r = parseShellEnv('__proto__=1\nconstructor=2\ntoString=3\n');
     expect(Object.getPrototypeOf(r.vars)).toBeNull();
     expect(Object.hasOwn(r.vars, '__proto__')).toBe(true);
-    expect(r.vars.__proto__).toBe('1');
+    expect(Object.getOwnPropertyDescriptor(r.vars, '__proto__')?.value).toBe('1');
     expect(r.vars.constructor).toBe('2');
     expect(({} as Record<string, unknown>).constructor).toBe(Object);
     expect(Object.prototype).not.toHaveProperty('1');

@@ -23,3 +23,4 @@ Hand-written fixtures in each tool's documented format; no upstream code or secr
 | `claude-code-statusline.toml` | [rz1989s/claude-code-statusline](https://github.com/rz1989s/claude-code-statusline) | `examples/Config.toml` (theme and display sections, a weather plugin key) | MIT |
 | `starship-claude-minimal.toml` | [martinemde/starship-claude](https://github.com/martinemde/starship-claude) | `plugin/templates/minimal-text.toml` + `plugin/templates/palettes/catppuccin_mocha.toml` (what `configure.sh --write` writes) | MIT |
 | `starship-claude-powerline.toml` | [martinemde/starship-claude](https://github.com/martinemde/starship-claude) | `plugin/templates/powerline.toml` + `plugin/templates/palettes/nord.toml` (glyphs as `\u` escapes) | MIT |
+| `pyccsl.env` | [wolfdenpublishing/pyccsl](https://github.com/wolfdenpublishing/pyccsl) | `pyccsl.env.example` (plus a non-PYCCSL line and a `$(…)` line) | MIT |
