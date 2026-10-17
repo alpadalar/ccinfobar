@@ -76,7 +76,7 @@ export function pingEditor(url: string, timeoutMs = 500): Promise<boolean> {
 }
 
 async function openUrl(url: string): Promise<void> {
-  const { openBrowser } = await import('./server.js');
+  const { openBrowser } = await import('../commands/open.js');
   openBrowser(url);
 }
 

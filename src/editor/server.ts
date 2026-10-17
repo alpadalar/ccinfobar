@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -62,6 +61,7 @@ import {
   setupCommandAsync,
 } from '../commands/install.js';
 import { classifyOwner, deepEqual, findHookEntries, owns, readManifest } from '../commands/manifest.js';
+import { openBrowser } from '../commands/open.js';
 import { backupsDir, readSettings } from '../commands/settings-file.js';
 import {
   compareVersions,
@@ -222,25 +222,7 @@ function readBody(req: http.IncomingMessage): Promise<unknown> {
   });
 }
 
-export function openBrowser(url: string): void {
-  try {
-    let child: ReturnType<typeof spawn>;
-    if (process.platform === 'darwin') {
-      child = spawn('open', [url], { detached: true, stdio: 'ignore' });
-    } else if (process.platform === 'win32') {
-      child = spawn('cmd', ['/c', 'start', '""', `"${url.replace(/&/g, '^&')}"`], {
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true,
-        windowsVerbatimArguments: true,
-      });
-    } else {
-      child = spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
-    }
-    child.on('error', () => {});
-    child.unref();
-  } catch {}
-}
+export { openBrowser };
 
 function widgetCatalog() {
   return ALL_WIDGETS.map((w) => ({

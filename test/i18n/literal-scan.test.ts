@@ -36,6 +36,7 @@ const SWEPT: string[] = [
   'src/commands/update.ts',
   'src/commands/catalog-market.ts',
   'src/commands/catalog.ts',
+  'src/commands/open.ts',
   'src/core/http-spec.ts',
   'src/core/jsonpath.ts',
   'src/core/config-path.ts',
@@ -203,6 +204,7 @@ const NOT_SWEPT: Record<string, string> = {
   'src/market/rules.ts': 'marketplace server rules, fixed English protocol messages (D-03)',
   'src/market/serve.ts': 'self-hosting entry for the reference server (D-24)',
   'src/market/github.ts': 'GitHub device-flow client, codes only (D-06)',
+  'src/catalog/signin.ts': 'sign-in orchestration, codes only',
 };
 
 // whole folders left out, with the reason
