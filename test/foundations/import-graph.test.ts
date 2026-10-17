@@ -158,6 +158,17 @@ describe('import graph', () => {
     expect(files.filter((f) => REPORT_FILES.includes(f) || f.startsWith('src/importers/'))).toEqual([]);
   });
 
+  // a lazy import-help entry split the render chunks; import help loads through manage
+  it('loads import help through the manage entry only', () => {
+    const lazy = walk(src).filter((f) =>
+      /import\('[./]+(?:commands\/)?(?:import-help|importers\/[^']+)\.js'\)/.test(fs.readFileSync(f, 'utf8')),
+    );
+    expect(lazy.map((f) => path.relative(root, f))).toEqual([]);
+    expect(fs.readFileSync(path.join(src, 'cli/main.ts'), 'utf8')).toContain(
+      "(await import('../commands/manage.js')).importHelp()",
+    );
+  });
+
   // a lazy entry that reaches part of a render chunk makes esbuild split it (D-33)
   it('hands report code its config, language, ledger, limits and profile helpers from main', () => {
     const files = closure('commands/report.ts');

@@ -47,7 +47,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   }
   if (args.flags.help || args.command === 'help') {
     if (args.command === 'import') {
-      process.stdout.write((await import('../commands/import-help.js')).importHelp());
+      process.stdout.write((await import('../commands/manage.js')).importHelp());
       return;
     }
     process.stdout.write((await import('./help.js')).help());

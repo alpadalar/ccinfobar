@@ -56,7 +56,7 @@ import { currentStatusLine } from './install.js';
 import { type CliIo, cliIo, type PromptIo, plainOutput, promptIo } from './io.js';
 import { usageErrorText } from './usage-error.js';
 
-export { selfCommand };
+export { importHelp, selfCommand };
 
 const DEMO_LINE = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gsd-plans', 'session-cost'].map(
   (type) => ({
