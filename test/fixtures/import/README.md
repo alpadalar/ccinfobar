@@ -15,3 +15,4 @@ Hand-written fixtures in each tool's documented format; no upstream code or secr
 | `starship.toml` | [stephenleo/cship](https://github.com/stephenleo/cship) | `docs/configuration.md` (`[cship]` in `starship.toml`) | Apache-2.0 |
 | `claude-hud.json` | [jarrodwatts/claude-hud](https://github.com/jarrodwatts/claude-hud) | `src/config.ts`, `README.md` | MIT |
 | `claude-hud.override.json` | [jarrodwatts/claude-hud](https://github.com/jarrodwatts/claude-hud) | `src/config.ts` (`claude-hud.json` override) | MIT |
+| `best-claude-hud.toml` | [GaoSSR/best-claude-hud](https://github.com/GaoSSR/best-claude-hud) | `src/config/types.rs`, `src/ui/themes/presets.rs` | Apache-2.0 |

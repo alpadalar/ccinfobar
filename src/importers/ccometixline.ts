@@ -4,7 +4,7 @@ import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionValue, WidgetItem } from '../core/types.js';
 import { CCLINE_THEMES } from './ccometixline-themes.js';
 import { ansiColor } from './colors.js';
-import type { ImportNote, ImportResult } from './index.js';
+import type { ImportNote, ImportResult, ImportSource } from './index.js';
 
 const TOOL = 'CCometixLine';
 const POWERLINE_ARROW = '\ue0b0';
@@ -70,9 +70,13 @@ function segmentTypes(id: string, options: Raw): [string, Record<string, OptionV
   }
 }
 
-export function importCcometixline(raw: unknown, opts: { defaulted?: boolean } = {}): ImportResult {
+export function importCcometixline(
+  raw: unknown,
+  opts: { defaulted?: boolean; tool?: string; source?: ImportSource } = {},
+): ImportResult {
+  const tool = opts.tool ?? TOOL;
   const notes: ImportNote[] = [];
-  if (opts.defaulted) notes.push({ kind: 'info', text: t('import.note.defaultLayout', { tool: TOOL }) });
+  if (opts.defaulted) notes.push({ kind: 'info', text: t('import.note.defaultLayout', { tool }) });
   const c = obj(raw);
   const style = obj(c.style);
   const nerd = style.mode === 'nerd_font' || style.mode === 'powerline';
@@ -86,19 +90,19 @@ export function importCcometixline(raw: unknown, opts: { defaulted?: boolean } =
     const name = sanitizeText(id);
     const options = obj(seg.options);
     if (id === 'update') {
-      notes.push({ kind: 'drop', text: t('import.note.selfUpdate', { tool: TOOL, name }) });
+      notes.push({ kind: 'drop', text: t('import.note.selfUpdate', { tool, name }) });
       continue;
     }
     const types = segmentTypes(id, options);
     if (!types) {
-      notes.push({ kind: 'drop', text: t('import.note.noSegment', { tool: TOOL, name }) });
+      notes.push({ kind: 'drop', text: t('import.note.noSegment', { tool, name }) });
       continue;
     }
     const api = USAGE_API_OPTIONS.filter((k) => Object.hasOwn(options, k));
     if (api.length) {
       notes.push({
         kind: 'drop',
-        text: t('import.note.usageApi', { tool: TOOL, name, options: api.join(', ') }),
+        text: t('import.note.usageApi', { tool, name, options: api.join(', ') }),
       });
     }
     const colors = obj(seg.colors);
@@ -107,7 +111,7 @@ export function importCcometixline(raw: unknown, opts: { defaulted?: boolean } =
     const icon = obj(seg.icon)[mode];
     const label = typeof icon === 'string' ? icon : '';
     if (label && colors.icon !== undefined && ansiColor(colors.icon) !== color) {
-      notes.push({ kind: 'approx', text: t('import.note.iconColor', { tool: TOOL, name }) });
+      notes.push({ kind: 'approx', text: t('import.note.iconColor', { tool, name }) });
     }
     const bold = obj(seg.styles).text_bold === true;
     types.forEach(([type, itemOptions], i) => {
@@ -126,5 +130,5 @@ export function importCcometixline(raw: unknown, opts: { defaulted?: boolean } =
   const separator = typeof style.separator === 'string' ? style.separator : ' | ';
   if (separator === POWERLINE_ARROW) config.style = 'powerline';
   else config.separator = separator;
-  return { config, notes, source: 'ccometixline' };
+  return { config, notes, source: opts.source ?? 'ccometixline' };
 }

@@ -423,6 +423,7 @@ describe('import sources', () => {
       'ccometixline',
       'cship',
       'claude-hud',
+      'best-claude-hud',
     ]);
     expect(resolveSource('ccstatusline')).toBe('ccstatusline');
     expect(resolveSource('CLAUDE-POWERLINE')).toBe('claude-powerline');

@@ -7,9 +7,7 @@ import { t } from '../core/i18n/index.js';
 import { claudeDir, claudeSettingsPath, tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config } from '../core/types.js';
-import { firstPathToken } from './args.js';
-import { CCLINE_DEFAULT, importCcometixline, parseCclineTheme } from './ccometixline.js';
-import { CCLINE_THEMES, type CclineTheme } from './ccometixline-themes.js';
+import { CCOMETIXLINE, importCclineFamily } from './ccline-load.js';
 import { importCcstatusline } from './ccstatusline.js';
 import { importClaudeHud, mergeHud, normalizeHud, parseExtraCmd } from './claude-hud.js';
 import { importClaudePowerline, parsePowerlineArgs } from './claude-powerline.js';
@@ -22,7 +20,6 @@ import {
   readSource,
   readToml,
   SourceTooLargeError,
-  safeThemeName,
   tableOf,
 } from './io.js';
 import {
@@ -34,6 +31,7 @@ import {
   registryDef,
 } from './registry.js';
 
+export { ccometixlinePaths } from './ccline-load.js';
 export { MAX_SOURCE_BYTES, readSource, SourceTooLargeError } from './io.js';
 
 export const IMPORT_SOURCES = [
@@ -42,6 +40,7 @@ export const IMPORT_SOURCES = [
   'ccometixline',
   'cship',
   'claude-hud',
+  'best-claude-hud',
 ] as const;
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
@@ -197,64 +196,6 @@ export function powerlinePaths(
     path.join(claudeDir(env), 'claude-powerline.json'),
     path.join(os.homedir(), '.config', 'claude-powerline', 'config.json'),
   ];
-}
-
-export function ccometixlinePaths(
-  command: string,
-  home = os.homedir(),
-): { file: string | null; note: 'command-dir' | null } {
-  const homeFile = path.join(home, '.claude', 'ccline', 'config.toml');
-  if (fs.existsSync(homeFile)) return { file: homeFile, note: null };
-  const bin = firstPathToken(command, home);
-  if (bin) {
-    const dirs = [path.dirname(bin)];
-    for (let d = path.dirname(bin); path.dirname(d) !== d; d = path.dirname(d)) {
-      if (path.basename(d) === 'ccline' && d !== dirs[0]) dirs.push(d);
-    }
-    for (const d of dirs) {
-      const file = path.join(d, 'config.toml');
-      if (isPlainFile(file)) return { file, note: 'command-dir' };
-    }
-  }
-  return { file: null, note: null };
-}
-
-const CCLINE = 'CCometixLine';
-
-function importCclineTheme(name: string, home: string): ImportResult | ImportNote {
-  const shown = sanitizeText(name);
-  if (!safeThemeName(name))
-    return { kind: 'info', text: t('import.note.themeUnsafe', { tool: CCLINE, name: shown }) };
-  const file = path.join(home, '.claude', 'ccline', 'themes', `${name}.toml`);
-  if (isFile(file)) {
-    const result = importCcometixline(readToml(file, CCLINE));
-    const text = t('import.note.themeFile', { tool: CCLINE, name: shown, file: sanitizeText(tildify(file)) });
-    result.notes.unshift({ kind: 'info', text });
-    return { ...result, file };
-  }
-  const builtin = Object.hasOwn(CCLINE_THEMES, name);
-  const result = importCcometixline(CCLINE_THEMES[(builtin ? name : 'default') as CclineTheme]);
-  const id = builtin ? 'import.note.themeBuiltin' : 'import.note.themeUnknown';
-  result.notes.unshift({ kind: 'info', text: t(id, { tool: CCLINE, name: shown }) });
-  return { ...result, file: null };
-}
-
-function importCcline(file: string | undefined, command: string, home = os.homedir()): ImportResult {
-  const theme = file ? null : parseCclineTheme(command);
-  const themed = theme === null ? null : importCclineTheme(theme, home);
-  if (themed && 'config' in themed) return themed;
-  const found = file ? { file, note: null } : ccometixlinePaths(command, home);
-  const result = found.file
-    ? importCcometixline(readToml(found.file, CCLINE))
-    : importCcometixline(CCLINE_DEFAULT, { defaulted: true });
-  if (found.note === 'command-dir' && found.file) {
-    result.notes.unshift({
-      kind: 'info',
-      text: t('import.note.commandDir', { tool: CCLINE, file: sanitizeText(tildify(found.file)) }),
-    });
-  }
-  if (themed) result.notes.unshift(themed);
-  return { ...result, file: found.file };
 }
 
 export interface CshipFound {
@@ -417,7 +358,9 @@ export function importFrom(
     if (!raw) throw new Error(t('import.cannotRead', { file }));
     return { ...importCcstatusline(raw), file };
   }
-  if (source === 'ccometixline') return importCcline(opts.file, command);
+  if (source === 'ccometixline') {
+    return importCclineFamily(opts.file, { command, home: os.homedir() }, CCOMETIXLINE);
+  }
   if (source === 'claude-hud') return importHud(opts.file, command, env);
   const files = opts.file ? [opts.file] : powerlinePaths(env, command);
   const file = files.find((f) => fs.existsSync(f)) ?? null;

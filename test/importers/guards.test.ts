@@ -58,6 +58,19 @@ interface Tool {
 
 const EVIL = '{"polluted": 1}';
 
+const CCLINE_HOSTILE = [
+  '[style]',
+  'mode = "plain"',
+  `separator = ${toml(HOSTILE)}`,
+  '[[segments]]',
+  'id = "model"',
+  '[segments.icon]',
+  `plain = ${toml(HOSTILE)}`,
+  '[[segments]]',
+  `id = ${toml(HOSTILE)}`,
+  '',
+].join('\n');
+
 const TOOLS: Tool[] = [
   {
     source: 'ccstatusline',
@@ -93,18 +106,16 @@ const TOOLS: Tool[] = [
     fixtures: ['ccometixline.toml', 'ccometixline-inline.toml', 'ccline-theme.toml'],
     ext: 'toml',
     hasDefault: true,
-    hostile: [
-      '[style]',
-      'mode = "plain"',
-      `separator = ${toml(HOSTILE)}`,
-      '[[segments]]',
-      'id = "model"',
-      '[segments.icon]',
-      `plain = ${toml(HOSTILE)}`,
-      '[[segments]]',
-      `id = ${toml(HOSTILE)}`,
-      '',
-    ].join('\n'),
+    hostile: CCLINE_HOSTILE,
+    proto: '__proto__ = 1\n',
+  },
+  {
+    source: 'best-claude-hud',
+    targets: CCLINE_TARGETS,
+    fixtures: ['best-claude-hud.toml'],
+    ext: 'toml',
+    hasDefault: true,
+    hostile: CCLINE_HOSTILE,
     proto: '__proto__ = 1\n',
   },
   {

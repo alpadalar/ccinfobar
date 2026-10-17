@@ -1,0 +1,108 @@
+theme = "nord"
+
+[style]
+mode = "powerline"
+separator = ""
+
+[[segments]]
+id = "directory"
+enabled = true
+
+[segments.icon]
+plain = "📁"
+nerd_font = "\U000F024B"
+
+[segments.colors.text]
+r = 46
+g = 52
+b = 64
+
+[segments.colors.background]
+r = 136
+g = 192
+b = 208
+
+[segments.styles]
+text_bold = true
+
+[segments.options]
+
+[[segments]]
+id = "model"
+enabled = true
+
+[segments.icon]
+plain = "🤖"
+nerd_font = ""
+
+[segments.colors.text]
+c256 = 110
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+
+[[segments]]
+id = "git"
+enabled = true
+
+[segments.icon]
+plain = "🌿"
+nerd_font = ""
+
+[segments.colors.text]
+c16 = 10
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+show_sha = false
+
+[[segments]]
+id = "context_window"
+enabled = true
+
+[segments.icon]
+plain = "⚡"
+nerd_font = ""
+
+[segments.colors.text]
+c16 = 13
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+
+[[segments]]
+id = "cost"
+enabled = false
+
+[segments.icon]
+plain = "💰"
+nerd_font = ""
+
+[segments.colors]
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+
+[[segments]]
+id = "session"
+enabled = true
+
+[segments.icon]
+plain = "⏱"
+nerd_font = "\U000F19BB"
+
+[segments.colors.text]
+c16 = 2
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
