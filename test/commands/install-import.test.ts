@@ -209,6 +209,32 @@ describe('install import offer', () => {
       expect(f.lines.some((l) => l.startsWith('✓ Imported'))).toBe(false);
     });
 
+    it('offers the cc-statusline import for a generated script, and only with the marker', async () => {
+      const home = path.join(dir, 'home');
+      process.env.HOME = home;
+      process.env.USERPROFILE = home;
+      const script = path.join(home, '.claude', 'statusline.sh');
+      fs.mkdirSync(path.dirname(script), { recursive: true });
+      fs.copyFileSync(path.join(__dirname, '../fixtures/import/cc-statusline.sh'), script);
+      const f = await install(`bash "${script}"`);
+      expect(sniff).toHaveBeenCalledTimes(1);
+      expect(f.lines.some((l) => l.startsWith('✓ Imported'))).toBe(true);
+      expect(f.lines).not.toContain(t('install.importManual', { tool: t('import.tool.custom') }));
+      expect((read(cfg).lines[0] as { type: string }[]).map((i) => i.type)).toEqual([
+        'cwd',
+        'git-branch',
+        'model',
+        'claude-version',
+        'output-style',
+      ]);
+
+      fs.rmSync(cfg);
+      fs.writeFileSync(script, '#!/bin/bash\necho "my own line"\n');
+      const plain = await install(`bash "${script}"`);
+      expect(plain.lines).toContain(t('install.importManual', { tool: 'a custom status line' }));
+      expect(plain.lines.some((l) => l.startsWith('✓ Imported'))).toBe(false);
+    });
+
     it('never sniffs a recognised command', async () => {
       await install('npx ccstatusline');
       await install('~/.claude/arcade-statusline --theme pacman');

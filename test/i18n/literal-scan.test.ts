@@ -37,6 +37,7 @@ const SWEPT: string[] = [
   'src/importers/nycu-cc-statusline.ts',
   'src/importers/claude-ultimate-hud.ts',
   'src/importers/ccpet.ts',
+  'src/importers/cc-statusline.ts',
   'src/commands/doctor.ts',
   'src/commands/manage.ts',
   'src/commands/import-help.ts',

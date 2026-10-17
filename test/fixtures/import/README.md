@@ -30,3 +30,4 @@ Hand-written fixtures in each tool's documented format; no upstream code or secr
 | `nycu-cc-statusline.json` | [NYCU-Chung/cc-statusline](https://github.com/NYCU-Chung/cc-statusline) | `commands/rows.md` (special options and row keys tables), `statusline.js` `rowDefaults` | MIT |
 | `claude-ultimate-hud.json` | [ai-younggle-man/claude-ultimate-hud](https://github.com/ai-younggle-man/claude-ultimate-hud) | `commands/setup.md` (Step 2 configuration file), `README.md` (display options), `src/types.ts` | MIT |
 | `ccpet.json` | [terryso/ccpet](https://github.com/terryso/ccpet) | `src/services/ConfigService.ts` `DEFAULT_CONFIG` without its `supabase` block, `README.md` | MIT |
+| `cc-statusline.sh` | [chongdashu/cc-statusline](https://github.com/chongdashu/cc-statusline) | `src/generators/bash-generator.ts` (script header), `.claude/statusline.sh` (first four lines); header comments plus `echo` filler, not executable | MIT |

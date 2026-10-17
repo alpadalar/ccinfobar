@@ -62,6 +62,7 @@ export const importMessages = {
   'import.cshipNotFound': 'cship yapılandırması bulunamadı',
   'import.cshipNoLines': 'cship yapılandırmasında satır yok ({file})',
   'import.noFormat': '{tool} yapılandırmasında format yok ({file})',
+  'import.notScript': '{file}, cc-statusline tarafından üretilmiş bir betik değil',
   'import.note.starshipConfig':
     '{tool} yapılandırması $STARSHIP_CONFIG içinden okundu: {file} (cship bunu yalnızca Starship modülleri için kullanır)',
   'import.note.noModule': '{tool} modülü "{name}" için ccinfobar karşılığı yok, atlandı',
@@ -106,6 +107,8 @@ export const importMessages = {
     '{tool} geçersiz kılmaları ({names}) okunmadı; yalnızca yapılandırma dosyası içe aktarıldı',
   'import.note.toolDisabled': '{tool} kapalı ("enabled": false), satırları yine de içe aktarıldı',
   'import.note.planUnknown': '{tool} planı "{name}" bilinmiyor, {plan} planı olarak içe aktarıldı',
+  'import.note.headerOnly':
+    '{tool} betiğinin yalnızca başlığı (tema, renkler ve özellikler) okundu; altındaki değişiklikler içe aktarılmadı',
   'import.note.usageCacheTtl': '{tool} {name} içe aktarılmadı: ccinfobar kendi kullanım önbelleğini kullanır',
   'import.note.separatorMerged':
     '{tool} satırları farklı ayraçlar kullanıyor; artık her satır en sık kullanılan ayracı ({separator}) kullanıyor',
