@@ -450,3 +450,292 @@ describe('market client', () => {
     }
   });
 });
+
+describe('market client accounts, admin and conditional reads', () => {
+  // fixtures only; never shaped like real provider tokens
+  const GH = 'test_github_token_aaaaaaaaaaaa';
+  const MINE = 'c'.repeat(64);
+  const doc = (over: Record<string, unknown> = {}) => ({
+    ...summary(over),
+    versions: [{ version: 1, at: 'a', hash: H }],
+  });
+  const noAuth = (calls: { headers: Record<string, string> }[]) =>
+    calls.map((x) => x.headers.authorization ?? null);
+
+  it('public reads never send the token; /v1/me and admin reads do', async () => {
+    const content = preset();
+    const { c, calls } = client(
+      [
+        json({ entries: [summary()] }),
+        json(doc()),
+        json({ version: 1, hash: sha(content), content }),
+        json({ handle: 'alp', displayName: 'Alp', login: 'alp', entries: [] }),
+        json({ entries: [] }),
+        json({ reports: [] }),
+      ],
+      { token: 'tok-1' },
+    );
+    await c.index();
+    await c.entry('alp/mini');
+    await c.version('alp/mini', 1, 'preset', sha(content));
+    expect(noAuth(calls)).toEqual([null, null, null]);
+    expect((await c.me()).handle).toBe('alp');
+    expect(await c.admin.pending()).toEqual([]);
+    expect(await c.admin.reports()).toEqual([]);
+    expect(calls.slice(3).map((x) => [x.method, x.url, x.headers.authorization])).toEqual([
+      ['GET', `${BASE}/v1/me`, 'Bearer tok-1'],
+      ['GET', `${BASE}/v1/admin/pending`, 'Bearer tok-1'],
+      ['GET', `${BASE}/v1/admin/reports`, 'Bearer tok-1'],
+    ]);
+  });
+
+  it('account calls without a token fail before any request', async () => {
+    const { c, calls } = client([]);
+    for (const p of [c.me(), c.logout(), c.admin.pending(), c.admin.reject('alp/mini'), c.admin.resolve(1)]) {
+      expect((await failure(p)).code).toBe('unauthorized');
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it('signIn posts the GitHub token once in the body, without authorization', async () => {
+    const { c, calls } = client(
+      [
+        json({ handle: 'alp', token: MINE, displayName: 'Alp', admin: true }),
+        json({ handle: 'alp', token: 'short' }),
+      ],
+      { token: 'tok-1' },
+    );
+    expect(await c.signIn(GH)).toEqual({ handle: 'alp', token: MINE, displayName: 'Alp', admin: true });
+    expect(calls[0]!.method).toBe('POST');
+    expect(calls[0]!.url).toBe(`${BASE}/v1/auth/github`);
+    expect(calls[0]!.headers.authorization).toBeUndefined();
+    expect(calls[0]!.body).toBe(JSON.stringify({ token: GH }));
+    const err = await failure(c.signIn(GH));
+    expect(err.code).toBe('bad-json');
+    expect([err.message, String(err), JSON.stringify(err), err.stack ?? ''].join('\n')).not.toContain(GH);
+    expect(JSON.stringify(c)).not.toContain(GH);
+  });
+
+  it('signIn refuses a token that cannot be a GitHub token before any request', async () => {
+    const { c, calls } = client([]);
+    for (const bad of ['', 'short', `${GH}\n`, 'x'.repeat(256), 'has space in it 12345678']) {
+      expect((await failure(c.signIn(bad))).code).toBe('invalid');
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it('sign-in answers map to their codes', async () => {
+    const { c } = client([
+      json({ error: { code: 'unavailable', message: 'sign-in is not configured' } }, 503),
+      json({ error: { code: 'upstream', message: 'GitHub down' } }, 502),
+      json({ error: { code: 'banned', message: 'publisher is banned' } }, 403),
+      json({ error: { code: 'unauthorized' } }, 401),
+    ]);
+    const codes = [];
+    for (let i = 0; i < 4; i++) codes.push((await failure(c.signIn(GH))).code);
+    expect(codes).toEqual(['unavailable', 'upstream', 'banned', 'unauthorized']);
+  });
+
+  it('logout posts with the token and accepts 204', async () => {
+    const { c, calls } = client([new Response(null, { status: 204 })], { token: 'tok-1' });
+    await c.logout();
+    expect([calls[0]!.method, calls[0]!.url, calls[0]!.headers.authorization]).toEqual([
+      'POST',
+      `${BASE}/v1/auth/logout`,
+      'Bearer tok-1',
+    ]);
+  });
+
+  it('write results carry pending only when the server holds the entry', async () => {
+    const payload = {
+      kind: 'preset' as const,
+      slug: 'mini',
+      name: 'Mini',
+      description: '',
+      author: 'Alp',
+      content: preset(),
+      note: '',
+    };
+    const { c } = client(
+      [
+        json({ id: 'alp/mini', version: 1, hash: H, pending: true }, 201),
+        json({ id: 'alp/mini', version: 1, hash: H }, 201),
+        json({ id: 'alp/mini', version: 1, hash: H, pending: 'yes' }, 201),
+        json({ version: 2, hash: H, pending: true }, 201),
+        json({ version: 2, hash: H, pending: true }),
+      ],
+      { token: 'tok-1' },
+    );
+    expect(await c.publish(payload)).toEqual({ id: 'alp/mini', version: 1, hash: H, pending: true });
+    const plain = await c.publish(payload);
+    expect(plain).toEqual({ id: 'alp/mini', version: 1, hash: H });
+    expect(Object.hasOwn(plain, 'pending')).toBe(false);
+    expect(Object.hasOwn(await c.publish(payload), 'pending')).toBe(false);
+    expect((await c.addVersion('alp/mini', 1, { content: preset(), note: '' })).pending).toBe(true);
+    expect((await c.overwrite('alp/mini', 2, { content: preset(), note: '' })).pending).toBe(true);
+  });
+
+  it('indexIfChanged sends one conditional request and stops on 304', async () => {
+    const { c, calls } = client([new Response(null, { status: 304, headers: { etag: '"g4"' } })]);
+    expect(await c.indexIfChanged('"g4"')).toEqual({ changed: false });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe(`${BASE}/v1/index.json`);
+    expect(calls[0]!.headers['if-none-match']).toBe('"g4"');
+    expect(calls[0]!.headers.authorization).toBeUndefined();
+  });
+
+  it('indexIfChanged walks the pages on 200 and returns the page 1 tag', async () => {
+    const { c, calls } = client(
+      [
+        json({ entries: [summary()], next: 'index-2.json', generatedAt: 'g' }, 200, { etag: '"g5"' }),
+        json({ entries: [summary({ id: 'alp/two' })] }, 200, { etag: '"g5-2"' }),
+      ],
+      { token: 'tok-1' },
+    );
+    const r = await c.indexIfChanged('"g4"');
+    expect(r.changed).toBe(true);
+    if (!r.changed) return;
+    expect(r.etag).toBe('"g5"');
+    expect(r.index.entries.map((e) => e.id)).toEqual(['alp/mini', 'alp/two']);
+    expect(r.index.generatedAt).toBe('g');
+    expect(calls.map((x) => [x.url, x.headers['if-none-match'] ?? null])).toEqual([
+      [`${BASE}/v1/index.json`, '"g4"'],
+      [`${BASE}/v1/index-2.json`, null],
+    ]);
+    expect(noAuth(calls)).toEqual([null, null]);
+  });
+
+  it('indexIfChanged without a usable tag reads unconditionally; a bad server tag is dropped', async () => {
+    const { c, calls } = client([
+      json({ entries: [] }, 200, { etag: '"ok"' }),
+      json({ entries: [] }, 200, { etag: 'no quotes' }),
+      json({ entries: [] }),
+    ]);
+    expect(await c.indexIfChanged(null)).toEqual({
+      changed: true,
+      index: { entries: [], generatedAt: '' },
+      etag: '"ok"',
+    });
+    expect(await c.indexIfChanged('bad\ttag')).toMatchObject({ changed: true, etag: null });
+    expect(await c.indexIfChanged('"x"')).toMatchObject({ changed: true, etag: null });
+    expect(calls.map((x) => x.headers['if-none-match'] ?? null)).toEqual([null, null, '"x"']);
+  });
+
+  it('entryIfChanged revalidates with one conditional request', async () => {
+    const { c, calls } = client([
+      new Response(null, { status: 304 }),
+      json(doc(), 200, { etag: '"e2"' }),
+      json(doc({ id: 'alp/other' }), 200, { etag: '"e3"' }),
+    ]);
+    expect(await c.entryIfChanged('alp/mini', '"e1"')).toEqual({ changed: false });
+    expect(calls).toHaveLength(1);
+    const r = await c.entryIfChanged('alp/mini', '"e1"');
+    expect(r).toMatchObject({ changed: true, etag: '"e2"', entry: { id: 'alp/mini', version: 1 } });
+    expect((await failure(c.entryIfChanged('alp/mini', '"e2"'))).code).toBe('bad-json');
+    expect(calls.map((x) => [x.url, x.headers['if-none-match']])).toEqual([
+      [`${BASE}/v1/entries/alp/mini.json`, '"e1"'],
+      [`${BASE}/v1/entries/alp/mini.json`, '"e1"'],
+      [`${BASE}/v1/entries/alp/mini.json`, '"e2"'],
+    ]);
+    expect((await failure(c.entryIfChanged('../x', null))).code).toBe('invalid');
+    expect(calls).toHaveLength(3);
+  });
+
+  it('admin and moderation codes map from the error body', async () => {
+    const { c } = client(
+      [
+        json({ error: { code: 'not-admin', message: 'admins only' } }, 403),
+        json({ error: { code: 'banned' } }, 403),
+        json({ error: { code: 'forbidden', message: 'new content waits until an admin approves' } }, 403),
+      ],
+      { token: 'tok-1' },
+    );
+    const a = await failure(c.admin.pending());
+    expect([a.code, a.status]).toEqual(['not-admin', 403]);
+    expect((await failure(c.admin.reports())).code).toBe('banned');
+    expect((await failure(c.addVersion('alp/mini', 1, { content: preset(), note: '' }))).code).toBe(
+      'forbidden',
+    );
+  });
+
+  it('report passes the reason through and returns the report id', async () => {
+    const reason = 'r'.repeat(300);
+    const { c, calls } = client([json({ id: 7 }, 201), json({ id: 'x' }, 201)], { token: 'tok-1' });
+    expect(await c.report('alp/mini', reason)).toEqual({ id: 7 });
+    expect([calls[0]!.method, calls[0]!.url, calls[0]!.headers.authorization]).toEqual([
+      'POST',
+      `${BASE}/v1/entries/alp/mini/reports`,
+      'Bearer tok-1',
+    ]);
+    expect(JSON.parse(calls[0]!.body!)).toEqual({ reason });
+    expect((await failure(c.report('alp/mini', 'x'))).code).toBe('bad-json');
+  });
+
+  it('admin review returns the content and its tag; approve sends the tag as If-Match', async () => {
+    const content = preset();
+    const { c, calls } = client(
+      [
+        json({ entry: { ...doc(), state: 'pending' }, content, hash: H }, 200, { etag: `"${H}-3"` }),
+        json({ id: 'alp/mini', approved: true }),
+        json({ id: 'alp/mini', rejected: true }),
+        json({ id: 'alp/mini', removed: true }),
+        json({ handle: 'bob', banned: true }),
+        json({ handle: 'bob', banned: false }),
+        json({ id: 4, resolved: true }),
+      ],
+      { token: 'tok-1' },
+    );
+    const r = await c.admin.review('alp/mini');
+    expect(r.entry.state).toBe('pending');
+    expect(r.content).toEqual(content);
+    expect(r.etag).toBe(`"${H}-3"`);
+    await c.admin.approve('alp/mini', r.etag!, 'looks fine');
+    await c.admin.reject('alp/mini');
+    await c.admin.remove('alp/mini', 'spam');
+    await c.admin.ban('bob', 'abuse');
+    await c.admin.unban('bob');
+    await c.admin.resolve(4);
+    expect(calls.map((x) => [x.method, x.url.slice(BASE.length), x.body ?? null])).toEqual([
+      ['GET', '/v1/admin/entries/alp/mini', null],
+      ['POST', '/v1/admin/entries/alp/mini/approve', '{"note":"looks fine"}'],
+      ['POST', '/v1/admin/entries/alp/mini/reject', null],
+      ['POST', '/v1/admin/entries/alp/mini/remove', '{"note":"spam"}'],
+      ['POST', '/v1/admin/publishers/bob/ban', '{"note":"abuse"}'],
+      ['POST', '/v1/admin/publishers/bob/unban', null],
+      ['POST', '/v1/admin/reports/4/resolve', null],
+    ]);
+    expect(calls[1]!.headers['if-match']).toBe(`"${H}-3"`);
+    expect(calls.every((x) => x.headers.authorization === 'Bearer tok-1')).toBe(true);
+  });
+
+  it('admin review of another id or a bad document fails with bad-json', async () => {
+    const content = preset();
+    const { c } = client(
+      [
+        json({ entry: { ...doc({ id: 'alp/other' }), state: 'pending' }, content, hash: H }),
+        json({ entry: { ...doc(), state: 'gone' }, content, hash: H }),
+      ],
+      { token: 'tok-1' },
+    );
+    expect((await failure(c.admin.review('alp/mini'))).code).toBe('bad-json');
+    expect((await failure(c.admin.review('alp/mini'))).code).toBe('bad-json');
+  });
+
+  it('bad ids, handles, report ids and tags fail with invalid before any request', async () => {
+    const { c, calls } = client([], { token: 'tok-1' });
+    const bad = [
+      c.report('../x', 'r'),
+      c.admin.review('nope'),
+      c.admin.approve('alp/mini', 'no-quotes'),
+      c.admin.approve('a/../b', `"${H}-1"`),
+      c.admin.reject('ALP/mini'),
+      c.admin.remove(''),
+      c.admin.ban('Bad Handle'),
+      c.admin.unban('../x'),
+      c.admin.resolve(0),
+      c.admin.resolve(1.5),
+    ];
+    for (const p of bad) expect((await failure(p)).code).toBe('invalid');
+    expect(calls).toHaveLength(0);
+  });
+});
