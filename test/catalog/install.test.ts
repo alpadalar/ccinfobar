@@ -19,12 +19,14 @@ import { startMarketServer } from '../../src/market/server.js';
 let root = '';
 let dir = '';
 let pubDir = '';
+let cacheDir = '';
 const servers: { close(): Promise<void> }[] = [];
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-install-'));
   dir = path.join(root, 'user', 'catalog');
   pubDir = path.join(root, 'publisher', 'catalog');
+  cacheDir = path.join(root, 'cache');
 });
 afterEach(async () => {
   for (const s of servers.splice(0)) await s.close();
@@ -153,7 +155,7 @@ describe('install from the reference marketplace', () => {
     const env = { CCINFOBAR_MARKETPLACE_URL: s.url };
     save();
     expect((await publish(env)).results[0]).toMatchObject({ ok: true, remoteId: 'alperen/links' });
-    const plan = await planInstall('alperen/links', { dir, env, fetch: globalThis.fetch });
+    const plan = await planInstall('alperen/links', { dir, cacheDir, env, fetch: globalThis.fetch });
     expect(plan).toMatchObject({
       id: 'alperen/links',
       version: 1,
@@ -190,12 +192,15 @@ describe('install from the reference marketplace', () => {
     const env = { CCINFOBAR_MARKETPLACE_URL: s.url };
     const pub = save();
     await publish(env);
-    const first = runInstall(await planInstall('alperen/links', { dir, env, fetch: globalThis.fetch }), {
-      dir,
-    });
+    const first = runInstall(
+      await planInstall('alperen/links', { dir, cacheDir, env, fetch: globalThis.fetch }),
+      {
+        dir,
+      },
+    );
     const file = path.join(dir, 'entries', `${first.entryId}.json`);
     const before = { bytes: fs.readFileSync(file, 'utf8'), mtime: fs.statSync(file).mtimeMs };
-    const again = await planInstall('alperen/links', { dir, env, fetch: globalThis.fetch });
+    const again = await planInstall('alperen/links', { dir, cacheDir, env, fetch: globalThis.fetch });
     expect(again.existing).toEqual({ entryId: first.entryId, same: true });
     expect(runInstall(again, { dir })).toEqual({ entryId: first.entryId, name: 'Links', result: 'same' });
     expect(fs.readFileSync(file, 'utf8')).toBe(before.bytes);
@@ -215,7 +220,7 @@ describe('install from the reference marketplace', () => {
       pubDir,
     );
     expect((await publish(env)).results[0]).toMatchObject({ ok: true, version: 2 });
-    const v2 = await planInstall('alperen/links', { dir, env, fetch: globalThis.fetch });
+    const v2 = await planInstall('alperen/links', { dir, cacheDir, env, fetch: globalThis.fetch });
     expect(v2).toMatchObject({ version: 2, existing: { entryId: first.entryId, same: false } });
     expect(runInstall(v2, { dir })).toEqual({ entryId: first.entryId, name: 'Links', result: 'version' });
     const e = readEntry(first.entryId, dir)!.entry;
@@ -225,7 +230,7 @@ describe('install from the reference marketplace', () => {
     expect(e.description).toBe('two links');
     expect(listEntries(dir)).toHaveLength(1);
     // an older version on request
-    const old = await planInstall('alperen/links@1', { dir, env, fetch: globalThis.fetch });
+    const old = await planInstall('alperen/links@1', { dir, cacheDir, env, fetch: globalThis.fetch });
     expect(old).toMatchObject({ version: 1, existing: { entryId: first.entryId, same: false } });
   });
 
@@ -238,9 +243,12 @@ describe('install from the reference marketplace', () => {
     save({ name: 'Links 2', description: 'my own too', share: false }, dir);
     // another kind does not clash
     save({ kind: 'preset', name: 'Links 3', content: preset('model'), share: false }, dir);
-    const done = runInstall(await planInstall('alperen/links', { dir, env, fetch: globalThis.fetch }), {
-      dir,
-    });
+    const done = runInstall(
+      await planInstall('alperen/links', { dir, cacheDir, env, fetch: globalThis.fetch }),
+      {
+        dir,
+      },
+    );
     expect(done).toMatchObject({ name: 'Links 3', result: 'new' });
     expect(listEntries(dir).filter((e) => e.origin)).toHaveLength(1);
   });
@@ -256,10 +264,12 @@ describe('install checks', () => {
       '/v1/entries/alp/mini.json': entryDoc('alp/mini', [H]),
       '/v1/entries/alp/mini/1.json': { version: 1, content: other, hash: contentHash(other) },
     });
-    expect(await code(planInstall('alp/mini', { dir, env: fakeEnv, fetch: m.fetch }))).toBe('hash-mismatch');
+    expect(await code(planInstall('alp/mini', { dir, cacheDir, env: fakeEnv, fetch: m.fetch }))).toBe(
+      'hash-mismatch',
+    );
     // a summary hash that disagrees with the history
     const bad = market({ '/v1/entries/alp/mini.json': entryDoc('alp/mini', [H], { hash: 'f'.repeat(64) }) });
-    expect(await code(planInstall('alp/mini', { dir, env: fakeEnv, fetch: bad.fetch }))).toBe(
+    expect(await code(planInstall('alp/mini', { dir, cacheDir, env: fakeEnv, fetch: bad.fetch }))).toBe(
       'hash-mismatch',
     );
     expect(bad.calls).toEqual(['/v1/entries/alp/mini.json']);
@@ -269,13 +279,17 @@ describe('install checks', () => {
     const gone = market({
       '/v1/entries/alp/mini.json': entryDoc('alp/mini', [H], { name: '', withdrawn: true }),
     });
-    expect(await code(planInstall('alp/mini', { dir, env: fakeEnv, fetch: gone.fetch }))).toBe('withdrawn');
+    expect(await code(planInstall('alp/mini', { dir, cacheDir, env: fakeEnv, fetch: gone.fetch }))).toBe(
+      'withdrawn',
+    );
     expect(gone.calls).toHaveLength(1);
     const m = market({
       '/v1/entries/alp/mini.json': entryDoc('alp/mini', [H]),
       '/v1/entries/alp/mini/1.json': { version: 1, content: good, hash: H },
     });
-    expect(await code(planInstall('alp/mini@99', { dir, env: fakeEnv, fetch: m.fetch }))).toBe('not-found');
+    expect(await code(planInstall('alp/mini@99', { dir, cacheDir, env: fakeEnv, fetch: m.fetch }))).toBe(
+      'not-found',
+    );
     expect(m.calls).toEqual(['/v1/entries/alp/mini.json']);
     const cmd: EntryContent = {
       layout: { lines: [[{ id: 'c', type: 'command', options: { command: 'echo hi' } }]] },
@@ -284,9 +298,11 @@ describe('install checks', () => {
       '/v1/entries/alp/mini.json': entryDoc('alp/mini', [contentHash(cmd)]),
       '/v1/entries/alp/mini/1.json': { version: 1, content: cmd, hash: contentHash(cmd) },
     });
-    expect(await code(planInstall('alp/mini', { dir, env: fakeEnv, fetch: evil.fetch }))).toBe('bad-content');
+    expect(await code(planInstall('alp/mini', { dir, cacheDir, env: fakeEnv, fetch: evil.fetch }))).toBe(
+      'bad-content',
+    );
     const missing = market({});
-    expect(await code(planInstall('alp/mini', { dir, env: fakeEnv, fetch: missing.fetch }))).toBe(
+    expect(await code(planInstall('alp/mini', { dir, cacheDir, env: fakeEnv, fetch: missing.fetch }))).toBe(
       'not-found',
     );
     expect(fs.existsSync(dir)).toBe(false);
@@ -294,8 +310,10 @@ describe('install checks', () => {
 
   it('needs a ref and an endpoint before any request', async () => {
     const m = market({});
-    expect(await code(planInstall('nope', { dir, env: fakeEnv, fetch: m.fetch }))).toBe('bad-ref');
-    expect(await code(planInstall('alp/mini', { dir, env: {}, fetch: m.fetch }))).toBe('no-endpoint');
+    expect(await code(planInstall('nope', { dir, cacheDir, env: fakeEnv, fetch: m.fetch }))).toBe('bad-ref');
+    expect(await code(planInstall('alp/mini', { dir, cacheDir, env: {}, fetch: m.fetch }))).toBe(
+      'no-endpoint',
+    );
     expect(m.calls).toHaveLength(0);
   });
 
@@ -304,7 +322,7 @@ describe('install checks', () => {
       '/v1/entries/alp/mini.json': entryDoc('alp/mini', [H]),
       '/v1/entries/alp/mini/1.json': { version: 1, content: good, hash: H },
     });
-    const plan = await planInstall('alp/mini', { dir, env: fakeEnv, fetch: m.fetch });
+    const plan = await planInstall('alp/mini', { dir, cacheDir, env: fakeEnv, fetch: m.fetch });
     expect(plan.targets).toEqual([]);
     expect(installChanged(plan, { hash: H, targets: [] })).toBe(false);
     expect(installChanged(plan, { hash: 'f'.repeat(64), targets: [] })).toBe(true);
@@ -324,7 +342,9 @@ describe('installed entries stay the publisher’s', () => {
       '/v1/entries/alp/mini.json': entryDoc('alp/mini', [H]),
       '/v1/entries/alp/mini/1.json': { version: 1, content: good, hash: H },
     });
-    const done = runInstall(await planInstall('alp/mini', { dir, env: fakeEnv, fetch: m.fetch }), { dir });
+    const done = runInstall(await planInstall('alp/mini', { dir, cacheDir, env: fakeEnv, fetch: m.fetch }), {
+      dir,
+    });
     return readEntry(done.entryId, dir)!.entry;
   }
 

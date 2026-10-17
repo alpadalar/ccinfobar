@@ -1,8 +1,9 @@
 // marketplace entries into the user's catalog; applying is a separate step (D-11)
 
 import { type ImportTarget, importTargets } from '../importers/confirm.js';
-import { createMarketClient, type MarketClient, MarketError, validateReceived } from '../market/client.js';
-import { canonicalJson, isRemoteId, type MarketEntry } from '../market/protocol.js';
+import { createMarketClient, MarketError, validateReceived } from '../market/client.js';
+import { canonicalJson, isRemoteId } from '../market/protocol.js';
+import { cachedEntry, cachedVersion } from './market-cache.js';
 import { type CatalogEntry, ENTRY_LIMITS, type EntryContent, type EntryKind, slug } from './model.js';
 import { catalogDir, endpointKey, listEntries, marketEndpoint, saveEntry, withStoreLock } from './store.js';
 
@@ -61,6 +62,7 @@ export interface InstallDeps {
   dir?: string;
   defaultEndpoint?: string | null;
   now?: () => Date;
+  cacheDir?: string;
 }
 
 export interface Installed {
@@ -98,15 +100,22 @@ export async function planInstall(ref: string, deps: InstallDeps): Promise<Insta
   if (!endpoint) throw new InstallError('no-endpoint');
   try {
     const client = createMarketClient({ endpoint, fetch: deps.fetch });
-    const entry = await readEntry(client, r.id);
+    const cache = { client, env, now: deps.now, cacheDir: deps.cacheDir };
+    // one conditional request when the entry is cached
+    const { entry } = await cachedEntry(client.endpoint, r.id, cache);
     if (entry.withdrawn) throw new InstallError('withdrawn');
     const n = r.version ?? entry.version;
     const info = entry.versions.find((v) => v.version === n);
     if (!info) throw new InstallError('not-found');
     // the summary and the history must agree on the latest
     if (n === entry.version && info.hash !== entry.hash) throw new InstallError('hash-mismatch');
-    const raw = await readVersion(client, r.id, n, entry.kind, info.hash);
-    const got = validateReceived(entry.kind, raw);
+    const v = await cachedVersion(client.endpoint, r.id, n, info.hash, {
+      ...cache,
+      kind: entry.kind,
+      // meta only on a cache miss
+      immutable: async () => !(await client.meta()).capabilities.overwrite,
+    });
+    const got = validateReceived(entry.kind, v.content);
     if (!got) throw new InstallError('bad-content');
     const plan = {
       endpoint: client.endpoint,
@@ -127,20 +136,6 @@ export async function planInstall(ref: string, deps: InstallDeps): Promise<Insta
     if (err instanceof MarketError && err.code === 'invalid') throw new InstallError('bad-content');
     rethrow(err);
   }
-}
-
-async function readEntry(client: MarketClient, id: string): Promise<MarketEntry> {
-  return client.entry(id);
-}
-
-async function readVersion(
-  client: MarketClient,
-  id: string,
-  n: number,
-  kind: EntryKind,
-  hash: string,
-): Promise<EntryContent> {
-  return (await client.version(id, n, kind, hash)).raw;
 }
 
 function cutName(name: string, tail: string): string {
