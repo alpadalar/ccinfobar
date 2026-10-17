@@ -370,3 +370,159 @@ describe.skipIf(!hasSqlite)('catalog report and admin against the Worker', () =>
     m.db.close();
   });
 });
+
+const ids = (text: string) => [...text.matchAll(/\b([a-z0-9-]+\/[a-z0-9-]+)\b/g)].map((x) => x[1]);
+
+async function remoteIds(m: Market): Promise<string[]> {
+  const r = await m.cli('reader', ['list', '--remote', '--refresh', '--json']);
+  expect(r.code).toBeUndefined();
+  return JSON.parse(r.out[0]!).entries.map((e: { id: string }) => e.id);
+}
+
+const writes = (m: Market) => m.seen.filter((s) => s.method !== 'GET').length;
+
+describe.skipIf(!hasSqlite)('catalog admin moderation against the Worker', () => {
+  it('approves the reviewed version so it shows in the remote list', async () => {
+    const m = await seeded();
+    expect(await remoteIds(m)).toEqual([]);
+    const r = await m.cli('admin', ['admin', 'approve', 'pub/mini', '--note', 'ok']);
+    expect(r.code).toBeUndefined();
+    expect(r.out).toEqual(['Approved pub/mini v1; it is live now.']);
+    expect(await remoteIds(m)).toEqual(['pub/mini']);
+    const again = await m.cli('admin', ['admin', 'approve', 'pub/mini']);
+    expect(again.code).toBe(1);
+    expect(again.err.join('\n')).toContain('pub/mini is not waiting for review');
+    const log = (await m.db.prepare('SELECT action, note FROM moderation').all()).results;
+    expect(log).toEqual([{ action: 'approve', note: 'ok' }]);
+    m.db.close();
+  });
+
+  it('approves only the tag that was reviewed', async () => {
+    const m = await seeded();
+    const shown = (await m.cli('admin', ['admin', 'show', 'pub/mini'])).out.join('\n');
+    const tag = /--tag (\S+)/.exec(shown)![1]!;
+    await m.client('pub').addVersion('pub/mini', 1, { content: CONTENT, note: 'second', name: 'Mini 2' });
+    const before = writes(m);
+    const stale = await m.cli('admin', ['admin', 'approve', 'pub/mini', '--tag', tag]);
+    expect(stale.code).toBe(1);
+    expect(stale.err.join('\n')).toContain(
+      'pub/mini changed since it was reviewed; run ccinfobar catalog admin show pub/mini again',
+    );
+    expect(writes(m)).toBe(before);
+    const bad = await m.cli('admin', ['admin', 'approve', 'pub/mini', '--tag', 'nope']);
+    expect(bad.code).toBe(1);
+    expect(bad.err.join('\n')).toContain('nope is not a review tag');
+    const fresh = /--tag (\S+)/.exec(
+      (await m.cli('admin', ['admin', 'show', 'pub/mini'])).out.join('\n'),
+    )![1]!;
+    const ok = await m.cli('admin', ['admin', 'approve', 'pub/mini', '--tag', `"${fresh}"`, '--json']);
+    expect(ok.code).toBeUndefined();
+    expect(JSON.parse(ok.out[0]!)).toEqual({ schema: 1, endpoint: URL_, id: 'pub/mini', approved: true });
+    expect(await remoteIds(m)).toEqual(['pub/mini']);
+    m.db.close();
+  });
+
+  it('rejects after confirmation', async () => {
+    const m = await seeded();
+    const before = m.seen.length;
+    const no = await m.cli('admin', ['admin', 'reject', 'pub/mini']);
+    expect(no.code).toBe(1);
+    expect(no.err.join('\n')).toContain('Nothing was changed. Run again with --yes to confirm.');
+    const json = await m.cli('admin', ['admin', 'reject', 'pub/mini', '--json']);
+    expect(json.code).toBe(1);
+    expect(JSON.parse(json.out[0]!)).toMatchObject({ id: 'pub/mini', code: 'needs-yes' });
+    const kept = await m.cli('admin', ['admin', 'reject', 'pub/mini'], { tty: true, answers: [false] });
+    expect(kept.code).toBeUndefined();
+    expect(kept.asked).toEqual(['Reject pub/mini? Its pending versions are deleted.']);
+    expect(kept.out).toEqual(['Nothing was changed.']);
+    expect(m.seen.length).toBe(before);
+    const yes = await m.cli('admin', ['admin', 'reject', 'pub/mini'], { tty: true, answers: [true] });
+    expect(yes.out).toEqual(['Rejected pub/mini; its pending versions were deleted.']);
+    expect((await m.cli('admin', ['admin', 'pending', '--json'])).out[0]).toContain('"entries":[]');
+    m.db.close();
+  });
+
+  it('removes a live entry so its versions answer 410', async () => {
+    const m = await seeded();
+    await live(m, 'pub/mini');
+    const r = await m.cli('admin', ['admin', 'remove', 'pub/mini', '--yes', '--note', 'spam']);
+    expect(r.code).toBeUndefined();
+    expect(r.out).toEqual([
+      "Removed pub/mini from the marketplace; its publisher's next entry needs review.",
+    ]);
+    expect((await m.fetch(`${URL_}/v1/entries/pub/mini/1.json`)).status).toBe(410);
+    expect(await remoteIds(m)).toEqual([]);
+    const again = await m.cli('admin', ['admin', 'remove', 'pub/mini', '--yes']);
+    expect(again.err.join('\n')).toContain('pub/mini is already withdrawn or removed');
+    const json = await m.cli('admin', ['admin', 'remove', 'pub/none', '--yes', '--json']);
+    expect(JSON.parse(json.out[0]!)).toMatchObject({ id: 'pub/none', code: 'not-found' });
+    expect(json.err.join('\n')).toContain('pub/none is not on the marketplace');
+    m.db.close();
+  });
+
+  it('bans and unbans a publisher', async () => {
+    const m = await seeded();
+    await m.signIn('bob');
+    await m.publish('bob', 'live', 'Bob Live');
+    await live(m, 'bob/live');
+    expect(await remoteIds(m)).toEqual(['bob/live']);
+    const no = await m.cli('admin', ['admin', 'ban', 'bob']);
+    expect(no.code).toBe(1);
+    const asked = await m.cli('admin', ['admin', 'ban', '@bob'], { tty: true, answers: [true] });
+    expect(asked.asked).toEqual([
+      'Ban @bob? Their entries leave the marketplace list and they can no longer publish or report.',
+    ]);
+    expect(asked.out).toEqual(['Banned @bob; their entries left the marketplace list.']);
+    expect(await remoteIds(m)).toEqual([]);
+    const un = await m.cli('admin', ['admin', 'unban', 'bob', '--json']);
+    expect(JSON.parse(un.out[0]!)).toEqual({ schema: 1, endpoint: URL_, handle: 'bob', banned: false });
+    expect(await remoteIds(m)).toEqual(['bob/live']);
+    const text = await m.cli('admin', ['admin', 'unban', 'bob']);
+    expect(text.out).toEqual(['Unbanned @bob; their live entries are back in the marketplace list.']);
+    const self = await m.cli('admin', ['admin', 'ban', 'alpadalar', '--yes']);
+    expect(self.err.join('\n')).toContain('@alpadalar is an admin and cannot be banned');
+    const nobody = await m.cli('admin', ['admin', 'ban', 'ghost', '--yes']);
+    expect(nobody.err.join('\n')).toContain('There is no publisher @ghost on the marketplace');
+    const bad = await m.cli('admin', ['admin', 'ban', 'Bad_Name', '--yes']);
+    expect(bad.code).toBe(1);
+    expect(bad.err.join('\n')).toContain('A publisher handle is 1 to 39 lowercase letters');
+    m.db.close();
+  });
+
+  it('resolves a report', async () => {
+    const m = await seeded();
+    await live(m, 'pub/mini');
+    await m.cli('reader', ['report', 'pub/mini', '--reason', 'spam']);
+    const r = await m.cli('admin', ['admin', 'resolve', '1']);
+    expect(r.code).toBeUndefined();
+    expect(r.out).toEqual(['Closed report #1.']);
+    expect((await m.cli('admin', ['admin', 'reports'])).out).toContain('  No open reports.');
+    const json = await m.cli('admin', ['admin', 'resolve', '1', '--json']);
+    expect(JSON.parse(json.out[0]!)).toEqual({ schema: 1, endpoint: URL_, id: 1, resolved: true });
+    const unknown = await m.cli('admin', ['admin', 'resolve', '99']);
+    expect(unknown.err.join('\n')).toContain('There is no report #99');
+    const bad = await m.cli('admin', ['admin', 'resolve', 'x1']);
+    expect(bad.err.join('\n')).toContain('x1 is not a report number');
+    m.db.close();
+  });
+
+  it('keeps JSON English and the text Turkish under tr', async () => {
+    const m = await seeded();
+    const json = await withLangAsync('tr', () => m.cli('admin', ['admin', 'approve', 'pub/mini', '--json']));
+    expect(JSON.parse(json.out[0]!)).toEqual({ schema: 1, endpoint: URL_, id: 'pub/mini', approved: true });
+    const no = await withLangAsync('tr', () => m.cli('admin', ['admin', 'remove', 'pub/mini']));
+    expect(no.err.join('\n')).toContain(
+      'Hiçbir şey değiştirilmedi. Onaylamak için --yes ile tekrar çalıştırın.',
+    );
+    const r = await withLangAsync('tr', () => m.cli('admin', ['admin', 'remove', 'pub/mini', '--yes']));
+    expect(r.out).toEqual([
+      "pub/mini marketplace'ten kaldırıldı; yayıncısının sonraki girdisi yeniden incelenir.",
+    ]);
+    const nope = await withLangAsync('tr', () =>
+      m.cli('admin', ['admin', 'remove', 'pub/mini', '--yes', '--json']),
+    );
+    expect(JSON.parse(nope.out[0]!)).toMatchObject({ code: 'conflict' });
+    expect(ids(nope.err.join('\n'))).toEqual(['pub/mini']);
+    m.db.close();
+  });
+});

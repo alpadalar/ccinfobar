@@ -96,6 +96,21 @@ Error bodies are `{ "error": { "code": "<code>", "message": "<text>" } }`. Codes
 - **Configuration**: `ccinfobar catalog endpoint <url>` stores the endpoint in `catalog/profile.json`; `CCINFOBAR_MARKETPLACE_URL` overrides it (`off` switches it off). `ccinfobar catalog endpoint --off` stores `"endpoint": false`, which switches the marketplace off (older builds read it as no endpoint); `ccinfobar catalog endpoint --clear` removes the stored value so the default applies again. The bare command shows the endpoint and its source. Order: environment, stored URL, stored off switch, shipped default (none yet).
 - The client does not cache `index.json` today.
 
+### Reports and moderation from the CLI
+
+Signed-in users report an entry with `ccinfobar catalog report <publisher/slug> --reason "<text>"` (once per entry, 1 to 200 characters). Admins (numeric GitHub ids in the Worker's `ADMIN_GITHUB_IDS`) moderate with `ccinfobar catalog admin`, which is not in the main help and prints its own usage. Every subcommand takes `--json` (English); the server checks admin rights, the CLI only forwards.
+
+| Command | Does |
+| --- | --- |
+| `catalog admin pending` | Entries waiting for review: id, kind, name, publisher, version, created |
+| `catalog admin show <publisher/slug>` | The entry, its versions and its content as sanitized JSON text (never applied or rendered), plus its review tag |
+| `catalog admin approve <publisher/slug> [--tag <review tag>] [--note <text>]` | Approve the reviewed revision (sent with `If-Match`). With `--tag` from `admin show`, a change since then is refused |
+| `catalog admin reject\|remove <publisher/slug> [--note <text>] [--yes]` | Reject a pending entry, or remove an entry (tombstone; its publisher is reviewed again) |
+| `catalog admin ban\|unban <handle> [--note <text>] [--yes]` | Ban or unban a publisher; banned publishers leave the index and cannot write or report |
+| `catalog admin reports` / `catalog admin resolve <number>` | Open reports, newest first; close one |
+
+`reject`, `remove` and `ban` ask in a terminal and need `--yes` otherwise.
+
 ## Reference server
 
 `src/market/server.ts` is a zero-dependency server (Node built-ins, file-backed storage) that implements all of protocol v1 with version history on the server. The tests run it in-process on `127.0.0.1` with an ephemeral port. It is not part of the npm package (`files` is `dist/` and `schema/`), nothing in `dist/ccinfobar.js` reaches it, and it is not deployed anywhere.

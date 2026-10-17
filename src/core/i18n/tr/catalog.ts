@@ -316,6 +316,30 @@ export const catalogMessages = {
   'catalog.admin.reportsTitle': '{endpoint} üzerindeki açık bildirimler',
   'catalog.admin.noReports': 'Açık bildirim yok.',
   'catalog.admin.resolveHint': 'Birini kapatmak için: ccinfobar catalog admin resolve <number>',
+  'catalog.admin.approved': '{id} v{version} onaylandı; artık yayında.',
+  'catalog.admin.rejected': '{id} reddedildi; bekleyen sürümleri silindi.',
+  'catalog.admin.removed': "{id} marketplace'ten kaldırıldı; yayıncısının sonraki girdisi yeniden incelenir.",
+  'catalog.admin.banned': '@{handle} yasaklandı; girdileri marketplace listesinden çıkarıldı.',
+  'catalog.admin.unbanned':
+    '@{handle} için yasak kaldırıldı; yayındaki girdileri yeniden marketplace listesinde.',
+  'catalog.admin.resolved': '#{id} numaralı bildirim kapatıldı.',
+  'catalog.admin.ask.reject': '{id} reddedilsin mi? Bekleyen sürümleri silinir.',
+  'catalog.admin.ask.remove':
+    "{id} marketplace'ten kaldırılsın mı? İçeriği silinir ve kimliği başkasına verilmez.",
+  'catalog.admin.ask.ban':
+    '@{handle} yasaklansın mı? Girdileri marketplace listesinden çıkar; artık yayımlama ve bildirim yapamaz.',
+  'catalog.admin.kept': 'Hiçbir şey değiştirilmedi.',
+  'err.catalog.admin.needsYes': 'Hiçbir şey değiştirilmedi. Onaylamak için --yes ile tekrar çalıştırın.',
+  'err.catalog.admin.stale':
+    '{id} incelendikten sonra değişti; ccinfobar catalog admin show {id} komutunu yeniden çalıştırın',
+  'err.catalog.admin.notPending': '{id} inceleme beklemiyor',
+  'err.catalog.admin.gone': '{id} zaten geri çekilmiş veya kaldırılmış',
+  'err.catalog.admin.isAdmin': '@{handle} bir yönetici olduğu için yasaklanamaz',
+  'err.catalog.admin.noPublisher': "Marketplace'te @{handle} adlı bir yayıncı yok",
+  'err.catalog.admin.badReport': '{ref} bir bildirim numarası değil',
+  'err.catalog.admin.noReport': '#{id} numaralı bir bildirim yok',
+  'err.catalog.admin.badTag':
+    '{tag} bir inceleme etiketi değil; etiketi ccinfobar catalog admin show çıktısından kopyalayın',
   'market.error.invalid': 'Marketplace girdiyi geçersiz buldu ve reddetti',
   'market.error.too-large': 'Girdi marketplace için çok büyük',
   'market.error.over-quota':

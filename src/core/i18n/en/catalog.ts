@@ -303,6 +303,28 @@ export const catalogMessages = {
   'catalog.admin.reportsTitle': 'Open reports on {endpoint}',
   'catalog.admin.noReports': 'No open reports.',
   'catalog.admin.resolveHint': 'Close one with: ccinfobar catalog admin resolve <number>',
+  'catalog.admin.approved': 'Approved {id} v{version}; it is live now.',
+  'catalog.admin.rejected': 'Rejected {id}; its pending versions were deleted.',
+  'catalog.admin.removed': "Removed {id} from the marketplace; its publisher's next entry needs review.",
+  'catalog.admin.banned': 'Banned @{handle}; their entries left the marketplace list.',
+  'catalog.admin.unbanned': 'Unbanned @{handle}; their live entries are back in the marketplace list.',
+  'catalog.admin.resolved': 'Closed report #{id}.',
+  'catalog.admin.ask.reject': 'Reject {id}? Its pending versions are deleted.',
+  'catalog.admin.ask.remove':
+    'Remove {id} from the marketplace? Its content is deleted and the id stays reserved.',
+  'catalog.admin.ask.ban':
+    'Ban @{handle}? Their entries leave the marketplace list and they can no longer publish or report.',
+  'catalog.admin.kept': 'Nothing was changed.',
+  'err.catalog.admin.needsYes': 'Nothing was changed. Run again with --yes to confirm.',
+  'err.catalog.admin.stale':
+    '{id} changed since it was reviewed; run ccinfobar catalog admin show {id} again',
+  'err.catalog.admin.notPending': '{id} is not waiting for review',
+  'err.catalog.admin.gone': '{id} is already withdrawn or removed',
+  'err.catalog.admin.isAdmin': '@{handle} is an admin and cannot be banned',
+  'err.catalog.admin.noPublisher': 'There is no publisher @{handle} on the marketplace',
+  'err.catalog.admin.badReport': '{ref} is not a report number',
+  'err.catalog.admin.noReport': 'There is no report #{id}',
+  'err.catalog.admin.badTag': '{tag} is not a review tag; copy it from ccinfobar catalog admin show',
   'market.error.invalid': 'The marketplace rejected the entry as not valid',
   'market.error.too-large': 'The entry is too large for the marketplace',
   'market.error.over-quota':
