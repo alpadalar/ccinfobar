@@ -275,6 +275,81 @@ describe('requestJson', () => {
     );
   });
 
+  it('sends If-None-Match and returns a 304 without following it', async () => {
+    const { fetch: f, calls } = fakeFetch([
+      new Response(null, { status: 304, headers: { etag: '"g3"', location: '/elsewhere' } }),
+      json({ leaked: true }),
+    ]);
+    const res = await send(f, { ifNoneMatch: '"g3"', headers: { 'If-None-Match': '"old"' } });
+    expect([res.status, res.body, res.headers.get('etag')]).toEqual([304, null, '"g3"']);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.headers['if-none-match']).toBe('"g3"');
+  });
+
+  it('treats a 304 as a redirect without ifNoneMatch', async () => {
+    const { fetch: f, calls } = fakeFetch([new Response(null, { status: 304 })]);
+    expect((await failure(send(f))).code).toBe('bad-redirect');
+    expect(calls[0]?.headers['if-none-match']).toBeUndefined();
+    const { fetch: g } = fakeFetch([
+      new Response(null, { status: 304, headers: { location: '/b' } }),
+      json(1),
+    ]);
+    expect((await send(g)).body).toBe(1);
+  });
+
+  it('sends a form body', async () => {
+    const { fetch: f, calls } = fakeFetch([json({ device_code: 'd' })]);
+    const res = await send(f, { method: 'POST', form: { client_id: 'abc', scope: '' } });
+    expect(res.body).toEqual({ device_code: 'd' });
+    expect(calls[0]?.body).toBe('client_id=abc&scope=');
+    expect(calls[0]?.headers).toEqual({
+      accept: 'application/json',
+      'content-type': 'application/x-www-form-urlencoded',
+      'user-agent': 'ccinfobar',
+    });
+  });
+
+  it('refuses form and body together', async () => {
+    const { fetch: f, calls } = fakeFetch([json({})]);
+    expect((await failure(send(f, { method: 'POST', form: { a: 'b' }, body: { a: 1 } }))).code).toBe(
+      'invalid',
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it('returns a JSON error body with anyStatus', async () => {
+    const res = await send(fakeFetch([json({ error: 'authorization_pending' }, 400)]).fetch, {
+      method: 'POST',
+      form: {},
+      anyStatus: true,
+    });
+    expect([res.status, res.body]).toEqual([400, { error: 'authorization_pending' }]);
+  });
+
+  it.each([
+    ['empty', ''],
+    ['not JSON', '<html>'],
+    ['over 8 KiB', JSON.stringify({ error: 'x', pad: 'x'.repeat(9 * 1024) })],
+  ])('reads an %s error body as null with anyStatus', async (_n, text) => {
+    const res = await send(fakeFetch([new Response(text, { status: 422 })]).fetch, { anyStatus: true });
+    expect([res.status, res.body]).toEqual([422, null]);
+  });
+
+  it('cancels a streamed error body past 8 KiB with anyStatus', async () => {
+    const s = streamed(['{"pad":"', ...Array.from({ length: 10 }, () => 'x'.repeat(4096))]);
+    const res = await send(fakeFetch([new Response(s.body, { status: 500 })]).fetch, { anyStatus: true });
+    expect([res.status, res.body]).toEqual([500, null]);
+    expect(s.cancelled()).toBe(true);
+  });
+
+  it('keeps redirect rules with anyStatus', async () => {
+    const { fetch: f, calls } = fakeFetch([redirect('/same', 307), json({})]);
+    expect((await failure(send(f, { method: 'POST', form: {}, anyStatus: true }))).code).toBe('redirect');
+    expect(calls).toHaveLength(1);
+    const { fetch: g } = fakeFetch([redirect('https://evil.example.net/x'), json({})]);
+    expect((await failure(send(g, { anyStatus: true }))).code).toBe('cross-origin-redirect');
+  });
+
   it('gives other errors no status or remote code', () => {
     const e = new JobFetchError('too-large');
     expect([e.status, e.remoteCode, e.retryAfterMs]).toEqual([null, null, null]);

@@ -44,7 +44,10 @@ export interface FetchJsonOpts {
 export interface RequestJsonOpts extends FetchJsonOpts {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   body?: unknown;
+  form?: Record<string, string>;
   errorBody?: boolean;
+  ifNoneMatch?: string;
+  anyStatus?: boolean;
 }
 
 export interface JsonResponse {
@@ -135,6 +138,17 @@ async function remoteCode(res: Response): Promise<string | null> {
   }
 }
 
+// a JSON error body or null; never throws
+async function errorJson(res: Response): Promise<unknown> {
+  try {
+    const buf = await readCapped(res, ERROR_CAP);
+    return buf.length === 0 ? null : parse(buf);
+  } catch {
+    await discard(res);
+    return null;
+  }
+}
+
 export async function requestJson(
   url: URL,
   opts: RequestJsonOpts,
@@ -150,14 +164,24 @@ export async function requestJson(
   for (const [k, v] of Object.entries(opts.headers ?? {})) headers[k.toLowerCase()] = v;
   headers.accept = 'application/json';
   headers['user-agent'] = 'ccinfobar';
+  if (opts.ifNoneMatch !== undefined) headers['if-none-match'] = opts.ifNoneMatch;
   const init: RequestInit = { method, redirect: 'manual', signal, headers };
-  if (opts.body !== undefined) {
+  if (opts.form !== undefined) {
+    if (opts.body !== undefined) throw new JobFetchError('invalid');
+    headers['content-type'] = 'application/x-www-form-urlencoded';
+    init.body = new URLSearchParams(opts.form).toString();
+  } else if (opts.body !== undefined) {
     headers['content-type'] = 'application/json';
     init.body = JSON.stringify(opts.body);
   }
   let cur = url;
   for (let hop = 0; ; hop++) {
     const res = await opts.fetch(cur, init);
+    // only a conditional request may get 304
+    if (res.status === 304 && opts.ifNoneMatch !== undefined) {
+      await discard(res);
+      return { status: 304, headers: res.headers, body: null };
+    }
     if (res.status >= 300 && res.status < 400) {
       await discard(res);
       // a write is never re-sent elsewhere
@@ -167,6 +191,7 @@ export async function requestJson(
       continue;
     }
     if (!res.ok) {
+      if (opts.anyStatus) return { status: res.status, headers: res.headers, body: await errorJson(res) };
       let remote: string | null = null;
       if (opts.errorBody) remote = await remoteCode(res);
       else await discard(res);
