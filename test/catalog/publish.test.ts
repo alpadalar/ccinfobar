@@ -17,6 +17,7 @@ import {
   entryHash,
   type PublishDeps,
   publishPlan,
+  refreshReview,
   remoteList,
   remoteShow,
   reviewPublish,
@@ -38,6 +39,7 @@ import {
 import { contentHash } from '../../src/market/client.js';
 import { startMarketServer } from '../../src/market/server.js';
 import { fakeFetch, json } from '../fake-fetch.js';
+import { GH_ENDPOINT, GH_TOKEN, githubMarket } from '../github-market.js';
 
 let root = '';
 let dir = '';
@@ -763,6 +765,116 @@ describe('runPublish', () => {
     });
     expect(f.calls[1]!.headers.authorization).toBe(`Bearer ${'b'.repeat(64)}`);
     expect(readEntry(e.id, dir)!.entry.share.state).toBe('withdrawn');
+  });
+});
+
+describe('GitHub-backed marketplace (D-07, D-09)', () => {
+  const env = { CCINFOBAR_MARKETPLACE_URL: GH_ENDPOINT };
+
+  it('stops at sign-in without a credential and sends no write', async () => {
+    const m = githubMarket();
+    const e = save();
+    const before = snapshot(dir);
+    const review = await reviewPublish(null, { dir, env, fetch: m.fetch });
+    expect(review).toEqual({
+      code: 'sign-in',
+      endpoint: GH_ENDPOINT,
+      overwrite: true,
+      registration: null,
+      plan: [],
+    });
+    expect(await runPublish(review, { dir, env, fetch: m.fetch })).toEqual({ code: 'sign-in', results: [] });
+    expect(m.calls.map((c) => `${c.method} ${c.url}`)).toEqual([`GET ${GH_ENDPOINT}/v1/meta.json`]);
+    expect(snapshot(dir)).toEqual(before);
+    expect(readEntry(e.id, dir)!.entry.share.state).toBe('pending');
+  });
+
+  it('a server that also takes tokens still registers', async () => {
+    const m = githubMarket({ auth: ['token', 'github-device'] });
+    save();
+    const review = await reviewPublish(null, { dir, env, fetch: m.fetch });
+    expect(review.code).toBeNull();
+    expect(review.registration).toEqual({ handle: 'alperen', displayName: 'Alperen' });
+  });
+
+  it('records the review wait and clears it on a later live answer', async () => {
+    const m = githubMarket();
+    writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+    writePublisher(GH_ENDPOINT, 'octo', dir);
+    const e = save();
+    const review = await reviewPublish(null, { dir, env, fetch: m.fetch });
+    expect(review.registration).toBeNull();
+    const out = await runPublish(review, { dir, env, fetch: m.fetch });
+    expect(out.results).toEqual([
+      { id: e.id, ok: true, code: null, remoteId: 'octo/mine', version: 1, pending: true },
+    ]);
+    expect(m.calls.some((c) => c.url.endsWith('/v1/publishers'))).toBe(false);
+    const stored = readEntry(e.id, dir)!.entry;
+    expect(stored.share.state).toBe('published');
+    expect(stored.share.remote?.review).toBe('pending');
+    // a second version while waiting stays waiting
+    save({ mode: 'update', content: preset('cost'), now: at(2) });
+    const two = await send(null, { dir, env, fetch: m.fetch });
+    expect(two.results[0]).toMatchObject({ ok: true, version: 2, pending: true });
+    expect(readEntry(e.id, dir)!.entry.share.remote?.review).toBe('pending');
+    m.approve('octo/mine');
+    save({ mode: 'update', content: preset('git'), now: at(3) });
+    const three = await send(null, { dir, env, fetch: m.fetch });
+    expect(three.results).toEqual([{ id: e.id, ok: true, code: null, remoteId: 'octo/mine', version: 3 }]);
+    const after = readEntry(e.id, dir)!.entry.share.remote!;
+    expect(after.version).toBe(3);
+    expect('review' in after).toBe(false);
+    expect('review' in JSON.parse(fs.readFileSync(fileOf(e.id), 'utf8')).share.remote).toBe(false);
+  });
+
+  it('a withdraw clears the review wait', async () => {
+    const m = githubMarket();
+    writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+    const e = save();
+    await send(null, { dir, env, fetch: m.fetch });
+    expect(readEntry(e.id, dir)!.entry.share.remote?.review).toBe('pending');
+    updateShare(e.id, false, readEntry(e.id, dir)!.entry.rev, dir);
+    const out = await send(null, { dir, env, fetch: m.fetch });
+    expect(out.results[0]).toMatchObject({ ok: true, version: null });
+    expect(out.results[0]!.pending).toBeUndefined();
+    const s = readEntry(e.id, dir)!.entry.share;
+    expect(s.state).toBe('withdrawn');
+    expect(s.remote?.review).toBeUndefined();
+  });
+
+  it('refreshReview clears entries that are live and keeps the others waiting', async () => {
+    const m = githubMarket();
+    writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+    const a = save();
+    const b = save({ name: 'Two', now: at(1) });
+    await send(null, { dir, env, fetch: m.fetch });
+    m.entries.get('octo/mine')!.state = 'live';
+    const n = m.calls.length;
+    const res = await refreshReview({ dir, env, fetch: m.fetch });
+    expect(res).toMatchObject({ code: null, checked: 2, cleared: 1, waiting: 1 });
+    expect(res.me).toMatchObject({ handle: 'octo', admin: false });
+    expect(m.calls.slice(n).map((c) => `${c.method} ${c.url.slice(GH_ENDPOINT.length)}`)).toEqual([
+      'GET /v1/meta.json',
+      'GET /v1/me',
+    ]);
+    expect(readEntry(a.id, dir)!.entry.share.remote?.review).toBeUndefined();
+    expect(readEntry(b.id, dir)!.entry.share.remote?.review).toBe('pending');
+    // an entry the server no longer lists stays waiting
+    m.entries.delete('octo/two');
+    expect(await refreshReview({ dir, env, fetch: m.fetch })).toMatchObject({ checked: 1, cleared: 0 });
+    expect(readEntry(b.id, dir)!.entry.share.remote?.review).toBe('pending');
+  });
+
+  it('refreshReview needs a GitHub marketplace and a sign-in', async () => {
+    const m = githubMarket();
+    expect(await refreshReview({ dir, env: {}, fetch: m.fetch })).toMatchObject({ code: 'no-endpoint' });
+    expect(m.calls).toHaveLength(0);
+    expect(await refreshReview({ dir, env, fetch: m.fetch })).toMatchObject({ code: 'sign-in', me: null });
+    expect(m.calls.map((c) => c.url)).toEqual([`${GH_ENDPOINT}/v1/meta.json`]);
+    const t = githubMarket({ auth: ['token'] });
+    writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+    expect(await refreshReview({ dir, env, fetch: t.fetch })).toMatchObject({ code: 'not-github' });
+    expect(t.calls).toHaveLength(1);
   });
 });
 

@@ -50,6 +50,8 @@ export interface RemoteRef {
   version: number;
   hash: string;
   publishedAt: string;
+  // the marketplace holds it until an admin approves
+  review?: 'pending';
 }
 
 export interface EntryShare {
@@ -237,7 +239,13 @@ export function markPublished(e: CatalogEntry, remote: RemoteRef): CatalogEntry 
 }
 
 export function markWithdrawn(e: CatalogEntry): CatalogEntry {
-  return withShare(e, { wanted: false, state: 'withdrawn', lastError: null });
+  const remote = e.share.remote && withoutReview(e.share.remote);
+  return withShare(e, { wanted: false, state: 'withdrawn', remote, lastError: null });
+}
+
+export function clearReview(e: CatalogEntry): CatalogEntry {
+  const r = e.share.remote;
+  return r?.review ? withShare(e, { remote: withoutReview(r) }) : e;
 }
 
 export function markError(e: CatalogEntry, code: string): CatalogEntry {
@@ -267,6 +275,9 @@ export function canon(v: unknown): string {
   return JSON.stringify(v) ?? 'null';
 }
 
+const withoutReview = <T extends object>(r: T): T =>
+  Object.fromEntries(Object.entries(r).filter(([k]) => k !== 'review')) as T;
+
 const merged = <T extends object>(r: unknown, n: T): T => (isObject(r) ? { ...own(r), ...n } : n);
 
 // replaced content drops the old unknown keys
@@ -284,7 +295,9 @@ export function mergeRaw(raw: Record<string, unknown>, next: CatalogEntry): Reco
   const rs = isObject(raw.share) ? raw.share : undefined;
   const nr = next.share.remote;
   const same = nr && isObject(rs?.remote) && rs.remote.id === nr.id && rs.remote.endpoint === nr.endpoint;
-  const share = { ...merged(rs, next.share), remote: nr && (same ? merged(rs?.remote, nr) : nr) };
+  // review is known: a cleared one does not come back
+  const prior = same && isObject(rs?.remote) ? withoutReview(rs.remote) : undefined;
+  const share = { ...merged(rs, next.share), remote: nr && (same ? merged(prior, nr) : nr) };
   const out: Record<string, unknown> = { ...own(raw), ...next, share, versions };
   if (next.legacy) out.legacy = merged(raw.legacy, next.legacy);
   return out;
@@ -318,7 +331,14 @@ function parseRemote(v: unknown): RemoteRef | null {
   const { endpoint, id, version, hash, publishedAt } = v;
   if (!isStr(endpoint) || !isStr(id) || !isInt(version, 1) || !isStr(hash) || !isStr(publishedAt))
     return null;
-  return { endpoint, id, version, hash, publishedAt };
+  return {
+    endpoint,
+    id,
+    version,
+    hash,
+    publishedAt,
+    ...(v.review === 'pending' ? { review: v.review } : {}),
+  };
 }
 
 function parseShare(v: unknown): EntryShare {

@@ -295,6 +295,36 @@ describe('catalog store', () => {
     expect(after.versions[2].content.future).toBeUndefined();
   });
 
+  it('the review wait and unknown remote keys survive share and update (D-09, CR-01)', () => {
+    const e = saveEntry(input(), dir);
+    const raw = rawOf(e.id);
+    raw.share.state = 'published';
+    raw.share.remote = {
+      endpoint: 'https://m.example',
+      id: 'me/x',
+      version: 1,
+      hash: 'a'.repeat(64),
+      publishedAt: '2026-10-16T10:00:00.000Z',
+      review: 'pending',
+      future: 'x',
+    };
+    handWrite(e.id, JSON.stringify(raw, null, 2));
+    expect(readEntry(e.id, dir)!.entry.share.remote?.review).toBe('pending');
+    updateShare(e.id, false, 1, dir);
+    expect(rawOf(e.id).share.remote).toMatchObject({ review: 'pending', future: 'x' });
+    updateShare(e.id, true, 2, dir);
+    saveEntry(input({ mode: 'update', content: content('cost') }), dir);
+    expect(rawOf(e.id).share.remote).toMatchObject({ review: 'pending', future: 'x' });
+    expect(readEntry(e.id, dir)!.entry.share.remote?.review).toBe('pending');
+    const other = rawOf(e.id);
+    other.share.remote.review = 'other';
+    handWrite(e.id, JSON.stringify(other, null, 2));
+    saveEntry(input({ mode: 'update', content: content('git') }), dir);
+    const after = rawOf(e.id).share.remote;
+    expect(after.future).toBe('x');
+    expect('review' in after).toBe(false);
+  });
+
   it('an overwrite drops the unknown content keys of the version it replaces', () => {
     const e = saveEntry(input(), dir);
     const raw = rawOf(e.id);

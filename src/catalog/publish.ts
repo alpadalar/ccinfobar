@@ -1,16 +1,19 @@
 import { createHash } from 'node:crypto';
-import { createMarketClient, type MarketClient, type Received } from '../market/client.js';
+import { createMarketClient, type MarketClient, type Received, type Written } from '../market/client.js';
 import {
   canonicalJson,
   isRemoteId,
   type MarketEntry,
+  type MarketMeta,
   type MarketSummary,
   type MarketVersion,
+  type MeResult,
   type PublishPayload,
   type VersionPayload,
 } from '../market/protocol.js';
 import {
   type CatalogEntry,
+  clearReview,
   type EntryKind,
   latest,
   markError,
@@ -59,6 +62,8 @@ export interface PublishResult {
   remoteId: string | null;
   version: number | null;
   status?: number;
+  // held for review by a marketplace admin
+  pending?: true;
 }
 
 export interface PublishDeps {
@@ -226,6 +231,10 @@ const withdrawn = (e: CatalogEntry) => {
   return e.share.wanted ? setShare(next, true) : next;
 };
 
+// publishers come only from GitHub sign-in there
+export const signInOnly = (meta: MarketMeta): boolean =>
+  meta.auth.includes('github-device') && !meta.auth.includes('token');
+
 // the handle set for this endpoint, else the author as a slug
 function registrationOf(
   endpoint: string,
@@ -257,17 +266,18 @@ export async function reviewPublish(ids: string[] | null, deps: PublishDeps = {}
   } catch {
     return { code: 'bad-endpoint', ...none };
   }
-  let overwrite: boolean;
+  let meta: MarketMeta;
   try {
-    const meta = await anon.meta();
+    meta = await anon.meta();
     if (!meta.capabilities.write)
       return { code: 'read-only', ...(meta.submitUrl ? { submitUrl: meta.submitUrl } : {}), ...none };
-    overwrite = meta.capabilities.overwrite;
   } catch (err) {
     return { code: codeOf(err), ...statusOf(err), ...none };
   }
-  const plan = publishPlan(entries, endpoint, { overwrite }, every);
+  const overwrite = meta.capabilities.overwrite;
   const token = readCredential(anon.endpoint, dir);
+  if (!token && signInOnly(meta)) return { code: 'sign-in', ...none };
+  const plan = publishPlan(entries, endpoint, { overwrite }, every);
   const registration = token ? null : registrationOf(anon.endpoint, plan, entries, deps, dir);
   return { code: null, endpoint, overwrite, registration, plan };
 }
@@ -276,7 +286,7 @@ async function sendItem(
   client: MarketClient,
   item: PublishItem,
   remote: RemoteRef | null,
-): Promise<{ id: string; version: number; hash: string } | null> {
+): Promise<(Written & { id: string }) | null> {
   if (item.action === 'publish') return client.publish(item.payload as PublishPayload);
   const id = remote!.id;
   if (item.action === 'withdraw') {
@@ -364,6 +374,7 @@ export async function runPublish(
         version: sent.version,
         hash: sent.hash,
         publishedAt: now().toISOString(),
+        ...(sent.pending ? { review: 'pending' as const } : {}),
       };
       const r = record(item.id, item.rev, ref ? published(ref) : withdrawn, dir, now());
       res = {
@@ -372,6 +383,7 @@ export async function runPublish(
         code: r.code,
         remoteId: sent?.id ?? item.remoteId,
         version: sent?.version ?? null,
+        ...(sent?.pending ? { pending: true as const } : {}),
       };
     } catch (err) {
       const code = codeOf(err);
@@ -381,6 +393,52 @@ export async function runPublish(
     results.push(res);
   }
   return { code: null, results };
+}
+
+export interface ReviewCheck {
+  code: string | null;
+  status?: number;
+  me: MeResult | null;
+  // local entries that waited, cleared now, still waiting on the server
+  checked: number;
+  cleared: number;
+  waiting: number;
+}
+
+// asks /v1/me; only on an explicit check (D-08)
+export async function refreshReview(deps: PublishDeps = {}): Promise<ReviewCheck> {
+  const none = { me: null, checked: 0, cleared: 0, waiting: 0 };
+  const { dir, endpoint } = envOf(deps);
+  if (!endpoint) return { code: 'no-endpoint', ...none };
+  const fetchFn = deps.fetch ?? globalThis.fetch;
+  let anon: MarketClient;
+  try {
+    anon = createMarketClient({ endpoint, fetch: fetchFn });
+  } catch {
+    return { code: 'bad-endpoint', ...none };
+  }
+  let me: MeResult;
+  try {
+    if (!(await anon.meta()).auth.includes('github-device')) return { code: 'not-github', ...none };
+    const token = readCredential(anon.endpoint, dir);
+    if (!token) return { code: 'sign-in', ...none };
+    me = await createMarketClient({ endpoint, fetch: fetchFn, token }).me();
+  } catch (err) {
+    return { code: codeOf(err), ...statusOf(err), ...none };
+  }
+  const key = endpointKey(endpoint);
+  const live = new Set(me.entries.filter((x) => x.state === 'live').map((x) => x.id));
+  const now = deps.now ?? (() => new Date());
+  let checked = 0;
+  let cleared = 0;
+  for (const e of listEntries(dir)) {
+    const r = e.share.remote;
+    if (r?.review !== 'pending' || endpointKey(r.endpoint) !== key) continue;
+    checked++;
+    if (live.has(r.id) && record(e.id, e.rev, clearReview, dir, now()).saved) cleared++;
+  }
+  const waiting = me.entries.filter((x) => x.state === 'pending').length;
+  return { code: null, me, checked, cleared, waiting };
 }
 
 async function reader(deps: PublishDeps): Promise<{ client: MarketClient | null; code: string | null }> {

@@ -243,6 +243,25 @@ describe('catalog model', () => {
     expect(out.version).toBe(2);
   });
 
+  it('parses review only when it is exactly pending and mergeRaw keeps it with unknown keys (D-09, CR-01)', () => {
+    const p = markPublished(entry(), { ...remote(), review: 'pending' });
+    const raw = structuredClone(p) as unknown as Record<string, any>;
+    raw.share.remote.future = 'x';
+    expect(parseEntry(raw)!.share.remote).toEqual({ ...remote(), review: 'pending' });
+    const kept = mergeRaw(raw, parseEntry(raw)!) as Record<string, any>;
+    expect(kept.share.remote).toMatchObject({ review: 'pending', future: 'x' });
+    // cleared on the same remote: the old value does not come back
+    const cleared = mergeRaw(raw, markPublished(p, remote())) as Record<string, any>;
+    expect(cleared.share.remote.future).toBe('x');
+    expect('review' in cleared.share.remote).toBe(false);
+    for (const bad of ['other', true, 'PENDING']) {
+      const r = structuredClone(raw);
+      r.share.remote.review = bad;
+      expect('review' in parseEntry(r)!.share.remote!).toBe(false);
+      expect('review' in (mergeRaw(r, parseEntry(r)!) as Record<string, any>).share.remote).toBe(false);
+    }
+  });
+
   it('mergeRaw drops own __proto__ keys from hand-edited files', () => {
     const e = entry();
     const raw = JSON.parse(
