@@ -171,21 +171,34 @@ export async function readEntryRow(db: D1Database, p: string, s: string): Promis
 }
 
 const LIVE = "state IN ('live', 'pending')";
+const GONE = "state IN ('withdrawn', 'removed')";
 
-export async function publishCounts(
-  db: D1Database,
-  handle: string,
-  slug: string,
-): Promise<{ taken: boolean; live: number; mine: number }> {
+export interface Counts {
+  taken: boolean;
+  live: number;
+  mine: number;
+  tombs: number;
+  myTombs: number;
+}
+
+export async function publishCounts(db: D1Database, handle: string, slug: string): Promise<Counts> {
   const row = await db
     .prepare(
       `SELECT EXISTS (SELECT 1 FROM entries WHERE publisher = ?1 AND slug = ?2) AS taken,
          (SELECT COUNT(*) FROM entries WHERE ${LIVE}) AS live,
-         (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${LIVE}) AS mine`,
+         (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${LIVE}) AS mine,
+         (SELECT COUNT(*) FROM entries WHERE ${GONE}) AS tombs,
+         (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${GONE}) AS my_tombs`,
     )
     .bind(handle, slug)
-    .first<{ taken: number; live: number; mine: number }>();
-  return { taken: !!row?.taken, live: Number(row?.live ?? 0), mine: Number(row?.mine ?? 0) };
+    .first<{ taken: number; live: number; mine: number; tombs: number; my_tombs: number }>();
+  return {
+    taken: !!row?.taken,
+    live: Number(row?.live ?? 0),
+    mine: Number(row?.mine ?? 0),
+    tombs: Number(row?.tombs ?? 0),
+    myTombs: Number(row?.my_tombs ?? 0),
+  };
 }
 
 // fails the batch when the statement before it changed nothing
@@ -197,25 +210,31 @@ const NEXT_GEN = "(SELECT n FROM counters WHERE k = 'gen') + 1";
 const addBytes = (db: D1Database, handle: string, bytes: number): D1PreparedStatement =>
   db.prepare('UPDATE publishers SET bytes = bytes + ?2 WHERE handle = ?1').bind(handle, bytes);
 
+const BODY_BYTES = 'length(CAST(body AS BLOB))';
+
+const idOf = (e: StoredEntry): [string, string] => [e.publisher, e.id.slice(e.publisher.length + 1)];
+
 export interface NewEntry {
   entry: StoredEntry;
   state: EntryState;
   body: string;
   bytes: number;
-  caps: { entries: number; entriesPerPublisher: number };
+  caps: { entries: number; entriesPerPublisher: number; tombstones: number; tombstonesPerPublisher: number };
 }
 
 // caps are checked again inside the insert, so racing publishes cannot pass them
 export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatement[] {
   const e = n.entry;
-  const [p, s] = [e.publisher, e.id.slice(e.publisher.length + 1)];
+  const [p, s] = idOf(e);
   return [
     db
       .prepare(
         `INSERT INTO entries (publisher, slug, kind, state, version, hash, created_at, updated_at, summary, doc, gen)
          SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, ?9, ${NEXT_GEN}
          WHERE (SELECT COUNT(*) FROM entries WHERE ${LIVE}) < ?10
-           AND (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${LIVE}) < ?11`,
+           AND (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${LIVE}) < ?11
+           AND (SELECT COUNT(*) FROM entries WHERE ${GONE}) < ?12
+           AND (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${GONE}) < ?13`,
       )
       .bind(
         p,
@@ -229,6 +248,8 @@ export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatem
         entryDocText(e),
         n.caps.entries,
         n.caps.entriesPerPublisher,
+        n.caps.tombstones,
+        n.caps.tombstonesPerPublisher,
       ),
     db.prepare(GUARD),
     db
@@ -242,14 +263,15 @@ export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatem
 export interface NextVersion {
   entry: StoredEntry;
   expected: number;
+  expectedHash: string;
   body: string;
   bytes: number;
 }
 
-// the versions key stops a racing twin, the guarded update a changed entry
+// the versions key stops a racing twin, the guarded update a changed or overwritten entry
 export function versionStatements(db: D1Database, n: NextVersion): D1PreparedStatement[] {
   const e = n.entry;
-  const [p, s] = [e.publisher, e.id.slice(e.publisher.length + 1)];
+  const [p, s] = idOf(e);
   return [
     db
       .prepare('INSERT INTO versions (publisher, slug, version, body) VALUES (?1, ?2, ?3, ?4)')
@@ -257,11 +279,79 @@ export function versionStatements(db: D1Database, n: NextVersion): D1PreparedSta
     db
       .prepare(
         `UPDATE entries SET version = ?3, hash = ?4, updated_at = ?5, summary = ?6, doc = ?7, gen = ${NEXT_GEN}
-         WHERE publisher = ?1 AND slug = ?2 AND version = ?8 AND ${LIVE}`,
+         WHERE publisher = ?1 AND slug = ?2 AND version = ?8 AND hash = ?9 AND ${LIVE}`,
       )
-      .bind(p, s, e.version, e.hash, e.updatedAt, entrySummaryText(e), entryDocText(e), n.expected),
+      .bind(
+        p,
+        s,
+        e.version,
+        e.hash,
+        e.updatedAt,
+        entrySummaryText(e),
+        entryDocText(e),
+        n.expected,
+        n.expectedHash,
+      ),
     db.prepare(GUARD),
     addBytes(db, p, n.bytes),
+    bumpGen(db),
+  ];
+}
+
+export interface Overwrite {
+  entry: StoredEntry;
+  expectedHash: string;
+  body: string;
+  bytes: number;
+}
+
+// bytes are swapped before the body, inside the same batch
+export function overwriteStatements(db: D1Database, n: Overwrite): D1PreparedStatement[] {
+  const e = n.entry;
+  const [p, s] = idOf(e);
+  return [
+    db
+      .prepare(
+        `UPDATE entries SET hash = ?3, updated_at = ?4, summary = ?5, doc = ?6, gen = ${NEXT_GEN}
+         WHERE publisher = ?1 AND slug = ?2 AND version = ?7 AND hash = ?8 AND ${LIVE}`,
+      )
+      .bind(p, s, e.hash, e.updatedAt, entrySummaryText(e), entryDocText(e), e.version, n.expectedHash),
+    db.prepare(GUARD),
+    db
+      .prepare(
+        `UPDATE publishers SET bytes = MAX(0, bytes + ?4 - COALESCE((SELECT ${BODY_BYTES} FROM versions
+           WHERE publisher = ?1 AND slug = ?2 AND version = ?3), 0)) WHERE handle = ?1`,
+      )
+      .bind(p, s, e.version, n.bytes),
+    db
+      .prepare('UPDATE versions SET body = ?4 WHERE publisher = ?1 AND slug = ?2 AND version = ?3')
+      .bind(p, s, e.version, n.body),
+    bumpGen(db),
+  ];
+}
+
+// tombstone, freed bytes and NULL bodies commit together
+export function withdrawStatements(
+  db: D1Database,
+  tomb: StoredEntry,
+  expected: number,
+): D1PreparedStatement[] {
+  const [p, s] = idOf(tomb);
+  return [
+    db
+      .prepare(
+        `UPDATE entries SET state = 'withdrawn', updated_at = ?3, summary = ?4, doc = ?5, gen = ${NEXT_GEN}
+         WHERE publisher = ?1 AND slug = ?2 AND version = ?6 AND ${LIVE}`,
+      )
+      .bind(p, s, tomb.updatedAt, entrySummaryText(tomb), entryDocText(tomb), expected),
+    db.prepare(GUARD),
+    db
+      .prepare(
+        `UPDATE publishers SET bytes = MAX(0, bytes - COALESCE((SELECT SUM(${BODY_BYTES}) FROM versions
+           WHERE publisher = ?1 AND slug = ?2), 0)) WHERE handle = ?1`,
+      )
+      .bind(p, s),
+    db.prepare('UPDATE versions SET body = NULL WHERE publisher = ?1 AND slug = ?2').bind(p, s),
     bumpGen(db),
   ];
 }

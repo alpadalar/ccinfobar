@@ -69,3 +69,6 @@ export function intVar(v: string | undefined): number | null {
   const n = Number(v);
   return Number.isSafeInteger(n) ? n : null;
 }
+
+// off unless set exactly (R-07)
+export const overwriteOn = (env: Env): boolean => env.ALLOW_OVERWRITE === 'true';

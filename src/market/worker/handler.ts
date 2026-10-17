@@ -1,10 +1,29 @@
-import { entriesPath, indexPath, MARKET_LIMITS, MAX_PAGES, metaPath, PROTOCOL_VERSION } from '../protocol.js';
-import { ENTRY_RE, fail, PAGE_RE, part, VERSION_FILE_RE, VERSIONS_RE, versionNo } from '../rules.js';
-import { type D1Database, type Env, intVar, type WorkerDeps } from './env.js';
+import {
+  entriesPath,
+  indexPath,
+  MARKET_LIMITS,
+  MAX_PAGES,
+  metaPath,
+  PROTOCOL_VERSION,
+  publishersPath,
+} from '../protocol.js';
+import {
+  ENTRY_RE,
+  fail,
+  PAGE_RE,
+  PUT_RE,
+  part,
+  SIGN_IN_ONLY,
+  VERSION_FILE_RE,
+  VERSIONS_RE,
+  versionNo,
+  WITHDRAW_RE,
+} from '../rules.js';
+import { type D1Database, type Env, intVar, overwriteOn, type WorkerDeps } from './env.js';
 import { errorResponse, etagMatches, json, notModified, PUBLIC_HEADERS, publicJson } from './http.js';
 import { landingPage } from './page.js';
 import { indexEtag, readEntryDoc, readIndexPage, readVersionDoc } from './store.js';
-import { addVersion, publish } from './write.js';
+import { addVersion, overwrite, publish, withdraw } from './write.js';
 
 export interface WorkerHandler {
   fetch(req: Request): Promise<Response>;
@@ -18,7 +37,7 @@ export function buildMeta(env: Env): Record<string, unknown> {
     name: env.MARKET_NAME || 'ccinfobar marketplace',
     capabilities: {
       write: true,
-      overwrite: env.ALLOW_OVERWRITE === 'true',
+      overwrite: overwriteOn(env),
       withdraw: true,
       submit: 'api',
       review: true,
@@ -90,9 +109,19 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
     }
     // ids before the body, like the reference
     if (req.method === 'POST') {
+      // publishers sign in with GitHub (D-07)
+      if (p === publishersPath()) throw fail(403, 'forbidden', SIGN_IN_ONLY);
       if (p === entriesPath()) return publish(env.DB, env, deps, req);
       const v = VERSIONS_RE.exec(p);
       if (v) return addVersion(env.DB, env, deps, req, part(v[1]!), part(v[2]!));
+    }
+    if (req.method === 'PUT') {
+      const m = PUT_RE.exec(p);
+      if (m) return overwrite(env.DB, env, deps, req, part(m[1]!), part(m[2]!), versionNo(m[3]!));
+    }
+    if (req.method === 'DELETE') {
+      const w = WITHDRAW_RE.exec(p);
+      if (w) return withdraw(env.DB, deps, req, part(w[1]!), part(w[2]!));
     }
     throw fail(404, 'not-found');
   }
