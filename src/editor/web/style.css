@@ -2251,6 +2251,55 @@ input[type="range"]:disabled {
   --c: var(--danger);
 }
 
+.catalog-chip.review {
+  --c: var(--warn);
+}
+
+.catalog-account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.6rem;
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.signin-code-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem 0.9rem;
+  padding: 0.9rem;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 0.0625rem var(--line);
+}
+
+.signin-code {
+  font-family: var(--mono);
+  font-size: 1.75rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  color: var(--text);
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
+.signin-link {
+  margin: 0;
+}
+
+a.btn {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.btn.primary {
+  color: var(--accent-ink);
+}
+
 .catalog-section .theme-card-head {
   flex-wrap: wrap;
 }

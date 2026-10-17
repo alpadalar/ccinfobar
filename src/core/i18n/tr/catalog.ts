@@ -288,6 +288,24 @@ export const catalogMessages = {
   'catalog.logout.done':
     '{endpoint} üzerindeki oturum kapatıldı. Marketplace belirteci bu bilgisayardan silindi.',
   'catalog.logout.none': '{endpoint} üzerinde giriş yapmamışsınız.',
+  'catalog.signin.title': 'GitHub ile giriş yap',
+  'catalog.signin.steps':
+    "GitHub'ı açın, bu kodu girin ve ccinfobar'a izin verin. İşiniz bitince bu pencere kendiliğinden devam eder.",
+  'catalog.signin.code': 'Giriş kodu',
+  'catalog.signin.copy': 'Kodu kopyala',
+  'catalog.signin.copied': 'Kod kopyalandı.',
+  'catalog.signin.open': 'github.com/login/device adresini aç',
+  'catalog.signin.starting': "GitHub'dan kod isteniyor…",
+  'catalog.signin.waiting': "Kodu GitHub'da girmeniz bekleniyor…",
+  'catalog.signin.retrying': 'Editör sunucusu yanıt vermedi; yeniden deneniyor…',
+  'catalog.signin.expired': 'Kodun süresi doldu. Yeni bir kod için Tekrar dene düğmesine basın.',
+  'catalog.signin.retry': 'Tekrar dene',
+  'catalog.signin.needed':
+    'Bu marketplace yalnızca GitHub ile giriş yapmış yayıncılardan girdi kabul eder. Devam etmek için giriş yapın; ccinfobar yalnızca marketplace belirtecini saklar.',
+  'catalog.signin.signedIn': 'Giriş yapıldı',
+  'catalog.signin.out': 'Çıkış yap',
+  'catalog.signin.outText':
+    '{endpoint} oturumu kapatılsın mı? ccinfobar marketplace belirtecini bu bilgisayardan siler.',
   'err.catalog.signIn.expired':
     'Giriş kodunun süresi doldu. ccinfobar catalog login komutunu yeniden çalıştırın.',
   'err.catalog.signIn.denied': "Giriş GitHub'da reddedildi.",

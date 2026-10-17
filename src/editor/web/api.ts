@@ -37,6 +37,23 @@ export interface InstallPlanInfo {
   changes: boolean;
 }
 
+export interface LoginStartInfo {
+  flow: string;
+  userCode: string;
+  verificationUri: string;
+  expiresIn: number;
+  interval: number;
+}
+
+export interface LoginStatusInfo {
+  status: 'pending' | 'ok' | 'expired' | 'denied' | 'disabled' | 'failed' | 'cancelled';
+  handle?: string;
+  admin?: boolean;
+  code?: string;
+  errorId?: string;
+  errorParams?: { status?: number };
+}
+
 export interface CatalogSaveBody {
   kind: EntryKind;
   name: string;
@@ -201,6 +218,17 @@ export const api = {
       results: PublishResultInfo[];
       catalog: CatalogState;
     }>('POST', '/api/catalog/publish', { refs, confirm: true, planHash, lang: language() }),
+  loginStart: () => call<LoginStartInfo>('POST', '/api/catalog/login', {}),
+  loginStatus: (flow: string) =>
+    call<LoginStatusInfo>('GET', `/api/catalog/login/${encodeURIComponent(flow)}`),
+  loginCancel: (flow: string) =>
+    call<{ status: string }>('DELETE', `/api/catalog/login/${encodeURIComponent(flow)}`),
+  logout: () =>
+    call<{ ok: boolean; signedOut: boolean; catalog: CatalogState }>(
+      'POST',
+      `/api/catalog/logout?lang=${lang()}`,
+      {},
+    ),
   catalogRemote: () => call<{ endpoint: string; entries: MarketSummaryInfo[] }>('GET', '/api/catalog/remote'),
   // <publisher>/<slug>, each part encoded
   catalogRemoteEntry: (id: string) =>

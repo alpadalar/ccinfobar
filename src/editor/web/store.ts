@@ -105,7 +105,8 @@ export interface CatalogEntryInfo {
   version: number;
   rev: number | null;
   share: { wanted: boolean; state: ShareState } | null;
-  remote: { id: string; version: number } | null;
+  // review: the marketplace holds it for an admin
+  remote: { id: string; version: number; review?: 'pending' } | null;
   updatedAt: string | null;
   scenario: string | null;
   content: EntryContent;
@@ -117,6 +118,14 @@ export interface CatalogState {
   profile: { author: string };
   endpoint: string | null;
   publishable: boolean;
+  market?: MarketState;
+}
+
+export interface MarketState {
+  endpoint: string | null;
+  source: 'env' | 'set' | 'default' | 'off' | 'none';
+  signedIn: boolean;
+  handle: string | null;
 }
 
 export interface CatalogVersionInfo {

@@ -80,6 +80,7 @@ const SWEPT: string[] = [
   'src/editor/web/catalog.ts',
   'src/editor/web/catalog-dialogs.ts',
   'src/editor/web/catalog-market.ts',
+  'src/editor/web/catalog-signin.ts',
   'src/editor/web/styles.ts',
   'src/editor/web/terminals.ts',
   'src/editor/web/i18n-static.ts',
