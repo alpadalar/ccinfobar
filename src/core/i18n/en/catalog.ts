@@ -99,7 +99,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Loading the marketplace…',
   'catalog.usage':
-    'Usage: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n       ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n       ccinfobar catalog show <publisher/slug> --remote [--json]\n       ccinfobar catalog history <ref> [--json]\n       ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n       ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n       ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n       ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n       ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n       ccinfobar catalog author [<name>] [--dry-run] [--json]\n       ccinfobar catalog endpoint [<url>|--clear] [--dry-run] [--json]\n       ccinfobar catalog publisher [<handle>|--forget] [--dry-run] [--json]\n       ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]',
+    'Usage: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n       ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n       ccinfobar catalog show <publisher/slug> --remote [--json]\n       ccinfobar catalog history <ref> [--json]\n       ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n       ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n       ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n       ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n       ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n       ccinfobar catalog author [<name>] [--dry-run] [--json]\n       ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n       ccinfobar catalog publisher [<handle>|--forget] [--dry-run] [--json]\n       ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]',
   'catalog.section.user': 'Your entries',
   'catalog.section.system': 'Built in',
   'catalog.list.noUser': 'No saved entries yet. Save one with ccinfobar catalog save <name>.',
@@ -142,10 +142,16 @@ export const catalogMessages = {
   'catalog.author.show': 'Author: {author}',
   'catalog.author.set': 'Author is now {author}',
   'catalog.author.none': 'No author set. Set one with ccinfobar catalog author <name>.',
-  'catalog.endpoint.show': 'Marketplace endpoint: {url}',
+  'catalog.endpoint.show': 'Marketplace endpoint: {url} ({source})',
   'catalog.endpoint.none': 'No marketplace endpoint set. Nothing is sent anywhere.',
   'catalog.endpoint.set': 'Marketplace endpoint is now {url}. Nothing is sent until you publish.',
-  'catalog.endpoint.cleared': 'Marketplace endpoint removed. Nothing is sent anywhere.',
+  'catalog.endpoint.cleared':
+    'Marketplace endpoint removed; the default applies again. Nothing is sent anywhere.',
+  'catalog.endpoint.default': 'Marketplace endpoint is back to the default: {url}',
+  'catalog.endpoint.off': 'Marketplace switched off. Nothing is sent anywhere.',
+  'catalog.endpoint.source.env': 'from CCINFOBAR_MARKETPLACE_URL',
+  'catalog.endpoint.source.set': 'set by you',
+  'catalog.endpoint.source.default': 'default',
   'catalog.publisher.show': 'Publisher handle on {endpoint}: @{handle} (not registered yet)',
   'catalog.publisher.registeredShow': 'Publisher handle on {endpoint}: @{handle} (registered)',
   'catalog.publisher.none':

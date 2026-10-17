@@ -103,7 +103,7 @@ The share switch decides whether an entry should go to a marketplace. No marketp
 - Without an endpoint, the Catalog page shows no Publish button and no Marketplace tab, and says that shared entries wait.
 - Deleting a published entry does not remove the published copy, and afterwards ccinfobar can no longer withdraw it. Stop sharing it and publish first to withdraw it. The editor's delete dialog and `catalog delete` say so (the CLI also after `--yes`, and `--json` adds `published: true`).
 
-Set an endpoint with `ccinfobar catalog endpoint <url>` (https only; http only for `localhost`, `127.0.0.1` and `[::1]`), or for one run with the `CCINFOBAR_MARKETPLACE_URL` environment variable, which wins over the stored one. See [MARKETPLACE.md](MARKETPLACE.md) for the protocol, the reference server and what is planned for a real marketplace.
+Set an endpoint with `ccinfobar catalog endpoint <url>` (https only; http only for `localhost`, `127.0.0.1` and `[::1]`), or for one run with the `CCINFOBAR_MARKETPLACE_URL` environment variable, which wins over the stored one. `ccinfobar catalog endpoint --off` (or `CCINFOBAR_MARKETPLACE_URL=off` for one shell) switches the marketplace off, and `--clear` goes back to the default. See [MARKETPLACE.md](MARKETPLACE.md) for the protocol, the reference server and what is planned for a real marketplace.
 
 ## Files
 
@@ -143,7 +143,7 @@ Your own `<kind>/<slug>` wins over a built-in ref with the same text.
 | `ccinfobar catalog share\|unshare <ref> [--dry-run] [--json]` | Turn sharing on or off |
 | `ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]` | Move an entry to the trash. Asks in a terminal; needs `--yes` otherwise |
 | `ccinfobar catalog author [<name>] [--dry-run] [--json]` | Show or set the remembered author |
-| `ccinfobar catalog endpoint [<url>\|--clear] [--dry-run] [--json]` | Show, set or remove the marketplace endpoint. Only checks the URL; sends nothing |
+| `ccinfobar catalog endpoint [<url>\|--off\|--clear] [--dry-run] [--json]` | Show the marketplace endpoint and where it comes from (`env`, `set`, `default`, `off`, `none`), set it, switch the marketplace off, or go back to the default. Only checks the URL; sends nothing |
 | `ccinfobar catalog publisher [<handle>\|--forget] [--dry-run] [--json]` | Show or set the publisher handle a first publish registers on the current endpoint (lowercase letters, digits and hyphens; without one, the author as a slug). `--forget` drops the handle and token for that endpoint, so the next publish registers again. Sends nothing |
 | `ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]` | Show what waits to publish, then send it after confirmation |
 | `ccinfobar catalog list --remote [--kind ...] [--json]` | Read-only list of the marketplace entries |

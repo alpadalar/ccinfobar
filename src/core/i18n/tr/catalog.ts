@@ -104,7 +104,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Pazar yeri yükleniyor…',
   'catalog.usage':
-    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]',
+    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]',
   'catalog.section.user': 'Sizin girdileriniz',
   'catalog.section.system': 'Yerleşik',
   'catalog.list.noUser': 'Henüz kayıtlı girdi yok. ccinfobar catalog save <name> ile bir tane kaydedin.',
@@ -149,10 +149,16 @@ export const catalogMessages = {
   'catalog.author.show': 'Yazar: {author}',
   'catalog.author.set': 'Yazar artık {author}',
   'catalog.author.none': 'Yazar ayarlanmadı. ccinfobar catalog author <name> ile ayarlayın.',
-  'catalog.endpoint.show': 'Pazar yeri adresi: {url}',
+  'catalog.endpoint.show': 'Pazar yeri adresi: {url} ({source})',
   'catalog.endpoint.none': 'Pazar yeri adresi ayarlanmadı. Hiçbir yere bir şey gönderilmez.',
   'catalog.endpoint.set': 'Pazar yeri adresi artık {url}. Siz yayımlayana kadar hiçbir şey gönderilmez.',
-  'catalog.endpoint.cleared': 'Pazar yeri adresi kaldırıldı. Hiçbir yere bir şey gönderilmez.',
+  'catalog.endpoint.cleared':
+    'Pazar yeri adresi kaldırıldı; yeniden varsayılan geçerli. Hiçbir yere bir şey gönderilmez.',
+  'catalog.endpoint.default': 'Pazar yeri adresi varsayılana döndü: {url}',
+  'catalog.endpoint.off': 'Pazar yeri kapalı. Hiçbir yere bir şey gönderilmez.',
+  'catalog.endpoint.source.env': 'CCINFOBAR_MARKETPLACE_URL değişkeninden',
+  'catalog.endpoint.source.set': 'sizin ayarınız',
+  'catalog.endpoint.source.default': 'varsayılan',
   'catalog.publisher.show': '{endpoint} üzerindeki yayıncı adı: @{handle} (henüz kayıtlı değil)',
   'catalog.publisher.registeredShow': '{endpoint} üzerindeki yayıncı adı: @{handle} (kayıtlı)',
   'catalog.publisher.none':

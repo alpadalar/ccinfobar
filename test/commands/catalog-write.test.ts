@@ -58,6 +58,7 @@ interface RunOpts {
   tty?: boolean;
   answers?: boolean[];
   fetch?: typeof fetch;
+  defaultEndpoint?: string | null;
 }
 
 async function run(argv: string[], opts: RunOpts = {}) {
@@ -83,6 +84,7 @@ async function run(argv: string[], opts: RunOpts = {}) {
     gsd: true,
     now: () => NOW,
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
+    ...(opts.defaultEndpoint !== undefined ? { defaultEndpoint: opts.defaultEndpoint } : {}),
   });
   const code = process.exitCode;
   process.exitCode = undefined;
@@ -513,21 +515,103 @@ describe('catalog author and endpoint', () => {
       'Marketplace endpoint is now http://127.0.0.1:9. Nothing is sent until you publish.',
     ]);
     expect(readProfile(cat).endpoint).toBe('http://127.0.0.1:9');
-    expect((await run(['endpoint'], opts)).out).toEqual(['Marketplace endpoint: http://127.0.0.1:9']);
+    expect((await run(['endpoint'], opts)).out).toEqual([
+      'Marketplace endpoint: http://127.0.0.1:9 (set by you)',
+    ]);
     expect(JSON.parse((await run(['endpoint', '--json'], opts)).out[0]!)).toEqual({
       schema: 1,
       endpoint: 'http://127.0.0.1:9',
+      source: 'set',
     });
     writeCfg({ lines: [model] });
     expect((await run(['save', 'My look'], opts)).out[1]).toBe(
       'Waiting to publish. Nothing is sent until you publish it.',
     );
     expect((await run(['endpoint', '--clear'], opts)).out).toEqual([
-      'Marketplace endpoint removed. Nothing is sent anywhere.',
+      'Marketplace endpoint removed; the default applies again. Nothing is sent anywhere.',
     ]);
     expect(readProfile(cat).endpoint).toBeNull();
     expect(fake).not.toHaveBeenCalled();
     expect(global).not.toHaveBeenCalled();
+  });
+
+  it('shows the default, switches it off and back (D-12, R-06)', async () => {
+    const fake = vi.fn(async () => new Response('{}'));
+    const global = vi.spyOn(globalThis, 'fetch').mockImplementation(fake);
+    const DEF = 'https://m.example.com';
+    const opts = { fetch: fake as unknown as typeof fetch, defaultEndpoint: DEF };
+    expect((await run(['endpoint'], opts)).out).toEqual([`Marketplace endpoint: ${DEF} (default)`]);
+    expect(JSON.parse((await run(['endpoint', '--json'], opts)).out[0]!)).toEqual({
+      schema: 1,
+      endpoint: DEF,
+      source: 'default',
+    });
+    const dry = await run(['endpoint', '--off', '--dry-run'], opts);
+    expect(dry.out).toEqual([
+      'Marketplace switched off. Nothing is sent anywhere.',
+      'Dry run: nothing was written.',
+    ]);
+    expect(fs.existsSync(path.join(cat, 'profile.json'))).toBe(false);
+    expect((await run(['endpoint', '--off'], opts)).out).toEqual([
+      'Marketplace switched off. Nothing is sent anywhere.',
+    ]);
+    expect(JSON.parse(fs.readFileSync(path.join(cat, 'profile.json'), 'utf8')).endpoint).toBe(false);
+    expect((await run(['endpoint'], opts)).out).toEqual([
+      'Marketplace switched off. Nothing is sent anywhere.',
+    ]);
+    expect(JSON.parse((await run(['endpoint', '--json'], opts)).out[0]!)).toEqual({
+      schema: 1,
+      endpoint: null,
+      source: 'off',
+    });
+    const remote = await run(['list', '--remote'], opts);
+    expect(remote.code).toBe(1);
+    expect(remote.err).toEqual(['No marketplace endpoint set; entries stay waiting to publish']);
+    for (const argv of [
+      ['endpoint', '--off', '--clear'],
+      ['endpoint', '--off', 'https://x.example.com'],
+    ]) {
+      const bad = await run(argv, opts);
+      expect(bad.code).toBe(1);
+      expect(bad.err[0]).toMatch(/^Usage: ccinfobar catalog /);
+      expect(bad.err[0]).toContain('endpoint [<url>|--off|--clear]');
+    }
+    expect(readProfile(cat).endpoint).toBe(false);
+    expect((await run(['endpoint', '--clear'], opts)).out).toEqual([
+      `Marketplace endpoint is back to the default: ${DEF}`,
+    ]);
+    expect(readProfile(cat).endpoint).toBeNull();
+    expect((await run(['endpoint'], opts)).out).toEqual([`Marketplace endpoint: ${DEF} (default)`]);
+    expect(JSON.parse((await run(['endpoint', '--off', '--json'], opts)).out[0]!)).toEqual({
+      schema: 1,
+      endpoint: null,
+      source: 'off',
+    });
+    expect(fake).not.toHaveBeenCalled();
+    expect(global).not.toHaveBeenCalled();
+  });
+
+  it('names the env override', async () => {
+    const env = (v: string) =>
+      runCatalog(parseArgs(['catalog', 'endpoint', '--json']), cfg, {
+        io: {
+          tty: false,
+          columns: 100,
+          ask: async () => false,
+          log: (l) => void out.push(l),
+          error: () => {},
+        },
+        dir: cat,
+        env: { CCINFOBAR_MARKETPLACE_URL: v },
+        defaultEndpoint: 'https://m.example.com',
+      });
+    const out: string[] = [];
+    await env('http://127.0.0.1:7');
+    await env('Off');
+    expect(out.map((l) => JSON.parse(l))).toEqual([
+      { schema: 1, endpoint: 'http://127.0.0.1:7', source: 'env' },
+      { schema: 1, endpoint: null, source: 'off' },
+    ]);
   });
 });
 
@@ -553,6 +637,24 @@ describe('catalog write text in Turkish', () => {
     expect((await tr(['endpoint'])).out).toEqual([
       'Pazar yeri adresi ayarlanmadı. Hiçbir yere bir şey gönderilmez.',
     ]);
+    const def = { defaultEndpoint: 'https://m.example.com' };
+    expect((await tr(['endpoint'], def)).out).toEqual([
+      'Pazar yeri adresi: https://m.example.com (varsayılan)',
+    ]);
+    expect((await tr(['endpoint', '--off'], def)).out).toEqual([
+      'Pazar yeri kapalı. Hiçbir yere bir şey gönderilmez.',
+    ]);
+    expect((await tr(['endpoint', '--clear'], def)).out).toEqual([
+      'Pazar yeri adresi varsayılana döndü: https://m.example.com',
+    ]);
+    expect((await tr(['endpoint', '--clear'])).out).toEqual([
+      'Pazar yeri adresi kaldırıldı; yeniden varsayılan geçerli. Hiçbir yere bir şey gönderilmez.',
+    ]);
+    await tr(['endpoint', 'http://127.0.0.1:9']);
+    expect((await tr(['endpoint'], def)).out).toEqual([
+      'Pazar yeri adresi: http://127.0.0.1:9 (sizin ayarınız)',
+    ]);
+    await tr(['endpoint', '--clear']);
     const apply = await tr(['apply', 'bundle/nord-minimal']);
     expect(apply.out[0]).toBe(`Nord minimal, ${tildify(cfg)} dosyasına uygulandı`);
     expect(apply.out[1]).toMatch(/^Önceki yapılandırma .* dosyasına kaydedildi$/);

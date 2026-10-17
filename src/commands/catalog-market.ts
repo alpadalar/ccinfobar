@@ -12,13 +12,13 @@ import {
   runPublish,
 } from '../catalog/publish.js';
 import { shareState } from '../catalog/share.js';
-import { listEntries, marketEndpoint } from '../catalog/store.js';
+import { listEntries } from '../catalog/store.js';
 import { type MessageId, t, withLanguage } from '../core/i18n/index.js';
 import { padVisible, visibleWidth } from '../core/width.js';
 import { kindText, visibleTarget, wrapLine } from '../importers/confirm.js';
 import type { MarketSummary } from '../market/protocol.js';
 // a static import of catalog.js keeps this chunk from splitting the render chunks
-import { type Ctx, clean, find, GROUPS, KINDS, kindWord, when } from './catalog.js';
+import { type Ctx, clean, endpointOf, find, GROUPS, KINDS, kindWord, when } from './catalog.js';
 
 const REASONS: Record<string, MessageId> = {
   invalid: 'market.error.invalid',
@@ -82,7 +82,13 @@ function jsonOut(c: Ctx, data: object): void {
 }
 
 function deps(c: Ctx): PublishDeps {
-  return { dir: c.dir, env: c.env, now: c.now, ...(c.fetch ? { fetch: c.fetch } : {}) };
+  return {
+    dir: c.dir,
+    env: c.env,
+    now: c.now,
+    defaultEndpoint: c.defaultEndpoint,
+    ...(c.fetch ? { fetch: c.fetch } : {}),
+  };
 }
 
 const widthOf = (c: Ctx): number => Math.max(20, (c.io.columns ?? 80) - 1);
@@ -98,7 +104,7 @@ function payloadLines(payload: unknown, width: number): string[] {
 }
 
 function noEndpoint(c: Ctx): string | null {
-  const endpoint = marketEndpoint(c.env, c.dir);
+  const endpoint = endpointOf(c);
   if (!endpoint) c.fail(t('err.catalog.noEndpoint'));
   return endpoint;
 }
@@ -325,7 +331,7 @@ export async function runRemoteList(c: Ctx): Promise<void> {
     remoteFail(c, res.code, res.status);
     return;
   }
-  const endpoint = marketEndpoint(c.env, c.dir) ?? '';
+  const endpoint = endpointOf(c) ?? '';
   const entries = res.entries.filter((e) => flag === undefined || e.kind === flag);
   if (c.json) {
     jsonOut(c, { endpoint, entries });
@@ -372,7 +378,7 @@ export async function runRemoteShow(c: Ctx): Promise<void> {
   }
   const e = res.entry;
   if (c.json) {
-    jsonOut(c, { endpoint: marketEndpoint(c.env, c.dir), entry: e, latest: res.latest });
+    jsonOut(c, { endpoint: endpointOf(c), entry: e, latest: res.latest });
     if (res.code) remoteFail(c, res.code, res.status);
     return;
   }

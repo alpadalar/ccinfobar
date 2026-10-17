@@ -29,7 +29,7 @@ The [catalog](CATALOG.md) keeps its files in `catalog/` next to `config.json`:
 | `catalog/profile.json` | Your remembered author, the marketplace endpoint and your publisher handle for each marketplace |
 | `catalog/credentials.json` | Publisher tokens per marketplace endpoint, written only after a publish (mode 0600) |
 
-`CCINFOBAR_MARKETPLACE_URL=<url>` sets the marketplace endpoint that `ccinfobar catalog publish`, `catalog list --remote` and the editor's Publish and Marketplace tab use, and wins over the one stored with `ccinfobar catalog endpoint`. It is unset by default, and with no endpoint nothing is sent. See [MARKETPLACE.md](MARKETPLACE.md).
+`CCINFOBAR_MARKETPLACE_URL=<url>` sets the marketplace endpoint that `ccinfobar catalog publish`, `catalog list --remote` and the editor's Publish and Marketplace tab use, and wins over the one stored with `ccinfobar catalog endpoint`. It is unset by default, and with no endpoint nothing is sent. `CCINFOBAR_MARKETPLACE_URL=off` switches the marketplace off for that shell. See [MARKETPLACE.md](MARKETPLACE.md).
 
 To use a project-specific layout, point the Claude Code `statusLine` command at a different file, e.g. `ccinfobar --config ./.claude/infobar.json`.
 

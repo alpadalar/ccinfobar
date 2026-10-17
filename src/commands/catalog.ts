@@ -21,8 +21,10 @@ import {
   adoptLegacy,
   CatalogStoreError,
   catalogDir,
+  DEFAULT_MARKETPLACE,
   deleteEntry,
   deleteLegacy,
+  type EndpointSource,
   findByName,
   forgetPublisher,
   installEntryTheme,
@@ -31,6 +33,7 @@ import {
   listEntries,
   listLegacy,
   marketEndpoint,
+  marketEndpointInfo,
   readCredential,
   readProfile,
   readPublisher,
@@ -71,6 +74,7 @@ export interface CatalogDeps {
   now?: () => Date;
   fetch?: typeof fetch;
   gsd?: boolean;
+  defaultEndpoint?: string | null;
 }
 
 export type AnyEntry =
@@ -109,8 +113,11 @@ export interface Ctx {
   json: boolean;
   dryRun: boolean;
   fetch?: typeof fetch;
+  defaultEndpoint: string | null;
   fail(msg: string): void;
 }
+
+export const endpointOf = (c: Ctx): string | null => marketEndpoint(c.env, c.dir, c.defaultEndpoint);
 
 export const KINDS: readonly EntryKind[] = ['bundle', 'preset', 'theme'];
 export const GROUPS: Record<EntryKind, MessageId> = {
@@ -638,7 +645,7 @@ async function runSave(c: Ctx): Promise<void> {
   }
   c.io.log(t('catalog.save.done', { kind: kindWord(kind), name: clean(e.name), version: e.version }));
   if (state === 'pending')
-    c.io.log(t(marketEndpoint(c.env, c.dir) ? 'catalog.save.waitingEndpoint' : 'catalog.save.waiting'));
+    c.io.log(t(endpointOf(c) ? 'catalog.save.waitingEndpoint' : 'catalog.save.waiting'));
   else if (state === 'local') c.io.log(t('catalog.save.notShared', { ref: e.id }));
 }
 
@@ -778,20 +785,34 @@ function runAuthor(c: Ctx): void {
   if (given) dryRunDone(c);
 }
 
+const SOURCE_IDS: Partial<Record<EndpointSource, MessageId>> = {
+  env: 'catalog.endpoint.source.env',
+  set: 'catalog.endpoint.source.set',
+  default: 'catalog.endpoint.source.default',
+};
+
 // validates only; nothing is sent
 async function runEndpoint(c: Ctx): Promise<void> {
   const raw = c.args.positional[1];
   const clear = c.args.flags.clear === true;
-  if (clear && raw !== undefined) {
+  const off = c.args.flags.off === true;
+  if ((clear && off) || ((clear || off) && raw !== undefined)) {
     c.fail(t('catalog.usage'));
     return;
   }
   let url: string | null;
+  let source: EndpointSource;
   let id: MessageId;
-  if (clear) {
-    if (!c.dryRun) writeProfile({ endpoint: null }, c.dir);
+  if (off) {
+    if (!c.dryRun) writeProfile({ endpoint: false }, c.dir);
     url = null;
-    id = 'catalog.endpoint.cleared';
+    source = 'off';
+    id = 'catalog.endpoint.off';
+  } else if (clear) {
+    if (!c.dryRun) writeProfile({ endpoint: null }, c.dir);
+    url = c.defaultEndpoint;
+    source = url ? 'default' : 'none';
+    id = url ? 'catalog.endpoint.default' : 'catalog.endpoint.cleared';
   } else if (raw !== undefined) {
     const u = checkEndpoint(raw);
     if (!u) {
@@ -800,23 +821,25 @@ async function runEndpoint(c: Ctx): Promise<void> {
     }
     url = `${u.origin}${u.pathname.replace(/\/+$/, '')}`;
     if (!c.dryRun) writeProfile({ endpoint: url }, c.dir);
+    source = 'set';
     id = 'catalog.endpoint.set';
   } else {
-    url = marketEndpoint(c.env, c.dir);
-    id = url ? 'catalog.endpoint.show' : 'catalog.endpoint.none';
+    ({ url, source } = marketEndpointInfo(c.env, c.dir, c.defaultEndpoint));
+    id = source === 'off' ? 'catalog.endpoint.off' : url ? 'catalog.endpoint.show' : 'catalog.endpoint.none';
   }
-  const changed = clear || raw !== undefined;
+  const changed = clear || off || raw !== undefined;
   if (c.json) {
-    json(c, () => ({ endpoint: url, ...(c.dryRun && changed ? { dryRun: true } : {}) }));
+    json(c, () => ({ endpoint: url, source, ...(c.dryRun && changed ? { dryRun: true } : {}) }));
     return;
   }
-  c.io.log(t(id, { url: clean(url) }));
+  const from = SOURCE_IDS[source];
+  c.io.log(t(id, { url: clean(url), source: from ? t(from) : '' }));
   if (changed) dryRunDone(c);
 }
 
 // per endpoint; nothing is sent
 function runPublisher(c: Ctx): void {
-  const endpoint = marketEndpoint(c.env, c.dir);
+  const endpoint = endpointOf(c);
   if (!endpoint) {
     c.fail(t('err.catalog.noEndpoint'));
     return;
@@ -924,6 +947,7 @@ export async function runCatalog(args: Args, cfgFile: string, deps: CatalogDeps 
     json: args.flags.json === true,
     dryRun: args.flags['dry-run'] === true,
     ...(deps.fetch ? { fetch: deps.fetch } : {}),
+    defaultEndpoint: deps.defaultEndpoint !== undefined ? deps.defaultEndpoint : DEFAULT_MARKETPLACE,
     fail,
   };
   try {
