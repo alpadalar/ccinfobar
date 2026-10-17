@@ -116,6 +116,9 @@ export const importMessages = {
     '{tool} {setting} içe aktarılmadı: ccinfobar hesap e-postanızı hiçbir zaman göstermez',
   'import.note.shellEnvIgnored':
     '{tool} için yalnızca settings.json env bloğundaki CQB_* anahtarları okunur; kabukta dışa aktarılan değişkenler okunmaz',
+  'import.note.contextMessages': '{tool} {setting} içe aktarılmadı: ccinfobar bağlam mesajları göstermez',
+  'import.note.barStyleApprox':
+    '{tool} çubuk stili "{name}", {color} çubuk rengiyle yaklaşık olarak gösteriliyor',
   'import.note.separatorMerged':
     '{tool} satırları farklı ayraçlar kullanıyor; artık her satır en sık kullanılan ayracı ({separator}) kullanıyor',
   'import.note.hudIgnored': '{file} bir JSON nesnesi değil, yok sayıldı',

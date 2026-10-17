@@ -11,6 +11,7 @@ import { claudeUsageMonitorImporter } from './claude-usage-monitor.js';
 import { claudebarImporter } from './claudebar.js';
 import { claudelineImporter } from './claudeline.js';
 import { corallineImporter } from './coralline.js';
+import { glauberlimaImporter } from './glauberlima-statusline.js';
 import type { ImportResult, ImportSource } from './index.js';
 import { homeOf, isFile, shownFile } from './io.js';
 import { nycuCcStatuslineImporter } from './nycu-cc-statusline.js';
@@ -91,6 +92,7 @@ export const REGISTRY: readonly ImporterDef[] = [
   ccStatuslineImporter,
   claudelineImporter,
   claudeUsageMonitorImporter,
+  glauberlimaImporter,
 ];
 
 export function registryDef(source: ImportSource): ImporterDef | null {

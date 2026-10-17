@@ -55,6 +55,7 @@ export const IMPORT_SOURCES = [
   'cc-statusline',
   'claudeline',
   'claude-usage-monitor',
+  'glauberlima-statusline',
 ] as const;
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];

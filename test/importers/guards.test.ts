@@ -26,6 +26,7 @@ import { TARGETS as CLAUDELINE_TARGETS } from '../../src/importers/claudeline.js
 import { sanitizeImport } from '../../src/importers/confirm.js';
 import { TARGETS as CORALLINE_TARGETS } from '../../src/importers/coralline.js';
 import { TARGETS as CSHIP_TARGETS } from '../../src/importers/cship.js';
+import { TARGETS as GLAUBERLIMA_TARGETS } from '../../src/importers/glauberlima-statusline.js';
 import {
   IMPORT_SOURCES,
   type ImportResult,
@@ -306,6 +307,16 @@ const TOOLS: Tool[] = [
     hostileIn: 'notes',
     hostile: JSON.stringify({ env: { CQB_MAX_WIDTH: HOSTILE } }),
     protoText: `{"__proto__": ${EVIL}, "env": {"__proto__": ${EVIL}, "constructor": "1", "CQB_COST": "1"}}`,
+  },
+  {
+    source: 'glauberlima-statusline',
+    targets: GLAUBERLIMA_TARGETS,
+    fixtures: ['glauberlima-statusline.toml'],
+    ext: 'toml',
+    hasDefault: true,
+    hostileIn: 'notes',
+    hostile: [`messages_language = ${toml(HOSTILE)}`, `theme = ${toml(HOSTILE)}`, ''].join('\n'),
+    proto: '__proto__ = 1\n',
   },
   {
     source: 'cship',

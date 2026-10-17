@@ -111,6 +111,8 @@ export const importMessages = {
   'import.note.emailDropped': '{tool} {setting} was not imported: ccinfobar never shows your account email',
   'import.note.shellEnvIgnored':
     'only the CQB_* keys in the settings.json env block are read for {tool}; variables exported in your shell are not',
+  'import.note.contextMessages': '{tool} {setting} was not imported: ccinfobar shows no context messages',
+  'import.note.barStyleApprox': '{tool} bar style "{name}" is approximated by the {color} bar color',
   'import.note.separatorMerged':
     '{tool} lines use different separators; every line now uses the most common one, {separator}',
   'import.note.hudIgnored': '{file} is not a JSON object and was ignored',

@@ -495,6 +495,7 @@ describe('import sources', () => {
       'cc-statusline',
       'claudeline',
       'claude-usage-monitor',
+      'glauberlima-statusline',
     ]);
     expect(resolveSource('ccstatusline')).toBe('ccstatusline');
     expect(resolveSource('CLAUDE-POWERLINE')).toBe('claude-powerline');
