@@ -5,7 +5,7 @@ import {
   type EntryKind,
   LAYOUT_KEYS,
   PERSONAL_KEYS,
-} from '../core/edit.js';
+} from '../core/entry-keys.js';
 import { deepSanitize, safeUrl, sanitizeText } from '../core/sanitize.js';
 
 export const PROTOCOL_VERSION = 1;
@@ -423,7 +423,7 @@ function widgetProblems(lines: unknown, out: string[]): void {
   }
 }
 
-export function contentProblems(kind: EntryKind, content: unknown): string[] {
+export function contentProblems(kind: EntryKind, content: unknown, canonical?: string): string[] {
   if (!isObject(content)) return ['not-object'];
   const out: string[] = [];
   const allowed = new Set<string>(
@@ -453,7 +453,7 @@ export function contentProblems(kind: EntryKind, content: unknown): string[] {
       else for (const k of Object.keys(theme)) if (!THEME_KEYS.has(k)) out.push(`unknown-key:theme.${k}`);
     }
   }
-  if (new TextEncoder().encode(canonicalJson(content)).length > MARKET_LIMITS.maxEntryBytes) {
+  if (new TextEncoder().encode(canonical ?? canonicalJson(content)).length > MARKET_LIMITS.maxEntryBytes) {
     out.push('too-large');
   }
   return [...new Set(out)];

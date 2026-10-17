@@ -14,10 +14,10 @@ import {
   OVERFLOW_MODES,
   overflowOf,
 } from './display-opts.js';
+import { APPEARANCE_KEYS, type EntryContent, type EntryKind, LAYOUT_KEYS } from './entry-keys.js';
 import type { MessageId } from './i18n/index.js';
 import { LANGUAGE_SETTINGS, type LanguageSetting } from './i18n/languages.js';
 import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
-import type { ThemeInput } from './themes/style.js';
 import type {
   Align,
   BudgetConfig,
@@ -439,53 +439,13 @@ export function keepLanguage(next: Config, current: Config): Config {
   return out;
 }
 
-export type EntryKind = 'preset' | 'theme' | 'bundle';
-
-export interface EntryContent {
-  layout?: Partial<Config>;
-  appearance?: Partial<Config>;
-  theme?: ThemeInput;
-}
-
-export const LAYOUT_KEYS = [
-  'lines',
-  'align',
-  'lineAlign',
-  'overflow',
-  'autoWrap',
-  'widthOffset',
-  'tui',
-] as const satisfies readonly (keyof Config)[];
-
-export const APPEARANCE_KEYS = [
-  'theme',
-  'style',
-  'separator',
-  'separatorColor',
-  'padding',
-  'glyphs',
-] as const satisfies readonly (keyof Config)[];
-
-export const PERSONAL_KEYS = [
-  'charset',
-  'icons',
-  'colorLevel',
-  'maxWidth',
-  'glyphMode',
-  'ambiguousWidth',
-  'update',
-  'usageApi',
-  'savePayload',
-  'gitHardening',
-  'gsdAutoLine',
-  'loadingText',
-  'budget',
-  'profiles',
-  'progress',
-  'language',
-  'version',
-  '$schema',
-] as const satisfies readonly (keyof Config)[];
+export {
+  APPEARANCE_KEYS,
+  type EntryContent,
+  type EntryKind,
+  LAYOUT_KEYS,
+  PERSONAL_KEYS,
+} from './entry-keys.js';
 
 const REQUIRED = new Set<string>(['lines', 'theme', 'autoWrap', 'widthOffset']);
 

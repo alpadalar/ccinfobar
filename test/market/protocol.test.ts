@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { systemEntries } from '../../src/catalog/system.js';
+import * as edit from '../../src/core/edit.js';
+import { LAYOUT_KEYS as EDIT_LAYOUT_KEYS } from '../../src/core/edit.js';
+import type { EntryKind } from '../../src/core/entry-keys.js';
+import { APPEARANCE_KEYS, LAYOUT_KEYS, PERSONAL_KEYS } from '../../src/core/entry-keys.js';
 import {
   canonicalJson,
   contentProblems,
@@ -443,5 +447,54 @@ describe('market protocol', () => {
     const all = [...systemEntries({ gsd: true }), ...systemEntries({ gsd: false })];
     expect(all.some((e) => e.kind === 'bundle')).toBe(true);
     for (const e of all) expect(contentProblems(e.kind, e.content), e.ref).toEqual([]);
+  });
+
+  it('contentProblems gives the same result with a precomputed canonical string', () => {
+    const lines = [[{ id: 'm', type: 'model' }]];
+    const bundle = (items: unknown[]) => ({ layout: layout(items), appearance: { theme: 'nord' } });
+    const fixtures: [EntryKind, unknown][] = [
+      ['bundle', bundle([{ id: 'c', type: 'command', options: { command: 'id' } }])],
+      ['bundle', bundle([{ id: 'h', type: 'http', options: { url: 'https://example.com' } }])],
+      ['bundle', bundle([{ id: 'l', type: 'link', options: { url: 'javascript:alert(1)' } }])],
+      ['bundle', bundle([{ id: 'l', type: 'link', options: { url: 'https://example.com/a' } }])],
+      ['bundle', bundle([{ id: 'e', type: 'env', options: { name: 'GITHUB_TOKEN' } }])],
+      ['preset', { layout: { lines: 'x' } }],
+      ['preset', { layout: { lines: [[null]] } }],
+      ['preset', { layout: {} }],
+      ['preset', { layout: { lines, budget: { daily: 5 } } }],
+      ['bundle', { layout: { lines }, appearance: { theme: 'x', language: 'tr' } }],
+      ['preset', { layout: { lines, wat: 1 } }],
+      ['theme', { appearance: { theme: 'x' }, theme: { colors: {}, run: 'x' } }],
+      ['theme', { appearance: { theme: 'x' }, theme: 'x' }],
+      ['preset', null],
+      ['preset', []],
+      ['preset', {}],
+      ['bundle', { layout: { lines: [] } }],
+      ['theme', {}],
+      ['theme', { theme: { colors: {} } }],
+      [
+        'preset',
+        { layout: { lines: [[{ id: 'a', type: 'text', options: { text: 'x'.repeat(300 * 1024) } }]] } },
+      ],
+      ...[...systemEntries({ gsd: true }), ...systemEntries({ gsd: false })].map(
+        (e) => [e.kind, e.content] as [EntryKind, unknown],
+      ),
+    ];
+    for (const [kind, c] of fixtures) {
+      expect(contentProblems(kind, c, canonicalJson(c))).toEqual(contentProblems(kind, c));
+    }
+  });
+
+  it('contentProblems uses the precomputed canonical string for the size check', () => {
+    const c = { layout: layout([{ id: 'm', type: 'model' }]) };
+    expect(contentProblems('preset', c)).toEqual([]);
+    expect(contentProblems('preset', c, 'x'.repeat(MARKET_LIMITS.maxEntryBytes + 1))).toEqual(['too-large']);
+    expect(contentProblems('preset', c, 'x'.repeat(MARKET_LIMITS.maxEntryBytes))).toEqual([]);
+  });
+
+  it('edit.ts re-exports the entry key lists from entry-keys.ts', () => {
+    expect(EDIT_LAYOUT_KEYS).toBe(LAYOUT_KEYS);
+    expect(edit.APPEARANCE_KEYS).toBe(APPEARANCE_KEYS);
+    expect(edit.PERSONAL_KEYS).toBe(PERSONAL_KEYS);
   });
 });
