@@ -25,6 +25,8 @@ export const cliMessages = {
   'help.cmd.themeNew': 'Create your own theme (--from <theme>)',
   'help.cmd.init': 'Write a preset config ({presets})',
   'help.cmd.catalog': 'Browse built-in and saved presets, themes and bundles (--remote: the marketplace)',
+  'help.cmd.catalogInstall':
+    'Install a marketplace entry into your catalog after showing its commands and URLs',
   'help.cmd.catalogSave':
     'Apply a catalog entry or save your setup as one; run ccinfobar catalog for all subcommands',
   'help.cmd.catalogPublish': 'Show your shared entries, then send them to the marketplace endpoint',

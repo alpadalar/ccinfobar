@@ -916,13 +916,14 @@ async function runPublisher(c: Ctx): Promise<void> {
   if (changed) dryRunDone(c);
 }
 
-// marketplace code loads only for publish, sign-in, --check and --remote
+// marketplace code loads only for publish, install, sign-in, --check and --remote
 async function market(
   c: Ctx,
-  sub: 'publish' | 'list' | 'show' | 'login' | 'logout' | 'check',
+  sub: 'publish' | 'install' | 'list' | 'show' | 'login' | 'logout' | 'check',
 ): Promise<void> {
   const m = await import('./catalog-market.js');
   if (sub === 'publish') await m.runPublishCommand(c);
+  else if (sub === 'install') await m.runInstallCommand(c);
   else if (sub === 'check') await m.runPublisherCheck(c);
   else if (sub === 'login') await m.runLogin(c);
   else if (sub === 'logout') await m.runLogout(c);
@@ -949,6 +950,7 @@ const SUBCOMMANDS: Record<string, (c: Ctx) => void | Promise<void>> = {
   endpoint: runEndpoint,
   publisher: runPublisher,
   publish: (c) => market(c, 'publish'),
+  install: (c) => market(c, 'install'),
   login: (c) => market(c, 'login'),
   logout: (c) => market(c, 'logout'),
 };

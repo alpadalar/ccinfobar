@@ -86,6 +86,16 @@ describe('help()', () => {
     expectAligned(tr);
   });
 
+  it('lists the marketplace install command in English and Turkish', () => {
+    const row = '  ccinfobar catalog install <publisher>/<slug>\n';
+    expect(help()).toContain(
+      `${row}${' '.repeat(COL)}Install a marketplace entry into your catalog after showing its commands and URLs\n`,
+    );
+    expect(withLang('tr', () => help())).toContain(
+      `${row}${' '.repeat(COL)}Bir marketplace girdisini komutlarını ve URL'lerini gösterdikten sonra kataloğunuza yükler\n`,
+    );
+  });
+
   it('aligns by visible width with fullwidth text', () => {
     const wide = Object.fromEntries(
       Object.keys(cliMessages).map((id) => [

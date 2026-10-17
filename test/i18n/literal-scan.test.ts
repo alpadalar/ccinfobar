@@ -230,6 +230,7 @@ const ALLOW: Record<string, string[]> = {
     'ccinfobar config set <path> <value>',
     'ccinfobar config unset <path>',
     'ccinfobar catalog list|show|history',
+    'ccinfobar catalog install <publisher>/<slug>',
     'ccinfobar catalog apply|save <name>',
     'ccinfobar catalog publish',
     'ccinfobar catalog login|logout',

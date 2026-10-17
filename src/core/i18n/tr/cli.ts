@@ -29,6 +29,8 @@ export const cliMessages = {
   'help.cmd.init': 'Hazır ayar yapılandırması yazar ({presets})',
   'help.cmd.catalog':
     'Yerleşik ve kayıtlı hazır ayarlara, temalara ve paketlere göz atar (--remote: marketplace)',
+  'help.cmd.catalogInstall':
+    "Bir marketplace girdisini komutlarını ve URL'lerini gösterdikten sonra kataloğunuza yükler",
   'help.cmd.catalogSave':
     'Bir katalog girdisini uygular veya düzeninizi girdi olarak kaydeder; tüm alt komutlar için ccinfobar catalog çalıştırın',
   'help.cmd.catalogPublish': 'Paylaşılan girdilerinizi gösterir, sonra marketplace adresine gönderir',

@@ -27,6 +27,7 @@ export const USAGE: Row[] = [
   ['ccinfobar theme new <id>', 'help.cmd.themeNew'],
   ['ccinfobar init [preset]', 'help.cmd.init'],
   ['ccinfobar catalog list|show|history', 'help.cmd.catalog'],
+  ['ccinfobar catalog install <publisher>/<slug>', 'help.cmd.catalogInstall'],
   ['ccinfobar catalog apply|save <name>', 'help.cmd.catalogSave'],
   ['ccinfobar catalog publish', 'help.cmd.catalogPublish'],
   ['ccinfobar catalog login|logout', 'help.cmd.catalogLogin'],

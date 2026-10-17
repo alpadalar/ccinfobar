@@ -26,6 +26,8 @@ Usage
   ccinfobar init [preset]         Write a preset config (default, cockpit, dashboard, minimal, gsd, powerline, full, cost, limits, git, workspace, compact, two-line, agents, charts, session)
   ccinfobar catalog list|show|history
                                   Browse built-in and saved presets, themes and bundles (--remote: the marketplace)
+  ccinfobar catalog install <publisher>/<slug>
+                                  Install a marketplace entry into your catalog after showing its commands and URLs
   ccinfobar catalog apply|save <name>
                                   Apply a catalog entry or save your setup as one; run ccinfobar catalog for all subcommands
   ccinfobar catalog publish       Show your shared entries, then send them to the marketplace endpoint

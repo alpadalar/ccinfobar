@@ -1,5 +1,11 @@
 import { createHash } from 'node:crypto';
-import { createMarketClient, type MarketClient, type Received, type Written } from '../market/client.js';
+import {
+  createMarketClient,
+  type MarketClient,
+  type Received,
+  validateReceived,
+  type Written,
+} from '../market/client.js';
 import {
   canonicalJson,
   isRemoteId,
@@ -11,6 +17,7 @@ import {
   type PublishPayload,
   type VersionPayload,
 } from '../market/protocol.js';
+import { cachedEntry, cachedIndex, cachedVersion } from './market-cache.js';
 import {
   type CatalogEntry,
   clearReview,
@@ -73,6 +80,7 @@ export interface PublishDeps {
   now?: () => Date;
   displayName?: string;
   defaultEndpoint?: string | null;
+  cacheDir?: string;
 }
 
 export interface Registration {
@@ -456,13 +464,37 @@ async function reader(deps: PublishDeps): Promise<{ client: MarketClient | null;
   }
 }
 
-export async function remoteList(
-  deps: PublishDeps = {},
-): Promise<{ code: string | null; status?: number; entries: MarketSummary[] }> {
+const cacheOf = (client: MarketClient, deps: PublishDeps) => ({
+  client,
+  env: deps.env ?? process.env,
+  ...(deps.now ? { now: deps.now } : {}),
+  ...(deps.cacheDir ? { cacheDir: deps.cacheDir } : {}),
+});
+
+export interface RemoteList {
+  code: string | null;
+  status?: number;
+  entries: MarketSummary[];
+  // the last time the server confirmed the index
+  checkedAt?: string;
+  stale?: true;
+}
+
+// R-12: a day from the cache; refresh sends one conditional request
+export async function remoteList(deps: PublishDeps & { refresh?: boolean } = {}): Promise<RemoteList> {
   const { client, code } = await reader(deps);
   if (!client) return { code, entries: [] };
   try {
-    return { code: null, entries: (await client.index()).entries.filter((e) => !e.withdrawn) };
+    const r = await cachedIndex(client.endpoint, {
+      ...cacheOf(client, deps),
+      refresh: deps.refresh === true,
+    });
+    return {
+      code: null,
+      entries: r.index.entries.filter((e) => !e.withdrawn),
+      checkedAt: r.checkedAt,
+      ...(r.stale ? { stale: true } : {}),
+    };
   } catch (err) {
     return { code: codeOf(err), ...statusOf(err), entries: [] };
   }
@@ -480,9 +512,10 @@ export async function remoteShow(
   const { client, code } = await reader(deps);
   if (!client) return { code, entry: null, latest: null };
   if (!isRemoteId(id)) return { code: 'invalid', entry: null, latest: null };
+  const cache = cacheOf(client, deps);
   let entry: MarketEntry;
   try {
-    entry = await client.entry(id);
+    entry = (await cachedEntry(client.endpoint, id, cache)).entry;
   } catch (err) {
     return { code: codeOf(err), ...statusOf(err), entry: null, latest: null };
   }
@@ -490,8 +523,15 @@ export async function remoteShow(
   const want = entry.versions.find((v) => v.version === entry.version)?.hash;
   if (!want || want !== entry.hash) return { code: 'bad-hash', entry, latest: null };
   try {
-    const { raw: _raw, ...latest } = await client.version(id, entry.version, entry.kind, want);
-    return { code: null, entry, latest };
+    const v = await cachedVersion(client.endpoint, id, entry.version, want, {
+      ...cache,
+      kind: entry.kind,
+      // meta only on a cache miss
+      immutable: async () => !(await client.meta()).capabilities.overwrite,
+    });
+    const got = validateReceived(entry.kind, v.content);
+    if (!got) return { code: 'invalid', entry, latest: null };
+    return { code: null, entry, latest: { version: v.version, hash: v.hash, ...got } };
   } catch (err) {
     return { code: codeOf(err), ...statusOf(err), entry, latest: null };
   }

@@ -736,14 +736,14 @@ describe('catalog --remote', () => {
     for (const line of [...r.out, ...r.err]) expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u202e]/);
     expect(r.text).toContain('(evil)');
     const down = await run(['list', '--remote'], {
-      env,
+      env: { CCINFOBAR_MARKETPLACE_URL: 'https://down.example.com' },
       fetch: fakeFetch([new TypeError('fetch failed')]).fetch,
     });
     expect(down.code).toBe(1);
     expect(down.err).toEqual(['Could not read the marketplace: Could not reach the marketplace']);
   });
 
-  it('shows versions, consent targets and the read-only note', async () => {
+  it('shows versions, consent targets and the install hint', async () => {
     writeCfg([[{ id: 'l', type: 'link', options: { url: 'https://example.com/docs', text: 'Docs' } }]]);
     await saveMine();
     const s = await server();
@@ -757,7 +757,7 @@ describe('catalog --remote', () => {
     expect(r.out.some((l) => /^ {2}v1 {2}\S/.test(l))).toBe(true);
     expect(r.out).toContain('Applying it runs commands or opens URLs:');
     expect(r.out).toContain('  link: https://example.com/docs');
-    expect(r.out.at(-1)).toBe('Read only: installing from the marketplace is not available yet.');
+    expect(r.out.at(-1)).toBe('Install it with: ccinfobar catalog install alperen/mine');
     const j = await withLangAsync('tr', () =>
       run(['show', 'alperen/mine', '--remote', '--json'], { env: s.env }),
     );
@@ -768,7 +768,7 @@ describe('catalog --remote', () => {
     ]);
     const tr = await withLangAsync('tr', () => run(['show', 'alperen/mine', '--remote'], { env: s.env }));
     expect(tr.out).toContain('Sürümler');
-    expect(tr.out.at(-1)).toBe("Salt okunur: marketplace'ten yükleme henüz kullanılamıyor.");
+    expect(tr.out.at(-1)).toBe('Yüklemek için: ccinfobar catalog install alperen/mine');
     const bad = await run(['show', 'nope', '--remote'], { env: s.env });
     expect(bad.code).toBe(1);
     expect(bad.err).toEqual(['nope is not a marketplace id; use publisher/slug']);

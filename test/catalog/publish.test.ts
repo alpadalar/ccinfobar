@@ -45,11 +45,23 @@ let root = '';
 let dir = '';
 const servers: { close(): Promise<void> }[] = [];
 
+const HOME_KEYS = ['HOME', 'USERPROFILE'];
+const savedHome: Record<string, string | undefined> = {};
+
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-publish-'));
   dir = path.join(root, 'cfg', 'catalog');
+  // the marketplace cache falls back to the home dir; one per test
+  for (const k of HOME_KEYS) {
+    savedHome[k] = process.env[k];
+    process.env[k] = root;
+  }
 });
 afterEach(async () => {
+  for (const k of HOME_KEYS) {
+    if (savedHome[k] === undefined) delete process.env[k];
+    else process.env[k] = savedHome[k];
+  }
   for (const s of servers.splice(0)) await s.close();
   fs.rmSync(root, { recursive: true, force: true, maxRetries: 5 });
 });
@@ -880,7 +892,8 @@ describe('GitHub-backed marketplace (D-07, D-09)', () => {
 
 describe('remote browse', () => {
   it('lists and shows sanitized entries with consent targets', async () => {
-    const s = await server();
+    // overwrite off, as on the public server
+    const s = await server({ allowOverwrite: false });
     const env = { CCINFOBAR_MARKETPLACE_URL: s.url, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' };
     save({
       name: 'Links',
@@ -903,7 +916,12 @@ describe('remote browse', () => {
     expect(shown.latest!.targets).toEqual([
       { kind: 'link', line: 0, index: 0, target: 'https://example.com/docs' },
     ]);
-    expect(f.calls()).toBe(3);
+    // index, entry, version and meta (only on a version cache miss)
+    expect(f.calls()).toBe(4);
+    // R-12: the list comes from the cache; the entry revalidates, the version is kept
+    expect((await remoteList({ dir, env, fetch: f.fetch })).entries).toHaveLength(1);
+    expect((await remoteShow('alperen/links', { dir, env, fetch: f.fetch })).latest).toEqual(shown.latest);
+    expect(f.calls()).toBe(5);
     // GETs carry no token
     const f2 = fakeFetch([json({ entries: [], generatedAt: '' })]);
     await remoteList({

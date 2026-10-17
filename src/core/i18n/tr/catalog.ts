@@ -105,7 +105,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Marketplace yükleniyor…',
   'catalog.usage':
-    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget|--check] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n          ccinfobar catalog login [--open|--no-open] [--json]\n          ccinfobar catalog logout [--json]',
+    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog list --remote [--refresh] [--kind preset|theme|bundle] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog install <publisher/slug>[@version] [--yes] [--dry-run] [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget|--check] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n          ccinfobar catalog login [--open|--no-open] [--json]\n          ccinfobar catalog logout [--json]',
   'catalog.section.user': 'Sizin girdileriniz',
   'catalog.section.system': 'Yerleşik',
   'catalog.list.noUser': 'Henüz kayıtlı girdi yok. ccinfobar catalog save <name> ile bir tane kaydedin.',
@@ -226,6 +226,29 @@ export const catalogMessages = {
   'catalog.remote.readOnly': "Salt okunur: marketplace'ten yükleme henüz kullanılamıyor.",
   'catalog.remote.badId': '{ref} bir marketplace kimliği değil; yayıncı/kısa-ad biçimini kullanın',
   'catalog.remote.failed': 'Marketplace okunamadı: {reason}',
+  'catalog.remote.installHint': 'Yüklemek için: ccinfobar catalog install {id}',
+  'catalog.remote.checked': 'Son kontrol: {time}; yeniden kontrol etmek için --refresh ile çalıştırın',
+  'catalog.remote.stale': "Marketplace'e ulaşılamadı, bu yüzden kayıtlı liste gösteriliyor.",
+  'catalog.install.existing': '{id} v{version} zaten kataloğunuzda {name} adıyla var.',
+  'catalog.install.update': 'Yükleme, {name} girdinize v{version} sürümünü ekler.',
+  'catalog.install.targetLong': '  {kind}: {count} karakter, gösterilemeyecek kadar uzun',
+  'catalog.install.ask': "{name} bu komut ve URL'lerle yüklensin mi?",
+  'catalog.install.cancelled': 'Hiçbir şey yüklenmedi.',
+  'catalog.install.wouldInstall':
+    'Deneme çalıştırması: hiçbir şey yazılmadı. Bu işlem {id} v{version} girdisini kataloğunuza yükler.',
+  'catalog.install.done': '{id} v{version}, {name} olarak yüklendi',
+  'catalog.install.added': '{id} v{version}, {name} girdisine eklendi',
+  'catalog.install.applyHint': 'Uygulamak için: ccinfobar catalog apply {name}',
+  'catalog.install.failed': '{id} yüklenemedi: {reason}',
+  'err.catalog.install.needsYes':
+    "Hiçbir şey yüklenmedi. Bu komut ve URL'lerle yüklemek için --yes ile tekrar çalıştırın.",
+  'err.catalog.install.withdrawn': "{id} marketplace'ten geri çekildi",
+  'err.catalog.install.not-found': "{id} marketplace'te yok",
+  'err.catalog.install.noVersion': '{id} girdisinin {version} sürümü yok',
+  'err.catalog.install.bad-content':
+    "{id} ccinfobar'ın kullanamayacağı içerik taşıyor; hiçbir şey yüklenmedi",
+  'err.catalog.install.hash-mismatch':
+    'İndirilen {id} yayımlanan özet değeriyle eşleşmiyor; hiçbir şey yüklenmedi',
   'catalog.dryRun': 'Deneme çalıştırması: hiçbir şey yazılmadı.',
   'catalog.failed': 'Katalog komutu başarısız oldu: {error}',
   'err.catalog.unknownRef': 'Katalogda {ref} girdisi yok',

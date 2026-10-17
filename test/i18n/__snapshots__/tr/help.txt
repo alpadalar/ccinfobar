@@ -26,6 +26,8 @@ Kullanım
   ccinfobar init [preset]         Hazır ayar yapılandırması yazar (default, cockpit, dashboard, minimal, gsd, powerline, full, cost, limits, git, workspace, compact, two-line, agents, charts, session)
   ccinfobar catalog list|show|history
                                   Yerleşik ve kayıtlı hazır ayarlara, temalara ve paketlere göz atar (--remote: marketplace)
+  ccinfobar catalog install <publisher>/<slug>
+                                  Bir marketplace girdisini komutlarını ve URL'lerini gösterdikten sonra kataloğunuza yükler
   ccinfobar catalog apply|save <name>
                                   Bir katalog girdisini uygular veya düzeninizi girdi olarak kaydeder; tüm alt komutlar için ccinfobar catalog çalıştırın
   ccinfobar catalog publish       Paylaşılan girdilerinizi gösterir, sonra marketplace adresine gönderir

@@ -1,5 +1,12 @@
 import '../core/i18n/lazy.js';
 import { setTimeout as delay } from 'node:timers/promises';
+import {
+  InstallError,
+  type InstallPlan,
+  parseInstallRef,
+  planInstall,
+  runInstall,
+} from '../catalog/install.js';
 import type { CatalogEntry } from '../catalog/model.js';
 import {
   type PublishDeps,
@@ -19,7 +26,7 @@ import { SignInError, signInWithGitHub } from '../catalog/signin.js';
 import { forgetPublisher, listEntries, readCredential } from '../catalog/store.js';
 import { type MessageId, t, withLanguage } from '../core/i18n/index.js';
 import { padVisible, visibleWidth } from '../core/width.js';
-import { kindText, visibleTarget, wrapLine } from '../importers/confirm.js';
+import { kindText, MAX_TARGET_CHARS, visibleTarget, wrapLine } from '../importers/confirm.js';
 import { createMarketClient } from '../market/client.js';
 import { VERIFY_URL } from '../market/github.js';
 import type { MarketSummary } from '../market/protocol.js';
@@ -330,7 +337,7 @@ function remoteFail(c: Ctx, code: string | null, status?: number): void {
   else c.fail(t('catalog.remote.failed', { reason: reasonText(code, status) }));
 }
 
-const authorText = (e: MarketSummary): string =>
+const authorText = (e: Pick<MarketSummary, 'author' | 'publisher'>): string =>
   e.author
     ? t('catalog.remote.author', { author: clean(e.author), publisher: clean(e.publisher) })
     : clean(e.publisher);
@@ -341,7 +348,12 @@ export async function runRemoteList(c: Ctx): Promise<void> {
     c.fail(t('catalog.badKind'));
     return;
   }
-  const res = await remoteList(deps(c));
+  const refresh = c.args.flags.refresh;
+  if (typeof refresh === 'string') {
+    c.fail(t('catalog.usage'));
+    return;
+  }
+  const res = await remoteList({ ...deps(c), refresh: refresh === true });
   if (res.code) {
     remoteFail(c, res.code, res.status);
     return;
@@ -349,14 +361,23 @@ export async function runRemoteList(c: Ctx): Promise<void> {
   const endpoint = endpointOf(c) ?? '';
   const entries = res.entries.filter((e) => flag === undefined || e.kind === flag);
   if (c.json) {
-    jsonOut(c, { endpoint, entries });
+    jsonOut(c, {
+      endpoint,
+      entries,
+      checkedAt: res.checkedAt ?? null,
+      ...(res.stale ? { stale: true } : {}),
+    });
     return;
   }
   c.io.log(t('catalog.remote.title', { endpoint: shownUrl(endpoint) }));
-  if (!entries.length) {
-    c.io.log(`  ${t('catalog.remote.empty')}`);
-    return;
-  }
+  if (!entries.length) c.io.log(`  ${t('catalog.remote.empty')}`);
+  else listRows(c, entries);
+  c.io.log('');
+  if (res.stale) c.io.log(t('catalog.remote.stale'));
+  if (res.checkedAt) c.io.log(t('catalog.remote.checked', { time: when(res.checkedAt) }));
+}
+
+function listRows(c: Ctx, entries: MarketSummary[]): void {
   const rows = entries.map((e) => ({
     kind: e.kind,
     cells: [
@@ -424,8 +445,121 @@ export async function runRemoteShow(c: Ctx): Promise<void> {
     }
   }
   if (res.code) remoteFail(c, res.code, res.status);
+  if (e.withdrawn) return;
   c.io.log('');
-  c.io.log(t('catalog.remote.readOnly'));
+  c.io.log(t('catalog.remote.installHint', { id: clean(e.id) }));
+}
+
+function targetLines(c: Ctx, plan: InstallPlan): void {
+  if (!plan.targets.length) {
+    c.io.log(t('catalog.remote.noTargets'));
+    return;
+  }
+  const width = widthOf(c);
+  c.io.log(t('import.targetsHeader'));
+  for (const x of plan.targets) {
+    const size = [...x.target].length;
+    if (size > MAX_TARGET_CHARS) {
+      c.io.log(t('catalog.install.targetLong', { kind: kindText(x.kind), count: size }));
+      continue;
+    }
+    const line = t('import.target', { kind: kindText(x.kind), target: visibleTarget(clean(x.target)) });
+    for (const part of wrapLine(line, width, TARGET_INDENT)) c.io.log(part);
+  }
+}
+
+function installFail(c: Ctx, id: string, version: number | null, err: unknown): void {
+  const e = err instanceof InstallError ? err : new InstallError('unknown');
+  const vars = { id: clean(id), version: version ?? '' };
+  if (c.json) jsonOut(c, { id, version, hash: null, entry: null, result: null, targets: [], code: e.code });
+  if (e.code === 'no-endpoint') c.fail(t('err.catalog.noEndpoint'));
+  else if (e.code === 'bad-endpoint') c.fail(t('err.catalog.badEndpoint'));
+  else if (e.code === 'not-found' && e.status === null && version !== null)
+    c.fail(t('err.catalog.install.noVersion', vars));
+  else if (e.code === 'withdrawn') c.fail(t('err.catalog.install.withdrawn', vars));
+  else if (e.code === 'not-found') c.fail(t('err.catalog.install.not-found', vars));
+  else if (e.code === 'bad-content') c.fail(t('err.catalog.install.bad-content', vars));
+  else if (e.code === 'hash-mismatch') c.fail(t('err.catalog.install.hash-mismatch', vars));
+  else c.fail(t('catalog.install.failed', { ...vars, reason: reasonText(e.code, e.status ?? undefined) }));
+}
+
+// D-11: install saves a catalog entry; applying it is a separate step
+export async function runInstallCommand(c: Ctx): Promise<void> {
+  const raw = c.args.positional[1];
+  const ref = parseInstallRef(raw);
+  if (!ref || c.args.positional.length > 2) {
+    c.fail(t('catalog.usage'));
+    return;
+  }
+  let plan: InstallPlan;
+  try {
+    plan = await planInstall(raw!, {
+      fetch: c.fetch ?? globalThis.fetch,
+      env: c.env,
+      dir: c.dir,
+      defaultEndpoint: c.defaultEndpoint,
+      now: c.now,
+    });
+  } catch (err) {
+    installFail(c, ref.id, ref.version, err);
+    return;
+  }
+  const id = clean(plan.id);
+  const vars = { id, version: plan.version };
+  const out = (result: string | null, entry: string | null, extra: object = {}) =>
+    jsonOut(c, {
+      id: plan.id,
+      version: plan.version,
+      hash: plan.hash,
+      entry,
+      result,
+      targets: plan.targets.map((x) => ({ kind: x.kind, target: x.target })),
+      ...extra,
+    });
+  const existing = plan.existing;
+  if (!c.json) {
+    c.io.log(plan.name ? `${clean(plan.name)}  ${id}` : id);
+    const meta = [t(`catalog.kind.${plan.kind}`), t('catalog.version', { version: plan.version })];
+    meta.push(t('catalog.by', { author: authorText(plan) }));
+    c.io.log(meta.join(' · '));
+    if (plan.description) c.io.log(clean(plan.description));
+    c.io.log('');
+    const local = existing && listEntries(c.dir).find((e) => e.id === existing.entryId);
+    if (local) {
+      const name = clean(local.name);
+      c.io.log(t(existing.same ? 'catalog.install.existing' : 'catalog.install.update', { ...vars, name }));
+    }
+    targetLines(c, plan);
+  }
+  // nothing new to save, so nothing to agree to
+  const ask = !existing?.same && plan.targets.length > 0;
+  if (c.dryRun) {
+    if (c.json) out('dry-run', existing?.entryId ?? null);
+    else c.io.log(t('catalog.install.wouldInstall', vars));
+    return;
+  }
+  if (ask && c.args.flags.yes !== true) {
+    if (c.json || !c.io.tty) {
+      if (c.json) out(null, null, { code: 'needs-yes' });
+      c.fail(t('err.catalog.install.needsYes'));
+      return;
+    }
+    if (!(await c.io.ask(t('catalog.install.ask', { name: clean(plan.name) || id }), false))) {
+      c.fail(t('catalog.install.cancelled'));
+      return;
+    }
+  }
+  const done = runInstall(plan, { dir: c.dir, env: c.env, now: c.now });
+  if (c.json) {
+    out(done.result, done.entryId);
+    return;
+  }
+  const name = clean(done.name);
+  if (done.result === 'new') c.io.log(t('catalog.install.done', { ...vars, name }));
+  else if (done.result === 'version') c.io.log(t('catalog.install.added', { ...vars, name }));
+  else if (!existing?.same) c.io.log(t('catalog.install.existing', { ...vars, name }));
+  const m = await import('./manage.js');
+  c.io.log(t('catalog.install.applyHint', { name: m.shellArg(name) ?? clean(done.entryId) }));
 }
 
 const SIGN_IN: Record<string, MessageId> = {
