@@ -1,10 +1,13 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MARKET_LIMITS, parseMeta } from '../../src/market/protocol.js';
 import { fail, MESSAGES } from '../../src/market/rules.js';
 import { createHandler } from '../../src/market/worker/handler.js';
 import { errorResponse, readJsonBody } from '../../src/market/worker/http.js';
 import worker from '../../src/market/worker/index.js';
-import { stubEnv } from './worker-env.js';
+import { hasSqlite } from './d1-sqlite.js';
+import { MIGRATIONS, makeEnv, migrations, stubEnv } from './worker-env.js';
 
 const BASE = 'http://w.test';
 
@@ -235,5 +238,146 @@ describe('readJsonBody', () => {
         '400 invalid',
       );
     }
+  });
+});
+
+const TABLES = [
+  'counters',
+  'entries',
+  'index_pages',
+  'moderation',
+  'publishers',
+  'rate',
+  'reports',
+  'salts',
+  'tokens',
+  'versions',
+];
+
+describe('worker migrations', () => {
+  it('are numbered sql files, 0001 first', () => {
+    const files = fs.readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql'));
+    expect(files[0]).toBe('0001_init.sql');
+    for (const f of files) expect(f).toMatch(/^\d{4}_[a-z0-9_]+\.sql$/);
+    expect(migrations().length).toBe(files.length);
+  });
+
+  it('never start a transaction (D1 refuses it)', () => {
+    for (const sql of migrations()) expect(sql).not.toMatch(/\b(?:BEGIN|COMMIT|ROLLBACK|SAVEPOINT)\b/i);
+  });
+
+  describe.skipIf(!hasSqlite)('on the D1 adapter', () => {
+    it('create every table and seed the counters', async () => {
+      const { db, env, clock } = await makeEnv();
+      try {
+        const rows = await db
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+          .all<{ name: string }>();
+        expect(rows.results.map((r) => r.name)).toEqual(TABLES);
+        const counters = await db.prepare('SELECT k, n FROM counters ORDER BY k').all();
+        expect(counters.results).toEqual([
+          { k: 'bytes', n: 0 },
+          { k: 'gen', n: 0 },
+        ]);
+        expect(env.DB).toBe(db);
+        expect(env.GITHUB_CLIENT_ID).toBe('Ov23liVCN9Nf6VlLv3St');
+        const t = clock.now();
+        clock.advance(1000);
+        expect(clock.now()).toBe(t + 1000);
+      } finally {
+        db.close();
+      }
+    });
+
+    it('enforce the entry kind and state checks and publisher defaults', async () => {
+      const { db } = await makeEnv();
+      try {
+        const add = (kind: string, state: string) =>
+          db
+            .prepare(
+              `INSERT INTO entries (publisher, slug, kind, state, version, hash, created_at, updated_at, summary, doc, gen)
+               VALUES ('alp', ?1, ?2, ?3, 1, 'h', 't', 't', '{}', '{}', 1)`,
+            )
+            .bind(`${kind}-${state}`, kind, state)
+            .run();
+        for (const kind of ['preset', 'theme', 'bundle']) {
+          for (const state of ['pending', 'live', 'withdrawn', 'removed']) await add(kind, state);
+        }
+        await expect(add('widget', 'live')).rejects.toThrow(/D1_ERROR/);
+        await expect(add('preset', 'banned')).rejects.toThrow(/D1_ERROR/);
+        await db
+          .prepare(
+            "INSERT INTO publishers (handle, github_id, github_login, display_name, created_at) VALUES ('alp', 1, 'Alp', 'Alp', 't')",
+          )
+          .run();
+        expect(await db.prepare('SELECT trusted, banned_at, bytes FROM publishers').first()).toEqual({
+          trusted: 0,
+          banned_at: null,
+          bytes: 0,
+        });
+        await expect(
+          db
+            .prepare(
+              "INSERT INTO publishers (handle, github_id, github_login, display_name, created_at) VALUES ('alp2', 1, 'x', 'x', 't')",
+            )
+            .run(),
+        ).rejects.toThrow(/UNIQUE/);
+      } finally {
+        db.close();
+      }
+    });
+  });
+
+  it('stubEnv has the same vars and a database that throws', () => {
+    const { env } = stubEnv();
+    expect(env.ALLOW_OVERWRITE).toBe('false');
+    expect(() => env.DB.prepare('SELECT 1')).toThrow('stub DB');
+  });
+});
+
+describe('worker/wrangler.jsonc', () => {
+  const raw = fs.readFileSync(path.resolve(__dirname, '../../worker/wrangler.jsonc'), 'utf8');
+  const cfg = JSON.parse(raw.replace(/^\s*\/\/.*$/gm, ''));
+
+  it('pins the owner account and the ccinfobar-market database', () => {
+    expect(cfg.name).toBe('ccinfobar-market');
+    expect(cfg.account_id).toBe('54f0bc7535666a07574e745ca3b3e8e2');
+    expect(cfg.d1_databases).toEqual([
+      {
+        binding: 'DB',
+        database_name: 'ccinfobar-market',
+        database_id: 'b20acc25-88bc-4148-9480-94bf88e0d232',
+        migrations_dir: 'migrations',
+      },
+    ]);
+    expect(fs.existsSync(path.resolve(__dirname, '../../worker', cfg.d1_databases[0].migrations_dir))).toBe(
+      true,
+    );
+  });
+
+  it('ships the prebuilt bundle with Web APIs only', () => {
+    expect(cfg.main).toBe('dist/index.js');
+    expect(cfg.no_bundle).toBe(true);
+    expect(cfg).not.toHaveProperty('compatibility_flags');
+    expect(cfg.compatibility_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('keeps invocation logs off', () => {
+    expect(cfg.observability.logs.invocation_logs).toBe(false);
+  });
+
+  it('has exactly the public vars, admins by GitHub id', () => {
+    expect(cfg.vars).toEqual({
+      MARKET_NAME: 'ccinfobar marketplace',
+      GITHUB_CLIENT_ID: 'Ov23liVCN9Nf6VlLv3St',
+      ADMIN_GITHUB_IDS: '65018489',
+      ALLOW_OVERWRITE: 'false',
+    });
+    expect(cfg.vars).not.toHaveProperty('ADMINS');
+    expect(cfg).not.toHaveProperty('keep_vars');
+  });
+
+  it('keeps the optional READS rate limit binding', () => {
+    expect(cfg.ratelimits.map((r: { name: string }) => r.name)).toEqual(['READS']);
   });
 });

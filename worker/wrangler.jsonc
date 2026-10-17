@@ -1,0 +1,30 @@
+// ccinfobar marketplace Worker, see docs/MARKETPLACE.md
+{
+  "name": "ccinfobar-market",
+  "main": "dist/index.js",
+  "compatibility_date": "2026-10-01",
+  // pins the owner's account; never the other account in the dashboard
+  "account_id": "54f0bc7535666a07574e745ca3b3e8e2",
+  "no_bundle": true,
+  "workers_dev": true,
+  "preview_urls": false,
+  "send_metrics": false,
+  // invocation logs would keep request details
+  "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ccinfobar-market",
+      "database_id": "b20acc25-88bc-4148-9480-94bf88e0d232",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ratelimits": [{ "name": "READS", "namespace_id": "1201", "simple": { "limit": 600, "period": 60 } }],
+  // public values; secrets go through wrangler secret
+  "vars": {
+    "MARKET_NAME": "ccinfobar marketplace",
+    "GITHUB_CLIENT_ID": "Ov23liVCN9Nf6VlLv3St",
+    "ADMIN_GITHUB_IDS": "65018489",
+    "ALLOW_OVERWRITE": "false"
+  }
+}
