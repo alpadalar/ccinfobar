@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { parseArgs } from '../../src/cli/args.js';
 import type { PromptIo } from '../../src/commands/io.js';
-import { runImport } from '../../src/commands/manage.js';
+import { runImport, runImportCommand } from '../../src/commands/manage.js';
 import { importClaudeCodeStatusline, TARGETS } from '../../src/importers/claude-code-statusline.js';
+import { detectTool, importFrom, resolveSource } from '../../src/importers/index.js';
 import { parseToml } from '../../src/importers/toml.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
 import { withLang } from '../helpers.js';
@@ -206,5 +208,109 @@ describe('importClaudeCodeStatusline', () => {
   it('targets only existing widgets', () => {
     const known = new Set(ALL_WIDGETS.map((w) => w.type));
     for (const type of TARGETS) expect(known.has(type), type).toBe(true);
+  });
+});
+
+describe('claude-code-statusline discovery', () => {
+  let dir: string;
+  let home: string;
+  let env: NodeJS.ProcessEnv;
+  const MINI = 'theme.name = "classic"\ndisplay.lines = 1\ndisplay.line1.components = ["model_info"]\n';
+  const userFile = () => path.join(home, '.claude', 'statusline', 'Config.toml');
+  const write = (file: string, text = MINI) => {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+    return file;
+  };
+
+  beforeEach(() => {
+    dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-ccs-')));
+    home = path.join(dir, 'home');
+    fs.mkdirSync(home);
+    env = { HOME: home, USERPROFILE: home };
+  });
+
+  afterEach(() => {
+    process.exitCode = undefined;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('reads <home>/.claude/statusline/Config.toml', () => {
+    const file = write(userFile());
+    const r = importFrom('claude-code-statusline', { env, cwd: dir });
+    expect(r.file).toBe(file);
+    expect(types(r)).toEqual(['model']);
+    expect(r.config.theme).toBe('classic');
+  });
+
+  it('fails when the file is missing, as the tool has no built-in layout', async () => {
+    expect(() => importFrom('claude-code-statusline', { env, cwd: dir })).toThrow(
+      `no claude-code-statusline (rz1989s) config found (${path.join('~', '.claude', 'statusline', 'Config.toml')}); pass its path with --file`,
+    );
+    const lines: string[] = [];
+    const io: PromptIo = {
+      tty: false,
+      ask: async (_q, fallback) => fallback,
+      log: (l) => lines.push(l),
+      error: (l) => lines.push(l),
+      columns: 100,
+    };
+    const prev = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
+    process.env.HOME = home;
+    process.env.USERPROFILE = home;
+    try {
+      await runImportCommand(parseArgs(['import', 'rz1989s', '--dry-run']), path.join(dir, 'c.json'), io);
+    } finally {
+      for (const [k, v] of Object.entries(prev)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+    expect(process.exitCode).toBe(1);
+    expect(lines.join('\n')).toContain('no claude-code-statusline (rz1989s) config found');
+  });
+
+  it('shows TOML errors with their position', () => {
+    const bad = write(path.join(dir, 'bad.toml'), 'display.lines = 1\ntheme = { name = "classic", }\n');
+    expect(() => importFrom('claude-code-statusline', { file: bad, env, cwd: dir })).toThrow(
+      /bad\.toml:2:\d+ /,
+    );
+  });
+
+  it('is detected from its install path and resolved by its alias', () => {
+    for (const name of ['claude-code-statusline', 'rz1989s', 'RZ1989S']) {
+      expect(resolveSource(name), name).toBe('claude-code-statusline');
+    }
+    for (const command of [
+      'bash ~/.claude/statusline/statusline.sh',
+      'bash "$HOME/.claude/statusline/statusline.sh"',
+      'bash C:\\Users\\me\\.claude\\statusline\\statusline.sh',
+    ]) {
+      expect(detectTool(command), command).toMatchObject({
+        tool: 'claude-code-statusline',
+        name: 'claude-code-statusline (rz1989s)',
+        importable: true,
+      });
+    }
+    for (const command of [
+      'bash ~/.claude/statusline.sh',
+      '~/.claude/statusline',
+      'claude-statusline',
+      'powershell -File ~/.claude/statusline/statusline.ps1',
+    ]) {
+      expect(detectTool(command)!.tool, command).not.toBe('claude-code-statusline');
+    }
+  });
+
+  it('leaves detection of the other tools unchanged', () => {
+    const cases: [string, string][] = [
+      ['npx ccstatusline@latest', 'ccstatusline'],
+      ['~/.claude/ccline/ccline', 'ccometixline'],
+      ['bash ~/.claude/plugins/claude-hud/run.sh', 'claude-hud'],
+      ['claudebar render', 'claudebar'],
+      ['npx ccsp@latest', 'statusline-pro'],
+      ['npx claude-code-statusline-pro@latest', 'statusline-pro'],
+    ];
+    for (const [command, tool] of cases) expect(detectTool(command)!.tool, command).toBe(tool);
   });
 });
