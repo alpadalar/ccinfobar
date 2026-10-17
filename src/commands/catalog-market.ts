@@ -7,10 +7,12 @@ import {
   type PublishReview,
   planHash,
   publishPlan,
+  refreshReview,
   remoteList,
   remoteShow,
   reviewPublish,
   runPublish,
+  signInOnly,
 } from '../catalog/publish.js';
 import { shareState } from '../catalog/share.js';
 import { SignInError, signInWithGitHub } from '../catalog/signin.js';
@@ -58,6 +60,7 @@ const REASONS: Record<string, MessageId> = {
   'bad-content': 'err.catalog.badContent',
   busy: 'err.catalog.busy',
   reserved: 'catalog.publish.reserved',
+  'sign-in': 'err.catalog.signInFirst',
 };
 
 const ITEMS: Record<PublishItem['action'], MessageId> = {
@@ -184,7 +187,9 @@ function showPlan(c: Ctx, p: Planned, endpoint: string): void {
 }
 
 function reviewFail(c: Ctx, code: string, submitUrl?: string, status?: number): void {
-  if (code === 'read-only' && submitUrl) c.fail(t('catalog.publish.readOnly', { url: shownUrl(submitUrl) }));
+  if (code === 'sign-in') c.fail(t('err.catalog.signInFirst'));
+  else if (code === 'read-only' && submitUrl)
+    c.fail(t('catalog.publish.readOnly', { url: shownUrl(submitUrl) }));
   else c.fail(t('catalog.publish.error', { reason: reasonText(code, status) }));
 }
 
@@ -314,6 +319,7 @@ export async function runPublishCommand(c: Ctx): Promise<void> {
     const id = clean(r.remoteId);
     if (r.version === null) c.io.log(t('catalog.publish.withdrawn', { name, id }));
     else c.io.log(t('catalog.publish.ok', { name, version: r.version, id }));
+    if (r.pending) c.io.log(t('catalog.publish.pending'));
     if (r.code === 'changed') c.io.log(t('market.error.changed'));
   }
 }
@@ -517,4 +523,42 @@ export async function runLogout(c: Ctx): Promise<void> {
   }
   const where = { endpoint: shownUrl(endpoint) };
   c.io.log(token !== null ? t('catalog.logout.done', where) : t('catalog.logout.none', where));
+}
+
+// an explicit action reads meta; an unreachable server keeps the old behaviour
+export async function githubOnly(c: Ctx, endpoint: string): Promise<boolean> {
+  try {
+    return signInOnly(await createMarketClient({ endpoint, fetch: c.fetch ?? globalThis.fetch }).meta());
+  } catch {
+    return false;
+  }
+}
+
+// asks /v1/me and clears the review wait of entries that went live
+export async function runPublisherCheck(c: Ctx): Promise<void> {
+  if (c.dryRun || c.args.positional.length > 1 || c.args.flags.forget === true) {
+    c.fail(t('catalog.usage'));
+    return;
+  }
+  const endpoint = noEndpoint(c);
+  if (!endpoint) return;
+  const res = await refreshReview(deps(c));
+  const me = res.me;
+  if (res.code || !me) {
+    if (c.json) jsonOut(c, { endpoint, publisher: null, admin: false, code: res.code });
+    if (res.code === 'sign-in') c.fail(t('err.catalog.signInFirst'));
+    else if (res.code === 'not-github') c.fail(t('err.catalog.signIn.notGithub'));
+    else if (res.code === 'bad-endpoint') c.fail(t('err.catalog.badEndpoint'));
+    else c.fail(t('catalog.publisher.checkFailed', { reason: reasonText(res.code, res.status) }));
+    return;
+  }
+  const { checked, cleared, waiting } = res;
+  if (c.json) {
+    jsonOut(c, { endpoint, publisher: me.handle, admin: me.admin, checked, cleared, waiting });
+    return;
+  }
+  c.io.log(t('catalog.publisher.signedIn', { endpoint: shownUrl(endpoint), handle: clean(me.handle) }));
+  if (me.admin) c.io.log(t('catalog.login.admin'));
+  if (cleared) c.io.log(t('catalog.publisher.approved', { count: cleared }));
+  c.io.log(waiting ? t('catalog.publisher.waiting', { count: waiting }) : t('catalog.publisher.noneWaiting'));
 }

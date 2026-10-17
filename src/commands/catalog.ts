@@ -95,6 +95,7 @@ interface Summary {
   version: number;
   share: ShareState | null;
   updatedAt: string | null;
+  review?: 'pending';
 }
 
 interface VersionRow {
@@ -190,6 +191,7 @@ function summary(a: AnyEntry): Summary {
       version: e.version,
       share: shareState(e),
       updatedAt: e.updatedAt,
+      ...(e.share.remote?.review === 'pending' ? { review: 'pending' as const } : {}),
     };
   }
   const item = a.source === 'legacy' ? a.item : null;
@@ -225,6 +227,7 @@ function chip(a: AnyEntry, s: Summary): string {
   if (a.source === 'legacy') return t(fileLabel(a.item.kind));
   if (a.source === 'system') return t('catalog.source.system');
   const version = a.entry.share.remote?.version ?? a.entry.version;
+  if (s.share === 'published' && s.review) return t('catalog.share.review');
   return s.share ? t(SHARE_IDS[s.share], { version }) : '';
 }
 
@@ -843,8 +846,12 @@ async function runEndpoint(c: Ctx): Promise<void> {
   if (changed) dryRunDone(c);
 }
 
-// per endpoint; nothing is sent
-function runPublisher(c: Ctx): void {
+// per endpoint; only a new handle or --check sends a request
+async function runPublisher(c: Ctx): Promise<void> {
+  if (c.args.flags.check === true) {
+    await market(c, 'check');
+    return;
+  }
   const endpoint = endpointOf(c);
   if (!endpoint) {
     c.fail(t('err.catalog.noEndpoint'));
@@ -869,6 +876,11 @@ function runPublisher(c: Ctx): void {
     const next = raw.trim();
     if (!isHandle(next)) {
       c.fail(t('err.catalog.badHandle'));
+      return;
+    }
+    // the handle comes from GitHub sign-in there
+    if (await (await import('./catalog-market.js')).githubOnly(c, endpoint)) {
+      c.fail(t('err.catalog.githubHandle'));
       return;
     }
     if (registered && cur !== null && cur !== next) {
@@ -899,10 +911,14 @@ function runPublisher(c: Ctx): void {
   if (changed) dryRunDone(c);
 }
 
-// marketplace code loads only for publish, sign-in and --remote
-async function market(c: Ctx, sub: 'publish' | 'list' | 'show' | 'login' | 'logout'): Promise<void> {
+// marketplace code loads only for publish, sign-in, --check and --remote
+async function market(
+  c: Ctx,
+  sub: 'publish' | 'list' | 'show' | 'login' | 'logout' | 'check',
+): Promise<void> {
   const m = await import('./catalog-market.js');
   if (sub === 'publish') await m.runPublishCommand(c);
+  else if (sub === 'check') await m.runPublisherCheck(c);
   else if (sub === 'login') await m.runLogin(c);
   else if (sub === 'logout') await m.runLogout(c);
   else if (sub === 'list') await m.runRemoteList(c);

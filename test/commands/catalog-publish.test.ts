@@ -16,6 +16,7 @@ import { runCatalog } from '../../src/commands/catalog.js';
 import type { PromptIo } from '../../src/commands/io.js';
 import { startMarketServer } from '../../src/market/server.js';
 import { fakeFetch, json } from '../fake-fetch.js';
+import { GH_ENDPOINT, GH_TOKEN, githubMarket } from '../github-market.js';
 import { withLangAsync } from '../helpers.js';
 
 let root = '';
@@ -339,6 +340,11 @@ describe('catalog publish', () => {
   it('catalog publisher shows, sets and forgets the handle per endpoint (WR-06)', async () => {
     const env = { CCINFOBAR_MARKETPLACE_URL: 'https://m.example.com/team-a' };
     const ep = 'https://m.example.com/team-a';
+    // a token server: setting a handle reads meta, showing and forgetting send nothing
+    const t = githubMarket({ auth: ['token'] });
+    const fetch = t.fetch;
+    const viaMeta = ((input: string | URL, init?: RequestInit) =>
+      fetch(String(input).replace(ep, GH_ENDPOINT), init)) as unknown as typeof globalThis.fetch;
     expect((await run(['publisher'])).err).toEqual([
       'No marketplace endpoint set; entries stay waiting to publish',
     ]);
@@ -346,12 +352,12 @@ describe('catalog publish', () => {
     expect((await run(['publisher'], { env })).out).toEqual([
       `No publisher handle set for ${ep}. The first publish registers @alperen-adalar; set another with ccinfobar catalog publisher <handle>.`,
     ]);
-    const bad = await run(['publisher', 'Not Valid'], { env });
+    const bad = await run(['publisher', 'Not Valid'], { env, fetch: viaMeta });
     expect(bad.code).toBe(1);
     expect(bad.err).toEqual([
       'A publisher handle is 1 to 39 lowercase letters, digits or hyphens and starts with a letter or digit',
     ]);
-    const dry = await run(['publisher', 'alp', '--dry-run', '--json'], { env });
+    const dry = await run(['publisher', 'alp', '--dry-run', '--json'], { env, fetch: viaMeta });
     expect(JSON.parse(dry.out[0]!)).toEqual({
       schema: 1,
       endpoint: ep,
@@ -360,7 +366,7 @@ describe('catalog publish', () => {
       dryRun: true,
     });
     expect(readProfile(cat).publishers).toEqual({});
-    expect((await run(['publisher', 'alp'], { env })).out).toEqual([
+    expect((await run(['publisher', 'alp'], { env, fetch: viaMeta })).out).toEqual([
       `Publisher handle on ${ep} is now @alp. Nothing is sent until you publish.`,
     ]);
     expect((await run(['publisher'], { env })).out).toEqual([
@@ -372,20 +378,24 @@ describe('catalog publish', () => {
     ).toMatch(/^No publisher handle set/);
     writeCredential(ep, 't'.repeat(64), cat);
     expect((await run(['publisher'], { env })).out).toEqual([`Publisher handle on ${ep}: @alp (registered)`]);
-    const taken = await run(['publisher', 'bob'], { env });
+    const taken = await run(['publisher', 'bob'], { env, fetch: viaMeta });
     expect(taken.code).toBe(1);
     expect(taken.err[0]).toMatch(
       /^You are already registered as @alp on https:\/\/m\.example\.com\/team-a\. /,
     );
-    expect((await run(['publisher', '--forget'], { env })).out).toEqual([
+    expect((await run(['publisher', '--forget'], { env, fetch: viaMeta })).out).toEqual([
       `Forgot the publisher handle and token for ${ep}. The next publish registers again.`,
     ]);
     expect(readCredential(ep, cat)).toBeNull();
     expect(readProfile(cat).publishers).toEqual({});
-    const tr = await withLangAsync('tr', () => run(['publisher', 'alp'], { env }));
+    const tr = await withLangAsync('tr', () => run(['publisher', 'alp'], { env, fetch: viaMeta }));
     expect(tr.out).toEqual([
       `${ep} üzerindeki yayıncı adı artık @alp. Siz yayımlayana kadar hiçbir şey gönderilmez.`,
     ]);
+    // only the four handle arguments that passed the shape check read meta
+    expect(t.calls.map((c) => `${c.method} ${c.url}`)).toEqual(
+      Array(4).fill(`GET ${GH_ENDPOINT}/v1/meta.json`),
+    );
   });
 
   it('names the HTTP status of an answer it has no message for (IN-06)', async () => {
@@ -524,6 +534,149 @@ describe('catalog publish', () => {
     const token = readCredential(new URL(s.url).origin, cat);
     expect(token).toMatch(/^[0-9a-f]{64}$/);
     expect(outputs.join('\n')).not.toContain(token!);
+  });
+});
+
+describe('catalog on a GitHub-backed marketplace (D-07, D-09, D-16)', () => {
+  const env = { CCINFOBAR_MARKETPLACE_URL: GH_ENDPOINT };
+
+  it('publish without sign-in says to sign in and sends no write', async () => {
+    const m = githubMarket();
+    await saveMine();
+    const r = await run(['publish', '--yes'], { env, fetch: m.fetch });
+    expect(r.code).toBe(1);
+    expect(r.out).toEqual([]);
+    expect(r.err).toEqual(['Sign in first: ccinfobar catalog login']);
+    expect(m.calls.map((c) => c.url)).toEqual([`${GH_ENDPOINT}/v1/meta.json`]);
+    const tr = await withLangAsync('tr', () => run(['publish', '--yes'], { env, fetch: m.fetch }));
+    expect(tr.err).toEqual(['Önce giriş yapın: ccinfobar catalog login']);
+    const j = await withLangAsync('tr', () => run(['publish', '--yes', '--json'], { env, fetch: m.fetch }));
+    expect(j.code).toBe(1);
+    expect(JSON.parse(j.out[0]!)).toMatchObject({ code: 'sign-in', plan: [], registration: null });
+    expect(stateOf('Mine')).toBe('pending');
+  });
+
+  it('shows the review wait after publish and in list and show', async () => {
+    const m = githubMarket();
+    writeCredential(GH_ENDPOINT, GH_TOKEN, cat);
+    await saveMine();
+    const r = await run(['publish', '--yes'], { env, fetch: m.fetch });
+    expect(r.code).toBeUndefined();
+    expect(r.out.slice(-2)).toEqual([
+      'Published Mine v1 as octo/mine',
+      'Waiting for review by a marketplace admin',
+    ]);
+    expect(r.text).not.toContain('register');
+    const id = entryOf('Mine').id;
+    const list = await run(['list', '--user']);
+    expect(list.out.find((l) => l.includes(id))).toMatch(/ {2}Waiting for review$/);
+    const show = await run(['show', id]);
+    expect(show.out[1]).toContain(' · Waiting for review');
+    const tr = await withLangAsync('tr', () => run(['list', '--user']));
+    expect(tr.out.find((l) => l.includes(id))).toMatch(/ {2}İnceleme bekliyor$/);
+    const data = JSON.parse((await withLangAsync('tr', () => run(['list', '--user', '--json']))).out[0]!);
+    expect(data.user[0]).toMatchObject({ ref: id, share: 'published', review: 'pending' });
+    const shown = JSON.parse((await run(['show', id, '--json'])).out[0]!);
+    expect(shown.entry.review).toBe('pending');
+    // a Turkish publish line
+    await run(['save', 'Two', '--kind', 'preset']);
+    const two = await withLangAsync('tr', () => run(['publish', '--yes'], { env, fetch: m.fetch }));
+    expect(two.out.at(-1)).toBe('Bir marketplace yöneticisinin incelemesi bekleniyor');
+    await run(['save', 'Three', '--kind', 'preset']);
+    const j = await withLangAsync('tr', () => run(['publish', '--yes', '--json'], { env, fetch: m.fetch }));
+    expect(JSON.parse(j.out[0]!).results).toEqual([
+      { id: entryOf('Three').id, ok: true, code: null, remoteId: 'octo/three', version: 1, pending: true },
+    ]);
+  });
+
+  it('refuses a hand-set handle on a GitHub-only marketplace', async () => {
+    const m = githubMarket();
+    const r = await run(['publisher', 'alice'], { env, fetch: m.fetch });
+    expect(r.code).toBe(1);
+    expect(r.err).toEqual([
+      'This marketplace takes your publisher handle from GitHub sign-in, so it cannot be set by hand. Run ccinfobar catalog login.',
+    ]);
+    expect(readProfile(cat).publishers).toEqual({});
+    const tr = await withLangAsync('tr', () =>
+      run(['publisher', 'alice', '--dry-run'], { env, fetch: m.fetch }),
+    );
+    expect(tr.err).toEqual([
+      'Bu marketplace yayıncı adınızı GitHub girişinden alır, bu yüzden elle ayarlanamaz. ccinfobar catalog login komutunu çalıştırın.',
+    ]);
+    // showing the handle reads nothing
+    const n = m.calls.length;
+    expect((await run(['publisher'], { env, fetch: m.fetch })).code).toBeUndefined();
+    expect(m.calls).toHaveLength(n);
+    // a server that also takes tokens still lets you choose
+    const both = githubMarket({ auth: ['token', 'github-device'] });
+    expect((await run(['publisher', 'alice'], { env, fetch: both.fetch })).out).toEqual([
+      `Publisher handle on ${GH_ENDPOINT} is now @alice. Nothing is sent until you publish.`,
+    ]);
+  });
+
+  it('publisher --check asks the account and refreshes the review wait', async () => {
+    const m = githubMarket();
+    await saveMine();
+    const out = await run(['publisher', '--check'], { env, fetch: m.fetch });
+    expect(out.code).toBe(1);
+    expect(out.err).toEqual(['Sign in first: ccinfobar catalog login']);
+    expect(m.calls.map((c) => c.url)).toEqual([`${GH_ENDPOINT}/v1/meta.json`]);
+    writeCredential(GH_ENDPOINT, GH_TOKEN, cat);
+    await run(['publish', '--yes'], { env, fetch: m.fetch });
+    const n = m.calls.length;
+    const one = await run(['publisher', '--check'], { env, fetch: m.fetch });
+    expect(one.code).toBeUndefined();
+    expect(one.out).toEqual([`Signed in to ${GH_ENDPOINT} as @octo`, '1 entry is waiting for review']);
+    expect(m.calls.slice(n).map((c) => c.url.slice(GH_ENDPOINT.length))).toEqual(['/v1/meta.json', '/v1/me']);
+    m.approve('octo/mine');
+    m.state.admin = true;
+    const tr = await withLangAsync('tr', () => run(['publisher', '--check'], { env, fetch: m.fetch }));
+    expect(tr.out).toEqual([
+      `${GH_ENDPOINT} üzerinde @octo olarak giriş yaptınız`,
+      "Bu marketplace'te yöneticisiniz.",
+      '1 girdi onaylandı ve artık yayında',
+      'İnceleme bekleyen girdi yok',
+    ]);
+    expect(readEntry(entryOf('Mine').id, cat)!.entry.share.remote?.review).toBeUndefined();
+    expect((await run(['list', '--user'])).text).not.toContain('Waiting for review');
+    const j = await withLangAsync('tr', () =>
+      run(['publisher', '--check', '--json'], { env, fetch: m.fetch }),
+    );
+    expect(JSON.parse(j.out[0]!)).toEqual({
+      schema: 1,
+      endpoint: GH_ENDPOINT,
+      publisher: 'octo',
+      admin: true,
+      checked: 0,
+      cleared: 0,
+      waiting: 0,
+    });
+    for (const argv of [
+      ['publisher', 'x', '--check'],
+      ['publisher', '--check', '--forget'],
+      ['publisher', '--check', '--dry-run'],
+    ]) {
+      const bad = await run(argv, { env, fetch: m.fetch });
+      expect(bad.code).toBe(1);
+      expect(bad.err[0]).toMatch(/^Usage: ccinfobar catalog list/);
+    }
+  });
+
+  it('publisher --check names a marketplace without GitHub sign-in and a failed answer', async () => {
+    const t = githubMarket({ auth: ['token'] });
+    const r = await run(['publisher', '--check'], { env, fetch: t.fetch });
+    expect(r.code).toBe(1);
+    expect(r.err).toEqual(['This marketplace does not offer GitHub sign-in.']);
+    expect((await run(['publisher', '--check'])).err).toEqual([
+      'No marketplace endpoint set; entries stay waiting to publish',
+    ]);
+    const m = githubMarket();
+    writeCredential(GH_ENDPOINT, 'c'.repeat(64), cat);
+    const bad = await run(['publisher', '--check'], { env, fetch: m.fetch });
+    expect(bad.code).toBe(1);
+    expect(bad.err[0]).toMatch(/^Could not check your publisher account: The marketplace did not accept/);
+    const tr = await withLangAsync('tr', () => run(['publisher', '--check'], { env, fetch: m.fetch }));
+    expect(tr.err[0]).toMatch(/^Yayıncı hesabınız kontrol edilemedi: /);
   });
 });
 

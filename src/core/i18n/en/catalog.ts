@@ -19,6 +19,7 @@ export const catalogMessages = {
   'catalog.share.outdated': 'Changed since publish',
   'catalog.share.withdrawPending': 'Waiting to withdraw',
   'catalog.share.withdrawn': 'Withdrawn',
+  'catalog.share.review': 'Waiting for review',
   'catalog.version': 'v{version}',
   'catalog.by': 'by {author}',
   'catalog.title': 'Catalog',
@@ -99,7 +100,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Loading the marketplace…',
   'catalog.usage':
-    'Usage: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n       ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n       ccinfobar catalog show <publisher/slug> --remote [--json]\n       ccinfobar catalog history <ref> [--json]\n       ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n       ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n       ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n       ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n       ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n       ccinfobar catalog author [<name>] [--dry-run] [--json]\n       ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n       ccinfobar catalog publisher [<handle>|--forget] [--dry-run] [--json]\n       ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n       ccinfobar catalog login [--open|--no-open] [--json]\n       ccinfobar catalog logout [--json]',
+    'Usage: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n       ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n       ccinfobar catalog show <publisher/slug> --remote [--json]\n       ccinfobar catalog history <ref> [--json]\n       ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n       ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n       ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n       ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n       ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n       ccinfobar catalog author [<name>] [--dry-run] [--json]\n       ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n       ccinfobar catalog publisher [<handle>|--forget|--check] [--dry-run] [--json]\n       ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n       ccinfobar catalog login [--open|--no-open] [--json]\n       ccinfobar catalog logout [--json]',
   'catalog.section.user': 'Your entries',
   'catalog.section.system': 'Built in',
   'catalog.list.noUser': 'No saved entries yet. Save one with ccinfobar catalog save <name>.',
@@ -162,6 +163,17 @@ export const catalogMessages = {
     'Forgot the publisher handle and token for {endpoint}. The next publish registers again.',
   'catalog.publisher.registered':
     'You are already registered as @{handle} on {endpoint}. Run ccinfobar catalog publisher --forget first to register another handle; your published entries stay with @{handle}.',
+  'catalog.publisher.signedIn': 'Signed in to {endpoint} as @{handle}',
+  'catalog.publisher.approved': {
+    one: '1 entry was approved and is live now',
+    other: '{count} entries were approved and are live now',
+  },
+  'catalog.publisher.waiting': {
+    one: '1 entry is waiting for review',
+    other: '{count} entries are waiting for review',
+  },
+  'catalog.publisher.noneWaiting': 'No entries are waiting for review',
+  'catalog.publisher.checkFailed': 'Could not check your publisher account: {reason}',
   'catalog.publish.handle': 'Publisher handle',
   'catalog.publish.handleHint':
     'Lowercase letters, digits and hyphens. It is registered on the first publish and shown next to the author.',
@@ -190,6 +202,7 @@ export const catalogMessages = {
   'catalog.publish.reserved':
     '{name} was withdrawn from the marketplace, and withdrawn ids stay reserved. Save it under a new name to publish it again.',
   'catalog.publish.ok': 'Published {name} v{version} as {id}',
+  'catalog.publish.pending': 'Waiting for review by a marketplace admin',
   'catalog.publish.withdrawn': 'Withdrew {name} ({id})',
   'catalog.publish.failed': '{name}: {reason}',
   'catalog.publish.readOnly': 'This marketplace is read-only. Submit your entries at {url} instead.',
@@ -244,6 +257,9 @@ export const catalogMessages = {
   'err.catalog.signIn.failed': 'Signing in with GitHub failed. Try again later.',
   'err.catalog.signIn.cancelled': 'Sign-in cancelled.',
   'err.catalog.signIn.notGithub': 'This marketplace does not offer GitHub sign-in.',
+  'err.catalog.signInFirst': 'Sign in first: ccinfobar catalog login',
+  'err.catalog.githubHandle':
+    'This marketplace takes your publisher handle from GitHub sign-in, so it cannot be set by hand. Run ccinfobar catalog login.',
   'market.error.invalid': 'The marketplace rejected the entry as not valid',
   'market.error.too-large': 'The entry is too large for the marketplace',
   'market.error.over-quota':

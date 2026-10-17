@@ -22,6 +22,7 @@ export const catalogMessages = {
   'catalog.share.outdated': 'Yayımlandıktan sonra değişti',
   'catalog.share.withdrawPending': 'Geri çekilmeyi bekliyor',
   'catalog.share.withdrawn': 'Geri çekildi',
+  'catalog.share.review': 'İnceleme bekliyor',
   'catalog.version': 'v{version}',
   'catalog.by': '{author} tarafından',
   'catalog.title': 'Katalog',
@@ -104,7 +105,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Marketplace yükleniyor…',
   'catalog.usage':
-    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n          ccinfobar catalog login [--open|--no-open] [--json]\n          ccinfobar catalog logout [--json]',
+    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget|--check] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n          ccinfobar catalog login [--open|--no-open] [--json]\n          ccinfobar catalog logout [--json]',
   'catalog.section.user': 'Sizin girdileriniz',
   'catalog.section.system': 'Yerleşik',
   'catalog.list.noUser': 'Henüz kayıtlı girdi yok. ccinfobar catalog save <name> ile bir tane kaydedin.',
@@ -169,6 +170,17 @@ export const catalogMessages = {
     '{endpoint} için yayıncı adı ve belirteci unutuldu. Bir sonraki yayımlama yeniden kayıt olur.',
   'catalog.publisher.registered':
     '{endpoint} üzerinde zaten @{handle} olarak kayıtlısınız. Başka bir ad kaydetmek için önce ccinfobar catalog publisher --forget çalıştırın; yayımlanan girdileriniz @{handle} altında kalır.',
+  'catalog.publisher.signedIn': '{endpoint} üzerinde @{handle} olarak giriş yaptınız',
+  'catalog.publisher.approved': {
+    one: '1 girdi onaylandı ve artık yayında',
+    other: '{count} girdi onaylandı ve artık yayında',
+  },
+  'catalog.publisher.waiting': {
+    one: '1 girdi inceleme bekliyor',
+    other: '{count} girdi inceleme bekliyor',
+  },
+  'catalog.publisher.noneWaiting': 'İnceleme bekleyen girdi yok',
+  'catalog.publisher.checkFailed': 'Yayıncı hesabınız kontrol edilemedi: {reason}',
   'catalog.publish.handle': 'Yayıncı adı',
   'catalog.publish.handleHint':
     'Küçük harf, rakam ve tire. İlk yayımlamada kaydedilir ve yazarın yanında gösterilir.',
@@ -199,6 +211,7 @@ export const catalogMessages = {
   'catalog.publish.reserved':
     "{name} marketplace'ten geri çekildi ve geri çekilen kimlikler ayrılmış kalır. Yeniden yayımlamak için farklı bir adla kaydedin.",
   'catalog.publish.ok': '{name} v{version}, {id} olarak yayımlandı',
+  'catalog.publish.pending': 'Bir marketplace yöneticisinin incelemesi bekleniyor',
   'catalog.publish.withdrawn': '{name} geri çekildi ({id})',
   'catalog.publish.failed': '{name}: {reason}',
   'catalog.publish.readOnly':
@@ -256,6 +269,9 @@ export const catalogMessages = {
   'err.catalog.signIn.failed': 'GitHub ile giriş başarısız oldu. Daha sonra tekrar deneyin.',
   'err.catalog.signIn.cancelled': 'Giriş iptal edildi.',
   'err.catalog.signIn.notGithub': 'Bu marketplace GitHub ile giriş sunmuyor.',
+  'err.catalog.signInFirst': 'Önce giriş yapın: ccinfobar catalog login',
+  'err.catalog.githubHandle':
+    'Bu marketplace yayıncı adınızı GitHub girişinden alır, bu yüzden elle ayarlanamaz. ccinfobar catalog login komutunu çalıştırın.',
   'market.error.invalid': 'Marketplace girdiyi geçersiz buldu ve reddetti',
   'market.error.too-large': 'Girdi marketplace için çok büyük',
   'market.error.over-quota':
