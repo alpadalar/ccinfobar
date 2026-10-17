@@ -12,6 +12,7 @@ import { sampleGit, sampleGsd, samplePayload, sampleTranscript } from '../../src
 import { BUILTIN_THEMES } from '../../src/core/themes.js';
 import type { Config, ThemeStyle } from '../../src/core/types.js';
 import { TARGETS as CCLINE_TARGETS } from '../../src/importers/ccometixline.js';
+import { TARGETS as CCPET_TARGETS } from '../../src/importers/ccpet.js';
 import { TARGETS as CC_TARGETS } from '../../src/importers/ccstatusline.js';
 import { TARGETS as CCS_TARGETS } from '../../src/importers/claude-code-statusline.js';
 import { TARGETS as HUD_TARGETS } from '../../src/importers/claude-hud.js';
@@ -256,6 +257,19 @@ const TOOLS: Tool[] = [
     hostileIn: 'notes',
     hostile: JSON.stringify({ plan: HOSTILE, language: HOSTILE }),
     protoText: `{"__proto__": ${EVIL}, "plan": "pro", "display": {"__proto__": ${EVIL}, "constructor": false, "showTools": false}}`,
+  },
+  {
+    source: 'ccpet',
+    targets: CCPET_TARGETS,
+    fixtures: ['ccpet.json'],
+    ext: 'json',
+    hasDefault: true,
+    hostileIn: 'notes',
+    hostile: JSON.stringify({
+      colors: { cost: HOSTILE },
+      display: { line2: { enabled: true, items: ['input', HOSTILE] } },
+    }),
+    protoText: `{"colors": {"__proto__": ${EVIL}, "constructor": "#ff0000"}, "display": {"__proto__": ${EVIL}, "line2": {"__proto__": ${EVIL}, "items": ["constructor", "input"]}}}`,
   },
   {
     source: 'cship',

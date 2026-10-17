@@ -29,3 +29,4 @@ Hand-written fixtures in each tool's documented format; no upstream code or secr
 | `claude-statusbar.json` | [leeguooooo/claude-code-usage-bar](https://github.com/leeguooooo/claude-code-usage-bar) | `docs/configuration.md` (configuration file example), `src/claude_statusbar/config.py` | MIT |
 | `nycu-cc-statusline.json` | [NYCU-Chung/cc-statusline](https://github.com/NYCU-Chung/cc-statusline) | `commands/rows.md` (special options and row keys tables), `statusline.js` `rowDefaults` | MIT |
 | `claude-ultimate-hud.json` | [ai-younggle-man/claude-ultimate-hud](https://github.com/ai-younggle-man/claude-ultimate-hud) | `commands/setup.md` (Step 2 configuration file), `README.md` (display options), `src/types.ts` | MIT |
+| `ccpet.json` | [terryso/ccpet](https://github.com/terryso/ccpet) | `src/services/ConfigService.ts` `DEFAULT_CONFIG` without its `supabase` block, `README.md` | MIT |

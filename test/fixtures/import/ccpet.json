@@ -1,0 +1,38 @@
+{
+  "colors": {
+    "petExpression": "#FFFF00:bright:bold",
+    "petName": "#00FFFF:bright",
+    "energyBar": "#00FF00",
+    "energyValue": "#00FFFF",
+    "accumulatedTokens": "#778899",
+    "lifetimeTokens": "#FF00FF",
+    "sessionInput": "#00FF00",
+    "sessionOutput": "#FFFF00",
+    "sessionCached": "#F4A460",
+    "sessionTotal": "#FFFFFF",
+    "contextLength": "#00DDFF",
+    "contextPercentage": "#0099DD",
+    "contextPercentageUsable": "#90EE90",
+    "cost": "#FFD700:bright:bold"
+  },
+  "pet": {
+    "animationEnabled": true,
+    "decayRate": 0.0231,
+    "emojiEnabled": true
+  },
+  "display": {
+    "maxLines": 3,
+    "line1": {
+      "enabled": true,
+      "items": ["expression", "energy-bar", "energy-value", "accumulated-tokens", "lifetime-tokens"]
+    },
+    "line2": {
+      "enabled": true,
+      "items": ["input", "output", "cached", "total"]
+    },
+    "line3": {
+      "enabled": true,
+      "items": ["context-percentage-usable", "cost"]
+    }
+  }
+}

@@ -2,6 +2,7 @@ import '../core/i18n/lazy.js';
 import { t } from '../core/i18n/index.js';
 import { commandArgs } from './args.js';
 import { bestClaudeHudImporter, byebyecodeImporter } from './ccline-family.js';
+import { ccpetImporter } from './ccpet.js';
 import { claudeCodeStatuslineImporter } from './claude-code-statusline.js';
 import { claudeStatusbarImporter } from './claude-statusbar.js';
 import { claudeUltimateHudImporter } from './claude-ultimate-hud.js';
@@ -83,6 +84,7 @@ export const REGISTRY: readonly ImporterDef[] = [
   claudeStatusbarImporter,
   nycuCcStatuslineImporter,
   claudeUltimateHudImporter,
+  ccpetImporter,
 ];
 
 export function registryDef(source: ImportSource): ImporterDef | null {

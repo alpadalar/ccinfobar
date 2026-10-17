@@ -491,6 +491,7 @@ describe('import sources', () => {
       'claude-statusbar',
       'nycu-cc-statusline',
       'claude-ultimate-hud',
+      'ccpet',
     ]);
     expect(resolveSource('ccstatusline')).toBe('ccstatusline');
     expect(resolveSource('CLAUDE-POWERLINE')).toBe('claude-powerline');

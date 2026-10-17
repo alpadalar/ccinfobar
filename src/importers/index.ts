@@ -51,6 +51,7 @@ export const IMPORT_SOURCES = [
   'claude-statusbar',
   'nycu-cc-statusline',
   'claude-ultimate-hud',
+  'ccpet',
 ] as const;
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
