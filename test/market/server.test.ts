@@ -6,15 +6,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EntryContent } from '../../src/core/edit.js';
-import { createMarketClient } from '../../src/market/client.js';
-import {
-  canonicalJson,
-  MARKET_LIMITS,
-  parseIndex,
-  parseMeta,
-  parseRemoteEntry,
-} from '../../src/market/protocol.js';
+import { MARKET_LIMITS, parseIndex } from '../../src/market/protocol.js';
 import { fixedWindow, startMarketServer } from '../../src/market/server.js';
+
+// protocol cases live in conformance.ts; these need the data dir, restarts or raw sockets
 
 let dir: string;
 let server: { url: string; close(): Promise<void> };
@@ -68,7 +63,6 @@ async function register(handle: string): Promise<string> {
   return r.json().token;
 }
 
-const sha = (v: unknown) => createHash('sha256').update(canonicalJson(v)).digest('hex');
 const file = (...parts: string[]) => path.join(dir, ...parts);
 
 function walk(d: string): string[] {
@@ -107,142 +101,51 @@ describe('reference market server', () => {
     expect(r.status).toBe(201);
   }
 
-  it('overwrite replaces the latest version in place', async () => {
+  it('new versions and overwrites never rewrite earlier version files', async () => {
     const alp = await register('alp');
-    const bob = await register('bob');
-    await withTwo(alp);
+    await request('POST', '/v1/entries', { token: alp, body: publishBody('mine') });
     const v1Bytes = fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '1.json'));
-    const next = preset([[{ type: 'model' }, { type: 'git-branch' }]]);
-    clock += 60_000;
-    const r = await request('PUT', '/v1/entries/alp/mine/versions/2', {
-      token: alp,
-      body: { content: next, note: 'fixed', description: 'better' },
-    });
-    expect(r.status).toBe(200);
-    expect(r.json()).toEqual({ id: 'alp/mine', version: 2, hash: sha(next) });
-    const raw = (await request('GET', '/v1/entries/alp/mine.json')).json();
-    expect(raw.versions).toHaveLength(2);
-    expect(raw.versions[1]).toEqual({
-      version: 2,
-      at: '2026-10-16T12:00:00.000Z',
-      note: 'fixed',
-      hash: sha(next),
-      overwrittenAt: '2026-10-16T12:01:00.000Z',
-    });
-    expect(raw).toMatchObject({ version: 2, hash: sha(next), description: 'better' });
-    expect(raw.updatedAt).toBe('2026-10-16T12:01:00.000Z');
-    expect((await request('GET', '/v1/entries/alp/mine/2.json')).json()).toEqual({
-      version: 2,
-      content: next,
-      hash: sha(next),
-    });
-    expect(fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '1.json')).equals(v1Bytes)).toBe(true);
-    const index = parseIndex((await request('GET', '/v1/index.json')).json())!;
-    expect(index.entries[0]).toMatchObject({ version: 2, hash: sha(next) });
-
-    const body = { content: preset(), note: '' };
-    for (const [n, token, status, code] of [
-      [1, alp, 409, 'conflict'],
-      [3, alp, 409, 'conflict'],
-      [2, bob, 403, 'forbidden'],
-      [2, undefined, 401, 'unauthorized'],
-    ] as const) {
-      const bad = await request('PUT', `/v1/entries/alp/mine/versions/${n}`, { token, body });
-      expect(bad.status, `${n} ${code}`).toBe(status);
-      expect(bad.json().error.code).toBe(code);
-    }
-    expect((await request('PUT', '/v1/entries/alp/mine/versions/0', { token: alp, body })).status).toBe(400);
-    expect((await request('PUT', '/v1/entries/alp/nope/versions/1', { token: alp, body })).status).toBe(404);
-    const cmd = await request('PUT', '/v1/entries/alp/mine/versions/2', {
-      token: alp,
-      body: { content: preset([[{ type: 'command', options: { command: 'x' } }]]), note: '' },
-    });
-    expect(cmd.status).toBe(400);
-    expect(cmd.json().error.message).toBe('command-widget');
-
-    // a later version keeps the overwrite mark
     await request('POST', '/v1/entries/alp/mine/versions', {
       token: alp,
-      headers: { 'if-match': '"2"' },
-      body: { content: preset(), note: 'three' },
+      headers: { 'if-match': '"1"' },
+      body: { content: preset([[{ type: 'cwd' }]]), note: 'two' },
     });
-    const after = (await request('GET', '/v1/entries/alp/mine.json')).json();
-    expect(after.versions.map((v: any) => v.version)).toEqual([1, 2, 3]);
-    expect(after.versions[1].overwrittenAt).toBe('2026-10-16T12:01:00.000Z');
-    expect(after.versions[2].overwrittenAt).toBeUndefined();
-  });
+    const r = await request('PUT', '/v1/entries/alp/mine/versions/2', {
+      token: alp,
+      body: { content: preset([[{ type: 'model' }, { type: 'git-branch' }]]), note: 'fixed' },
+    });
+    expect(r.status).toBe(200);
+    expect(fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '1.json')).equals(v1Bytes)).toBe(true);
 
-  it('overwrite is refused when allowOverwrite is false', async () => {
-    const token = await register('alp');
-    await request('POST', '/v1/entries', { token, body: publishBody('mine') });
     await restart({ allowOverwrite: false });
-    const before = fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '1.json'));
-    const r = await request('PUT', '/v1/entries/alp/mine/versions/1', {
-      token,
+    const v2Bytes = fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '2.json'));
+    const off = await request('PUT', '/v1/entries/alp/mine/versions/2', {
+      token: alp,
       body: { content: preset([[{ type: 'cwd' }]]), note: '' },
     });
-    expect(r.status).toBe(403);
-    expect(r.json()).toEqual({ error: { code: 'overwrite-disabled', message: expect.any(String) } });
-    expect(fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '1.json')).equals(before)).toBe(true);
+    expect(off.status).toBe(403);
+    expect(fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '2.json')).equals(v2Bytes)).toBe(true);
   });
 
-  it('withdraw tombstones the entry and versions answer 410', async () => {
+  it('withdraw deletes version files, keeps no personal data on disk and survives a restart', async () => {
     const alp = await register('alp');
-    const bob = await register('bob');
     await withTwo(alp);
-    const other = await request('DELETE', '/v1/entries/alp/mine', { token: bob });
-    expect(other.status).toBe(403);
-    expect(other.json().error.code).toBe('forbidden');
-    expect((await request('DELETE', '/v1/entries/alp/mine')).status).toBe(401);
-    expect((await request('DELETE', '/v1/entries/alp/nope', { token: alp })).status).toBe(404);
-    expect((await request('DELETE', '/v1/entries/ALP/mine', { token: alp })).status).toBe(400);
-
-    clock += 60_000;
-    const r = await request('DELETE', '/v1/entries/alp/mine', { token: alp });
-    expect(r.status).toBe(200);
-    expect(r.json()).toEqual({ id: 'alp/mine', withdrawn: true });
-    const index = parseIndex((await request('GET', '/v1/index.json')).json())!;
-    expect(index.entries).toEqual([]);
-    const entry = (await request('GET', '/v1/entries/alp/mine.json')).json();
-    expect(entry).toMatchObject({ withdrawn: true, withdrawnAt: '2026-10-16T12:01:00.000Z' });
-    expect(entry.versions.map((v: any) => v.version)).toEqual([1, 2]);
-    // WR-08: no name, description, author or notes stay public
-    expect(entry).toMatchObject({ name: '', description: '', author: '', publisher: 'alp', kind: 'preset' });
-    expect(entry.versions.map((v: any) => v.note)).toEqual(['', '']);
+    expect((await request('DELETE', '/v1/entries/alp/mine', { token: alp })).status).toBe(200);
     const raw = fs.readFileSync(file('v1', 'entries', 'alp', 'mine.json'), 'utf8');
     const indexRaw = fs.readFileSync(file('v1', 'index.json'), 'utf8');
     for (const text of [raw, indexRaw]) expect(text).not.toMatch(/Name mine|"desc"|"Alp"|"first"|"two"/);
-    for (const n of [1, 2, 3]) {
-      const g = await request('GET', `/v1/entries/alp/mine/${n}.json`);
-      expect(g.status, String(n)).toBe(410);
-      expect(g.json().error.code).toBe('withdrawn');
-    }
     expect(fs.existsSync(file('v1', 'entries', 'alp', 'mine', '1.json'))).toBe(false);
     expect(fs.existsSync(file('v1', 'entries', 'alp', 'mine', '2.json'))).toBe(false);
 
-    const again = await request('POST', '/v1/entries', { token: alp, body: publishBody('mine') });
-    expect(again.status).toBe(409);
-    expect(again.json().error.code).toBe('conflict');
-    const v = await request('POST', '/v1/entries/alp/mine/versions', {
-      token: alp,
-      headers: { 'if-match': '"2"' },
-      body: { content: preset(), note: '' },
-    });
-    expect(v.status).toBe(410);
-    const put = await request('PUT', '/v1/entries/alp/mine/versions/2', {
-      token: alp,
-      body: { content: preset(), note: '' },
-    });
-    expect(put.status).toBe(410);
-    expect((await request('POST', '/v1/publishers', { body: { handle: 'alp' } })).status).toBe(409);
-
-    // repeat withdraw is idempotent and survives a restart
     expect((await request('DELETE', '/v1/entries/alp/mine', { token: alp })).status).toBe(200);
     await restart();
     const idx = parseIndex((await request('GET', '/v1/index.json')).json())!;
     expect(idx.entries).toEqual([]);
     expect((await request('GET', '/v1/entries/alp/mine.json')).json().withdrawn).toBe(true);
     expect((await request('GET', '/v1/entries/alp/mine/1.json')).status).toBe(410);
+    expect((await request('POST', '/v1/entries', { token: alp, body: publishBody('mine') })).status).toBe(
+      409,
+    );
   });
 
   it('blanks an older tombstone that still has personal data at start (WR-08)', async () => {
@@ -260,7 +163,7 @@ describe('reference market server', () => {
     expect(fs.readFileSync(file('v1', 'index.json'), 'utf8')).not.toMatch(/Alperen|Mine/);
   });
 
-  it('413 over 1 MiB with connection close, 415 without JSON', async () => {
+  it('413 over 1 MiB closes the connection', async () => {
     const token = await register('alp');
     const head = '{"pad":"';
     const big = `${head}${'x'.repeat(MARKET_LIMITS.maxBodyBytes + 1 - head.length - 2)}"}`;
@@ -269,26 +172,6 @@ describe('reference market server', () => {
     expect(r.status).toBe(413);
     expect(r.headers.connection).toBe('close');
     expect(r.json().error.code).toBe('too-large');
-
-    const exact = `${head}${'x'.repeat(MARKET_LIMITS.maxBodyBytes - head.length - 2)}"}`;
-    const ok = await request('POST', '/v1/entries', { token, body: exact });
-    expect(ok.status).toBe(400);
-
-    for (const type of ['text/plain', 'application/jsonx', 'application/x-www-form-urlencoded', '']) {
-      const t = await request('POST', '/v1/entries', {
-        token,
-        body: publishBody('mine'),
-        headers: { 'content-type': type },
-      });
-      expect(t.status, type).toBe(415);
-      expect(t.json().error.code).toBe('unsupported-media');
-    }
-    const put = await request('PUT', '/v1/entries/alp/mine/versions/1', {
-      token,
-      body: { content: preset(), note: '' },
-      headers: { 'content-type': 'text/plain' },
-    });
-    expect(put.status).toBe(415);
     const charset = await request('POST', '/v1/entries', {
       token,
       body: publishBody('mine'),
@@ -298,75 +181,38 @@ describe('reference market server', () => {
     expect(fs.existsSync(file('v1', 'entries', 'alp', 'mine', '1.json'))).toBe(true);
   });
 
-  it('429 with retry-after past the write limit, then a new window', async () => {
-    await restart({ rateLimit: { perMinute: 3, readsPerMinute: 5 } });
-    for (const h of ['a', 'b', 'c']) {
-      expect((await request('POST', '/v1/publishers', { body: { handle: h } })).status).toBe(201);
-    }
-    const over = await request('POST', '/v1/publishers', { body: { handle: 'd' } });
-    expect(over.status).toBe(429);
-    expect(over.headers['retry-after']).toBe('60');
-    expect(over.json().error.code).toBe('rate-limited');
-    expect(fs.existsSync(file('private', 'publishers', 'd.json'))).toBe(false);
-    clock += 30_000;
-    const still = await request('DELETE', '/v1/entries/a/x');
-    expect(still.status).toBe(429);
-    expect(still.headers['retry-after']).toBe('30');
-
-    // reads have their own budget
-    for (let i = 0; i < 5; i++) expect((await request('GET', '/v1/meta.json')).status).toBe(200);
-    const reads = await request('GET', '/v1/meta.json');
-    expect(reads.status).toBe(429);
-    expect(reads.headers['retry-after']).toBe('30');
-
-    clock += 30_000;
-    expect((await request('POST', '/v1/publishers', { body: { handle: 'd' } })).status).toBe(201);
-    expect((await request('GET', '/v1/meta.json')).status).toBe(200);
-  });
-
-  it('registration has its own stricter per-IP bucket', async () => {
-    for (const h of ['a', 'b', 'c', 'd', 'e']) {
-      expect((await request('POST', '/v1/publishers', { body: { handle: h } })).status).toBe(201);
-    }
-    const over = await request('POST', '/v1/publishers', { body: { handle: 'f' } });
-    expect(over.status).toBe(429);
-    expect(over.json().error.code).toBe('rate-limited');
-    expect(over.headers['retry-after']).toBe('60');
-    expect(fs.existsSync(file('private', 'publishers', 'f.json'))).toBe(false);
-    const bad = await request('POST', '/v1/publishers', { body: { handle: 'BAD' } });
-    expect(bad.status).toBe(429);
-    // other writes and reads still pass
-    expect((await request('GET', '/v1/meta.json')).status).toBe(200);
-    const login = await request('POST', '/v1/entries', { body: publishBody('x') });
-    expect(login.status).toBe(401);
-    clock += 60_000;
-    expect((await request('POST', '/v1/publishers', { body: { handle: 'f' } })).status).toBe(201);
-  });
-
-  it('caps publishers, entries and entries per publisher', async () => {
+  it('refused writes leave no files behind', async () => {
     await restart({ caps: { publishers: 2, entries: 3, entriesPerPublisher: 2 } });
     const a = await register('alp');
     const b = await register('bob');
-    const third = await request('POST', '/v1/publishers', { body: { handle: 'cem' } });
-    expect(third.status).toBe(413);
-    expect(third.json()).toEqual({ error: { code: 'over-quota', message: 'too many publishers' } });
+    expect((await request('POST', '/v1/publishers', { body: { handle: 'cem' } })).status).toBe(413);
     expect(fs.existsSync(file('private', 'publishers', 'cem.json'))).toBe(false);
-
-    for (const s of ['one', 'two']) {
-      expect((await request('POST', '/v1/entries', { token: a, body: publishBody(s) })).status).toBe(201);
-    }
-    const mine = await request('POST', '/v1/entries', { token: a, body: publishBody('three') });
-    expect(mine.status).toBe(413);
-    expect(mine.json().error.message).toBe('too many entries for this publisher');
-    expect((await request('POST', '/v1/entries', { token: b, body: publishBody('one') })).status).toBe(201);
-    const full = await request('POST', '/v1/entries', { token: b, body: publishBody('two') });
-    expect(full.status).toBe(413);
-    expect(full.json().error.message).toBe('too many entries');
+    const bad = preset([[{ type: 'command', options: { command: 'echo hi' } }]]);
+    expect((await request('POST', '/v1/entries', { token: a, body: publishBody('bad', bad) })).status).toBe(
+      400,
+    );
+    expect(fs.existsSync(file('v1', 'entries', 'alp', 'bad.json'))).toBe(false);
+    expect(fs.existsSync(file('v1', 'entries', 'alp', 'bad'))).toBe(false);
+    for (const s of ['one', 'two']) await request('POST', '/v1/entries', { token: a, body: publishBody(s) });
+    await request('POST', '/v1/entries', { token: b, body: publishBody('one') });
+    expect((await request('POST', '/v1/entries', { token: b, body: publishBody('two') })).status).toBe(413);
     expect(fs.existsSync(file('v1', 'entries', 'bob', 'two.json'))).toBe(false);
 
-    // IN-09: tombstones do not count, also after a restart, but their slug stays reserved
+    await restart({ rateLimit: { perMinute: 3 } });
+    for (const h of ['c', 'd', 'e']) await request('POST', '/v1/publishers', { body: { handle: h } });
+    expect((await request('POST', '/v1/publishers', { body: { handle: 'f' } })).status).toBe(429);
+    expect(fs.existsSync(file('private', 'publishers', 'f.json'))).toBe(false);
+  });
+
+  it('caps ignore tombstones and keep their slugs after a restart (IN-09)', async () => {
+    const caps = { publishers: 2, entries: 3, entriesPerPublisher: 2 };
+    await restart({ caps });
+    const a = await register('alp');
+    const b = await register('bob');
+    for (const s of ['one', 'two']) await request('POST', '/v1/entries', { token: a, body: publishBody(s) });
+    await request('POST', '/v1/entries', { token: b, body: publishBody('one') });
     expect((await request('DELETE', '/v1/entries/alp/one', { token: a })).status).toBe(200);
-    await restart({ caps: { publishers: 2, entries: 3, entriesPerPublisher: 2 } });
+    await restart({ caps });
     expect((await request('POST', '/v1/entries', { token: a, body: publishBody('one') })).status).toBe(409);
     expect((await request('POST', '/v1/entries', { token: a, body: publishBody('four') })).status).toBe(201);
     const again = await request('POST', '/v1/entries', { token: b, body: publishBody('two') });
@@ -374,7 +220,7 @@ describe('reference market server', () => {
     expect((await request('POST', '/v1/publishers', { body: { handle: 'cem' } })).status).toBe(413);
   });
 
-  it('a publish and withdraw loop stops at the tombstone caps, also after a restart', async () => {
+  it('tombstone caps hold after a restart', async () => {
     const caps = { entriesPerPublisher: 2, tombstonesPerPublisher: 3, tombstones: 5 };
     await restart({ caps, rateLimit: { perMinute: 1000 } });
     const a = await register('alp');
@@ -387,20 +233,14 @@ describe('reference market server', () => {
       }
       return null;
     };
-    const stopped = (await loop(a, 'alp', 10))!;
-    expect(stopped.status).toBe(413);
-    expect(stopped.json()).toEqual({
-      error: { code: 'over-quota', message: 'too many withdrawn entries for this publisher' },
-    });
+    expect((await loop(a, 'alp', 10))!.status).toBe(413);
     const tombs = () => fs.readdirSync(file('v1', 'entries', 'alp')).filter((f) => f.endsWith('.json'));
     expect(tombs()).toHaveLength(3);
     await restart({ caps, rateLimit: { perMinute: 1000 } });
     expect((await request('POST', '/v1/entries', { token: a, body: publishBody('y') })).status).toBe(413);
-    // withdraw always works: a live entry may still be withdrawn at the cap
     const g = (await loop(b, 'bob', 10))!;
     expect(g.json().error.message).toBe('too many withdrawn entries');
     expect(fs.readdirSync(file('v1', 'entries', 'bob')).filter((f) => f.endsWith('.json'))).toHaveLength(2);
-    expect((await request('GET', '/v1/index.json')).json().entries).toEqual([]);
   });
 
   it('a write updates the index without reading other entry files', async () => {
@@ -448,16 +288,18 @@ describe('reference market server', () => {
     );
   });
 
-  it('sorts the index by publisher, then slug', async () => {
+  it('keeps the index order after a restart', async () => {
     const x = await register('a-b');
     const y = await register('a');
     await request('POST', '/v1/entries', { token: x, body: publishBody('z') });
     await request('POST', '/v1/entries', { token: y, body: publishBody('z') });
     await request('POST', '/v1/entries', { token: y, body: publishBody('y') });
-    const ids = (await request('GET', '/v1/index.json')).json().entries.map((e: any) => e.id);
-    expect(ids).toEqual(['a/y', 'a/z', 'a-b/z']);
     await restart();
-    expect((await request('GET', '/v1/index.json')).json().entries.map((e: any) => e.id)).toEqual(ids);
+    expect((await request('GET', '/v1/index.json')).json().entries.map((e: any) => e.id)).toEqual([
+      'a/y',
+      'a/z',
+      'a-b/z',
+    ]);
   });
 
   it('malformed requests and handler failures never stop the server', async () => {
@@ -514,40 +356,22 @@ describe('reference market server', () => {
     await expect(request('GET', '/v1/meta.json')).rejects.toThrow();
   });
 
-  it('serves meta.json with protocol 1 and write capabilities', async () => {
-    const r = await request('GET', '/v1/meta.json');
-    expect(r.status).toBe(200);
-    expect(r.json()).toMatchObject({
-      protocol: 1,
+  it('names itself in meta.json and advertises token auth', async () => {
+    expect((await request('GET', '/v1/meta.json')).json()).toMatchObject({
       name: 'ccinfobar reference marketplace',
-      capabilities: { write: true, overwrite: true, withdraw: true, submit: 'api' },
       auth: ['token'],
     });
-    expect(parseMeta(r.json())?.capabilities.write).toBe(true);
-    const empty = await request('GET', '/v1/index.json');
-    expect(empty.status).toBe(200);
-    expect(empty.json().entries).toEqual([]);
-  });
-
-  it('reflects allowOverwrite and name in meta.json', async () => {
-    await server.close();
-    server = await startMarketServer({ dataDir: dir, allowOverwrite: false, name: 'Mine' });
-    port = Number(new URL(server.url).port);
+    await restart({ allowOverwrite: false, name: 'Mine' });
     const meta = (await request('GET', '/v1/meta.json')).json();
     expect(meta.name).toBe('Mine');
     expect(meta.capabilities.overwrite).toBe(false);
   });
 
-  it('register publisher returns a token once and stores only its sha256', async () => {
+  it('register publisher stores only the sha256 of its token', async () => {
     const r = await request('POST', '/v1/publishers', { body: { handle: 'alp', displayName: 'Alp' } });
     expect(r.status).toBe(201);
-    const { handle, token } = r.json();
-    expect(handle).toBe('alp');
-    expect(token).toMatch(/^[0-9a-f]{64}$/);
-    const again = await request('POST', '/v1/publishers', { body: { handle: 'alp', displayName: 'Other' } });
-    expect(again.status).toBe(409);
-    expect(again.json()).toEqual({ error: { code: 'conflict', message: expect.any(String) } });
-    expect(again.body).not.toContain(token);
+    const { token } = r.json();
+    await request('POST', '/v1/publishers', { body: { handle: 'alp', displayName: 'Other' } });
     const rec = fs.readFileSync(file('private', 'publishers', 'alp.json'), 'utf8');
     expect(rec).not.toContain(token);
     const parsed = JSON.parse(rec);
@@ -556,167 +380,8 @@ describe('reference market server', () => {
     for (const f of walk(dir)) expect(fs.readFileSync(f, 'utf8')).not.toContain(token);
   });
 
-  it('rejects bad handles and bodies', async () => {
-    await restart({ rateLimit: { perMinute: 30, registersPerMinute: 20 } });
-    for (const body of [
-      { handle: 'ALP', displayName: 'x' },
-      { handle: '../x', displayName: 'x' },
-      { handle: '-a', displayName: 'x' },
-      { handle: 'a'.repeat(40), displayName: 'x' },
-      { handle: 'ok', displayName: 5 },
-      { displayName: 'x' },
-      [],
-    ]) {
-      const r = await request('POST', '/v1/publishers', { body });
-      expect(r.status, JSON.stringify(body)).toBe(400);
-      expect(r.json().error.code).toBe('invalid');
-    }
-    const bad = await request('POST', '/v1/publishers', { body: '{not json' });
-    expect(bad.status).toBe(400);
-    expect(bad.json().error.code).toBe('invalid');
-  });
-
-  it('publish creates v1 and the index lists it', async () => {
-    const token = await register('alp');
-    const content = preset();
-    const r = await request('POST', '/v1/entries', { token, body: publishBody('mine', content) });
-    expect(r.status).toBe(201);
-    const hash = sha(content);
-    expect(r.json()).toEqual({ id: 'alp/mine', version: 1, hash });
-
-    const index = (await request('GET', '/v1/index.json')).json();
-    expect(parseIndex(index)?.entries).toEqual([
-      {
-        id: 'alp/mine',
-        kind: 'preset',
-        name: 'Name mine',
-        description: 'desc',
-        author: 'Alp',
-        publisher: 'alp',
-        version: 1,
-        updatedAt: '2026-10-16T12:00:00.000Z',
-        hash,
-      },
-    ]);
-    const entry = parseRemoteEntry((await request('GET', '/v1/entries/alp/mine.json')).json());
-    expect(entry?.versions).toEqual([{ version: 1, at: '2026-10-16T12:00:00.000Z', note: 'first', hash }]);
-    const v1 = (await request('GET', '/v1/entries/alp/mine/1.json')).json();
-    expect(v1).toEqual({ version: 1, content, hash });
-    expect(sha(v1.content)).toBe(v1.hash);
-
-    const dup = await request('POST', '/v1/entries', { token, body: publishBody('mine') });
-    expect(dup.status).toBe(409);
-    expect(dup.json().error.code).toBe('conflict');
-  });
-
-  it('a new version needs If-Match and answers 412 when stale', async () => {
-    const token = await register('alp');
-    await request('POST', '/v1/entries', { token, body: publishBody('mine') });
-    const v1Bytes = fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '1.json'));
-    const next = preset([[{ type: 'model' }, { type: 'cwd' }]]);
-    const p = '/v1/entries/alp/mine/versions';
-
-    const missing = await request('POST', p, { token, body: { content: next, note: 'n' } });
-    expect(missing.status).toBe(412);
-    expect(missing.json().error.code).toBe('stale');
-
-    clock += 60_000;
-    const ok = await request('POST', p, {
-      token,
-      headers: { 'if-match': '"1"' },
-      body: { content: next, note: 'second', name: 'Renamed' },
-    });
-    expect(ok.status).toBe(201);
-    expect(ok.json()).toEqual({ id: 'alp/mine', version: 2, hash: sha(next) });
-
-    const stale = await request('POST', p, {
-      token,
-      headers: { 'if-match': '"1"' },
-      body: { content: next, note: 'again' },
-    });
-    expect(stale.status).toBe(412);
-    expect(stale.json().error.code).toBe('stale');
-
-    const entry = parseRemoteEntry((await request('GET', '/v1/entries/alp/mine.json')).json())!;
-    expect(entry.versions.map((v) => v.version)).toEqual([1, 2]);
-    expect(entry).toMatchObject({ version: 2, name: 'Renamed', updatedAt: '2026-10-16T12:01:00.000Z' });
-    expect(entry.versions[1]).toEqual({
-      version: 2,
-      at: '2026-10-16T12:01:00.000Z',
-      note: 'second',
-      hash: sha(next),
-    });
-    expect(fs.readFileSync(file('v1', 'entries', 'alp', 'mine', '1.json')).equals(v1Bytes)).toBe(true);
-    expect((await request('GET', '/v1/entries/alp/mine/2.json')).json().content).toEqual(next);
-    expect((await request('GET', '/v1/entries/alp/mine/3.json')).status).toBe(404);
-    const index = parseIndex((await request('GET', '/v1/index.json')).json())!;
-    expect(index.entries[0]).toMatchObject({ id: 'alp/mine', version: 2, hash: sha(next) });
-  });
-
-  it('only the owner token may write its entries', async () => {
-    const alp = await register('alp');
-    const bob = await register('bob');
-    await request('POST', '/v1/entries', { token: alp, body: publishBody('mine') });
-    const p = '/v1/entries/alp/mine/versions';
-    const body = { content: preset(), note: '' };
-    const headers = { 'if-match': '"1"' };
-
-    const other = await request('POST', p, { token: bob, headers, body });
-    expect(other.status).toBe(403);
-    expect(other.json().error.code).toBe('forbidden');
-    const none = await request('POST', p, { headers, body });
-    expect(none.status).toBe(401);
-    expect(none.json().error.code).toBe('unauthorized');
-    const unknown = await request('POST', p, { token: 'f'.repeat(64), headers, body });
-    expect(unknown.status).toBe(401);
-    const junk = await request('POST', p, { token: '../alp', headers, body });
-    expect(junk.status).toBe(401);
-    const noPublish = await request('POST', '/v1/entries', { body: publishBody('x') });
-    expect(noPublish.status).toBe(401);
-    const missing = await request('POST', '/v1/entries/alp/nope/versions', { token: alp, headers, body });
-    expect(missing.status).toBe(404);
-
-    // bob publishes under his own handle only
-    const own = await request('POST', '/v1/entries', { token: bob, body: publishBody('mine') });
-    expect(own.json().id).toBe('bob/mine');
-    const entry = parseRemoteEntry((await request('GET', '/v1/entries/alp/mine.json')).json())!;
-    expect(entry.versions).toHaveLength(1);
-  });
-
-  it('command/http/env content and personal keys are rejected as data-only', async () => {
-    const token = await register('alp');
-    const cases: [unknown, string][] = [
-      [preset([[{ type: 'command', options: { command: 'echo hi' } }]]), 'command-widget'],
-      [preset([[{ type: 'http', options: { url: 'https://example.com' } }]]), 'http-widget'],
-      [preset([[{ type: 'env', options: { name: 'HOME' } }]]), 'env-widget'],
-      [preset([[{ type: 'link', options: { url: 'file:///etc/passwd' } }]]), 'unsafe-link'],
-      [{ layout: { lines: [[{ type: 'model' }]], budget: { daily: 5 } } }, 'personal-key:budget'],
-      [{ layout: { lines: 'x' } }, 'bad-lines'],
-      [{ appearance: { style: 'plain' } }, 'unknown-key:appearance'],
-    ];
-    for (const [content, code] of cases) {
-      const r = await request('POST', '/v1/entries', { token, body: publishBody('bad', content) });
-      expect(r.status, code).toBe(400);
-      expect(r.json()).toEqual({ error: { code: 'invalid', message: code } });
-    }
-    await request('POST', '/v1/entries', { token, body: publishBody('good') });
-    const v = await request('POST', '/v1/entries/alp/good/versions', {
-      token,
-      headers: { 'if-match': '"1"' },
-      body: { content: preset([[{ type: 'command', options: { command: 'x' } }]]), note: '' },
-    });
-    expect(v.status).toBe(400);
-    expect(v.json().error.message).toBe('command-widget');
-    const theme = await request('POST', '/v1/entries', {
-      token,
-      body: publishBody('th', { appearance: { style: 'powerline' } }, 'theme'),
-    });
-    expect(theme.status).toBe(201);
-    expect(fs.existsSync(file('v1', 'entries', 'alp', 'bad.json'))).toBe(false);
-    expect(fs.existsSync(file('v1', 'entries', 'alp', 'bad'))).toBe(false);
-  });
-
-  it('path segments with traversal are rejected', async () => {
+  // raw paths: fetch would collapse the dot segments before they reach the server
+  it('path segments with traversal never reach files outside v1', async () => {
     const token = await register('alp');
     await request('POST', '/v1/entries', { token, body: publishBody('mine') });
     fs.writeFileSync(path.join(dir, 'x.json'), '{"secret":1}');
@@ -816,48 +481,10 @@ describe('reference market server', () => {
     expect(v.json().version).toBe(2);
   });
 
-  it('answers 404 for unknown routes and methods', async () => {
-    for (const [m, p] of [
-      ['GET', '/'],
-      ['GET', '/v1/entries'],
-      ['DELETE', '/v1/index.json'],
-      ['PUT', '/v1/meta.json'],
-      ['POST', '/v1/index.json'],
-      ['GET', '/v2/meta.json'],
-    ] as const) {
-      const r = await request(m, p, m === 'GET' ? {} : { body: {} });
-      expect(r.status, `${m} ${p}`).toBe(404);
-      expect(r.json().error.code).toBe('not-found');
-    }
-  });
-
-  it('works end to end with the market client', async () => {
-    const anon = createMarketClient({ endpoint: server.url, fetch: globalThis.fetch });
-    expect((await anon.meta()).capabilities.write).toBe(true);
-    const { token } = await anon.register('alp', 'Alp');
-    const client = createMarketClient({ endpoint: server.url, fetch: globalThis.fetch, token });
-    const content = preset([[{ type: 'model' }, { type: 'link', options: { url: 'https://example.com' } }]]);
-    const pub = await client.publish({
-      kind: 'preset',
-      slug: 'mine',
-      name: 'Mine',
-      description: '',
-      author: 'Alp',
-      content,
-      note: '',
-    });
-    expect(pub).toEqual({ id: 'alp/mine', version: 1, hash: sha(content) });
-    const v2 = await client.addVersion('alp/mine', 1, { content: preset(), note: 'two' });
-    expect(v2.version).toBe(2);
-    await expect(client.addVersion('alp/mine', 1, { content: preset(), note: '' })).rejects.toMatchObject({
-      code: 'stale',
-    });
-    const entry = await anon.entry('alp/mine');
-    expect(entry.versions.map((v) => v.version)).toEqual([1, 2]);
-    const got = await anon.version('alp/mine', 1, 'preset', pub.hash);
-    expect(got.hash).toBe(pub.hash);
-    expect(got.targets.length).toBe(1);
-    expect((await anon.index()).entries.map((e) => e.id)).toEqual(['alp/mine']);
+  it('has no root page', async () => {
+    const r = await request('GET', '/');
+    expect(r.status).toBe(404);
+    expect(r.json().error.code).toBe('not-found');
   });
 });
 
