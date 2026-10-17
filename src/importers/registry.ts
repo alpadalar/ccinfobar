@@ -44,7 +44,7 @@ export interface ImporterDef extends ImporterInfo {
   // the tool's own command token; its flags are read only after it
   tool?: (token: string) => boolean;
   // file header check for commands that do not name the tool
-  sniff?: { file(ctx: ImportCtx): string | null; marker: RegExp };
+  sniff?: { file(ctx: ImportCtx): string | null; marker: RegExp; bytes?: number };
   hasDefault: boolean;
   discover(ctx: ImportCtx): string | null;
   load(file: string | null, ctx: ImportCtx): ImportResult;

@@ -30,7 +30,7 @@ ccinfobar's importers come from a review of 41 Claude Code status line projects.
 | 7 | [huangguang1999/ccstatusline-zh](https://github.com/huangguang1999/ccstatusline-zh) | JSON, the same file as ccstatusline | alias | low | `ccinfobar import ccstatusline-zh` (alias of `ccstatusline`) |
 | 8 | [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar) | none (macOS menu bar app and hook) | not importable | n/a | Not a status line: it lives in the macOS menu bar |
 | 9 | [chongdashu/cc-statusline](https://github.com/chongdashu/cc-statusline) | generated script `~/.claude/statusline.sh` with a `# Theme: … \| Features: …` header | supported | medium | `ccinfobar import cc-statusline` |
-| 10 | [daniel3303/ClaudeCodeStatusLine](https://github.com/daniel3303/ClaudeCodeStatusLine) | none (one update-check env var) | not importable | n/a | No layout config; install recognises it by name |
+| 10 | [daniel3303/ClaudeCodeStatusLine](https://github.com/daniel3303/ClaudeCodeStatusLine) | none (one update-check env var) | not importable | n/a | No layout config; install recognises it by name or by its script |
 | 11 | [Nanako0129/coralline](https://github.com/Nanako0129/coralline) | shell assignments, `~/.claude/coralline.conf` (`$CORALLINE_CONFIG`) | supported | medium | `ccinfobar import coralline` |
 | 12 | [stormzhang/token-tracker](https://github.com/stormzhang/token-tracker) | JSON, `~/.config/token-tracker/config.json` (theme only) | supported | low | `ccinfobar import token-tracker` |
 | 13 | [rz1989s/claude-code-statusline](https://github.com/rz1989s/claude-code-statusline) | TOML, `~/.claude/statusline/Config.toml` | supported | medium | `ccinfobar import claude-code-statusline` (alias `rz1989s`) |
@@ -71,9 +71,9 @@ Totals: 5 supported before this review, 3 aliases, 15 new importers, 18 not impo
 
 1. The importers added in this review, by their documented commands and install paths (so `best-claude-hud` and `claude-ultimate-hud` are never read as claude-hud).
 2. ccstatusline (and ccstatusline-zh), claude-powerline, CCometixLine, cship and claude-hud.
-3. Reviewed tools with nothing to import, by name: arcade-statusline, awesome-statusline (AwesomeZun/CC-statusline), yet-another-statusline and ClaudeCodeStatusLine (its PowerShell form). Install says it found them and imports nothing.
+3. Reviewed tools with nothing to import, by name: arcade-statusline, awesome-statusline (AwesomeZun/CC-statusline), yet-another-statusline and ClaudeCodeStatusLine (its PowerShell form; its `statusline.sh` is found in step 5). Install says it found them and imports nothing.
 4. ccusage and the GSD status line.
-5. For any other command, the first 512 bytes of the named script are read (never run) to find the cc-statusline header.
+5. For any other command, the start of the `statusline.sh` it names is read (never run): the cc-statusline header in the first 512 bytes, the `~/.claude/statusline/Config.toml` path of claude-code-statusline (rz1989s) in the first 8 KiB, or the `# Source:` line of ClaudeCodeStatusLine. Both rz1989s and ClaudeCodeStatusLine install `~/.claude/statusline/statusline.sh`, so that path alone is not enough; a script that matches none of them is a custom status line.
 
 Some tools install with a command that does not name them, for example `node ${CLAUDE_PLUGIN_ROOT}/statusline.js` (NYCU-Chung/cc-statusline) or a binary called `statusline` outside `~/.claude` (glauberlima). Install then offers no import, but `ccinfobar import <id>` still works.
 
@@ -160,6 +160,7 @@ Some tools install with a command that does not name them, for example `node ${C
 `ccinfobar import claude-code-statusline` (alias `rz1989s`)
 
 - File: `~/.claude/statusline/Config.toml`.
+- Install: `~/.claude/statusline/statusline.sh` is offered for import only when the script itself names `~/.claude/statusline/Config.toml`, since daniel3303/ClaudeCodeStatusLine installs the same path.
 - Maps: `display.lines` and each `display.lineN.components` as one line: repo and git, model, version, time, the cost components, burn rate, cache efficiency, code productivity, context, usage limits and resets, session info and mode, tokens, vim mode, agent and MCP status. Themes: classic and catppuccin exact; garden, ocean and custom approximated.
 - Approximated: per-line separators (the most common one is used), weekly and monthly cost periods, block projection, Bedrock model, GitHub and MCP components.
 - Dropped: commits, submodules, context alerts, block token usage, prayer times, the Hijri calendar, location, wellness and plugin components. Other sections are named with a key count; plugin API keys are never copied.

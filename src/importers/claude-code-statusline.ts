@@ -3,6 +3,7 @@ import path from 'node:path';
 import { t } from '../core/i18n/index.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionValue, WidgetItem } from '../core/types.js';
+import { commandScript } from './cc-statusline.js';
 import type { ImportNote, ImportResult } from './index.js';
 import { readToml, tableOf } from './io.js';
 import type { ImporterDef } from './registry.js';
@@ -227,8 +228,12 @@ export const claudeCodeStatuslineImporter: ImporterDef = {
   aliases: ['rz1989s'],
   shown: '~/.claude/statusline/Config.toml',
   hasDefault: false,
-  // install.sh writes `bash ~/.claude/statusline/statusline.sh`; the brew binary name is shared
-  detect: [/\.claude[\\/]statusline[\\/]statusline\.sh/i],
+  // daniel3303/ClaudeCodeStatusLine installs the same path, so the script is read
+  sniff: {
+    file: commandScript,
+    marker: /\.claude\/statusline\/Config\.toml|STATUSLINE_CORE_LOADED/,
+    bytes: 8192,
+  },
   discover: (ctx) => path.join(ctx.home, '.claude', 'statusline', 'Config.toml'),
   load: (file, ctx) => {
     const f = file ?? path.join(ctx.home, '.claude', 'statusline', 'Config.toml');

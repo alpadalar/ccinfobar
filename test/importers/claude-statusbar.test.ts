@@ -370,7 +370,7 @@ describe('claude-statusbar importer', () => {
       ['~/.claude/byebyecode/byebyecode', 'byebyecode'],
       ['claudebar render', 'claudebar'],
       ['npx claude-code-statusline-pro@latest', 'statusline-pro'],
-      ['bash ~/.claude/statusline/statusline.sh', 'claude-code-statusline'],
+      ['bash ~/.claude/statusline/statusline.sh', 'unknown'],
       ['~/.claude/starship-claude/starship-claude', 'starship-claude'],
       ['python3 ~/.claude/pyccsl.py model', 'pyccsl'],
       ['bash ~/.claude/coralline/statusline.sh', 'coralline'],

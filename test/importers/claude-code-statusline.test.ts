@@ -6,7 +6,7 @@ import { parseArgs } from '../../src/cli/args.js';
 import type { PromptIo } from '../../src/commands/io.js';
 import { runImport, runImportCommand } from '../../src/commands/manage.js';
 import { importClaudeCodeStatusline, TARGETS } from '../../src/importers/claude-code-statusline.js';
-import { detectTool, importFrom, resolveSource } from '../../src/importers/index.js';
+import { detectTool, importFrom, resolveSource, sniffTool } from '../../src/importers/index.js';
 import { parseToml } from '../../src/importers/toml.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
 import { withLang } from '../helpers.js';
@@ -277,19 +277,36 @@ describe('claude-code-statusline discovery', () => {
     );
   });
 
-  it('is detected from its install path and resolved by its alias', () => {
+  it('is found by its script contents and resolved by its alias', () => {
     for (const name of ['claude-code-statusline', 'rz1989s', 'RZ1989S']) {
       expect(resolveSource(name), name).toBe('claude-code-statusline');
     }
-    for (const command of [
+    const script = path.join(home, '.claude', 'statusline', 'statusline.sh');
+    const commands = [
       'bash ~/.claude/statusline/statusline.sh',
       'bash "$HOME/.claude/statusline/statusline.sh"',
-      'bash C:\\Users\\me\\.claude\\statusline\\statusline.sh',
-    ]) {
-      expect(detectTool(command), command).toMatchObject({
+      '~/.claude/statusline/statusline.sh',
+    ];
+    // daniel3303/ClaudeCodeStatusLine installs the same path
+    for (const command of commands) expect(detectTool(command)!.tool, command).toBe('unknown');
+    for (const command of commands) expect(sniffTool(command, { env, cwd: dir }), command).toBeNull();
+    write(
+      script,
+      `#!/usr/bin/env bash\n${'# filler\n'.repeat(300)}CONFIG_PATH="$HOME/.claude/statusline/Config.toml"\n`,
+    );
+    for (const command of commands) {
+      expect(sniffTool(command, { env, cwd: dir }), command).toMatchObject({
         tool: 'claude-code-statusline',
         name: 'claude-code-statusline (rz1989s)',
         importable: true,
+      });
+    }
+    write(script, '#!/bin/bash\n# Source: https://github.com/daniel3303/ClaudeCodeStatusLine\necho hi\n');
+    for (const command of commands) {
+      expect(sniffTool(command, { env, cwd: dir }), command).toMatchObject({
+        tool: 'other',
+        name: 'ClaudeCodeStatusLine',
+        importable: false,
       });
     }
     for (const command of [

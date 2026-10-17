@@ -8,6 +8,7 @@ import { claudeDir, claudeSettingsPath, tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config } from '../core/types.js';
 import { commandArgs, flagValue, isBin, toolArgs } from './args.js';
+import { commandScript } from './cc-statusline.js';
 import { CCOMETIXLINE, importCclineFamily } from './ccline-load.js';
 import { isCcline } from './ccometixline.js';
 import { importCcstatusline } from './ccstatusline.js';
@@ -157,15 +158,20 @@ export function detectTool(
 
 const SNIFF_BYTES = 512;
 
-function readHead(file: string): string | null {
+// reviewed scripts with nothing to import, by their contents
+const OTHER_SNIFF: readonly { marker: RegExp; name: string }[] = [
+  { marker: /daniel3303\/ClaudeCodeStatusLine/, name: 'ClaudeCodeStatusLine' },
+];
+
+function readHead(file: string, bytes = SNIFF_BYTES): string | null {
   let fd: number | null = null;
   try {
     // no symlink and no blocking open where the platform has the flags
     const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0);
     fd = fs.openSync(file, flags);
     if (!fs.fstatSync(fd).isFile()) return null;
-    const buf = Buffer.alloc(SNIFF_BYTES);
-    const n = fs.readSync(fd, buf, 0, SNIFF_BYTES, 0);
+    const buf = Buffer.alloc(bytes);
+    const n = fs.readSync(fd, buf, 0, bytes, 0);
     return buf.subarray(0, n).toString('utf8');
   } catch {
     return null;
@@ -189,12 +195,15 @@ export function sniffTool(
       continue;
     }
     if (!file || !isPlainFile(file)) continue;
-    const head = readHead(file);
+    const head = readHead(file, def.sniff.bytes);
     if (head !== null && def.sniff.marker.test(head)) {
       return { tool: def.source, name: def.name, importable: true, command };
     }
   }
-  return null;
+  const script = commandScript(ctx);
+  const head = script && isPlainFile(script) ? readHead(script) : null;
+  const other = head === null ? undefined : OTHER_SNIFF.find((o) => o.marker.test(head));
+  return other ? { tool: 'other', name: other.name, importable: false, command } : null;
 }
 
 const isCcstatusline = isBin('ccstatusline', 'ccstatusline-zh');

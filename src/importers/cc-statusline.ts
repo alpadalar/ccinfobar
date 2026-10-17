@@ -139,7 +139,7 @@ export function importCcStatusline(header: CcStatuslineHeader): ImportResult {
 }
 
 // the script named by the status line command
-function commandScript(ctx: ImportCtx): string | null {
+export function commandScript(ctx: ImportCtx): string | null {
   const token = ctx.args.find((a) => /statusline\.sh$/i.test(a));
   if (!token) return null;
   const home = /^(?:~|\$HOME|\$\{HOME\})(?=$|[\\/])/;
