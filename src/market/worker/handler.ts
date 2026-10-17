@@ -1,8 +1,11 @@
 import {
+  authGithubPath,
   entriesPath,
   indexPath,
+  logoutPath,
   MARKET_LIMITS,
   MAX_PAGES,
+  mePath,
   metaPath,
   PROTOCOL_VERSION,
   publishersPath,
@@ -22,6 +25,7 @@ import {
   WITHDRAW_RE,
   windowOf,
 } from '../rules.js';
+import { logout, me, signInWithGitHub } from './auth.js';
 import { type D1Database, type Env, intVar, overwriteOn, publisherBytes, type WorkerDeps } from './env.js';
 import { errorResponse, etagMatches, json, notModified, PUBLIC_HEADERS, publicJson } from './http.js';
 import { landingPage } from './page.js';
@@ -119,12 +123,16 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
       if (!(await readAllowed(env, req, t))) throw limited(retryAfterSeconds(windowOf(t), t));
       if (p === '/') return landingPage(name);
       if (p === metaPath()) return json(200, meta, PUBLIC_HEADERS);
+      if (p === mePath()) return me(env, req);
       return read(env.DB, p, req.headers.get('if-none-match'));
     }
     // ids before the body, like the reference
     if (req.method === 'POST') {
       // publishers sign in with GitHub (D-07)
       if (p === publishersPath()) throw fail(403, 'forbidden', SIGN_IN_ONLY);
+      // its own per-address bucket
+      if (p === authGithubPath()) return signInWithGitHub(env, deps, req);
+      if (p === logoutPath()) return logout(env, req);
       if (p === entriesPath()) {
         await counted(req);
         return publish(env.DB, env, deps, req);

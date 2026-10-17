@@ -55,12 +55,8 @@ export function errorResponse(err: unknown): Response {
   return json(e.status, { error: { code: e.code, message: e.message } }, extra);
 }
 
-// type before size, like the reference server
-export async function readJsonBody(req: Request, cap: number): Promise<unknown> {
-  if (!isJsonType(req.headers.get('content-type') ?? undefined)) throw fail(415, 'unsupported-media');
-  if (Number(req.headers.get('content-length')) > cap) throw fail(413, 'too-large');
-  const body = req.body;
-  if (!body) return {};
+// null once the stream passes cap
+async function readCapped(body: ReadableStream<Uint8Array>, cap: number): Promise<Uint8Array | null> {
   const reader = body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
@@ -70,21 +66,47 @@ export async function readJsonBody(req: Request, cap: number): Promise<unknown> 
     size += value.byteLength;
     if (size > cap) {
       await reader.cancel().catch(() => {});
-      throw fail(413, 'too-large');
+      return null;
     }
     chunks.push(value);
   }
-  if (!size) return {};
   const all = new Uint8Array(size);
   let at = 0;
   for (const c of chunks) {
     all.set(c, at);
     at += c.byteLength;
   }
+  return all;
+}
+
+// type before size, like the reference server
+export async function readJsonBody(req: Request, cap: number): Promise<unknown> {
+  if (!isJsonType(req.headers.get('content-type') ?? undefined)) throw fail(415, 'unsupported-media');
+  if (Number(req.headers.get('content-length')) > cap) throw fail(413, 'too-large');
+  const body = req.body;
+  if (!body) return {};
+  const all = await readCapped(body, cap);
+  if (!all) throw fail(413, 'too-large');
+  if (!all.byteLength) return {};
   try {
     // a BOM stays and fails, as in the reference server
     return JSON.parse(new TextDecoder('utf-8', { ignoreBOM: true }).decode(all));
   } catch {
     throw fail(400, 'invalid', 'body is not JSON');
+  }
+}
+
+// an upstream answer; too big or not JSON is 502
+export async function boundedJson(res: Response, cap: number): Promise<unknown> {
+  if (Number(res.headers.get('content-length')) > cap) {
+    await res.body?.cancel().catch(() => {});
+    throw fail(502, 'upstream');
+  }
+  const all = res.body ? await readCapped(res.body, cap) : new Uint8Array(0);
+  if (!all) throw fail(502, 'upstream');
+  try {
+    return JSON.parse(new TextDecoder().decode(all));
+  } catch {
+    throw fail(502, 'upstream');
   }
 }
