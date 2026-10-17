@@ -60,7 +60,7 @@ export interface WorkerDeps {
   now: () => number;
   fetch: typeof fetch;
   // tests only
-  caps?: Partial<typeof CAPS>;
+  caps?: Partial<typeof CAPS & { versions: number }>;
 }
 
 // a positive integer var, else null

@@ -133,3 +133,145 @@ export async function readVersionDoc(
     banned: !!row.banned,
   };
 }
+
+export async function tokenPublisher(
+  db: D1Database,
+  digest: string,
+): Promise<{ handle: string; githubId: number; trusted: boolean; banned: boolean } | null> {
+  const row = await db
+    .prepare(
+      `SELECT p.handle AS handle, p.github_id AS github_id, p.trusted AS trusted,
+         p.banned_at IS NOT NULL AS banned
+       FROM tokens t JOIN publishers p ON p.handle = t.handle WHERE t.sha256 = ?1`,
+    )
+    .bind(digest)
+    .first<{ handle: string; github_id: number; trusted: number; banned: number }>();
+  if (!row) return null;
+  return {
+    handle: String(row.handle),
+    githubId: Number(row.github_id),
+    trusted: !!row.trusted,
+    banned: !!row.banned,
+  };
+}
+
+export interface EntryRow {
+  state: EntryState;
+  version: number;
+  entry: StoredEntry;
+}
+
+export async function readEntryRow(db: D1Database, p: string, s: string): Promise<EntryRow | null> {
+  const row = await db
+    .prepare('SELECT state, version, doc FROM entries WHERE publisher = ?1 AND slug = ?2')
+    .bind(p, s)
+    .first<{ state: EntryState; version: number; doc: string }>();
+  if (!row) return null;
+  return { state: row.state, version: Number(row.version), entry: JSON.parse(row.doc) as StoredEntry };
+}
+
+const LIVE = "state IN ('live', 'pending')";
+
+export async function publishCounts(
+  db: D1Database,
+  handle: string,
+  slug: string,
+): Promise<{ taken: boolean; live: number; mine: number }> {
+  const row = await db
+    .prepare(
+      `SELECT EXISTS (SELECT 1 FROM entries WHERE publisher = ?1 AND slug = ?2) AS taken,
+         (SELECT COUNT(*) FROM entries WHERE ${LIVE}) AS live,
+         (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${LIVE}) AS mine`,
+    )
+    .bind(handle, slug)
+    .first<{ taken: number; live: number; mine: number }>();
+  return { taken: !!row?.taken, live: Number(row?.live ?? 0), mine: Number(row?.mine ?? 0) };
+}
+
+// fails the batch when the statement before it changed nothing
+const GUARD = "SELECT json_extract(CASE WHEN changes() = 0 THEN 'x' ELSE '{}' END, '$') AS ok";
+const MISSED = 'malformed JSON';
+
+const NEXT_GEN = "(SELECT n FROM counters WHERE k = 'gen') + 1";
+
+const addBytes = (db: D1Database, handle: string, bytes: number): D1PreparedStatement =>
+  db.prepare('UPDATE publishers SET bytes = bytes + ?2 WHERE handle = ?1').bind(handle, bytes);
+
+export interface NewEntry {
+  entry: StoredEntry;
+  state: EntryState;
+  body: string;
+  bytes: number;
+  caps: { entries: number; entriesPerPublisher: number };
+}
+
+// caps are checked again inside the insert, so racing publishes cannot pass them
+export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatement[] {
+  const e = n.entry;
+  const [p, s] = [e.publisher, e.id.slice(e.publisher.length + 1)];
+  return [
+    db
+      .prepare(
+        `INSERT INTO entries (publisher, slug, kind, state, version, hash, created_at, updated_at, summary, doc, gen)
+         SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, ?9, ${NEXT_GEN}
+         WHERE (SELECT COUNT(*) FROM entries WHERE ${LIVE}) < ?10
+           AND (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${LIVE}) < ?11`,
+      )
+      .bind(
+        p,
+        s,
+        e.kind,
+        n.state,
+        e.version,
+        e.hash,
+        e.updatedAt,
+        entrySummaryText(e),
+        entryDocText(e),
+        n.caps.entries,
+        n.caps.entriesPerPublisher,
+      ),
+    db.prepare(GUARD),
+    db
+      .prepare('INSERT INTO versions (publisher, slug, version, body) VALUES (?1, ?2, ?3, ?4)')
+      .bind(p, s, e.version, n.body),
+    addBytes(db, p, n.bytes),
+    bumpGen(db),
+  ];
+}
+
+export interface NextVersion {
+  entry: StoredEntry;
+  expected: number;
+  body: string;
+  bytes: number;
+}
+
+// the versions key stops a racing twin, the guarded update a changed entry
+export function versionStatements(db: D1Database, n: NextVersion): D1PreparedStatement[] {
+  const e = n.entry;
+  const [p, s] = [e.publisher, e.id.slice(e.publisher.length + 1)];
+  return [
+    db
+      .prepare('INSERT INTO versions (publisher, slug, version, body) VALUES (?1, ?2, ?3, ?4)')
+      .bind(p, s, e.version, n.body),
+    db
+      .prepare(
+        `UPDATE entries SET version = ?3, hash = ?4, updated_at = ?5, summary = ?6, doc = ?7, gen = ${NEXT_GEN}
+         WHERE publisher = ?1 AND slug = ?2 AND version = ?8 AND ${LIVE}`,
+      )
+      .bind(p, s, e.version, e.hash, e.updatedAt, entrySummaryText(e), entryDocText(e), n.expected),
+    db.prepare(GUARD),
+    addBytes(db, p, n.bytes),
+    bumpGen(db),
+  ];
+}
+
+// which guard stopped a write batch
+export function writeConflict(err: unknown): 'entry' | 'version' | 'guard' | null {
+  let msg = '';
+  for (let e: unknown = err, i = 0; e instanceof Error && i < 3; e = e.cause, i++) msg += ` ${e.message}`;
+  if (msg.includes('UNIQUE constraint failed: entries.')) return 'entry';
+  if (msg.includes('UNIQUE constraint failed: versions.')) return 'version';
+  if (msg.includes(MISSED)) return 'guard';
+  return null;
+}

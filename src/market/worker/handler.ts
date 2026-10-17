@@ -1,9 +1,10 @@
-import { indexPath, MARKET_LIMITS, MAX_PAGES, metaPath, PROTOCOL_VERSION } from '../protocol.js';
-import { ENTRY_RE, fail, PAGE_RE, part, VERSION_FILE_RE, versionNo } from '../rules.js';
+import { entriesPath, indexPath, MARKET_LIMITS, MAX_PAGES, metaPath, PROTOCOL_VERSION } from '../protocol.js';
+import { ENTRY_RE, fail, PAGE_RE, part, VERSION_FILE_RE, VERSIONS_RE, versionNo } from '../rules.js';
 import { type D1Database, type Env, intVar, type WorkerDeps } from './env.js';
 import { errorResponse, etagMatches, json, notModified, PUBLIC_HEADERS, publicJson } from './http.js';
 import { landingPage } from './page.js';
 import { indexEtag, readEntryDoc, readIndexPage, readVersionDoc } from './store.js';
+import { addVersion, publish } from './write.js';
 
 export interface WorkerHandler {
   fetch(req: Request): Promise<Response>;
@@ -70,7 +71,7 @@ async function read(db: D1Database, p: string, inm: string | null): Promise<Resp
   return etagMatches(inm, tag) ? notModified(tag) : publicJson(doc.body, tag);
 }
 
-export function createHandler(env: Env, _deps: WorkerDeps): WorkerHandler {
+export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
   const meta = buildMeta(env);
   const name = env.MARKET_NAME || 'ccinfobar marketplace';
 
@@ -86,6 +87,12 @@ export function createHandler(env: Env, _deps: WorkerDeps): WorkerHandler {
       if (p === '/') return landingPage(name);
       if (p === metaPath()) return json(200, meta, PUBLIC_HEADERS);
       return read(env.DB, p, req.headers.get('if-none-match'));
+    }
+    // ids before the body, like the reference
+    if (req.method === 'POST') {
+      if (p === entriesPath()) return publish(env.DB, env, deps, req);
+      const v = VERSIONS_RE.exec(p);
+      if (v) return addVersion(env.DB, env, deps, req, part(v[1]!), part(v[2]!));
     }
     throw fail(404, 'not-found');
   }
