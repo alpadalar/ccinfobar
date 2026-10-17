@@ -333,7 +333,7 @@ describe('publish review', () => {
     ]);
     const all = texts(top());
     expect(all).toContain('My setup v1, ada/my-setup olarak yayımlandı');
-    expect(all).toContain('Old one: Pazar yerine ulaşılamadı');
+    expect(all).toContain("Old one: Marketplace'e ulaşılamadı");
     expect(button('Yayımla')).toBeUndefined();
     button('Tamam')!.dispatch('click');
     expect(await p).toEqual(next);
@@ -493,7 +493,7 @@ describe('publish review', () => {
     await publish();
     button('Yayımla')!.dispatch('click');
     await flush();
-    expect(texts(top())).toContain('Pazar yerine ulaşılamadı');
+    expect(texts(top())).toContain("Marketplace'e ulaşılamadı");
     expect(button('Yayımla')).toBeDefined();
   });
 
@@ -598,7 +598,7 @@ describe('marketplace tab', () => {
     const { marketplaceSection } = await import('../../src/editor/web/catalog-market.js');
     const el = marketplaceSection(catalog) as unknown as FakeEl;
     await flush();
-    expect(texts(el)).toContain('Pazar yeri okunamadı: Pazar yerine ulaşılamadı');
+    expect(texts(el)).toContain("Marketplace okunamadı: Marketplace'e ulaşılamadı");
   });
 
   it('opens a row as a read-only detail with versions and targets', async () => {

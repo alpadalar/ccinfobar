@@ -473,7 +473,7 @@ describe('save current dialog', () => {
       'Yalnızca hazır ayar',
       'Yalnızca tema',
       'Yazar',
-      'Pazar yerinde paylaş',
+      "Marketplace'te paylaş",
       'Kaydet',
       'İptal',
     ])

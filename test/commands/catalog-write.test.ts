@@ -621,7 +621,7 @@ describe('catalog write text in Turkish', () => {
     const tr = (argv: string[], opts?: RunOpts) => withLangAsync('tr', () => run(argv, opts));
     expect((await tr(['save', 'Görünüm'])).out).toEqual([
       'Görünüm (paket) v1 olarak kaydedildi',
-      'Yayımlanmayı bekliyor. Pazar yeri adresi ayarlanmadığı için hiçbir şey gönderilmedi.',
+      'Yayımlanmayı bekliyor. Marketplace adresi ayarlanmadığı için hiçbir şey gönderilmedi.',
     ]);
     const id = listEntries(cat)[0]!.id;
     expect((await tr(['save', 'Görünüm'])).err[0]).toMatch(/^Görünüm zaten v1 olarak var\. /);
@@ -635,24 +635,24 @@ describe('catalog write text in Turkish', () => {
       'Yazar ayarlanmadı. ccinfobar catalog author <name> ile ayarlayın.',
     ]);
     expect((await tr(['endpoint'])).out).toEqual([
-      'Pazar yeri adresi ayarlanmadı. Hiçbir yere bir şey gönderilmez.',
+      'Marketplace adresi ayarlanmadı. Hiçbir yere bir şey gönderilmez.',
     ]);
     const def = { defaultEndpoint: 'https://m.example.com' };
     expect((await tr(['endpoint'], def)).out).toEqual([
-      'Pazar yeri adresi: https://m.example.com (varsayılan)',
+      'Marketplace adresi: https://m.example.com (varsayılan)',
     ]);
     expect((await tr(['endpoint', '--off'], def)).out).toEqual([
-      'Pazar yeri kapalı. Hiçbir yere bir şey gönderilmez.',
+      'Marketplace kapalı. Hiçbir yere bir şey gönderilmez.',
     ]);
     expect((await tr(['endpoint', '--clear'], def)).out).toEqual([
-      'Pazar yeri adresi varsayılana döndü: https://m.example.com',
+      'Marketplace adresi varsayılana döndü: https://m.example.com',
     ]);
     expect((await tr(['endpoint', '--clear'])).out).toEqual([
-      'Pazar yeri adresi kaldırıldı; yeniden varsayılan geçerli. Hiçbir yere bir şey gönderilmez.',
+      'Marketplace adresi kaldırıldı; yeniden varsayılan geçerli. Hiçbir yere bir şey gönderilmez.',
     ]);
     await tr(['endpoint', 'http://127.0.0.1:9']);
     expect((await tr(['endpoint'], def)).out).toEqual([
-      'Pazar yeri adresi: http://127.0.0.1:9 (sizin ayarınız)',
+      'Marketplace adresi: http://127.0.0.1:9 (sizin ayarınız)',
     ]);
     await tr(['endpoint', '--clear']);
     const apply = await tr(['apply', 'bundle/nord-minimal']);

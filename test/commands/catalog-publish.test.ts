@@ -327,7 +327,7 @@ describe('catalog publish', () => {
     expect(f.calls()).toBe(0);
     const tr = await withLangAsync('tr', () => run(['share', entryOf('Mine').id]));
     expect(tr.err[0]).toBe(
-      'Mine pazar yerinden geri çekildi ve geri çekilen kimlikler ayrılmış kalır. Yeniden yayımlamak için farklı bir adla kaydedin.',
+      "Mine marketplace'ten geri çekildi ve geri çekilen kimlikler ayrılmış kalır. Yeniden yayımlamak için farklı bir adla kaydedin.",
     );
     const copy = await run(['save', 'Mine again', '--kind', 'preset']);
     expect(copy.code).toBeUndefined();
@@ -401,7 +401,7 @@ describe('catalog publish', () => {
     const tr = await withLangAsync('tr', () =>
       run(['list', '--remote'], { env, fetch: fakeFetch([new Response('', { status: 503 })]).fetch }),
     );
-    expect(tr.err).toEqual(['Pazar yeri okunamadı: Pazar yeri HTTP 503 ile yanıt verdi']);
+    expect(tr.err).toEqual(['Marketplace okunamadı: Marketplace HTTP 503 ile yanıt verdi']);
   });
 
   it('publishes even with CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC set', async () => {
@@ -439,8 +439,8 @@ describe('catalog publish', () => {
     await saveMine('Mine', 'theme');
     const tr = await withLangAsync('tr', () => run(['publish', '--yes'], { env: s.env }));
     expect(tr.err).toEqual([
-      'Mine: Pazar yerinde bu adla bir girdi zaten var',
-      'Mine: Pazar yerinde bu adla bir girdi zaten var',
+      "Mine: Marketplace'te bu adla bir girdi zaten var",
+      "Mine: Marketplace'te bu adla bir girdi zaten var",
     ]);
   });
 
@@ -465,7 +465,7 @@ describe('catalog publish', () => {
         fetch: fakeFetch([json({ protocol: 1, name: 'x', capabilities: { write: false } })]).fetch,
       }),
     );
-    expect(tr.err).toEqual(['Yayımlama başarısız oldu: Bu pazar yeri salt okunur ve yükleme kabul etmiyor']);
+    expect(tr.err).toEqual(['Yayımlama başarısız oldu: Bu marketplace salt okunur ve yükleme kabul etmiyor']);
     const down = await run(['publish', '--yes'], {
       env,
       fetch: fakeFetch([new TypeError('fetch failed')]).fetch,
@@ -615,7 +615,7 @@ describe('catalog --remote', () => {
     ]);
     const tr = await withLangAsync('tr', () => run(['show', 'alperen/mine', '--remote'], { env: s.env }));
     expect(tr.out).toContain('Sürümler');
-    expect(tr.out.at(-1)).toBe('Salt okunur: pazar yerinden yükleme henüz kullanılamıyor.');
+    expect(tr.out.at(-1)).toBe("Salt okunur: marketplace'ten yükleme henüz kullanılamıyor.");
     const bad = await run(['show', 'nope', '--remote'], { env: s.env });
     expect(bad.code).toBe(1);
     expect(bad.err).toEqual(['nope is not a marketplace id; use publisher/slug']);
