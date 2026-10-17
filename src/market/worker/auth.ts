@@ -4,6 +4,7 @@ import { CLIENT_ID_RE, LIST_CAP, MARKET_LIMITS } from '../protocol.js';
 import { fail, limited, TOKEN_RE } from '../rules.js';
 import { type Env, unverifiedOk, type WorkerDeps } from './env.js';
 import { boundedJson, json, PRIVATE_HEADERS, readJsonBody } from './http.js';
+import { isAdmin } from './moderation.js';
 import { buckets, check, cleanup, ipHash } from './rate.js';
 import {
   type Account,
@@ -148,12 +149,6 @@ async function accountFor(env: Env, u: GitHubUser, at: string): Promise<Account>
   }
   throw fail(409, 'conflict', 'no free handle');
 }
-
-const isAdmin = (env: Env, id: number): boolean =>
-  (env.ADMIN_GITHUB_IDS ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .includes(String(id));
 
 export async function signInWithGitHub(env: Env, deps: WorkerDeps, req: Request): Promise<Response> {
   const db = env.DB;

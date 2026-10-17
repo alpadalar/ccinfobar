@@ -335,15 +335,16 @@ export function withdrawStatements(
   db: D1Database,
   tomb: StoredEntry,
   expected: number,
+  state: 'withdrawn' | 'removed' = 'withdrawn',
 ): D1PreparedStatement[] {
   const [p, s] = idOf(tomb);
   return [
     db
       .prepare(
-        `UPDATE entries SET state = 'withdrawn', updated_at = ?3, summary = ?4, doc = ?5, gen = ${NEXT_GEN}
+        `UPDATE entries SET state = ?7, updated_at = ?3, summary = ?4, doc = ?5, gen = ${NEXT_GEN}
          WHERE publisher = ?1 AND slug = ?2 AND version = ?6 AND ${LIVE}`,
       )
-      .bind(p, s, tomb.updatedAt, entrySummaryText(tomb), entryDocText(tomb), expected),
+      .bind(p, s, tomb.updatedAt, entrySummaryText(tomb), entryDocText(tomb), expected, state),
     db.prepare(GUARD),
     db
       .prepare(
@@ -530,4 +531,83 @@ export async function myEntries(
     .bind(handle, cap)
     .all<{ slug: string; state: 'pending' | 'live'; version: number }>();
   return rows.results.map((r) => ({ id: `${handle}/${r.slug}`, state: r.state, version: Number(r.version) }));
+}
+
+export interface LogRow {
+  at: string;
+  admin: string;
+  action: string;
+  target: string;
+  note: string;
+}
+
+export const logStatement = (db: D1Database, l: LogRow): D1PreparedStatement =>
+  db
+    .prepare('INSERT INTO moderation (at, admin, action, target, note) VALUES (?1, ?2, ?3, ?4, ?5)')
+    .bind(l.at, l.admin, l.action, l.target, l.note);
+
+const PENDING_LIST = `SELECT summary, created_at FROM entries WHERE state = 'pending'
+  ORDER BY created_at, publisher, slug LIMIT ?1`;
+
+export async function pendingEntries(
+  db: D1Database,
+  cap: number,
+): Promise<{ summary: string; at: string }[]> {
+  const rows = await db.prepare(PENDING_LIST).bind(cap).all<{ summary: string; created_at: string }>();
+  return rows.results.map((r) => ({ summary: String(r.summary), at: String(r.created_at) }));
+}
+
+export interface ReviewRow {
+  state: EntryState;
+  doc: string;
+  body: string | null;
+}
+
+export async function reviewRow(db: D1Database, p: string, s: string): Promise<ReviewRow | null> {
+  const row = await db
+    .prepare(
+      `SELECT e.state AS state, e.doc AS doc, v.body AS body FROM entries e
+       LEFT JOIN versions v ON v.publisher = e.publisher AND v.slug = e.slug AND v.version = e.version
+       WHERE e.publisher = ?1 AND e.slug = ?2`,
+    )
+    .bind(p, s)
+    .first<{ state: EntryState; doc: string; body: string | null }>();
+  return row ? { state: row.state, doc: String(row.doc), body: row.body ?? null } : null;
+}
+
+// the publisher is trusted from now on (D-09)
+export function approveStatements(db: D1Database, p: string, s: string, log: LogRow): D1PreparedStatement[] {
+  return [
+    db
+      .prepare(
+        `UPDATE entries SET state = 'live', gen = ${NEXT_GEN}
+         WHERE publisher = ?1 AND slug = ?2 AND state = 'pending'`,
+      )
+      .bind(p, s),
+    db.prepare(GUARD),
+    db.prepare('UPDATE publishers SET trusted = 1 WHERE handle = ?1').bind(p),
+    logStatement(db, log),
+    bumpGen(db),
+  ];
+}
+
+// only rows that were never public
+export function dropPendingStatements(
+  db: D1Database,
+  p: string,
+  s: string,
+  log: LogRow,
+): D1PreparedStatement[] {
+  return [
+    db.prepare("DELETE FROM entries WHERE publisher = ?1 AND slug = ?2 AND state = 'pending'").bind(p, s),
+    db.prepare(GUARD),
+    db
+      .prepare(
+        `UPDATE publishers SET bytes = MAX(0, bytes - COALESCE((SELECT SUM(${BODY_BYTES}) FROM versions
+           WHERE publisher = ?1 AND slug = ?2), 0)) WHERE handle = ?1`,
+      )
+      .bind(p, s),
+    db.prepare('DELETE FROM versions WHERE publisher = ?1 AND slug = ?2').bind(p, s),
+    logStatement(db, log),
+  ];
 }

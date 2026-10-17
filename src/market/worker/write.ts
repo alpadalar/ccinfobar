@@ -20,6 +20,7 @@ import { json, readJsonBody } from './http.js';
 import { buckets, check } from './rate.js';
 import {
   type Counts,
+  dropPendingStatements,
   type EntryState,
   noteSize,
   overwriteStatements,
@@ -112,8 +113,10 @@ export async function publish(db: D1Database, env: Env, deps: WorkerDeps, req: R
   const body = versionText({ version: 1, content: payload.content, hash });
   const bytes = utf8(body);
   await room(db, env, who.handle, bytes);
+  // a new publisher waits for review (D-09)
+  const state = who.trusted ? 'live' : 'pending';
   try {
-    await noteSize(db, await db.batch(publishStatements(db, { entry, state: 'live', body, bytes, caps })));
+    await noteSize(db, await db.batch(publishStatements(db, { entry, state, body, bytes, caps })));
   } catch (err) {
     const c = writeConflict(err);
     if (c === 'entry') throw fail(409, 'conflict');
@@ -121,6 +124,7 @@ export async function publish(db: D1Database, env: Env, deps: WorkerDeps, req: R
     quota(await publishCounts(db, who.handle, s), caps);
     throw fail(413, 'over-quota', 'too many entries');
   }
+  if (state === 'pending') return json(201, { id, version: 1, hash, pending: true });
   await rebuildIndex(db, at);
   return json(201, { id, version: 1, hash });
 }
@@ -244,6 +248,17 @@ export async function withdraw(
     if (who.handle !== p) throw fail(403, 'forbidden');
     if (gone(row.state)) return done();
     const at = iso(deps);
+    // never public, so nothing to keep
+    if (row.state === 'pending') {
+      const log = { at, admin: who.handle, action: 'withdraw-pending', target: `${p}/${s}`, note: '' };
+      try {
+        await noteSize(db, await db.batch(dropPendingStatements(db, p, s, log)));
+      } catch (err) {
+        if (writeConflict(err) === 'guard') continue;
+        throw err;
+      }
+      return done();
+    }
     try {
       // a withdraw also refreshes the size, so a full database can recover
       await noteSize(db, await db.batch(withdrawStatements(db, tombOf(row.entry, at), row.version)));

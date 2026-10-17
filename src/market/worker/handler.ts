@@ -1,4 +1,5 @@
 import {
+  adminPendingPath,
   authGithubPath,
   entriesPath,
   indexPath,
@@ -28,6 +29,7 @@ import {
 import { logout, me, signInWithGitHub } from './auth.js';
 import { type D1Database, type Env, intVar, overwriteOn, publisherBytes, type WorkerDeps } from './env.js';
 import { errorResponse, etagMatches, json, notModified, PUBLIC_HEADERS, publicJson } from './http.js';
+import { type AdminRoute, adminOf, approve, listPending, reject, review } from './moderation.js';
 import { landingPage } from './page.js';
 import { buckets, check, ipHash, readAllowed } from './rate.js';
 import { indexEtag, readEntryDoc, readIndexPage, readVersionDoc } from './store.js';
@@ -62,6 +64,10 @@ const hidden = (r: { state: string; banned: boolean } | null): boolean =>
   !r || r.state === 'pending' || r.banned;
 
 const gone = (state: string): boolean => state === 'withdrawn' || state === 'removed';
+
+const ADMIN_ENTRY_RE = /^\/v1\/admin\/entries\/([^/]+)\/([^/]+)$/;
+const ADMIN_ACTION_RE = /^\/v1\/admin\/entries\/([^/]+)\/([^/]+)\/([a-z]+)$/;
+const ADMIN_ACTIONS: Record<string, AdminRoute> = { approve, reject };
 
 // one generation tag covers every page, so a match never reads a body
 async function indexPage(db: D1Database, n: number, inm: string | null): Promise<Response> {
@@ -110,6 +116,26 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
     await check(env.DB, `w:${await ipHash(env.DB, req, t)}`, writes, t);
   }
 
+  // the admin check comes before ids and bodies
+  async function adminGet(req: Request, p: string): Promise<Response> {
+    if (p === adminPendingPath()) {
+      await adminOf(env, req);
+      return listPending(env);
+    }
+    const e = ADMIN_ENTRY_RE.exec(p);
+    if (!e) throw fail(404, 'not-found');
+    await adminOf(env, req);
+    return review(env, part(e[1]!), part(e[2]!));
+  }
+
+  async function adminPost(req: Request, p: string): Promise<Response> {
+    const a = ADMIN_ACTION_RE.exec(p);
+    const fn = a && Object.hasOwn(ADMIN_ACTIONS, a[3]!) ? ADMIN_ACTIONS[a[3]!] : undefined;
+    if (!a || !fn) throw fail(404, 'not-found');
+    const who = await adminOf(env, req);
+    return fn(env, deps, req, who, part(a[1]!), part(a[2]!));
+  }
+
   async function route(req: Request): Promise<Response> {
     let url: URL;
     try {
@@ -124,6 +150,7 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
       if (p === '/') return landingPage(name);
       if (p === metaPath()) return json(200, meta, PUBLIC_HEADERS);
       if (p === mePath()) return me(env, req);
+      if (p.startsWith('/v1/admin/')) return adminGet(req, p);
       return read(env.DB, p, req.headers.get('if-none-match'));
     }
     // ids before the body, like the reference
@@ -133,6 +160,7 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
       // its own per-address bucket
       if (p === authGithubPath()) return signInWithGitHub(env, deps, req);
       if (p === logoutPath()) return logout(env, req);
+      if (p.startsWith('/v1/admin/')) return adminPost(req, p);
       if (p === entriesPath()) {
         await counted(req);
         return publish(env.DB, env, deps, req);
