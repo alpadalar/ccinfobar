@@ -8,8 +8,9 @@ import {
   parseRemoteEntry,
   parseRemoteVersion,
 } from '../../src/market/protocol.js';
-import { order, tombOf, toSummary } from '../../src/market/rules.js';
-import type { D1Database } from '../../src/market/worker/env.js';
+import { MESSAGES, order, tombOf, toSummary } from '../../src/market/rules.js';
+import type { D1Database, Env } from '../../src/market/worker/env.js';
+import { createHandler } from '../../src/market/worker/handler.js';
 import {
   EMPTY_INDEX,
   entryDocText,
@@ -27,11 +28,42 @@ import { makeRefTarget } from './ref-target.js';
 import { makeEnv } from './worker-env.js';
 import { ISO, seedEntry, seedPublisher, seedToken, storedEntry } from './worker-seed.js';
 
+const BASE = 'http://w.test';
 const preset = (type = 'model') => ({ layout: { lines: [[{ type }]] } }) as unknown as EntryContent;
 const at = (ms: number) => new Date(START + ms).toISOString();
 
 async function gen(db: D1Database): Promise<number> {
   return Number(await db.prepare("SELECT n FROM counters WHERE k = 'gen'").first<number>('n'));
+}
+
+// counts statements and keeps their SQL
+function counted(db: D1Database): { db: D1Database; sql: string[] } {
+  const sql: string[] = [];
+  return {
+    sql,
+    db: {
+      prepare: (s) => {
+        sql.push(s);
+        return db.prepare(s);
+      },
+      batch: (list) => db.batch(list),
+      exec: (s) => db.exec(s),
+    },
+  };
+}
+
+async function setup() {
+  const { env, clock } = await makeEnv();
+  const c = counted(env.DB);
+  const h = createHandler({ ...env, DB: c.db } as Env, {
+    now: clock.now,
+    fetch: () => Promise.reject(new Error('no fetch')),
+  });
+  const get = (p: string, headers: Record<string, string> = {}) => {
+    c.sql.length = 0;
+    return h.fetch(new Request(BASE + p, { headers }));
+  };
+  return { db: env.DB, sql: c.sql, get };
 }
 
 describe.skipIf(!hasSqlite)('worker store', () => {
@@ -245,6 +277,168 @@ describe.skipIf(!hasSqlite)('worker store', () => {
       expect((await readIndexPage(env.DB, 1))!.body).toBe(await ref('/v1/index.json'));
     } finally {
       await t.close();
+    }
+  });
+});
+
+describe.skipIf(!hasSqlite)('worker public reads', () => {
+  async function seeded() {
+    const s = await setup();
+    await seedPublisher(s.db, { handle: 'alp', githubId: 1, trusted: true });
+    await seedPublisher(s.db, { handle: 'bad', githubId: 2, banned: true });
+    const mine = await seedEntry(s.db, {
+      id: 'alp/mine',
+      versions: [
+        { content: preset(), note: 'first' },
+        { content: preset('cwd'), at: at(60_000) },
+      ],
+    });
+    await seedEntry(s.db, { id: 'alp/wait', state: 'pending', versions: [{ content: preset() }] });
+    await seedEntry(s.db, { id: 'bad/one', versions: [{ content: preset() }] });
+    await seedEntry(s.db, { id: 'alp/gone', state: 'withdrawn', versions: [{ content: preset() }] });
+    return { ...s, mine };
+  }
+
+  const error = async (r: Response) => ((await r.json()) as { error: { code: string } }).error.code;
+
+  it('serves index.json with a generation ETag and answers 304', async () => {
+    const { get, db } = await seeded();
+    const g = await gen(db);
+    const r = await get('/v1/index.json');
+    expect(r.status).toBe(200);
+    expect(r.headers.get('etag')).toBe(`"g${g}"`);
+    expect(r.headers.get('cache-control')).toBe('no-cache');
+    expect(r.headers.get('access-control-allow-origin')).toBe('*');
+    expect(r.headers.get('content-type')).toBe('application/json; charset=utf-8');
+    expect(parseIndex(await r.json())!.entries.map((e) => e.id)).toEqual(['alp/mine']);
+    for (const inm of [`"g${g}"`, `W/"g${g}"`, `"x", "g${g}"`]) {
+      const n = await get('/v1/index.json', { 'if-none-match': inm });
+      expect(n.status, inm).toBe(304);
+      expect(n.headers.get('etag')).toBe(`"g${g}"`);
+      expect(n.headers.get('cache-control')).toBe('no-cache');
+      expect(await n.text()).toBe('');
+    }
+    const stale = await get('/v1/index.json', { 'if-none-match': `"g${g - 1}"` });
+    expect(stale.status).toBe(200);
+    expect(parseIndex(await stale.json())!.entries).toHaveLength(1);
+  });
+
+  it('answers a matching index check with one small row read', async () => {
+    const { get, sql, db } = await seeded();
+    const g = await gen(db);
+    expect((await get('/v1/index.json', { 'if-none-match': `"g${g}"` })).status).toBe(304);
+    expect(sql).toHaveLength(1);
+    expect(sql[0]).not.toMatch(/body/);
+    expect((await get('/v1/index.json', { 'if-none-match': '"g0"' })).status).toBe(200);
+    expect(sql).toHaveLength(2);
+  });
+
+  it('serves later index pages and 404s pages out of range', async () => {
+    const { get, db } = await setup();
+    for (let i = 0; i < 501; i++) {
+      await seedEntry(
+        db,
+        { id: `alp/s${String(i).padStart(3, '0')}`, versions: [{ content: preset() }] },
+        { rebuild: false },
+      );
+    }
+    await rebuildIndex(db, ISO);
+    const two = await get('/v1/index-2.json');
+    expect(two.status).toBe(200);
+    expect(two.headers.get('etag')).toBe('"g501"');
+    expect(parseIndex(await two.json(), 2)!.entries.map((e) => e.id)).toEqual(['alp/s500']);
+    expect((await get('/v1/index-2.json', { 'if-none-match': '"g501"' })).status).toBe(304);
+    for (const p of [
+      '/v1/index-0.json',
+      '/v1/index-1.json',
+      '/v1/index-3.json',
+      '/v1/index-11.json',
+      '/v1/index-99999.json',
+    ]) {
+      const r = await get(p);
+      expect(r.status, p).toBe(404);
+      expect(await error(r)).toBe('not-found');
+    }
+  });
+
+  it('serves entry and version documents with ETags', async () => {
+    const { get, mine } = await seeded();
+    const e = await get('/v1/entries/alp/mine.json');
+    expect(e.status).toBe(200);
+    expect(e.headers.get('etag')).toBe(`"${mine.hash}-1"`);
+    expect(e.headers.get('cache-control')).toBe('no-cache');
+    expect(await e.text()).toBe(JSON.stringify(mine));
+    expect((await get('/v1/entries/alp/mine.json', { 'if-none-match': `"${mine.hash}-1"` })).status).toBe(
+      304,
+    );
+    const v = await get('/v1/entries/alp/mine/1.json');
+    expect(v.status).toBe(200);
+    expect(v.headers.get('etag')).toBe(`"${mine.versions[0]!.hash}"`);
+    expect(parseRemoteVersion(await v.json())!.hash).toBe(mine.versions[0]!.hash);
+    const n = await get('/v1/entries/alp/mine/1.json', { 'if-none-match': `"${mine.versions[0]!.hash}"` });
+    expect(n.status).toBe(304);
+    expect(await n.text()).toBe('');
+    expect((await get('/v1/entries/alp/mine/3.json')).status).toBe(404);
+  });
+
+  it('hides pending and banned entries and 410s withdrawn versions', async () => {
+    const { get } = await seeded();
+    for (const p of [
+      '/v1/entries/alp/wait.json',
+      '/v1/entries/alp/wait/1.json',
+      '/v1/entries/bad/one.json',
+      '/v1/entries/bad/one/1.json',
+      '/v1/entries/alp/nope.json',
+      '/v1/entries/alp/nope/1.json',
+    ]) {
+      const r = await get(p);
+      expect(r.status, p).toBe(404);
+      expect(await error(r)).toBe('not-found');
+      expect(r.headers.get('cache-control')).toBe('no-store');
+    }
+    const tomb = await get('/v1/entries/alp/gone.json');
+    expect(tomb.status).toBe(200);
+    expect(parseRemoteEntry(await tomb.json())).toMatchObject({ withdrawn: true, name: '' });
+    for (const p of ['/v1/entries/alp/gone/1.json', '/v1/entries/alp/gone/7.json']) {
+      const r = await get(p);
+      expect(r.status, p).toBe(410);
+      expect(await r.json()).toEqual({ error: { code: 'withdrawn', message: MESSAGES.withdrawn } });
+    }
+  });
+
+  it('rejects bad ids before any SQL', async () => {
+    const { get, sql } = await seeded();
+    for (const [p, message] of [
+      ['/v1/entries/..%2F/x.json', 'invalid id'],
+      ['/v1/entries/A/b.json', 'invalid id'],
+      ['/v1/entries/alp/%E0.json', 'invalid id'],
+      ['/v1/entries/alp/mine/0.json', 'invalid version'],
+      ['/v1/entries/alp/mine/x.json', 'invalid version'],
+      ['/v1/entries/a%20b/mine/1.json', 'invalid id'],
+    ] as const) {
+      const r = await get(p);
+      expect(r.status, p).toBe(400);
+      expect(await r.json()).toEqual({ error: { code: 'invalid', message } });
+      expect(sql, p).toEqual([]);
+    }
+  });
+
+  it('runs at most two statements per GET', async () => {
+    const { get, sql, mine } = await seeded();
+    for (const [p, inm] of [
+      ['/v1/index.json', null],
+      ['/v1/index.json', '"g1"'],
+      ['/v1/index-2.json', '"g1"'],
+      ['/v1/entries/alp/mine.json', null],
+      ['/v1/entries/alp/mine.json', `"${mine.hash}-1"`],
+      ['/v1/entries/alp/mine/2.json', null],
+      ['/v1/entries/alp/gone/1.json', null],
+      ['/v1/entries/bad/one.json', null],
+    ] as const) {
+      await get(p, inm ? { 'if-none-match': inm } : {});
+      expect(sql.length, p).toBeGreaterThan(0);
+      expect(sql.length, p).toBeLessThanOrEqual(2);
+      for (const s of sql) expect(s).not.toMatch(/alp|mine|gone/);
     }
   });
 });

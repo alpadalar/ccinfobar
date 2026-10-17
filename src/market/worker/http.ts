@@ -11,7 +11,7 @@ export const PRIVATE_HEADERS: Record<string, string> = {
   'x-content-type-options': 'nosniff',
 };
 
-const JSON_TYPE = 'application/json; charset=utf-8';
+export const JSON_TYPE = 'application/json; charset=utf-8';
 
 export function text(
   status: number,
@@ -24,6 +24,22 @@ export function text(
 
 export function json(status: number, body: unknown, extra: Record<string, string> = {}): Response {
   return text(status, JSON.stringify(body), JSON_TYPE, { ...PRIVATE_HEADERS, ...extra });
+}
+
+// stored JSON text, sent as is
+export const publicJson = (body: string, etag: string): Response =>
+  text(200, body, JSON_TYPE, { ...PUBLIC_HEADERS, etag });
+
+export const notModified = (etag: string): Response =>
+  new Response(null, { status: 304, headers: { ...PUBLIC_HEADERS, etag } });
+
+// a strong or weak tag, or a list of them
+export function etagMatches(header: string | null, etag: string): boolean {
+  if (!header) return false;
+  return header.split(',').some((t) => {
+    const v = t.trim();
+    return (v.startsWith('W/') ? v.slice(2) : v) === etag;
+  });
 }
 
 // fixed codes only: never headers, bodies, tokens or IPs

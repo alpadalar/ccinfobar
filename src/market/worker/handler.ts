@@ -1,8 +1,9 @@
-import { MARKET_LIMITS, metaPath, PROTOCOL_VERSION } from '../protocol.js';
-import { fail } from '../rules.js';
-import { type Env, intVar, type WorkerDeps } from './env.js';
-import { errorResponse, json, PUBLIC_HEADERS } from './http.js';
+import { indexPath, MARKET_LIMITS, MAX_PAGES, metaPath, PROTOCOL_VERSION } from '../protocol.js';
+import { ENTRY_RE, fail, PAGE_RE, part, VERSION_FILE_RE, versionNo } from '../rules.js';
+import { type D1Database, type Env, intVar, type WorkerDeps } from './env.js';
+import { errorResponse, etagMatches, json, notModified, PUBLIC_HEADERS, publicJson } from './http.js';
 import { landingPage } from './page.js';
+import { indexEtag, readEntryDoc, readIndexPage, readVersionDoc } from './store.js';
 
 export interface WorkerHandler {
   fetch(req: Request): Promise<Response>;
@@ -28,6 +29,47 @@ export function buildMeta(env: Env): Record<string, unknown> {
   };
 }
 
+const hidden = (r: { state: string; banned: boolean } | null): boolean =>
+  !r || r.state === 'pending' || r.banned;
+
+const gone = (state: string): boolean => state === 'withdrawn' || state === 'removed';
+
+// one generation tag covers every page, so a match never reads a body
+async function indexPage(db: D1Database, n: number, inm: string | null): Promise<Response> {
+  if (inm) {
+    const tag = await indexEtag(db, n);
+    if (tag && etagMatches(inm, tag)) return notModified(tag);
+  }
+  const page = await readIndexPage(db, n);
+  if (!page) throw fail(404, 'not-found');
+  return etagMatches(inm, page.etag) ? notModified(page.etag) : publicJson(page.body, page.etag);
+}
+
+// ids are checked before any SQL, in the reference order
+async function read(db: D1Database, p: string, inm: string | null): Promise<Response> {
+  if (p === indexPath()) return indexPage(db, 1, inm);
+  const page = PAGE_RE.exec(p);
+  if (page && Number(page[1]) >= 2 && Number(page[1]) <= MAX_PAGES)
+    return indexPage(db, Number(page[1]), inm);
+  const e = ENTRY_RE.exec(p);
+  if (e) {
+    const doc = await readEntryDoc(db, part(e[1]!), part(e[2]!));
+    if (!doc || hidden(doc)) throw fail(404, 'not-found');
+    return etagMatches(inm, doc.etag) ? notModified(doc.etag) : publicJson(doc.doc, doc.etag);
+  }
+  const v = VERSION_FILE_RE.exec(p);
+  if (!v) throw fail(404, 'not-found');
+  const [pp, s] = [part(v[1]!), part(v[2]!)];
+  const n = versionNo(v[3]!);
+  const doc = await readVersionDoc(db, pp, s, n);
+  if (!doc || hidden(doc)) throw fail(404, 'not-found');
+  if (gone(doc.state)) throw fail(410, 'withdrawn');
+  if (!doc.found) throw fail(404, 'not-found');
+  if (doc.body === null || !doc.hash) throw fail(410, 'withdrawn');
+  const tag = `"${doc.hash}"`;
+  return etagMatches(inm, tag) ? notModified(tag) : publicJson(doc.body, tag);
+}
+
 export function createHandler(env: Env, _deps: WorkerDeps): WorkerHandler {
   const meta = buildMeta(env);
   const name = env.MARKET_NAME || 'ccinfobar marketplace';
@@ -43,6 +85,7 @@ export function createHandler(env: Env, _deps: WorkerDeps): WorkerHandler {
     if (req.method === 'GET') {
       if (p === '/') return landingPage(name);
       if (p === metaPath()) return json(200, meta, PUBLIC_HEADERS);
+      return read(env.DB, p, req.headers.get('if-none-match'));
     }
     throw fail(404, 'not-found');
   }
