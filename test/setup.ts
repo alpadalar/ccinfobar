@@ -1,17 +1,20 @@
 import cp from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
+import https from 'node:https';
 import module from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import util from 'node:util';
-import { beforeEach } from 'vitest';
+import { afterEach, beforeEach } from 'vitest';
 import { resetLanguageCache } from '../src/cli/lang.js';
 import { installBundled } from '../src/core/i18n/bundled.js';
 import { setLanguage } from '../src/core/i18n/index.js';
 
 declare global {
   var __ccibRenderGuard: boolean | undefined;
+  var __ccibNetViolations: { url: string }[] | undefined;
 }
 
 type Fn = (...args: unknown[]) => unknown;
@@ -197,6 +200,36 @@ function guardSpawn(): void {
   }
 }
 
+// matches isLoopback in src/core/http-spec.ts
+const LOOPBACK = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+globalThis.__ccibNetViolations ??= [];
+
+function toUrl(input: unknown): URL | null {
+  try {
+    if (input instanceof URL) return input;
+    if (typeof Request === 'function' && input instanceof Request) return new URL(input.url);
+    if (typeof input === 'string') return new URL(input);
+  } catch {}
+  return null;
+}
+
+// null when allowed, else the host
+function blockedHost(host: string): string | null {
+  return LOOPBACK.has(host.toLowerCase()) ? null : host;
+}
+
+function blockedUrl(url: URL): string | null {
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  return blockedHost(url.hostname);
+}
+
+function violation(target: string, host: string): Error {
+  const list = globalThis.__ccibNetViolations ?? [];
+  globalThis.__ccibNetViolations = list;
+  list.push({ url: target });
+  return new Error(`ccinfobar test guard: network fetch to ${host}`);
+}
+
 function guardFetch(): void {
   const orig = globalThis.fetch as typeof fetch & Record<symbol, unknown>;
   if (typeof orig !== 'function' || orig[MARK]) return;
@@ -204,13 +237,52 @@ function guardFetch(): void {
     if (globalThis.__ccibRenderGuard) {
       throw new Error(`ccinfobar test guard: fetch during render: ${String(args[0])}`);
     }
+    const url = toUrl(args[0]);
+    const host = url ? blockedUrl(url) : null;
+    if (url && host) return Promise.reject(violation(url.href, host));
     return orig(...args);
   }) as typeof fetch & Record<symbol, unknown>;
   wrapped[MARK] = true;
   globalThis.fetch = wrapped;
 }
 
+// http.request(url?, options?, cb?): options override the url
+function requestHost(args: unknown[]): [string, string] | null {
+  const url = toUrl(args[0]);
+  const raw = url || typeof args[0] === 'string' ? args[1] : args[0];
+  const opts = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  if (typeof opts.socketPath === 'string') return null;
+  const str = (v: unknown) => (typeof v === 'string' ? v : '');
+  const named = str(opts.hostname) || str(opts.host);
+  const host = named ? blockedHost(named) : url ? blockedUrl(url) : null;
+  if (!host) return null;
+  return [url?.href ?? `//${host}`, host];
+}
+
+function guardHttp(): void {
+  for (const mod of [http, https]) {
+    const m = mod as unknown as Record<symbol, unknown>;
+    if (m[MARK]) continue;
+    m[MARK] = true;
+    for (const name of ['request', 'get']) {
+      wrap(mod, name, (a) => {
+        const hit = requestHost(a);
+        if (hit) throw violation(hit[0], hit[1]);
+      });
+    }
+  }
+}
+
+afterEach(() => {
+  const v = globalThis.__ccibNetViolations ?? [];
+  if (v.length === 0) return;
+  const urls = v.map((x) => x.url).join(', ');
+  v.length = 0;
+  throw new Error(`ccinfobar test guard: network use outside loopback: ${urls}`);
+});
+
 guardFs();
 guardSpawn();
 guardFetch();
+guardHttp();
 module.syncBuiltinESMExports();
