@@ -1,7 +1,9 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { importClaudeStatusbar, TARGETS } from '../../src/importers/claude-statusbar.js';
+import { detectTool, importFrom } from '../../src/importers/index.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
 import { withLang } from '../helpers.js';
 
@@ -259,5 +261,121 @@ describe('importClaudeStatusbar', () => {
         'claude-statusbar teması "sakura", rose-pine temasıyla yaklaşık olarak gösteriliyor',
       ]);
     });
+  });
+});
+
+describe('claude-statusbar importer', () => {
+  let dir: string;
+  let env: NodeJS.ProcessEnv;
+
+  beforeEach(() => {
+    dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-csb-')));
+    const home = path.join(dir, 'home');
+    fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+    env = { HOME: home, USERPROFILE: home };
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  const homeFile = () => path.join(env.HOME!, '.claude', 'claude-statusbar.json');
+
+  it('reads --file', () => {
+    const r = importFrom('claude-statusbar', { file: FILE, env, cwd: dir });
+    expect(r.file).toBe(FILE);
+    expect(r.config.theme).toBe('one-dark');
+  });
+
+  it('finds ~/.claude/claude-statusbar.json even with CLAUDE_CONFIG_DIR, else imports the defaults', () => {
+    const none = importFrom('claude-statusbar', { env, cwd: dir });
+    expect(none.file).toBeNull();
+    expect(texts(none)[0]).toBe('no claude-statusbar config file found, imported its default layout');
+    expect(none.config.theme).toBe('dark');
+
+    const cc = path.join(dir, 'cc');
+    fs.mkdirSync(cc);
+    fs.writeFileSync(path.join(cc, 'claude-statusbar.json'), '{"theme": "dracula"}');
+    fs.writeFileSync(homeFile(), '{"theme": "nord"}');
+    const r = importFrom('claude-statusbar', { env: { ...env, CLAUDE_CONFIG_DIR: cc }, cwd: dir });
+    expect(r.file).toBe(homeFile());
+    expect(r.config.theme).toBe('nord');
+  });
+
+  it('notes a file that is not an object with the tilde path', () => {
+    fs.writeFileSync(homeFile(), '["capsule"]');
+    const r = importFrom('claude-statusbar', { env, cwd: dir });
+    expect(r.notes[0]!.text).toBe(
+      `${path.join('~', '.claude', 'claude-statusbar.json')} is not a JSON object and was ignored`,
+    );
+  });
+
+  it('reports a file that is not JSON', () => {
+    fs.writeFileSync(homeFile(), '{"style": ');
+    expect(() => importFrom('claude-statusbar', { env, cwd: dir })).toThrow(
+      /Cannot parse claude-statusbar config/,
+    );
+  });
+
+  it('never reads its flags or env overrides, and says so by name', () => {
+    fs.writeFileSync(homeFile(), '{"theme": "nord", "style": "capsule"}');
+    const r = importFrom('claude-statusbar', {
+      command: 'cs --theme dracula --style=hairline render',
+      env: {
+        ...env,
+        CLAUDE_STATUSBAR_THEME: 'mono',
+        CLAUDE_STATUSBAR_NO_UPDATE: '1',
+        CLAUDE_STATUSBAR_STYLE: '',
+      },
+      cwd: dir,
+    });
+    expect(r.config).toMatchObject({ theme: 'nord', style: 'capsule' });
+    expect(r.notes).toEqual([
+      {
+        kind: 'info',
+        text: 'claude-statusbar overrides in --style, --theme, CLAUDE_STATUSBAR_THEME were not read; only its config file was imported',
+      },
+    ]);
+    expect(importFrom('claude-statusbar', { command: 'cs render', env, cwd: dir }).notes).toEqual([]);
+  });
+
+  it('is detected from the status line command it writes', () => {
+    for (const cmd of [
+      'cs render',
+      '/home/u/.local/bin/cstatus render',
+      '"C:\\Users\\u\\AppData\\Roaming\\Python\\Scripts\\cs.exe" render',
+      'cstatus render',
+      'claude-statusbar',
+      '~/.local/share/uv/tools/claude-statusbar/bin/cs',
+    ]) {
+      expect(detectTool(cmd), cmd).toMatchObject({
+        tool: 'claude-statusbar',
+        name: 'claude-statusbar',
+        importable: true,
+      });
+    }
+    for (const cmd of ['git cs status', 'docs render', 'bash ~/bin/cs-render.sh', 'mycs render']) {
+      expect(detectTool(cmd)?.tool, cmd).toBe('unknown');
+    }
+  });
+
+  it('leaves the detection of every other tool unchanged', () => {
+    const cases: [string, string][] = [
+      ['/home/u/.npm-global/bin/ccstatusline', 'ccstatusline'],
+      ['npx -y @owloops/claude-powerline@latest', 'claude-powerline'],
+      ['~/.claude/ccline/ccline', 'ccometixline'],
+      ['cship', 'cship'],
+      ['node ~/.claude/plugins/claude-hud/dist/index.js', 'claude-hud'],
+      ['~/.claude/best-claude-hud/best-claude-hud', 'best-claude-hud'],
+      ['~/.claude/byebyecode/byebyecode', 'byebyecode'],
+      ['claudebar render', 'claudebar'],
+      ['npx claude-code-statusline-pro@latest', 'statusline-pro'],
+      ['bash ~/.claude/statusline/statusline.sh', 'claude-code-statusline'],
+      ['~/.claude/starship-claude/starship-claude', 'starship-claude'],
+      ['python3 ~/.claude/pyccsl.py model', 'pyccsl'],
+      ['bash ~/.claude/coralline/statusline.sh', 'coralline'],
+      ['node ~/.claude/hooks/gsd-statusline.js', 'gsd'],
+    ];
+    for (const [cmd, tool] of cases) expect(detectTool(cmd)?.tool, cmd).toBe(tool);
   });
 });
