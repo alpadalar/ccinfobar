@@ -677,9 +677,51 @@ npm install && npm run check && npm run build
 
 ## Acknowledgements
 
+### Inspired by
+
 - [ccstatusline](https://github.com/sirmalloc/ccstatusline) by Matthew Breedlove pioneered the configurable widget-based status line and inspired much of this project.
 - [claude-powerline](https://github.com/Owloops/claude-powerline), [claude-hud](https://github.com/jarrodwatts/claude-hud) and [claude-pace](https://github.com/Astro-Han/claude-pace) inspired the themes, the web editor idea and pace tracking.
 - [GSD](https://github.com/gsd-build/get-shit-done) defines the planning format the GSD widgets read.
+
+<details>
+<summary><b>Similar projects we learned from</b></summary>
+
+ccinfobar's feature set grew out of a review of the most-starred Claude Code status line projects. These are the ones whose ideas we adopted, with thanks:
+
+| Project | What we took |
+| --- | --- |
+| [jarrodwatts/claude-hud](https://github.com/jarrodwatts/claude-hud) | tool, agent and todo lines, i18n with CJK widths, layout importer |
+| [sirmalloc/ccstatusline](https://github.com/sirmalloc/ccstatusline) | widget-based layouts, conditional hiding, service status, layout importer |
+| [Owloops/claude-powerline](https://github.com/Owloops/claude-powerline) | powerline themes, incremental cost from the transcript, layout importer |
+| [Astro-Han/claude-pace](https://github.com/Astro-Han/claude-pace) | usage pace against elapsed time |
+| [Haleclipse/CCometixLine](https://github.com/Haleclipse/CCometixLine) | layout importer |
+| [stephenleo/cship](https://github.com/stephenleo/cship) | `ccinfobar explain`, refreshing usage when a limit window resets, layout importer |
+| [micschr0/claudebar](https://github.com/micschr0/claudebar) | control character stripping, highest usage across sessions, dry-run install with diff and backup, `doctor` |
+| [Nanako0129/coralline](https://github.com/Nanako0129/coralline) | usage shared across sessions, burn-rate estimate |
+| [stormzhang/token-tracker](https://github.com/stormzhang/token-tracker) | restoring the previous status line exactly on uninstall |
+| [ilia-pluzhnikov/claude-code-statusline](https://github.com/ilia-pluzhnikov/claude-code-statusline) | plan-and-apply install, dropping widgets by priority on narrow terminals |
+| [leeguooooo/claude-code-usage-bar](https://github.com/leeguooooo/claude-code-usage-bar) | end-of-window projection and risk label |
+| [vfmatzkin/claude-statusline](https://github.com/vfmatzkin/claude-statusline) | pace arrows and budgets |
+| [aiedwardyi/claude-usage-monitor](https://github.com/aiedwardyi/claude-usage-monitor) | trimming by terminal width |
+| [fredrikaverpil/claudeline](https://github.com/fredrikaverpil/claudeline) | cache-miss detection from `prompt_cache`, provider detection, service status, keeping the last good value on errors |
+| [loadbalance-sudachi-kun/claude-code-statusline](https://github.com/loadbalance-sudachi-kun/claude-code-statusline) | keeping the last good usage value on rate limits |
+| [nilbuild/claude-statusline](https://github.com/nilbuild/claude-statusline) | credential lookup chain |
+| [daniel3303/ClaudeCodeStatusLine](https://github.com/daniel3303/ClaudeCodeStatusLine) | credential lookup chain with a locked usage cache |
+| [Wangnov/claude-code-statusline-pro](https://github.com/Wangnov/claude-code-statusline-pro) | provider profiles, HTTP/JSONPath widget |
+| [byebye-code/byebyecode](https://github.com/byebye-code/byebyecode) | provider-specific usage |
+| [martinemde/starship-claude](https://github.com/martinemde/starship-claude) | terminal progress bar (OSC 9;4) |
+| [NYCU-Chung/cc-statusline](https://github.com/NYCU-Chung/cc-statusline) | cumulative cost, boxed dashboard, hook-based session tracking |
+| [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar) | waiting-for-permission state |
+| [ai-younggle-man/claude-ultimate-hud](https://github.com/ai-younggle-man/claude-ultimate-hud) | CLAUDE.md, MCP and hook counts |
+| [shanraisshan/claude-code-status-line](https://github.com/shanraisshan/claude-code-status-line) | loading state before the first response |
+| [huangguang1999/ccstatusline-zh](https://github.com/huangguang1999/ccstatusline-zh) | translated interface |
+| [sorosora/arcade-statusline](https://github.com/sorosora/arcade-statusline) | activity strip, JetBrains width compensation |
+| [Autumn1337/better-statusline](https://github.com/Autumn1337/better-statusline) | Braille ring and dot-matrix gauges |
+| [AwesomeZun/CC-statusline](https://github.com/AwesomeZun/CC-statusline) | Catppuccin gradients |
+| [GaoSSR/best-claude-hud](https://github.com/GaoSSR/best-claude-hud) | official payload fields first, new widgets off by default |
+| [tmck-code/yet-another-statusline](https://github.com/tmck-code/yet-another-statusline) | boxed multi-line layout, terminal width detection |
+
+</details>
 
 ## License
 
