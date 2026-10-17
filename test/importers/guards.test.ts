@@ -9,7 +9,8 @@ import { stripAnsi } from '../../src/core/ansi.js';
 import { createContext } from '../../src/core/context.js';
 import { render } from '../../src/core/renderer.js';
 import { sampleGit, sampleGsd, samplePayload, sampleTranscript } from '../../src/core/sample.js';
-import type { Config } from '../../src/core/types.js';
+import { BUILTIN_THEMES } from '../../src/core/themes.js';
+import type { Config, ThemeStyle } from '../../src/core/types.js';
 import { TARGETS as CCLINE_TARGETS } from '../../src/importers/ccometixline.js';
 import { TARGETS as CC_TARGETS } from '../../src/importers/ccstatusline.js';
 import { TARGETS as HUD_TARGETS } from '../../src/importers/claude-hud.js';
@@ -44,8 +45,18 @@ interface Tool {
   rename?: Record<string, string>;
   ext: string;
   hostile: string;
+  // TOML text whose __proto__ key must be rejected
   proto?: string;
+  // JSON or env text for the prototype test
+  protoText?: string;
+  // imports something with no file and no --file
+  hasDefault: boolean;
+  // command-only tools load and dry-run through --command
+  command?: string;
+  hostileCommand?: string;
 }
+
+const EVIL = '{"polluted": 1}';
 
 const TOOLS: Tool[] = [
   {
@@ -53,6 +64,8 @@ const TOOLS: Tool[] = [
     targets: CC_TARGETS,
     fixtures: ['ccstatusline-settings.json'],
     ext: 'json',
+    hasDefault: false,
+    protoText: `{"__proto__": ${EVIL}, "lines": [[{"id": "m", "type": "model", "__proto__": ${EVIL}}, {"type": "__proto__"}, {"type": "constructor"}, {"type": "toString"}]]}`,
     hostile: JSON.stringify({
       lines: [
         [
@@ -68,6 +81,8 @@ const TOOLS: Tool[] = [
     targets: PL_TARGETS,
     fixtures: ['claude-powerline.json'],
     ext: 'json',
+    hasDefault: true,
+    protoText: `{"__proto__": ${EVIL}, "display": {"__proto__": ${EVIL}, "lines": [{"segments": {"__proto__": ${EVIL}, "constructor": {}, "model": {}}}]}, "colors": {"custom": {"__proto__": ${EVIL}}}}`,
     hostile: JSON.stringify({
       display: { lines: [{ segments: { env: { variable: HOSTILE }, [HOSTILE]: {}, model: {} } }] },
     }),
@@ -77,6 +92,7 @@ const TOOLS: Tool[] = [
     targets: CCLINE_TARGETS,
     fixtures: ['ccometixline.toml', 'ccometixline-inline.toml', 'ccline-theme.toml'],
     ext: 'toml',
+    hasDefault: true,
     hostile: [
       '[style]',
       'mode = "plain"',
@@ -97,6 +113,7 @@ const TOOLS: Tool[] = [
     fixtures: ['cship.toml', 'cship-wrapperless.toml', 'starship.toml'],
     rename: { 'cship-wrapperless.toml': 'cship.toml' },
     ext: 'toml',
+    hasDefault: false,
     hostile: [
       '[cship]',
       `lines = [${toml(`$cship.model ${HOSTILE} $cship.cost`)}]`,
@@ -111,6 +128,8 @@ const TOOLS: Tool[] = [
     targets: HUD_TARGETS,
     fixtures: ['claude-hud.json', 'claude-hud.override.json'],
     ext: 'json',
+    hasDefault: true,
+    protoText: `{"elementOrder": ["project"], "display": {"__proto__": ${EVIL}, "customLine": "x"}}`,
     hostile: JSON.stringify({ elementOrder: ['project'], display: { customLine: HOSTILE } }),
   },
 ];
@@ -174,7 +193,12 @@ describe('cross-importer guards', () => {
   });
 
   const load = (tool: Tool, file?: string): ImportResult =>
-    importFrom(tool.source, { ...(file ? { file } : {}), env, cwd: dir });
+    importFrom(tool.source, {
+      ...(file ? { file } : {}),
+      ...(tool.command ? { command: tool.command } : {}),
+      env,
+      cwd: dir,
+    });
 
   const fixture = (tool: Tool, f: string) => {
     const name = tool.rename?.[f];
@@ -185,11 +209,25 @@ describe('cross-importer guards', () => {
     return file;
   };
 
+  // every fixture, plus the no-file import when the tool has one
+  const samples = (tool: Tool) => {
+    const results = tool.fixtures.map((f) => ({ name: f, result: load(tool, fixture(tool, f)) }));
+    if (tool.hasDefault) results.push({ name: 'default', result: load(tool) });
+    return results;
+  };
+
   const writeSource = (tool: Tool, text: string) => {
     const file = path.join(dir, `source.${tool.ext}`);
     fs.writeFileSync(file, text);
     return file;
   };
+
+  it('lists every fixture with its source and license', () => {
+    const readme = fs.readFileSync(path.join(FIXTURES, 'README.md'), 'utf8');
+    for (const f of fs.readdirSync(FIXTURES).filter((n) => n !== 'README.md')) {
+      expect(readme, f).toMatch(new RegExp(`^\\| \`${f.replace(/\./g, '\\.')}\` \\|.+\\| \\S+ \\|$`, 'm'));
+    }
+  });
 
   it('covers every import source', () => {
     expect(TOOLS.map((x) => x.source).sort()).toEqual([...IMPORT_SOURCES].sort());
@@ -199,17 +237,44 @@ describe('cross-importer guards', () => {
     it('targets only existing widgets and emits only targets', () => {
       const types = new Set(ALL_WIDGETS.map((w) => w.type));
       for (const type of tool.targets) expect(types.has(type), type).toBe(true);
-      for (const f of tool.fixtures) {
-        for (const item of (load(tool, fixture(tool, f)).config.lines ?? []).flat()) {
-          expect(tool.targets, `${f}: ${item.type}`).toContain(item.type);
+      for (const { name, result } of samples(tool)) {
+        for (const item of (result.config.lines ?? []).flat()) {
+          expect(tool.targets, `${name}: ${item.type}`).toContain(item.type);
         }
       }
     });
 
+    it('emits only option keys and choices its widgets declare', () => {
+      const defs = new Map(ALL_WIDGETS.map((w) => [w.type, w]));
+      for (const { name, result } of samples(tool)) {
+        for (const item of (result.config.lines ?? []).flat()) {
+          const specs = defs.get(item.type)?.options ?? [];
+          for (const [key, value] of Object.entries(item.options ?? {})) {
+            const spec = specs.find((o) => o.key === key);
+            expect(spec, `${name}: ${item.type}.${key}`).toBeDefined();
+            if (spec?.kind === 'select' && spec.choices) {
+              expect(
+                spec.choices.map((c) => c.value),
+                `${name}: ${item.type}.${key}`,
+              ).toContain(value);
+            }
+          }
+        }
+      }
+    });
+
+    it('emits only built-in themes and known styles', () => {
+      const themes = new Set(BUILTIN_THEMES.map((th) => th.id));
+      const styles: ThemeStyle[] = ['text', 'blocks', 'powerline', 'capsule', 'tui'];
+      for (const { name, result } of samples(tool)) {
+        const { theme, style } = result.config;
+        if (theme !== undefined) expect(themes.has(theme), `${name}: ${theme}`).toBe(true);
+        if (style !== undefined) expect(styles, name).toContain(style);
+      }
+    });
+
     it('keeps every fixture item through sanitize and normalize and renders it', () => {
-      const results = tool.fixtures.map((f) => load(tool, fixture(tool, f)));
-      if (tool.source !== 'ccstatusline' && tool.source !== 'cship') results.push(load(tool));
-      for (const r of results) {
+      for (const { result: r } of samples(tool)) {
         expect(count(r)).toBeGreaterThan(0);
         const cfg = toConfig(sanitizeImport(r));
         expect(count({ config: cfg }), r.file ?? 'default').toBe(count(r));
@@ -220,10 +285,12 @@ describe('cross-importer guards', () => {
     });
 
     it('strips control and bidi characters from labels and text', async () => {
-      const file = writeSource(tool, tool.hostile);
       const f = fakeIo();
       const flags = { allowCommands: false, yes: true, dryRun: false };
-      expect(await runImport(tool.source, { file, command: '', flags }, cfgFile, f.io)).toBe(true);
+      const opts = tool.hostileCommand
+        ? { command: tool.hostileCommand, flags }
+        : { file: writeSource(tool, tool.hostile), command: '', flags };
+      expect(await runImport(tool.source, opts, cfgFile, f.io)).toBe(true);
       const saved = fs.readFileSync(cfgFile, 'utf8');
       expect(saved).toContain('ABCDE');
       expect(saved).not.toMatch(BAD);
@@ -237,18 +304,12 @@ describe('cross-importer guards', () => {
         expect(() => load(tool, file)).toThrow(new RegExp(`:${line}:1 The key "__proto__" is not allowed`));
         return;
       }
-      const evil = '{"polluted": 1}';
-      const text =
-        tool.source === 'ccstatusline'
-          ? `{"__proto__": ${evil}, "lines": [[{"id": "m", "type": "model", "__proto__": ${evil}}, {"type": "__proto__"}, {"type": "constructor"}, {"type": "toString"}]]}`
-          : tool.source === 'claude-powerline'
-            ? `{"__proto__": ${evil}, "display": {"__proto__": ${evil}, "lines": [{"segments": {"__proto__": ${evil}, "constructor": {}, "model": {}}}]}, "colors": {"custom": {"__proto__": ${evil}}}}`
-            : `{"elementOrder": ["project"], "display": {"__proto__": ${evil}, "customLine": "x"}}`;
-      const file = writeSource(tool, text);
+      expect(tool.protoText, 'a row needs proto or protoText').toBeDefined();
+      const file = writeSource(tool, tool.protoText!);
       if (tool.source === 'claude-hud') {
         const over = path.join(env.CLAUDE_CONFIG_DIR!, 'claude-hud.json');
         fs.mkdirSync(path.dirname(over), { recursive: true });
-        fs.writeFileSync(over, `{"__proto__": ${evil}, "display": {"constructor": ${evil}, "prototype": 1}}`);
+        fs.writeFileSync(over, `{"__proto__": ${EVIL}, "display": {"constructor": ${EVIL}, "prototype": 1}}`);
       }
       const r = sanitizeImport(load(tool, file));
       expect(({} as Record<string, unknown>).polluted).toBeUndefined();
@@ -266,7 +327,10 @@ describe('cross-importer guards', () => {
       const before = listing(dir);
       const bytes = fs.readFileSync(cfgFile);
       const f = fakeIo();
-      const argv = ['import', tool.source, '--dry-run', '--file', path.join(FIXTURES, tool.fixtures[0]!)];
+      const first = tool.fixtures[0];
+      const argv = first
+        ? ['import', tool.source, '--dry-run', '--file', path.join(FIXTURES, first)]
+        : ['import', tool.source, '--dry-run', '--command', tool.command ?? ''];
       await runImportCommand(parseArgs(argv), cfgFile, f.io);
       expect(process.exitCode ?? 0, f.lines.join('\n')).toBe(0);
       expect(f.lines.at(-1)).toBe('Dry run: nothing was written.');
