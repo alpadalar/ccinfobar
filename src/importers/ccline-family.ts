@@ -19,3 +19,13 @@ export const bestClaudeHudImporter: ImporterDef = {
   detect: [/best-claude-hud/i],
   ...family({ tool: 'best-claude-hud', source: 'best-claude-hud', dir: 'best-claude-hud' }),
 };
+
+export const byebyecodeImporter: ImporterDef = {
+  source: 'byebyecode',
+  name: 'byebyecode',
+  repo: 'byebye-code/byebyecode',
+  shown: '~/.claude/byebyecode/config.toml',
+  hasDefault: true,
+  detect: [/byebyecode/i],
+  ...family({ tool: 'byebyecode', source: 'byebyecode', dir: 'byebyecode', lineBreak: true }),
+};

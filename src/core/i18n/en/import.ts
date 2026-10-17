@@ -20,6 +20,11 @@ export const importMessages = {
   'import.note.selfUpdate': '{tool} segment "{name}" was dropped: ccinfobar updates itself',
   'import.note.usageApi':
     '{tool} segment "{name}": usage API options ({options}) were dropped, ccinfobar never sends your token to a custom host',
+  'import.note.lineBreak': {
+    one: '{tool} breaks the line after 1 segment: the remaining widgets start a second line ({tool} counts only segments that show something, so the split can differ)',
+    other:
+      '{tool} breaks the line after {count} segments: the remaining widgets start a second line ({tool} counts only segments that show something, so the split can differ)',
+  },
   'import.note.iconColor': '{tool} segment "{name}": icon color dropped, the widget has one color',
   'import.note.commandDir': 'read the {tool} config next to the status line command: {file}',
   'import.note.themeFile': '{tool} theme "{name}" is set in the status line command, read from {file}',

@@ -16,3 +16,4 @@ Hand-written fixtures in each tool's documented format; no upstream code or secr
 | `claude-hud.json` | [jarrodwatts/claude-hud](https://github.com/jarrodwatts/claude-hud) | `src/config.ts`, `README.md` | MIT |
 | `claude-hud.override.json` | [jarrodwatts/claude-hud](https://github.com/jarrodwatts/claude-hud) | `src/config.ts` (`claude-hud.json` override) | MIT |
 | `best-claude-hud.toml` | [GaoSSR/best-claude-hud](https://github.com/GaoSSR/best-claude-hud) | `src/config/types.rs`, `src/ui/themes/presets.rs` | Apache-2.0 |
+| `byebyecode.toml` | [byebye-code/byebyecode](https://github.com/byebye-code/byebyecode) | `src/config/types.rs` (`line_break_after`, 88code segments) | MIT |

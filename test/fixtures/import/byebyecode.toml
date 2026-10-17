@@ -1,0 +1,104 @@
+theme = "cometix"
+
+[style]
+mode = "nerd_font"
+separator = " | "
+line_break_after = 3
+
+[[segments]]
+id = "model"
+enabled = true
+
+[segments.icon]
+plain = "🤖"
+nerd_font = ""
+
+[segments.colors.text]
+c16 = 14
+
+[segments.styles]
+text_bold = true
+
+[segments.options]
+
+[[segments]]
+id = "directory"
+enabled = true
+
+[segments.icon]
+plain = "📁"
+nerd_font = "\U000F024B"
+
+[segments.colors.text]
+c16 = 11
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+
+[[segments]]
+id = "git"
+enabled = true
+
+[segments.icon]
+plain = "🌿"
+nerd_font = ""
+
+[segments.colors.text]
+c16 = 12
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+show_sha = false
+
+[[segments]]
+id = "bye_bye_code_usage"
+enabled = true
+
+[segments.icon]
+plain = "💳"
+nerd_font = ""
+
+[segments.colors.text]
+c16 = 10
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+api_key = "REDACTED-TEST"
+
+[[segments]]
+id = "context_window"
+enabled = true
+
+[segments.icon]
+plain = "⚡"
+nerd_font = ""
+
+[segments.colors.text]
+c16 = 13
+
+[segments.styles]
+text_bold = false
+
+[segments.options]
+
+[[segments]]
+id = "cost"
+enabled = true
+
+[segments.icon]
+plain = "💰"
+nerd_font = ""
+
+[segments.colors.text]
+c16 = 3
+
+[segments.styles]
+text_bold = false
+
+[segments.options]

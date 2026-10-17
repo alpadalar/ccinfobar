@@ -41,6 +41,7 @@ export const IMPORT_SOURCES = [
   'cship',
   'claude-hud',
   'best-claude-hud',
+  'byebyecode',
 ] as const;
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];

@@ -8,7 +8,7 @@ import { firstPathToken } from './args.js';
 import { CCLINE_DEFAULT, importCcometixline, parseCclineTheme } from './ccometixline.js';
 import { CCLINE_THEMES, type CclineTheme } from './ccometixline-themes.js';
 import type { ImportNote, ImportResult, ImportSource } from './index.js';
-import { isFile, isPlainFile, readToml, safeThemeName, shownFile } from './io.js';
+import { isFile, isPlainFile, readToml, safeThemeName, shownFile, tableOf } from './io.js';
 import type { ImportCtx } from './registry.js';
 
 export interface CclineFamily {
@@ -16,6 +16,8 @@ export interface CclineFamily {
   source: ImportSource;
   // folder under ~/.claude
   dir: string;
+  // byebyecode's style.line_break_after
+  lineBreak?: boolean;
 }
 
 export const CCOMETIXLINE: CclineFamily = { tool: 'CCometixLine', source: 'ccometixline', dir: 'ccline' };
@@ -42,7 +44,13 @@ export function ccometixlinePaths(
 }
 
 function mapToml(raw: unknown, fam: CclineFamily, defaulted = false): ImportResult {
-  return importCcometixline(raw, { defaulted, tool: fam.tool, source: fam.source });
+  const lineBreakAfter = fam.lineBreak ? tableOf(tableOf(raw)?.style)?.line_break_after : undefined;
+  return importCcometixline(raw, {
+    defaulted,
+    tool: fam.tool,
+    source: fam.source,
+    ...(typeof lineBreakAfter === 'number' ? { lineBreakAfter } : {}),
+  });
 }
 
 function importTheme(name: string, home: string, fam: CclineFamily): ImportResult | ImportNote {

@@ -119,6 +119,15 @@ const TOOLS: Tool[] = [
     proto: '__proto__ = 1\n',
   },
   {
+    source: 'byebyecode',
+    targets: CCLINE_TARGETS,
+    fixtures: ['byebyecode.toml'],
+    ext: 'toml',
+    hasDefault: true,
+    hostile: CCLINE_HOSTILE,
+    proto: '__proto__ = 1\n',
+  },
+  {
     source: 'cship',
     targets: CSHIP_TARGETS,
     fixtures: ['cship.toml', 'cship-wrapperless.toml', 'starship.toml'],

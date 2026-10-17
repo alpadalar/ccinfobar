@@ -72,7 +72,7 @@ function segmentTypes(id: string, options: Raw): [string, Record<string, OptionV
 
 export function importCcometixline(
   raw: unknown,
-  opts: { defaulted?: boolean; tool?: string; source?: ImportSource } = {},
+  opts: { defaulted?: boolean; tool?: string; source?: ImportSource; lineBreakAfter?: number } = {},
 ): ImportResult {
   const tool = opts.tool ?? TOOL;
   const notes: ImportNote[] = [];
@@ -83,6 +83,8 @@ export function importCcometixline(
   const mode = nerd ? 'nerd_font' : 'plain';
   const items: WidgetItem[] = [];
   const used = new Set<string>();
+  // items.length after each mapped segment
+  const ends: number[] = [];
   for (const s of Array.isArray(c.segments) ? c.segments : []) {
     const seg = obj(s);
     if (seg.enabled === false) continue;
@@ -125,8 +127,13 @@ export function importCcometixline(
       if (bold) it.bold = true;
       items.push(it);
     });
+    ends.push(items.length);
   }
-  const config: Partial<Config> = { lines: [items], icons: nerd ? 'nerd' : 'emoji' };
+  const n = opts.lineBreakAfter;
+  const split = Number.isInteger(n) && n! > 0 && n! < ends.length ? ends[n! - 1]! : null;
+  const lines = split === null ? [items] : [items.slice(0, split), items.slice(split)];
+  if (split !== null) notes.push({ kind: 'approx', text: t('import.note.lineBreak', { tool, count: n! }) });
+  const config: Partial<Config> = { lines, icons: nerd ? 'nerd' : 'emoji' };
   const separator = typeof style.separator === 'string' ? style.separator : ' | ';
   if (separator === POWERLINE_ARROW) config.style = 'powerline';
   else config.separator = separator;

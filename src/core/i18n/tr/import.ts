@@ -23,6 +23,11 @@ export const importMessages = {
   'import.note.selfUpdate': '{tool} bölümü "{name}" atlandı: ccinfobar kendini günceller',
   'import.note.usageApi':
     '{tool} bölümü "{name}": kullanım API seçenekleri ({options}) atlandı, ccinfobar token\'ınızı asla özel bir sunucuya göndermez',
+  'import.note.lineBreak': {
+    one: '{tool} 1 bölümden sonra yeni satıra geçiyor: kalan bileşenler ikinci satıra taşındı ({tool} yalnızca bir şey gösteren bölümleri saydığından ayrım farklı olabilir)',
+    other:
+      '{tool} {count} bölümden sonra yeni satıra geçiyor: kalan bileşenler ikinci satıra taşındı ({tool} yalnızca bir şey gösteren bölümleri saydığından ayrım farklı olabilir)',
+  },
   'import.note.iconColor': '{tool} bölümü "{name}": simge rengi atlandı, bileşenin tek rengi var',
   'import.note.commandDir': '{tool} yapılandırması durum satırı komutunun yanındaki dosyadan okundu: {file}',
   'import.note.themeFile': '{tool} teması "{name}" durum satırı komutunda seçili, şu dosyadan okundu: {file}',
