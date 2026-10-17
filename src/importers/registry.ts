@@ -4,6 +4,7 @@ import { commandArgs } from './args.js';
 import { bestClaudeHudImporter, byebyecodeImporter } from './ccline-family.js';
 import { claudeCodeStatuslineImporter } from './claude-code-statusline.js';
 import { claudebarImporter } from './claudebar.js';
+import { corallineImporter } from './coralline.js';
 import type { ImportResult, ImportSource } from './index.js';
 import { homeOf, isFile, shownFile } from './io.js';
 import { pyccslImporter } from './pyccsl.js';
@@ -75,6 +76,7 @@ export const REGISTRY: readonly ImporterDef[] = [
   claudeCodeStatuslineImporter,
   starshipClaudeImporter,
   pyccslImporter,
+  corallineImporter,
 ];
 
 export function registryDef(source: ImportSource): ImporterDef | null {

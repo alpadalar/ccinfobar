@@ -98,6 +98,10 @@ export const importMessages = {
     '{tool} sayı biçimi "{value}" içe aktarılmadı, ccinfobar sayıları kısa biçimde gösterir',
   'import.note.perfThresholds':
     '{tool} performans eşikleri ilk değerleriyle rozet uyarılarına dönüştürüldü (isabet oranı %{hit} altında, süre {time} saniyenin üstünde)',
+  'import.note.themeFileColors': '{tool} teması "{name}" renkleri şu dosyadan okundu: {file}',
+  'import.note.includeUnsafe':
+    'yapılandırmada dahil edilen {tool} teması "{name}" güvenli bir tema adı değil, yok sayıldı',
+  'import.note.clockSettingOff': '{tool} {setting} değeri "off", bu yüzden saat bölümü atlandı',
   'import.note.separatorMerged':
     '{tool} satırları farklı ayraçlar kullanıyor; artık her satır en sık kullanılan ayracı ({separator}) kullanıyor',
   'import.note.hudIgnored': '{file} bir JSON nesnesi değil, yok sayıldı',

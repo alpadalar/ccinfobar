@@ -18,6 +18,7 @@ import { TARGETS as HUD_TARGETS } from '../../src/importers/claude-hud.js';
 import { TARGETS as PL_TARGETS } from '../../src/importers/claude-powerline.js';
 import { TARGETS as CLAUDEBAR_TARGETS } from '../../src/importers/claudebar.js';
 import { sanitizeImport } from '../../src/importers/confirm.js';
+import { TARGETS as CORALLINE_TARGETS } from '../../src/importers/coralline.js';
 import { TARGETS as CSHIP_TARGETS } from '../../src/importers/cship.js';
 import {
   IMPORT_SOURCES,
@@ -213,6 +214,15 @@ const TOOLS: Tool[] = [
     hostileIn: 'notes',
     hostile: `PYCCSL_FIELDS="model,${HOSTILE}"\nPYCCSL_THEME="${HOSTILE}"\n`,
     protoText: '__proto__=1\nPYCCSL_THEME=nord\n',
+  },
+  {
+    source: 'coralline',
+    targets: CORALLINE_TARGETS,
+    fixtures: ['coralline.conf'],
+    ext: 'conf',
+    hasDefault: true,
+    hostile: `VL_STYLE=lean\nVL_LEAN_SEP="${HOSTILE}"\nVL_SEGMENTS="model ${HOSTILE}"\n`,
+    protoText: '__proto__=1\nVL_SEGMENTS=model\n',
   },
   {
     source: 'cship',

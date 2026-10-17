@@ -47,6 +47,7 @@ export const IMPORT_SOURCES = [
   'claude-code-statusline',
   'starship-claude',
   'pyccsl',
+  'coralline',
 ] as const;
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];

@@ -24,3 +24,5 @@ Hand-written fixtures in each tool's documented format; no upstream code or secr
 | `starship-claude-minimal.toml` | [martinemde/starship-claude](https://github.com/martinemde/starship-claude) | `plugin/templates/minimal-text.toml` + `plugin/templates/palettes/catppuccin_mocha.toml` (what `configure.sh --write` writes) | MIT |
 | `starship-claude-powerline.toml` | [martinemde/starship-claude](https://github.com/martinemde/starship-claude) | `plugin/templates/powerline.toml` + `plugin/templates/palettes/nord.toml` (glyphs as `\u` escapes) | MIT |
 | `pyccsl.env` | [wolfdenpublishing/pyccsl](https://github.com/wolfdenpublishing/pyccsl) | `pyccsl.env.example` (plus a non-PYCCSL line and a `$(…)` line) | MIT |
+| `coralline.conf` | [Nanako0129/coralline](https://github.com/Nanako0129/coralline) | `configure.sh` `write_candidate_config` (`printf %q` values, theme include, p10k color hint), `statusline.ps1` REMORA line | MIT |
+| `coralline-theme.conf` | [Nanako0129/coralline](https://github.com/Nanako0129/coralline) | `themes/claude-coral.conf` (colors, two subagent candidates) | MIT |

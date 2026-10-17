@@ -94,6 +94,10 @@ export const importMessages = {
     '{tool} number format "{value}" was not imported, ccinfobar shows compact numbers',
   'import.note.perfThresholds':
     '{tool} performance thresholds became the badge warnings from their first values (hit rate below {hit}%, time above {time}s)',
+  'import.note.themeFileColors': '{tool} theme "{name}" colors were read from {file}',
+  'import.note.includeUnsafe':
+    '{tool} theme "{name}" included in the config is not a safe theme name and was ignored',
+  'import.note.clockSettingOff': '{tool} {setting} is "off", so the clock segment was skipped',
   'import.note.separatorMerged':
     '{tool} lines use different separators; every line now uses the most common one, {separator}',
   'import.note.hudIgnored': '{file} is not a JSON object and was ignored',
