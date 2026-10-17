@@ -45,14 +45,25 @@ export const ERROR_CODES = [
   'overwrite-disabled',
   'unsupported-media',
   'unauthorized',
+  'banned',
+  'not-admin',
+  'upstream',
 ] as const;
 export type MarketErrorCode = (typeof ERROR_CODES)[number];
 
 const MAX_LIST = MAX_INDEX;
+// account, review and report lists
+export const LIST_CAP = 200;
+export const REPORT_REASON_MAX = 200;
 const MAX_AUTH = 8;
 const STAMP = 64;
 const HASH_RE = /^[0-9a-f]{64}$/;
 const AUTH_RE = /^[a-z0-9-]{1,32}$/;
+const CLIENT_ID_RE = /^[A-Za-z0-9._-]{4,64}$/;
+const LOGIN_RE = /^[A-Za-z0-9](?:-?[A-Za-z0-9]){0,38}$/;
+const STATES: readonly MarketEntryState[] = ['pending', 'live', 'withdrawn', 'removed'];
+const ADMIN_ACTIONS = new Set(['approve', 'reject', 'remove']);
+const BAN_ACTIONS = new Set(['ban', 'unban']);
 const KINDS: readonly EntryKind[] = ['preset', 'theme', 'bundle'];
 const THEME_KEYS = new Set([
   'id',
@@ -85,10 +96,61 @@ function submitHref(v: unknown): string | null {
 export interface MarketMeta {
   protocol: 1;
   name: string;
-  capabilities: { write: boolean; overwrite: boolean; withdraw: boolean; submit: 'api' | 'pull-request' };
+  capabilities: {
+    write: boolean;
+    overwrite: boolean;
+    withdraw: boolean;
+    submit: 'api' | 'pull-request';
+    review?: boolean;
+    report?: boolean;
+  };
   auth: string[];
   limits: Partial<Record<keyof typeof MARKET_LIMITS, number>>;
   submitUrl?: string;
+  github?: { clientId: string };
+  quota?: { publisherBytes?: number };
+}
+
+export type MarketEntryState = 'pending' | 'live' | 'withdrawn' | 'removed';
+export type AdminAction = 'approve' | 'reject' | 'remove';
+export type BanAction = 'ban' | 'unban';
+
+export interface SignInResult {
+  handle: string;
+  token: string;
+  displayName: string;
+  admin: boolean;
+}
+
+export interface MeEntry {
+  id: string;
+  state: 'pending' | 'live';
+  version: number;
+}
+
+export interface MeResult {
+  handle: string;
+  displayName: string;
+  login: string;
+  admin: boolean;
+  trusted: boolean;
+  entries: MeEntry[];
+}
+
+export type PendingSummary = MarketSummary & { createdAt: string };
+
+export interface MarketReport {
+  id: number;
+  entry: string;
+  reporter: string;
+  reason: string;
+  createdAt: string;
+}
+
+export interface MarketReview {
+  entry: MarketEntry & { state: MarketEntryState };
+  content: EntryContent;
+  hash: string;
 }
 
 export interface MarketSummary {
@@ -193,6 +255,38 @@ export function withdrawPath(id: string): string {
   return `/v1/entries/${p}/${s}`;
 }
 
+export const authGithubPath = () => '/v1/auth/github';
+export const logoutPath = () => '/v1/auth/logout';
+export const mePath = () => '/v1/me';
+export const adminPendingPath = () => '/v1/admin/pending';
+export const adminReportsPath = () => '/v1/admin/reports';
+
+export function reportPath(id: string): string {
+  const [p, s] = idParts(id);
+  return `/v1/entries/${p}/${s}/reports`;
+}
+
+export function adminEntryPath(id: string): string {
+  const [p, s] = idParts(id);
+  return `/v1/admin/entries/${p}/${s}`;
+}
+
+export function adminActionPath(id: string, action: AdminAction): string {
+  if (!ADMIN_ACTIONS.has(action)) throw new Error('invalid marketplace action');
+  return `${adminEntryPath(id)}/${action}`;
+}
+
+export function adminPublisherPath(handle: string, action: BanAction): string {
+  if (typeof handle !== 'string' || !ID_PART_RE.test(handle)) throw new Error('invalid marketplace handle');
+  if (!BAN_ACTIONS.has(action)) throw new Error('invalid marketplace action');
+  return `/v1/admin/publishers/${handle}/${action}`;
+}
+
+export function adminResolvePath(reportId: number): string {
+  if (!isVersion(reportId)) throw new Error('invalid marketplace report');
+  return `/v1/admin/reports/${reportId}/resolve`;
+}
+
 function isObject(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
@@ -253,6 +347,14 @@ export function parseMeta(raw: unknown): MarketMeta | null {
   }
   const href = submitHref(own(raw, 'submitUrl'));
   if (href) m.submitUrl = href;
+  if (own(caps, 'review') === true) m.capabilities.review = true;
+  if (own(caps, 'report') === true) m.capabilities.report = true;
+  const gh = own(raw, 'github');
+  const clientId = isObject(gh) ? own(gh, 'clientId') : undefined;
+  if (typeof clientId === 'string' && CLIENT_ID_RE.test(clientId)) m.github = { clientId };
+  const quota = own(raw, 'quota');
+  const bytes = isObject(quota) ? own(quota, 'publisherBytes') : undefined;
+  if (isVersion(bytes)) m.quota = { publisherBytes: bytes };
   return m;
 }
 
@@ -339,6 +441,103 @@ export function parseRemoteVersion(raw: unknown): MarketVersion | null {
   const content = parseContent(own(raw, 'content'));
   if (!isVersion(version) || !h || !content) return null;
   return { version, content, hash: h };
+}
+
+const handle = (v: unknown): string | null => (typeof v === 'string' && ID_PART_RE.test(v) ? v : null);
+
+function list(raw: unknown, key: string): unknown[] | null {
+  const v = isObject(raw) ? own(raw, key) : undefined;
+  return Array.isArray(v) ? v : null;
+}
+
+// first valid item per key wins, at most LIST_CAP
+function capped<T>(items: unknown[], parse: (v: unknown) => T | null, key: (v: T) => string | number): T[] {
+  const seen = new Set<string | number>();
+  const out: T[] = [];
+  for (const item of items) {
+    if (out.length >= LIST_CAP) break;
+    const v = parse(item);
+    if (v === null || seen.has(key(v))) continue;
+    seen.add(key(v));
+    out.push(v);
+  }
+  return out;
+}
+
+export function parseSignIn(raw: unknown): SignInResult | null {
+  if (!isObject(raw)) return null;
+  const h = handle(own(raw, 'handle'));
+  const token = own(raw, 'token');
+  const displayName = optText(own(raw, 'displayName'), MARKET_LIMITS.displayName);
+  if (!h || typeof token !== 'string' || !HASH_RE.test(token) || displayName === null) return null;
+  return { handle: h, token, displayName, admin: own(raw, 'admin') === true };
+}
+
+function meEntry(raw: unknown): MeEntry | null {
+  if (!isObject(raw)) return null;
+  const id = own(raw, 'id');
+  const state = own(raw, 'state');
+  const version = own(raw, 'version');
+  if (typeof id !== 'string' || !isRemoteId(id) || !isVersion(version)) return null;
+  if (state !== 'pending' && state !== 'live') return null;
+  return { id, state, version };
+}
+
+export function parseMe(raw: unknown): MeResult | null {
+  if (!isObject(raw)) return null;
+  const h = handle(own(raw, 'handle'));
+  const login = own(raw, 'login');
+  const displayName = optText(own(raw, 'displayName'), MARKET_LIMITS.displayName);
+  const items = own(raw, 'entries') === undefined ? [] : list(raw, 'entries');
+  if (!h || typeof login !== 'string' || !LOGIN_RE.test(login) || displayName === null || !items) return null;
+  return {
+    handle: h,
+    displayName,
+    login,
+    admin: own(raw, 'admin') === true,
+    trusted: own(raw, 'trusted') === true,
+    entries: capped(items, meEntry, (e) => e.id),
+  };
+}
+
+function pendingSummary(raw: unknown): PendingSummary | null {
+  const s = parseSummary(raw);
+  const createdAt = s && isObject(raw) ? text(own(raw, 'createdAt'), STAMP) : null;
+  return s && createdAt ? { ...s, createdAt } : null;
+}
+
+export function parsePending(raw: unknown): { entries: PendingSummary[] } | null {
+  const items = list(raw, 'entries');
+  return items ? { entries: capped(items, pendingSummary, (e) => e.id) } : null;
+}
+
+function report(raw: unknown): MarketReport | null {
+  if (!isObject(raw)) return null;
+  const id = own(raw, 'id');
+  const entry = own(raw, 'entry');
+  const reporter = handle(own(raw, 'reporter'));
+  const reason = text(own(raw, 'reason'), REPORT_REASON_MAX);
+  const createdAt = text(own(raw, 'createdAt'), STAMP);
+  if (!isVersion(id) || typeof entry !== 'string' || !isRemoteId(entry) || !reporter) return null;
+  if (!reason || !createdAt) return null;
+  return { id, entry, reporter, reason, createdAt };
+}
+
+export function parseReports(raw: unknown): { reports: MarketReport[] } | null {
+  const items = list(raw, 'reports');
+  return items ? { reports: capped(items, report, (r) => r.id) } : null;
+}
+
+export function parseReview(raw: unknown): MarketReview | null {
+  if (!isObject(raw)) return null;
+  const doc = own(raw, 'entry');
+  const entry = parseRemoteEntry(doc);
+  const state = isObject(doc) ? own(doc, 'state') : undefined;
+  const content = parseContent(own(raw, 'content'));
+  const h = hash(own(raw, 'hash'));
+  if (!entry || !content || !h) return null;
+  if (typeof state !== 'string' || !(STATES as readonly string[]).includes(state)) return null;
+  return { entry: { ...entry, state: state as MarketEntryState }, content, hash: h };
 }
 
 export function parsePublishPayload(raw: unknown): PublishPayload | null {

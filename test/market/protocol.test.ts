@@ -5,6 +5,13 @@ import { LAYOUT_KEYS as EDIT_LAYOUT_KEYS } from '../../src/core/edit.js';
 import type { EntryKind } from '../../src/core/entry-keys.js';
 import { APPEARANCE_KEYS, LAYOUT_KEYS, PERSONAL_KEYS } from '../../src/core/entry-keys.js';
 import {
+  adminActionPath,
+  adminEntryPath,
+  adminPendingPath,
+  adminPublisherPath,
+  adminReportsPath,
+  adminResolvePath,
+  authGithubPath,
   canonicalJson,
   contentProblems,
   ERROR_CODES,
@@ -14,18 +21,28 @@ import {
   INDEX_PAGE,
   indexPath,
   isRemoteId,
+  LIST_CAP,
+  logoutPath,
   MARKET_LIMITS,
   MAX_PAGES,
+  mePath,
   metaPath,
   PROTOCOL_VERSION,
   parseErrorBody,
   parseIndex,
+  parseMe,
   parseMeta,
+  parsePending,
   parsePublishPayload,
   parseRemoteEntry,
   parseRemoteVersion,
+  parseReports,
+  parseReview,
+  parseSignIn,
   parseVersionPayload,
   publishersPath,
+  REPORT_REASON_MAX,
+  reportPath,
   versionPath,
   versionPutPath,
   versionsPath,
@@ -116,7 +133,7 @@ describe('market protocol', () => {
     expect(ERROR_CODES).toContain('stale');
     expect(ERROR_CODES).toContain('unauthorized');
     expect(ERROR_CODES).toContain('over-quota');
-    expect(ERROR_CODES).toHaveLength(12);
+    expect(ERROR_CODES).toHaveLength(15);
   });
 
   it('parsers whitelist fields and sanitize text', () => {
@@ -496,5 +513,262 @@ describe('market protocol', () => {
     expect(EDIT_LAYOUT_KEYS).toBe(LAYOUT_KEYS);
     expect(edit.APPEARANCE_KEYS).toBe(APPEARANCE_KEYS);
     expect(edit.PERSONAL_KEYS).toBe(PERSONAL_KEYS);
+  });
+});
+
+describe('market protocol: sign-in, accounts, reports and moderation', () => {
+  const TOKEN = 'c'.repeat(64);
+  const meta = (over: Record<string, unknown> = {}) =>
+    parseMeta({ protocol: 1, name: 'x', capabilities: { write: true, submit: 'api' }, ...over });
+
+  it('parseMeta keeps old results and adds github, review, report and quota', () => {
+    const old = meta()!;
+    expect(old).toEqual({
+      protocol: 1,
+      name: 'x',
+      capabilities: { write: true, overwrite: false, withdraw: false, submit: 'api' },
+      auth: [],
+      limits: {},
+    });
+    expect(Object.keys(old).sort()).toEqual(['auth', 'capabilities', 'limits', 'name', 'protocol']);
+    expect(Object.keys(old.capabilities).sort()).toEqual(['overwrite', 'submit', 'withdraw', 'write']);
+    const m = meta({
+      capabilities: { write: true, submit: 'api', review: true, report: true },
+      auth: ['github-device'],
+      github: { clientId: 'Ov23liVCN9Nf6VlLv3St', secret: 'x' },
+      quota: { publisherBytes: 20_971_520, other: 1 },
+    })!;
+    expect(m.capabilities.review).toBe(true);
+    expect(m.capabilities.report).toBe(true);
+    expect(m.github).toEqual({ clientId: 'Ov23liVCN9Nf6VlLv3St' });
+    expect(m.quota).toEqual({ publisherBytes: 20_971_520 });
+    const caps = (c: Record<string, unknown>) => meta({ capabilities: { write: true, ...c } })!.capabilities;
+    for (const v of ['true', 1, {}, false, null]) {
+      expect('review' in caps({ review: v }), String(v)).toBe(false);
+      expect('report' in caps({ report: v }), String(v)).toBe(false);
+    }
+    const id = (v: unknown) => meta({ github: { clientId: v } })!.github;
+    expect(id('Iv1.abc_DEF-9')).toEqual({ clientId: 'Iv1.abc_DEF-9' });
+    expect(id('Ov23 liVC')).toBeUndefined();
+    expect(id('a'.repeat(200))).toBeUndefined();
+    expect(id('a'.repeat(64))).toEqual({ clientId: 'a'.repeat(64) });
+    expect(id('abc')).toBeUndefined();
+    expect(id(42)).toBeUndefined();
+    expect(meta({ github: 'Ov23liVCN9Nf6VlLv3St' })!.github).toBeUndefined();
+    for (const q of [
+      { publisherBytes: -1 },
+      { publisherBytes: 1.5 },
+      { publisherBytes: '9' },
+      {},
+      'x',
+      null,
+    ]) {
+      expect('quota' in meta({ quota: q })!, JSON.stringify(q)).toBe(false);
+    }
+  });
+
+  it('builds the new route paths', () => {
+    expect(authGithubPath()).toBe('/v1/auth/github');
+    expect(logoutPath()).toBe('/v1/auth/logout');
+    expect(mePath()).toBe('/v1/me');
+    expect(reportPath('alp/nord')).toBe('/v1/entries/alp/nord/reports');
+    expect(adminPendingPath()).toBe('/v1/admin/pending');
+    expect(adminReportsPath()).toBe('/v1/admin/reports');
+    expect(adminEntryPath('alp/nord')).toBe('/v1/admin/entries/alp/nord');
+    for (const a of ['approve', 'reject', 'remove'] as const) {
+      expect(adminActionPath('alp/nord', a)).toBe(`/v1/admin/entries/alp/nord/${a}`);
+    }
+    expect(adminPublisherPath('alp', 'ban')).toBe('/v1/admin/publishers/alp/ban');
+    expect(adminPublisherPath('alp-2', 'unban')).toBe('/v1/admin/publishers/alp-2/unban');
+    expect(adminResolvePath(7)).toBe('/v1/admin/reports/7/resolve');
+  });
+
+  it('new route paths refuse bad ids, handles, actions and report ids', () => {
+    for (const bad of ['A/b', '../x', 'alp', 'alp/../x', 'alp/Nord', '']) {
+      expect(() => reportPath(bad), bad).toThrow();
+      expect(() => adminEntryPath(bad), bad).toThrow();
+      expect(() => adminActionPath(bad, 'approve'), bad).toThrow();
+    }
+    expect(() => adminActionPath('alp/nord', 'delete' as never)).toThrow();
+    for (const bad of ['Alp', '../x', 'a/b', '', '-x', 'a'.repeat(40)]) {
+      expect(() => adminPublisherPath(bad, 'ban'), bad).toThrow();
+    }
+    expect(() => adminPublisherPath('alp', 'kick' as never)).toThrow();
+    for (const bad of [0, -1, 1.5, Number.NaN, 2 ** 53, '3' as never]) {
+      expect(() => adminResolvePath(bad), String(bad)).toThrow();
+    }
+  });
+
+  it('parseSignIn needs a handle and a 64-hex token', () => {
+    const ok = { handle: 'octo-cat', token: TOKEN, displayName: 'Octo \u001b[1mCat', admin: true, extra: 1 };
+    expect(parseSignIn(ok)).toEqual({
+      handle: 'octo-cat',
+      token: TOKEN,
+      displayName: 'Octo Cat',
+      admin: true,
+    });
+    expect(parseSignIn({ ...ok, admin: 'yes' })!.admin).toBe(false);
+    expect(parseSignIn({ handle: 'a', token: TOKEN })).toEqual({
+      handle: 'a',
+      token: TOKEN,
+      displayName: '',
+      admin: false,
+    });
+    expect(parseSignIn({ ...ok, displayName: 'x'.repeat(500) })!.displayName).toHaveLength(
+      MARKET_LIMITS.displayName,
+    );
+    for (const token of ['C'.repeat(64), 'c'.repeat(63), 'c'.repeat(65), 'gho_abc', 7, undefined]) {
+      expect(parseSignIn({ ...ok, token }), String(token)).toBeNull();
+    }
+    for (const handle of ['Octo', '../x', '', 5]) expect(parseSignIn({ ...ok, handle })).toBeNull();
+    expect(parseSignIn({ ...ok, displayName: 5 })).toBeNull();
+    expect(parseSignIn(null)).toBeNull();
+    expect(parseSignIn([ok])).toBeNull();
+  });
+
+  it('parseMe keeps valid entries only and caps the list', () => {
+    const base = {
+      handle: 'alp',
+      displayName: 'Alp',
+      login: 'AlpAdalar',
+      admin: true,
+      trusted: false,
+      entries: [
+        { id: 'alp/one', state: 'pending', version: 1 },
+        { id: 'alp/two', state: 'live', version: 3 },
+        { id: 'alp/Bad', state: 'live', version: 1 },
+        { id: 'alp/three', state: 'withdrawn', version: 1 },
+        { id: 'alp/four', state: 'live', version: 0 },
+        { id: 'alp/one', state: 'live', version: 2 },
+        'x',
+      ],
+    };
+    expect(parseMe(base)).toEqual({
+      handle: 'alp',
+      displayName: 'Alp',
+      login: 'AlpAdalar',
+      admin: true,
+      trusted: false,
+      entries: [
+        { id: 'alp/one', state: 'pending', version: 1 },
+        { id: 'alp/two', state: 'live', version: 3 },
+      ],
+    });
+    const many = Array.from({ length: LIST_CAP + 50 }, (_, i) => ({
+      id: `alp/e${i}`,
+      state: 'live',
+      version: 1,
+    }));
+    expect(parseMe({ ...base, entries: many })!.entries).toHaveLength(LIST_CAP);
+    expect(LIST_CAP).toBe(200);
+    expect(parseMe({ ...base, trusted: 1, admin: 'true' })).toMatchObject({ admin: false, trusted: false });
+    for (const bad of [
+      { ...base, handle: 'Alp' },
+      { ...base, login: 'bad login' },
+      { ...base, login: '-x' },
+      { ...base, entries: 'x' },
+      { ...base, displayName: [] },
+    ]) {
+      expect(parseMe(bad)).toBeNull();
+    }
+    expect(parseMe({ ...base, entries: undefined })!.entries).toEqual([]);
+    expect(parseMe('x')).toBeNull();
+  });
+
+  it('parsePending keeps summaries with a createdAt', () => {
+    const at = '2026-10-17T10:00:00.000Z';
+    const p = parsePending({
+      entries: [
+        { ...summary(), createdAt: at },
+        { ...summary({ id: 'alp/no-stamp' }) },
+        { ...summary({ id: 'alp/x', hash: 'nope' }), createdAt: at },
+        { ...summary(), createdAt: at },
+        { ...summary({ id: 'bob/y', publisher: 'bob', name: 'Y \u0007' }), createdAt: at },
+      ],
+    })!;
+    expect(p.entries.map((e) => e.id)).toEqual(['alp/nord-cockpit', 'bob/y']);
+    expect(p.entries[0]).toEqual({ ...summary(), createdAt: at });
+    expect(p.entries[1]!.name).toBe('Y');
+    const many = Array.from({ length: 250 }, (_, i) => ({ ...summary({ id: `alp/e${i}` }), createdAt: at }));
+    expect(parsePending({ entries: many })!.entries).toHaveLength(LIST_CAP);
+    expect(parsePending({ entries: 'x' })).toBeNull();
+    expect(parsePending(null)).toBeNull();
+  });
+
+  it('parseReports keeps bounded, sanitized reports', () => {
+    const at = '2026-10-17T10:00:00.000Z';
+    const r = { id: 3, entry: 'alp/nord', reporter: 'bob', reason: 'Spam \u001b[31mlink', createdAt: at };
+    const p = parseReports({
+      reports: [
+        r,
+        { ...r, id: 0 },
+        { ...r, id: 4, entry: 'Alp/x' },
+        { ...r, id: 5, reporter: 'B' },
+        { ...r, id: 6, reason: '   ' },
+        { ...r, id: 7, reason: 'x'.repeat(900) },
+        { ...r, id: 3 },
+        { ...r, id: 8, createdAt: 5 },
+      ],
+    })!;
+    expect(p.reports.map((x) => x.id)).toEqual([3, 7]);
+    expect(p.reports[0]).toEqual({ ...r, reason: 'Spam link' });
+    expect(p.reports[1]!.reason).toHaveLength(REPORT_REASON_MAX);
+    const many = Array.from({ length: 250 }, (_, i) => ({ ...r, id: i + 1 }));
+    expect(parseReports({ reports: many })!.reports).toHaveLength(LIST_CAP);
+    expect(parseReports({ reports: {} })).toBeNull();
+    expect(parseReports(7)).toBeNull();
+  });
+
+  it('parseReview returns the entry with its state, the content and the hash', () => {
+    const entry = { ...summary({ version: 1 }), versions: [{ version: 1, at: 'x', note: '', hash: H }] };
+    const content = { layout: layout([{ id: 'm', type: 'model' }]) };
+    const v = parseReview({ entry: { ...entry, state: 'pending' }, content, hash: H })!;
+    expect(v.entry.state).toBe('pending');
+    expect(v.entry.id).toBe('alp/nord-cockpit');
+    expect(v.entry.versions).toHaveLength(1);
+    expect(v.content).toEqual(content);
+    expect(v.hash).toBe(H);
+    for (const s of ['live', 'withdrawn', 'removed']) {
+      expect(parseReview({ entry: { ...entry, state: s }, content, hash: H })!.entry.state).toBe(s);
+    }
+    expect(parseReview({ entry: { ...entry, state: 'deleted' }, content, hash: H })).toBeNull();
+    expect(parseReview({ entry: { ...entry, state: 'live' }, content, hash: 'x' })).toBeNull();
+    expect(parseReview({ entry: { ...entry, state: 'live' }, content: [], hash: H })).toBeNull();
+    expect(parseReview({ entry: { ...entry, versions: [], state: 'live' }, content, hash: H })).toBeNull();
+    expect(parseReview(null)).toBeNull();
+  });
+
+  it('parseErrorBody accepts the new wire codes', () => {
+    for (const c of ['banned', 'not-admin', 'upstream']) {
+      expect(ERROR_CODES).toContain(c);
+      expect(parseErrorBody({ error: { code: c, message: 'x' } })).toBe(c);
+    }
+  });
+
+  it('new parsers never let __proto__ keys through', () => {
+    const p = (s: string) => JSON.parse(s);
+    const outputs = [
+      parseSignIn(p(`{"__proto__":{"polluted":1},"handle":"a","token":"${TOKEN}"}`)),
+      parseMe(
+        p(
+          '{"__proto__":{"polluted":1},"handle":"a","login":"a","entries":[{"__proto__":{"polluted":1},"id":"a/b","state":"live","version":1}]}',
+        ),
+      ),
+      parseMeta(
+        p(
+          '{"protocol":1,"name":"x","capabilities":{},"github":{"__proto__":{"polluted":1},"clientId":"abcd"},"quota":{"__proto__":{"polluted":1},"publisherBytes":5}}',
+        ),
+      ),
+    ];
+    const walk = (v: unknown): void => {
+      if (!v || typeof v !== 'object') return;
+      expect(Object.hasOwn(v, '__proto__')).toBe(false);
+      expect((v as Record<string, unknown>).polluted).toBeUndefined();
+      for (const x of Object.values(v)) walk(x);
+    };
+    for (const o of outputs) {
+      expect(o).not.toBeNull();
+      walk(o);
+    }
   });
 });

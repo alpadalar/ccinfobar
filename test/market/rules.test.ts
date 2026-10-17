@@ -10,6 +10,7 @@ import {
   part,
   personal,
   retryAfterSeconds,
+  SIGN_IN_ONLY,
   tombOf,
   toSummary,
   versionNo,
@@ -162,6 +163,15 @@ describe('market rules', () => {
       'too many requests',
       7,
     ]);
+  });
+
+  it('has fixed messages for the sign-in and moderation codes', () => {
+    expect(MESSAGES.banned).toBe('publisher is banned');
+    expect(MESSAGES['not-admin']).toBe('admins only');
+    expect(MESSAGES.upstream).toBe('sign-in service unavailable');
+    expect(SIGN_IN_ONLY).toBe('sign in with GitHub to publish');
+    expect(new MarketHttpError(403, 'forbidden', SIGN_IN_ONLY).message).toBe(SIGN_IN_ONLY);
+    expect(new MarketHttpError(403, 'banned').message).toBe('publisher is banned');
   });
 
   it('isJsonType accepts application/json with parameters only', () => {

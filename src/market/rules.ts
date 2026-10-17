@@ -46,8 +46,14 @@ export const MESSAGES: Record<string, string> = {
   'overwrite-disabled': 'overwrite is disabled on this server',
   'unsupported-media': 'content-type must be application/json',
   'rate-limited': 'too many requests',
+  banned: 'publisher is banned',
+  'not-admin': 'admins only',
+  upstream: 'sign-in service unavailable',
   internal: 'internal error',
 };
+
+// the Worker's 403 on POST /v1/publishers
+export const SIGN_IN_ONLY = 'sign in with GitHub to publish';
 
 export class MarketHttpError extends Error {
   retryAfter: number | null = null;
