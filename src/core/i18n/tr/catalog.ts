@@ -246,6 +246,7 @@ export const catalogMessages = {
   'err.catalog.needsConfirm': 'Önce yayımlamayı onaylayın',
   'err.catalog.badHandle':
     'Yayıncı adı 1 ile 39 arasında küçük harf, rakam veya tireden oluşur ve harf ya da rakamla başlar',
+  'err.catalog.installed': "Bu girdi marketplace'ten yüklendi; kendi girdiniz olarak paylaşılamaz",
   'err.catalog.planChanged': 'Girdiler siz inceledikten sonra değişti; yeniden inceleyin',
   'catalog.login.code': 'Giriş yapmak için {url} adresini açın ve şu kodu girin: {code}',
   'catalog.login.expires': {

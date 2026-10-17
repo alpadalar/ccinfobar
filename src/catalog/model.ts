@@ -54,6 +54,15 @@ export interface RemoteRef {
   review?: 'pending';
 }
 
+// where an installed entry came from
+export interface EntryOrigin {
+  endpoint: string;
+  id: string;
+  version: number;
+  hash: string;
+  installedAt: string;
+}
+
 export interface EntryShare {
   wanted: boolean;
   state: ShareState;
@@ -76,6 +85,7 @@ export interface CatalogEntry {
   versions: EntryVersion[];
   share: EntryShare;
   legacy?: { preset?: string; theme?: string };
+  origin?: EntryOrigin;
 }
 
 // Çalışma → calisma
@@ -300,6 +310,9 @@ export function mergeRaw(raw: Record<string, unknown>, next: CatalogEntry): Reco
   const share = { ...merged(rs, next.share), remote: nr && (same ? merged(prior, nr) : nr) };
   const out: Record<string, unknown> = { ...own(raw), ...next, share, versions };
   if (next.legacy) out.legacy = merged(raw.legacy, next.legacy);
+  const ro = isObject(raw.origin) ? raw.origin : undefined;
+  const no = next.origin;
+  if (no) out.origin = ro && ro.id === no.id && ro.endpoint === no.endpoint ? merged(ro, no) : no;
   return out;
 }
 
@@ -339,6 +352,18 @@ function parseRemote(v: unknown): RemoteRef | null {
     publishedAt,
     ...(v.review === 'pending' ? { review: v.review } : {}),
   };
+}
+
+const REMOTE_ID_RE = /^[a-z0-9][a-z0-9-]{0,38}\/[a-z0-9][a-z0-9-]{0,38}$/;
+const HASH_RE = /^[0-9a-f]{64}$/;
+
+function parseOrigin(v: unknown): EntryOrigin | null {
+  if (!isObject(v)) return null;
+  const { endpoint, id, version, hash, installedAt } = v;
+  if (!isStr(endpoint) || !endpoint || !isStr(id) || !REMOTE_ID_RE.test(id) || !isInt(version, 1))
+    return null;
+  if (!isStr(hash) || !HASH_RE.test(hash) || !isStr(installedAt)) return null;
+  return { endpoint, id, version, hash, installedAt };
 }
 
 function parseShare(v: unknown): EntryShare {
@@ -387,5 +412,7 @@ export function parseEntry(raw: unknown): CatalogEntry | null {
     if (isStr(raw.legacy.theme)) legacy.theme = raw.legacy.theme;
     out.legacy = legacy;
   }
+  const origin = parseOrigin(raw.origin);
+  if (origin) out.origin = origin;
   return out;
 }

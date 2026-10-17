@@ -28,6 +28,7 @@ import {
   ENTRY_LIMITS,
   type EntryContent,
   type EntryKind,
+  type EntryOrigin,
   isReserved,
   LAYOUT_KEYS,
   mergeRaw,
@@ -56,7 +57,8 @@ export type StoreCode =
   | 'bad-endpoint'
   | 'no-version'
   | 'busy'
-  | 'reserved';
+  | 'reserved'
+  | 'installed';
 
 export class CatalogStoreError extends Error {
   readonly code: StoreCode;
@@ -87,6 +89,8 @@ export interface SaveInput {
   mode: 'new' | 'update' | 'overwrite';
   // update and overwrite: a new share choice, in the same write
   shareChange?: boolean;
+  // set by a marketplace install
+  origin?: EntryOrigin;
   id?: string;
   rev?: number;
   now?: Date;
@@ -300,9 +304,10 @@ function saveLocked(input: SaveInput, dir: string): CatalogEntry {
       author: clip(input.author, ENTRY_LIMITS.author),
       content,
       note,
-      share: input.share === true,
+      share: input.share === true && !input.origin,
       now: at,
     });
+    if (input.origin) e.origin = structuredClone(input.origin);
     return commitEntry(e, 0, dir, now);
   }
   if (input.mode !== 'update' && input.mode !== 'overwrite') fail('bad-content', { mode: input.mode });
@@ -322,8 +327,10 @@ function saveLocked(input: SaveInput, dir: string): CatalogEntry {
       : overwriteVersion(cur, content, note, at);
   next.description = clip(input.description, ENTRY_LIMITS.description);
   if (input.author !== undefined) next.author = clip(input.author, ENTRY_LIMITS.author);
+  if (input.origin) next.origin = structuredClone(input.origin);
   const change = input.shareChange;
   if (change === true && isReserved(cur)) fail('reserved', { id, name: cur.name });
+  if (change === true && next.origin) fail('installed', { id, name: cur.name });
   const shared = typeof change === 'boolean' && change !== cur.share.wanted ? setShare(next, change) : next;
   return commitEntry(shared, rev, dir, now);
 }
@@ -348,6 +355,8 @@ export function updateShare(id: string, wanted: boolean, rev: number, dir = cata
   return withStoreLock(dir, () => {
     const cur = load(id, dir, rev);
     if (wanted && isReserved(cur)) fail('reserved', { id, name: cur.name });
+    // someone else's work is never published as yours
+    if (wanted && cur.origin) fail('installed', { id, name: cur.name });
     return commitEntry(setShare(cur, wanted), rev, dir);
   });
 }

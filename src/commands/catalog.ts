@@ -417,6 +417,7 @@ const STORE_IDS: Record<StoreCode, MessageId> = {
   'no-version': 'err.catalog.noVersion',
   busy: 'err.catalog.busy',
   reserved: 'catalog.publish.reserved',
+  installed: 'err.catalog.installed',
 };
 
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
@@ -698,6 +699,10 @@ function shareCommand(wanted: boolean): (c: Ctx) => void {
     if (!e) return;
     if (wanted && isReserved(e)) {
       c.fail(t('catalog.publish.reserved', { name: clean(e.name) }));
+      return;
+    }
+    if (wanted && e.origin) {
+      c.fail(t('err.catalog.installed'));
       return;
     }
     const next = c.dryRun ? setShare(e, wanted) : updateShare(e.id, wanted, e.rev, c.dir);

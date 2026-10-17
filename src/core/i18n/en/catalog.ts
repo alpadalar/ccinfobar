@@ -236,6 +236,7 @@ export const catalogMessages = {
   'err.catalog.needsConfirm': 'Confirm the publish first',
   'err.catalog.badHandle':
     'A publisher handle is 1 to 39 lowercase letters, digits or hyphens and starts with a letter or digit',
+  'err.catalog.installed': 'This entry was installed from the marketplace; it cannot be shared as your own',
   'err.catalog.planChanged': 'The entries changed since you reviewed them; review again',
   'catalog.login.code': 'To sign in, open {url} and enter the code {code}',
   'catalog.login.expires': {

@@ -482,6 +482,7 @@ const STORE_ERRORS: Record<StoreCode, [number, MessageId]> = {
   'no-version': [404, 'err.catalog.noVersion'],
   busy: [409, 'err.catalog.busy'],
   reserved: [409, 'catalog.publish.reserved'],
+  installed: [409, 'err.catalog.installed'],
 };
 
 function storeError(err: CatalogStoreError, kind = ''): HttpError {

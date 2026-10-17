@@ -132,6 +132,8 @@ export function publishPlan(
   const slugs = marketSlugs(all);
   const out: PublishItem[] = [];
   for (const e of entries) {
+    // installed entries belong to their publisher
+    if (e.origin) continue;
     const content = sendable(e);
     const state = shareView(e, entryHash(content));
     if (state !== 'pending' && state !== 'outdated' && state !== 'withdraw-pending') continue;
@@ -488,7 +490,8 @@ export async function remoteShow(
   const want = entry.versions.find((v) => v.version === entry.version)?.hash;
   if (!want || want !== entry.hash) return { code: 'bad-hash', entry, latest: null };
   try {
-    return { code: null, entry, latest: await client.version(id, entry.version, entry.kind, want) };
+    const { raw: _raw, ...latest } = await client.version(id, entry.version, entry.kind, want);
+    return { code: null, entry, latest };
   } catch (err) {
     return { code: codeOf(err), ...statusOf(err), entry, latest: null };
   }
