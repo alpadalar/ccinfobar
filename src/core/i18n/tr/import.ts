@@ -79,6 +79,10 @@ export const importMessages = {
     'Starship modülü "{name}" için ccinfobar karşılığı yok, atlandı; "starship module {name}" çalıştıran bir command bileşeni bunu gösterebilir (oluşturulmadı)',
   'import.note.spanLiteral':
     '{tool} stilli metni "{text}" yazıldığı gibi gösterilir: [ ] içindeki değişkenler açılmaz',
+  'import.note.glyphSpans': {
+    one: '{tool}: {count} powerline simge parçası atlandı; powerline stili kendi simgelerini çizer',
+    other: '{tool}: {count} powerline simge parçası atlandı; powerline stili kendi simgelerini çizer',
+  },
   'import.note.emptySpans': {
     one: '{tool}: görünür metni olmayan {count} stilli parça (powerline geçişi) atlandı',
     other: '{tool}: görünür metni olmayan {count} stilli parça (powerline geçişleri) atlandı',

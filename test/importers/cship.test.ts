@@ -124,9 +124,78 @@ describe('cship line grammar', () => {
       { kind: 'var', name: 'c' },
     ]);
   });
+
+  it('reads ${name} only with braces', () => {
+    expect(parseCshipLine('${env_var.CLAUDE_MODEL} $x', { braces: true })).toEqual([
+      { kind: 'var', name: 'env_var.CLAUDE_MODEL' },
+      { kind: 'text', text: ' ' },
+      { kind: 'var', name: 'x' },
+    ]);
+    expect(parseCshipLine('${env_var.CLAUDE_MODEL} $x')).toEqual([
+      { kind: 'var', name: '{env_var.CLAUDE_MODEL}' },
+      { kind: 'text', text: ' ' },
+      { kind: 'var', name: 'x' },
+    ]);
+    expect(parseCshipLine('${a}${b}[c](d)${}$', { braces: true })).toEqual([
+      { kind: 'var', name: 'a' },
+      { kind: 'var', name: 'b' },
+      { kind: 'span', text: 'c', style: 'd' },
+    ]);
+    expect(parseCshipLine('${open $x', { braces: true })).toEqual(parseCshipLine('${open $x'));
+  });
 });
 
 describe('cship mapper', () => {
+  it('keeps cship output when the Starship options are off', () => {
+    const cfg = parseToml(fixture('cship.toml')).cship as Record<string, unknown>;
+    expect(importCship(cfg, {})).toEqual(importCship(cfg));
+    const plain = parseToml(fixture('starship.toml')).cship as Record<string, unknown>;
+    expect(importCship(plain, { palette: {} })).toEqual(importCship(plain));
+  });
+
+  it('maps env_var modules, palettes and glyph spans only when asked', () => {
+    const cfg = parseToml(
+      [
+        'format = "[\ue0b6](fg:base)$directory[\ue0b0](bg:base)${env_var.X}$env_var.Y"',
+        '[directory]',
+        'style = "fg:base"',
+        'format = "[$path]($style)"',
+        '[env_var.X]',
+        'style = "bg:base"',
+        'default = "?"',
+        '',
+      ].join('\n'),
+    );
+    const plain = importCship(cfg);
+    expect(plain.config.lines!.flat().map((i) => i.type)).toEqual(['text', 'cwd', 'text']);
+    const r = importCship(cfg, {
+      source: 'claudebar',
+      tool: 'demo',
+      palette: { base: '#2e3440' },
+      braces: true,
+      moduleStyles: true,
+      dropGlyphs: true,
+      envVar: (name) => (name === 'X' ? { uses: [['model']] } : null),
+    });
+    expect(r.source).toBe('claudebar');
+    expect(r.config.lines).toEqual([
+      [
+        {
+          id: 'demo-1',
+          type: 'cwd',
+          options: { style: 'segments', segments: 3 },
+          label: '',
+          color: '#2e3440',
+        },
+        { id: 'demo-2', type: 'model', label: '', background: '#2e3440' },
+      ],
+    ]);
+    expect(r.notes.map((n) => n.text)).toEqual([
+      'demo module "env_var.X": default not imported, the widget uses its own format',
+      'Starship module "env_var.Y" has no ccinfobar equivalent and was dropped; a command widget running "starship module env_var.Y" could show it (none was created)',
+      'demo: 2 powerline glyph spans were dropped; the powerline style draws its own',
+    ]);
+  });
   it('maps the cship.toml fixture', () => {
     const r = importCship(parseToml(fixture('cship.toml')).cship as Record<string, unknown>);
     expect(r.source).toBe('cship');

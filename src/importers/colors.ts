@@ -60,7 +60,10 @@ function starshipColor(name: string): string | undefined {
   return C16[bright ? i + 8 : i];
 }
 
-export function starshipStyle(s: string): StyleFields & { unknown: string[] } {
+export function starshipStyle(
+  s: string,
+  palette?: Record<string, string>,
+): StyleFields & { unknown: string[] } {
   const out: StyleFields & { unknown: string[] } = { unknown: [] };
   for (const token of (typeof s === 'string' ? s : '').split(/\s+/)) {
     if (!token) continue;
@@ -71,7 +74,9 @@ export function starshipStyle(s: string): StyleFields & { unknown: string[] } {
     else {
       const bg = low.startsWith('bg:');
       const name = bg || low.startsWith('fg:') ? low.slice(3) : low;
-      const color = starshipColor(name);
+      // one level, as Starship does
+      const value = palette && Object.hasOwn(palette, name) ? palette[name] : undefined;
+      const color = starshipColor(typeof value === 'string' ? value : name);
       if (!color) out.unknown.push(token);
       else if (bg) out.background = color;
       else out.color = color;

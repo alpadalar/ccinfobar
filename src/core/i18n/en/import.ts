@@ -75,6 +75,10 @@ export const importMessages = {
     'Starship module "{name}" has no ccinfobar equivalent and was dropped; a command widget running "starship module {name}" could show it (none was created)',
   'import.note.spanLiteral':
     '{tool} styled text "{text}" is shown as written: variables inside [ ] are not expanded',
+  'import.note.glyphSpans': {
+    one: '{tool}: {count} powerline glyph span was dropped; the powerline style draws its own',
+    other: '{tool}: {count} powerline glyph spans were dropped; the powerline style draws its own',
+  },
   'import.note.emptySpans': {
     one: '{tool}: {count} styled span without visible text (a powerline transition) was dropped',
     other: '{tool}: {count} styled spans without visible text (powerline transitions) were dropped',

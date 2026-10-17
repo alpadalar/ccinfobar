@@ -3,9 +3,7 @@ import { t } from '../core/i18n/index.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionValue, WidgetItem } from '../core/types.js';
 import { starshipStyle } from './colors.js';
-import type { ImportNote, ImportResult } from './index.js';
-
-const TOOL = 'cship';
+import type { ImportNote, ImportResult, ImportSource } from './index.js';
 
 type Raw = Record<string, unknown>;
 
@@ -14,8 +12,8 @@ export type CshipToken =
   | { kind: 'span'; text: string; style: string }
   | { kind: 'var'; name: string };
 
-// mirrors cship's parse_line
-export function parseCshipLine(line: string): CshipToken[] {
+// mirrors cship's parse_line; braces adds Starship's ${name}
+export function parseCshipLine(line: string, opts: { braces?: boolean } = {}): CshipToken[] {
   const out: CshipToken[] = [];
   let pos = 0;
   while (pos < line.length) {
@@ -42,6 +40,13 @@ export function parseCshipLine(line: string): CshipToken[] {
       pos += next;
       continue;
     }
+    const close = opts.braces && rest[1] === '{' ? rest.indexOf('}', 2) : -1;
+    if (close > 0) {
+      const name = rest.slice(2, close);
+      if (name) out.push({ kind: 'var', name });
+      pos += close + 1;
+      continue;
+    }
     const name = /^[^\s[$]*/.exec(rest.slice(1))![0];
     if (name) out.push({ kind: 'var', name });
     pos += 1 + name.length;
@@ -61,7 +66,25 @@ export function parseCshipConfigFlag(command: string): string | null {
   return null;
 }
 
-type Use = [string, Record<string, OptionValue>?];
+export type Use = [string, Record<string, OptionValue>?];
+
+export interface EnvModule {
+  uses: Use[];
+  approx?: boolean;
+}
+
+export interface CshipOptions {
+  source?: ImportSource;
+  tool?: string;
+  palette?: Record<string, string>;
+  braces?: boolean;
+  // Starship env_var.<name> modules
+  envVar?: (name: string, table: Record<string, unknown> | null) => EnvModule | null;
+  // style, symbol and truncation_length of Starship modules
+  moduleStyles?: boolean;
+  // drop pure glyph spans (the powerline style draws them)
+  dropGlyphs?: boolean;
+}
 
 interface Module {
   table: string;
@@ -193,6 +216,11 @@ export const TARGETS: readonly string[] = [
 ];
 
 const DEFAULT_FORMATS = new Set(['[$symbol$value]($style)', '$symbol$value']);
+const ENV_FORMATS = new Set([
+  '[$env_value]($style)',
+  '[$symbol$env_value]($style)',
+  'with[$env_value]($style)',
+]);
 const HANDLED = new Set([
   'style',
   'symbol',
@@ -205,6 +233,7 @@ const HANDLED = new Set([
   'critical_style',
   'invert_threshold',
 ]);
+const ENV_HANDLED = new Set([...HANDLED, 'variable', 'description']);
 
 const obj = (v: unknown): Raw => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Raw) : {});
 
@@ -216,11 +245,14 @@ interface State {
   notes: ImportNote[];
   n: number;
   spans: number;
+  glyphs: number;
+  tool: string;
+  o: CshipOptions;
 }
 
 function styled(it: WidgetItem, style: unknown, st: State, name: string, keepColor = true): void {
   if (typeof style !== 'string') return;
-  const s = starshipStyle(style);
+  const s = starshipStyle(style, st.o.palette);
   if (s.color && keepColor) it.color = s.color;
   if (s.background) it.background = s.background;
   if (s.bold) it.bold = true;
@@ -228,42 +260,47 @@ function styled(it: WidgetItem, style: unknown, st: State, name: string, keepCol
   if (s.dim) it.dim = true;
   if (s.unknown.length) {
     const tokens = s.unknown.map(sanitizeText).join(', ');
-    st.notes.push({ kind: 'approx', text: t('import.note.unknownStyle', { tool: TOOL, name, tokens }) });
+    st.notes.push({ kind: 'approx', text: t('import.note.unknownStyle', { tool: st.tool, name, tokens }) });
   }
 }
 
-const nextId = (st: State) => `cship-${++st.n}`;
+const nextId = (st: State) => `${st.tool}-${++st.n}`;
 
-function moduleItems(name: string, m: Module, cfg: Raw, st: State): WidgetItem[] {
+function cshipConf(m: Module, cfg: Raw): Raw | null {
   const parent = obj(cfg[m.table]);
   const sub = m.sub ? obj(parent[m.sub]) : {};
-  if (parent.disabled === true || sub.disabled === true) return [];
-  const conf: Raw = { ...parent, ...sub };
+  if (parent.disabled === true || sub.disabled === true) return null;
+  return { ...parent, ...sub };
+}
+
+function moduleItems(name: string, m: Module, conf: Raw, st: State, env = false): WidgetItem[] {
+  const handled = env ? ENV_HANDLED : HANDLED;
+  const formats = env ? ENV_FORMATS : DEFAULT_FORMATS;
   const shown = sanitizeText(name);
   const widget = m.uses.map((u) => u[0]).join(', ');
   if (m.approx) {
     st.notes.push({
       kind: 'approx',
-      text: t('import.note.moduleApprox', { tool: TOOL, name: shown, widget }),
+      text: t('import.note.moduleApprox', { tool: st.tool, name: shown, widget }),
     });
   }
   const thresholds = isNum(conf.warn_threshold) || isNum(conf.critical_threshold);
   const colored = m.uses.some((u) => THRESHOLD_TARGETS.includes(u[0]));
   if (thresholds) {
     const id = colored ? 'import.note.thresholdColors' : 'import.note.noThreshold';
-    st.notes.push({ kind: 'approx', text: t(id, { tool: TOOL, name: shown, widget }) });
+    st.notes.push({ kind: 'approx', text: t(id, { tool: st.tool, name: shown, widget }) });
   }
   const ignored = Object.keys(conf).filter((k) => {
     const v = conf[k];
-    if (HANDLED.has(k) || (v && typeof v === 'object' && !Array.isArray(v))) return false;
-    if (k === 'format') return typeof v !== 'string' || !DEFAULT_FORMATS.has(v.replace(/\s+/g, ''));
+    if (handled.has(k) || (v && typeof v === 'object' && !Array.isArray(v))) return false;
+    if (k === 'format') return typeof v !== 'string' || !formats.has(v.replace(/\s+/g, ''));
     return !(k === 'width' && m.table === 'context_bar' && isNum(v));
   });
   if (ignored.length) {
     const options = ignored.map(sanitizeText).join(', ');
     st.notes.push({
       kind: 'approx',
-      text: t('import.note.moduleOptions', { tool: TOOL, name: shown, options }),
+      text: t('import.note.moduleOptions', { tool: st.tool, name: shown, options }),
     });
   }
   return m.uses.map(([type, base]) => {
@@ -278,6 +315,47 @@ function moduleItems(name: string, m: Module, cfg: Raw, st: State): WidgetItem[]
   });
 }
 
+const softItems = (items: WidgetItem[]): Piece[] =>
+  items.flatMap((item, i): Piece[] => (i ? [{ gap: ' ', soft: true }, { item }] : [{ item }]));
+
+function envPieces(name: string, cfg: Raw, st: State): Piece[] {
+  const key = name.slice('env_var.'.length);
+  const all = obj(cfg.env_var);
+  const raw = Object.hasOwn(all, key) ? all[key] : undefined;
+  const table = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Raw) : null;
+  if (table?.disabled === true) return [];
+  const m = st.o.envVar!(key, table);
+  if (!m) {
+    st.notes.push({
+      kind: 'drop',
+      text: t('import.note.starshipModule', { tool: st.tool, name: sanitizeText(name) }),
+    });
+    return [];
+  }
+  const module: Module = { table: 'env_var', uses: m.uses, ...(m.approx ? { approx: true } : {}) };
+  return softItems(moduleItems(name, module, table ?? {}, st, true));
+}
+
+function starshipItem(name: string, use: Use, cfg: Raw, st: State): WidgetItem | null {
+  const [type, options] = use;
+  const it: WidgetItem = { id: nextId(st), type, ...(options ? { options: { ...options } } : {}) };
+  if (!st.o.moduleStyles) return it;
+  const table = obj(cfg[name]);
+  if (table.disabled === true) return null;
+  if (typeof table.format === 'string') {
+    if (!table.format.includes('$symbol')) it.label = '';
+    else if (typeof table.symbol === 'string') it.label = table.symbol;
+  }
+  const n = table.truncation_length;
+  if (type === 'cwd' && Number.isInteger(n) && (n as number) > 0) {
+    it.options = { ...it.options, segments: n as number };
+  }
+  styled(it, table.style, st, sanitizeText(name));
+  return it;
+}
+
+const GLYPHS = /^[\u2580-\u259f\ue000-\uf8ff\u{f0000}-\u{10ffff}]+$/u;
+
 function varPieces(name: string, cfg: Raw, st: State): Piece[] {
   const shown = sanitizeText(name);
   if (name === 'fill') {
@@ -287,34 +365,34 @@ function varPieces(name: string, cfg: Raw, st: State): Piece[] {
     if (symbol !== ' ') {
       st.notes.push({
         kind: 'approx',
-        text: t('import.note.fillChar', { tool: TOOL, symbol: sanitizeText(symbol) }),
+        text: t('import.note.fillChar', { tool: st.tool, symbol: sanitizeText(symbol) }),
       });
     }
     return [{ item: { id: nextId(st), type: 'flex' } }];
   }
   if (name === 'starship_prompt') {
     if (obj(cfg.starship_prompt).disabled !== true) {
-      st.notes.push({ kind: 'drop', text: t('import.note.starshipPrompt', { tool: TOOL }) });
+      st.notes.push({ kind: 'drop', text: t('import.note.starshipPrompt', { tool: st.tool }) });
     }
     return [];
   }
   if (name.startsWith('cship.')) {
     const m = Object.hasOwn(CSHIP_MODULES, name) ? CSHIP_MODULES[name] : null;
     if (!m) {
-      st.notes.push({ kind: 'drop', text: t('import.note.noModule', { tool: TOOL, name: shown }) });
+      st.notes.push({ kind: 'drop', text: t('import.note.noModule', { tool: st.tool, name: shown }) });
       return [];
     }
-    return moduleItems(name, m, cfg, st).flatMap((item, i): Piece[] =>
-      i ? [{ gap: ' ', soft: true }, { item }] : [{ item }],
-    );
+    const conf = cshipConf(m, cfg);
+    return conf ? softItems(moduleItems(name, m, conf, st)) : [];
   }
+  if (st.o.envVar && name.startsWith('env_var.')) return envPieces(name, cfg, st);
   const use = Object.hasOwn(STARSHIP_MODULES, name) ? STARSHIP_MODULES[name] : undefined;
   if (!use) {
-    st.notes.push({ kind: 'drop', text: t('import.note.starshipModule', { tool: TOOL, name: shown }) });
+    st.notes.push({ kind: 'drop', text: t('import.note.starshipModule', { tool: st.tool, name: shown }) });
     return [];
   }
-  const [type, options] = use;
-  return [{ item: { id: nextId(st), type, ...(options ? { options: { ...options } } : {}) } }];
+  const item = starshipItem(name, use, cfg, st);
+  return item ? [{ item }] : [];
 }
 
 function textPieces(text: string, st: State, style?: string): Piece[] {
@@ -333,17 +411,20 @@ function textPieces(text: string, st: State, style?: string): Piece[] {
 
 function linePieces(line: string, cfg: Raw, st: State): Piece[] {
   const out: Piece[] = [];
-  for (const tok of parseCshipLine(line)) {
+  for (const tok of parseCshipLine(line, { braces: st.o.braces })) {
     if (tok.kind === 'var') out.push(...varPieces(tok.name, cfg, st));
     else if (tok.kind === 'text') out.push(...textPieces(tok.text, st));
-    else if (!tok.text.trim()) {
+    else if (st.o.dropGlyphs && GLYPHS.test(tok.text.replace(/\s+/g, ''))) {
+      st.glyphs++;
+      out.push({ gap: ' ', soft: true });
+    } else if (!tok.text.trim()) {
       st.spans++;
       if (tok.text) out.push({ gap: tok.text });
     } else {
       if (tok.text.includes('$')) {
         st.notes.push({
           kind: 'approx',
-          text: t('import.note.spanLiteral', { tool: TOOL, text: sanitizeText(tok.text) }),
+          text: t('import.note.spanLiteral', { tool: st.tool, text: sanitizeText(tok.text) }),
         });
       }
       out.push(...textPieces(tok.text, st, tok.style));
@@ -355,8 +436,8 @@ function linePieces(line: string, cfg: Raw, st: State): Piece[] {
 const showGap = (g: string) =>
   !g.trim() && g.length > 2 ? t('import.spaces', { count: g.length }) : `"${sanitizeText(g)}"`;
 
-export function importCship(cfg: Record<string, unknown>): ImportResult {
-  const st: State = { notes: [], n: 0, spans: 0 };
+export function importCship(cfg: Record<string, unknown>, opts: CshipOptions = {}): ImportResult {
+  const st: State = { notes: [], n: 0, spans: 0, glyphs: 0, tool: opts.tool ?? 'cship', o: opts };
   const sources =
     typeof cfg.format === 'string'
       ? cfg.format.split('$line_break')
@@ -386,8 +467,11 @@ export function importCship(cfg: Record<string, unknown>): ImportResult {
     }
     if (items.some((i) => i.type !== 'flex')) lines.push(items);
   }
+  if (st.glyphs) {
+    st.notes.push({ kind: 'approx', text: t('import.note.glyphSpans', { tool: st.tool, count: st.glyphs }) });
+  }
   if (st.spans) {
-    st.notes.push({ kind: 'approx', text: t('import.note.emptySpans', { tool: TOOL, count: st.spans }) });
+    st.notes.push({ kind: 'approx', text: t('import.note.emptySpans', { tool: st.tool, count: st.spans }) });
   }
   let separator = ' ';
   let best = 0;
@@ -399,11 +483,11 @@ export function importCship(cfg: Record<string, unknown>): ImportResult {
     const gapsText = others.map(showGap).join(', ');
     st.notes.push({
       kind: 'approx',
-      text: t('import.note.gapsReplaced', { tool: TOOL, gaps: gapsText, separator: showGap(separator) }),
+      text: t('import.note.gapsReplaced', { tool: st.tool, gaps: gapsText, separator: showGap(separator) }),
     });
   }
   const config: Partial<Config> = { lines, separator };
   const seen = new Set<string>();
   const notes = st.notes.filter((n) => !seen.has(`${n.kind}:${n.text}`) && !!seen.add(`${n.kind}:${n.text}`));
-  return { config, notes, source: 'cship' };
+  return { config, notes, source: opts.source ?? 'cship' };
 }

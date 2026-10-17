@@ -68,6 +68,32 @@ describe('starshipStyle', () => {
     expect(starshipStyle('')).toEqual({ unknown: [] });
     expect(starshipStyle('  ')).toEqual({ unknown: [] });
   });
+
+  it('resolves palette names one level deep', () => {
+    const palette = { blue_dark: '#4c566a', base: '#2e3440', red: '#bf616a', alias: 'base' };
+    expect(starshipStyle('bold fg:blue_dark bg:base', palette)).toEqual({
+      color: '#4c566a',
+      background: '#2e3440',
+      bold: true,
+      unknown: [],
+    });
+    expect(starshipStyle('bold fg:blue_dark bg:base').unknown).toEqual(['fg:blue_dark', 'bg:base']);
+    expect(starshipStyle('Blue_Dark red', palette).color).toBe('#bf616a');
+    expect(starshipStyle('fg:Blue_Dark', palette).color).toBe('#4c566a');
+    expect(starshipStyle('fg:alias', palette).unknown).toEqual(['fg:alias']);
+    expect(starshipStyle('fg:cyan', palette).color).toBe('cyan');
+  });
+
+  it('never resolves palette names through the prototype', () => {
+    const palette = { base: '#2e3440' };
+    expect(starshipStyle('fg:constructor bg:__proto__ tostring', palette).unknown).toEqual([
+      'fg:constructor',
+      'bg:__proto__',
+      'tostring',
+    ]);
+    const bad = { constructor: 42 } as unknown as Record<string, string>;
+    expect(starshipStyle('fg:constructor', bad).unknown).toEqual(['fg:constructor']);
+  });
 });
 
 describe('hudColor', () => {
