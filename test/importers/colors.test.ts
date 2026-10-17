@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseColor } from '../../src/core/ansi.js';
-import { ansiColor, hudColor, starshipStyle } from '../../src/importers/colors.js';
+import { ansiColor, hudColor, namedColor, rgbColor, starshipStyle } from '../../src/importers/colors.js';
 
 describe('ansiColor', () => {
   it('maps c16, c256 and rgb', () => {
@@ -88,6 +88,45 @@ describe('hudColor', () => {
   });
 });
 
+describe('namedColor', () => {
+  it('maps ANSI names, aliases and bright forms', () => {
+    for (const v of ['bright_blue', 'bright-blue', 'brightBlue', 'BrightBlue']) {
+      expect(namedColor(v), v).toBe('brightBlue');
+    }
+    expect(namedColor('purple')).toBe('magenta');
+    expect(namedColor('bright_purple')).toBe('brightMagenta');
+    expect(namedColor('grey')).toBe('brightBlack');
+    expect(namedColor('gray')).toBe('brightBlack');
+    expect(namedColor('Red')).toBe('red');
+    expect(namedColor('white')).toBe('white');
+    expect(namedColor('bright_black')).toBe('brightBlack');
+  });
+
+  it('rejects anything else', () => {
+    for (const v of ['orange', 'bright_orange', 'bright', 'bright_grey', 'constructor', '', 3, null, {}]) {
+      expect(namedColor(v), String(v)).toBeUndefined();
+    }
+  });
+});
+
+describe('rgbColor', () => {
+  it('maps hex, R,G,B and 256-color numbers', () => {
+    expect(rgbColor('136,192,208')).toBe('#88c0d0');
+    expect(rgbColor('136, 192, 208')).toBe('#88c0d0');
+    expect(rgbColor('#ABC')).toBe('#aabbcc');
+    expect(rgbColor('#A1B2C3')).toBe('#a1b2c3');
+    expect(rgbColor(214)).toBe('ansi256:214');
+    expect(rgbColor(0)).toBe('ansi256:0');
+    expect(rgbColor('214')).toBe('ansi256:214');
+  });
+
+  it('rejects anything else', () => {
+    for (const v of ['300,0,0', '1,2', '1,2,3,4', '#12', '#abcd', 256, -1, 1.5, '256', 'red', null, {}]) {
+      expect(rgbColor(v), String(v)).toBeUndefined();
+    }
+  });
+});
+
 describe('color output', () => {
   it('is always a color parseColor accepts', () => {
     const colors = [
@@ -99,6 +138,8 @@ describe('color output', () => {
         starshipStyle(`bg:${s}`).background,
       ]),
       ...['red', 'brightMagenta', 17, '#00ff00'].map((v) => hudColor(v)?.color),
+      ...['bright_cyan', 'grey', 'purple'].map(namedColor),
+      ...['1,2,3', '#abc', 9].map(rgbColor),
     ];
     for (const c of colors) {
       expect(c).toBeTypeOf('string');

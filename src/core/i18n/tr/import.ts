@@ -7,6 +7,8 @@ export const importMessages = {
   'import.cannotReadTool': '{file} konumundaki {tool} yapılandırması okunamıyor',
   'import.cannotParseTool': '{file} konumundaki {tool} yapılandırması ayrıştırılamıyor',
   'import.tooLarge': '{file} 1 MB sınırından büyük, okunmadı',
+  'import.notFound': '{tool} yapılandırması bulunamadı ({file}); yolunu --file ile verin',
+  'import.shownCommand': 'durum satırı komutundaki yol',
   'import.tool.gsd': 'GSD durum satırı',
   'import.tool.custom': 'özel bir durum satırı',
   'import.note.noEquivalent': '{tool} bileşeni "{name}" için ccinfobar karşılığı yok, atlandı',
@@ -25,6 +27,13 @@ export const importMessages = {
     '{tool} teması "{name}" durum satırı komutunda seçili ama bulunamadı, varsayılan tema içe aktarıldı',
   'import.note.themeUnsafe':
     'durum satırı komutundaki {tool} teması "{name}" güvenli bir tema adı değil, yok sayıldı',
+  'import.note.themeApprox': '{tool} teması "{name}", {theme} temasıyla yaklaşık olarak gösteriliyor',
+  'import.note.themeMissing':
+    '{tool} teması "{name}" için ccinfobar karşılığı yok, {theme} teması kullanıldı',
+  'import.note.styleApprox': '{tool} stili "{name}", {style} stiliyle yaklaşık olarak gösteriliyor',
+  'import.note.ignoredSettings': '{tool} ayarları içe aktarılmadı: {names}',
+  'import.note.secretDropped': '{tool} ayarı "{name}" gizli bir değer içeriyor, kopyalanmadı',
+  'import.note.fileIgnored': '{tool} ayarlarını durum satırı komutundan okur, --file yok sayıldı',
   'import.cshipNotFound': 'cship yapılandırması bulunamadı',
   'import.cshipNoLines': 'cship yapılandırmasında satır yok ({file})',
   'import.note.starshipConfig':

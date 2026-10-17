@@ -4,6 +4,8 @@ export const importMessages = {
   'import.cannotReadTool': 'Cannot read {tool} config at {file}',
   'import.cannotParseTool': 'Cannot parse {tool} config at {file}',
   'import.tooLarge': '{file} is larger than 1 MB and was not read',
+  'import.notFound': 'no {tool} config found ({file}); pass its path with --file',
+  'import.shownCommand': 'path from the status line command',
   'import.tool.gsd': 'GSD status line',
   'import.tool.custom': 'a custom status line',
   'import.note.noEquivalent': '{tool} widget "{name}" has no ccinfobar equivalent and was skipped',
@@ -22,6 +24,12 @@ export const importMessages = {
     '{tool} theme "{name}" is set in the status line command but was not found, imported its default theme',
   'import.note.themeUnsafe':
     '{tool} theme "{name}" in the status line command is not a safe theme name and was ignored',
+  'import.note.themeApprox': '{tool} theme "{name}" is approximated by the {theme} theme',
+  'import.note.themeMissing': '{tool} theme "{name}" has no ccinfobar equivalent, used the {theme} theme',
+  'import.note.styleApprox': '{tool} style "{name}" is approximated by the {style} style',
+  'import.note.ignoredSettings': '{tool} settings not imported: {names}',
+  'import.note.secretDropped': '{tool} setting "{name}" holds a secret and was not copied',
+  'import.note.fileIgnored': '{tool} reads its settings from the status line command, --file was ignored',
   'import.cshipNotFound': 'no cship config found',
   'import.cshipNoLines': 'cship config has no lines ({file})',
   'import.note.starshipConfig':

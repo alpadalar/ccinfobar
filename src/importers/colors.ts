@@ -87,3 +87,25 @@ export function hudColor(v: unknown): StyleFields | undefined {
   const hex = typeof v === 'string' ? hexColor(v, false) : undefined;
   return hex ? { color: hex } : undefined;
 }
+
+export function namedColor(v: unknown): string | undefined {
+  const m = typeof v === 'string' ? /^(bright[-_]?)?([a-z]+)$/.exec(v.toLowerCase()) : null;
+  if (!m) return undefined;
+  const base = m[2] === 'purple' ? 'magenta' : m[2]!;
+  if (!m[1] && (base === 'gray' || base === 'grey')) return 'brightBlack';
+  const i = C16.indexOf(base);
+  if (i < 0 || i > 7) return undefined;
+  return C16[m[1] ? i + 8 : i];
+}
+
+export function rgbColor(v: unknown): string | undefined {
+  if (byte(v)) return `ansi256:${v}`;
+  if (typeof v !== 'string') return undefined;
+  const s = v.trim();
+  if (s.startsWith('#')) return hexColor(s, true);
+  if (/^\d{1,3}$/.test(s)) return byte(Number(s)) ? `ansi256:${Number(s)}` : undefined;
+  const parts = s.split(',').map((p) => p.trim());
+  if (parts.length !== 3 || !parts.every((p) => /^\d{1,3}$/.test(p))) return undefined;
+  const [r, g, b] = parts.map(Number) as [number, number, number];
+  return byte(r) && byte(g) && byte(b) ? `#${hex2(r)}${hex2(g)}${hex2(b)}` : undefined;
+}

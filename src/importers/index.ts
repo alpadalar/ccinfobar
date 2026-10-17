@@ -7,13 +7,26 @@ import { t } from '../core/i18n/index.js';
 import { claudeDir, claudeSettingsPath, tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config } from '../core/types.js';
+import { firstPathToken } from './args.js';
 import { CCLINE_DEFAULT, importCcometixline, parseCclineTheme } from './ccometixline.js';
 import { CCLINE_THEMES, type CclineTheme } from './ccometixline-themes.js';
 import { importCcstatusline } from './ccstatusline.js';
 import { importClaudeHud, mergeHud, normalizeHud, parseExtraCmd } from './claude-hud.js';
 import { importClaudePowerline, parsePowerlineArgs } from './claude-powerline.js';
 import { importCship, parseCshipConfigFlag } from './cship.js';
-import { parseToml, TomlError } from './toml.js';
+import {
+  expand,
+  isFile,
+  isPlainFile,
+  readJson,
+  readSource,
+  readToml,
+  SourceTooLargeError,
+  safeThemeName,
+  tableOf,
+} from './io.js';
+
+export { MAX_SOURCE_BYTES, readSource, SourceTooLargeError } from './io.js';
 
 export const IMPORT_SOURCES = [
   'ccstatusline',
@@ -39,36 +52,11 @@ export interface ImportResult {
   file?: string | null;
 }
 
-export const MAX_SOURCE_BYTES = 1_048_576;
-
-export class SourceTooLargeError extends Error {}
-
 export function resolveSource(name: string | undefined): ImportSource | null {
   if (typeof name !== 'string') return null;
   const key = name.replace(/[A-Z]/g, (c) => c.toLowerCase());
   const hit = IMPORT_SOURCES.find((s) => s === key);
   return hit ?? (Object.hasOwn(IMPORT_ALIASES, key) ? IMPORT_ALIASES[key]! : null);
-}
-
-// fstat on the open fd, so a swapped file is still capped
-export function readSource(file: string): string {
-  const fd = fs.openSync(file, 'r');
-  try {
-    const tooLarge = () => new SourceTooLargeError(t('import.tooLarge', { file }));
-    if (fs.fstatSync(fd).size > MAX_SOURCE_BYTES) throw tooLarge();
-    const buf = Buffer.alloc(MAX_SOURCE_BYTES + 1);
-    let n = 0;
-    while (n < buf.length) {
-      const r = fs.readSync(fd, buf, n, buf.length - n, null);
-      if (r === 0) break;
-      n += r;
-    }
-    if (n > MAX_SOURCE_BYTES) throw tooLarge();
-    const text = buf.toString('utf8', 0, n);
-    return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-  } finally {
-    fs.closeSync(fd);
-  }
 }
 
 export interface DetectedTool {
@@ -103,19 +91,6 @@ export function detectTool(command: string | undefined | null): DetectedTool | n
   return { tool: 'unknown', name: t('import.tool.custom'), importable: false, command };
 }
 
-function expand(p: string): string {
-  return p.startsWith('~') ? path.join(os.homedir(), p.slice(1)) : p;
-}
-
-function readJson(file: string): unknown | null {
-  try {
-    return JSON.parse(readSource(file));
-  } catch (err) {
-    if (err instanceof SourceTooLargeError) throw err;
-    return null;
-  }
-}
-
 export function ccstatuslinePath(env: NodeJS.ProcessEnv = process.env, command = ''): string {
   const flag = /--config[=\s]+("[^"]*"|'[^']*'|\S+)/.exec(command)?.[1]?.replace(/^["']|["']$/g, '');
   if (flag) return expand(flag);
@@ -138,30 +113,13 @@ export function powerlinePaths(
   ];
 }
 
-function firstPath(command: string): string | null {
-  for (const m of command.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)) {
-    const token = expand(m[1] ?? m[2] ?? m[3]!);
-    if (/[\\/]/.test(token)) return path.isAbsolute(token) ? token : null;
-  }
-  return null;
-}
-
-// regular files only, never through a symlink
-function isPlainFile(file: string): boolean {
-  try {
-    return fs.lstatSync(file).isFile();
-  } catch {
-    return false;
-  }
-}
-
 export function ccometixlinePaths(
   command: string,
   home = os.homedir(),
 ): { file: string | null; note: 'command-dir' | null } {
   const homeFile = path.join(home, '.claude', 'ccline', 'config.toml');
   if (fs.existsSync(homeFile)) return { file: homeFile, note: null };
-  const bin = firstPath(command);
+  const bin = firstPathToken(command, home);
   if (bin) {
     const dirs = [path.dirname(bin)];
     for (let d = path.dirname(bin); path.dirname(d) !== d; d = path.dirname(d)) {
@@ -175,36 +133,7 @@ export function ccometixlinePaths(
   return { file: null, note: null };
 }
 
-function readToml(file: string, tool: string): unknown {
-  let text: string;
-  try {
-    text = readSource(file);
-  } catch (err) {
-    if (err instanceof SourceTooLargeError) throw err;
-    throw new Error(t('import.cannotReadTool', { tool, file }));
-  }
-  try {
-    return parseToml(text);
-  } catch (err) {
-    if (err instanceof TomlError) {
-      throw new Error(`${sanitizeText(tildify(file))}:${err.line}:${err.col} ${err.message}`);
-    }
-    throw err;
-  }
-}
-
-// a regular file, followed through symlinks (not a device or dir)
-function isFile(file: string): boolean {
-  try {
-    return fs.statSync(file).isFile();
-  } catch {
-    return false;
-  }
-}
-
 const CCLINE = 'CCometixLine';
-
-const safeThemeName = (name: string) => /^[\w.-]+$/.test(name) && !name.includes('..');
 
 function importCclineTheme(name: string, home: string): ImportResult | ImportNote {
   const shown = sanitizeText(name);
@@ -290,9 +219,6 @@ export function cshipDiscover(opts: {
   }
   return null;
 }
-
-const tableOf = (v: unknown): Record<string, unknown> | null =>
-  v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 
 function importCshipFrom(found: CshipFound | null): ImportResult {
   if (!found) throw new Error(t('import.cshipNotFound'));
