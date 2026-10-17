@@ -12,9 +12,10 @@ beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-market-int-'));
 });
 
+// thousands of entry files are slow to delete on Windows
 afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
-});
+}, 120_000);
 
 describe('self-hosting entry', () => {
   it('parses --data, --port, --host and --no-overwrite', () => {
@@ -110,5 +111,5 @@ describe('reference server filled to its caps', () => {
     } finally {
       await s.close();
     }
-  }, 60_000);
+  }, 120_000);
 });
