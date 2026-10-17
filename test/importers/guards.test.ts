@@ -28,6 +28,7 @@ import {
   importFrom,
   toConfig,
 } from '../../src/importers/index.js';
+import { TARGETS as NYCU_TARGETS } from '../../src/importers/nycu-cc-statusline.js';
 import { TARGETS as PYCCSL_TARGETS } from '../../src/importers/pyccsl.js';
 import { TARGETS as SC_TARGETS } from '../../src/importers/starship-claude.js';
 import { TARGETS as CCSP_TARGETS } from '../../src/importers/statusline-pro.js';
@@ -234,6 +235,16 @@ const TOOLS: Tool[] = [
     hostileIn: 'notes',
     hostile: JSON.stringify({ style: HOSTILE, theme: HOSTILE }),
     protoText: `{"__proto__": ${EVIL}, "show_cost": true, "nested": {"__proto__": ${EVIL}, "theme": "nord"}}`,
+  },
+  {
+    source: 'nycu-cc-statusline',
+    targets: NYCU_TARGETS,
+    fixtures: ['nycu-cc-statusline.json'],
+    ext: 'json',
+    hasDefault: true,
+    hostileIn: 'notes',
+    hostile: JSON.stringify({ [HOSTILE]: true, dir: true }),
+    protoText: `{"__proto__": ${EVIL}, "constructor": true, "prototype": false, "dir": true, "summary": false}`,
   },
   {
     source: 'cship',

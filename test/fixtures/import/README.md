@@ -27,3 +27,4 @@ Hand-written fixtures in each tool's documented format; no upstream code or secr
 | `coralline.conf` | [Nanako0129/coralline](https://github.com/Nanako0129/coralline) | `configure.sh` `write_candidate_config` (`printf %q` values, theme include, p10k color hint), `statusline.ps1` REMORA line | MIT |
 | `coralline-theme.conf` | [Nanako0129/coralline](https://github.com/Nanako0129/coralline) | `themes/claude-coral.conf` (colors, two subagent candidates) | MIT |
 | `claude-statusbar.json` | [leeguooooo/claude-code-usage-bar](https://github.com/leeguooooo/claude-code-usage-bar) | `docs/configuration.md` (configuration file example), `src/claude_statusbar/config.py` | MIT |
+| `nycu-cc-statusline.json` | [NYCU-Chung/cc-statusline](https://github.com/NYCU-Chung/cc-statusline) | `commands/rows.md` (special options and row keys tables), `statusline.js` `rowDefaults` | MIT |

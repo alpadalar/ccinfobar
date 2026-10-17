@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "summaryInterval": 10,
+  "aggWindowDays": 7,
+  "statuslineWidth": 120,
+  "statuslineWidthOffset": 4,
+  "summary": true,
+  "dir": true,
+  "repo": true,
+  "model": true,
+  "duration": true,
+  "cost": true,
+  "usage": true,
+  "quota": true,
+  "agents": true,
+  "memory_mcp": false,
+  "edited": false,
+  "history": false
+}

@@ -49,6 +49,7 @@ export const IMPORT_SOURCES = [
   'pyccsl',
   'coralline',
   'claude-statusbar',
+  'nycu-cc-statusline',
 ] as const;
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];

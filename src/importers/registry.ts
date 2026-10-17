@@ -8,6 +8,7 @@ import { claudebarImporter } from './claudebar.js';
 import { corallineImporter } from './coralline.js';
 import type { ImportResult, ImportSource } from './index.js';
 import { homeOf, isFile, shownFile } from './io.js';
+import { nycuCcStatuslineImporter } from './nycu-cc-statusline.js';
 import { pyccslImporter } from './pyccsl.js';
 import { starshipClaudeImporter } from './starship-claude.js';
 import { statuslineProImporter } from './statusline-pro.js';
@@ -79,6 +80,7 @@ export const REGISTRY: readonly ImporterDef[] = [
   pyccslImporter,
   corallineImporter,
   claudeStatusbarImporter,
+  nycuCcStatuslineImporter,
 ];
 
 export function registryDef(source: ImportSource): ImporterDef | null {
