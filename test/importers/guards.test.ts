@@ -15,6 +15,7 @@ import { TARGETS as CCLINE_TARGETS } from '../../src/importers/ccometixline.js';
 import { TARGETS as CC_TARGETS } from '../../src/importers/ccstatusline.js';
 import { TARGETS as HUD_TARGETS } from '../../src/importers/claude-hud.js';
 import { TARGETS as PL_TARGETS } from '../../src/importers/claude-powerline.js';
+import { TARGETS as CLAUDEBAR_TARGETS } from '../../src/importers/claudebar.js';
 import { sanitizeImport } from '../../src/importers/confirm.js';
 import { TARGETS as CSHIP_TARGETS } from '../../src/importers/cship.js';
 import {
@@ -54,6 +55,8 @@ interface Tool {
   // command-only tools load and dry-run through --command
   command?: string;
   hostileCommand?: string;
+  // tools that copy no text show hostile names only in notes
+  hostileIn?: 'notes';
 }
 
 const EVIL = '{"polluted": 1}';
@@ -125,6 +128,24 @@ const TOOLS: Tool[] = [
     ext: 'toml',
     hasDefault: true,
     hostile: CCLINE_HOSTILE,
+    proto: '__proto__ = 1\n',
+  },
+  {
+    source: 'claudebar',
+    targets: CLAUDEBAR_TARGETS,
+    fixtures: ['claudebar.toml'],
+    ext: 'toml',
+    hasDefault: true,
+    hostileIn: 'notes',
+    hostile: [
+      `theme = ${toml(HOSTILE)}`,
+      `style = ${toml(HOSTILE)}`,
+      `segments = ["model", ${toml(HOSTILE)}]`,
+      '[thresholds]',
+      `float_sep = ${toml(HOSTILE)}`,
+      `clock_mode = ${toml(HOSTILE)}`,
+      '',
+    ].join('\n'),
     proto: '__proto__ = 1\n',
   },
   {
@@ -312,7 +333,8 @@ describe('cross-importer guards', () => {
         : { file: writeSource(tool, tool.hostile), command: '', flags };
       expect(await runImport(tool.source, opts, cfgFile, f.io)).toBe(true);
       const saved = fs.readFileSync(cfgFile, 'utf8');
-      expect(saved).toContain('ABCDE');
+      if (tool.hostileIn === 'notes') expect(f.lines.join('\n')).toContain('ABCDE');
+      else expect(saved).toContain('ABCDE');
       expect(saved).not.toMatch(BAD);
       for (const line of f.lines) expect(line).not.toMatch(BAD);
     });

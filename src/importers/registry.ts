@@ -2,6 +2,7 @@ import '../core/i18n/lazy.js';
 import { t } from '../core/i18n/index.js';
 import { commandArgs } from './args.js';
 import { bestClaudeHudImporter, byebyecodeImporter } from './ccline-family.js';
+import { claudebarImporter } from './claudebar.js';
 import type { ImportResult, ImportSource } from './index.js';
 import { homeOf, isFile, shownFile } from './io.js';
 
@@ -62,7 +63,11 @@ export const LEGACY_INFO: readonly ImporterInfo[] = [
 ];
 
 // later plans append one row per tool, in IMPORT_SOURCES order
-export const REGISTRY: readonly ImporterDef[] = [bestClaudeHudImporter, byebyecodeImporter];
+export const REGISTRY: readonly ImporterDef[] = [
+  bestClaudeHudImporter,
+  byebyecodeImporter,
+  claudebarImporter,
+];
 
 export function registryDef(source: ImportSource): ImporterDef | null {
   return REGISTRY.find((d) => d.source === source) ?? null;

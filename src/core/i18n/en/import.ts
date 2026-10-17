@@ -40,6 +40,14 @@ export const importMessages = {
   'import.note.ignoredSettings': '{tool} settings not imported: {names}',
   'import.note.secretDropped': '{tool} setting "{name}" holds a secret and was not copied',
   'import.note.fileIgnored': '{tool} reads its settings from the status line command, --file was ignored',
+  'import.note.styleUnknown': '{tool} style "{name}" is unknown, imported its default style ({style})',
+  'import.note.barThresholds':
+    '{tool} bar thresholds {warn}%/{critical}% became ccinfobar threshold colors (yellow from 50%, red from 80%)',
+  'import.note.autoLayout': '{tool} layout "auto" became ccinfobar line wrapping (autoWrap)',
+  'import.note.floatReadout': '{tool} float readout was dropped: ccinfobar does not write a readout file',
+  'import.note.clockOff': '{tool} clock_mode is "off", so the clock segment was skipped',
+  'import.note.clockAuto':
+    '{tool} clock_mode "{value}" picks 12- or 24-hour time from the locale, ccinfobar shows 24-hour time',
   'import.cshipNotFound': 'no cship config found',
   'import.cshipNoLines': 'cship config has no lines ({file})',
   'import.note.starshipConfig':

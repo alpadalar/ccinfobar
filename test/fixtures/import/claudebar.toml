@@ -1,0 +1,12 @@
+theme = "kanagawa-wave"
+style = "rounded"
+segments = ["directory", "git", "model", "context", "rate-limits", "cost", "burn", "clock", "dev-context", "update-notice"]
+
+[thresholds]
+warn = 50   # bar turns yellow
+crit = 80   # bar turns red
+weekly_show_at = 75
+bar_width = 8
+cost_decimals = 3
+clock_mode = "12h"
+layout = "auto"

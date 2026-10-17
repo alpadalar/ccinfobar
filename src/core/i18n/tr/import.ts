@@ -44,6 +44,14 @@ export const importMessages = {
   'import.note.ignoredSettings': '{tool} ayarları içe aktarılmadı: {names}',
   'import.note.secretDropped': '{tool} ayarı "{name}" gizli bir değer içeriyor, kopyalanmadı',
   'import.note.fileIgnored': '{tool} ayarlarını durum satırı komutundan okur, --file yok sayıldı',
+  'import.note.styleUnknown': '{tool} stili "{name}" tanınmıyor, varsayılan stili ({style}) içe aktarıldı',
+  'import.note.barThresholds':
+    "{tool} çubuk eşikleri %{warn}/%{critical} ccinfobar eşik renklerine dönüştürüldü (%50'den itibaren sarı, %80'den itibaren kırmızı)",
+  'import.note.autoLayout': '{tool} düzeni "auto", ccinfobar satır kaydırmasına (autoWrap) dönüştürüldü',
+  'import.note.floatReadout': '{tool} float çıktısı atlandı: ccinfobar ayrı bir çıktı dosyası yazmaz',
+  'import.note.clockOff': '{tool} clock_mode değeri "off", bu yüzden saat bölümü atlandı',
+  'import.note.clockAuto':
+    '{tool} clock_mode "{value}" 12 veya 24 saat biçimini yerel ayardan seçer, ccinfobar saati 24 saat biçiminde gösterir',
   'import.cshipNotFound': 'cship yapılandırması bulunamadı',
   'import.cshipNoLines': 'cship yapılandırmasında satır yok ({file})',
   'import.note.starshipConfig':
