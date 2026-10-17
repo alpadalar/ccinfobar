@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { IMPORT_SOURCES, type ImportSource, resolveSource } from '../../src/importers/index.js';
+import { homeOf } from '../../src/importers/io.js';
 import {
   type ImportCtx,
   type ImporterDef,
@@ -111,6 +112,11 @@ describe('makeCtx', () => {
     ]);
     expect(makeCtx({ command: 'y --a b', env: { HOME: '/h' } }, tool).argv).toEqual([]);
     expect(makeCtx({ env: { USERPROFILE: 'C:\\U' } }).home).toBe('C:\\U');
+    const both = { HOME: '/msys/home/u', USERPROFILE: 'C:\\U' };
+    expect(homeOf(both, 'win32')).toBe('C:\\U');
+    expect(homeOf(both, 'linux')).toBe('/msys/home/u');
+    expect(homeOf({ HOME: '/msys/home/u' }, 'win32')).toBe('/msys/home/u');
+    expect(homeOf({ USERPROFILE: 'C:\\U' }, 'darwin')).toBe('C:\\U');
     expect(makeCtx({ env: { HOME: '', USERPROFILE: 'C:\\U' }, cwd: '/w' })).toMatchObject({
       home: 'C:\\U',
       cwd: '/w',

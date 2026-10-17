@@ -56,8 +56,10 @@ export function expand(p: string, home = os.homedir()): string {
   return p.startsWith('~') ? path.join(home, p.slice(1)) : p;
 }
 
-export function homeOf(env: NodeJS.ProcessEnv): string {
-  return env.HOME || env.USERPROFILE || os.homedir();
+// os.homedir() order: USERPROFILE first on Windows, HOME elsewhere
+export function homeOf(env: NodeJS.ProcessEnv, platform = process.platform): string {
+  const first = platform === 'win32' ? env.USERPROFILE || env.HOME : env.HOME || env.USERPROFILE;
+  return first || os.homedir();
 }
 
 // tildify against the injected home

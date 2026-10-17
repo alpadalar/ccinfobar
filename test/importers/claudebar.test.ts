@@ -261,6 +261,12 @@ describe('claudebar discovery', () => {
     expect(r.notes).toEqual([]);
   });
 
+  it('reads HOME before USERPROFILE on every OS', () => {
+    const own = write(path.join(home, '.config', 'claudebar', 'config.toml'));
+    const r = importFrom('claudebar', { env: { ...env, USERPROFILE: path.join(dir, 'profile') }, cwd: dir });
+    expect(r.file).toBe(own);
+  });
+
   it('prefers a non-empty XDG_CONFIG_HOME', () => {
     write(path.join(home, '.config', 'claudebar', 'config.toml'));
     const xdg = write(path.join(dir, 'xdg', 'claudebar', 'config.toml'), 'theme = "dracula"\n');

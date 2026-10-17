@@ -260,10 +260,11 @@ export const claudebarImporter: ImporterDef = {
   tool: isBin('claudebar'),
   // claudebar reads HOME and XDG_CONFIG_HOME on every OS
   discover: (ctx) => {
+    const home = ctx.env.HOME || ctx.home;
     const flag = flagValue(ctx.argv, ['--config']);
-    if (flag) return path.resolve(ctx.cwd, expand(flag, ctx.home));
+    if (flag) return path.resolve(ctx.cwd, expand(flag, home));
     const xdg = ctx.env.XDG_CONFIG_HOME;
-    const base = xdg ? path.resolve(ctx.cwd, xdg) : path.join(ctx.home, '.config');
+    const base = xdg ? path.resolve(ctx.cwd, xdg) : path.join(home, '.config');
     return path.join(base, 'claudebar', 'config.toml');
   },
   load: (file, ctx) => {
