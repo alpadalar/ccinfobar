@@ -2362,7 +2362,8 @@ input[type="range"]:disabled {
   }
 }
 
-@media (hover: none) {
+/* a hybrid device with a mouse still peeks */
+@media (any-hover: none) {
   .catalog-peek {
     display: none;
   }
@@ -2370,6 +2371,17 @@ input[type="range"]:disabled {
 
 .modal.wide:has(.catalog-detail-preview) {
   width: min(60rem, 100%);
+}
+
+/* footer buttons wrap on a phone */
+.modal:has(.catalog-list) .modal-foot,
+.modal:has(.catalog-detail-preview) .modal-foot {
+  flex-wrap: wrap;
+}
+
+/* wide previews scroll in their box, never widen the dialog */
+.modal:has(.catalog-detail-preview) .modal-body {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .catalog-detail-desc {
