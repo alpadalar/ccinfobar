@@ -401,7 +401,8 @@ function render(ctx, shell, command, dir, o = {}) {
     env: ctx.env,
     cwd: dir,
     input: payload(dir),
-    timeout: 20_000,
+    // a cold powershell start can take over 20 s on CI runners
+    timeout: 60_000,
     verbatim: shell.verbatim,
   });
   return { r, problems: renderProblems(r, o.expect) };
