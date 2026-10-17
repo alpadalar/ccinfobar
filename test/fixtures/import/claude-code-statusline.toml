@@ -1,0 +1,32 @@
+# Trimmed from rz1989s/claude-code-statusline examples/Config.toml (flat dotted keys)
+
+theme.name = "garden"
+
+colors.basic.red = "\\033[31m"
+colors.basic.blue = "\\033[34m"
+
+prayer.enabled = true
+prayer.location_mode = "local_gps"
+prayer.latitude = ""
+
+labels.commits = "Commits:"
+labels.live = "LIVE"
+
+cache.base_directory = "auto"
+
+plugins.enabled = false
+plugins.weather.api_key = "REDACTED-TEST"
+
+display.lines = 3
+
+display.line1.components = ["repo_info", "model_info", "version_info"]
+display.line1.separator = " │ "
+display.line1.show_when_empty = true
+
+display.line2.components = ["cost_live", "cost_daily", "burn_rate", "cache_efficiency"]
+display.line2.separator = " │ "
+display.line2.show_when_empty = true
+
+display.line3.components = ["usage_limits", "usage_reset", "prayer_times"]
+display.line3.separator = " • "
+display.line3.show_when_empty = true

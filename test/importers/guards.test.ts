@@ -13,6 +13,7 @@ import { BUILTIN_THEMES } from '../../src/core/themes.js';
 import type { Config, ThemeStyle } from '../../src/core/types.js';
 import { TARGETS as CCLINE_TARGETS } from '../../src/importers/ccometixline.js';
 import { TARGETS as CC_TARGETS } from '../../src/importers/ccstatusline.js';
+import { TARGETS as CCS_TARGETS } from '../../src/importers/claude-code-statusline.js';
 import { TARGETS as HUD_TARGETS } from '../../src/importers/claude-hud.js';
 import { TARGETS as PL_TARGETS } from '../../src/importers/claude-powerline.js';
 import { TARGETS as CLAUDEBAR_TARGETS } from '../../src/importers/claudebar.js';
@@ -167,6 +168,20 @@ const TOOLS: Tool[] = [
       '',
     ].join('\n'),
     proto: '[components.model]\n__proto__ = 1\n',
+  },
+  {
+    source: 'claude-code-statusline',
+    targets: CCS_TARGETS,
+    fixtures: ['claude-code-statusline.toml'],
+    ext: 'toml',
+    hasDefault: false,
+    hostile: [
+      'display.lines = 1',
+      `display.line1.components = ["model_info", ${toml(HOSTILE)}]`,
+      `display.line1.separator = ${toml(HOSTILE)}`,
+      '',
+    ].join('\n'),
+    proto: 'display.line1.components = ["model_info"]\n__proto__ = 1\n',
   },
   {
     source: 'cship',

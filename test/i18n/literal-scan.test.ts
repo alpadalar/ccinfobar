@@ -28,6 +28,7 @@ const SWEPT: string[] = [
   'src/importers/ccline-family.ts',
   'src/importers/claudebar.ts',
   'src/importers/statusline-pro.ts',
+  'src/importers/claude-code-statusline.ts',
   'src/commands/doctor.ts',
   'src/commands/manage.ts',
   'src/commands/import-help.ts',

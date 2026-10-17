@@ -44,6 +44,7 @@ export const IMPORT_SOURCES = [
   'byebyecode',
   'claudebar',
   'statusline-pro',
+  'claude-code-statusline',
 ] as const;
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];

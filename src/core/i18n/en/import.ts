@@ -81,6 +81,8 @@ export const importMessages = {
   },
   'import.note.gapsReplaced':
     '{tool}: modules separated by {gaps} now use the most common separator, {separator}',
+  'import.note.separatorMerged':
+    '{tool} lines use different separators; every line now uses the most common one, {separator}',
   'import.note.hudIgnored': '{file} is not a JSON object and was ignored',
   'import.note.hudApprox': '{tool} "{name}" is approximated by the {widget} widget',
   'import.note.hudShownAlways':

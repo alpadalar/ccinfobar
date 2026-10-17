@@ -85,6 +85,8 @@ export const importMessages = {
   },
   'import.note.gapsReplaced':
     '{tool}: {gaps} ile ayrılan modüller artık en sık kullanılan ayracı ({separator}) kullanıyor',
+  'import.note.separatorMerged':
+    '{tool} satırları farklı ayraçlar kullanıyor; artık her satır en sık kullanılan ayracı ({separator}) kullanıyor',
   'import.note.hudIgnored': '{file} bir JSON nesnesi değil, yok sayıldı',
   'import.note.hudApprox': '{tool} "{name}", {widget} bileşeniyle yaklaşık olarak gösteriliyor',
   'import.note.hudShownAlways':

@@ -20,3 +20,4 @@ Hand-written fixtures in each tool's documented format; no upstream code or secr
 | `ccstatusline-new-widgets.json` | [sirmalloc/ccstatusline](https://github.com/sirmalloc/ccstatusline) | `src/utils/widget-manifest.ts`, `src/types/Settings.ts` | MIT |
 | `claudebar.toml` | [micschr0/claudebar](https://github.com/micschr0/claudebar) | `README.md` (Configure), `src/model/config.rs` | MIT |
 | `statusline-pro.toml` | [Wangnov/claude-code-statusline-pro](https://github.com/Wangnov/claude-code-statusline-pro) | `configs/config.template.toml`, `configs/components/usage.template.toml` (widget shape) | MIT |
+| `claude-code-statusline.toml` | [rz1989s/claude-code-statusline](https://github.com/rz1989s/claude-code-statusline) | `examples/Config.toml` (theme and display sections, a weather plugin key) | MIT |
