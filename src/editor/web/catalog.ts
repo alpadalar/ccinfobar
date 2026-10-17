@@ -22,7 +22,7 @@ import { api, previewSource } from './api.js';
 import { deleteEntryDialog, historyDialog, saveCurrentDialog, toggleShare } from './catalog-dialogs.js';
 import { marketplaceSection, publishDialog } from './catalog-market.js';
 import { clear, h, icon } from './dom.js';
-import { fitCols, previewBox } from './presets.js';
+import { previewBox } from './presets.js';
 import { type CatalogEntryInfo, type CatalogState, isDirty, replaceAll, S } from './store.js';
 import { askThemeColors } from './themes.js';
 import { confirmDialog, modal, toast } from './ui.js';
@@ -55,6 +55,24 @@ const STATE: Record<ShareState, MessageId> = {
   withdrawn: 'catalog.share.withdrawn',
 };
 const BATCH = 100;
+const GAP = 6;
+
+// previews are asked at full size; cards clip them
+function previewCols(root: HTMLElement): number {
+  const probe = h('span', { class: 'theme-preview cols-probe' }, '0'.repeat(50));
+  document.body.append(probe);
+  const ch = probe.getBoundingClientRect().width / 50;
+  probe.remove();
+  const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const cols = Math.floor((Math.min(root.clientWidth, 56 * rem) - 1.4 * rem) / ch);
+  return ch > 0 && Number.isFinite(cols) ? Math.min(120, Math.max(40, cols)) : 96;
+}
+
+function sourceText(e: CatalogEntryInfo): string {
+  if (e.source === 'legacy')
+    return t(e.kind === 'theme' ? 'catalog.source.themeFile' : 'catalog.source.presetFile');
+  return t(e.source === 'user' ? 'catalog.section.user' : 'catalog.section.system');
+}
 
 const sectionsOf = (tab: CatalogTab): Section[] =>
   tab === 'all' ? ['user', 'system'] : tab === 'market' ? [] : [tab];
@@ -208,12 +226,47 @@ export async function openCatalog(): Promise<void> {
   const asked = new Set<string>();
   let inflight = 0;
   const slots = new Map<string, HTMLElement>();
+  const detailSlots = new Map<string, HTMLElement>();
   const cards = new Map<string, HTMLElement>();
+  let peek: HTMLElement | null = null;
   const tabs = h('div', { class: 'tabs catalog-tabs', role: 'tablist', 'aria-label': t('catalog.title') });
   const status = h('span', { class: 'hint catalog-status', role: 'status' });
   const list = h('div', { class: 'catalog-list' });
   let market: HTMLElement | null = null;
   let close: (v?: unknown) => void = () => {};
+
+  function hidePeek() {
+    peek?.classList.remove('on');
+  }
+
+  function showPeek(e: CatalogEntryInfo, anchor: HTMLElement) {
+    const lines = st.previews.get(e.ref);
+    if (!lines || st.closed) return;
+    if (!peek) {
+      peek = h('div', { class: 'catalog-peek', 'aria-hidden': 'true' });
+      document.body.append(peek);
+    }
+    peek.replaceChildren(previewBox(lines));
+    peek.style.left = '0px';
+    peek.style.top = '0px';
+    const at = anchor.getBoundingClientRect();
+    const own = peek.getBoundingClientRect();
+    const below = at.top + at.height + GAP;
+    const top =
+      below + own.height <= window.innerHeight - GAP ? below : Math.max(GAP, at.top - GAP - own.height);
+    const left = Math.max(8, Math.min(at.left, window.innerWidth - own.width - 8));
+    peek.style.left = `${left}px`;
+    peek.style.top = `${top}px`;
+    peek.classList.add('on');
+  }
+
+  // runs before the dialog's own Escape
+  const onKey = (ev: KeyboardEvent) => {
+    if (ev.key !== 'Escape' || !peek?.classList.contains('on')) return;
+    ev.stopPropagation();
+    ev.preventDefault();
+    hidePeek();
+  };
 
   function pick(tab: CatalogTab) {
     if (tab === st.tab) return;
@@ -270,6 +323,7 @@ export async function openCatalog(): Promise<void> {
   }
 
   async function act(e: CatalogEntryInfo, run: (e: CatalogEntryInfo) => Promise<CatalogState | null>) {
+    hidePeek();
     const next = await run(e);
     if (next && !st.closed) update(next, e.ref);
   }
@@ -284,6 +338,7 @@ export async function openCatalog(): Promise<void> {
         'aria-label': label,
         onClick: (ev: Event) => {
           ev.stopPropagation();
+          hidePeek();
           onClick();
         },
       },
@@ -292,9 +347,15 @@ export async function openCatalog(): Promise<void> {
   }
 
   function actions(e: CatalogEntryInfo): HTMLElement {
-    const box = h('span', { class: 'theme-actions' });
-    if (e.source === 'system') return box;
     const name = e.name;
+    const box = h(
+      'span',
+      { class: 'theme-actions' },
+      actionButton(' apply', 'check', t('catalog.apply'), t('catalog.applyName', { name }), () =>
+        applyEntry(e, close),
+      ),
+    );
+    if (e.source === 'system') return box;
     const shared = e.share?.wanted ?? false;
     box.append(
       actionButton('', 'clock', t('catalog.action.history'), t('catalog.action.historyName', { name }), () =>
@@ -322,43 +383,135 @@ export async function openCatalog(): Promise<void> {
     return box;
   }
 
+  function openDetails(e: CatalogEntryInfo) {
+    hidePeek();
+    const name = e.name;
+    const preview = h(
+      'div',
+      { class: 'catalog-detail-preview', role: 'group', 'aria-label': t('catalog.details.preview') },
+      previewBox(st.previews.get(e.ref)),
+    );
+    detailSlots.set(e.ref, preview);
+    let closeBtn: HTMLElement | null = null;
+    const shown = modal({
+      title: name,
+      wide: true,
+      body: [
+        h(
+          'div',
+          { class: 'catalog-meta' },
+          h('span', { class: 'theme-tag' }, t(`catalog.kind.${e.kind}`)),
+          h('span', { class: 'catalog-version' }, t('catalog.version', { version: e.version })),
+          h('span', { class: 'theme-tag' }, sourceText(e)),
+          e.author ? h('span', { class: 'catalog-author' }, t('catalog.by', { author: e.author })) : null,
+          chip(e),
+        ),
+        e.description ? h('p', { class: 'theme-desc catalog-detail-desc' }, e.description) : null,
+        preview,
+      ],
+      actions: (done) => {
+        const run = (fn: (e: CatalogEntryInfo) => Promise<CatalogState | null>) => () => {
+          done();
+          void act(e, fn);
+        };
+        const text = (label: string, onClick: () => void) =>
+          h('button', { class: 'btn', type: 'button', onClick }, label);
+        const shared = e.share?.wanted ?? false;
+        closeBtn = text(t('web.ui.close'), () => done());
+        return [
+          ...(e.source === 'system'
+            ? []
+            : [
+                text(t('catalog.action.history'), run(historyDialog)),
+                text(t(shared ? 'catalog.action.unshare' : 'catalog.action.share'), run(toggleShare)),
+                text(t('catalog.action.delete'), run(deleteEntryDialog)),
+              ]),
+          h('span', { class: 'spacer' }),
+          closeBtn,
+          h(
+            'button',
+            {
+              class: 'btn primary',
+              type: 'button',
+              onClick: () => {
+                done();
+                void applyEntry(e, close);
+              },
+            },
+            t('catalog.apply'),
+          ),
+        ];
+      },
+    });
+    // a space keyup must not apply
+    (closeBtn as HTMLElement | null)?.focus();
+    void shown.then(() => {
+      if (detailSlots.get(e.ref) === preview) detailSlots.delete(e.ref);
+    });
+  }
+
   function card(e: CatalogEntryInfo): HTMLElement {
-    const slot = h('div', { class: 'catalog-preview' }, previewBox(st.previews.get(e.ref)));
+    const slot = h('div', { class: 'catalog-preview catalog-thumb' }, previewBox(st.previews.get(e.ref)));
     slots.set(e.ref, slot);
+    slot.addEventListener('pointerenter', (ev) => {
+      if (ev.pointerType === 'mouse' || ev.pointerType === 'pen') showPeek(e, slot);
+    });
+    slot.addEventListener('pointerleave', hidePeek);
+    const own = (ev: Event) => ev.target === ev.currentTarget || !ev.currentTarget;
+    let armed = false;
     const el = h(
       'div',
       {
-        class: 'theme-card',
+        class: 'theme-card catalog-card',
         role: 'button',
         tabindex: 0,
         'data-ref': e.ref,
-        title: t('catalog.applyName', { name: e.name }),
-        onClick: () => void applyEntry(e, close),
+        'aria-haspopup': 'dialog',
+        title: t('catalog.detailsName', { name: e.name }),
+        onClick: (ev: Event) => {
+          if ((ev.target as HTMLElement | null)?.closest?.('button')) return;
+          openDetails(e);
+        },
         onKeydown: (ev: KeyboardEvent) => {
-          if (ev.target !== ev.currentTarget && ev.currentTarget) return;
-          if (ev.key === 'Enter' || ev.key === ' ') {
+          if (!own(ev)) return;
+          if (ev.key === 'Enter') {
             ev.preventDefault();
-            void applyEntry(e, close);
+            openDetails(e);
+          } else if (ev.key === ' ') {
+            ev.preventDefault();
+            armed = true;
           }
+        },
+        // like a native button, space acts on release
+        onKeyup: (ev: KeyboardEvent) => {
+          if (!own(ev) || ev.key !== ' ' || !armed) return;
+          armed = false;
+          ev.preventDefault();
+          openDetails(e);
+        },
+        onFocus: () => {
+          if (el.matches?.(':focus-visible')) showPeek(e, slot);
+        },
+        onBlur: () => {
+          armed = false;
+          hidePeek();
         },
       },
       h(
         'div',
         { class: 'theme-card-head' },
         h('strong', null, e.name),
+        h('span', { class: 'spacer' }),
+        actions(e),
+      ),
+      h(
+        'div',
+        { class: 'catalog-meta' },
         h('span', { class: 'theme-tag' }, t(`catalog.kind.${e.kind}`)),
         h('span', { class: 'catalog-version' }, t('catalog.version', { version: e.version })),
         e.author ? h('span', { class: 'catalog-author' }, t('catalog.by', { author: e.author })) : null,
         chip(e),
-        e.source === 'legacy'
-          ? h(
-              'span',
-              { class: 'theme-tag' },
-              t(e.kind === 'theme' ? 'catalog.source.themeFile' : 'catalog.source.presetFile'),
-            )
-          : null,
-        h('span', { class: 'spacer' }),
-        actions(e),
+        e.source === 'legacy' ? h('span', { class: 'theme-tag' }, sourceText(e)) : null,
       ),
       e.description ? h('div', { class: 'theme-desc' }, e.description) : null,
       slot,
@@ -371,6 +524,7 @@ export async function openCatalog(): Promise<void> {
   }
 
   function renderList() {
+    hidePeek();
     clear(list);
     slots.clear();
     cards.clear();
@@ -412,7 +566,7 @@ export async function openCatalog(): Promise<void> {
     const refs = visible().filter((r) => !st.previews.has(r) && !asked.has(r));
     if (!refs.length) return;
     for (const r of refs) asked.add(r);
-    const cols = fitCols(list);
+    const cols = previewCols(list);
     const batches: string[][] = [];
     for (let i = 0; i < refs.length; i += BATCH) batches.push(refs.slice(i, i + BATCH));
     await Promise.all(
@@ -426,6 +580,7 @@ export async function openCatalog(): Promise<void> {
             if (!lines || st.closed) continue;
             st.previews.set(ref, lines);
             slots.get(ref)?.replaceChildren(previewBox(lines));
+            detailSlots.get(ref)?.replaceChildren(previewBox(lines));
           }
         } catch {
           for (const ref of batch) asked.delete(ref);
@@ -435,6 +590,8 @@ export async function openCatalog(): Promise<void> {
     );
   }
 
+  window.addEventListener('keydown', onKey, true);
+  window.addEventListener('scroll', hidePeek, true);
   await modal({
     title: t('catalog.title'),
     xl: true,
@@ -481,4 +638,7 @@ export async function openCatalog(): Promise<void> {
   });
   st.closed = true;
   st.version++;
+  window.removeEventListener('keydown', onKey, true);
+  window.removeEventListener('scroll', hidePeek, true);
+  (peek as HTMLElement | null)?.remove();
 }

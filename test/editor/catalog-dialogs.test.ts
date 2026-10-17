@@ -514,11 +514,16 @@ describe('catalog card actions', () => {
   it('shows history, share and delete on user and legacy cards only', async () => {
     await init();
     await openCatalog();
-    expect(actions('u-l')).toEqual(['Version history', 'Share to marketplace', 'Delete']);
-    expect(actions('u-p')).toEqual(['Version history', 'Stop sharing', 'Delete']);
-    expect(actions('legacy:preset/old')).toEqual(['Version history', 'Share to marketplace', 'Delete']);
+    expect(actions('u-l')).toEqual(['Apply', 'Version history', 'Share to marketplace', 'Delete']);
+    expect(actions('u-p')).toEqual(['Apply', 'Version history', 'Stop sharing', 'Delete']);
+    expect(actions('legacy:preset/old')).toEqual([
+      'Apply',
+      'Version history',
+      'Share to marketplace',
+      'Delete',
+    ]);
     expect(texts(card('legacy:preset/old')!)).toContain('Preset file');
-    expect(actions('preset/compact')).toEqual([]);
+    expect(actions('preset/compact')).toEqual(['Apply']);
     expect(action('u-l', 'Delete').getAttribute('aria-label')).toBe('Delete Local one');
   });
 
@@ -633,7 +638,7 @@ describe('catalog card actions', () => {
     expect(texts(top()).join(' ')).toContain('The published copy stays on the marketplace');
   });
 
-  it('action buttons never apply', async () => {
+  it('action buttons never apply or open details', async () => {
     const store = await init();
     await openCatalog();
     const before = clone(store.S.config);
@@ -645,8 +650,11 @@ describe('catalog card actions', () => {
       for (const title of ['Version history', 'Delete']) {
         bubble(action(e.ref, title));
         await flush();
+        expect(open()).toHaveLength(2);
+        expect(top().querySelector('.catalog-detail-preview')).toBeNull();
         top().querySelector('.modal-head')!.querySelector('button')!.dispatch('click');
         await flush();
+        expect(open()).toHaveLength(1);
       }
     }
     expect(store.S.config).toEqual(before);
@@ -688,7 +696,7 @@ describe('catalog card actions', () => {
     await init();
     setLanguage('tr');
     await openCatalog();
-    expect(actions('u-p')).toEqual(['Sürüm geçmişi', 'Paylaşmayı durdur', 'Sil']);
+    expect(actions('u-p')).toEqual(['Uygula', 'Sürüm geçmişi', 'Paylaşmayı durdur', 'Sil']);
     expect(texts(body)).toContain('Mevcut olanı kaydet…');
   });
 });

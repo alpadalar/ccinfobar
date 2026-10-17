@@ -27,6 +27,8 @@ export const catalogMessages = {
   'catalog.title': 'Katalog',
   'catalog.apply': 'Uygula',
   'catalog.applyName': 'Uygula: {name}',
+  'catalog.detailsName': '{name} ayrıntıları',
+  'catalog.details.preview': 'Kurulumunuzla önizleme',
   'catalog.applyTitle': '{name} uygulansın mı?',
   'catalog.applyText': 'Kaydedilmemiş değişiklikleriniz geri alma geçmişinde kalır.',
   'catalog.applied': '{name} uygulandı. Kalıcı olması için kaydedin.',

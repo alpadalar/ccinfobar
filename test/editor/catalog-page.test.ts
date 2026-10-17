@@ -29,6 +29,9 @@ let body: FakeEl;
 let calls: Call[];
 let catalog: CatalogState;
 let installed: { id: string; written: boolean; renamed: boolean } | null;
+type Listener = (e: any) => void;
+let docKeys: Listener[];
+let winKeys: Listener[];
 
 const system = (): CatalogEntryInfo[] =>
   systemEntries({ gsd: true }).map((e) => ({
@@ -84,7 +87,17 @@ const myPreset = () => user({ ref: 'u-p', id: 'u-p', name: 'My preset' });
 
 beforeAll(() => {
   g.HTMLElement = FakeEl;
-  g.window = { setTimeout: () => 0, addEventListener() {}, removeEventListener() {} };
+  g.window = {
+    setTimeout: () => 0,
+    innerWidth: 1440,
+    innerHeight: 900,
+    addEventListener(type: string, fn: Listener) {
+      if (type === 'keydown') winKeys.push(fn);
+    },
+    removeEventListener(type: string, fn: Listener) {
+      if (type === 'keydown') winKeys = winKeys.filter((x) => x !== fn);
+    },
+  };
   g.localStorage = { getItem: () => null, setItem() {} };
   g.requestAnimationFrame = (fn: () => void) => setTimeout(fn, 0);
   g.getComputedStyle = () => ({ paddingLeft: '0', paddingRight: '0' });
@@ -105,6 +118,8 @@ beforeEach(() => {
   setLanguage('en');
   calls = [];
   installed = null;
+  docKeys = [];
+  winKeys = [];
   catalog = {
     system: system(),
     user: [myBundle(), myPreset()],
@@ -122,8 +137,12 @@ beforeEach(() => {
     createElement: (tag: string) => new FakeEl(tag.toUpperCase()),
     getElementById: (id: string) => (id === 'toasts' ? toasts : null),
     querySelectorAll: () => [],
-    addEventListener() {},
-    removeEventListener() {},
+    addEventListener(type: string, fn: Listener) {
+      if (type === 'keydown') docKeys.push(fn);
+    },
+    removeEventListener(type: string, fn: Listener) {
+      if (type === 'keydown') docKeys = docKeys.filter((x) => x !== fn);
+    },
     activeElement: null,
   };
 });
@@ -171,6 +190,33 @@ const heads = (cls: string) => body.all((e) => e.classList.contains(cls)).map((e
 const button = (label: string) => body.all((e) => e.tagName === 'BUTTON' && e.textContent === label).at(-1)!;
 const previewCalls = () => calls.filter((c) => c.url === '/api/catalog/previews');
 const toastText = () => texts(body.children[0] as FakeEl);
+const applyBtn = (ref: string, title = 'Apply') =>
+  card(ref).all((e) => e.tagName === 'BUTTON' && e.getAttribute('title') === title)[0]!;
+// dialogs still open; closed ones linger while they fade
+const dialogs = () =>
+  body.children.filter(
+    (c): c is FakeEl =>
+      typeof c !== 'string' && c.classList.contains('overlay') && !c.classList.contains('leaving'),
+  );
+const top = () => dialogs().at(-1)!;
+const titleOf = (d: FakeEl) => d.querySelector('H2')!.textContent;
+const peek = () => body.all((e) => e.classList.contains('catalog-peek'));
+const thumb = (ref: string) => card(ref).querySelector('.catalog-thumb')!;
+// window capture runs before document capture
+const press = (key: string) => {
+  let stopped = false;
+  const ev = {
+    key,
+    stopPropagation() {
+      stopped = true;
+    },
+    preventDefault() {},
+  };
+  for (const fn of [...winKeys]) fn(ev);
+  if (!stopped) for (const fn of [...docKeys]) fn(ev);
+};
+const keyOn = (el: FakeEl, type: string, key: string) =>
+  el.dispatch(type, { key, preventDefault() {}, target: el, currentTarget: el });
 
 describe('groupEntries', () => {
   it('puts user groups above system groups, each bundle, preset, theme', async () => {
@@ -284,7 +330,7 @@ describe('catalog page', () => {
     setLanguage('en');
     await open();
     const before = clone(store.S.config);
-    card('bundle/nord-minimal').dispatch('click');
+    applyBtn('bundle/nord-minimal').dispatch('click');
     await flush();
     expect(store.S.config.theme).toBe('nord');
     const nord = catalog.system.find((e) => e.ref === 'bundle/nord-minimal')!;
@@ -321,7 +367,7 @@ describe('catalog page', () => {
     const store = await init();
     await open();
     const before = clone(store.S.config);
-    card('u-r').dispatch('click');
+    applyBtn('u-r').dispatch('click');
     await flush();
     const all = texts(body);
     expect(all).toContain('Commands and links in Risky');
@@ -330,13 +376,13 @@ describe('catalog page', () => {
     button('Cancel').dispatch('click');
     await flush();
     expect(store.S.config).toEqual(before);
-    card('u-r').dispatch('click');
+    applyBtn('u-r').dispatch('click');
     await flush();
     button('Apply without them').dispatch('click');
     await flush();
     expect(store.S.config.lines.flat().map((i) => i.type)).toEqual(['model']);
     expect(toastText()).toContain('Applied Risky without 2 command or link widgets. Save to keep it.');
-    card('u-r').dispatch('click');
+    applyBtn('u-r').dispatch('click');
     await flush();
     // unsaved changes ask first
     button('Apply').dispatch('click');
@@ -367,7 +413,7 @@ describe('catalog page', () => {
     catalog.user = [user({ ref: 'u-r', id: 'u-r', name: 'Risky', content: { layout: { lines } } as any })];
     const store = await init();
     await open();
-    card('u-r').dispatch('click');
+    applyBtn('u-r').dispatch('click');
     await flush();
     const codes = body.all((e) => e.tagName === 'CODE' && e.classList.contains('catalog-consent-target'));
     const shownText = codes.map((c) => c.textContent);
@@ -397,7 +443,7 @@ describe('catalog page', () => {
     catalog.user = [user({ ref: 'u-r', id: 'u-r', name: 'Risky', content: { layout: { lines } } as any })];
     const store = await init();
     await open();
-    card('u-r').dispatch('click');
+    applyBtn('u-r').dispatch('click');
     await flush();
     expect(body.all((e) => e.tagName === 'BUTTON' && e.textContent === 'Keep them')).toEqual([]);
     button('Apply without them').dispatch('click');
@@ -408,7 +454,7 @@ describe('catalog page', () => {
   it('keeps theme and style when applying a preset', async () => {
     const store = await init({ ...defaultConfig(), theme: 'dracula', style: 'capsule' } as Config);
     await open();
-    card('preset/compact').dispatch('click');
+    applyBtn('preset/compact').dispatch('click');
     await flush();
     expect(store.S.config.theme).toBe('dracula');
     expect(store.S.config.style).toBe('capsule');
@@ -419,7 +465,7 @@ describe('catalog page', () => {
     const store = await init();
     store.commit({ ...store.S.config, theme: 'dracula' });
     await open();
-    card('preset/compact').dispatch('click');
+    applyBtn('preset/compact').dispatch('click');
     await flush();
     expect(texts(body)).toContain('Apply Compact?');
     expect(texts(body)).toContain('Your unsaved changes stay in undo history.');
@@ -435,7 +481,7 @@ describe('catalog page', () => {
     config.lines[0]![0]!.color = 'red';
     const store = await init(config);
     await open();
-    card('theme/nord').dispatch('click');
+    applyBtn('theme/nord').dispatch('click');
     await flush();
     button('Use theme colors').dispatch('click');
     await flush();
@@ -447,7 +493,7 @@ describe('catalog page', () => {
     installed = { id: 'sunset-2', written: true, renamed: true };
     const store = await init();
     await open();
-    card('u-b').dispatch('click');
+    applyBtn('u-b').dispatch('click');
     await flush();
     const install = calls.filter((c) => c.url === '/api/catalog/install-theme');
     expect(install.map((c) => c.body.ref)).toEqual(['u-b']);
@@ -461,17 +507,39 @@ describe('catalog page', () => {
     const store = await init();
     setLanguage('tr');
     await open();
-    card('preset/cockpit').dispatch('click');
+    applyBtn('preset/cockpit', 'Uygula').dispatch('click');
     await flush();
     expect(store.S.config.lines.flat().map((i) => i.label)).toContain('Süre: ');
   });
 
-  it('applies on Enter', async () => {
+  it('opens details on Enter and Space', async () => {
     const store = await init();
     await open();
-    card('u-p').dispatch('keydown', { key: 'Enter', preventDefault() {}, target: card('u-p') });
+    const before = clone(store.S.config);
+    keyOn(card('u-p'), 'keydown', 'Enter');
     await flush();
-    expect(store.S.config.lines.flat().map((i) => i.type)).toEqual(['model']);
+    expect(dialogs()).toHaveLength(2);
+    expect(titleOf(top())).toBe('My preset');
+    press('Escape');
+    await flush();
+    keyOn(card('u-p'), 'keydown', ' ');
+    expect(dialogs()).toHaveLength(1);
+    keyOn(card('u-p'), 'keyup', ' ');
+    await flush();
+    expect(titleOf(top())).toBe('My preset');
+    press('Escape');
+    await flush();
+    // keys from a child button stay there
+    const child = applyBtn('u-p');
+    card('u-p').dispatch('keydown', {
+      key: 'Enter',
+      preventDefault() {},
+      target: child,
+      currentTarget: card('u-p'),
+    });
+    await flush();
+    expect(dialogs()).toHaveLength(1);
+    expect(store.S.config).toEqual(before);
   });
 
   it('shows entry text as text', async () => {
@@ -481,5 +549,205 @@ describe('catalog page', () => {
     expect(texts(body)).toContain('<img src=x onerror=1>');
     expect(texts(body)).toContain('<b>x</b>');
     expect(body.all((e) => e.tagName === 'IMG' || e.tagName === 'B')).toEqual([]);
+    card('u-1').dispatch('click');
+    await flush();
+    expect(texts(top())).toContain('<img src=x onerror=1>');
+    expect(texts(top())).toContain('<b>x</b>');
+    expect(body.all((e) => e.tagName === 'IMG' || e.tagName === 'B')).toEqual([]);
+  });
+});
+
+describe('catalog details and peek', () => {
+  it('opens details on click without applying', async () => {
+    const store = await init();
+    await open();
+    const before = clone(store.S.config);
+    expect(card('u-p').getAttribute('title')).toBe('Details of My preset');
+    card('u-p').dispatch('click');
+    await flush();
+    const d = top();
+    expect(dialogs()).toHaveLength(2);
+    expect(titleOf(d)).toBe('My preset');
+    const all = texts(d);
+    for (const s of ['Preset', 'v2', 'Your entries', 'by Ada', 'Waiting to publish', 'My words'])
+      expect(all).toContain(s);
+    const preview = d.querySelector('.catalog-detail-preview')!;
+    expect(preview.getAttribute('aria-label')).toBe('Preview with your setup');
+    expect(preview.querySelector('.theme-preview')!.getAttribute('innerHTML')).toContain('line u-p');
+    const labels = d
+      .querySelector('FOOTER')!
+      .all((e) => e.tagName === 'BUTTON')
+      .map((b) => b.textContent);
+    expect(labels).toEqual(['Version history', 'Stop sharing', 'Delete', 'Close', 'Apply']);
+    expect(store.S.config).toEqual(before);
+    expect(calls.filter((c) => c.url.includes('install-theme'))).toEqual([]);
+  });
+
+  it('shows the source of built-in and file entries', async () => {
+    await init();
+    catalog.user = [
+      user({ ref: 'legacy:theme/old', source: 'legacy', kind: 'theme', name: 'Old', share: null }),
+    ];
+    await open();
+    card('legacy:theme/old').dispatch('click');
+    await flush();
+    expect(texts(top())).toContain('Theme file');
+    press('Escape');
+    await flush();
+    card('preset/compact').dispatch('click');
+    await flush();
+    expect(texts(top())).toContain('Built in');
+    const labels = top()
+      .querySelector('FOOTER')!
+      .all((e) => e.tagName === 'BUTTON')
+      .map((b) => b.textContent);
+    expect(labels).toEqual(['Close', 'Apply']);
+  });
+
+  it('has an Apply button on every card', async () => {
+    await init();
+    await open();
+    for (const ref of ['u-b', 'u-p', 'preset/compact', 'theme/nord']) {
+      const b = applyBtn(ref);
+      expect(b).toBeTruthy();
+      expect(
+        card(ref)
+          .querySelector('.theme-actions')!
+          .all((e) => e.tagName === 'BUTTON')[0],
+      ).toBe(b);
+    }
+    expect(applyBtn('u-p').getAttribute('aria-label')).toBe('Apply My preset');
+  });
+
+  it('applies from the details dialog and closes it', async () => {
+    const store = await init();
+    await open();
+    card('u-p').dispatch('click');
+    await flush();
+    button('Apply').dispatch('click');
+    await flush();
+    expect(store.S.config.lines.flat().map((i) => i.type)).toEqual(['model']);
+    expect(toastText()).toContain('Applied My preset. Save to keep it.');
+    expect(dialogs()).toHaveLength(0);
+    store.undo();
+    expect(store.S.undo).toHaveLength(0);
+  });
+
+  it('focuses Close, and Escape or Close return to the card', async () => {
+    await init();
+    await open();
+    const el = card('u-p');
+    let focused = 0;
+    el.focus = () => {
+      focused++;
+    };
+    const closeBtns: FakeEl[] = [];
+    const origFocus = FakeEl.prototype.focus;
+    FakeEl.prototype.focus = function (this: FakeEl) {
+      closeBtns.push(this);
+    };
+    g.document.activeElement = el;
+    el.dispatch('click');
+    await flush();
+    FakeEl.prototype.focus = origFocus;
+    expect(closeBtns.at(-1)!.textContent).toBe('Close');
+    press('Escape');
+    await flush();
+    expect(dialogs()).toHaveLength(1);
+    expect(titleOf(top())).toBe('Catalog');
+    expect(focused).toBe(1);
+    el.dispatch('click');
+    await flush();
+    button('Close').dispatch('click');
+    await flush();
+    expect(dialogs()).toHaveLength(1);
+    expect(focused).toBe(2);
+  });
+
+  it('runs history and delete from the details dialog', async () => {
+    await init();
+    await open();
+    card('u-p').dispatch('click');
+    await flush();
+    button('Delete').dispatch('click');
+    await flush();
+    expect(titleOf(top())).toBe('Delete My preset?');
+    expect(dialogs()).toHaveLength(2);
+    press('Escape');
+    await flush();
+    card('u-p').dispatch('click');
+    await flush();
+    button('Version history').dispatch('click');
+    await flush();
+    expect(calls.some((c) => c.url.startsWith('/api/catalog/entries/u-p'))).toBe(true);
+  });
+
+  it('fills the details preview when it arrives later', async () => {
+    await init();
+    const { openCatalog } = await import('../../src/editor/web/catalog.js');
+    void openCatalog();
+    await flush(1);
+    card('u-p').dispatch('click');
+    const box = () => top().querySelector('.catalog-detail-preview')!.querySelector('.theme-preview')!;
+    expect(box().getAttribute('innerHTML') ?? '').not.toContain('line u-p');
+    await flush();
+    expect(box().getAttribute('innerHTML')).toContain('line u-p');
+  });
+
+  it('peeks on mouse hover only and hides on leave and Escape', async () => {
+    await init();
+    await open();
+    thumb('u-p').dispatch('pointerenter', { pointerType: 'touch' });
+    expect(peek().filter((p) => p.classList.contains('on'))).toEqual([]);
+    thumb('u-p').dispatch('pointerenter', { pointerType: 'mouse' });
+    expect(peek()).toHaveLength(1);
+    const p = peek()[0]!;
+    expect(p.getAttribute('aria-hidden')).toBe('true');
+    expect(p.classList.contains('on')).toBe(true);
+    expect(p.querySelector('.theme-preview')!.getAttribute('innerHTML')).toContain('line u-p');
+    thumb('u-p').dispatch('pointerleave', {});
+    expect(p.classList.contains('on')).toBe(false);
+    thumb('u-b').dispatch('pointerenter', { pointerType: 'mouse' });
+    expect(peek()).toHaveLength(1);
+    expect(p.querySelector('.theme-preview')!.getAttribute('innerHTML')).toContain('line u-b');
+    press('Escape');
+    await flush();
+    expect(p.classList.contains('on')).toBe(false);
+    expect(dialogs()).toHaveLength(1);
+    // no peek: Escape closes the catalog as before
+    button('Done').dispatch('click');
+    await flush();
+    expect(dialogs()).toHaveLength(0);
+    expect(peek()).toEqual([]);
+    expect(winKeys).toEqual([]);
+  });
+
+  it('opening details hides the peek', async () => {
+    await init();
+    await open();
+    thumb('u-p').dispatch('pointerenter', { pointerType: 'mouse' });
+    card('u-p').dispatch('click');
+    await flush();
+    expect(peek()[0]!.classList.contains('on')).toBe(false);
+  });
+
+  it('shows details and Apply in Turkish', async () => {
+    await init();
+    setLanguage('tr');
+    await open();
+    expect(card('u-p').getAttribute('title')).toBe('My preset ayrıntıları');
+    expect(applyBtn('u-p', 'Uygula').getAttribute('aria-label')).toBe('Uygula: My preset');
+    card('u-p').dispatch('click');
+    await flush();
+    const d = top();
+    expect(d.querySelector('.catalog-detail-preview')!.getAttribute('aria-label')).toBe(
+      'Kurulumunuzla önizleme',
+    );
+    const labels = d
+      .querySelector('FOOTER')!
+      .all((e) => e.tagName === 'BUTTON')
+      .map((b) => b.textContent);
+    expect(labels.slice(-2)).toEqual(['Kapat', 'Uygula']);
+    expect(texts(d)).toContain('Sizin girdileriniz');
   });
 });

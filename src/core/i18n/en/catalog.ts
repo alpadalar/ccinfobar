@@ -24,6 +24,8 @@ export const catalogMessages = {
   'catalog.title': 'Catalog',
   'catalog.apply': 'Apply',
   'catalog.applyName': 'Apply {name}',
+  'catalog.detailsName': 'Details of {name}',
+  'catalog.details.preview': 'Preview with your setup',
   'catalog.applyTitle': 'Apply {name}?',
   'catalog.applyText': 'Your unsaved changes stay in undo history.',
   'catalog.applied': 'Applied {name}. Save to keep it.',
