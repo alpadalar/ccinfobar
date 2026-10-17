@@ -52,6 +52,13 @@ export const importMessages = {
   'import.note.clockOff': '{tool} clock_mode değeri "off", bu yüzden saat bölümü atlandı',
   'import.note.clockAuto':
     '{tool} clock_mode "{value}" 12 veya 24 saat biçimini yerel ayardan seçer, ccinfobar saati 24 saat biçiminde gösterir',
+  'import.note.multilineDropped': {
+    one: "{tool} [multiline] satırları ve {count} [widgets] tablosu atlandı: ccinfobar bunları içe aktarmaz, URL'lerini ve HTTP başlıklarını asla kopyalamaz",
+    other:
+      "{tool} [multiline] satırları ve {count} [widgets] tablosu atlandı: ccinfobar bunları içe aktarmaz, URL'lerini ve HTTP başlıklarını asla kopyalamaz",
+  },
+  'import.note.projectLayer':
+    '{tool} proje yapılandırmaları (~/.claude/projects/ altında) okunmadı; birini içe aktarmak için yolunu --file ile verin',
   'import.cshipNotFound': 'cship yapılandırması bulunamadı',
   'import.cshipNoLines': 'cship yapılandırmasında satır yok ({file})',
   'import.note.starshipConfig':

@@ -1,0 +1,140 @@
+# trimmed from configs/config.template.toml, with one widget table in the documented shape
+preset = "PMBTU"
+theme = "powerline"
+language = "zh"
+debug = false
+
+[terminal]
+force_nerd_font = false
+force_emoji = false
+force_text = false
+
+[storage]
+enableConversationTracking = true
+enableCostPersistence = true
+autoCleanupDays = 30
+
+[style]
+separator = "|"
+enable_colors = true
+enable_emoji = true
+enable_nerd_font = true
+separator_color = "white"
+separator_before = " "
+separator_after = " "
+compact_mode = false
+max_width = 120
+
+[themes.powerline]
+enable_gradient = true
+ignore_separator = false
+fine_progress = true
+capsule_style = false
+
+[components.project]
+enabled = true
+icon_color = "white"
+text_color = "white"
+emoji_icon = "📁"
+nerd_icon = ""
+text_icon = "[P]"
+show_when_empty = false
+
+[components.model]
+enabled = true
+icon_color = "cyan"
+text_color = "bright_blue"
+emoji_icon = "🤖"
+nerd_icon = ""
+text_icon = "[M]"
+show_full_name = false
+
+[components.model.mapping]
+"claude-sonnet-4-5-20250929" = "S4.5"
+
+[components.branch]
+enabled = true
+icon_color = "white"
+text_color = "white"
+emoji_icon = "🌿"
+nerd_icon = ""
+text_icon = "[B]"
+show_when_no_git = false
+max_length = 15
+
+[components.branch.status]
+show_dirty = true
+show_ahead_behind = false
+show_stash_count = false
+
+[components.tokens]
+enabled = true
+icon_color = "white"
+text_color = "white"
+emoji_icon = "📊"
+nerd_icon = ""
+text_icon = "[T]"
+show_progress_bar = true
+show_percentage = true
+show_raw_numbers = false
+progress_width = 15
+
+[components.tokens.thresholds]
+warning = 60
+danger = 85
+backup = 85
+critical = 95
+
+[components.usage]
+enabled = true
+icon_color = "white"
+text_color = "white"
+emoji_icon = "💰"
+nerd_icon = ""
+text_icon = "[$]"
+precision = 2
+show_lines_added = true
+show_lines_removed = false
+
+[components.rate_limit]
+enabled = true
+show_five_hour = true
+show_seven_day = true
+show_reset = true
+
+[components.status]
+enabled = true
+
+[preset_mapping]
+P = "project"
+M = "model"
+B = "branch"
+T = "tokens"
+U = "usage"
+R = "rate_limit"
+S = "status"
+
+[advanced]
+cache_enabled = true
+git_timeout = 1_000
+
+[multiline]
+enabled = true
+max_rows = 5
+
+[widgets.api]
+enabled = true
+type = "api"
+row = 1
+col = 0
+template = "balance {balance:.2f}"
+
+[widgets.api.api]
+base_url = "https://api.example.com"
+endpoint = "/v1/balance"
+method = "GET"
+timeout = 5000
+data_path = "$.balance"
+
+[widgets.api.api.headers]
+"X-API-Key" = "REDACTED-TEST"

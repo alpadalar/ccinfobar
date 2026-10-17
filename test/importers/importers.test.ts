@@ -483,6 +483,7 @@ describe('import sources', () => {
       'best-claude-hud',
       'byebyecode',
       'claudebar',
+      'statusline-pro',
     ]);
     expect(resolveSource('ccstatusline')).toBe('ccstatusline');
     expect(resolveSource('CLAUDE-POWERLINE')).toBe('claude-powerline');

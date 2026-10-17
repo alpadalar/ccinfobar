@@ -5,6 +5,7 @@ import { bestClaudeHudImporter, byebyecodeImporter } from './ccline-family.js';
 import { claudebarImporter } from './claudebar.js';
 import type { ImportResult, ImportSource } from './index.js';
 import { homeOf, isFile, shownFile } from './io.js';
+import { statuslineProImporter } from './statusline-pro.js';
 
 export interface ImportCtx {
   command: string;
@@ -67,6 +68,7 @@ export const REGISTRY: readonly ImporterDef[] = [
   bestClaudeHudImporter,
   byebyecodeImporter,
   claudebarImporter,
+  statuslineProImporter,
 ];
 
 export function registryDef(source: ImportSource): ImporterDef | null {

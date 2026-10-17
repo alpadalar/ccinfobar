@@ -19,3 +19,4 @@ Hand-written fixtures in each tool's documented format; no upstream code or secr
 | `byebyecode.toml` | [byebye-code/byebyecode](https://github.com/byebye-code/byebyecode) | `src/config/types.rs` (`line_break_after`, 88code segments) | MIT |
 | `ccstatusline-new-widgets.json` | [sirmalloc/ccstatusline](https://github.com/sirmalloc/ccstatusline) | `src/utils/widget-manifest.ts`, `src/types/Settings.ts` | MIT |
 | `claudebar.toml` | [micschr0/claudebar](https://github.com/micschr0/claudebar) | `README.md` (Configure), `src/model/config.rs` | MIT |
+| `statusline-pro.toml` | [Wangnov/claude-code-statusline-pro](https://github.com/Wangnov/claude-code-statusline-pro) | `configs/config.template.toml`, `configs/components/usage.template.toml` (widget shape) | MIT |

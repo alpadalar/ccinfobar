@@ -25,6 +25,7 @@ import {
   importFrom,
   toConfig,
 } from '../../src/importers/index.js';
+import { TARGETS as CCSP_TARGETS } from '../../src/importers/statusline-pro.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
 
 const FIXTURES = path.join(__dirname, '../fixtures/import');
@@ -147,6 +148,25 @@ const TOOLS: Tool[] = [
       '',
     ].join('\n'),
     proto: '__proto__ = 1\n',
+  },
+  {
+    source: 'statusline-pro',
+    targets: CCSP_TARGETS,
+    fixtures: ['statusline-pro.toml'],
+    ext: 'toml',
+    hasDefault: true,
+    hostile: [
+      '[terminal]',
+      'force_text = true',
+      '[style]',
+      `separator = ${toml(HOSTILE)}`,
+      '[components]',
+      `order = ["project", "model", ${toml(HOSTILE)}]`,
+      '[components.project]',
+      `text_icon = ${toml(HOSTILE)}`,
+      '',
+    ].join('\n'),
+    proto: '[components.model]\n__proto__ = 1\n',
   },
   {
     source: 'cship',

@@ -48,6 +48,13 @@ export const importMessages = {
   'import.note.clockOff': '{tool} clock_mode is "off", so the clock segment was skipped',
   'import.note.clockAuto':
     '{tool} clock_mode "{value}" picks 12- or 24-hour time from the locale, ccinfobar shows 24-hour time',
+  'import.note.multilineDropped': {
+    one: '{tool} [multiline] rows and {count} [widgets] table were dropped: ccinfobar does not import them and never copies their URLs or headers',
+    other:
+      '{tool} [multiline] rows and {count} [widgets] tables were dropped: ccinfobar does not import them and never copies their URLs or headers',
+  },
+  'import.note.projectLayer':
+    '{tool} project configs under ~/.claude/projects/ were not read; pass one with --file to import it',
   'import.cshipNotFound': 'no cship config found',
   'import.cshipNoLines': 'cship config has no lines ({file})',
   'import.note.starshipConfig':
