@@ -22,6 +22,7 @@ import {
   type Counts,
   dropPendingStatements,
   type EntryState,
+  needsReview,
   noteSize,
   overwriteStatements,
   publishCounts,
@@ -44,6 +45,7 @@ const iso = (deps: WorkerDeps): string => new Date(deps.now()).toISOString();
 const gone = (state: EntryState): boolean => state === 'withdrawn' || state === 'removed';
 
 const LATEST_ONLY = 'only the latest version can be overwritten';
+const REVIEW_FIRST = 'new content waits until an admin approves your next entry';
 
 // each publisher has its own write window too
 async function writer(db: D1Database, env: Env, deps: WorkerDeps, req: Request): Promise<Publisher> {
@@ -181,22 +183,20 @@ export async function addVersion(
   const body = versionText({ version, content: payload.content, hash });
   const bytes = utf8(body);
   await room(db, env, who.handle, bytes);
-  let state: unknown;
   try {
     const done = await db.batch([
       requireWriter(db, who.digest, who.handle),
       ...versionStatements(db, { entry: next, expected: row.version, expectedHash: entry.hash, body, bytes }),
     ]);
-    state = (done[2]?.results[0] as { state?: unknown } | undefined)?.state;
     await noteSize(db, done);
   } catch (err) {
     const c = writeConflict(err);
     if (c === 'guard') await stillWriter(db, req);
+    if (c === 'guard' && (await needsReview(db, p, s))) throw fail(403, 'forbidden', REVIEW_FIRST);
     if (c === 'version' || c === 'guard') throw fail(412, 'stale');
     throw err;
   }
   await rebuildIndex(db, at);
-  if (state !== 'live') return json(201, { id: entry.id, version, hash, pending: true });
   return json(201, { id: entry.id, version, hash });
 }
 
@@ -235,23 +235,21 @@ export async function overwrite(
   const body = versionText({ version: n, content: payload.content, hash });
   const bytes = utf8(body);
   await room(db, env, who.handle, bytes);
-  let state: unknown;
   try {
     const done = await db.batch([
       requireWriter(db, who.digest, who.handle),
       ...overwriteStatements(db, { entry: next, expectedHash: entry.hash, body, bytes }),
     ]);
-    state = (done[1]?.results[0] as { state?: unknown } | undefined)?.state;
     await noteSize(db, done);
   } catch (err) {
     if (writeConflict(err) !== 'guard') throw err;
     await stillWriter(db, req);
+    if (await needsReview(db, p, s)) throw fail(403, 'forbidden', REVIEW_FIRST);
     const now = await readEntryRow(db, p, s);
     if (now && gone(now.state)) throw fail(410, 'withdrawn');
     throw fail(409, 'conflict', LATEST_ONLY);
   }
   await rebuildIndex(db, at);
-  if (state !== 'live') return json(200, { id: entry.id, version: n, hash, pending: true });
   return json(200, { id: entry.id, version: n, hash });
 }
 

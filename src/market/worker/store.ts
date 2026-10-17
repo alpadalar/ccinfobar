@@ -224,9 +224,8 @@ export interface NewEntry {
 // live only for a publisher trusted when the batch commits (D-09)
 const STATE_OF = `CASE WHEN (SELECT trusted FROM publishers WHERE handle = ?1) = 1 THEN 'live' ELSE 'pending' END`;
 
-// new content of an untrusted publisher waits for review, even on a live entry (D-09)
-const KEEP_LIVE = `CASE WHEN state = 'live' AND (SELECT trusted FROM publishers WHERE handle = ?1) = 1
-  THEN 'live' ELSE 'pending' END`;
+// a live entry takes new content only from a trusted publisher; public ids never go back to pending (D-09)
+const MAY_CHANGE = "(state = 'pending' OR (SELECT trusted FROM publishers WHERE handle = ?1) = 1)";
 
 // caps and trust are read inside the insert, so racing writes cannot pass them
 export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatement[] {
@@ -284,10 +283,8 @@ export function versionStatements(db: D1Database, n: NextVersion): D1PreparedSta
       .bind(p, s, e.version, n.body),
     db
       .prepare(
-        `UPDATE entries SET version = ?3, hash = ?4, updated_at = ?5, summary = ?6, doc = ?7, gen = ${NEXT_GEN},
-           state = ${KEEP_LIVE}
-         WHERE publisher = ?1 AND slug = ?2 AND version = ?8 AND hash = ?9 AND ${LIVE}
-         RETURNING state`,
+        `UPDATE entries SET version = ?3, hash = ?4, updated_at = ?5, summary = ?6, doc = ?7, gen = ${NEXT_GEN}
+         WHERE publisher = ?1 AND slug = ?2 AND version = ?8 AND hash = ?9 AND ${LIVE} AND ${MAY_CHANGE}`,
       )
       .bind(
         p,
@@ -320,10 +317,8 @@ export function overwriteStatements(db: D1Database, n: Overwrite): D1PreparedSta
   return [
     db
       .prepare(
-        `UPDATE entries SET hash = ?3, updated_at = ?4, summary = ?5, doc = ?6, gen = ${NEXT_GEN},
-           state = ${KEEP_LIVE}
-         WHERE publisher = ?1 AND slug = ?2 AND version = ?7 AND hash = ?8 AND ${LIVE}
-         RETURNING state`,
+        `UPDATE entries SET hash = ?3, updated_at = ?4, summary = ?5, doc = ?6, gen = ${NEXT_GEN}
+         WHERE publisher = ?1 AND slug = ?2 AND version = ?7 AND hash = ?8 AND ${LIVE} AND ${MAY_CHANGE}`,
       )
       .bind(p, s, e.hash, e.updatedAt, entrySummaryText(e), entryDocText(e), e.version, n.expectedHash),
     db.prepare(GUARD),
@@ -691,6 +686,17 @@ export function removeStatements(
       .bind(p, s, tomb.updatedAt),
     logStatement(db, log),
   ];
+}
+
+export async function needsReview(db: D1Database, handle: string, slug: string): Promise<boolean> {
+  const row = await db
+    .prepare(
+      `SELECT e.state = 'live' AND COALESCE(p.trusted, 0) = 0 AS held
+       FROM entries e JOIN publishers p ON p.handle = e.publisher WHERE e.publisher = ?1 AND e.slug = ?2`,
+    )
+    .bind(handle, slug)
+    .first<{ held: number }>();
+  return !!row?.held;
 }
 
 export async function publisherRow(
