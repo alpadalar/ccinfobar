@@ -20,15 +20,45 @@ import {
   type MarketMeta,
   type MarketSummary,
   type MarketVersion,
-  type MarketVersionInfo,
   metaPath,
   PROTOCOL_VERSION,
   parsePublishPayload,
   parseRemoteEntry,
   parseVersionPayload,
   publishersPath,
-  RESPONSE_CAPS,
 } from './protocol.js';
+import {
+  CAPS,
+  DIGEST_RE,
+  ENTRY_RE,
+  fail,
+  fits,
+  IF_MATCH_RE,
+  isJsonType,
+  limited,
+  MAX_VERSIONS,
+  MarketHttpError,
+  order,
+  PAGE_RE,
+  PUT_RE,
+  part,
+  personal,
+  READS_FACTOR,
+  REGISTERS_PER_MINUTE,
+  retryAfterSeconds,
+  STAMP_RE,
+  type StoredEntry,
+  type StoredVersionInfo,
+  TOKEN_RE,
+  tombOf,
+  toSummary,
+  VERSION_FILE_RE,
+  VERSIONS_RE,
+  versionNo,
+  WITHDRAW_RE,
+  WRITES_PER_MINUTE,
+  windowOf,
+} from './rules.js';
 
 export interface MarketServerOpts {
   dataDir: string;
@@ -48,64 +78,8 @@ export interface MarketServerOpts {
   now?: () => number;
 }
 
-const MAX_VERSIONS = 5000;
-const WINDOW_MS = 60_000;
 const MAX_KEYS = 50_000;
-const READS_FACTOR = 20;
 const DRAIN_LIMIT = 4 * MARKET_LIMITS.maxBodyBytes;
-// live entries and tombstones have their own caps, so publish and withdraw cannot loop forever
-const CAPS = {
-  publishers: 10_000,
-  entries: 5000,
-  entriesPerPublisher: 200,
-  tombstones: 50_000,
-  tombstonesPerPublisher: 1000,
-};
-const REGISTERS_PER_MINUTE = 5;
-const TOKEN_RE = /^Bearer ([0-9a-f]{64})$/;
-const DIGEST_RE = /^[0-9a-f]{64}$/;
-const VERSION_RE = /^[1-9][0-9]{0,15}$/;
-const IF_MATCH_RE = /^"([1-9][0-9]{0,15})"$/;
-const ENTRY_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)\.json$/;
-const VERSION_FILE_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)\/([^/]+)\.json$/;
-const VERSIONS_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)\/versions$/;
-const PUT_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)\/versions\/([^/]+)$/;
-const WITHDRAW_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)$/;
-const STAMP_RE = /^\d{4}-\d{2}-\d{2}T[0-9:.]+Z$/;
-const PAGE_RE = /^\/v1\/index-([1-9][0-9]{0,3})\.json$/;
-
-// fixed English, never echoes input
-const MESSAGES: Record<string, string> = {
-  invalid: 'invalid request',
-  'too-large': 'request too large',
-  'over-quota': 'limit reached',
-  conflict: 'already exists',
-  stale: 'not the latest version',
-  forbidden: 'not your entry',
-  'not-found': 'not found',
-  withdrawn: 'entry withdrawn',
-  unauthorized: 'missing or unknown token',
-  'overwrite-disabled': 'overwrite is disabled on this server',
-  'unsupported-media': 'content-type must be application/json',
-  'rate-limited': 'too many requests',
-  internal: 'internal error',
-};
-
-class MarketHttpError extends Error {
-  retryAfter: number | null = null;
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message?: string,
-  ) {
-    super(message ?? MESSAGES[code] ?? code);
-  }
-}
-
-const fail = (status: number, code: string, message?: string) => new MarketHttpError(status, code, message);
-
-type StoredVersionInfo = MarketVersionInfo & { overwrittenAt?: string };
-type StoredEntry = MarketEntry & { versions: StoredVersionInfo[] };
 
 // fixed one-minute windows; returns retry-after seconds when over
 export function fixedWindow(
@@ -117,12 +91,12 @@ export function fixedWindow(
   let start = Number.NaN;
   return (key) => {
     const t = now();
-    const w = Math.floor(t / WINDOW_MS) * WINDOW_MS;
+    const w = windowOf(t);
     if (w !== start) {
       start = w;
       counts.clear();
     }
-    const wait = Math.max(1, Math.ceil((w + WINDOW_MS - t) / 1000));
+    const wait = retryAfterSeconds(w, t);
     const n = counts.get(key);
     // full table fails closed
     if (n === undefined && counts.size >= maxKeys) return wait;
@@ -130,16 +104,6 @@ export function fixedWindow(
     counts.set(key, (n ?? 0) + 1);
     return null;
   };
-}
-
-function limited(seconds: number): MarketHttpError {
-  const e = fail(429, 'rate-limited');
-  e.retryAfter = seconds;
-  return e;
-}
-
-function isJsonType(v: string | undefined): boolean {
-  return (v ?? '').split(';')[0]!.trim().toLowerCase() === 'application/json';
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
@@ -198,61 +162,12 @@ function readBody(req: http.IncomingMessage): Promise<unknown> {
   });
 }
 
-// decode in try, then the id regex, before any path.join
-function part(raw: string): string {
-  let v = '';
-  try {
-    v = decodeURIComponent(raw);
-  } catch {}
-  if (!ID_PART_RE.test(v)) throw fail(400, 'invalid', 'invalid id');
-  return v;
-}
-
 function readJson(file: string): unknown {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {
     return null;
   }
-}
-
-const personal = (e: MarketEntry): boolean =>
-  !!(e.name || e.description || e.author || e.versions.some((v) => v.note));
-
-// ids, versions and hashes only: names, authors and notes are personal data
-function tombOf(e: MarketEntry, at: string): MarketEntry & { withdrawnAt: string } {
-  return {
-    id: e.id,
-    kind: e.kind,
-    name: '',
-    description: '',
-    author: '',
-    publisher: e.publisher,
-    version: e.version,
-    updatedAt: at,
-    hash: e.hash,
-    versions: e.versions.map((v) => ({ version: v.version, at: v.at, note: '', hash: v.hash })),
-    withdrawn: true,
-    withdrawnAt: at,
-  };
-}
-
-// a withdrawn entry keeps no personal data, also from older tombstones
-function toSummary(e: MarketEntry): MarketSummary {
-  const gone = e.withdrawn === true;
-  const s: MarketSummary = {
-    id: e.id,
-    kind: e.kind,
-    name: gone ? '' : e.name,
-    description: gone ? '' : e.description,
-    author: gone ? '' : e.author,
-    publisher: e.publisher,
-    version: e.version,
-    updatedAt: e.updatedAt,
-    hash: e.hash,
-  };
-  if (e.withdrawn) s.withdrawn = true;
-  return s;
 }
 
 export async function startMarketServer(
@@ -277,13 +192,6 @@ export async function startMarketServer(
     });
   }
 
-  // an entry document must stay readable by the client
-  function fits(e: MarketEntry): void {
-    if (Buffer.byteLength(JSON.stringify(e)) + 1 > RESPONSE_CAPS.document) {
-      throw fail(413, 'over-quota', 'version history too large');
-    }
-  }
-
   const meta: MarketMeta = {
     protocol: PROTOCOL_VERSION,
     name: opts.name ?? 'ccinfobar reference marketplace',
@@ -294,14 +202,6 @@ export async function startMarketServer(
 
   const summaries = new Map<string, MarketSummary>();
   const caps = { ...CAPS, ...opts.caps };
-
-  // ids compare as (publisher, slug), like the dir walk
-  const order = (a: MarketSummary, b: MarketSummary): number => {
-    const [ap, as] = a.id.split('/') as [string, string];
-    const [bp, bs] = b.id.split('/') as [string, string];
-    if (ap !== bp) return ap < bp ? -1 : 1;
-    return as < bs ? -1 : as > bs ? 1 : 0;
-  };
 
   // pages of INDEX_PAGE, each linking the next; tombstones stay out, so
   // withdrawing never grows the public index
@@ -494,13 +394,6 @@ export async function startMarketServer(
     return pub('entries', pp, s, `${n}.json`);
   }
 
-  function versionNo(raw: string): number {
-    if (!VERSION_RE.test(raw) || !Number.isSafeInteger(Number(raw))) {
-      throw fail(400, 'invalid', 'invalid version');
-    }
-    return Number(raw);
-  }
-
   function register(res: http.ServerResponse, body: unknown): void {
     const b = isObject(body) ? body : {};
     const handle = own(b, 'handle');
@@ -652,7 +545,7 @@ export async function startMarketServer(
     return route(body);
   }
 
-  const perMinute = opts.rateLimit?.perMinute ?? 30;
+  const perMinute = opts.rateLimit?.perMinute ?? WRITES_PER_MINUTE;
   const writes = fixedWindow(perMinute, now);
   const reads = fixedWindow(opts.rateLimit?.readsPerMinute ?? perMinute * READS_FACTOR, now);
   const registers = fixedWindow(
