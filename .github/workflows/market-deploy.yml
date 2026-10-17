@@ -1,0 +1,64 @@
+name: Marketplace deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/market/**'
+      - 'src/core/entry-keys.ts'
+      - 'src/core/sanitize.ts'
+      - 'worker/**'
+      - 'scripts/build.mjs'
+      - 'scripts/worker-options.mjs'
+      - '.github/workflows/market-deploy.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # skipped until the MARKET_URL repository variable is set
+    if: github.repository == 'alpadalar/ccinfobar' && vars.MARKET_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx vitest run test/market
+      - run: node scripts/build.mjs --worker
+      - name: Check config
+        working-directory: worker
+        run: npx --yes wrangler@4.149.0 deploy --dry-run
+      # wrangler backs up D1 before applying
+      - name: Apply D1 migrations
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.149.0 d1 migrations apply ccinfobar-market --remote
+      - name: Deploy
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.149.0 deploy
+      - name: Smoke check
+        env:
+          MARKET_URL: ${{ vars.MARKET_URL }}
+        run: |
+          url="${MARKET_URL%/}"
+          curl -fsS --max-time 20 --retry 3 --retry-delay 5 --retry-all-errors "$url/v1/meta.json"
+          curl -fsS --max-time 20 --retry 3 --retry-delay 5 --retry-all-errors "$url/" -o /dev/null
