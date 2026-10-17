@@ -110,6 +110,12 @@ export const importMessages = {
   'import.note.headerOnly':
     '{tool} betiğinin yalnızca başlığı (tema, renkler ve özellikler) okundu; altındaki değişiklikler içe aktarılmadı',
   'import.note.usageCacheTtl': '{tool} {name} içe aktarılmadı: ccinfobar kendi kullanım önbelleğini kullanır',
+  'import.note.remainingShare':
+    '{tool} {setting} kalan payı gösterir; ccinfobar çubukları ve kullanım bileşenleri kullanılan payı gösterir',
+  'import.note.emailDropped':
+    '{tool} {setting} içe aktarılmadı: ccinfobar hesap e-postanızı hiçbir zaman göstermez',
+  'import.note.shellEnvIgnored':
+    '{tool} için yalnızca settings.json env bloğundaki CQB_* anahtarları okunur; kabukta dışa aktarılan değişkenler okunmaz',
   'import.note.separatorMerged':
     '{tool} satırları farklı ayraçlar kullanıyor; artık her satır en sık kullanılan ayracı ({separator}) kullanıyor',
   'import.note.hudIgnored': '{file} bir JSON nesnesi değil, yok sayıldı',

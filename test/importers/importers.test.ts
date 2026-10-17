@@ -494,6 +494,7 @@ describe('import sources', () => {
       'ccpet',
       'cc-statusline',
       'claudeline',
+      'claude-usage-monitor',
     ]);
     expect(resolveSource('ccstatusline')).toBe('ccstatusline');
     expect(resolveSource('CLAUDE-POWERLINE')).toBe('claude-powerline');

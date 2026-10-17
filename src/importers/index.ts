@@ -54,6 +54,7 @@ export const IMPORT_SOURCES = [
   'ccpet',
   'cc-statusline',
   'claudeline',
+  'claude-usage-monitor',
 ] as const;
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];

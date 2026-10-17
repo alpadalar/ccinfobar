@@ -106,6 +106,11 @@ export const importMessages = {
   'import.note.headerOnly':
     'only the {tool} script header (theme, colors and features) was read; changes made below it are not imported',
   'import.note.usageCacheTtl': '{tool} {name} was not imported: ccinfobar keeps its own usage cache',
+  'import.note.remainingShare':
+    '{tool} {setting} shows the remaining share; ccinfobar bars and usage widgets show the used share',
+  'import.note.emailDropped': '{tool} {setting} was not imported: ccinfobar never shows your account email',
+  'import.note.shellEnvIgnored':
+    'only the CQB_* keys in the settings.json env block are read for {tool}; variables exported in your shell are not',
   'import.note.separatorMerged':
     '{tool} lines use different separators; every line now uses the most common one, {separator}',
   'import.note.hudIgnored': '{file} is not a JSON object and was ignored',

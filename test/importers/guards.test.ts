@@ -20,6 +20,7 @@ import { TARGETS as HUD_TARGETS } from '../../src/importers/claude-hud.js';
 import { TARGETS as PL_TARGETS } from '../../src/importers/claude-powerline.js';
 import { TARGETS as CSB_TARGETS } from '../../src/importers/claude-statusbar.js';
 import { TARGETS as CUH_TARGETS } from '../../src/importers/claude-ultimate-hud.js';
+import { TARGETS as CUM_TARGETS } from '../../src/importers/claude-usage-monitor.js';
 import { TARGETS as CLAUDEBAR_TARGETS } from '../../src/importers/claudebar.js';
 import { TARGETS as CLAUDELINE_TARGETS } from '../../src/importers/claudeline.js';
 import { sanitizeImport } from '../../src/importers/confirm.js';
@@ -295,6 +296,16 @@ const TOOLS: Tool[] = [
     hostileIn: 'notes',
     hostile: '',
     protoText: `{"__proto__": ${EVIL}}`,
+  },
+  {
+    source: 'claude-usage-monitor',
+    targets: CUM_TARGETS,
+    fixtures: ['claude-usage-monitor.settings.json'],
+    ext: 'json',
+    hasDefault: true,
+    hostileIn: 'notes',
+    hostile: JSON.stringify({ env: { CQB_MAX_WIDTH: HOSTILE } }),
+    protoText: `{"__proto__": ${EVIL}, "env": {"__proto__": ${EVIL}, "constructor": "1", "CQB_COST": "1"}}`,
   },
   {
     source: 'cship',
