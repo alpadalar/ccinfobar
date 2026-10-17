@@ -5,8 +5,8 @@ import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionValue, WidgetItem } from '../core/types.js';
 import { rgbColor } from './colors.js';
 import type { ImportNote, ImportResult } from './index.js';
-import { expand, readSource, SourceTooLargeError, safeThemeName, shownFile } from './io.js';
-import type { ImporterDef } from './registry.js';
+import { expand, isFile, readSource, SourceTooLargeError, safeThemeName, shownFile } from './io.js';
+import type { ImportCtx, ImporterDef } from './registry.js';
 import { parseShellEnv } from './shell-env.js';
 import { mapTheme, type ThemeTable } from './themes-map.js';
 
@@ -329,11 +329,27 @@ export function importCoralline(vars: Record<string, string>, opts: CorallineOpt
   return { config, notes, source: 'coralline' };
 }
 
-export function themesDir(ctx: { env: NodeJS.ProcessEnv; cwd: string; home: string }): string {
+export function themesDir(ctx: Pick<ImportCtx, 'env' | 'cwd' | 'home'>): string {
   const base = ctx.env.CLAUDE_CONFIG_DIR
     ? path.resolve(ctx.cwd, expand(ctx.env.CLAUDE_CONFIG_DIR, ctx.home))
     : path.join(ctx.home, '.claude');
   return path.join(base, 'coralline', 'themes');
+}
+
+// only <themes dir>/<safe name>.conf, never the include path itself
+function readTheme(name: string, ctx: ImportCtx): { vars: Record<string, string>; file: string } | null {
+  if (Object.hasOwn(THEMES.exact, name.toLowerCase()) || !safeThemeName(name)) return null;
+  const file = path.join(themesDir(ctx), `${name}.conf`);
+  if (!isFile(file)) return null;
+  try {
+    const vars = Object.create(null) as Record<string, string>;
+    for (const [k, v] of Object.entries(parseShellEnv(readSource(file)).vars)) {
+      if (/^VL_(?:BG|FG)_/.test(k)) vars[k] = v;
+    }
+    return { vars, file };
+  } catch {
+    return null;
+  }
 }
 
 export const corallineImporter: ImporterDef = {
@@ -367,10 +383,12 @@ export const corallineImporter: ImporterDef = {
     const parsed = parseShellEnv(text);
     const last = parsed.includes.at(-1);
     const skipped = [...parsed.skipped, ...parsed.includes.slice(0, -1).map((i) => i.line)];
+    const theme = last?.name ?? null;
+    const read = theme === null ? null : readTheme(theme, ctx);
     const r = importCoralline(parsed.vars, {
-      theme: last?.name ?? null,
-      themeVars: null,
-      themeFile: null,
+      theme,
+      themeVars: read?.vars ?? null,
+      themeFile: read ? shownFile(read.file, ctx.home) : null,
       skipped,
     });
     return { ...r, file };

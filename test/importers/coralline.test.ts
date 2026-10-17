@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { importCoralline, TARGETS } from '../../src/importers/coralline.js';
-import { importFrom } from '../../src/importers/index.js';
+import { detectTool, importFrom } from '../../src/importers/index.js';
 import { parseShellEnv } from '../../src/importers/shell-env.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
 import { withLang } from '../helpers.js';
@@ -301,10 +301,149 @@ describe('coralline importer', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  const themes = (base = path.join(env.HOME!, '.claude')) => path.join(base, 'coralline', 'themes');
+  const writeTheme = (name: string, text: string, base?: string) => {
+    const file = path.join(themes(base), `${name}.conf`);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+    return file;
+  };
+  const writeConf = (text: string, file = path.join(env.HOME!, '.claude', 'coralline.conf')) => {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+    return file;
+  };
+
   it('reads --file as assignments only', () => {
     const r = importFrom('coralline', { file: CONF, env, cwd: dir });
     expect(r.file).toBe(CONF);
     expect(r.config.theme).toBe('nord');
     expect(types(r)).toHaveLength(2);
+  });
+
+  it('finds $CORALLINE_CONFIG, else ~/.claude/coralline.conf, else imports the defaults', () => {
+    const none = importFrom('coralline', { env, cwd: dir });
+    expect(none.file).toBeNull();
+    expect(texts(none)[0]).toBe('no coralline config file found, imported its default layout');
+
+    const home = writeConf('VL_SEGMENTS=model\n');
+    const fromHome = importFrom('coralline', { env, cwd: dir });
+    expect(fromHome.file).toBe(home);
+    expect(types(fromHome)).toEqual([['model']]);
+
+    const own = writeConf('VL_SEGMENTS=cost\n', path.join(dir, 'c.conf'));
+    const withEnv = importFrom('coralline', { env: { ...env, CORALLINE_CONFIG: own }, cwd: dir });
+    expect(withEnv.file).toBe(own);
+    expect(types(withEnv)).toEqual([['session-cost']]);
+    const rel = importFrom('coralline', { env: { ...env, CORALLINE_CONFIG: 'c.conf' }, cwd: dir });
+    expect(rel.file).toBe(own);
+    const tilde = importFrom('coralline', {
+      env: { ...env, CORALLINE_CONFIG: '~/.claude/coralline.conf' },
+      cwd: dir,
+    });
+    expect(tilde.file).toBe(home);
+  });
+
+  it('reads colors from the themes dir by the include basename, never from the include path', () => {
+    const outside = path.join(dir, 'outside', 'reverie.conf');
+    fs.mkdirSync(path.dirname(outside), { recursive: true });
+    fs.writeFileSync(outside, 'VL_BG_MODEL="1,2,3"\n');
+    const conf = writeConf(`. "${outside}"\nVL_SEGMENTS="dir model"\n`);
+    const opened: string[] = [];
+    const real = fs.openSync;
+    const spy = vi.spyOn(fs, 'openSync').mockImplementation(((f: fs.PathLike, ...rest: never[]) => {
+      opened.push(String(f));
+      return (real as (...a: unknown[]) => number)(f, ...rest);
+    }) as typeof fs.openSync);
+    try {
+      const missing = importFrom('coralline', { env, cwd: dir });
+      expect(item(missing, 'model')!.background).toBeUndefined();
+      expect(texts(missing)).toContain('coralline theme "reverie" is approximated by the classic theme');
+
+      const theme = writeTheme('reverie', fs.readFileSync(THEME, 'utf8'));
+      const r = importFrom('coralline', { env, cwd: dir });
+      expect(r.file).toBe(conf);
+      expect(item(r, 'model')!.background).toBe('ansi256:173');
+      expect(item(r, 'cwd')!.background).toBe('#51a6c7');
+      expect(r.config.theme).toBe('classic');
+      expect(texts(r)).toContain(
+        `coralline theme "reverie" colors were read from ${path.join('~', '.claude', 'coralline', 'themes', 'reverie.conf')}`,
+      );
+      expect(opened).toContain(theme);
+      expect(opened).not.toContain(outside);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('follows the include basename only, rejects unsafe names and skips non-files', () => {
+    writeTheme('x', 'VL_BG_MODEL=99\n');
+    const r = importFrom('coralline', {
+      file: writeConf('. "$HOME/../../etc/x.conf"\nVL_SEGMENTS=model\n'),
+      env,
+      cwd: dir,
+    });
+    expect(item(r, 'model')!.background).toBe('ansi256:99');
+
+    fs.writeFileSync(path.join(themes(), 'a..b.conf'), 'VL_BG_MODEL=98\n');
+    const unsafe = importFrom('coralline', {
+      file: writeConf('. /x/a..b.conf\nVL_SEGMENTS=model\n'),
+      env,
+      cwd: dir,
+    });
+    expect(item(unsafe, 'model')!.background).toBeUndefined();
+    expect(texts(unsafe)).toContain(
+      'coralline theme "a..b" included in the config is not a safe theme name and was ignored',
+    );
+
+    fs.mkdirSync(path.join(themes(), 'lunar-pink.conf'), { recursive: true });
+    const isDir = importFrom('coralline', {
+      file: writeConf('. /x/lunar-pink.conf\nVL_SEGMENTS=model\n'),
+      env,
+      cwd: dir,
+    });
+    expect(item(isDir, 'model')!.background).toBeUndefined();
+    expect(texts(isDir)).toContain('coralline theme "lunar-pink" is approximated by the classic theme');
+  });
+
+  it('never reads a theme file for an exact built-in theme', () => {
+    writeTheme('nord', 'VL_BG_MODEL=97\n');
+    const r = importFrom('coralline', {
+      file: writeConf('. /x/nord.conf\nVL_SEGMENTS=model\n'),
+      env,
+      cwd: dir,
+    });
+    expect(r.config.theme).toBe('nord');
+    expect(item(r, 'model')!.background).toBeUndefined();
+  });
+
+  it('uses $CLAUDE_CONFIG_DIR/coralline/themes when set', () => {
+    const cc = path.join(dir, 'cc');
+    writeTheme('morning-haze', 'VL_BG_MODEL=96\n', cc);
+    writeTheme('morning-haze', 'VL_BG_MODEL=95\n');
+    const file = writeConf('. ~/.claude/coralline/themes/morning-haze.conf\nVL_SEGMENTS=model\n');
+    expect(item(importFrom('coralline', { env, cwd: dir }), 'model')!.background).toBe('ansi256:95');
+    const r = importFrom('coralline', { file, env: { ...env, CLAUDE_CONFIG_DIR: cc }, cwd: dir });
+    expect(item(r, 'model')!.background).toBe('ansi256:96');
+  });
+
+  it('reports an unreadable config with the tilde path', () => {
+    const file = path.join(env.HOME!, '.claude', 'dir.conf');
+    fs.mkdirSync(file);
+    expect(() => importFrom('coralline', { file, env, cwd: dir })).toThrow(
+      `Cannot read coralline config at ${path.join('~', '.claude', 'dir.conf')}`,
+    );
+  });
+
+  it('is detected from its status line command', () => {
+    expect(detectTool('bash ~/.claude/coralline/statusline.sh')).toMatchObject({
+      tool: 'coralline',
+      name: 'coralline',
+      importable: true,
+    });
+    expect(detectTool('pwsh -NoProfile -File C:\\Users\\u\\.claude\\coralline\\statusline.ps1')?.tool).toBe(
+      'coralline',
+    );
+    expect(detectTool('bash ~/.claude/coralline/configure.sh')?.tool).toBe('unknown');
   });
 });
