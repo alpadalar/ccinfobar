@@ -109,6 +109,7 @@ const PURE = [
   'src/market/protocol.ts',
   'src/core/entry-keys.ts',
   'src/market/rules.ts',
+  'src/market/worker/',
 ];
 
 function walk(dir: string): string[] {
@@ -380,6 +381,36 @@ describe('import graph', () => {
       'catalog',
     ]) {
       expect(text).toContain(`await import('../commands/${mod}.js')`);
+    }
+  });
+
+  // D-03: the Worker runs in workerd with Web APIs only
+  it('keeps the marketplace Worker isolated from ccinfobar', () => {
+    const SPEC_RE = /(?:\bfrom\s+|\bimport\s*\(\s*|^\s*import\s+)'(\.[^']+)'/gm;
+    const workerDir = path.join(src, 'market', 'worker') + path.sep;
+    const outside = walk(src).filter((f) => !f.startsWith(workerDir));
+    expect(outside.length).toBeGreaterThan(100);
+    const bad: string[] = [];
+    for (const f of outside) {
+      for (const m of fs.readFileSync(f, 'utf8').matchAll(SPEC_RE)) {
+        if (path.resolve(path.dirname(f), m[1]!).startsWith(workerDir)) bad.push(path.relative(root, f));
+      }
+    }
+    expect(bad).toEqual([]);
+    const files = closure('market/worker/index.ts');
+    expect(files.has('src/market/worker/handler.ts')).toBe(true);
+    const allowed = new Set([
+      'src/market/protocol.ts',
+      'src/market/rules.ts',
+      'src/core/sanitize.ts',
+      'src/core/entry-keys.ts',
+    ]);
+    expect([...files].filter((f) => !f.startsWith('src/market/worker/') && !allowed.has(f))).toEqual([]);
+    const own = walk(workerDir).map((f) => path.relative(root, f).replace(/\\/g, '/'));
+    expect(own).toContain('src/market/worker/index.ts');
+    for (const f of new Set([...files, ...own])) {
+      const text = fs.readFileSync(path.join(root, f), 'utf8');
+      expect(text, f).not.toMatch(/\bBuffer\b|process\.|require\(|__dirname|setImmediate|['"]node:/);
     }
   });
 
