@@ -23,6 +23,7 @@ Requirements: Node.js 20 or newer. There are no runtime dependencies; everything
 | `npm run check` | Typecheck, lint and test |
 | `npm run docs` | Regenerate `docs/WIDGETS.md`, `schema/config.schema.json` and `schema/theme.schema.json` |
 | `npm run demo` | Regenerate `docs/images/demo.gif` from the sample data (needs Chrome or Chromium and ImageMagick; set `CHROME` to pick a browser) |
+| `npm run screenshots` | Regenerate the README editor screenshots in `docs/images/screenshots/` (dark and light, 1920x1080) from a temp config; needs `npm run build`, Node 22+ and Chrome or Chromium; set `CHROME` to pick a browser, `--only editor,themes` for a subset |
 | `npm run example` | Render `test/fixtures/payload.json` |
 
 Two scripts are not wired into npm or CI: `node scripts/homebrew-formula.mjs` fills in the Homebrew formula for the owner after a release (see [DISTRIBUTION.md](DISTRIBUTION.md#publishing-the-formula-owner)), and `node scripts/startup-probe.mjs` is a dev-only breakdown of where startup time goes, in temp dirs only.
