@@ -72,10 +72,10 @@ export const fail = (status: number, code: string, message?: string) =>
 export type StoredVersionInfo = MarketVersionInfo & { overwrittenAt?: string };
 export type StoredEntry = MarketEntry & { versions: StoredVersionInfo[] };
 
-export const windowOf = (t: number): number => Math.floor(t / WINDOW_MS) * WINDOW_MS;
+export const windowOf = (t: number, ms = WINDOW_MS): number => Math.floor(t / ms) * ms;
 
-export const retryAfterSeconds = (windowStart: number, t: number): number =>
-  Math.max(1, Math.ceil((windowStart + WINDOW_MS - t) / 1000));
+export const retryAfterSeconds = (windowStart: number, t: number, ms = WINDOW_MS): number =>
+  Math.max(1, Math.ceil((windowStart + ms - t) / 1000));
 
 export function limited(seconds: number): MarketHttpError {
   const e = fail(429, 'rate-limited');

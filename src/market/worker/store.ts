@@ -1,7 +1,7 @@
 // all SQL of the Worker; bound parameters only
 import { INDEX_PAGE, indexFile, MAX_INDEX, type MarketSummary, type MarketVersion } from '../protocol.js';
 import { type StoredEntry, toSummary } from '../rules.js';
-import type { D1Database, D1PreparedStatement } from './env.js';
+import type { D1Database, D1PreparedStatement, D1Result } from './env.js';
 
 export type EntryState = 'pending' | 'live' | 'withdrawn' | 'removed';
 
@@ -364,4 +364,51 @@ export function writeConflict(err: unknown): 'entry' | 'version' | 'guard' | nul
   if (msg.includes('UNIQUE constraint failed: versions.')) return 'version';
   if (msg.includes(MISSED)) return 'guard';
   return null;
+}
+
+// one salt per UTC day; the first writer wins
+export function saltStatements(db: D1Database, day: string, salt: string): D1PreparedStatement[] {
+  return [
+    db.prepare('INSERT OR IGNORE INTO salts (day, salt) VALUES (?1, ?2)').bind(day, salt),
+    db.prepare('SELECT salt FROM salts WHERE day = ?1').bind(day),
+  ];
+}
+
+export async function bumpRate(db: D1Database, key: string, win: number): Promise<number> {
+  const n = await db
+    .prepare(
+      `INSERT INTO rate (key, win, n) VALUES (?1, ?2, 1)
+       ON CONFLICT(key) DO UPDATE SET n = CASE WHEN win = ?2 THEN n + 1 ELSE 1 END, win = ?2
+       RETURNING n`,
+    )
+    .bind(key, win)
+    .first<number>('n');
+  return Number(n);
+}
+
+export function cleanupStatements(db: D1Database, day: string, win: number): D1PreparedStatement[] {
+  return [
+    db.prepare('DELETE FROM salts WHERE day < ?1').bind(day),
+    db.prepare('DELETE FROM rate WHERE win < ?1').bind(win),
+  ];
+}
+
+export async function storageUse(db: D1Database, handle: string): Promise<{ total: number; mine: number }> {
+  const row = await db
+    .prepare(
+      `SELECT (SELECT n FROM counters WHERE k = 'bytes') AS total,
+         (SELECT bytes FROM publishers WHERE handle = ?1) AS mine`,
+    )
+    .bind(handle)
+    .first<{ total: number | null; mine: number | null }>();
+  return { total: Number(row?.total ?? 0), mine: Number(row?.mine ?? 0) };
+}
+
+// the database size D1 reports after a write; bookkeeping only
+export async function noteSize(db: D1Database, results: D1Result[]): Promise<void> {
+  const size = Math.max(0, ...results.map((r) => Number(r?.meta?.size_after) || 0));
+  if (!Number.isSafeInteger(size) || size <= 0) return;
+  try {
+    await db.prepare("UPDATE counters SET n = ?1 WHERE k = 'bytes'").bind(size).run();
+  } catch {}
 }

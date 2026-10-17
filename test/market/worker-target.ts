@@ -1,3 +1,6 @@
+import { REGISTERS_PER_MINUTE } from '../../src/market/rules.js';
+import { fixedWindow } from '../../src/market/server.js';
+import type { Env } from '../../src/market/worker/env.js';
 import { createHandler } from '../../src/market/worker/handler.js';
 import type { MarketTarget, TargetOpts } from './conformance.js';
 import { makeEnv } from './worker-env.js';
@@ -5,9 +8,18 @@ import { seedPublisher, seedToken } from './worker-seed.js';
 
 // the Worker handler behind a loopback URL; nothing leaves the process
 export async function makeWorkerTarget(o: TargetOpts = {}): Promise<MarketTarget> {
-  const { env, db, clock } = await makeEnv({
-    ALLOW_OVERWRITE: o.allowOverwrite === false ? 'false' : 'true',
-  });
+  const r = o.rateLimit;
+  const vars: Partial<Env> = { ALLOW_OVERWRITE: o.allowOverwrite === false ? 'false' : 'true' };
+  if (r) {
+    vars.WRITE_LIMIT = String(r.perMinute);
+    vars.SIGNIN_LIMIT = String(r.registersPerMinute ?? Math.min(r.perMinute, REGISTERS_PER_MINUTE));
+  }
+  const { env, db, clock } = await makeEnv(vars);
+  // the READS binding, played by the reference's own window
+  if (r?.readsPerMinute) {
+    const reads = fixedWindow(r.readsPerMinute, clock.now);
+    env.READS = { limit: async ({ key }) => ({ success: reads(key) === null }) };
+  }
   const handler = createHandler(env, {
     now: clock.now,
     fetch: () => Promise.reject(new Error('no network in tests')),
@@ -28,8 +40,7 @@ export async function makeWorkerTarget(o: TargetOpts = {}): Promise<MarketTarget
       registersAnon: false,
       etag: true,
       review: true,
-      // 12-12
-      rateLimit: false,
+      rateLimit: true,
     },
     async close() {
       db.close();

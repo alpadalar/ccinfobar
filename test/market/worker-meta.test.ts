@@ -76,6 +76,7 @@ describe('worker meta', () => {
       auth: ['github-device'],
       github: { clientId: 'Ov23liVCN9Nf6VlLv3St' },
       limits: { ...MARKET_LIMITS },
+      quota: { publisherBytes: 20_971_520 },
     });
   });
 

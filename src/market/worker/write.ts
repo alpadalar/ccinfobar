@@ -7,16 +7,27 @@ import {
   parseVersionPayload,
 } from '../protocol.js';
 import { CAPS, fail, fits, IF_MATCH_RE, MAX_VERSIONS, type StoredEntry, tombOf } from '../rules.js';
-import { type D1Database, type Env, intVar, overwriteOn, type WorkerDeps } from './env.js';
+import {
+  type D1Database,
+  type Env,
+  intVar,
+  maxDbBytes,
+  overwriteOn,
+  publisherBytes,
+  type WorkerDeps,
+} from './env.js';
 import { json, readJsonBody } from './http.js';
+import { buckets, check } from './rate.js';
 import {
   type Counts,
   type EntryState,
+  noteSize,
   overwriteStatements,
   publishCounts,
   publishStatements,
   readEntryRow,
   rebuildIndex,
+  storageUse,
   versionStatements,
   versionText,
   withdrawStatements,
@@ -32,11 +43,22 @@ const gone = (state: EntryState): boolean => state === 'withdrawn' || state === 
 
 const LATEST_ONLY = 'only the latest version can be overwritten';
 
-async function writer(db: D1Database, req: Request): Promise<Publisher> {
+// each publisher has its own write window too
+async function writer(db: D1Database, env: Env, deps: WorkerDeps, req: Request): Promise<Publisher> {
   const who = await authPublisher(db, req);
   if (!who) throw fail(401, 'unauthorized');
   if (who.banned) throw fail(403, 'banned');
+  await check(db, `t:${who.handle}`, buckets(env).write, deps.now());
   return who;
+}
+
+// the shared Free database and each publisher stay under their caps (R-01)
+async function room(db: D1Database, env: Env, handle: string, bytes: number): Promise<void> {
+  const use = await storageUse(db, handle);
+  if (use.total >= maxDbBytes(env)) throw fail(413, 'over-quota', 'marketplace storage is full');
+  if (use.mine + bytes > publisherBytes(env)) {
+    throw fail(413, 'over-quota', 'publisher storage limit reached');
+  }
 }
 
 // canonical text once, for the policy and the hash
@@ -64,7 +86,7 @@ function quota(c: Counts, caps: typeof CAPS): void {
 
 export async function publish(db: D1Database, env: Env, deps: WorkerDeps, req: Request): Promise<Response> {
   const raw = await readJsonBody(req, MARKET_LIMITS.maxBodyBytes);
-  const who = await writer(db, req);
+  const who = await writer(db, env, deps, req);
   const payload = parsePublishPayload(raw);
   if (!payload) throw fail(400, 'invalid');
   const hash = await checkedHash(env, payload.kind, payload.content);
@@ -88,8 +110,10 @@ export async function publish(db: D1Database, env: Env, deps: WorkerDeps, req: R
     versions: [{ version: 1, at, note: payload.note, hash }],
   };
   const body = versionText({ version: 1, content: payload.content, hash });
+  const bytes = utf8(body);
+  await room(db, env, who.handle, bytes);
   try {
-    await db.batch(publishStatements(db, { entry, state: 'live', body, bytes: utf8(body), caps }));
+    await noteSize(db, await db.batch(publishStatements(db, { entry, state: 'live', body, bytes, caps })));
   } catch (err) {
     const c = writeConflict(err);
     if (c === 'entry') throw fail(409, 'conflict');
@@ -110,7 +134,7 @@ export async function addVersion(
   s: string,
 ): Promise<Response> {
   const raw = await readJsonBody(req, MARKET_LIMITS.maxBodyBytes);
-  const who = await writer(db, req);
+  const who = await writer(db, env, deps, req);
   const row = await readEntryRow(db, p, s);
   if (!row) throw fail(404, 'not-found');
   if (who.handle !== p) throw fail(403, 'forbidden');
@@ -137,16 +161,13 @@ export async function addVersion(
   };
   fits(next);
   const body = versionText({ version, content: payload.content, hash });
+  const bytes = utf8(body);
+  await room(db, env, who.handle, bytes);
   try {
-    await db.batch(
-      versionStatements(db, {
-        entry: next,
-        expected: row.version,
-        expectedHash: entry.hash,
-        body,
-        bytes: utf8(body),
-      }),
+    const done = await db.batch(
+      versionStatements(db, { entry: next, expected: row.version, expectedHash: entry.hash, body, bytes }),
     );
+    await noteSize(db, done);
   } catch (err) {
     const c = writeConflict(err);
     if (c === 'version' || c === 'guard') throw fail(412, 'stale');
@@ -166,7 +187,7 @@ export async function overwrite(
   n: number,
 ): Promise<Response> {
   const raw = await readJsonBody(req, MARKET_LIMITS.maxBodyBytes);
-  const who = await writer(db, req);
+  const who = await writer(db, env, deps, req);
   if (!overwriteOn(env)) throw fail(403, 'overwrite-disabled');
   const row = await readEntryRow(db, p, s);
   if (!row) throw fail(404, 'not-found');
@@ -189,9 +210,12 @@ export async function overwrite(
   };
   fits(next);
   const body = versionText({ version: n, content: payload.content, hash });
+  const bytes = utf8(body);
+  await room(db, env, who.handle, bytes);
   try {
-    await db.batch(
-      overwriteStatements(db, { entry: next, expectedHash: entry.hash, body, bytes: utf8(body) }),
+    await noteSize(
+      db,
+      await db.batch(overwriteStatements(db, { entry: next, expectedHash: entry.hash, body, bytes })),
     );
   } catch (err) {
     if (writeConflict(err) !== 'guard') throw err;
@@ -206,12 +230,13 @@ export async function overwrite(
 // a racing new version is retried into the tombstone
 export async function withdraw(
   db: D1Database,
+  env: Env,
   deps: WorkerDeps,
   req: Request,
   p: string,
   s: string,
 ): Promise<Response> {
-  const who = await writer(db, req);
+  const who = await writer(db, env, deps, req);
   const done = () => json(200, { id: `${p}/${s}`, withdrawn: true });
   for (let i = 0; i < 3; i++) {
     const row = await readEntryRow(db, p, s);
@@ -220,7 +245,8 @@ export async function withdraw(
     if (gone(row.state)) return done();
     const at = iso(deps);
     try {
-      await db.batch(withdrawStatements(db, tombOf(row.entry, at), row.version));
+      // a withdraw also refreshes the size, so a full database can recover
+      await noteSize(db, await db.batch(withdrawStatements(db, tombOf(row.entry, at), row.version)));
     } catch (err) {
       if (writeConflict(err) === 'guard') continue;
       throw err;

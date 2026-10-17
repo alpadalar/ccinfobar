@@ -72,3 +72,8 @@ export function intVar(v: string | undefined): number | null {
 
 // off unless set exactly (R-07)
 export const overwriteOn = (env: Env): boolean => env.ALLOW_OVERWRITE === 'true';
+
+// 400 MiB of the 500 MB Free database (R-01)
+export const maxDbBytes = (env: Env): number => intVar(env.MAX_DB_BYTES) ?? 419_430_400;
+
+export const publisherBytes = (env: Env): number => intVar(env.PUBLISHER_BYTES) ?? 20_971_520;

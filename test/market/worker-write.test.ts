@@ -29,7 +29,7 @@ function publishBody(slug: string, content: unknown = preset()) {
   };
 }
 
-// runs a hook once, right before the next write batch
+// runs a hook once, right before the next content batch (salt and index batches have two statements)
 function hooked(db: D1Database): { db: D1Database; before(fn: () => Promise<void>): void } {
   let hook: (() => Promise<void>) | null = null;
   return {
@@ -39,8 +39,8 @@ function hooked(db: D1Database): { db: D1Database; before(fn: () => Promise<void
     db: {
       prepare: (s) => db.prepare(s),
       batch: async (list: D1PreparedStatement[]) => {
-        const fn = hook;
-        hook = null;
+        const fn = list.length > 2 ? hook : null;
+        if (fn) hook = null;
         if (fn) await fn();
         return db.batch(list);
       },
