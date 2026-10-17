@@ -550,7 +550,7 @@ export async function openCatalog(): Promise<void> {
       for (const g of own) {
         box.append(
           h('h4', { class: 'catalog-group-head' }, t(GROUP[g.kind])),
-          h('div', { class: 'gallery-grid preset-grid' }, ...g.entries.map(card)),
+          h('div', { class: 'catalog-grid' }, ...g.entries.map(card)),
         );
       }
       list.append(box);

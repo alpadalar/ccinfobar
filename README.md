@@ -272,7 +272,7 @@ Any theme can be drawn in any style (`"style": "capsule"`), and per-widget color
 
 ## Catalog
 
-The catalog keeps layouts and looks you can apply in one step: presets, themes and bundles (a preset with a theme). In `ccinfobar edit`, click **Catalog** in the header. The **All** tab shows your own entries first and the built-in ones below, **User** only yours and **System** only the built-in ones, each grouped as bundles, presets and themes with a live preview of your config. One click applies an entry, `Ctrl+Z` undoes it, and nothing is written until you save.
+The catalog keeps layouts and looks you can apply in one step: presets, themes and bundles (a preset with a theme). In `ccinfobar edit`, click **Catalog** in the header. The **All** tab shows your own entries first and the built-in ones below, **User** only yours and **System** only the built-in ones, each grouped as bundles, presets and themes with a live preview of your config. The Apply button on a card applies it in one step (click a card for its details and full preview), `Ctrl+Z` undoes it, and nothing is written until you save.
 
 **Save current as…** keeps your setup as a preset, a theme or a bundle, with a name, a description and an author (remembered for next time). Saving under an existing name asks whether to update it (a new version) or overwrite the latest one, and every entry has a version history with restore. Applying changes only the layout and the theme; your budget, profiles, language and other personal settings stay.
 

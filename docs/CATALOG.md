@@ -37,11 +37,11 @@ Run `ccinfobar edit` and click **Catalog** in the header. The page has these tab
 | System | Only the built-in entries |
 | Marketplace | Read-only list of the marketplace entries; only shown when a marketplace endpoint is set |
 
-Every card has a live preview of your config with that entry applied, rendered with sample data. User cards also have Version history, Share or Stop sharing, and Delete buttons; built-in cards have none.
+Cards are compact, several to a row, each with a small preview of your config with that entry applied, rendered with sample data. Point at a preview, or move keyboard focus to a card, to see it full size. Click or tap a card, or press Enter or Space on it, to open its details: the full preview, description, author, kind, version and share state, with every action. Every card has an **Apply** button; user cards also have Version history, Share or Stop sharing, and Delete buttons. Escape closes the details and returns to the card. Marketplace entries use the same cards and open their details the same way.
 
 ## Applying
 
-Click a card (or press Enter on it) to apply it. Only the keys of the entry's kind change:
+Click **Apply** on a card or in its details to apply it. Only the keys of the entry's kind change:
 
 - A **preset** replaces your lines and layout and keeps your current theme and style. For the boxed dashboard look, apply the `panel-dashboard` bundle instead of `preset/dashboard`.
 - A **theme** replaces your theme and style overrides and keeps your lines. If your widgets have their own colors, the editor asks whether to clear them, as the Theme gallery does.

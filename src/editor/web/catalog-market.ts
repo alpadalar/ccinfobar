@@ -276,10 +276,18 @@ function meta(e: MarketSummaryInfo): HTMLElement[] {
 }
 
 function remoteRow(e: MarketSummaryInfo): HTMLElement {
+  const name = shown(e.name);
   return h(
     'button',
-    { class: 'catalog-remote-row', type: 'button', onClick: () => void remoteEntryDialog(e.id) },
-    h('span', { class: 'catalog-remote-head' }, h('strong', null, shown(e.name)), ...meta(e)),
+    {
+      class: 'catalog-remote-row catalog-card',
+      type: 'button',
+      title: t('catalog.detailsName', { name }),
+      'aria-haspopup': 'dialog',
+      onClick: () => void remoteEntryDialog(e.id),
+    },
+    h('span', { class: 'theme-card-head' }, h('strong', null, name)),
+    h('span', { class: 'catalog-meta' }, ...meta(e)),
     e.description ? h('span', { class: 'theme-desc' }, shown(e.description)) : null,
   );
 }
@@ -287,7 +295,7 @@ function remoteRow(e: MarketSummaryInfo): HTMLElement {
 export function marketplaceSection(data: CatalogState): HTMLElement | null {
   if (!data.publishable) return null;
   const status = h('p', { class: 'hint', role: 'status' }, t('catalog.remote.loading'));
-  const list = h('div', { class: 'catalog-remote-list' });
+  const list = h('div', { class: 'catalog-remote-list catalog-grid' });
   const head = h('h3', { class: 'catalog-section-head' }, t('catalog.tab.market'));
   const box = h(
     'section',

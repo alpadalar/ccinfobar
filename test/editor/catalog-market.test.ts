@@ -546,6 +546,9 @@ describe('marketplace tab', () => {
     expect(calls.filter((c) => c.url === '/api/catalog/remote')).toHaveLength(1);
     const rows = d.all((e) => e.classList.contains('catalog-remote-row'));
     expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.parent!.classList.contains('catalog-grid'))).toBe(true);
+    expect(rows.every((r) => r.classList.contains('catalog-card'))).toBe(true);
+    expect(rows[0]!.getAttribute('title')).toBe('Details of My setup');
     expect(texts(rows[0]!)).toEqual(expect.arrayContaining(['My setup', 'Bundle', 'v2', 'Ada · @ada']));
     expect(texts(rows[1]!)).toEqual(expect.arrayContaining(['Gone', '@bo', 'Withdrawn']));
     expect(buttons(d).some((b) => /apply|install/i.test(b.textContent))).toBe(false);
