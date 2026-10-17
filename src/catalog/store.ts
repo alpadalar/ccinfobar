@@ -670,7 +670,8 @@ export function installEntryTheme(content: EntryContent, themes = themesDir()): 
 export interface CatalogProfile {
   schema: 1;
   author: string;
-  endpoint: string | null;
+  // false: switched off; older builds read it as no endpoint
+  endpoint: string | null | false;
   // publisher handle per endpoint key
   publishers: Record<string, string>;
 }
@@ -717,7 +718,7 @@ function profileOf(raw: Record<string, unknown>): CatalogProfile {
   return {
     schema: 1,
     author: safe(raw.author, ENTRY_LIMITS.author),
-    endpoint: orNull(raw.endpoint),
+    endpoint: raw.endpoint === false ? false : orNull(raw.endpoint),
     publishers: publishersOf(raw.publishers),
   };
 }
@@ -743,7 +744,8 @@ export function writeProfile(
 ): CatalogProfile {
   return patchProfile(dir, (next) => {
     if (patch.author !== undefined) next.author = safe(patch.author, ENTRY_LIMITS.author);
-    if (patch.endpoint !== undefined) next.endpoint = orNull(patch.endpoint);
+    if (patch.endpoint !== undefined)
+      next.endpoint = patch.endpoint === false ? false : orNull(patch.endpoint);
   });
 }
 
@@ -764,11 +766,32 @@ export function writePublisher(endpoint: string, handle: string | null, dir = ca
   });
 }
 
-// no default endpoint: nothing leaves the machine
-export function marketEndpoint(env: NodeJS.ProcessEnv = process.env, dir = catalogDir()): string | null {
-  const v = env.CCINFOBAR_MARKETPLACE_URL;
-  if (typeof v === 'string' && v.trim()) return v.trim();
-  return readProfile(dir).endpoint;
+// set after the first deploy
+export const DEFAULT_MARKETPLACE: string | null = null;
+
+export type EndpointSource = 'env' | 'set' | 'default' | 'off' | 'none';
+
+// pure lookup: only explicit marketplace actions send requests
+export function marketEndpointInfo(
+  env: NodeJS.ProcessEnv = process.env,
+  dir = catalogDir(),
+  fallback: string | null = DEFAULT_MARKETPLACE,
+): { url: string | null; source: EndpointSource } {
+  const v = typeof env.CCINFOBAR_MARKETPLACE_URL === 'string' ? env.CCINFOBAR_MARKETPLACE_URL.trim() : '';
+  if (v.toLowerCase() === 'off') return { url: null, source: 'off' };
+  if (v) return { url: v, source: 'env' };
+  const set = readProfile(dir).endpoint;
+  if (typeof set === 'string') return { url: set, source: 'set' };
+  if (set === false) return { url: null, source: 'off' };
+  return fallback ? { url: fallback, source: 'default' } : { url: null, source: 'none' };
+}
+
+export function marketEndpoint(
+  env: NodeJS.ProcessEnv = process.env,
+  dir = catalogDir(),
+  fallback: string | null = DEFAULT_MARKETPLACE,
+): string | null {
+  return marketEndpointInfo(env, dir, fallback).url;
 }
 
 export function readCredential(endpoint: string, dir = catalogDir()): string | null {

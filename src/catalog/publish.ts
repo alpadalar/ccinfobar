@@ -67,6 +67,7 @@ export interface PublishDeps {
   fetch?: typeof fetch;
   now?: () => Date;
   displayName?: string;
+  defaultEndpoint?: string | null;
 }
 
 export interface Registration {
@@ -186,7 +187,8 @@ function statusOf(err: unknown): { status?: number } {
 
 function envOf(deps: PublishDeps) {
   const env = deps.env ?? process.env;
-  return { env, dir: deps.dir ?? catalogDir(env) };
+  const dir = deps.dir ?? catalogDir(env);
+  return { env, dir, endpoint: marketEndpoint(env, dir, deps.defaultEndpoint) };
 }
 
 // on a rev conflict the remote is merged into the newer rev
@@ -241,8 +243,8 @@ function registrationOf(
 
 // reads meta, so the plan shows what the server will really do
 export async function reviewPublish(ids: string[] | null, deps: PublishDeps = {}): Promise<PublishReview> {
-  const { env, dir } = envOf(deps);
-  const endpoint = marketEndpoint(env, dir) ?? '';
+  const { dir, endpoint: found } = envOf(deps);
+  const endpoint = found ?? '';
   const none = { endpoint, overwrite: true, registration: null, plan: [] };
   if (!endpoint) return { code: 'no-endpoint', ...none };
   const every = listEntries(dir);
@@ -313,8 +315,7 @@ export async function runPublish(
       ...(review.submitUrl ? { submitUrl: review.submitUrl } : {}),
       results: [],
     };
-  const { env, dir } = envOf(deps);
-  const endpoint = marketEndpoint(env, dir);
+  const { dir, endpoint } = envOf(deps);
   if (!endpoint) return { code: 'no-endpoint', results: [] };
   if (endpointKey(endpoint) !== endpointKey(review.endpoint)) return { code: 'unreviewed', results: [] };
   const items = review.plan;
@@ -383,8 +384,7 @@ export async function runPublish(
 }
 
 async function reader(deps: PublishDeps): Promise<{ client: MarketClient | null; code: string | null }> {
-  const { env, dir } = envOf(deps);
-  const endpoint = marketEndpoint(env, dir);
+  const { endpoint } = envOf(deps);
   if (!endpoint) return { client: null, code: 'no-endpoint' };
   try {
     return {

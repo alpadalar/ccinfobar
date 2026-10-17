@@ -2,14 +2,19 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { reviewPublish } from '../../src/catalog/publish.js';
 import {
+  DEFAULT_MARKETPLACE,
   marketEndpoint,
+  marketEndpointInfo,
   readCredential,
   readProfile,
+  saveEntry,
   writeCredential,
   writeProfile,
   writePublisher,
 } from '../../src/catalog/store.js';
+import { fakeFetch } from '../fake-fetch.js';
 
 let root = '';
 let dir = '';
@@ -108,6 +113,103 @@ describe('marketEndpoint', () => {
       'http://127.0.0.1:5',
     );
     expect(marketEndpoint({ CCINFOBAR_MARKETPLACE_URL: '   ' }, dir)).toBe('https://market.example.com');
+  });
+});
+
+describe('marketEndpointInfo (D-12, R-06)', () => {
+  const DEF = 'https://m.example.com';
+  const env = (v: string) => ({ CCINFOBAR_MARKETPLACE_URL: v });
+
+  it('ships a placeholder until the first deploy', () => {
+    expect(DEFAULT_MARKETPLACE).toBeNull();
+    expect(marketEndpointInfo({}, dir)).toEqual({ url: null, source: 'none' });
+  });
+
+  it('falls back to the default', () => {
+    expect(marketEndpointInfo({}, dir, DEF)).toEqual({ url: DEF, source: 'default' });
+    expect(marketEndpoint({}, dir, DEF)).toBe(DEF);
+    expect(marketEndpointInfo({}, dir, null)).toEqual({ url: null, source: 'none' });
+    expect(fs.existsSync(dir)).toBe(false);
+  });
+
+  it('env wins, and off switches it off', () => {
+    writeProfile({ endpoint: 'https://set.example.com' }, dir);
+    expect(marketEndpointInfo(env('OFF'), dir, DEF)).toEqual({ url: null, source: 'off' });
+    expect(marketEndpointInfo(env(' off\n'), dir, DEF)).toEqual({ url: null, source: 'off' });
+    expect(marketEndpointInfo(env(' http://127.0.0.1:5 '), dir, DEF)).toEqual({
+      url: 'http://127.0.0.1:5',
+      source: 'env',
+    });
+    expect(marketEndpoint(env('off'), dir, DEF)).toBeNull();
+  });
+
+  it('a set URL wins over the default; false is off', () => {
+    writeProfile({ endpoint: 'https://set.example.com' }, dir);
+    expect(marketEndpointInfo({}, dir, DEF)).toEqual({ url: 'https://set.example.com', source: 'set' });
+    writeProfile({ endpoint: false }, dir);
+    expect(marketEndpointInfo({}, dir, DEF)).toEqual({ url: null, source: 'off' });
+    expect(marketEndpointInfo({}, dir, null)).toEqual({ url: null, source: 'off' });
+    expect(marketEndpointInfo(env('http://127.0.0.1:5'), dir, DEF).source).toBe('env');
+    writeProfile({ endpoint: null }, dir);
+    expect(marketEndpointInfo({}, dir, DEF)).toEqual({ url: DEF, source: 'default' });
+  });
+
+  it('round-trips false and keeps unknown keys (CR-01)', () => {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(profileFile(), '{"future":{"a":1},"author":"Alp"}');
+    expect(writeProfile({ endpoint: false }, dir).endpoint).toBe(false);
+    expect(readProfile(dir).endpoint).toBe(false);
+    const raw = JSON.parse(fs.readFileSync(profileFile(), 'utf8'));
+    expect(raw.endpoint).toBe(false);
+    expect(raw.future).toEqual({ a: 1 });
+    writeProfile({ author: 'Other' }, dir);
+    expect(readProfile(dir)).toMatchObject({ author: 'Other', endpoint: false });
+    expect(JSON.parse(fs.readFileSync(profileFile(), 'utf8')).future).toEqual({ a: 1 });
+  });
+
+  it('reads odd values as no endpoint', () => {
+    fs.mkdirSync(dir, { recursive: true });
+    for (const v of ['42', 'true', '{}', '[]', '""']) {
+      fs.writeFileSync(profileFile(), `{"endpoint":${v}}`);
+      expect(readProfile(dir).endpoint).toBeNull();
+      expect(marketEndpointInfo({}, dir, DEF).source).toBe('default');
+    }
+  });
+});
+
+describe('publish with the default endpoint', () => {
+  const DEF = 'http://127.0.0.1:9';
+  const mine = () =>
+    saveEntry(
+      {
+        kind: 'preset',
+        name: 'Mine',
+        description: '',
+        author: 'Alp',
+        content: { layout: { lines: [[{ id: 'a', type: 'model' }]] } },
+        share: true,
+        mode: 'new',
+        now: new Date('2026-10-16T10:00:00.000Z'),
+      },
+      dir,
+    );
+
+  it('uses the injected default', async () => {
+    mine();
+    const f = fakeFetch([new Error('down')]);
+    const review = await reviewPublish(null, { dir, env: {}, fetch: f.fetch, defaultEndpoint: DEF });
+    expect(review.endpoint).toBe(DEF);
+    expect(review.code).not.toBe('no-endpoint');
+    expect(f.calls.map((c) => new URL(c.url).origin)).toEqual([DEF]);
+  });
+
+  it('sends nothing when switched off', async () => {
+    mine();
+    writeProfile({ endpoint: false }, dir);
+    const f = fakeFetch([]);
+    const review = await reviewPublish(null, { dir, env: {}, fetch: f.fetch, defaultEndpoint: DEF });
+    expect(review.code).toBe('no-endpoint');
+    expect(f.calls).toEqual([]);
   });
 });
 
