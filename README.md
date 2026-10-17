@@ -135,7 +135,7 @@ ccinfobar edit
 | Inspector (right) | Colors (16 named, 256 palette or hex), background, bold/dim/italic, label override, merge, and every widget option. The **Global** tab covers style, separators, glyphs, icons, color depth and width, and **Colors from** keeps your style while taking the colors of any theme. |
 | Theme gallery | Every theme rendered live with your own widgets. Apply with one click, filter by style, or open **New theme** to build your own: pick a starting theme, a style, and text and background colors per category or in a cycle, with a live preview. |
 | Presets | Built-in and your own layouts with live previews. **Save current as preset** keeps your layout for later. |
-| Catalog | Built-in and saved presets, themes and bundles with live previews, one-click apply, save with version history, and sharing ([Catalog](#catalog)). |
+| Catalog | Built-in and saved presets, themes and bundles with live previews, one-click apply, save with version history, and a marketplace to browse, install and publish ([Catalog](#catalog)). |
 | Top bar | Presets, themes, undo/redo, import/export JSON, save (`Ctrl+S`), and one-click install into Claude Code. |
 
 The editor runs only on `127.0.0.1` with a per-session token. Press **Done** or `Ctrl+C` to stop it.
@@ -415,7 +415,7 @@ The catalog keeps layouts and looks you can apply in one step: presets, themes a
 
 **Save current as…** keeps your setup as a preset, a theme or a bundle, with a name, a description and an author (remembered for next time). Saving under an existing name asks whether to update it (a new version) or overwrite the latest one, and every entry has a version history with restore. Applying changes only the layout and the theme; your budget, profiles, language and other personal settings stay.
 
-The System tab has every built-in preset and theme, plus 15 ready bundles:
+The Built in tab has every built-in preset and theme, plus 15 ready bundles:
 
 - Mocha cockpit (`cockpit` + Catppuccin Mocha)
 - Nord minimal (`minimal` + Nord)
@@ -440,10 +440,21 @@ ccinfobar catalog list                        # your entries, then the built-in 
 ccinfobar catalog apply bundle/nord-minimal   # apply the Nord minimal bundle (backup first)
 ccinfobar catalog save "My setup"             # save your current setup as a bundle
 ccinfobar catalog history "My setup"          # versions, then `catalog restore <ref> <version>`
-ccinfobar catalog publish                     # show what would be sent, then send after you confirm
 ```
 
-Sharing is on by default, but nothing leaves your machine until you set a marketplace endpoint; there is no default endpoint. With one set (`ccinfobar catalog endpoint <url>`), `catalog publish` and the editor's **Publish…** show the exact payload and send only after you confirm, `catalog list --remote` browses the marketplace, and `catalog install <publisher/slug>` or **Install** in the editor's Marketplace tab adds an entry to yours after showing every command and URL it keeps (applying it stays a separate step). Marketplace content is data only: no `command`, `http` or `env` widgets, only http(s) links and no personal settings. Details: [docs/CATALOG.md](docs/CATALOG.md) and [docs/MARKETPLACE.md](docs/MARKETPLACE.md).
+### Marketplace
+
+The ccinfobar marketplace is free, open source and non-commercial, and runs on Cloudflare Workers Free with D1. Its address becomes the default endpoint once it is deployed (set at the first deploy); until then, and whenever it is off (`ccinfobar catalog endpoint --off` or `CCINFOBAR_MARKETPLACE_URL=off`), nothing leaves your machine. ccinfobar contacts the marketplace only when you ask: never during a status line refresh, never in the background, and never from an editor left open. The list is cached for 24 hours, and **Refresh** sends one small request.
+
+```sh
+ccinfobar catalog list --remote               # browse the marketplace (cached; --refresh checks again)
+ccinfobar catalog install alice/calm-desk     # install an entry after reviewing its commands and URLs
+ccinfobar catalog login                       # sign in with GitHub (device code, no password)
+ccinfobar catalog publish                     # show what would be sent, then send after you confirm
+ccinfobar catalog report alice/calm-desk --reason "..."   # report an entry to the admins
+```
+
+Saved entries are shared by default, but nothing is sent until you publish. Publishers sign in with GitHub; the GitHub token is never stored, and your handle is your GitHub login. A new publisher's first entry shows **Waiting for review** until an admin approves it. `catalog publish` and the editor's **Publish…** show the exact payload and send only after you confirm, and **Install** in the editor's Marketplace tab or `catalog install` adds an entry to yours after showing every command and URL it keeps (applying it stays a separate step). Marketplace content is data only: no `command`, `http` or `env` widgets, only http(s) links and no personal settings. Published entries are public; to ask for one to be removed, open an issue. You can also point ccinfobar at your own server (`ccinfobar catalog endpoint <url>`). Details: [docs/CATALOG.md](docs/CATALOG.md) and [docs/MARKETPLACE.md](docs/MARKETPLACE.md).
 
 ## GSD integration
 
@@ -602,7 +613,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar explain [widget-id]` | Show each widget's value, where it came from (payload field, cache and its age, git, GSD) and why it is empty (`--json` for bug reports, `--scenario <name>`, `--payload <file>`). `env`, `command`, `http` and `tool-activity` values are redacted; `--show-values` shows them in a terminal |
 | `ccinfobar bench` | Measure render time: a `node -e 0` control, then cold and warm median and p95 (`--runs <n>`, `--scenario <name>`, `--json`) |
 | `ccinfobar config get\|set\|unset <path> [value]` | Read or change one config value by dotted path, e.g. `ccinfobar config set gitHardening false` or `ccinfobar config get lines.0.2.type`. Values are parsed as JSON, else taken as a string; a value that would not pass validation is refused and nothing is written |
-| `ccinfobar catalog <command>` | Browse, apply and save presets, themes and bundles ([Catalog](#catalog)): `list`, `show`, `history`, `apply`, `save`, `restore`, `share`, `unshare`, `delete`, `author`, `endpoint`, `publisher`, `publish` (`--json`, `--dry-run` on the write commands, `--remote` to browse a marketplace) |
+| `ccinfobar catalog <command>` | Browse, apply and save presets, themes and bundles ([Catalog](#catalog)): `list`, `show`, `history`, `apply`, `save`, `restore`, `share`, `unshare`, `delete`, `author`, `endpoint`, `publisher`, `publish`, `install`, `login`, `logout`, `report` (`--json`, `--dry-run` on the write commands, `--remote` to browse the marketplace) |
 | `ccinfobar hook <Event>` | Used by Claude Code hooks: records one event and prints nothing |
 
 All commands accept `--config <file>`.

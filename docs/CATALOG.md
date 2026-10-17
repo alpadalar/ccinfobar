@@ -40,7 +40,7 @@ The Marketplace tab reads the marketplace list through the 24-hour cache: openin
 
 Cards are compact, several to a row, each with a small preview of your config with that entry applied, rendered with sample data. Point at a preview, or move keyboard focus to a card, to see it full size. Click or tap a card, or press Enter or Space on it, to open its details: the full preview, description, author, kind, version and share state, with every action. Every card has an **Apply** button; user cards also have Version history, Share or Stop sharing, and Delete buttons. Escape closes the details and returns to the card. Marketplace entries use the same cards and open their details the same way: versions, the commands and URLs the latest version runs, and **Install** and **Report…**.
 
-**Install** first shows what will be installed: name, kind, version, author and publisher, and every command and URL it keeps, in full. Only the Install button in that review installs, and only exactly what you reviewed: if the entry changed on the marketplace in the meantime, nothing is installed and **Review again** shows the new version. The entry lands in your entries (User tab) and is not applied; apply it from there like any other entry, which asks about its commands and URLs again. Installed entries cannot be shared as your own.
+**Install** first shows what will be installed: name, kind, version, author and publisher, and every command and URL it keeps, in full. Only the Install button in that review installs, and only exactly what you reviewed: if the entry changed on the marketplace in the meantime, nothing is installed and **Review again** shows the new version. The entry lands in your entries (User tab) and is not applied; apply it from there like any other entry, which asks about its commands and URLs again. Installing an entry you already have says so, and installing a newer version of it adds that version to your entry. Installed entries show **From the marketplace** and cannot be shared as your own.
 
 **Report…** sends a short reason (1 to 200 characters) to the marketplace admins. It needs a sign-in; if you are not signed in, the GitHub sign-in opens first.
 
@@ -91,7 +91,7 @@ If the editor and the CLI change the same entry at once, only one writes at a ti
 
 ## Sharing and publishing
 
-The share switch decides whether an entry should go to a marketplace. No marketplace endpoint is set by default, and with none set nothing leaves your machine: shared entries just wait.
+The share switch decides whether an entry should go to a marketplace. The public marketplace becomes the default endpoint once its URL is set at the first deploy; until then no endpoint is set by default. With none set, or with the marketplace off, nothing leaves your machine: shared entries just wait.
 
 | State | Meaning |
 | --- | --- |
@@ -105,10 +105,11 @@ The share switch decides whether an entry should go to a marketplace. No marketp
 - Stop sharing a "Waiting to publish" entry and it goes back to Not shared. The marketplace keeps withdrawn ids reserved, so sharing a withdrawn entry again is refused (in the editor and with `catalog share` or `catalog save --share`) with "withdrawn ids stay reserved. Save it under a new name to publish it again"; it never sits in Waiting to publish.
 - Only the latest version is sent; your local history stays local. Text goes out as the marketplace stores it: control characters, escape sequences and bidi marks are removed and tabs and newlines become spaces. Your local entry keeps the original, and it stays "Published vN" until you really change it.
 - Publishing only happens when you ask for it: `ccinfobar catalog publish`, or **Publish…** in the Catalog page. Both first show exactly what will be sent (action, name, kind, description, author and the content as JSON) and name the endpoint. The review first reads the marketplace's `meta.json`, so it shows the action the server will really do (New version where the server does not allow Replace latest) and, before a first publish, the publisher handle that gets registered. The CLI sends only after you confirm in a terminal or pass `--yes`, and then plans again: if anything changed since the list was shown, nothing is sent and the new list is shown (a terminal asks again; otherwise it exits 1). The editor sends only from the Publish button in that review, and refuses if the entries changed since you opened it. Either way, each entry is sent only while it is exactly as reviewed. Nothing is ever published in the background or during a status line refresh.
+- On the public marketplace you publish as your GitHub account. `ccinfobar catalog login` signs you in (a code to enter at https://github.com/login/device; the GitHub token is never stored), and the editor's publish dialog has the same **Sign in with GitHub** step. Your publisher handle is your GitHub login. A new publisher's first entry shows **Waiting for review** (after publishing, in `catalog list`, `catalog show` and on its card) until an admin approves it; `ccinfobar catalog publisher --check` refreshes that state. `ccinfobar catalog logout`, or Sign out in the publish dialog or the Marketplace tab, signs you out. On a self-hosted server with token sign-up, a first publish registers a handle instead.
 - Without an endpoint, the Catalog page shows no Publish button and no Marketplace tab, opens on the User tab and says how to turn the marketplace on (or that shared entries wait, when some do).
 - Deleting a published entry does not remove the published copy, and afterwards ccinfobar can no longer withdraw it. Stop sharing it and publish first to withdraw it. The editor's delete dialog and `catalog delete` say so (the CLI also after `--yes`, and `--json` adds `published: true`).
 
-Set an endpoint with `ccinfobar catalog endpoint <url>` (https only; http only for `localhost`, `127.0.0.1` and `[::1]`), or for one run with the `CCINFOBAR_MARKETPLACE_URL` environment variable, which wins over the stored one. `ccinfobar catalog endpoint --off` (or `CCINFOBAR_MARKETPLACE_URL=off` for one shell) switches the marketplace off, and `--clear` goes back to the default. See [MARKETPLACE.md](MARKETPLACE.md) for the protocol, the reference server and what is planned for a real marketplace.
+Set an endpoint with `ccinfobar catalog endpoint <url>` (https only; http only for `localhost`, `127.0.0.1` and `[::1]`), or for one run with the `CCINFOBAR_MARKETPLACE_URL` environment variable, which wins over the stored one. `ccinfobar catalog endpoint --off` (or `CCINFOBAR_MARKETPLACE_URL=off` for one shell) switches the marketplace off, and `--clear` goes back to the default. See [MARKETPLACE.md](MARKETPLACE.md) for the protocol, the public server, privacy, the reference server and when ccinfobar contacts the marketplace.
 
 ## Files
 
@@ -121,7 +122,7 @@ Everything lives in the ccinfobar config folder (`~/.config/ccinfobar` on Linux 
 | `catalog/.lock` | Held for a moment while ccinfobar writes an entry, the profile or a token, so the editor and the CLI never write at once. A lock older than 10 s is taken over |
 | `catalog/trash/` | Deleted entries and copies of deleted pre-catalog files. The newest 20 are kept |
 | `catalog/profile.json` | Your remembered author, the marketplace endpoint and your publisher handle for each marketplace |
-| `catalog/credentials.json` | Publisher tokens per marketplace endpoint (origin and path, so two marketplaces on one host never share a token), only after a publish. Mode 0600 on Linux and macOS; on Windows the mode bits do not apply and the file is protected by the access rules of your user profile folder |
+| `catalog/credentials.json` | Marketplace tokens per endpoint (origin and path, so two marketplaces on one host never share a token), only after a sign-in or a first publish. Never a GitHub token. Mode 0600 on Linux and macOS; on Windows the mode bits do not apply and the file is protected by the access rules of your user profile folder |
 | `presets/<id>.json`, `themes/<id>.json` | Presets and themes saved before the catalog. Never moved; `themes/` is also where applied themes are installed, because the status line reads themes from there |
 
 Every write is atomic. Keys that a newer ccinfobar version adds to an entry file are kept at every level (the entry, its share state and every version) when an older one rewrites it; only an overwrite replaces the content of the version it overwrites. An entry file is limited to 1 MiB; a save that would go over it is refused instead of dropping history. Delete moves the file to the trash instead of removing it, and deleting an entry that came from a pre-catalog file also moves that file to the trash, except a theme file your saved config uses (directly or as the base of its theme): that file stays, and the CLI and the editor say so.
@@ -154,8 +155,9 @@ Your own `<kind>/<slug>` wins over a built-in ref with the same text.
 | `ccinfobar catalog login [--open\|--no-open] [--json]` | Sign in to a GitHub marketplace: shows a code to enter at https://github.com/login/device (offers to open that page), then keeps only the marketplace token. The GitHub token is never stored. On a token-mode server it explains that publishing registers you |
 | `ccinfobar catalog logout [--json]` | Revoke the marketplace token on the server (best effort) and forget it and the handle on this computer |
 | `ccinfobar catalog report <publisher/slug> --reason <text> [--json]` | Report a marketplace entry to its admins (signed in, once per entry, a reason of 1 to 200 characters) |
-| `ccinfobar catalog list --remote [--kind ...] [--json]` | Read-only list of the marketplace entries |
+| `ccinfobar catalog list --remote [--refresh] [--kind ...] [--json]` | The marketplace entries, from a 24-hour cache, with the time of the last check. `--refresh` checks again with one small request; if the marketplace cannot be reached, the saved list is shown |
 | `ccinfobar catalog show <publisher/slug> --remote [--json]` | A marketplace entry with its versions and the commands or URLs it would run or open |
+| `ccinfobar catalog install <publisher/slug>[@version] [--yes] [--dry-run] [--json]` | Install a marketplace entry into your catalog. It checks the entry's hash and lists its commands and URLs first; a terminal asks, `--yes` installs without asking, `--dry-run` writes nothing. Applying it stays a separate `catalog apply` step |
 
 Examples:
 
@@ -179,5 +181,6 @@ ccinfobar catalog publish --dry-run
 - Without `--update` or `--overwrite`, a name clash asks in a terminal and exits 1 otherwise.
 - `--dry-run` shows what would happen and writes nothing; `publish --dry-run` sends nothing (it reads the marketplace's `meta.json` to show the real actions).
 - `--json` prints one English object with `schema: 1`, whatever the language, and never prompts.
-- Unknown or ambiguous refs, a name clash without a terminal, a broken config and a publish or `--remote` without an endpoint exit 1.
-- `catalog publish` and `--remote` run even with `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` set, because you asked for them; the publish confirmation says so.
+- Unknown or ambiguous refs, a name clash without a terminal, a broken config and a publish, install, login or `--remote` without an endpoint exit 1.
+- Moderation commands for marketplace admins (`ccinfobar catalog admin ...`) are described in [MARKETPLACE.md](MARKETPLACE.md#reports-and-moderation-from-the-cli).
+- `catalog publish`, `install` and `--remote` run even with `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` set, because you asked for them; the publish confirmation says so.

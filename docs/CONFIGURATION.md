@@ -27,9 +27,9 @@ The [catalog](CATALOG.md) keeps its files in `catalog/` next to `config.json`:
 | `catalog/entries/` | One file per saved preset, theme or bundle, with its version history |
 | `catalog/trash/` | Deleted entries (the newest 20 are kept) |
 | `catalog/profile.json` | Your remembered author, the marketplace endpoint and your publisher handle for each marketplace |
-| `catalog/credentials.json` | Publisher tokens per marketplace endpoint, written only after a publish (mode 0600) |
+| `catalog/credentials.json` | Marketplace tokens per endpoint, written only after a sign-in or a first publish (mode 0600); never a GitHub token |
 
-`CCINFOBAR_MARKETPLACE_URL=<url>` sets the marketplace endpoint that `ccinfobar catalog publish`, `catalog list --remote` and the editor's Publish and Marketplace tab use, and wins over the one stored with `ccinfobar catalog endpoint`. It is unset by default, and with no endpoint nothing is sent. `CCINFOBAR_MARKETPLACE_URL=off` switches the marketplace off for that shell. See [MARKETPLACE.md](MARKETPLACE.md).
+`CCINFOBAR_MARKETPLACE_URL=<url>` sets the marketplace endpoint that `ccinfobar catalog publish`, `install`, `login`, `report`, `list --remote` and the editor's Publish and Marketplace tab use, and wins over the one stored with `ccinfobar catalog endpoint`. `CCINFOBAR_MARKETPLACE_URL=off` switches the marketplace off for that shell. The endpoint comes from, in order: this variable, the URL stored with `ccinfobar catalog endpoint <url>`, the off switch stored with `ccinfobar catalog endpoint --off`, then the default that ships with ccinfobar (the public marketplace, set at the first deploy; none before that). `ccinfobar catalog endpoint` shows which one applies. With no endpoint nothing is sent, and even with one, ccinfobar contacts the marketplace only when you ask (see [MARKETPLACE.md](MARKETPLACE.md#requests-budget)). The marketplace list cache lives in the cache directory under `market/`.
 
 To use a project-specific layout, point the Claude Code `statusLine` command at a different file, e.g. `ccinfobar --config ./.claude/infobar.json`.
 

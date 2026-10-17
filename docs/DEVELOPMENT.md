@@ -26,6 +26,8 @@ Requirements: Node.js 20 or newer. There are no runtime dependencies; everything
 | `npm run screenshots` | Regenerate the README editor screenshots in `docs/images/screenshots/` (dark and light, 1920x1080) from a temp config and a reference marketplace on 127.0.0.1 (built with `--market` when missing, so the Catalog shots need no network); needs `npm run build`, Node 22+ and Chrome or Chromium; set `CHROME` to pick a browser, `--only editor,themes` for a subset |
 | `npm run example` | Render `test/fixtures/payload.json` |
 
+`node scripts/build.mjs --market` builds the reference marketplace server into `market/ccinfobar-market.mjs`, and `node scripts/build.mjs --worker` builds the Cloudflare Worker into `worker/dist/index.js`. Both outputs are gitignored and not in the npm package.
+
 Two scripts are not wired into npm or CI: `node scripts/homebrew-formula.mjs` fills in the Homebrew formula for the owner after a release (see [DISTRIBUTION.md](DISTRIBUTION.md#publishing-the-formula-owner)), and `node scripts/startup-probe.mjs` is a dev-only breakdown of where startup time goes, in temp dirs only.
 
 Try your build against a real session without installing it:
@@ -47,7 +49,8 @@ src/
 │   └── progress-tty.ts  the tty progress channel: find and write the parent's terminal
 ├── commands/            install, update, doctor, manage, config-cmd; loaded with import() per command
 │   ├── catalog.ts       `ccinfobar catalog`: list, show, history, apply, save and the other local subcommands
-│   ├── catalog-market.ts `catalog publish` and `--remote`, the one lazy entry for marketplace code
+│   ├── catalog-market.ts `catalog publish`, `install`, `login`, `logout`, `report` and `--remote`, the one lazy entry for marketplace code
+│   ├── catalog-admin.ts `catalog admin`, loaded by catalog-market.ts only when asked for
 │   ├── install.ts       planInstall / applyInstall / uninstall
 │   ├── hooks-install.ts hook planner, version floor, applyHooks / uninstallHooks
 │   ├── hooks-doctor.ts  doctor's Hooks block: entry state, missing binaries, hook gates
@@ -122,17 +125,24 @@ src/
 │   ├── snapshot.ts      current config to preset, theme or bundle content
 │   ├── store.ts         entry files, legacy adoption, theme install, profile and credentials
 │   ├── share.ts         content hash and share state
-│   └── publish.ts       publish plan and run, remote list and show
-├── market/              marketplace protocol, client and reference server
+│   ├── publish.ts       publish plan and run, remote list and show
+│   ├── install.ts       verified install plan and run, with origin and consent targets
+│   ├── market-cache.ts  24-hour index cache, conditional refresh, cached version documents
+│   └── signin.ts, login-flows.ts  finish a GitHub sign-in; the editor's device-flow sessions
+├── market/              marketplace protocol, client, reference server and Worker
 │   ├── protocol.ts      v1 paths, parsers, limits, error codes and content policy (pure)
+│   ├── rules.ts         pure server rules shared by the reference server and the Worker
 │   ├── endpoint.ts      endpoint check
 │   ├── client.ts        bounded marketplace client
-│   └── server.ts, serve.ts  reference server, built with `node scripts/build.mjs --market`
+│   ├── github.ts        bounded GitHub device-flow client (CLI and editor server only)
+│   ├── server.ts, serve.ts  reference server, built with `node scripts/build.mjs --market`
+│   └── worker/          Cloudflare Worker, built with `node scripts/build.mjs --worker`
 ├── editor/              web editor: HTTP server + browser app (web/)
 │   └── detach.ts        `edit --detach`: reuse or spawn a background editor
 └── tui/                 terminal editor: state, view, keys, IO loop
 .claude-plugin/
 └── marketplace.json     this repo as a Claude Code marketplace
+worker/                  wrangler.jsonc and D1 migrations/ for the Worker; dist/ is gitignored
 plugin/                  the ccinfobar plugin
 ├── .claude-plugin/plugin.json
 └── skills/              edit, doctor, theme, install, uninstall (one SKILL.md each)
@@ -312,12 +322,19 @@ User docs: [CATALOG.md](CATALOG.md) and [MARKETPLACE.md](MARKETPLACE.md).
 | `catalog/store.ts` | Node: user entries, legacy adoption, `installEntryTheme`, `profile.json`, `marketEndpoint`, `credentials.json` |
 | `catalog/share.ts` | `entryHash`, `sendable`, `shareState`; imports only `node:crypto`, `protocol.ts` and `model.ts` |
 | `catalog/publish.ts` | `publishPlan`, `planHash`, `runPublish`, `remoteList`, `remoteShow` |
-| `market/protocol.ts` | Pure: paths, `ID_PART_RE`, `MARKET_LIMITS`, `ERROR_CODES`, the parsers, `canonicalJson`, `contentProblems` |
+| `core/entry-keys.ts` | Pure: `EntryKind`, `LAYOUT_KEYS`, `APPEARANCE_KEYS`, `PERSONAL_KEYS` and the content types, re-exported by `edit.ts`, so the Worker gets the key lists without the editor code |
+| `market/protocol.ts` | Pure: paths (including sign-in, account, report and admin routes), `ID_PART_RE`, `MARKET_LIMITS`, `ERROR_CODES`, the parsers, `canonicalJson`, `contentProblems` |
+| `market/rules.ts` | Pure server rules shared by both servers: route regexes, `CAPS`, rate windows, fixed English error messages, tombstones |
+| `market/github.ts` | Device flow against github.com with bounded polling; never in the browser bundle or the Worker |
+| `catalog/install.ts`, `catalog/market-cache.ts` | Install plan and run (hash check, consent targets, origin), the 24-hour index cache, conditional refresh and cached version documents |
+| `catalog/signin.ts`, `catalog/login-flows.ts` | Finish a sign-in and store the marketplace token; the editor server's device-flow sessions |
 | `market/endpoint.ts` | `checkEndpoint` (https, or http on loopback) |
 | `market/client.ts` | `createMarketClient`, `validateReceived`, `contentHash`, on top of `requestJson` in `data/jobs/fetch.ts` |
 | `market/server.ts`, `market/serve.ts` | Reference server and its command line, built by `node scripts/build.mjs --market` into the gitignored `market/` |
 | `commands/catalog.ts` | `ccinfobar catalog` local subcommands |
-| `commands/catalog-market.ts` | `publish` and `--remote`; also re-exports the publish functions for the editor |
+| `commands/catalog-market.ts` | `publish`, `install`, `login`, `logout`, `report`, `publisher --check` and `--remote`; also re-exports the publish functions for the editor |
+| `commands/catalog-admin.ts` | `catalog admin`, loaded with `await import()` from `catalog-market.ts` only |
+| `market/worker/` | The Worker: `handler.ts` (routing), `store.ts` (D1 statements), `write.ts`, `auth.ts`, `moderation.ts`, `rate.ts`, `http.ts`, `page.ts`, `tokens.ts`, `env.ts` (hand-written Workers types) |
 | `editor/server.ts` | `/api/catalog*` routes |
 | `editor/web/catalog.ts`, `catalog-dialogs.ts`, `catalog-market.ts` | Catalog page, save/history/share/delete dialogs, publish review and Marketplace tab |
 
@@ -326,7 +343,7 @@ User docs: [CATALOG.md](CATALOG.md) and [MARKETPLACE.md](MARKETPLACE.md).
 **Lazy loading.**
 
 - `cli/main.ts` loads `commands/catalog.ts` with `await import()`, and `catalog.ts` loads `manage.ts` the same way, so the catalog chunk never reaches the importers or jobs statically.
-- `catalog.ts` loads `./catalog-market.js` with `await import()` only for `publish` and `--remote`, and the editor server loads `../commands/catalog-market.js` only in the publish and remote routes, after the endpoint check.
+- `catalog.ts` loads `./catalog-market.js` with `await import()` only for the marketplace subcommands, and the editor server loads `../commands/catalog-market.js` only in the marketplace routes, after the endpoint check.
 - `catalog-market.ts` is the only lazy entry for marketplace code. It imports `catalog.ts`, `publish.ts` and (through publish) `client.ts` statically, with named imports, so its closure covers whole render chunks. An `await import()` of `market/client.js` or `catalog/publish.js` anywhere, or a namespace import, made esbuild split the render chunks (19 became 22 or 20). The same reason moved `checkEndpoint` into `endpoint.ts` and the share helpers into `share.ts`.
 - No module under `src/data/jobs/` imports `src/catalog/` or `src/market/`, so nothing publishes in the background.
 - `test/foundations/import-graph.test.ts` enforces all of this: `src/catalog/` and `src/market/` are excluded from the render closure, `model.ts` and `protocol.ts` are pure, `catalog-market.ts` is the one entry, the closures of `catalog.ts` and `editor/server.ts` have no `publish.ts`, jobs never import either dir, and the built render and hook chunks carry no catalog or marketplace text.
@@ -343,6 +360,13 @@ User docs: [CATALOG.md](CATALOG.md) and [MARKETPLACE.md](MARKETPLACE.md).
 **Text.** Catalog text is the lazy `catalog` i18n area: `src/core/i18n/en/catalog.ts` and `tr/catalog.ts`, spread into `en/lazy.ts` and `tr/lazy.ts`, with ids under `catalog.*`, `err.catalog.*` and `market.*`. Every module that uses them imports `core/i18n/lazy.js`, including the browser modules, and `api.ts` accepts lazy ids when it translates an editor API `errorId`. System entry names and descriptions stay English in `system.ts` and are translated by `bundleText`, `presetText` and `themeDescription` from `tr/meta/catalog.ts`. Only the `help.cmd.catalog*` rows and the two `web.static.catalog*` header strings are in the main tables. The reference server speaks English protocol JSON only.
 
 **Tests.** `test/catalog/`, `test/market/`, `test/commands/catalog*.test.ts` and `test/editor/catalog-*.test.ts` use temp dirs and never the network: the client gets `test/fake-fetch.ts` with `example.com` hosts, or the reference server runs in-process on `127.0.0.1` port 0 and is closed after each test. No-endpoint tests assert zero calls on both the injected fetch and `globalThis.fetch`.
+
+**Worker.** `src/market/worker/` is plain TypeScript that runs on workerd without `nodejs_compat`. It may import only its own files, `market/protocol.ts`, `market/rules.ts`, `core/sanitize.ts` and `core/entry-keys.ts`, and none of them may use `Buffer`, `process`, `require` or `node:` modules; it hashes with `crypto.subtle`, while ccinfobar keeps the sync `node:crypto`. Nothing outside the folder imports it. `test/foundations/import-graph.test.ts` checks all of this, and that `market/github.ts` stays out of the Worker, the browser bundle and the render and hook paths.
+
+- **Build.** `node scripts/build.mjs --worker` bundles `src/market/worker/index.ts` with esbuild (`scripts/worker-options.mjs`: platform neutral, ES2022, a plugin that fails on any Node import) into `worker/dist/index.js`. `worker/wrangler.jsonc` has `no_bundle: true`, so wrangler uploads that file as it is. `test/market/worker-bundle.test.ts` builds it and loads it in a `vm` context without Node globals.
+- **D1 in tests.** `test/market/d1-sqlite.ts` is a D1 adapter over `node:sqlite` (`prepare`, `bind`, `first`, `all`, `run`, `raw`, `batch` as one transaction, `meta.size_after`). It loads `node:sqlite` through `process.getBuiltinModule`, never a static import, and `hasSqlite` is false on Node 20 and on Node 22 releases without `?NNN` parameters or `columns()`, so the Worker tests skip there (`describe.skipIf(!hasSqlite)`). Each test applies `worker/migrations/*.sql` to a fresh database (`test/market/worker-env.ts`).
+- **Conformance.** `test/market/conformance.ts` holds the protocol v1 cases every server must pass. `conformance-ref.test.ts` runs them against the reference server and `conformance-worker.test.ts` against the Worker on the D1 adapter; server-specific cases stay in `server.test.ts` and the `worker-*.test.ts` files. `test/market/client-worker.test.ts` runs the real client against the Worker.
+- **GitHub.** `test/market/fake-github.ts` answers `/user` and check-token as the Worker's injected `fetch`; the device-flow client (`github.test.ts`) gets an injected `fetch` too. No test reaches github.com or Cloudflare, and no test runs wrangler: `wrangler deploy --dry-run` runs only in the deploy workflow.
 
 ### Hooks
 
@@ -524,8 +548,11 @@ The resolver, the editors' selectors, `config set language` and `doctor` need no
 - `test/plugin`: plugin structure and version sync
 - `test/scripts`: the Homebrew formula script, offline (fixture tarballs and a stubbed `fetch`)
 - `test/integration`: the built CLI end to end (safe mode, install prompts, shared limits, the cost ledger, hooks)
+- `test/catalog`, `test/market`: the catalog store, publish, install and cache; the marketplace protocol, client, device flow, reference server and Worker (see [Catalog and marketplace](#catalog-and-marketplace))
 
 `test/setup.ts` runs before every test file. It points HOME, the config, cache and Claude dirs at a per-run temp folder and throws on any write outside temp dirs, so a test can never touch your real `~/.claude/settings.json`. Wrap code in `withoutSideEffects()` from `test/helpers.ts` to also fail on config saves, spawns or `fetch` (used for the render path).
+
+It also guards the network: `fetch`, `http.request` and `https.request` to any host other than a loopback address fail the test, so marketplace, GitHub and update code must get an injected `fetch` or talk to an in-process server on `127.0.0.1`.
 
 CI runs the suite on Linux, macOS and Windows with Node 20, 22, 24 and 26.
 
