@@ -29,6 +29,7 @@ Kullanım
   ccinfobar catalog apply|save <name>
                                   Bir katalog girdisini uygular veya düzeninizi girdi olarak kaydeder; tüm alt komutlar için ccinfobar catalog çalıştırın
   ccinfobar catalog publish       Paylaşılan girdilerinizi gösterir, sonra marketplace adresine gönderir
+  ccinfobar catalog login|logout  GitHub ile marketplace'e giriş yapar veya çıkış yapar
   ccinfobar preview               Durum satırını örnek verilerle yazdırır
   ccinfobar preview --scenario <name>
                                   Adı verilen bir durumu önizler (liste için --scenario)

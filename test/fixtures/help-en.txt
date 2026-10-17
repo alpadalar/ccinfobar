@@ -29,6 +29,7 @@ Usage
   ccinfobar catalog apply|save <name>
                                   Apply a catalog entry or save your setup as one; run ccinfobar catalog for all subcommands
   ccinfobar catalog publish       Show your shared entries, then send them to the marketplace endpoint
+  ccinfobar catalog login|logout  Sign in to the marketplace with GitHub, or sign out
   ccinfobar preview               Print the status line with sample data
   ccinfobar preview --scenario <name>
                                   Preview a named situation (list them with --scenario)

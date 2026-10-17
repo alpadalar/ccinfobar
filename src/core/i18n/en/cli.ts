@@ -28,6 +28,7 @@ export const cliMessages = {
   'help.cmd.catalogSave':
     'Apply a catalog entry or save your setup as one; run ccinfobar catalog for all subcommands',
   'help.cmd.catalogPublish': 'Show your shared entries, then send them to the marketplace endpoint',
+  'help.cmd.catalogLogin': 'Sign in to the marketplace with GitHub, or sign out',
   'help.cmd.preview': 'Print the status line with sample data',
   'help.cmd.previewScenario': 'Preview a named situation (list them with --scenario)',
   'help.cmd.previewGlyphMode': 'Preview with a glyph mode, e.g. paste-safe for GitHub issues',

@@ -99,7 +99,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Loading the marketplace…',
   'catalog.usage':
-    'Usage: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n       ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n       ccinfobar catalog show <publisher/slug> --remote [--json]\n       ccinfobar catalog history <ref> [--json]\n       ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n       ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n       ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n       ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n       ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n       ccinfobar catalog author [<name>] [--dry-run] [--json]\n       ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n       ccinfobar catalog publisher [<handle>|--forget] [--dry-run] [--json]\n       ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]',
+    'Usage: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n       ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n       ccinfobar catalog show <publisher/slug> --remote [--json]\n       ccinfobar catalog history <ref> [--json]\n       ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n       ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n       ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n       ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n       ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n       ccinfobar catalog author [<name>] [--dry-run] [--json]\n       ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n       ccinfobar catalog publisher [<handle>|--forget] [--dry-run] [--json]\n       ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n       ccinfobar catalog login [--open|--no-open] [--json]\n       ccinfobar catalog logout [--json]',
   'catalog.section.user': 'Your entries',
   'catalog.section.system': 'Built in',
   'catalog.list.noUser': 'No saved entries yet. Save one with ccinfobar catalog save <name>.',
@@ -224,6 +224,26 @@ export const catalogMessages = {
   'err.catalog.badHandle':
     'A publisher handle is 1 to 39 lowercase letters, digits or hyphens and starts with a letter or digit',
   'err.catalog.planChanged': 'The entries changed since you reviewed them; review again',
+  'catalog.login.code': 'To sign in, open {url} and enter the code {code}',
+  'catalog.login.expires': {
+    one: 'The code expires in 1 minute.',
+    other: 'The code expires in {count} minutes.',
+  },
+  'catalog.login.openAsk': 'Open {url} in your browser?',
+  'catalog.login.waiting': 'Waiting for you to confirm on GitHub. Press Ctrl+C to stop.',
+  'catalog.login.done': 'Signed in as @{handle}',
+  'catalog.login.admin': 'You are an admin on this marketplace.',
+  'catalog.login.tokenMode':
+    'This marketplace does not use GitHub sign-in. Publishing registers you: run ccinfobar catalog publish. Nothing was sent to GitHub.',
+  'catalog.login.failed': 'Could not sign in: {reason}',
+  'catalog.logout.done': 'Signed out of {endpoint}. The marketplace token was removed from this computer.',
+  'catalog.logout.none': 'You are not signed in to {endpoint}.',
+  'err.catalog.signIn.expired': 'The sign-in code expired. Run ccinfobar catalog login again.',
+  'err.catalog.signIn.denied': 'Sign-in was denied on GitHub.',
+  'err.catalog.signIn.disabled': "This marketplace's GitHub app does not allow device sign-in.",
+  'err.catalog.signIn.failed': 'Signing in with GitHub failed. Try again later.',
+  'err.catalog.signIn.cancelled': 'Sign-in cancelled.',
+  'err.catalog.signIn.notGithub': 'This marketplace does not offer GitHub sign-in.',
   'market.error.invalid': 'The marketplace rejected the entry as not valid',
   'market.error.too-large': 'The entry is too large for the marketplace',
   'market.error.over-quota':

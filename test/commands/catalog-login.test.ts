@@ -4,8 +4,13 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type SignInDeps, SignInError, signInWithGitHub } from '../../src/catalog/signin.js';
 import { readCredential, readPublisher, writeCredential, writePublisher } from '../../src/catalog/store.js';
+import { parseArgs } from '../../src/cli/args.js';
+import { type CatalogDeps, runCatalog } from '../../src/commands/catalog.js';
+import type { PromptIo } from '../../src/commands/io.js';
 import { VERIFY_URL } from '../../src/market/github.js';
+import { startMarketServer } from '../../src/market/server.js';
 import { json } from '../fake-fetch.js';
+import { withLangAsync } from '../helpers.js';
 
 const ENDPOINT = 'https://market.example.com';
 const CLIENT = 'Ov23liVCN9Nf6VlLv3St';
@@ -226,7 +231,7 @@ describe('signInWithGitHub', () => {
           : off.fetch(input, init)) as typeof fetch,
     });
     expect(await code(signInWithGitHub(disabled.deps))).toBe('disabled');
-    const refused = world({ signIn: () => json({ error: 'unauthorized', message: 'no' }, 401) });
+    const refused = world({ signIn: () => json({ error: { code: 'unauthorized', message: 'no' } }, 401) });
     expect(await code(signInWithGitHub(deps(refused).deps))).toBe('unauthorized');
     expect(readCredential(ENDPOINT, cat)).toBeNull();
   });
@@ -245,5 +250,238 @@ describe('signInWithGitHub', () => {
     expect(readCredential('https://other.example.com', cat)).toBe('b'.repeat(64));
     expect(readPublisher('https://other.example.com', cat)).toBe('someone');
     expect(readCredential(ENDPOINT, cat)).toBe(MARKET_TOKEN);
+  });
+});
+
+interface RunOpts {
+  tty?: boolean;
+  answers?: boolean[];
+  fetch?: typeof fetch;
+  env?: Record<string, string>;
+  deps?: Partial<CatalogDeps>;
+}
+
+async function run(argv: string[], opts: RunOpts = {}) {
+  const out: string[] = [];
+  const err: string[] = [];
+  const asked: string[] = [];
+  const opened: string[] = [];
+  const answers = [...(opts.answers ?? [])];
+  const io: PromptIo = {
+    tty: opts.tty ?? false,
+    columns: 100,
+    ask: async (q) => {
+      asked.push(q);
+      return answers.shift() ?? false;
+    },
+    log: (l) => void out.push(l),
+    error: (l) => void err.push(l),
+  };
+  process.exitCode = undefined;
+  await runCatalog(parseArgs(['catalog', ...argv]), path.join(root, 'config.json'), {
+    io,
+    dir: cat,
+    env: opts.env ?? { CCINFOBAR_MARKETPLACE_URL: ENDPOINT },
+    gsd: false,
+    now: () => new Date(T0),
+    defaultEndpoint: null,
+    open: (url) => void opened.push(url),
+    sleep: async () => {},
+    ...(opts.fetch ? { fetch: opts.fetch } : {}),
+    ...opts.deps,
+  });
+  const code = process.exitCode;
+  process.exitCode = undefined;
+  return { out, err, asked, opened, code, text: [...out, ...err].join('\n') };
+}
+
+const githubCalls = (calls: Call[]) => calls.filter((c) => c.url.startsWith('https://github.com'));
+
+describe('catalog login', () => {
+  it('prints the code, opens nothing with --no-open and signs in (D-07)', async () => {
+    const w = world();
+    const r = await run(['login', '--no-open'], { fetch: w.fetch, tty: true, answers: [true] });
+    expect(r.code).toBeUndefined();
+    expect(r.out[0]).toBe(`To sign in, open ${VERIFY_URL} and enter the code WDJB-MJHT`);
+    expect(r.out).toContain('The code expires in 15 minutes.');
+    expect(r.asked).toEqual([]);
+    expect(r.opened).toEqual([]);
+    expect(r.out.at(-1)).toBe('Signed in as @octo-cat');
+    expect(githubCalls(w.calls)).toHaveLength(3);
+    expect(readCredential(ENDPOINT, cat)).toBe(MARKET_TOKEN);
+    expect(r.text).not.toContain(MARKET_TOKEN);
+    expect(r.text).not.toContain(GH_TOKEN);
+  });
+
+  it('asks on a terminal and opens only the GitHub page', async () => {
+    const yes = await run(['login'], { fetch: world().fetch, tty: true, answers: [true] });
+    expect(yes.asked).toEqual([`Open ${VERIFY_URL} in your browser?`]);
+    expect(yes.opened).toEqual(['https://github.com/login/device']);
+    const no = await run(['login'], { fetch: world().fetch, tty: true, answers: [false] });
+    expect(no.asked).toHaveLength(1);
+    expect(no.opened).toEqual([]);
+    const pipe = await run(['login'], { fetch: world().fetch });
+    expect(pipe.asked).toEqual([]);
+    expect(pipe.opened).toEqual([]);
+    const forced = await run(['login', '--open'], { fetch: world().fetch });
+    expect(forced.opened).toEqual([VERIFY_URL]);
+  });
+
+  it('prints English JSON and keeps the code on stderr', async () => {
+    const r = await withLangAsync('tr', () => run(['login', '--json'], { fetch: world().fetch }));
+    expect(r.code).toBeUndefined();
+    expect(r.out).toHaveLength(1);
+    expect(JSON.parse(r.out[0]!)).toEqual({
+      schema: 1,
+      endpoint: ENDPOINT,
+      handle: 'octo-cat',
+      admin: false,
+    });
+    expect(r.err.join('\n')).toContain('WDJB-MJHT');
+    expect(r.opened).toEqual([]);
+  });
+
+  it('says when the account is an admin', async () => {
+    const w = world({
+      signIn: () => json({ handle: 'octo-cat', token: MARKET_TOKEN, displayName: '', admin: true }),
+    });
+    const r = await run(['login'], { fetch: w.fetch });
+    expect(r.out.slice(-2)).toEqual(['Signed in as @octo-cat', 'You are an admin on this marketplace.']);
+  });
+
+  it('fails with a clear message in English and Turkish (R-11)', async () => {
+    const denied = () => world({ polls: [() => json({ error: 'access_denied' })] });
+    const en = await run(['login'], { fetch: denied().fetch });
+    expect(en.code).toBe(1);
+    expect(en.err).toEqual(['Sign-in was denied on GitHub.']);
+    const tr = await withLangAsync('tr', () => run(['login'], { fetch: denied().fetch }));
+    expect(tr.code).toBe(1);
+    expect(tr.err).toEqual(["Giriş GitHub'da reddedildi."]);
+    expect(tr.out[0]).toContain('WDJB-MJHT');
+    const refused = world({ signIn: () => json({ error: { code: 'upstream', message: 'x' } }, 502) });
+    const up = await run(['login'], { fetch: refused.fetch });
+    expect(up.err).toEqual([
+      'Could not sign in: The sign-in service (GitHub) is not available; try again later',
+    ]);
+    expect(readCredential(ENDPOINT, cat)).toBeNull();
+  });
+
+  it('stops on Ctrl+C and removes its handler', async () => {
+    const before = process.listeners('SIGINT');
+    const w = world({ polls: Array.from({ length: 10 }, () => pending) });
+    let sleeps = 0;
+    const r = await run(['login'], {
+      fetch: w.fetch,
+      deps: {
+        sleep: async () => {
+          if (++sleeps === 2)
+            for (const l of process.listeners('SIGINT')) if (!before.includes(l)) l('SIGINT');
+        },
+      },
+    });
+    expect(r.code).toBe(1);
+    expect(r.err).toEqual(['Sign-in cancelled.']);
+    expect(process.listeners('SIGINT')).toEqual(before);
+    expect(w.calls.some((c) => c.url === `${ENDPOINT}/v1/auth/github`)).toBe(false);
+  });
+
+  it('stops when the code expires', async () => {
+    let t = T0;
+    const w = world({ polls: Array.from({ length: 400 }, () => pending) });
+    const r = await run(['login'], {
+      fetch: w.fetch,
+      deps: {
+        now: () => new Date(t),
+        sleep: async (ms) => {
+          t += ms;
+        },
+      },
+    });
+    expect(r.code).toBe(1);
+    expect(r.err).toEqual(['The sign-in code expired. Run ccinfobar catalog login again.']);
+  });
+
+  it('refuses --dry-run and extra arguments without sending anything', async () => {
+    const w = world();
+    for (const argv of [
+      ['login', '--dry-run'],
+      ['logout', '--dry-run'],
+      ['login', 'extra'],
+    ]) {
+      const r = await run(argv, { fetch: w.fetch });
+      expect(r.code, argv.join(' ')).toBe(1);
+      expect(r.err[0]).toMatch(/^Usage: ccinfobar catalog list/);
+    }
+    expect(w.calls).toEqual([]);
+  });
+
+  it('needs an endpoint', async () => {
+    const w = world();
+    const r = await run(['login'], { fetch: w.fetch, env: {} });
+    expect(r.code).toBe(1);
+    expect(r.err).toEqual(['No marketplace endpoint set; entries stay waiting to publish']);
+    expect(w.calls).toEqual([]);
+  });
+
+  it('explains token mode on the reference server and sends nothing to GitHub', async () => {
+    const s = await startMarketServer({ dataDir: path.join(root, 'data') });
+    try {
+      const urls: string[] = [];
+      const counted = ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        urls.push(String(input instanceof Request ? input.url : input));
+        return globalThis.fetch(input, init);
+      }) as typeof fetch;
+      const r = await run(['login'], { fetch: counted, env: { CCINFOBAR_MARKETPLACE_URL: s.url } });
+      expect(r.code).toBeUndefined();
+      expect(r.out).toEqual([
+        'This marketplace does not use GitHub sign-in. Publishing registers you: run ccinfobar catalog publish. Nothing was sent to GitHub.',
+      ]);
+      expect(urls).toEqual([`${s.url}/v1/meta.json`]);
+      const j = await run(['login', '--json'], { fetch: counted, env: { CCINFOBAR_MARKETPLACE_URL: s.url } });
+      expect(JSON.parse(j.out[0]!)).toMatchObject({ endpoint: s.url, handle: null, tokenMode: true });
+    } finally {
+      await s.close();
+    }
+  });
+});
+
+describe('catalog logout', () => {
+  it('revokes the token on the server and forgets it locally', async () => {
+    writeCredential(ENDPOINT, MARKET_TOKEN, cat);
+    writePublisher(ENDPOINT, 'octo-cat', cat);
+    writeCredential('https://other.example.com', 'b'.repeat(64), cat);
+    const w = world();
+    const r = await run(['logout'], { fetch: w.fetch });
+    expect(r.code).toBeUndefined();
+    expect(w.calls).toHaveLength(1);
+    expect(w.calls[0]).toMatchObject({ url: `${ENDPOINT}/v1/auth/logout`, method: 'POST' });
+    expect(w.calls[0]!.headers.authorization).toBe(`Bearer ${MARKET_TOKEN}`);
+    expect(r.out).toEqual([
+      `Signed out of ${ENDPOINT}. The marketplace token was removed from this computer.`,
+    ]);
+    const creds = JSON.parse(fs.readFileSync(path.join(cat, 'credentials.json'), 'utf8'));
+    expect(Object.keys(creds)).toEqual(['https://other.example.com']);
+    expect(readPublisher(ENDPOINT, cat)).toBeNull();
+  });
+
+  it('clears locally when the server cannot be reached', async () => {
+    writeCredential(ENDPOINT, MARKET_TOKEN, cat);
+    const failing = (async () => {
+      throw new TypeError('fetch failed');
+    }) as unknown as typeof fetch;
+    const r = await run(['logout', '--json'], { fetch: failing });
+    expect(r.code).toBeUndefined();
+    expect(JSON.parse(r.out[0]!)).toEqual({ schema: 1, endpoint: ENDPOINT, signedOut: true });
+    expect(readCredential(ENDPOINT, cat)).toBeNull();
+  });
+
+  it('says so when not signed in and sends nothing', async () => {
+    const w = world();
+    const r = await run(['logout'], { fetch: w.fetch });
+    expect(r.code).toBeUndefined();
+    expect(r.out).toEqual([`You are not signed in to ${ENDPOINT}.`]);
+    expect(w.calls).toEqual([]);
+    const tr = await withLangAsync('tr', () => run(['logout'], { fetch: w.fetch }));
+    expect(tr.out).toEqual([`${ENDPOINT} üzerinde giriş yapmamışsınız.`]);
   });
 });

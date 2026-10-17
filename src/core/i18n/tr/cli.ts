@@ -32,6 +32,7 @@ export const cliMessages = {
   'help.cmd.catalogSave':
     'Bir katalog girdisini uygular veya düzeninizi girdi olarak kaydeder; tüm alt komutlar için ccinfobar catalog çalıştırın',
   'help.cmd.catalogPublish': 'Paylaşılan girdilerinizi gösterir, sonra marketplace adresine gönderir',
+  'help.cmd.catalogLogin': "GitHub ile marketplace'e giriş yapar veya çıkış yapar",
   'help.cmd.preview': 'Durum satırını örnek verilerle yazdırır',
   'help.cmd.previewScenario': 'Adı verilen bir durumu önizler (liste için --scenario)',
   'help.cmd.previewGlyphMode': "Bir glif moduyla önizler, örn. GitHub issue'ları için paste-safe",

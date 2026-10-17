@@ -29,6 +29,7 @@ export const USAGE: Row[] = [
   ['ccinfobar catalog list|show|history', 'help.cmd.catalog'],
   ['ccinfobar catalog apply|save <name>', 'help.cmd.catalogSave'],
   ['ccinfobar catalog publish', 'help.cmd.catalogPublish'],
+  ['ccinfobar catalog login|logout', 'help.cmd.catalogLogin'],
   ['ccinfobar preview', 'help.cmd.preview'],
   ['ccinfobar preview --scenario <name>', 'help.cmd.previewScenario'],
   ['ccinfobar preview --glyph-mode <mode>', 'help.cmd.previewGlyphMode'],

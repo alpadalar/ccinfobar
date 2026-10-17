@@ -104,7 +104,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Marketplace yükleniyor…',
   'catalog.usage':
-    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]',
+    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n          ccinfobar catalog login [--open|--no-open] [--json]\n          ccinfobar catalog logout [--json]',
   'catalog.section.user': 'Sizin girdileriniz',
   'catalog.section.system': 'Yerleşik',
   'catalog.list.noUser': 'Henüz kayıtlı girdi yok. ccinfobar catalog save <name> ile bir tane kaydedin.',
@@ -234,6 +234,28 @@ export const catalogMessages = {
   'err.catalog.badHandle':
     'Yayıncı adı 1 ile 39 arasında küçük harf, rakam veya tireden oluşur ve harf ya da rakamla başlar',
   'err.catalog.planChanged': 'Girdiler siz inceledikten sonra değişti; yeniden inceleyin',
+  'catalog.login.code': 'Giriş yapmak için {url} adresini açın ve şu kodu girin: {code}',
+  'catalog.login.expires': {
+    one: 'Kodun süresi 1 dakika sonra dolar.',
+    other: 'Kodun süresi {count} dakika sonra dolar.',
+  },
+  'catalog.login.openAsk': '{url} tarayıcıda açılsın mı?',
+  'catalog.login.waiting': "GitHub'da onaylamanız bekleniyor. Durdurmak için Ctrl+C'ye basın.",
+  'catalog.login.done': '@{handle} olarak giriş yapıldı',
+  'catalog.login.admin': "Bu marketplace'te yöneticisiniz.",
+  'catalog.login.tokenMode':
+    "Bu marketplace GitHub ile giriş kullanmıyor. İlk yayımlama sizi kaydeder: ccinfobar catalog publish çalıştırın. GitHub'a hiçbir şey gönderilmedi.",
+  'catalog.login.failed': 'Giriş yapılamadı: {reason}',
+  'catalog.logout.done':
+    '{endpoint} üzerindeki oturum kapatıldı. Marketplace belirteci bu bilgisayardan silindi.',
+  'catalog.logout.none': '{endpoint} üzerinde giriş yapmamışsınız.',
+  'err.catalog.signIn.expired':
+    'Giriş kodunun süresi doldu. ccinfobar catalog login komutunu yeniden çalıştırın.',
+  'err.catalog.signIn.denied': "Giriş GitHub'da reddedildi.",
+  'err.catalog.signIn.disabled': "Bu marketplace'in GitHub uygulaması cihazla girişe izin vermiyor.",
+  'err.catalog.signIn.failed': 'GitHub ile giriş başarısız oldu. Daha sonra tekrar deneyin.',
+  'err.catalog.signIn.cancelled': 'Giriş iptal edildi.',
+  'err.catalog.signIn.notGithub': 'Bu marketplace GitHub ile giriş sunmuyor.',
   'market.error.invalid': 'Marketplace girdiyi geçersiz buldu ve reddetti',
   'market.error.too-large': 'Girdi marketplace için çok büyük',
   'market.error.over-quota':

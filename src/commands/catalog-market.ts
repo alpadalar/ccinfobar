@@ -1,4 +1,5 @@
 import '../core/i18n/lazy.js';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { CatalogEntry } from '../catalog/model.js';
 import {
   type PublishDeps,
@@ -12,13 +13,17 @@ import {
   runPublish,
 } from '../catalog/publish.js';
 import { shareState } from '../catalog/share.js';
-import { listEntries } from '../catalog/store.js';
+import { SignInError, signInWithGitHub } from '../catalog/signin.js';
+import { forgetPublisher, listEntries, readCredential } from '../catalog/store.js';
 import { type MessageId, t, withLanguage } from '../core/i18n/index.js';
 import { padVisible, visibleWidth } from '../core/width.js';
 import { kindText, visibleTarget, wrapLine } from '../importers/confirm.js';
+import { createMarketClient } from '../market/client.js';
+import { VERIFY_URL } from '../market/github.js';
 import type { MarketSummary } from '../market/protocol.js';
 // a static import of catalog.js keeps this chunk from splitting the render chunks
 import { type Ctx, clean, endpointOf, find, GROUPS, KINDS, kindWord, when } from './catalog.js';
+import { openBrowser } from './open.js';
 
 const REASONS: Record<string, MessageId> = {
   invalid: 'market.error.invalid',
@@ -415,4 +420,101 @@ export async function runRemoteShow(c: Ctx): Promise<void> {
   if (res.code) remoteFail(c, res.code, res.status);
   c.io.log('');
   c.io.log(t('catalog.remote.readOnly'));
+}
+
+const SIGN_IN: Record<string, MessageId> = {
+  'not-github': 'err.catalog.signIn.notGithub',
+  expired: 'err.catalog.signIn.expired',
+  denied: 'err.catalog.signIn.denied',
+  disabled: 'err.catalog.signIn.disabled',
+  failed: 'err.catalog.signIn.failed',
+  cancelled: 'err.catalog.signIn.cancelled',
+  'no-endpoint': 'err.catalog.noEndpoint',
+  'bad-endpoint': 'err.catalog.badEndpoint',
+};
+
+const wait = (ms: number, signal?: AbortSignal): Promise<void> =>
+  delay(ms, undefined, signal ? { signal } : {});
+
+// contacts the marketplace and GitHub only here (D-08); the GitHub token is never stored
+export async function runLogin(c: Ctx): Promise<void> {
+  if (c.dryRun || c.args.positional.length > 1) {
+    c.fail(t('catalog.usage'));
+    return;
+  }
+  const say = (line: string) => (c.json ? c.io.error(line) : c.io.log(line));
+  const ac = new AbortController();
+  const stop = () => ac.abort();
+  if (c.signal?.aborted) ac.abort();
+  else c.signal?.addEventListener('abort', stop, { once: true });
+  const flag = c.args.flags.open;
+  try {
+    const res = await signInWithGitHub({
+      fetch: c.fetch ?? globalThis.fetch,
+      now: () => c.now().getTime(),
+      sleep: c.sleep ?? wait,
+      signal: ac.signal,
+      dir: c.dir,
+      env: c.env,
+      defaultEndpoint: c.defaultEndpoint,
+      onCode: async (info) => {
+        say(t('catalog.login.code', { code: clean(info.userCode), url: VERIFY_URL }));
+        const count = Math.max(1, Math.round((info.expiresAt - c.now().getTime()) / 60_000));
+        say(t('catalog.login.expires', { count }));
+        const open =
+          flag === true ||
+          (flag === undefined &&
+            c.io.tty &&
+            !c.json &&
+            (await c.io.ask(t('catalog.login.openAsk', { url: VERIFY_URL }), true)));
+        // only the fixed GitHub page, never a url from a server
+        if (open) (c.open ?? openBrowser)(VERIFY_URL);
+        say(t('catalog.login.waiting'));
+        process.on('SIGINT', stop);
+      },
+    });
+    if (c.json) {
+      jsonOut(c, res);
+      return;
+    }
+    c.io.log(t('catalog.login.done', { handle: clean(res.handle) }));
+    if (res.admin) c.io.log(t('catalog.login.admin'));
+  } catch (err) {
+    const e = err instanceof SignInError ? err : new SignInError('failed');
+    const endpoint = endpointOf(c);
+    if (e.tokenMode) {
+      if (c.json) jsonOut(c, { endpoint, handle: null, admin: false, tokenMode: true });
+      else c.io.log(t('catalog.login.tokenMode'));
+      return;
+    }
+    if (c.json) jsonOut(c, { endpoint, handle: null, admin: false, code: e.code });
+    const id = Object.hasOwn(SIGN_IN, e.code) ? SIGN_IN[e.code]! : null;
+    c.fail(id ? t(id) : t('catalog.login.failed', { reason: reasonText(e.code, e.status ?? undefined) }));
+  } finally {
+    process.off('SIGINT', stop);
+    c.signal?.removeEventListener('abort', stop);
+  }
+}
+
+// revoking is best effort; the local token goes either way
+export async function runLogout(c: Ctx): Promise<void> {
+  if (c.dryRun || c.args.positional.length > 1) {
+    c.fail(t('catalog.usage'));
+    return;
+  }
+  const endpoint = noEndpoint(c);
+  if (!endpoint) return;
+  const token = readCredential(endpoint, c.dir);
+  if (token !== null) {
+    try {
+      await createMarketClient({ endpoint, fetch: c.fetch ?? globalThis.fetch, token }).logout();
+    } catch {}
+    forgetPublisher(endpoint, c.dir);
+  }
+  if (c.json) {
+    jsonOut(c, { endpoint, signedOut: token !== null });
+    return;
+  }
+  const where = { endpoint: shownUrl(endpoint) };
+  c.io.log(token !== null ? t('catalog.logout.done', where) : t('catalog.logout.none', where));
 }

@@ -75,6 +75,9 @@ export interface CatalogDeps {
   fetch?: typeof fetch;
   gsd?: boolean;
   defaultEndpoint?: string | null;
+  open?: (url: string) => void;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  signal?: AbortSignal;
 }
 
 export type AnyEntry =
@@ -114,6 +117,9 @@ export interface Ctx {
   dryRun: boolean;
   fetch?: typeof fetch;
   defaultEndpoint: string | null;
+  open?: (url: string) => void;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  signal?: AbortSignal;
   fail(msg: string): void;
 }
 
@@ -893,10 +899,12 @@ function runPublisher(c: Ctx): void {
   if (changed) dryRunDone(c);
 }
 
-// marketplace code loads only for publish and --remote
-async function market(c: Ctx, sub: 'publish' | 'list' | 'show'): Promise<void> {
+// marketplace code loads only for publish, sign-in and --remote
+async function market(c: Ctx, sub: 'publish' | 'list' | 'show' | 'login' | 'logout'): Promise<void> {
   const m = await import('./catalog-market.js');
   if (sub === 'publish') await m.runPublishCommand(c);
+  else if (sub === 'login') await m.runLogin(c);
+  else if (sub === 'logout') await m.runLogout(c);
   else if (sub === 'list') await m.runRemoteList(c);
   else await m.runRemoteShow(c);
 }
@@ -920,6 +928,8 @@ const SUBCOMMANDS: Record<string, (c: Ctx) => void | Promise<void>> = {
   endpoint: runEndpoint,
   publisher: runPublisher,
   publish: (c) => market(c, 'publish'),
+  login: (c) => market(c, 'login'),
+  logout: (c) => market(c, 'logout'),
 };
 
 export async function runCatalog(args: Args, cfgFile: string, deps: CatalogDeps = {}): Promise<void> {
@@ -948,6 +958,9 @@ export async function runCatalog(args: Args, cfgFile: string, deps: CatalogDeps 
     dryRun: args.flags['dry-run'] === true,
     ...(deps.fetch ? { fetch: deps.fetch } : {}),
     defaultEndpoint: deps.defaultEndpoint !== undefined ? deps.defaultEndpoint : DEFAULT_MARKETPLACE,
+    ...(deps.open ? { open: deps.open } : {}),
+    ...(deps.sleep ? { sleep: deps.sleep } : {}),
+    ...(deps.signal ? { signal: deps.signal } : {}),
     fail,
   };
   try {

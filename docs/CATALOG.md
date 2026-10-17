@@ -146,6 +146,8 @@ Your own `<kind>/<slug>` wins over a built-in ref with the same text.
 | `ccinfobar catalog endpoint [<url>\|--off\|--clear] [--dry-run] [--json]` | Show the marketplace endpoint and where it comes from (`env`, `set`, `default`, `off`, `none`), set it, switch the marketplace off, or go back to the default. Only checks the URL; sends nothing |
 | `ccinfobar catalog publisher [<handle>\|--forget] [--dry-run] [--json]` | Show or set the publisher handle a first publish registers on the current endpoint (lowercase letters, digits and hyphens; without one, the author as a slug). `--forget` drops the handle and token for that endpoint, so the next publish registers again. Sends nothing |
 | `ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]` | Show what waits to publish, then send it after confirmation |
+| `ccinfobar catalog login [--open\|--no-open] [--json]` | Sign in to a GitHub marketplace: shows a code to enter at https://github.com/login/device (offers to open that page), then keeps only the marketplace token. The GitHub token is never stored. On a token-mode server it explains that publishing registers you |
+| `ccinfobar catalog logout [--json]` | Revoke the marketplace token on the server (best effort) and forget it and the handle on this computer |
 | `ccinfobar catalog list --remote [--kind ...] [--json]` | Read-only list of the marketplace entries |
 | `ccinfobar catalog show <publisher/slug> --remote [--json]` | A marketplace entry with its versions and the commands or URLs it would run or open |
 

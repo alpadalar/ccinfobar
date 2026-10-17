@@ -226,6 +226,7 @@ const ALLOW: Record<string, string[]> = {
     'ccinfobar catalog list|show|history',
     'ccinfobar catalog apply|save <name>',
     'ccinfobar catalog publish',
+    'ccinfobar catalog login|logout',
   ],
   // simulated payload data
   'src/commands/bench.ts': ['Step X: refactor the status line renderer', 'Done with step X.'],
