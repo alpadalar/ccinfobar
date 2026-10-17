@@ -1,5 +1,11 @@
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/logo-light.svg">
+  <img src="docs/images/logo-dark.svg" alt="ccinfobar logo" width="96" height="96">
+</picture>
+
 # ccinfobar
 
 **A customizable status line for Claude Code, with a drag-and-drop editor.**
@@ -10,7 +16,11 @@
 [![dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
 [![license](https://img.shields.io/github/license/alpadalar/ccinfobar)](LICENSE)
 
-![ccinfobar web editor](docs/images/editor.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/screenshots/editor-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/screenshots/editor-light.png">
+  <img src="docs/images/screenshots/editor-dark.png" alt="ccinfobar web editor" width="100%">
+</picture>
 
 </div>
 
@@ -21,6 +31,7 @@
 - [Why ccinfobar](#why-ccinfobar)
 - [Quick start](#quick-start)
 - [Editing your status line](#editing-your-status-line)
+- [Screenshots](#screenshots)
 - [Widgets](#widgets)
 - [Themes](#themes)
 - [Catalog](#catalog)
@@ -149,6 +160,123 @@ ccinfobar tui
 | `?` | Help |
 
 Mouse works too: click to select, drag a chip to move it.
+
+## Screenshots
+
+<details>
+<summary><b>Show screenshots</b></summary>
+
+<details>
+<summary>Editor and inspector</summary>
+
+<p><b>Dark</b></p>
+<img src="docs/images/screenshots/editor-dark.png" alt="Editor and inspector, dark" width="100%">
+
+<p><b>Light</b></p>
+<img src="docs/images/screenshots/editor-light.png" alt="Editor and inspector, light" width="100%">
+
+</details>
+
+<details>
+<summary>Presets</summary>
+
+<p><b>Dark</b></p>
+<img src="docs/images/screenshots/presets-dark.png" alt="Presets, dark" width="100%">
+
+<p><b>Light</b></p>
+<img src="docs/images/screenshots/presets-light.png" alt="Presets, light" width="100%">
+
+</details>
+
+<details>
+<summary>Catalog</summary>
+
+<p><b>Dark</b></p>
+<img src="docs/images/screenshots/catalog-dark.png" alt="Catalog, dark" width="100%">
+
+<p><b>Light</b></p>
+<img src="docs/images/screenshots/catalog-light.png" alt="Catalog, light" width="100%">
+
+</details>
+
+<details>
+<summary>Catalog entry details</summary>
+
+<p><b>Dark</b></p>
+<img src="docs/images/screenshots/catalog-details-dark.png" alt="Catalog entry details, dark" width="100%">
+
+<p><b>Light</b></p>
+<img src="docs/images/screenshots/catalog-details-light.png" alt="Catalog entry details, light" width="100%">
+
+</details>
+
+<details>
+<summary>Save to catalog</summary>
+
+<p><b>Dark</b></p>
+<img src="docs/images/screenshots/catalog-save-dark.png" alt="Save to catalog, dark" width="100%">
+
+<p><b>Light</b></p>
+<img src="docs/images/screenshots/catalog-save-light.png" alt="Save to catalog, light" width="100%">
+
+</details>
+
+<details>
+<summary>Themes</summary>
+
+<p><b>Dark</b></p>
+<img src="docs/images/screenshots/themes-dark.png" alt="Themes, dark" width="100%">
+
+<p><b>Light</b></p>
+<img src="docs/images/screenshots/themes-light.png" alt="Themes, light" width="100%">
+
+</details>
+
+<details>
+<summary>Theme builder</summary>
+
+<p><b>Dark</b></p>
+<img src="docs/images/screenshots/theme-builder-dark.png" alt="Theme builder, dark" width="100%">
+
+<p><b>Light</b></p>
+<img src="docs/images/screenshots/theme-builder-light.png" alt="Theme builder, light" width="100%">
+
+</details>
+
+<details>
+<summary>Import</summary>
+
+<p><b>Dark</b></p>
+<img src="docs/images/screenshots/import-dark.png" alt="Import, dark" width="100%">
+
+<p><b>Light</b></p>
+<img src="docs/images/screenshots/import-light.png" alt="Import, light" width="100%">
+
+</details>
+
+<details>
+<summary>Install in Claude Code</summary>
+
+<p><b>Dark</b></p>
+<img src="docs/images/screenshots/install-dark.png" alt="Install in Claude Code, dark" width="100%">
+
+<p><b>Light</b></p>
+<img src="docs/images/screenshots/install-light.png" alt="Install in Claude Code, light" width="100%">
+
+</details>
+
+<details>
+<summary>Settings</summary>
+
+<p><b>Dark</b></p>
+<img src="docs/images/screenshots/settings-dark.png" alt="Settings, dark" width="100%">
+
+<p><b>Light</b></p>
+<img src="docs/images/screenshots/settings-light.png" alt="Settings, light" width="100%">
+
+</details>
+
+</details>
 
 ## Widgets
 

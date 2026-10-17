@@ -29,6 +29,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- New ccinfobar logo, a context gauge mark, in the web editor top bar (it follows the light and dark color scheme) and as its favicon. The README shows the logo and fresh 1920-wide dark and light screenshots of every editor screen in a collapsed Screenshots section
 - `tool-activity`, `turn-timer` and `permission-wait` are now used by the `agents` preset and `workspace-repos` by the `workspace` preset; they stay opt-in and the default layout does not use them, and the README and docs/CONFIGURATION.md say so
 - The Catalog page shows compact cards with a small preview, several per row. Pointing at a preview or focusing a card with the keyboard shows it full size, and clicking, tapping or pressing Enter opens the entry's details with the full preview and all its actions. Each card has an Apply button
 
