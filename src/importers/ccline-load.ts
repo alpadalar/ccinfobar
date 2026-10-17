@@ -1,5 +1,4 @@
 import '../core/i18n/lazy.js';
-import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { t } from '../core/i18n/index.js';
@@ -35,7 +34,7 @@ export function ccometixlinePaths(
   isTool = isCcline,
 ): { file: string | null; note: 'command-dir' | null } {
   const homeFile = path.join(home, '.claude', dir, 'config.toml');
-  if (fs.existsSync(homeFile)) return { file: homeFile, note: null };
+  if (isFile(homeFile)) return { file: homeFile, note: null };
   const bin = firstPathToken(command, home);
   if (bin && isTool(bin)) {
     const dirs = [path.dirname(bin)];

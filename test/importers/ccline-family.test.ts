@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -46,6 +47,35 @@ const write = (file: string, text: string) => {
 };
 
 const MINI = '[style]\nmode = "plain"\nseparator = " / "\n\n[[segments]]\nid = "model"\nenabled = true\n';
+
+describe('non-regular default files', () => {
+  const config = (dir: string) => path.join(home, '.claude', dir, 'config.toml');
+
+  it('import the default layout when the config path is a directory', () => {
+    for (const [source, dir] of [
+      ['best-claude-hud', 'best-claude-hud'],
+      ['byebyecode', 'byebyecode'],
+      ['ccometixline', 'ccline'],
+    ] as const) {
+      fs.mkdirSync(config(dir), { recursive: true });
+      const r = importFrom(source, { env });
+      expect(r.file, source).toBeNull();
+      expect(r.notes[0]!.text, source).toMatch(/default layout/);
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')('never block on a FIFO', () => {
+    const fifo = config('best-claude-hud');
+    fs.mkdirSync(path.dirname(fifo), { recursive: true });
+    try {
+      execFileSync('mkfifo', [fifo]);
+    } catch {
+      return;
+    }
+    expect(importFrom('best-claude-hud', { env }).file).toBeNull();
+    expect(() => importFrom('best-claude-hud', { env, file: fifo })).toThrow(/Cannot read/);
+  });
+});
 
 describe('best-claude-hud', () => {
   const config = () => path.join(home, '.claude', 'best-claude-hud', 'config.toml');

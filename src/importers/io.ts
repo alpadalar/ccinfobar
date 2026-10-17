@@ -11,12 +11,14 @@ export const MAX_SOURCE_BYTES = 1_048_576;
 
 export class SourceTooLargeError extends Error {}
 
-// fstat on the open fd, so a swapped file is still capped
+// fstat on the open fd, so a swapped file is still capped; a FIFO never blocks the open
 export function readSource(file: string): string {
-  const fd = fs.openSync(file, 'r');
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0));
   try {
     const tooLarge = () => new SourceTooLargeError(t('import.tooLarge', { file }));
-    if (fs.fstatSync(fd).size > MAX_SOURCE_BYTES) throw tooLarge();
+    const st = fs.fstatSync(fd);
+    if (!st.isFile()) throw new Error(t('import.cannotRead', { file }));
+    if (st.size > MAX_SOURCE_BYTES) throw tooLarge();
     const buf = Buffer.alloc(MAX_SOURCE_BYTES + 1);
     let n = 0;
     while (n < buf.length) {

@@ -52,6 +52,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - In the web editor's Catalog save dialog, choosing Update or Overwrite on an existing name no longer clears the entry's description or switches its sharing back on: the share switch shows the entry's setting, the entry keeps its own author unless you type another (the remembered author changes only when you change it), and the save is one write, so the entry backup still holds the version an overwrite replaced
 - A restored version no longer shows its restore twice in the history ("restored v1  restored from v1"); it is marked "restored from vN" only
 - `ccinfobar import <tool>` reads `--config`, `--theme` and other flags only from a status line command that runs that tool (also inside a quoted `sh -c` script). With ccinfobar's own or another tool's command it uses the tool's default files and says why, instead of reading that command's flags, so `import ccstatusline` after `install --config <file>` no longer re-imports ccinfobar's own config
+- `ccinfobar import` and the install import offer no longer hang on a FIFO, or fail on a folder, where a config file is expected: anything but a regular file is skipped and the default layout is imported
 
 ### Security
 

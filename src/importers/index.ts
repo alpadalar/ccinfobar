@@ -426,7 +426,7 @@ function importLegacy(
   }
   if (source === 'claude-hud') return importHud(opts.file, command, env);
   const files = opts.file ? [opts.file] : powerlinePaths(env, command);
-  const file = files.find((f) => fs.existsSync(f)) ?? null;
+  const file = files.find(isFile) ?? null;
   const raw = file ? readJson(file) : {};
   if (file && raw === null) throw new Error(t('import.cannotParse', { file }));
   const result = importClaudePowerline(raw, parsePowerlineArgs(command));
