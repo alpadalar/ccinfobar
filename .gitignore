@@ -10,3 +10,5 @@ coverage/
 .planning/
 graphify-out/
 /market/
+/worker/dist/
+/worker/.wrangler/

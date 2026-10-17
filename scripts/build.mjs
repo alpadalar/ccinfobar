@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
+import { workerBuildOptions } from './worker-options.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -83,9 +84,16 @@ async function market() {
   console.log('built market/ccinfobar-market.mjs');
 }
 
+// deployed by wrangler with no_bundle, never part of the npm package
+async function worker() {
+  await esbuild.build(workerBuildOptions({ root, outfile: path.join(root, 'worker/dist/index.js') }));
+  console.log('built worker/dist/index.js');
+}
+
 if (process.argv.includes('--docs')) await docs();
 else if (process.argv.includes('--demo')) await docs('demo-gif');
 else if (process.argv.includes('--market')) await market();
+else if (process.argv.includes('--worker')) await worker();
 else await build();
 
 if (watch) {
