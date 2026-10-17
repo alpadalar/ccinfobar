@@ -172,7 +172,7 @@ Prices and limits as of 2026-10-16, from the official pages linked below. They c
 | **B. Cloudflare Workers + D1 (metadata) + R2 (content)** | $0 within free limits. Workers Free: 100,000 requests/day, 10 ms CPU per call; Paid from $5/month. D1 Free: 5M rows read/day, 100k rows written/day, 5 GB. KV Free: 100k reads/day, 1k writes/day, 1 GB. R2 Free: 10 GB-month, 1M Class A, 10M Class B, free egress | GitHub OAuth device flow (no client secret, 15-minute code, poll at `interval`, `slow_down` adds 5 s) | Server rows per version | Needs a review queue and a report endpoint; the Rate Limiting binding is per location and eventually consistent (10 or 60 s periods) | Medium: a Worker, migrations, the OAuth app id |
 | C. Supabase (Postgres + Auth + RLS) | Free: 500 MB database, 50,000 MAU, 5 GB egress, 1 GB storage, 2 projects; **free projects pause after 1 week of inactivity**; Pro from $25/month | Built in (GitHub OAuth) | SQL rows | Must be built | Low to medium, but the pause is fatal for a low-traffic catalog |
 | D. Deno Deploy + KV | Free: 1M requests/month, 20 GiB egress, 10 h active CPU, KV 1 GiB; Pro $20/month | Must be built | KV | Must be built | Medium; the reference server is Node and would need porting |
-| E. Vercel Hobby functions | 1M invocations, 100 GB fast data transfer; **non-commercial personal use only** | Must be built | Needs a database add-on | Must be built | Medium; terms risk if the project ever makes money |
+| E. Vercel Hobby functions | 1M invocations, 100 GB fast data transfer; **non-commercial personal use only** | Must be built | Needs a database add-on | Must be built | Medium; the non-commercial clause fits this project, but a database add-on is still needed |
 | F. Small VPS or Fly.io running the reference server | Fly.io has no free allowance for new organizations (pay as you go); a typical VPS is about $4-6/month (estimate, not sourced) | Reference server tokens | File-backed | Must be built | Highest: patching, TLS, backups, abuse handling |
 | G. npm packages as transport (one package per entry) | $0 | npm accounts | npm versions are immutable ("Once `package@version` has been used, you can never use it again") | Weak: unpublish only within 72 hours, or with under 300 weekly downloads, a single owner and no dependents | Registry abuse, slow, poor takedown |
 
@@ -191,6 +191,10 @@ Sources (fetched 2026-10-16):
 - Vercel Hobby plan (page updated 2026-09-14): https://vercel.com/docs/plans/hobby
 - npm unpublish policy: https://docs.npmjs.com/policies/unpublish
 - Fly.io discontinued plans (lower confidence, via search): https://fly.io/docs/about/discontinued-plans/
+- Netlify credit-based plans (fetched 2026-10-17): https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/credit-based-pricing-plans/
+- Render free instances (fetched 2026-10-17): https://render.com/docs/free
+- Cloudflare Pages limits (fetched 2026-10-17): https://developers.cloudflare.com/pages/platform/limits/
+- Turso pricing (fetched 2026-10-17): https://turso.tech/pricing
 
 Read limits matter for option A. Unauthenticated GitHub REST API calls are limited to 60 per hour, and raw.githubusercontent.com limits for unauthenticated use were tightened in May 2025 without published numbers (https://github.blog/changelog/2025-05-08-updated-rate-limits-for-unauthenticated-requests/). So the index should be served from GitHub Pages, not from the API or raw URLs.
 
@@ -216,12 +220,15 @@ This is not legal advice; check with someone qualified before going live.
 
 ## Recommendation
 
+The marketplace is free, open source and non-commercial: no paid plans, no ads, no revenue. The choices below therefore stay on free tiers, and non-commercial clauses are not a blocker.
+
 1. **Now, when the owner wants to switch it on: option A.**
    - A public repo (for example `alpadalar/ccinfobar-catalog`) holds `v1/meta.json` with `capabilities.write: false`, `submit: "pull-request"` and a `submitUrl`, plus `v1/index.json` and the `v1/entries/` tree, published to Pages by an Actions workflow.
    - The workflow validates every PR with the same rules as `src/market/protocol.ts` (ids, hashes, `contentProblems`), using a pinned ccinfobar release or a small script copied from it.
    - Cost $0, moderation through review, takedown by PR.
-2. **If submissions outgrow manual review: option B.** Workers + D1 + R2 with GitHub device-flow auth, implementing the same v1 protocol with `capabilities.write: true`. Expected cost $0 within the free limits, then $5/month for Workers Paid. Add a pending-review state for first-time publishers and a report endpoint.
-3. **Not recommended**: Supabase (inactivity pause), Vercel Hobby (non-commercial clause), npm as transport (takedown), a self-run VPS (ops burden) unless the owner already runs one.
+2. **If submissions outgrow manual review: option B.** Workers + D1 + R2 with GitHub device-flow auth, implementing the same v1 protocol with `capabilities.write: true`. Expected cost $0: the free limits are far above the expected traffic. Workers Paid ($5/month) only if they are ever exceeded. Add a pending-review state for first-time publishers and a report endpoint.
+3. **Free alternatives**: Cloudflare Pages instead of GitHub Pages for option A; Turso instead of D1 for option B. Vercel Hobby is allowed for a non-commercial project, but it needs a separate database and adds nothing over B.
+4. **Not recommended**: Supabase (pauses after 7 days without activity), Netlify Free (a hard limit of 300 credits a month), Render (sleeps after 15 minutes), Fly.io, Railway and Koyeb (no real free tier), npm as transport (takedown), a self-run VPS (ops burden) unless the owner already runs one.
 
 Both A and B speak protocol v1, so the client needs no change to read either one, and moving from A to B keeps the ids and history.
 
