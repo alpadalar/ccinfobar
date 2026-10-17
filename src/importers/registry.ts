@@ -18,6 +18,7 @@ import { nycuCcStatuslineImporter } from './nycu-cc-statusline.js';
 import { pyccslImporter } from './pyccsl.js';
 import { starshipClaudeImporter } from './starship-claude.js';
 import { statuslineProImporter } from './statusline-pro.js';
+import { tokenTrackerImporter } from './token-tracker.js';
 
 export interface ImportCtx {
   command: string;
@@ -93,6 +94,7 @@ export const REGISTRY: readonly ImporterDef[] = [
   claudelineImporter,
   claudeUsageMonitorImporter,
   glauberlimaImporter,
+  tokenTrackerImporter,
 ];
 
 export function registryDef(source: ImportSource): ImporterDef | null {

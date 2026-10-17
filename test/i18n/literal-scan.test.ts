@@ -41,6 +41,7 @@ const SWEPT: string[] = [
   'src/importers/claudeline.ts',
   'src/importers/claude-usage-monitor.ts',
   'src/importers/glauberlima-statusline.ts',
+  'src/importers/token-tracker.ts',
   'src/commands/doctor.ts',
   'src/commands/manage.ts',
   'src/commands/import-help.ts',

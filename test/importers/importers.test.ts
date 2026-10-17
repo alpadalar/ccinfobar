@@ -496,6 +496,7 @@ describe('import sources', () => {
       'claudeline',
       'claude-usage-monitor',
       'glauberlima-statusline',
+      'token-tracker',
     ]);
     expect(resolveSource('ccstatusline')).toBe('ccstatusline');
     expect(resolveSource('CLAUDE-POWERLINE')).toBe('claude-powerline');

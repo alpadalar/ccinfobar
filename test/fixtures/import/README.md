@@ -34,3 +34,4 @@ Hand-written fixtures in each tool's documented format; no upstream code or secr
 | (none; command strings in tests) | [fredrikaverpil/claudeline](https://github.com/fredrikaverpil/claudeline) | `main.go` (flags), `internal/render/render.go` `Build` and `Output`, `README.md` (Flags) | MIT |
 | `claude-usage-monitor.settings.json` | [aiedwardyi/claude-usage-monitor](https://github.com/aiedwardyi/claude-usage-monitor) | `README.md` (Customization, `env` block of `~/.claude/settings.json`), `statusline.py` toggles | MIT |
 | `glauberlima-statusline.toml` | [glauberlima/claude-code-statusline](https://github.com/glauberlima/claude-code-statusline) | `src/config.rs` `print_defaults` (values uncommented and changed) | MIT |
+| `token-tracker.json` | [stormzhang/token-tracker](https://github.com/stormzhang/token-tracker) | `src/token_tracker/config.py` (`schema_version`, `theme`, `lang`), `README_EN.md` | MIT |

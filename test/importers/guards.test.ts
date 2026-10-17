@@ -38,6 +38,7 @@ import { TARGETS as NYCU_TARGETS } from '../../src/importers/nycu-cc-statusline.
 import { TARGETS as PYCCSL_TARGETS } from '../../src/importers/pyccsl.js';
 import { TARGETS as SC_TARGETS } from '../../src/importers/starship-claude.js';
 import { TARGETS as CCSP_TARGETS } from '../../src/importers/statusline-pro.js';
+import { TARGETS as TT_TARGETS } from '../../src/importers/token-tracker.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
 
 const FIXTURES = path.join(__dirname, '../fixtures/import');
@@ -317,6 +318,16 @@ const TOOLS: Tool[] = [
     hostileIn: 'notes',
     hostile: [`messages_language = ${toml(HOSTILE)}`, `theme = ${toml(HOSTILE)}`, ''].join('\n'),
     proto: '__proto__ = 1\n',
+  },
+  {
+    source: 'token-tracker',
+    targets: TT_TARGETS,
+    fixtures: ['token-tracker.json'],
+    ext: 'json',
+    hasDefault: true,
+    hostileIn: 'notes',
+    hostile: JSON.stringify({ theme: HOSTILE, lang: HOSTILE }),
+    protoText: `{"__proto__": ${EVIL}, "theme": "nord", "constructor": "x"}`,
   },
   {
     source: 'cship',
