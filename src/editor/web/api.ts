@@ -54,6 +54,40 @@ export interface LoginStatusInfo {
   errorParams?: { status?: number };
 }
 
+export interface MarketTarget {
+  kind: string;
+  target: string;
+}
+
+export interface RemoteListInfo {
+  endpoint: string;
+  entries: MarketSummaryInfo[];
+  checkedAt: string | null;
+  stale?: boolean;
+}
+
+// what the editor server would install; nothing is written yet
+export interface MarketInstallPlanInfo {
+  id: string;
+  version: number;
+  hash: string;
+  kind: EntryKind;
+  name: string;
+  description: string;
+  author: string;
+  publisher: string;
+  targets: MarketTarget[];
+  existing: { entryId: string; same: boolean } | null;
+}
+
+export interface MarketInstallInfo {
+  ok: boolean;
+  entryId: string;
+  name: string;
+  result: 'new' | 'version' | 'same';
+  catalog: CatalogState;
+}
+
 export interface CatalogSaveBody {
   kind: EntryKind;
   name: string;
@@ -229,12 +263,30 @@ export const api = {
       `/api/catalog/logout?lang=${lang()}`,
       {},
     ),
-  catalogRemote: () => call<{ endpoint: string; entries: MarketSummaryInfo[] }>('GET', '/api/catalog/remote'),
+  // the 24 h cache; refresh sends one conditional request
+  catalogRemote: (refresh?: boolean) =>
+    call<RemoteListInfo>('GET', `/api/catalog/remote${refresh ? '?refresh=1' : ''}`),
+  catalogInstallPlan: (id: string, version?: number) =>
+    call<MarketInstallPlanInfo>('POST', '/api/catalog/install/plan', { id, version }),
+  // only the reviewed hash and targets install
+  catalogInstall: (plan: { id: string; version: number; hash: string; targets: MarketTarget[] }) =>
+    call<MarketInstallInfo>('POST', '/api/catalog/install', {
+      id: plan.id,
+      version: plan.version,
+      hash: plan.hash,
+      targets: plan.targets.map((x) => ({ kind: x.kind, target: x.target })),
+      lang: language(),
+    }),
+  catalogReport: (id: string, reason: string) =>
+    call<{ reported: boolean; already?: boolean; report?: number }>('POST', '/api/catalog/report', {
+      id,
+      reason,
+    }),
   // <publisher>/<slug>, each part encoded
   catalogRemoteEntry: (id: string) =>
     call<{
       entry: MarketEntryInfo;
-      latest: { version: number; content: EntryContent; targets: { kind: string; target: string }[] } | null;
+      latest: { version: number; content: EntryContent; targets: MarketTarget[] } | null;
       code?: string;
       errorId?: string;
       errorParams?: { status?: number };

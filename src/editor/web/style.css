@@ -2265,6 +2265,33 @@ input[type="range"]:disabled {
   overflow-wrap: anywhere;
 }
 
+.catalog-account:empty {
+  display: none;
+}
+
+.catalog-remote-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.6rem;
+  margin-bottom: 0.4rem;
+}
+
+.catalog-checked {
+  font-size: 0.8125rem;
+}
+
+.catalog-report-reason {
+  width: 100%;
+  resize: vertical;
+}
+
+.catalog-report-count {
+  display: block;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .signin-code-box {
   display: flex;
   flex-wrap: wrap;

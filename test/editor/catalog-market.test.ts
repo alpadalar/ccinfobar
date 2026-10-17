@@ -239,7 +239,7 @@ describe('no marketplace endpoint', () => {
     const d = top();
     expect(button('Publish…', foot(d))).toBeUndefined();
     const tabs = d.all((e) => e.getAttribute('role') === 'tab').map((e) => e.textContent);
-    expect(tabs).toEqual(['All', 'User', 'System']);
+    expect(tabs).toEqual(['User', 'Built in']);
     expect(texts(d)).toContain(
       'Shared entries wait to publish. Nothing is sent until you set a marketplace with ccinfobar catalog endpoint <url>.',
     );
@@ -526,7 +526,7 @@ describe('publish review', () => {
 });
 
 describe('marketplace tab', () => {
-  it('lists remote entries read-only with author, publisher and version', async () => {
+  it('opens first and lists remote entries below yours with author, publisher and version', async () => {
     online();
     reply('GET /api/catalog/remote', 200, {
       endpoint: ENDPOINT,
@@ -539,11 +539,11 @@ describe('marketplace tab', () => {
     await openPage();
     const d = top();
     const tabs = d.all((e) => e.getAttribute('role') === 'tab');
-    expect(tabs.map((e) => e.textContent)).toEqual(['All', 'User', 'System', 'Marketplace']);
-    expect(marketCalls()).toEqual([]);
-    tabs[3]!.dispatch('click');
-    await flush();
+    expect(tabs.map((e) => e.textContent)).toEqual(['Marketplace', 'User', 'Built in']);
     expect(calls.filter((c) => c.url === '/api/catalog/remote')).toHaveLength(1);
+    const sections = d.all((e) => e.tagName === 'SECTION').map((e) => e.getAttribute('data-section'));
+    expect(sections).toEqual(['user', 'market']);
+    expect(d.all((e) => e.getAttribute('data-ref') === 'u-w')).toHaveLength(1);
     const rows = d.all((e) => e.classList.contains('catalog-remote-row'));
     expect(rows).toHaveLength(2);
     expect(rows.every((r) => r.parent!.classList.contains('catalog-grid'))).toBe(true);
@@ -551,11 +551,11 @@ describe('marketplace tab', () => {
     expect(rows[0]!.getAttribute('title')).toBe('Details of My setup');
     expect(texts(rows[0]!)).toEqual(expect.arrayContaining(['My setup', 'Bundle', 'v2', 'Ada · @ada']));
     expect(texts(rows[1]!)).toEqual(expect.arrayContaining(['Gone', '@bo', 'Withdrawn']));
-    expect(buttons(d).some((b) => /apply|install/i.test(b.textContent))).toBe(false);
     // tab switch keeps the loaded list
-    tabs[0]!.dispatch('click');
+    tabs[1]!.dispatch('click');
     await flush();
-    d.all((e) => e.getAttribute('role') === 'tab')[3]!.dispatch('click');
+    expect(d.all((e) => e.classList.contains('catalog-remote-row'))).toEqual([]);
+    d.all((e) => e.getAttribute('role') === 'tab')[0]!.dispatch('click');
     await flush();
     expect(calls.filter((c) => c.url === '/api/catalog/remote')).toHaveLength(1);
   });
@@ -565,9 +565,6 @@ describe('marketplace tab', () => {
     reply('POST /api/catalog/publish', 200, { ok: true, code: null, results: [], catalog });
     await init();
     await openPage();
-    const tab = () => top().all((e) => e.getAttribute('role') === 'tab')[3]!;
-    tab().dispatch('click');
-    await flush();
     button('Publish…', foot())!.dispatch('click');
     await flush();
     button('Publish')!.dispatch('click');
@@ -619,10 +616,6 @@ describe('marketplace tab', () => {
     await init();
     await openPage();
     top()
-      .all((e) => e.getAttribute('role') === 'tab')[3]!
-      .dispatch('click');
-    await flush();
-    top()
       .all((e) => e.classList.contains('catalog-remote-row'))[0]!
       .dispatch('click');
     await flush();
@@ -643,13 +636,12 @@ describe('marketplace tab', () => {
         'link',
         'https://example.com/x',
         'ls \u27e8U+202E\u27e9x  \u27e8U+200B\u27e9\u27e85 spaces\u27e9y',
-        'Read only: installing from the marketplace is not available yet.',
       ]),
     );
     expect(d.all((e) => e.tagName === 'B')).toEqual([]);
     const rows = d.all((e) => e.classList.contains('catalog-history-row'));
     expect(texts(rows[0]!)[0]).toBe('v2');
-    expect(buttons(foot(d)).map((b) => b.textContent)).toEqual(['Done']);
+    expect(buttons(foot(d)).map((b) => b.textContent)).toEqual(['Report…', 'Done', 'Install']);
   });
 
   it('says when nothing runs and shows a version error', async () => {

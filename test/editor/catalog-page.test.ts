@@ -183,6 +183,11 @@ async function open() {
 }
 
 const tabs = () => body.all((e) => e.getAttribute('role') === 'tab');
+const tabEl = (id: string) => body.all((e) => e.getAttribute('data-tab') === id)[0]!;
+async function show(id: 'market' | 'user' | 'system') {
+  tabEl(id).dispatch('click');
+  await flush();
+}
 const card = (ref: string) => body.all((e) => e.getAttribute('data-ref') === ref)[0]!;
 const cards = () =>
   body.all((e) => e.classList.contains('theme-card')).map((e) => e.getAttribute('data-ref'));
@@ -219,17 +224,11 @@ const keyOn = (el: FakeEl, type: string, key: string) =>
   el.dispatch(type, { key, preventDefault() {}, target: el, currentTarget: el });
 
 describe('groupEntries', () => {
-  it('puts user groups above system groups, each bundle, preset, theme', async () => {
+  it('groups each tab by bundle, preset, theme; built-ins only in their own tab (R-13)', async () => {
     const { groupEntries } = await import('../../src/editor/web/catalog.js');
-    const key = (tab: 'all' | 'user' | 'system') =>
+    const key = (tab: 'market' | 'user' | 'system') =>
       groupEntries(catalog, tab).map((x) => `${x.section}/${x.kind}`);
-    expect(key('all')).toEqual([
-      'user/bundle',
-      'user/preset',
-      'system/bundle',
-      'system/preset',
-      'system/theme',
-    ]);
+    expect(key('market')).toEqual(['user/bundle', 'user/preset']);
     expect(key('user')).toEqual(['user/bundle', 'user/preset']);
     expect(key('system')).toEqual(['system/bundle', 'system/preset', 'system/theme']);
     const sys = groupEntries(catalog, 'system').flatMap((x) => x.entries);
@@ -239,13 +238,13 @@ describe('groupEntries', () => {
 });
 
 describe('catalog page', () => {
-  it('shows tabs, sections and groups in English', async () => {
+  it('shows the User and Built in tabs in English, User first, when the marketplace is off', async () => {
     await init();
     await open();
-    expect(tabs().map((x) => x.textContent)).toEqual(['All', 'User', 'System']);
-    expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
-    expect(heads('catalog-section-head')).toEqual(['Your entries', 'Built in']);
-    expect(heads('catalog-group-head')).toEqual(['Bundles', 'Presets', 'Bundles', 'Presets', 'Themes']);
+    expect(tabs().map((x) => x.textContent)).toEqual(['User', 'Built in']);
+    expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+    expect(heads('catalog-section-head')).toEqual([]);
+    expect(heads('catalog-group-head')).toEqual(['Bundles', 'Presets']);
     const list = texts(body);
     for (const s of [
       'Catalog',
@@ -258,26 +257,80 @@ describe('catalog page', () => {
       'Done',
     ])
       expect(list).toContain(s);
-    expect(cards().slice(0, 2)).toEqual(['u-b', 'u-p']);
-    expect(cards()).toHaveLength(catalog.system.length + 2);
+    expect(cards()).toEqual(['u-b', 'u-p']);
+    await show('system');
+    expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+    expect(heads('catalog-group-head')).toEqual(['Bundles', 'Presets', 'Themes']);
+    expect(cards()).toHaveLength(catalog.system.length);
+    expect(cards()).not.toContain('u-p');
   });
 
   it('shows the same in Turkish', async () => {
     await init();
     setLanguage('tr');
     await open();
-    expect(tabs().map((x) => x.textContent)).toEqual(['Tümü', 'Kullanıcı', 'Sistem']);
-    expect(heads('catalog-section-head')).toEqual(['Sizin girdileriniz', 'Yerleşik']);
-    expect(heads('catalog-group-head')).toEqual([
-      'Paketler',
-      'Hazır ayarlar',
-      'Paketler',
-      'Hazır ayarlar',
-      'Temalar',
-    ]);
+    expect(tabs().map((x) => x.textContent)).toEqual(['Kullanıcı', 'Yerleşik']);
+    expect(heads('catalog-group-head')).toEqual(['Paketler', 'Hazır ayarlar']);
     const list = texts(body);
     for (const s of ['Katalog', 'Paket', 'Ada tarafından', 'v4 yayımlandı', 'Yayımlanmayı bekliyor', 'Tamam'])
       expect(list).toContain(s);
+    await show('system');
+    expect(heads('catalog-group-head')).toEqual(['Paketler', 'Hazır ayarlar', 'Temalar']);
+  });
+
+  it('says how to turn the marketplace on, in the User tab only', async () => {
+    await init();
+    catalog.user = [myBundle()];
+    await open();
+    const off = 'The marketplace is off. Turn it on with ccinfobar catalog endpoint <url>.';
+    expect(texts(body)).toContain(off);
+    await show('system');
+    expect(texts(body)).not.toContain(off);
+    setLanguage('tr');
+    await show('user');
+    expect(texts(body)).toContain('Marketplace kapalı. ccinfobar catalog endpoint <url> ile açabilirsiniz.');
+  });
+
+  it('opens on the Marketplace tab with your entries on top and no built-ins (R-13)', async () => {
+    await init();
+    catalog = {
+      ...catalog,
+      endpoint: 'https://market.example.com',
+      publishable: true,
+      market: { endpoint: 'https://market.example.com', source: 'default', signedIn: false, handle: null },
+    };
+    await open();
+    expect(tabs().map((x) => x.textContent)).toEqual(['Marketplace', 'User', 'Built in']);
+    expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
+    expect(heads('catalog-section-head')[0]).toBe('Your entries');
+    expect(heads('catalog-group-head')).toEqual(['Bundles', 'Presets']);
+    expect(cards()).toEqual(['u-b', 'u-p']);
+    const sections = body.all((e) => e.tagName === 'SECTION').map((e) => e.getAttribute('data-section'));
+    expect(sections).toEqual(['user', 'market']);
+    expect(texts(body)).not.toContain(
+      'The marketplace is off. Turn it on with ccinfobar catalog endpoint <url>.',
+    );
+    // one cached read, no refresh
+    expect(calls.filter((c) => c.url.startsWith('/api/catalog/remote')).map((c) => c.url)).toEqual([
+      '/api/catalog/remote',
+    ]);
+    expect(previewCalls().flatMap((c) => c.body.refs)).toEqual(['u-b', 'u-p']);
+    // arrows move between tabs and wrap
+    const arrow = (key: string) =>
+      body
+        .all((e) => e.getAttribute('aria-selected') === 'true')[0]!
+        .dispatch('keydown', { key, preventDefault() {} });
+    arrow('ArrowLeft');
+    await flush();
+    expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['false', 'false', 'true']);
+    expect(cards()).toHaveLength(catalog.system.length);
+    arrow('ArrowRight');
+    await flush();
+    expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
+    expect(calls.filter((c) => c.url.startsWith('/api/catalog/remote'))).toHaveLength(1);
+    setLanguage('tr');
+    await show('user');
+    expect(tabs().map((x) => x.textContent)).toEqual(['Marketplace', 'Kullanıcı', 'Yerleşik']);
   });
 
   it('shows the empty user note', async () => {
@@ -285,9 +338,9 @@ describe('catalog page', () => {
     catalog.user = [];
     await open();
     expect(texts(body)).toContain('Nothing saved yet. Use Save current as… to add your setup.');
-    tabs()[1]!.dispatch('click');
     expect(heads('catalog-group-head')).toEqual([]);
-    expect(texts(body)).toContain('Nothing saved yet. Use Save current as… to add your setup.');
+    await show('system');
+    expect(texts(body)).not.toContain('Nothing saved yet. Use Save current as… to add your setup.');
   });
 
   it('switches tabs and loads previews for visible refs in batches of 100', async () => {
@@ -297,20 +350,22 @@ describe('catalog page', () => {
     );
     await open();
     const first = previewCalls();
-    expect(first.every((c) => c.body.refs.length <= 100)).toBe(true);
-    expect(first.flatMap((c) => c.body.refs)).toHaveLength(130 + catalog.system.length);
+    expect(first.map((c) => c.body.refs.length)).toEqual([100, 30]);
     calls = [];
-    tabs()[2]!.dispatch('click');
+    tabs()[1]!.dispatch('click');
     await flush();
-    expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['false', 'false', 'true']);
+    expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['false', 'true']);
     expect(heads('catalog-section-head')).toEqual([]);
     expect(heads('catalog-group-head')).toEqual(['Bundles', 'Presets', 'Themes']);
     expect(cards()).toHaveLength(catalog.system.length);
-    // cached already
-    expect(previewCalls()).toEqual([]);
+    expect(previewCalls().flatMap((c) => c.body.refs)).toHaveLength(catalog.system.length);
     expect(card('bundle/nord-minimal').querySelector('.theme-preview')!.getAttribute('innerHTML')).toContain(
       'line bundle/nord-minimal',
     );
+    // cached already
+    calls = [];
+    await show('user');
+    expect(previewCalls()).toEqual([]);
   });
 
   it('requests only the visible tab', async () => {
@@ -321,7 +376,7 @@ describe('catalog page', () => {
     tabs()[1]!.dispatch('click');
     await flush();
     const refs = previewCalls().flatMap((c) => c.body.refs);
-    expect(refs).toEqual(['u-b', 'u-p']);
+    expect(refs).toEqual(catalog.system.map((e) => e.ref));
   });
 
   it('applies a system bundle in one undoable step without saving', async () => {
@@ -329,6 +384,7 @@ describe('catalog page', () => {
     const store = await init(start);
     setLanguage('en');
     await open();
+    await show('system');
     const before = clone(store.S.config);
     applyBtn('bundle/nord-minimal').dispatch('click');
     await flush();
@@ -454,6 +510,7 @@ describe('catalog page', () => {
   it('keeps theme and style when applying a preset', async () => {
     const store = await init({ ...defaultConfig(), theme: 'dracula', style: 'capsule' } as Config);
     await open();
+    await show('system');
     applyBtn('preset/compact').dispatch('click');
     await flush();
     expect(store.S.config.theme).toBe('dracula');
@@ -465,6 +522,7 @@ describe('catalog page', () => {
     const store = await init();
     store.commit({ ...store.S.config, theme: 'dracula' });
     await open();
+    await show('system');
     applyBtn('preset/compact').dispatch('click');
     await flush();
     expect(texts(body)).toContain('Apply Compact?');
@@ -481,6 +539,7 @@ describe('catalog page', () => {
     config.lines[0]![0]!.color = 'red';
     const store = await init(config);
     await open();
+    await show('system');
     applyBtn('theme/nord').dispatch('click');
     await flush();
     button('Use theme colors').dispatch('click');
@@ -507,6 +566,7 @@ describe('catalog page', () => {
     const store = await init();
     setLanguage('tr');
     await open();
+    await show('system');
     applyBtn('preset/cockpit', 'Uygula').dispatch('click');
     await flush();
     expect(store.S.config.lines.flat().map((i) => i.label)).toContain('Süre: ');
@@ -594,6 +654,7 @@ describe('catalog details and peek', () => {
     expect(texts(top())).toContain('Theme file');
     press('Escape');
     await flush();
+    await show('system');
     card('preset/compact').dispatch('click');
     await flush();
     expect(texts(top())).toContain('Built in');
@@ -607,7 +668,9 @@ describe('catalog details and peek', () => {
   it('has an Apply button on every card', async () => {
     await init();
     await open();
+    expect(applyBtn('u-p').getAttribute('aria-label')).toBe('Apply My preset');
     for (const ref of ['u-b', 'u-p', 'preset/compact', 'theme/nord']) {
+      if (ref === 'preset/compact') await show('system');
       const b = applyBtn(ref);
       expect(b).toBeTruthy();
       expect(
@@ -616,7 +679,6 @@ describe('catalog details and peek', () => {
           .all((e) => e.tagName === 'BUTTON')[0],
       ).toBe(b);
     }
-    expect(applyBtn('u-p').getAttribute('aria-label')).toBe('Apply My preset');
   });
 
   it('applies from the details dialog and closes it', async () => {

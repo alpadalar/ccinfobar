@@ -32,12 +32,17 @@ Run `ccinfobar edit` and click **Catalog** in the header. The page has these tab
 
 | Tab | Shows |
 | --- | --- |
-| All (default) | Your entries on top, the built-in ones below, each grouped as Bundles, Presets and Themes |
-| User | Only your entries |
-| System | Only the built-in entries |
-| Marketplace | Read-only list of the marketplace entries; only shown when a marketplace endpoint is set |
+| Marketplace (default when a marketplace is on) | Your entries on top, grouped as Bundles, Presets and Themes, then the marketplace entries, with **Refresh** and the time of the last check |
+| User (default when the marketplace is off) | Only your entries, including the ones you installed from the marketplace. With the marketplace off it says how to turn it on |
+| Built in | Only the entries that ship with ccinfobar; they never show in the Marketplace tab |
 
-Cards are compact, several to a row, each with a small preview of your config with that entry applied, rendered with sample data. Point at a preview, or move keyboard focus to a card, to see it full size. Click or tap a card, or press Enter or Space on it, to open its details: the full preview, description, author, kind, version and share state, with every action. Every card has an **Apply** button; user cards also have Version history, Share or Stop sharing, and Delete buttons. Escape closes the details and returns to the card. Marketplace entries use the same cards and open their details the same way.
+The Marketplace tab reads the marketplace list through the 24-hour cache: opening it sends nothing when the list was checked in the last 24 hours, and at most one request otherwise. **Refresh** sends one conditional request. The editor never contacts the marketplace on its own, not even when it is left open (see [MARKETPLACE.md](MARKETPLACE.md)).
+
+Cards are compact, several to a row, each with a small preview of your config with that entry applied, rendered with sample data. Point at a preview, or move keyboard focus to a card, to see it full size. Click or tap a card, or press Enter or Space on it, to open its details: the full preview, description, author, kind, version and share state, with every action. Every card has an **Apply** button; user cards also have Version history, Share or Stop sharing, and Delete buttons. Escape closes the details and returns to the card. Marketplace entries use the same cards and open their details the same way: versions, the commands and URLs the latest version runs, and **Install** and **Report…**.
+
+**Install** first shows what will be installed: name, kind, version, author and publisher, and every command and URL it keeps, in full. Only the Install button in that review installs, and only exactly what you reviewed: if the entry changed on the marketplace in the meantime, nothing is installed and **Review again** shows the new version. The entry lands in your entries (User tab) and is not applied; apply it from there like any other entry, which asks about its commands and URLs again. Installed entries cannot be shared as your own.
+
+**Report…** sends a short reason (1 to 200 characters) to the marketplace admins. It needs a sign-in; if you are not signed in, the GitHub sign-in opens first.
 
 ## Applying
 
@@ -100,7 +105,7 @@ The share switch decides whether an entry should go to a marketplace. No marketp
 - Stop sharing a "Waiting to publish" entry and it goes back to Not shared. The marketplace keeps withdrawn ids reserved, so sharing a withdrawn entry again is refused (in the editor and with `catalog share` or `catalog save --share`) with "withdrawn ids stay reserved. Save it under a new name to publish it again"; it never sits in Waiting to publish.
 - Only the latest version is sent; your local history stays local. Text goes out as the marketplace stores it: control characters, escape sequences and bidi marks are removed and tabs and newlines become spaces. Your local entry keeps the original, and it stays "Published vN" until you really change it.
 - Publishing only happens when you ask for it: `ccinfobar catalog publish`, or **Publish…** in the Catalog page. Both first show exactly what will be sent (action, name, kind, description, author and the content as JSON) and name the endpoint. The review first reads the marketplace's `meta.json`, so it shows the action the server will really do (New version where the server does not allow Replace latest) and, before a first publish, the publisher handle that gets registered. The CLI sends only after you confirm in a terminal or pass `--yes`, and then plans again: if anything changed since the list was shown, nothing is sent and the new list is shown (a terminal asks again; otherwise it exits 1). The editor sends only from the Publish button in that review, and refuses if the entries changed since you opened it. Either way, each entry is sent only while it is exactly as reviewed. Nothing is ever published in the background or during a status line refresh.
-- Without an endpoint, the Catalog page shows no Publish button and no Marketplace tab, and says that shared entries wait.
+- Without an endpoint, the Catalog page shows no Publish button and no Marketplace tab, opens on the User tab and says how to turn the marketplace on (or that shared entries wait, when some do).
 - Deleting a published entry does not remove the published copy, and afterwards ccinfobar can no longer withdraw it. Stop sharing it and publish first to withdraw it. The editor's delete dialog and `catalog delete` say so (the CLI also after `--yes`, and `--json` adds `published: true`).
 
 Set an endpoint with `ccinfobar catalog endpoint <url>` (https only; http only for `localhost`, `127.0.0.1` and `[::1]`), or for one run with the `CCINFOBAR_MARKETPLACE_URL` environment variable, which wins over the stored one. `ccinfobar catalog endpoint --off` (or `CCINFOBAR_MARKETPLACE_URL=off` for one shell) switches the marketplace off, and `--clear` goes back to the default. See [MARKETPLACE.md](MARKETPLACE.md) for the protocol, the reference server and what is planned for a real marketplace.

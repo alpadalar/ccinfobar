@@ -400,7 +400,7 @@ Any theme can be drawn in any style (`"style": "capsule"`), and per-widget color
 
 ## Catalog
 
-The catalog keeps layouts and looks you can apply in one step: presets, themes and bundles (a preset with a theme). In `ccinfobar edit`, click **Catalog** in the header. The **All** tab shows your own entries first and the built-in ones below, **User** only yours and **System** only the built-in ones, each grouped as bundles, presets and themes with a live preview of your config. The Apply button on a card applies it in one step (click a card for its details and full preview), `Ctrl+Z` undoes it, and nothing is written until you save.
+The catalog keeps layouts and looks you can apply in one step: presets, themes and bundles (a preset with a theme). In `ccinfobar edit`, click **Catalog** in the header. With a marketplace on, the **Marketplace** tab opens first: your own entries on top, then the marketplace entries (read from a 24-hour cache, with a **Refresh** button). **User** shows only yours (the first tab when the marketplace is off) and **Built in** only the ones that ship with ccinfobar, each grouped as bundles, presets and themes with a live preview of your config. The Apply button on a card applies it in one step (click a card for its details and full preview), `Ctrl+Z` undoes it, and nothing is written until you save.
 
 **Save current as…** keeps your setup as a preset, a theme or a bundle, with a name, a description and an author (remembered for next time). Saving under an existing name asks whether to update it (a new version) or overwrite the latest one, and every entry has a version history with restore. Applying changes only the layout and the theme; your budget, profiles, language and other personal settings stay.
 
@@ -432,7 +432,7 @@ ccinfobar catalog history "My setup"          # versions, then `catalog restore 
 ccinfobar catalog publish                     # show what would be sent, then send after you confirm
 ```
 
-Sharing is on by default, but nothing leaves your machine until you set a marketplace endpoint; there is no default endpoint. With one set (`ccinfobar catalog endpoint <url>`), `catalog publish` and the editor's **Publish…** show the exact payload and send only after you confirm, and `catalog list --remote` browses the marketplace read-only. Marketplace content is data only: no `command`, `http` or `env` widgets, only http(s) links and no personal settings. Details: [docs/CATALOG.md](docs/CATALOG.md) and [docs/MARKETPLACE.md](docs/MARKETPLACE.md).
+Sharing is on by default, but nothing leaves your machine until you set a marketplace endpoint; there is no default endpoint. With one set (`ccinfobar catalog endpoint <url>`), `catalog publish` and the editor's **Publish…** show the exact payload and send only after you confirm, `catalog list --remote` browses the marketplace, and `catalog install <publisher/slug>` or **Install** in the editor's Marketplace tab adds an entry to yours after showing every command and URL it keeps (applying it stays a separate step). Marketplace content is data only: no `command`, `http` or `env` widgets, only http(s) links and no personal settings. Details: [docs/CATALOG.md](docs/CATALOG.md) and [docs/MARKETPLACE.md](docs/MARKETPLACE.md).
 
 ## GSD integration
 

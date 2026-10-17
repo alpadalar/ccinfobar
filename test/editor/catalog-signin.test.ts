@@ -562,14 +562,15 @@ describe('publish dialog sign-in step', () => {
 });
 
 describe('catalog page marketplace state', () => {
-  it('shows the Marketplace tab for the default endpoint and loads it only when opened', async () => {
+  it('opens on the Marketplace tab for the default endpoint and reads it once', async () => {
     await openPage();
-    expect(tabNames()).toContain('Marketplace');
-    expect(remoteCalls()).toEqual([]);
+    expect(tabNames()).toEqual(['Marketplace', 'User', 'Built in']);
+    expect(remoteCalls().map((c) => c.url)).toEqual(['/api/catalog/remote']);
     await tick(HOUR);
-    expect(remoteCalls()).toEqual([]);
-    tab('Marketplace').dispatch('click');
+    tab('User').dispatch('click');
     await tick();
+    tab('Marketplace').dispatch('click');
+    await tick(HOUR);
     expect(remoteCalls()).toHaveLength(1);
   });
 

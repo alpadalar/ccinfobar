@@ -523,8 +523,10 @@ describe('catalog card actions', () => {
       'Delete',
     ]);
     expect(texts(card('legacy:preset/old')!)).toContain('Preset file');
-    expect(actions('preset/compact')).toEqual(['Apply']);
     expect(action('u-l', 'Delete').getAttribute('aria-label')).toBe('Delete Local one');
+    body.all((e) => e.getAttribute('data-tab') === 'system')[0]!.dispatch('click');
+    await flush();
+    expect(actions('preset/compact')).toEqual(['Apply']);
   });
 
   it('opens the save dialog from the footer and shows the new card', async () => {

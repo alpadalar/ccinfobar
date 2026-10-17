@@ -1,8 +1,15 @@
 import '../../core/i18n/lazy.js';
 import { formatDateTime } from '../../core/i18n/format.js';
 import { languageLocale, type MessageId, t } from '../../core/i18n/index.js';
-import { visibleTarget } from '../../importers/confirm.js';
-import { ApiError, api, idText } from './api.js';
+import { MAX_TARGET_CHARS, visibleTarget } from '../../importers/confirm.js';
+import {
+  ApiError,
+  api,
+  idText,
+  type MarketInstallInfo,
+  type MarketInstallPlanInfo,
+  type MarketTarget,
+} from './api.js';
 import { signInDialog } from './catalog-signin.js';
 import { h } from './dom.js';
 import { field } from './inspector.js';
@@ -368,7 +375,7 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
   return (await shownDialog) ?? latest;
 }
 
-function by(e: MarketSummaryInfo): string {
+function by(e: Pick<MarketSummaryInfo, 'author' | 'publisher'>): string {
   const publisher = shown(e.publisher);
   return e.author
     ? t('catalog.remote.by', { author: shown(e.author), publisher })
@@ -384,7 +391,23 @@ function meta(e: MarketSummaryInfo): HTMLElement[] {
   ];
 }
 
-function remoteRow(e: MarketSummaryInfo): HTMLElement {
+// the catalog state the marketplace dialogs read and report changes to
+export interface MarketView {
+  data: () => CatalogState;
+  onChange: (next: CatalogState) => void;
+}
+
+const signedIn = (view?: MarketView) => view?.data().market?.signedIn === true;
+
+// the state after a sign-in in a dialog
+async function afterSignIn(view?: MarketView): Promise<void> {
+  try {
+    const next = await api.catalog();
+    view?.onChange(next);
+  } catch {}
+}
+
+function remoteRow(e: MarketSummaryInfo, view?: MarketView): HTMLElement {
   const name = shown(e.name);
   return h(
     'button',
@@ -393,7 +416,7 @@ function remoteRow(e: MarketSummaryInfo): HTMLElement {
       type: 'button',
       title: t('catalog.detailsName', { name }),
       'aria-haspopup': 'dialog',
-      onClick: () => void remoteEntryDialog(e.id),
+      onClick: () => void remoteEntryDialog(e.id, view),
     },
     h('span', { class: 'theme-card-head' }, h('strong', null, name)),
     h('span', { class: 'catalog-meta' }, ...meta(e)),
@@ -406,42 +429,84 @@ export function marketplaceSection(
   onChange?: (next: CatalogState) => void,
 ): HTMLElement | null {
   if (!data.publishable) return null;
+  let current = data;
+  const view: MarketView = {
+    data: () => current,
+    onChange: (next) => {
+      current = next;
+      renderWho();
+      onChange?.(next);
+    },
+  };
   const status = h('p', { class: 'hint', role: 'status' }, t('catalog.remote.loading'));
   const list = h('div', { class: 'catalog-remote-list catalog-grid' });
   const head = h('h3', { class: 'catalog-section-head' }, t('catalog.tab.market'));
   const who = h('div', { class: 'catalog-account' });
-  const market = data.market;
-  if (market?.signedIn)
+  const checked = h('span', { class: 'hint catalog-checked' });
+  let busy = true;
+  const refresh = h(
+    'button',
+    {
+      class: 'btn sm',
+      type: 'button',
+      title: t('catalog.remote.refreshTitle'),
+      disabled: true,
+      onClick: () => void load(true),
+    },
+    t('catalog.remote.refresh'),
+  );
+
+  function renderWho() {
+    const market = current.market;
     who.replaceChildren(
-      ...accountLine(market.handle, async () => {
-        const next = await signOut(market.endpoint ?? data.endpoint ?? '');
-        if (!next) return;
-        who.remove();
-        onChange?.(next);
-      }),
+      ...(market?.signedIn
+        ? accountLine(market.handle, async () => {
+            const next = await signOut(market.endpoint ?? current.endpoint ?? '');
+            if (next) view.onChange(next);
+          })
+        : []),
     );
+  }
+
+  // the only requests: opening the tab and Refresh
+  async function load(again: boolean) {
+    if (again && busy) return;
+    busy = true;
+    refresh.disabled = true;
+    try {
+      const r = await api.catalogRemote(again);
+      head.textContent = t('catalog.remote.title', { endpoint: shown(r.endpoint) });
+      const entries = Array.isArray(r.entries) ? r.entries : [];
+      status.className = 'hint';
+      status.setAttribute('role', 'status');
+      status.textContent = r.stale
+        ? t('catalog.remote.stale')
+        : entries.length
+          ? ''
+          : t('catalog.remote.empty');
+      checked.textContent = r.checkedAt ? t('catalog.remote.lastChecked', { time: when(r.checkedAt) }) : '';
+      list.replaceChildren(...entries.map((e) => remoteRow(e, view)));
+    } catch (err) {
+      status.className = 'form-error';
+      status.setAttribute('role', 'alert');
+      status.textContent = t('catalog.remote.failed', { reason: (err as Error).message });
+    } finally {
+      busy = false;
+      refresh.disabled = false;
+    }
+  }
+
+  renderWho();
   const box = h(
     'section',
     { class: 'catalog-section', 'data-section': 'market' },
     head,
-    market?.signedIn ? who : null,
-    h('p', { class: 'hint' }, t('catalog.remote.readOnly')),
+    who,
+    h('div', { class: 'catalog-remote-bar' }, refresh, checked),
     status,
     list,
   );
-  void api.catalogRemote().then(
-    (r) => {
-      head.textContent = t('catalog.remote.title', { endpoint: shown(r.endpoint) });
-      const entries = Array.isArray(r.entries) ? r.entries : [];
-      status.textContent = entries.length ? '' : t('catalog.remote.empty');
-      list.replaceChildren(...entries.map(remoteRow));
-    },
-    (err: unknown) => {
-      status.className = 'form-error';
-      status.setAttribute('role', 'alert');
-      status.textContent = t('catalog.remote.failed', { reason: (err as Error).message });
-    },
-  );
+  void load(false);
   return box;
 }
 
@@ -455,7 +520,31 @@ function versionRow(v: MarketEntryInfo['versions'][number]): HTMLElement {
   );
 }
 
-export async function remoteEntryDialog(id: string): Promise<void> {
+const targetKind = (kind: string) => (TARGET[kind] ? t(TARGET[kind]!) : shown(kind));
+
+// as in the CLI: in full, invisible characters named
+function targetList(targets: MarketTarget[]): HTMLElement {
+  return h(
+    'ul',
+    { class: 'catalog-targets' },
+    ...targets.map((x) =>
+      [...x.target].length > MAX_TARGET_CHARS
+        ? h(
+            'li',
+            { class: 'catalog-consent-long' },
+            t('catalog.install.targetLong', { kind: targetKind(x.kind), count: [...x.target].length }).trim(),
+          )
+        : h(
+            'li',
+            null,
+            h('span', { class: 'theme-tag' }, targetKind(x.kind)),
+            h('code', { class: 'catalog-consent-target' }, visibleTarget(x.target)),
+          ),
+    ),
+  );
+}
+
+export async function remoteEntryDialog(id: string, view?: MarketView): Promise<void> {
   let info: Awaited<ReturnType<typeof api.catalogRemoteEntry>>;
   try {
     info = await api.catalogRemoteEntry(id);
@@ -476,23 +565,7 @@ export async function remoteEntryDialog(id: string): Promise<void> {
   );
   if (info.latest) {
     if (!targets.length) body.push(h('p', { class: 'hint' }, t('catalog.remote.noTargets')));
-    else
-      body.push(
-        h('p', { class: 'modal-text' }, t('catalog.remote.targets')),
-        h(
-          'ul',
-          { class: 'catalog-targets' },
-          ...targets.map((x) =>
-            h(
-              'li',
-              null,
-              h('span', { class: 'theme-tag' }, TARGET[x.kind] ? t(TARGET[x.kind]!) : shown(x.kind)),
-              // as in the CLI: in full, invisible characters named
-              h('code', { class: 'catalog-consent-target' }, visibleTarget(x.target)),
-            ),
-          ),
-        ),
-      );
+    else body.push(h('p', { class: 'modal-text' }, t('catalog.remote.targets')), targetList(targets));
   }
   if (info.errorId)
     body.push(
@@ -502,14 +575,277 @@ export async function remoteEntryDialog(id: string): Promise<void> {
         idText(info.errorId, info.errorParams ?? null, unknownReason()),
       ),
     );
-  body.push(h('p', { class: 'hint' }, t('catalog.remote.readOnly')));
+  const name = e.name || e.id;
+  const live = !e.withdrawn;
   await modal({
-    title: shown(e.name || e.id),
+    title: shown(name),
     wide: true,
     body,
-    actions: (done) => [
-      h('span', { class: 'spacer' }),
-      h('button', { class: 'btn primary', type: 'button', onClick: () => done() }, t('web.settings.done')),
-    ],
+    actions: (done) => {
+      const install =
+        live && info.latest
+          ? h(
+              'button',
+              {
+                class: 'btn primary',
+                type: 'button',
+                onClick: () => {
+                  done();
+                  void installDialog(e.id, view);
+                },
+              },
+              t('catalog.install.action'),
+            )
+          : null;
+      return [
+        live
+          ? h(
+              'button',
+              {
+                class: 'btn',
+                type: 'button',
+                onClick: () => {
+                  done();
+                  void reportDialog(e.id, name, view);
+                },
+              },
+              t('catalog.report.action'),
+            )
+          : null,
+        h('span', { class: 'spacer' }),
+        h(
+          'button',
+          { class: install ? 'btn' : 'btn primary', type: 'button', onClick: () => done() },
+          t('web.settings.done'),
+        ),
+        install,
+      ];
+    },
   });
+}
+
+const isInstallPlan = (x: unknown): x is MarketInstallPlanInfo =>
+  !!x &&
+  typeof x === 'object' &&
+  typeof (x as MarketInstallPlanInfo).id === 'string' &&
+  typeof (x as MarketInstallPlanInfo).hash === 'string' &&
+  Number.isInteger((x as MarketInstallPlanInfo).version) &&
+  Array.isArray((x as MarketInstallPlanInfo).targets);
+
+function installedText(r: MarketInstallInfo, version: number): string {
+  const name = shown(r.name);
+  if (r.result === 'same') return t('catalog.install.toastSame', { name });
+  if (r.result === 'version') return t('catalog.install.toastVersion', { name, version });
+  return t('catalog.install.toast', { name });
+}
+
+// D-11: review first; installing keeps the entry, applying stays separate
+export async function installDialog(id: string, view?: MarketView): Promise<boolean> {
+  let plan: MarketInstallPlanInfo;
+  try {
+    plan = await api.catalogInstallPlan(id);
+  } catch (err) {
+    toast((err as Error).message, 'error');
+    return false;
+  }
+  let busy = false;
+  let installed = false;
+  let close: (v?: unknown) => void = () => {};
+  const content = h('div', { class: 'catalog-install' });
+  const err = h('div', { class: 'form-error', role: 'alert' });
+  const cancel = h('button', { class: 'btn', type: 'button', onClick: () => close() }, t('web.ui.cancel'));
+  const go = h(
+    'button',
+    { class: 'btn primary', type: 'button', onClick: () => void send() },
+    t('catalog.install.action'),
+  );
+  const again = h(
+    'button',
+    { class: 'btn primary', type: 'button', onClick: () => void review() },
+    t('catalog.install.reload'),
+  );
+  let changed: MarketInstallPlanInfo | null = null;
+
+  function localName(entryId: string): string {
+    return shown(view?.data().user.find((u) => u.id === entryId)?.name ?? entryId);
+  }
+
+  function render() {
+    const p = plan;
+    const existing = p.existing
+      ? p.existing.same
+        ? t('catalog.install.existing', {
+            id: shown(p.id),
+            version: p.version,
+            name: localName(p.existing.entryId),
+          })
+        : t('catalog.install.update', { version: p.version, name: localName(p.existing.entryId) })
+      : '';
+    content.replaceChildren(
+      h(
+        'div',
+        { class: 'catalog-remote-head' },
+        h('strong', null, shown(p.name)),
+        h('span', { class: 'theme-tag' }, t(`catalog.kind.${p.kind}`)),
+        h('span', { class: 'catalog-version' }, t('catalog.version', { version: p.version })),
+        h('span', { class: 'catalog-author' }, by(p)),
+        h('code', null, shown(p.id)),
+      ),
+      p.description ? h('p', { class: 'theme-desc' }, shown(p.description)) : '',
+      existing ? h('p', { class: 'hint' }, existing) : '',
+      p.targets.length
+        ? h('p', { class: 'modal-text' }, t('catalog.install.links'))
+        : h('p', { class: 'hint' }, t('catalog.remote.noTargets')),
+      p.targets.length ? targetList(p.targets) : '',
+      h('p', { class: 'hint' }, t('catalog.install.where')),
+    );
+    again.remove();
+    go.remove();
+    if (!p.existing?.same) cancel.after(go);
+  }
+
+  // the marketplace changed since the review: show the new plan first
+  async function review() {
+    if (busy) return;
+    err.textContent = '';
+    if (changed) plan = changed;
+    else {
+      busy = true;
+      try {
+        plan = await api.catalogInstallPlan(id);
+      } catch (e) {
+        err.textContent = (e as Error).message;
+        return;
+      } finally {
+        busy = false;
+      }
+    }
+    changed = null;
+    render();
+    go.focus();
+  }
+
+  // only this click installs, with the reviewed hash and targets
+  async function send() {
+    if (busy) return;
+    busy = true;
+    go.disabled = true;
+    err.textContent = '';
+    try {
+      const r = await api.catalogInstall(plan);
+      installed = true;
+      toast(installedText(r, plan.version), 'info');
+      if (r.catalog) view?.onChange(r.catalog);
+      close();
+    } catch (e) {
+      if (e instanceof ApiError && e.data?.code === 'changed') {
+        changed = isInstallPlan(e.data.plan) ? e.data.plan : null;
+        err.textContent = (e as Error).message;
+        go.remove();
+        cancel.after(again);
+      } else err.textContent = (e as Error).message;
+    } finally {
+      busy = false;
+      go.disabled = false;
+    }
+  }
+
+  const shownDialog = modal({
+    title: t('catalog.install.title', { name: shown(plan.name) }),
+    wide: true,
+    body: [content, err],
+    actions: (done) => {
+      close = done;
+      return [h('span', { class: 'spacer' }), cancel];
+    },
+  });
+  render();
+  // Enter must not install
+  cancel.focus();
+  await shownDialog;
+  return installed;
+}
+
+export const REASON_MAX = 200;
+
+// D-09: signed in first, then a short reason
+export async function reportDialog(id: string, name: string, view?: MarketView): Promise<boolean> {
+  if (!signedIn(view)) {
+    const done = await signInDialog();
+    if (!done) return false;
+    await afterSignIn(view);
+  }
+  let busy = false;
+  let sent = false;
+  let close: (v?: unknown) => void = () => {};
+  const max = { max: REASON_MAX };
+  const area = h('textarea', {
+    class: 'input catalog-report-reason',
+    rows: 4,
+    maxLength: REASON_MAX,
+    'aria-label': t('catalog.report.reason'),
+    placeholder: t('catalog.report.reason'),
+  });
+  const count = h('span', { class: 'hint catalog-report-count', 'aria-live': 'polite' });
+  const err = h('div', { class: 'form-error', role: 'alert' });
+  const size = () => [...area.value.trim()].length;
+  const counter = () => {
+    count.textContent = `${size()}/${REASON_MAX}`;
+  };
+  area.addEventListener('input', counter);
+  counter();
+  const go = h(
+    'button',
+    { class: 'btn primary', type: 'button', onClick: () => void send() },
+    t('catalog.report.send'),
+  );
+
+  async function send(retry = true): Promise<void> {
+    if (busy) return;
+    const reason = area.value.trim();
+    if (size() < 1 || size() > REASON_MAX) {
+      err.textContent = t('err.catalog.report.badReason', max);
+      return;
+    }
+    busy = true;
+    go.disabled = true;
+    err.textContent = '';
+    try {
+      const r = await api.catalogReport(id, reason);
+      sent = true;
+      toast(t(r.reported ? 'catalog.report.done' : 'catalog.report.already', { id: shown(id) }), 'info');
+      close();
+    } catch (e) {
+      // the token went away since
+      if (retry && e instanceof ApiError && e.status === 401) {
+        busy = false;
+        const done = await signInDialog();
+        if (done) {
+          await afterSignIn(view);
+          return send(false);
+        }
+      }
+      err.textContent = t('catalog.report.failed', { id: shown(id), reason: (e as Error).message });
+    } finally {
+      busy = false;
+      go.disabled = false;
+    }
+  }
+
+  const shownDialog = modal({
+    title: t('catalog.report.title', { name: shown(name) }),
+    wide: true,
+    body: [h('p', { class: 'modal-text' }, t('catalog.report.text')), area, count, err],
+    actions: (done) => {
+      close = done;
+      return [
+        h('span', { class: 'spacer' }),
+        h('button', { class: 'btn', type: 'button', onClick: () => done() }, t('web.ui.cancel')),
+        go,
+      ];
+    },
+  });
+  area.focus();
+  await shownDialog;
+  return sent;
 }

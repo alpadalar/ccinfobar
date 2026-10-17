@@ -27,7 +27,7 @@ import { type CatalogEntryInfo, type CatalogState, isDirty, replaceAll, S } from
 import { askThemeColors } from './themes.js';
 import { confirmDialog, modal, toast } from './ui.js';
 
-export type CatalogTab = 'all' | 'user' | 'system' | 'market';
+export type CatalogTab = 'market' | 'user' | 'system';
 type Section = 'user' | 'system';
 
 export interface CatalogGroup {
@@ -36,11 +36,13 @@ export interface CatalogGroup {
   entries: CatalogEntryInfo[];
 }
 
-const TABS: readonly CatalogTab[] = ['all', 'user', 'system'];
+const TABS: readonly CatalogTab[] = ['user', 'system'];
 // any active endpoint, the shipped default too; none when switched off
 const marketOn = (data: CatalogState): boolean =>
   data.market ? data.market.endpoint !== null : data.publishable;
-const tabsOf = (data: CatalogState): readonly CatalogTab[] => (marketOn(data) ? [...TABS, 'market'] : TABS);
+// built-in entries only in their own tab
+export const tabsOf = (data: CatalogState): readonly CatalogTab[] =>
+  marketOn(data) ? ['market', ...TABS] : TABS;
 const WAITING: ReadonlySet<ShareState> = new Set(['pending', 'outdated', 'withdraw-pending']);
 const KINDS: readonly EntryKind[] = ['bundle', 'preset', 'theme'];
 const GROUP: Record<EntryKind, MessageId> = {
@@ -76,8 +78,7 @@ function sourceText(e: CatalogEntryInfo): string {
   return t(e.source === 'user' ? 'catalog.section.user' : 'catalog.section.system');
 }
 
-const sectionsOf = (tab: CatalogTab): Section[] =>
-  tab === 'all' ? ['user', 'system'] : tab === 'market' ? [] : [tab];
+const sectionsOf = (tab: CatalogTab): Section[] => (tab === 'market' ? ['user'] : [tab]);
 
 export function groupEntries(data: CatalogState, tab: CatalogTab): CatalogGroup[] {
   const out: CatalogGroup[] = [];
@@ -222,7 +223,7 @@ export async function openCatalog(): Promise<void> {
     return;
   }
   const st = {
-    tab: 'all' as CatalogTab,
+    tab: tabsOf(data)[0]!,
     data,
     previews: new Map<string, string[]>(),
     version: 0,
@@ -533,25 +534,18 @@ export async function openCatalog(): Promise<void> {
     clear(list);
     slots.clear();
     cards.clear();
-    if (st.tab === 'market') {
-      market ??= marketplaceSection(st.data, (next) => {
-        if (!st.closed) update(next);
-      });
-      if (market) list.append(market);
-      return;
+    if (st.tab === 'user' && !marketOn(st.data)) {
+      const waiting = st.data.user.some((e) => e.share && WAITING.has(e.share.state));
+      list.append(
+        h('p', { class: 'hint catalog-hint' }, t(waiting ? 'catalog.noEndpointHint' : 'catalog.marketOff')),
+      );
     }
-    if (
-      st.tab !== 'system' &&
-      !st.data.publishable &&
-      st.data.user.some((e) => e.share && WAITING.has(e.share.state))
-    )
-      list.append(h('p', { class: 'hint catalog-hint' }, t('catalog.noEndpointHint')));
     const groups = groupEntries(st.data, st.tab);
     for (const section of sectionsOf(st.tab)) {
       const own = groups.filter((g) => g.section === section);
       if (!own.length && section === 'system') continue;
       const box = h('section', { class: 'catalog-section', 'data-section': section });
-      if (st.tab === 'all')
+      if (st.tab === 'market')
         box.append(h('h3', { class: 'catalog-section-head' }, t(`catalog.section.${section}`)));
       if (!own.length) box.append(h('div', { class: 'empty-state small' }, t('catalog.empty.user')));
       for (const g of own) {
@@ -561,6 +555,13 @@ export async function openCatalog(): Promise<void> {
         );
       }
       list.append(box);
+    }
+    // yours on top, then the online entries
+    if (st.tab === 'market') {
+      market ??= marketplaceSection(st.data, (next) => {
+        if (!st.closed) update(next);
+      });
+      if (market) list.append(market);
     }
   }
 
