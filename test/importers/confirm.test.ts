@@ -3,6 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import { help } from '../../src/cli/help.js';
+import { importHelp } from '../../src/commands/import-help.js';
 import type { PromptIo } from '../../src/commands/io.js';
 import {
   type ImportFlags,
@@ -513,10 +514,12 @@ describe('import --dry-run', () => {
 });
 
 describe('help', () => {
-  it('names every import source', () => {
+  it('points to the import help, which names every import source', () => {
     const line = help()
       .split('\n')
       .find((l) => l.startsWith('  ccinfobar import <tool> '))!;
-    for (const s of IMPORT_SOURCES) expect(line).toContain(s);
+    expect(line).toContain('ccinfobar import --help');
+    const list = importHelp();
+    for (const s of IMPORT_SOURCES) expect(list).toContain(`  ${s}`);
   });
 });

@@ -26,6 +26,7 @@ const SWEPT: string[] = [
   'src/importers/registry.ts',
   'src/commands/doctor.ts',
   'src/commands/manage.ts',
+  'src/commands/import-help.ts',
   'src/commands/bench.ts',
   'src/commands/usage-error.ts',
   'src/commands/install-cli.ts',

@@ -8,6 +8,11 @@ export const importMessages = {
   'import.shownCommand': 'path from the status line command',
   'import.tool.gsd': 'GSD status line',
   'import.tool.custom': 'a custom status line',
+  'import.help.title': "Import another status line's layout into ccinfobar",
+  'import.help.tools': 'Tools',
+  'import.help.fromCommand': 'status line command',
+  'import.help.footer':
+    "Without --file each tool's own default file is read. --dry-run shows the mapping and writes nothing.",
   'import.note.noEquivalent': '{tool} widget "{name}" has no ccinfobar equivalent and was skipped',
   'import.note.noSegment': '{tool} segment "{name}" has no ccinfobar equivalent and was skipped',
   'import.note.customColors': 'custom {tool} colors were copied onto each widget',

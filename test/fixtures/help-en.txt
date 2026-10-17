@@ -16,7 +16,7 @@ Usage
                                   Run it before `npm rm -g ccinfobar`: hooks call the ccinfobar command
   ccinfobar uninstall --hooks     Remove only ccinfobar's hooks
   ccinfobar uninstall --progress  Remove only the terminal progress handlers
-  ccinfobar import <tool>         Import a ccstatusline, claude-powerline, ccometixline, cship or claude-hud layout
+  ccinfobar import <tool>         Import another status line's layout (see ccinfobar import --help)
   ccinfobar import <tool> --dry-run
                                   Show the mapping report and a preview, write nothing
   ccinfobar themes                Preview every theme

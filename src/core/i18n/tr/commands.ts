@@ -7,7 +7,8 @@ export const commandsMessages = {
   'cmd.import.previous': '  Önceki ccinfobar yapılandırması: {file}',
   'cmd.import.failed': '✗ İçe aktarma başarısız oldu: {error}',
   'cmd.import.usage':
-    'Kullanım: ccinfobar import <{sources}> [--file <path>] [--force] [--dry-run] [--allow-commands]',
+    'Kullanım: ccinfobar import <tool> [--file <path>] [--command <cmd>] [--force] [--dry-run] [--allow-commands]',
+  'cmd.import.seeHelp': 'Araçların listesi için ccinfobar import --help çalıştırın',
   'cmd.import.exists': '{file} zaten var. Değiştirmek için --force kullanın (yedek tutulur).',
   'cmd.init.unknownPreset': 'Bilinmeyen hazır ayar "{id}". Mevcut olanlar: {ids}',
   'cmd.init.exists': '{file} zaten var. Üzerine yazmak için --force kullanın.',

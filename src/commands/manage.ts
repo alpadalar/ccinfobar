@@ -43,7 +43,6 @@ import {
   wrapLine,
 } from '../importers/confirm.js';
 import {
-  IMPORT_SOURCES,
   type ImportNote,
   type ImportResult,
   type ImportSource,
@@ -52,6 +51,7 @@ import {
   toConfig,
 } from '../importers/index.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
+import { importHelp } from './import-help.js';
 import { currentStatusLine } from './install.js';
 import { type CliIo, cliIo, type PromptIo, plainOutput, promptIo } from './io.js';
 import { usageErrorText } from './usage-error.js';
@@ -269,9 +269,15 @@ export async function runImportCommand(
   cfgFile: string,
   io: PromptIo = promptIo(),
 ): Promise<void> {
+  if (args.positional[0] === undefined) {
+    for (const line of importHelp().trimEnd().split('\n')) io.log(line);
+    process.exitCode = 1;
+    return;
+  }
   const source = resolveSource(args.positional[0]);
   if (!source) {
-    io.error(t('cmd.import.usage', { sources: IMPORT_SOURCES.join('|') }));
+    io.error(t('cmd.import.usage'));
+    io.error(t('cmd.import.seeHelp'));
     process.exitCode = 1;
     return;
   }

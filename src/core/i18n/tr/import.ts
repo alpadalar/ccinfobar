@@ -11,6 +11,11 @@ export const importMessages = {
   'import.shownCommand': 'durum satırı komutundaki yol',
   'import.tool.gsd': 'GSD durum satırı',
   'import.tool.custom': 'özel bir durum satırı',
+  'import.help.title': "Başka bir durum satırının düzenini ccinfobar'a aktarır",
+  'import.help.tools': 'Araçlar',
+  'import.help.fromCommand': 'durum satırı komutu',
+  'import.help.footer':
+    '--file verilmezse her aracın kendi varsayılan dosyası okunur. --dry-run eşlemeyi gösterir, hiçbir şey yazmaz.',
   'import.note.noEquivalent': '{tool} bileşeni "{name}" için ccinfobar karşılığı yok, atlandı',
   'import.note.noSegment': '{tool} bölümü "{name}" için ccinfobar karşılığı yok, atlandı',
   'import.note.customColors': 'özel {tool} renkleri her bileşene ayrı ayrı kopyalandı',

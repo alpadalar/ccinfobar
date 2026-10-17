@@ -4,7 +4,8 @@ export const commandsMessages = {
   'cmd.import.previous': '  Previous ccinfobar config: {file}',
   'cmd.import.failed': '✗ Import failed: {error}',
   'cmd.import.usage':
-    'Usage: ccinfobar import <{sources}> [--file <path>] [--force] [--dry-run] [--allow-commands]',
+    'Usage: ccinfobar import <tool> [--file <path>] [--command <cmd>] [--force] [--dry-run] [--allow-commands]',
+  'cmd.import.seeHelp': 'Run ccinfobar import --help for the list of tools',
   'cmd.import.exists': '{file} already exists. Use --force to replace it (a backup is kept).',
   'cmd.init.unknownPreset': 'Unknown preset "{id}". Available: {ids}',
   'cmd.init.exists': '{file} already exists. Use --force to overwrite.',
