@@ -1,7 +1,7 @@
 import '../core/i18n/lazy.js';
 import path from 'node:path';
 import { t } from '../core/i18n/index.js';
-import { flagValue } from './args.js';
+import { flagValue, isBin } from './args.js';
 import { TARGETS as CSHIP_TARGETS, type EnvModule, importCship } from './cship.js';
 import type { ImportResult } from './index.js';
 import { expand, readToml, shownFile, tableOf } from './io.js';
@@ -86,7 +86,7 @@ export function importStarshipClaude(root: Record<string, unknown>): ImportResul
 const defaultFile = (ctx: ImportCtx) => path.join(ctx.home, '.claude', 'starship.toml');
 
 function discover(ctx: ImportCtx): string {
-  const flag = flagValue(ctx.args, ['--config']);
+  const flag = flagValue(ctx.argv, ['--config']);
   if (flag) return path.resolve(ctx.cwd, expand(flag, ctx.home));
   return defaultFile(ctx);
 }
@@ -98,6 +98,7 @@ export const starshipClaudeImporter: ImporterDef = {
   shown: '~/.claude/starship.toml',
   hasDefault: false,
   detect: [/starship-claude/i],
+  tool: isBin('starship-claude'),
   discover,
   load: (file, ctx) => {
     const f = file ?? defaultFile(ctx);

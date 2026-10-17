@@ -2,6 +2,7 @@ import '../core/i18n/lazy.js';
 import { t } from '../core/i18n/index.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionValue, WidgetItem } from '../core/types.js';
+import { commandArgs, isBin, toolArgs } from './args.js';
 import { CCLINE_THEMES } from './ccometixline-themes.js';
 import { ansiColor } from './colors.js';
 import type { ImportNote, ImportResult, ImportSource } from './index.js';
@@ -29,11 +30,12 @@ export const TARGETS: readonly string[] = [
   'output-style',
 ];
 
-const unquote = (s: string) => s.replace(/"([^"]*)"|'([^']*)'/g, '$1$2');
+export const isCcline = isBin('ccline', 'ccometixline');
 
-export function parseCclineTheme(command: string): string | null {
-  const args = [...command.matchAll(/(?:"[^"]*"|'[^']*'|[^\s"']+)+/g)].map((m) => unquote(m[0]));
-  for (let i = 0; i < args.length; i++) {
+// -t only after the tool's own token
+export function parseCclineTheme(command: string, isTool = isCcline): string | null {
+  const args = toolArgs(commandArgs(command), isTool) ?? [];
+  for (let i = 1; i < args.length; i++) {
     const a = args[i]!;
     if ((a === '-t' || a === '--theme') && i + 1 < args.length) return args[i + 1]!;
     if (a.startsWith('--theme=')) return a.slice(8);

@@ -544,6 +544,26 @@ describe('cross-importer guards', () => {
       expect(types.length).toBeGreaterThan(0);
     });
 
+    it('never reads the flags of another status line command', () => {
+      fs.writeFileSync(path.join(env.HOME!, 'work.json'), '{"lines": [[{"id": "m", "type": "model"}]]}\n');
+      const flags = [
+        '--config ~/work.json -c ~/work.json --env ~/work.json -t nord -p MB PT',
+        "--theme nord --style powerline --segments cost --extra-cmd 'echo hi'",
+      ].join(' ');
+      const attempt = (command: string) => {
+        try {
+          const r = importFrom(tool.source, { command, env, cwd: dir });
+          return { ...r, notes: r.notes.filter((n) => !n.text.includes('does not run')) };
+        } catch (err) {
+          return { error: (err as Error).message };
+        }
+      };
+      const plain = attempt('');
+      for (const command of [`ccinfobar ${flags}`, `bash -c "npx -y ccinfobar@latest ${flags}"`]) {
+        expect(attempt(command), command).toEqual(plain);
+      }
+    });
+
     it('--dry-run writes nothing', async () => {
       fs.mkdirSync(path.dirname(cfgFile), { recursive: true });
       fs.writeFileSync(cfgFile, '{"lines": [[{"id": "keep", "type": "model"}]]}\n');

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { t } from '../core/i18n/index.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionValue, WidgetItem } from '../core/types.js';
-import { flagValue } from './args.js';
+import { flagValue, isBin } from './args.js';
 import type { ImportNote, ImportResult } from './index.js';
 import { readJsonTool, shownFile, tableOf } from './io.js';
 import type { ImporterDef } from './registry.js';
@@ -260,13 +260,14 @@ export const claudeStatusbarImporter: ImporterDef = {
   shown: SHOWN,
   hasDefault: true,
   detect: [/(?:^|[\\/\s"'])(?:cs|cstatus|claude-statusbar)(?:\.exe)?["']?\s+render\b/i, /claude-statusbar/i],
+  tool: isBin('cs', 'cstatus', 'claude-statusbar'),
   // Path.home() on every OS, never CLAUDE_CONFIG_DIR
   discover: (ctx) => path.join(ctx.home, '.claude', 'claude-statusbar.json'),
   load: (file, ctx) => {
     const r = file
       ? { ...importClaudeStatusbar(readJsonTool(file, TOOL), { file: shownFile(file, ctx.home) }), file }
       : { ...importClaudeStatusbar({}, { defaulted: true }), file: null };
-    const names = overrideNames(ctx.args, ctx.env);
+    const names = overrideNames(ctx.argv, ctx.env);
     if (names.length) {
       r.notes.push({
         kind: 'info',

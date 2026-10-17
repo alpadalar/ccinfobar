@@ -5,7 +5,7 @@ import path from 'node:path';
 import { t } from '../core/i18n/index.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { firstPathToken } from './args.js';
-import { CCLINE_DEFAULT, importCcometixline, parseCclineTheme } from './ccometixline.js';
+import { CCLINE_DEFAULT, importCcometixline, isCcline, parseCclineTheme } from './ccometixline.js';
 import { CCLINE_THEMES, type CclineTheme } from './ccometixline-themes.js';
 import type { ImportNote, ImportResult, ImportSource } from './index.js';
 import { isFile, isPlainFile, readToml, safeThemeName, shownFile, tableOf } from './io.js';
@@ -18,19 +18,26 @@ export interface CclineFamily {
   dir: string;
   // byebyecode's style.line_break_after
   lineBreak?: boolean;
+  bin: (token: string) => boolean;
 }
 
-export const CCOMETIXLINE: CclineFamily = { tool: 'CCometixLine', source: 'ccometixline', dir: 'ccline' };
+export const CCOMETIXLINE: CclineFamily = {
+  tool: 'CCometixLine',
+  source: 'ccometixline',
+  dir: 'ccline',
+  bin: isCcline,
+};
 
 export function ccometixlinePaths(
   command: string,
   home = os.homedir(),
   dir = 'ccline',
+  isTool = isCcline,
 ): { file: string | null; note: 'command-dir' | null } {
   const homeFile = path.join(home, '.claude', dir, 'config.toml');
   if (fs.existsSync(homeFile)) return { file: homeFile, note: null };
   const bin = firstPathToken(command, home);
-  if (bin) {
+  if (bin && isTool(bin)) {
     const dirs = [path.dirname(bin)];
     for (let d = path.dirname(bin); path.dirname(d) !== d; d = path.dirname(d)) {
       if (path.basename(d) === dir && d !== dirs[0]) dirs.push(d);
@@ -79,10 +86,10 @@ export function importCclineFamily(
   fam: CclineFamily,
 ): ImportResult {
   const { command, home } = ctx;
-  const theme = file ? null : parseCclineTheme(command);
+  const theme = file ? null : parseCclineTheme(command, fam.bin);
   const themed = theme === null ? null : importTheme(theme, home, fam);
   if (themed && 'config' in themed) return themed;
-  const found = file ? { file, note: null } : ccometixlinePaths(command, home, fam.dir);
+  const found = file ? { file, note: null } : ccometixlinePaths(command, home, fam.dir, fam.bin);
   const result = found.file
     ? mapToml(readToml(found.file, fam.tool), fam)
     : mapToml(CCLINE_DEFAULT, fam, true);

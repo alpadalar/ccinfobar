@@ -1,6 +1,6 @@
 import '../core/i18n/lazy.js';
 import { t } from '../core/i18n/index.js';
-import { commandArgs } from './args.js';
+import { commandArgs, toolArgs } from './args.js';
 import { ccStatuslineImporter } from './cc-statusline.js';
 import { bestClaudeHudImporter, byebyecodeImporter } from './ccline-family.js';
 import { ccpetImporter } from './ccpet.js';
@@ -12,7 +12,7 @@ import { claudebarImporter } from './claudebar.js';
 import { claudelineImporter } from './claudeline.js';
 import { corallineImporter } from './coralline.js';
 import { glauberlimaImporter } from './glauberlima-statusline.js';
-import type { ImportResult, ImportSource } from './index.js';
+import type { ImportNote, ImportResult, ImportSource } from './index.js';
 import { homeOf, isFile, shownFile } from './io.js';
 import { nycuCcStatuslineImporter } from './nycu-cc-statusline.js';
 import { pyccslImporter } from './pyccsl.js';
@@ -23,6 +23,8 @@ import { tokenTrackerImporter } from './token-tracker.js';
 export interface ImportCtx {
   command: string;
   args: string[];
+  // argv from the tool's own token, empty when the command runs something else
+  argv: string[];
   env: NodeJS.ProcessEnv;
   cwd: string;
   home: string;
@@ -39,6 +41,8 @@ export interface ImporterInfo {
 
 export interface ImporterDef extends ImporterInfo {
   detect?: readonly RegExp[];
+  // the tool's own command token; its flags are read only after it
+  tool?: (token: string) => boolean;
   // file header check for commands that do not name the tool
   sniff?: { file(ctx: ImportCtx): string | null; marker: RegExp };
   hasDefault: boolean;
@@ -105,21 +109,37 @@ export function importerList(): ImporterInfo[] {
   return [...LEGACY_INFO, ...REGISTRY];
 }
 
-export function makeCtx(opts: { command?: string; env?: NodeJS.ProcessEnv; cwd?: string }): ImportCtx {
+export function makeCtx(
+  opts: { command?: string; env?: NodeJS.ProcessEnv; cwd?: string },
+  tool?: (token: string) => boolean,
+): ImportCtx {
   const command = opts.command ?? '';
   const env = opts.env ?? process.env;
-  return { command, args: commandArgs(command), env, cwd: opts.cwd ?? process.cwd(), home: homeOf(env) };
+  const args = commandArgs(command);
+  const argv = (tool && toolArgs(args, tool)) || [];
+  return { command, args, argv, env, cwd: opts.cwd ?? process.cwd(), home: homeOf(env) };
+}
+
+export function otherCommandNote(command: string, runsTool: boolean, tool: string): ImportNote | null {
+  return runsTool || !command.trim() ? null : { kind: 'info', text: t('import.note.otherCommand', { tool }) };
 }
 
 export function loadFromRegistry(
   def: ImporterDef,
   opts: { file?: string; command?: string; env?: NodeJS.ProcessEnv; cwd?: string },
 ): ImportResult {
-  const ctx = makeCtx(opts);
-  if (opts.file) return def.load(opts.file, ctx);
+  const ctx = makeCtx(opts, def.tool);
+  const result = loadDef(def, ctx, opts.file);
+  const note = def.tool ? otherCommandNote(ctx.command, ctx.argv.length > 0, def.name) : null;
+  if (note) result.notes.unshift(note);
+  return result;
+}
+
+function loadDef(def: ImporterDef, ctx: ImportCtx, file: string | undefined): ImportResult {
+  if (file) return def.load(file, ctx);
   const found = def.discover(ctx);
   if (found && isFile(found)) return def.load(found, ctx);
   if (def.hasDefault) return def.load(null, ctx);
-  const file = found ? shownFile(found, ctx.home) : (def.shown ?? t('import.shownCommand'));
-  throw new Error(t('import.notFound', { tool: def.name, file }));
+  const shown = found ? shownFile(found, ctx.home) : (def.shown ?? t('import.shownCommand'));
+  throw new Error(t('import.notFound', { tool: def.name, file: shown }));
 }

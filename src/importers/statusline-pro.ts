@@ -3,7 +3,7 @@ import path from 'node:path';
 import { t } from '../core/i18n/index.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config, IconMode, OptionValue, ThemeStyle, WidgetItem } from '../core/types.js';
-import { flagValue } from './args.js';
+import { flagValue, isBin } from './args.js';
 import { namedColor } from './colors.js';
 import type { ImportNote, ImportResult } from './index.js';
 import { expand, readToml, tableOf } from './io.js';
@@ -267,11 +267,9 @@ const TOOL_TOKEN = /claude-code-statusline-pro|\bccsp\b/i;
 const VALUE_FLAGS = new Set(['-c', '--config', '-p', '--preset', '-t', '--theme', '--mock']);
 
 // positional PRESET after the binary, as in `ccsp PMBT`
-function positionalPreset(args: readonly string[]): string | null {
-  const start = args.findIndex((a) => TOOL_TOKEN.test(a));
-  if (start < 0) return null;
-  for (let i = start + 1; i < args.length; i++) {
-    const a = args[i]!;
+function positionalPreset(argv: readonly string[]): string | null {
+  for (let i = 1; i < argv.length; i++) {
+    const a = argv[i]!;
     if (VALUE_FLAGS.has(a)) i++;
     else if (!a.startsWith('-')) return /^[A-Za-z]+$/.test(a) ? a : null;
   }
@@ -279,7 +277,7 @@ function positionalPreset(args: readonly string[]): string | null {
 }
 
 function commandOptions(ctx: ImportCtx): StatuslineProOptions {
-  const a = ctx.args;
+  const a = ctx.argv;
   const preset = flagValue(a, ['-p', '--preset']) ?? positionalPreset(a);
   const theme = flagValue(a, ['-t', '--theme']);
   const has = (f: string) => a.includes(f);
@@ -301,7 +299,7 @@ function commandOptions(ctx: ImportCtx): StatuslineProOptions {
 }
 
 function discover(ctx: ImportCtx): string {
-  const flag = flagValue(ctx.args, ['-c', '--config']);
+  const flag = flagValue(ctx.argv, ['-c', '--config']);
   if (flag) return path.resolve(ctx.cwd, expand(flag, ctx.home));
   return path.join(ctx.home, '.claude', 'statusline-pro', 'config.toml');
 }
@@ -314,6 +312,7 @@ export const statuslineProImporter: ImporterDef = {
   shown: '~/.claude/statusline-pro/config.toml',
   hasDefault: true,
   detect: [TOOL_TOKEN],
+  tool: isBin('ccsp', 'claude-code-statusline-pro'),
   discover,
   load: (file, ctx) => {
     const opts = commandOptions(ctx);

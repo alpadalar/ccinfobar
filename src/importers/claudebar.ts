@@ -3,7 +3,7 @@ import path from 'node:path';
 import { t } from '../core/i18n/index.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Charset, Config, IconMode, OptionValue, WidgetItem } from '../core/types.js';
-import { flagValue } from './args.js';
+import { flagValue, isBin } from './args.js';
 import type { ImportNote, ImportResult } from './index.js';
 import { expand, readToml, tableOf } from './io.js';
 import type { ImporterDef } from './registry.js';
@@ -257,16 +257,17 @@ export const claudebarImporter: ImporterDef = {
   shown: '~/.config/claudebar/config.toml',
   hasDefault: true,
   detect: [/\bclaudebar\b/i],
+  tool: isBin('claudebar'),
   // claudebar reads HOME and XDG_CONFIG_HOME on every OS
   discover: (ctx) => {
-    const flag = flagValue(ctx.args, ['--config']);
+    const flag = flagValue(ctx.argv, ['--config']);
     if (flag) return path.resolve(ctx.cwd, expand(flag, ctx.home));
     const xdg = ctx.env.XDG_CONFIG_HOME;
     const base = xdg ? path.resolve(ctx.cwd, xdg) : path.join(ctx.home, '.config');
     return path.join(base, 'claudebar', 'config.toml');
   },
   load: (file, ctx) => {
-    const over = overrides(ctx.args);
+    const over = overrides(ctx.argv);
     if (!file) return { ...importClaudebar({}, { defaulted: true, overrides: over }), file: null };
     return { ...importClaudebar(readToml(file, TOOL), { overrides: over }), file };
   },

@@ -1,6 +1,14 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { boolFlag, commandArgs, firstPathToken, flagValue } from '../../src/importers/args.js';
+import {
+  binName,
+  boolFlag,
+  commandArgs,
+  firstPathToken,
+  flagValue,
+  isBin,
+  toolArgs,
+} from '../../src/importers/args.js';
 
 describe('commandArgs', () => {
   it('splits on whitespace and groups quotes', () => {
@@ -76,5 +84,42 @@ describe('firstPathToken', () => {
     expect(firstPathToken('ccstatusline', '/h')).toBeNull();
     expect(firstPathToken('./x/y.sh', '/h')).toBeNull();
     expect(firstPathToken('', '/h')).toBeNull();
+  });
+});
+
+describe('toolArgs', () => {
+  const ccsp = isBin('ccsp', 'claude-code-statusline-pro');
+
+  it('names a program by its basename, without @version or .exe', () => {
+    expect(binName('ccsp@latest')).toBe('ccsp');
+    expect(binName('@owloops/claude-powerline@latest')).toBe('claude-powerline');
+    expect(binName('C:\\Program Files\\x\\CS.EXE')).toBe('cs');
+    expect(binName('/usr/bin/claudebar.cmd')).toBe('claudebar');
+    expect(binName('')).toBe('');
+  });
+
+  it('starts at the tool token and reads nothing from other commands', () => {
+    expect(toolArgs(commandArgs('npx -y ccsp@latest -c a.toml'), ccsp)).toEqual([
+      'ccsp@latest',
+      '-c',
+      'a.toml',
+    ]);
+    expect(toolArgs(commandArgs('ccinfobar --config ~/work.json'), ccsp)).toBeNull();
+    expect(toolArgs(commandArgs('node ~/ccsp-config/x.js -c a.toml'), ccsp)).toBeNull();
+    expect(toolArgs([], ccsp)).toBeNull();
+  });
+
+  it('looks inside a quoted sh -c script', () => {
+    expect(toolArgs(commandArgs('bash -c "npx ccsp@latest -c a.toml"'), ccsp)).toEqual([
+      'ccsp@latest',
+      '-c',
+      'a.toml',
+    ]);
+    expect(toolArgs(commandArgs(`"C:\\Program Files\\ccsp.exe" -t nord`), ccsp)).toEqual([
+      'C:\\Program Files\\ccsp.exe',
+      '-t',
+      'nord',
+    ]);
+    expect(toolArgs(commandArgs('bash -c "other -c a.toml"'), ccsp)).toBeNull();
   });
 });

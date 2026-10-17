@@ -336,6 +336,20 @@ describe('statusline-pro discovery', () => {
     expect(importFrom('statusline-pro', { command: 'ccsp -c rel/c.toml', env, cwd: dir }).file).toBe(rel);
     const other = importFrom('statusline-pro', { file: custom, env, cwd: dir });
     expect(texts(other)).toEqual([]);
+    const wrapped = importFrom('statusline-pro', {
+      command: `bash -c "npx ccsp@latest -c ~/ccsp.toml"`,
+      env,
+      cwd: dir,
+    });
+    expect(wrapped.file).toBe(custom);
+  });
+
+  it('reads no flags from the command of another tool', () => {
+    const own = write(userFile(), 'preset = "M"\n');
+    const r = importFrom('statusline-pro', { command: 'ccline -t nord -c x.toml', env, cwd: dir });
+    expect(r.file).toBe(own);
+    expect(r.config.theme).not.toBe('nord');
+    expect(texts(r)[0]).toBe(`the status line command does not run ${TOOL}, so its flags were not read`);
   });
 
   it('fails on a missing --file and shows TOML errors with their position', () => {

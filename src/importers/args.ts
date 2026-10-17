@@ -22,6 +22,37 @@ export function commandArgs(command: string): string[] {
   return out;
 }
 
+// program name: basename without an npx @version or .exe/.cmd
+export function binName(token: string): string {
+  const base = token.split(/[\\/]/).pop() ?? '';
+  return base
+    .replace(/(.)@.*$/, '$1')
+    .replace(/\.(?:exe|cmd)$/i, '')
+    .toLowerCase();
+}
+
+export const isBin =
+  (...names: string[]) =>
+  (token: string) =>
+    names.includes(binName(token));
+
+// argv from the tool's own token on, also inside a quoted sh -c script
+export function toolArgs(
+  args: readonly string[],
+  isTool: (token: string) => boolean,
+  depth = 0,
+): string[] | null {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (isTool(a)) return args.slice(i);
+    if (depth < 2 && /\s/.test(a)) {
+      const inner = toolArgs(commandArgs(a), isTool, depth + 1);
+      if (inner) return inner;
+    }
+  }
+  return null;
+}
+
 export function flagValue(args: readonly string[], names: readonly string[]): string | null {
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;

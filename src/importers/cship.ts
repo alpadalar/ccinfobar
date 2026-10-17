@@ -2,6 +2,7 @@ import '../core/i18n/lazy.js';
 import { t } from '../core/i18n/index.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config, OptionValue, WidgetItem } from '../core/types.js';
+import { commandArgs, isBin, toolArgs } from './args.js';
 import { starshipStyle } from './colors.js';
 import type { ImportNote, ImportResult, ImportSource } from './index.js';
 
@@ -54,11 +55,12 @@ export function parseCshipLine(line: string, opts: { braces?: boolean } = {}): C
   return out;
 }
 
-const unquote = (s: string) => s.replace(/"([^"]*)"|'([^']*)'/g, '$1$2');
+export const isCship = isBin('cship');
 
+// --config only after the cship token
 export function parseCshipConfigFlag(command: string): string | null {
-  const args = [...command.matchAll(/(?:"[^"]*"|'[^']*'|[^\s"']+)+/g)].map((m) => unquote(m[0]));
-  for (let i = 0; i < args.length; i++) {
+  const args = toolArgs(commandArgs(command), isCship) ?? [];
+  for (let i = 1; i < args.length; i++) {
     const a = args[i]!;
     if (a === '--config' && i + 1 < args.length) return args[i + 1]! || null;
     if (a.startsWith('--config=')) return a.slice(9) || null;

@@ -98,10 +98,18 @@ describe('makeCtx', () => {
     expect(makeCtx({ command: 'x --a b', env: { HOME: '/h' } })).toEqual({
       command: 'x --a b',
       args: ['x', '--a', 'b'],
+      argv: [],
       env: { HOME: '/h' },
       cwd: process.cwd(),
       home: '/h',
     });
+    const tool = (a: string) => a === 'x';
+    expect(makeCtx({ command: 'sh -c "x --a b"', env: { HOME: '/h' } }, tool).argv).toEqual([
+      'x',
+      '--a',
+      'b',
+    ]);
+    expect(makeCtx({ command: 'y --a b', env: { HOME: '/h' } }, tool).argv).toEqual([]);
     expect(makeCtx({ env: { USERPROFILE: 'C:\\U' } }).home).toBe('C:\\U');
     expect(makeCtx({ env: { HOME: '', USERPROFILE: 'C:\\U' }, cwd: '/w' })).toMatchObject({
       home: 'C:\\U',

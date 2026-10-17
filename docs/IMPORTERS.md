@@ -7,7 +7,7 @@ ccinfobar import <tool> [--file <path>] [--command <cmd>] [--force] [--dry-run] 
 ```
 
 - Without `--file`, each importer reads the file the tool itself would read. Paths below use `~` for your home folder (`%USERPROFILE%` on Windows) and are the same on every OS unless a section says otherwise.
-- `--command` passes the status line command to read flags from. Without it, the `statusLine` command in your Claude settings is used.
+- `--command` passes the status line command to read flags from. Without it, the `statusLine` command in your Claude settings is used. Flags are read only after the tool's own program in that command (also inside a quoted `sh -c "…"` script); another tool's command, ccinfobar's own included, is ignored with a note, and the tool's default files are used.
 - `--dry-run` prints the report and a preview with sample data, and writes nothing.
 - `--force` replaces an existing ccinfobar config. The old one is backed up first.
 - Every import prints a report: what was imported, what was approximated and what was dropped, with the reason.

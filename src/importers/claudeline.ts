@@ -114,9 +114,10 @@ export const claudelineImporter: ImporterDef = {
   shown: null,
   hasDefault: true,
   detect: [/\bclaudeline\b/i],
+  tool: isClaudeline,
   discover: () => null,
   load: (file, ctx) => {
-    const r = importClaudeline(ctx.args);
+    const r = importClaudeline(ctx.argv);
     if (file) r.notes.unshift({ kind: 'info', text: t('import.note.fileIgnored', { tool: TOOL }) });
     return { ...r, file: null };
   },

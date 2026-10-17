@@ -7,11 +7,13 @@ import { t } from '../core/i18n/index.js';
 import { claudeDir, claudeSettingsPath, tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import type { Config } from '../core/types.js';
+import { commandArgs, flagValue, isBin, toolArgs } from './args.js';
 import { CCOMETIXLINE, importCclineFamily } from './ccline-load.js';
+import { isCcline } from './ccometixline.js';
 import { importCcstatusline } from './ccstatusline.js';
 import { importClaudeHud, mergeHud, normalizeHud, parseExtraCmd } from './claude-hud.js';
-import { importClaudePowerline, parsePowerlineArgs } from './claude-powerline.js';
-import { importCship, parseCshipConfigFlag } from './cship.js';
+import { importClaudePowerline, isPowerline, parsePowerlineArgs } from './claude-powerline.js';
+import { importCship, isCship, parseCshipConfigFlag } from './cship.js';
 import {
   expand,
   isFile,
@@ -25,8 +27,10 @@ import {
 import {
   type ImporterDef,
   importerList,
+  LEGACY_INFO,
   loadFromRegistry,
   makeCtx,
+  otherCommandNote,
   REGISTRY,
   registryDef,
 } from './registry.js';
@@ -193,8 +197,10 @@ export function sniffTool(
   return null;
 }
 
+const isCcstatusline = isBin('ccstatusline', 'ccstatusline-zh');
+
 export function ccstatuslinePath(env: NodeJS.ProcessEnv = process.env, command = ''): string {
-  const flag = /--config[=\s]+("[^"]*"|'[^']*'|\S+)/.exec(command)?.[1]?.replace(/^["']|["']$/g, '');
+  const flag = flagValue(toolArgs(commandArgs(command), isCcstatusline) ?? [], ['--config']);
   if (flag) return expand(flag);
   const base = env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config');
   return path.join(base, 'ccstatusline', 'settings.json');
@@ -282,6 +288,8 @@ function importCshipFrom(found: CshipFound | null): ImportResult {
 }
 
 const HUD = 'claude-hud';
+// the plugin command runs node on a path under claude-hud
+const runsHud = (command: string) => /claude-hud/i.test(command);
 
 // claude-hud's getClaudeConfigDir
 export function hudPaths(env: NodeJS.ProcessEnv = process.env): {
@@ -344,7 +352,7 @@ function importHud(file: string | undefined, command: string, env: NodeJS.Proces
     return {};
   };
   const merged = mergeHud(objectOf(main, mainFile), objectOf(over, paths.override));
-  const extraCmd = parseExtraCmd(command);
+  const extraCmd = runsHud(command) ? parseExtraCmd(command) : null;
   const result = importClaudeHud(normalizeHud(merged), {
     extraCmd,
     extraAllowed: extraCmd !== null && hudExtraAllowed(env),
@@ -354,12 +362,41 @@ function importHud(file: string | undefined, command: string, env: NodeJS.Proces
   return { ...result, file: main ? mainFile : over ? paths.override : null };
 }
 
+type LegacySource = 'ccstatusline' | 'claude-powerline' | 'ccometixline' | 'cship' | 'claude-hud';
+
+const runsTool = (isTool: (token: string) => boolean) => (command: string) =>
+  toolArgs(commandArgs(command), isTool) !== null;
+
+const LEGACY_RUNS: Record<LegacySource, (command: string) => boolean> = {
+  ccstatusline: runsTool(isCcstatusline),
+  'claude-powerline': runsTool(isPowerline),
+  ccometixline: runsTool(isCcline),
+  cship: runsTool(isCship),
+  'claude-hud': runsHud,
+};
+
+const isLegacy = (source: ImportSource): source is LegacySource => Object.hasOwn(LEGACY_RUNS, source);
+
 export function importFrom(
   source: ImportSource,
   opts: { file?: string; command?: string; env?: NodeJS.ProcessEnv; cwd?: string } = {},
 ): ImportResult {
   const def = registryDef(source);
   if (def) return loadFromRegistry(def, opts);
+  const result = importLegacy(source, opts);
+  const command = opts.command ?? '';
+  if (isLegacy(source)) {
+    const name = LEGACY_INFO.find((i) => i.source === source)?.name ?? source;
+    const note = otherCommandNote(command, LEGACY_RUNS[source](command), name);
+    if (note) result.notes.unshift(note);
+  }
+  return result;
+}
+
+function importLegacy(
+  source: ImportSource,
+  opts: { file?: string; command?: string; env?: NodeJS.ProcessEnv; cwd?: string },
+): ImportResult {
   const env = opts.env ?? process.env;
   const command = opts.command ?? '';
   if (source === 'cship') {

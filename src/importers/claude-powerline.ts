@@ -3,6 +3,7 @@ import { t } from '../core/i18n/index.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { BUILTIN_THEMES } from '../core/themes.js';
 import type { Config, OptionValue, ThemeStyle, WidgetItem } from '../core/types.js';
+import { commandArgs, flagValue, isBin, toolArgs } from './args.js';
 import type { ImportNote, ImportResult } from './index.js';
 
 const TOOL = 'claude-powerline';
@@ -147,10 +148,15 @@ function segmentItems(name: string, seg: Raw, notes: ImportNote[]): WidgetItem[]
   }
 }
 
+export const isPowerline = isBin('claude-powerline');
+
+// flags only after the claude-powerline token
 export function parsePowerlineArgs(command: string): Record<string, string> {
+  const argv = toolArgs(commandArgs(command), isPowerline) ?? [];
   const out: Record<string, string> = {};
-  for (const m of command.matchAll(/--(theme|style|charset|config)[=\s]+("[^"]*"|'[^']*'|\S+)/g)) {
-    out[m[1]!] = m[2]!.replace(/^["']|["']$/g, '');
+  for (const name of ['theme', 'style', 'charset', 'config']) {
+    const v = flagValue(argv, [`--${name}`]);
+    if (v) out[name] = v;
   }
   return out;
 }

@@ -241,13 +241,13 @@ export const pyccslImporter: ImporterDef = {
   shown: null,
   hasDefault: true,
   detect: [/pyccsl(\.py)?\b/i],
+  tool: isPyccsl,
   discover: (ctx) => {
-    const at = ctx.args.findIndex(isPyccsl);
-    const env = at < 0 ? null : flagValue(ctx.args.slice(at + 1), ['--env']);
+    const env = flagValue(ctx.argv.slice(1), ['--env']);
     return env ? path.resolve(ctx.cwd, expand(env, ctx.home)) : null;
   },
   load: (file, ctx) => {
-    const cmd = pyccslCommand(ctx.args);
+    const cmd = pyccslCommand(ctx.argv);
     if (!file) return { ...importPyccsl({ ...cmd, env: {} }), file: null };
     const parsed = parseShellEnv(readEnvFile(file, ctx.home));
     // pyccsl reads only PYCCSL_* keys and never the includes

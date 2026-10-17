@@ -189,6 +189,37 @@ describe('claude-powerline import', () => {
   });
 });
 
+describe('legacy command flags', () => {
+  const tmpHome = () => {
+    const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-legacy-')));
+    onTestFinished(() => fs.rmSync(dir, { recursive: true, force: true }));
+    return dir;
+  };
+
+  it('reads claude-powerline flags only after its own token', () => {
+    expect(parsePowerlineArgs('ccinfobar --style=capsule --theme nord --config x.json')).toEqual({});
+    expect(parsePowerlineArgs(`bash -c "npx -y @owloops/claude-powerline --theme nord"`)).toEqual({
+      theme: 'nord',
+    });
+  });
+
+  it('never re-imports a ccinfobar config through ccstatusline', () => {
+    const dir = tmpHome();
+    const work = path.join(dir, 'work.json');
+    fs.writeFileSync(work, '{"lines": [[{"id": "m", "type": "model"}]]}\n');
+    const env = { HOME: dir, USERPROFILE: dir, XDG_CONFIG_HOME: path.join(dir, 'xdg') };
+    expect(() => importFrom('ccstatusline', { command: `ccinfobar --config "${work}"`, env })).toThrow(
+      /Cannot read/,
+    );
+    const own = importFrom('ccstatusline', { command: `npx -y ccstatusline@latest --config "${work}"`, env });
+    expect(own.file).toBe(work);
+    const hud = importFrom('claude-hud', { command: `ccinfobar --extra-cmd "echo hi"`, env });
+    expect(hud.notes[0]!.text).toBe(
+      'the status line command does not run claude-hud, so its flags were not read',
+    );
+  });
+});
+
 describe('detectTool', () => {
   it('recognises known status lines', () => {
     expect(detectTool('/home/u/.npm-global/bin/ccstatusline')).toMatchObject({

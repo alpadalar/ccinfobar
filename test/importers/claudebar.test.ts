@@ -279,6 +279,22 @@ describe('claudebar discovery', () => {
     const rel = write(path.join(dir, 'rel', 'cb.toml'));
     const command = 'claudebar render --config=rel/cb.toml';
     expect(importFrom('claudebar', { command, env, cwd: dir }).file).toBe(rel);
+    expect(
+      importFrom('claudebar', { command: `sh -c 'claudebar --config ~/cb.toml'`, env, cwd: dir }).file,
+    ).toBe(tilde);
+  });
+
+  it('ignores a ccinfobar --config and the flags of other tools', () => {
+    const own = write(path.join(home, '.config', 'claudebar', 'config.toml'));
+    write(path.join(home, 'work.json'), '{"lines": []}\n');
+    for (const command of ['ccinfobar --config ~/work.json', 'claude-powerline --style=powerline']) {
+      const r = importFrom('claudebar', { command, env, cwd: dir });
+      expect(r.file, command).toBe(own);
+      expect(r.notes[0]!.text, command).toBe(
+        'the status line command does not run claudebar, so its flags were not read',
+      );
+    }
+    expect(importFrom('claudebar', { command: 'claudebar', env, cwd: dir }).notes).toEqual([]);
   });
 
   it('applies --theme and --segments from the command', () => {
