@@ -2179,6 +2179,23 @@ input[type="range"]:disabled {
 
 .catalog-tabs {
   padding: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.catalog-tabs button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.catalog-tabs button.on::after {
+  bottom: 0;
+}
+
+@media (max-width: 30rem) {
+  .catalog-tabs button {
+    padding: 0 0.5rem;
+  }
 }
 
 .catalog-list {
