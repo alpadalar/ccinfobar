@@ -133,7 +133,7 @@ describe('market protocol', () => {
     expect(ERROR_CODES).toContain('stale');
     expect(ERROR_CODES).toContain('unauthorized');
     expect(ERROR_CODES).toContain('over-quota');
-    expect(ERROR_CODES).toHaveLength(15);
+    expect(ERROR_CODES).toHaveLength(16);
   });
 
   it('parsers whitelist fields and sanitize text', () => {
@@ -739,7 +739,7 @@ describe('market protocol: sign-in, accounts, reports and moderation', () => {
   });
 
   it('parseErrorBody accepts the new wire codes', () => {
-    for (const c of ['banned', 'not-admin', 'upstream']) {
+    for (const c of ['banned', 'not-admin', 'upstream', 'unavailable']) {
       expect(ERROR_CODES).toContain(c);
       expect(parseErrorBody({ error: { code: c, message: 'x' } })).toBe(c);
     }

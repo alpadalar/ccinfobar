@@ -20,7 +20,14 @@ export interface FakeGitHubOpts {
   headers?: Record<string, string>;
   delayMs?: number;
   bigBody?: boolean;
-  checkToken?: { clientId: string; secret: string; status?: number; noUser?: boolean };
+  checkToken?: {
+    clientId: string;
+    secret: string;
+    status?: number;
+    noUser?: boolean;
+    // the app GitHub reports for the token; null drops the field
+    appClientId?: string | null;
+  };
 }
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
@@ -72,7 +79,7 @@ export function fakeGitHub(o: FakeGitHubOpts): { fetch: typeof fetch; calls: Fak
       if (!user) return json(404, { message: 'Not Found' });
       return json(200, {
         id: 1,
-        app: { client_id: ct.clientId, name: 'ccinfobar' },
+        ...(ct.appClientId === null ? {} : { app: { client_id: ct.appClientId ?? ct.clientId, name: 'x' } }),
         ...(ct.noUser ? {} : { user }),
       });
     }

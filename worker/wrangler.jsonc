@@ -21,6 +21,7 @@
   ],
   "ratelimits": [{ "name": "READS", "namespace_id": "1201", "simple": { "limit": 600, "period": 60 } }],
   // public values; secrets go through wrangler secret
+  // sign-in answers 503 until GITHUB_CLIENT_SECRET is set (R-14)
   "vars": {
     "MARKET_NAME": "ccinfobar marketplace",
     "GITHUB_CLIENT_ID": "Ov23liVCN9Nf6VlLv3St",

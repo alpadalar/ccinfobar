@@ -49,6 +49,7 @@ export const MESSAGES: Record<string, string> = {
   banned: 'publisher is banned',
   'not-admin': 'admins only',
   upstream: 'sign-in service unavailable',
+  unavailable: 'sign-in is not configured',
   internal: 'internal error',
 };
 

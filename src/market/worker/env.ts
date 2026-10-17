@@ -46,6 +46,8 @@ export interface Env {
   MARKET_NAME?: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
+  // weaker: trusts any GitHub token of the user, from any app (R-14)
+  ALLOW_UNVERIFIED_GITHUB_TOKENS?: string;
   ADMIN_GITHUB_IDS?: string;
   ALLOW_OVERWRITE?: string;
   MAX_ENTRY_BYTES?: string;
@@ -69,6 +71,9 @@ export function intVar(v: string | undefined): number | null {
   const n = Number(v);
   return Number.isSafeInteger(n) ? n : null;
 }
+
+// off unless set exactly (R-14)
+export const unverifiedOk = (env: Env): boolean => env.ALLOW_UNVERIFIED_GITHUB_TOKENS === 'true';
 
 // off unless set exactly (R-07)
 export const overwriteOn = (env: Env): boolean => env.ALLOW_OVERWRITE === 'true';

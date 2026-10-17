@@ -26,7 +26,11 @@ const user = (id: number, login: string, extra: Partial<FakeUser> = {}): FakeUse
 });
 
 async function setup(gh: FakeGitHubOpts, vars: Partial<Env> = {}) {
-  const { env, clock } = await makeEnv({ SIGNIN_LIMIT: '50', ...vars });
+  const { env, clock } = await makeEnv({
+    SIGNIN_LIMIT: '50',
+    ALLOW_UNVERIFIED_GITHUB_TOKENS: 'true',
+    ...vars,
+  });
   const fake = fakeGitHub(gh);
   const handler = createHandler(env, { now: clock.now, fetch: fake.fetch });
   const bodies: string[] = [];
@@ -251,7 +255,7 @@ describe.skipIf(!hasSqlite)('worker GitHub sign-in', () => {
   });
 
   it('turns a failing fetch into 502 upstream', async () => {
-    const { env, clock } = await makeEnv();
+    const { env, clock } = await makeEnv({ ALLOW_UNVERIFIED_GITHUB_TOKENS: 'true' });
     const h = createHandler(env, { now: clock.now, fetch: () => Promise.reject(new Error(`boom ${T1}`)) });
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const r = await h.fetch(
@@ -400,6 +404,47 @@ describe.skipIf(!hasSqlite)('worker check-token hardening', () => {
     expect(u.fake.calls.every((c) => c.method === 'POST')).toBe(true);
   });
 
+  it('refuses a token GitHub reports for another app, or without an app', async () => {
+    for (const appClientId of ['Ov23liOtherApp00000', null, '']) {
+      const s = await setup(checked({ appClientId }), { GITHUB_CLIENT_SECRET: secret });
+      expect(await error(await s.signIn(T1))).toMatchObject({ status: 401, code: 'unauthorized' });
+      expect(s.fake.calls).toHaveLength(1);
+      expect(await s.rows('publishers')).toHaveLength(0);
+    }
+  });
+
+  it('uses check-token with the secret even without the opt-out', async () => {
+    const s = await setup(checked(), {
+      GITHUB_CLIENT_SECRET: secret,
+      ALLOW_UNVERIFIED_GITHUB_TOKENS: undefined,
+    });
+    expect((await ok(await s.signIn(T1))).handle).toBe('octo');
+    expect(s.fake.calls.map((c) => new URL(c.url).pathname)).toEqual([`/applications/${CLIENT_ID}/token`]);
+  });
+
+  it('answers 503 when neither the secret nor the opt-out is set, before any GitHub call or row write', async () => {
+    for (const v of [undefined, 'false', '1', 'TRUE', ' true']) {
+      const s = await setup(checked(), { ALLOW_UNVERIFIED_GITHUB_TOKENS: v });
+      const r = await s.signIn(T1);
+      expect(await error(r)).toEqual({
+        status: 503,
+        code: 'unavailable',
+        message: 'sign-in is not configured',
+      });
+      expect(r.headers.get('cache-control')).toBe('no-store');
+      expect(s.fake.calls).toHaveLength(0);
+      for (const t of ['publishers', 'tokens', 'rate', 'salts']) expect(await s.rows(t)).toHaveLength(0);
+    }
+  });
+
+  it('answers 503 when the secret is set without a valid client id', async () => {
+    for (const id of [undefined, '', 'bad id!']) {
+      const s = await setup(checked(), { GITHUB_CLIENT_SECRET: secret, GITHUB_CLIENT_ID: id });
+      expect((await s.signIn(T1)).status).toBe(503);
+      expect(s.fake.calls).toHaveLength(0);
+    }
+  });
+
   it('a token of another app is refused', async () => {
     const s = await setup(checked({ clientId: 'Ov23liOtherApp00000' }), { GITHUB_CLIENT_SECRET: secret });
     expect((await s.signIn(T1)).status).toBe(401);
@@ -419,7 +464,7 @@ describe.skipIf(!hasSqlite)('worker check-token hardening', () => {
     ]);
   });
 
-  it('makes no check-token call without the secret', async () => {
+  it('uses /user only without the secret when the opt-out is set', async () => {
     const s = await setup(checked());
     await ok(await s.signIn(T1));
     expect(s.fake.calls.map((c) => new URL(c.url).pathname)).toEqual(['/user']);

@@ -48,6 +48,7 @@ export const ERROR_CODES = [
   'banned',
   'not-admin',
   'upstream',
+  'unavailable',
 ] as const;
 export type MarketErrorCode = (typeof ERROR_CODES)[number];
 

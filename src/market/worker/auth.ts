@@ -1,8 +1,8 @@
-// GitHub sign-in; the GitHub token is used once, never stored or logged (D-06, D-10)
+// GitHub sign-in; the GitHub token is used once, never stored or logged (D-06, D-10, R-14)
 import { sanitizeText } from '../../core/sanitize.js';
 import { CLIENT_ID_RE, LIST_CAP, MARKET_LIMITS } from '../protocol.js';
 import { fail, limited, TOKEN_RE } from '../rules.js';
-import type { Env, WorkerDeps } from './env.js';
+import { type Env, unverifiedOk, type WorkerDeps } from './env.js';
 import { boundedJson, json, PRIVATE_HEADERS, readJsonBody } from './http.js';
 import { buckets, check, cleanup, ipHash } from './rate.js';
 import {
@@ -98,7 +98,7 @@ async function viaUser(deps: WorkerDeps, token: string): Promise<GitHubUser> {
   return toUser(body);
 }
 
-// binds the token to our OAuth app when the secret is set (R-03)
+// binds the token to our OAuth app (R-03, R-14)
 async function viaCheckToken(
   deps: WorkerDeps,
   token: string,
@@ -122,10 +122,9 @@ async function viaCheckToken(
   if (res.status !== 200) throw statusError(res, deps.now());
   const b = body && typeof body === 'object' ? (body as Record<string, unknown>) : null;
   if (!b) throw fail(502, 'upstream');
-  const app = b.app as { client_id?: unknown } | undefined;
-  if (app && typeof app === 'object' && 'client_id' in app && app.client_id !== clientId) {
-    throw fail(401, 'unauthorized');
-  }
+  // fail closed: the token must belong to our app
+  const app = b.app && typeof b.app === 'object' ? (b.app as { client_id?: unknown }) : null;
+  if (app?.client_id !== clientId) throw fail(401, 'unauthorized');
   return b.user === undefined || b.user === null ? viaUser(deps, token) : toUser(b.user);
 }
 
@@ -158,6 +157,10 @@ const isAdmin = (env: Env, id: number): boolean =>
 
 export async function signInWithGitHub(env: Env, deps: WorkerDeps, req: Request): Promise<Response> {
   const db = env.DB;
+  const clientId = env.GITHUB_CLIENT_ID?.trim() ?? '';
+  const secret = env.GITHUB_CLIENT_SECRET ?? '';
+  // no GitHub call and no row write on a server that cannot verify tokens
+  if (secret ? !CLIENT_ID_RE.test(clientId) : !unverifiedOk(env)) throw fail(503, 'unavailable');
   const now = deps.now();
   await check(db, `a:${await ipHash(db, req, now)}`, buckets(env).signIn, now);
   await cleanup(db, now).catch(() => {});
@@ -165,15 +168,7 @@ export async function signInWithGitHub(env: Env, deps: WorkerDeps, req: Request)
   const token =
     raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as { token?: unknown }).token : undefined;
   if (typeof token !== 'string' || !GITHUB_TOKEN_RE.test(token)) throw fail(400, 'invalid');
-  const clientId = env.GITHUB_CLIENT_ID?.trim() ?? '';
-  const secret = env.GITHUB_CLIENT_SECRET ?? '';
-  let user: GitHubUser;
-  if (secret) {
-    if (!CLIENT_ID_RE.test(clientId)) throw fail(502, 'upstream');
-    user = await viaCheckToken(deps, token, clientId, secret);
-  } else {
-    user = await viaUser(deps, token);
-  }
+  const user = secret ? await viaCheckToken(deps, token, clientId, secret) : await viaUser(deps, token);
   const at = iso(deps);
   const account = await accountFor(env, user, at);
   if (account.banned) throw fail(403, 'banned');
