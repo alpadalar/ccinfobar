@@ -7,6 +7,7 @@ import { type InstallIo, runInstall } from '../../src/commands/install-cli.js';
 import { defaultConfig, saveConfig } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
 import type { Config } from '../../src/core/types.js';
+import { restoreEnv } from '../helpers.js';
 
 let saved: NodeJS.ProcessEnv;
 let dir: string;
@@ -24,7 +25,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  process.env = saved;
+  restoreEnv(saved);
   process.exitCode = undefined;
   fs.rmSync(dir, { recursive: true, force: true });
 });

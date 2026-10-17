@@ -23,7 +23,7 @@ import { findStatusLineEntry, readManifest } from '../../src/commands/manifest.j
 import { backupsDir, hashBytes, readSettings } from '../../src/commands/settings-file.js';
 import { t } from '../../src/core/i18n/index.js';
 import { claudeSettingsPath } from '../../src/core/paths.js';
-import { withLang } from '../helpers.js';
+import { restoreEnv, withLang } from '../helpers.js';
 
 const settingsFile = (data: object | null) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-install-'));
@@ -143,7 +143,7 @@ describe('install and uninstall', () => {
         execFileSync('git', ['check-ignore', '-q', other], { cwd: real, env, stdio: 'ignore' }),
       ).toThrow();
     } finally {
-      process.env = saved;
+      restoreEnv(saved);
       fs.rmSync(link, { force: true });
       fs.rmSync(real, { recursive: true, force: true });
     }
@@ -172,7 +172,7 @@ describe('install and uninstall', () => {
       );
       expect(recorded).toMatchObject([{ line: '/.claude/settings.local.json' }]);
     } finally {
-      process.env = saved;
+      restoreEnv(saved);
       fs.rmSync(root, { recursive: true, force: true });
     }
   });

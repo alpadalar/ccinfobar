@@ -25,6 +25,7 @@ import { t } from '../../src/core/i18n/index.js';
 import { tildify } from '../../src/core/paths.js';
 import { starterConfig } from '../../src/core/presets.js';
 import { VERSION } from '../../src/core/version.js';
+import { restoreEnv } from '../helpers.js';
 
 const tmpEnv = () => {
   const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-guard-')));
@@ -244,7 +245,7 @@ describe('runInstall and runUninstall', () => {
   });
 
   afterEach(() => {
-    process.env = saved;
+    restoreEnv(saved);
     process.argv[1] = argv1 as string;
     process.exitCode = undefined;
     vi.unstubAllGlobals();

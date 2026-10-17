@@ -153,3 +153,9 @@ export function useIdleEntry(): void {
     if (prev !== undefined) process.argv[1] = prev;
   });
 }
+
+// node 26 children ignore a replaced process.env object
+export function restoreEnv(saved: NodeJS.ProcessEnv): void {
+  for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+  Object.assign(process.env, saved);
+}

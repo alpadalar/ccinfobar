@@ -50,6 +50,17 @@ describe('test isolation', () => {
     expect(fs.existsSync(probe)).toBe(false);
   });
 
+  // node 26 spawns with the real environ once process.env is replaced
+  it('never replaces the process.env object in tests', () => {
+    const testDir = path.resolve(__dirname, '..');
+    const files = (fs.readdirSync(testDir, { recursive: true }) as string[]).filter((f) => f.endsWith('.ts'));
+    expect(files.length).toBeGreaterThan(100);
+    const bad = files.filter((f) =>
+      /\bprocess\.env\s*=(?!=)/.test(fs.readFileSync(path.join(testDir, f), 'utf8')),
+    );
+    expect(bad).toEqual([]);
+  });
+
   it('allows writes in the os temp dir', () => {
     const file = `${tmp()}.tmp`;
     fs.writeFileSync(file, 'x');

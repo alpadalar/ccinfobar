@@ -10,6 +10,7 @@ import { t } from '../../src/core/i18n/index.js';
 import { isHookEvent } from '../../src/data/hooks.js';
 import { markSent, progressFiles, readWant } from '../../src/data/progress.js';
 import { writeSmall } from '../../src/data/store.js';
+import { restoreEnv } from '../helpers.js';
 
 const CLEAR = '\u001b]9;4;0;\u0007';
 const PROGRESS = ['UserPromptSubmit', 'Stop', 'StopFailure'];
@@ -35,7 +36,7 @@ describe('install --progress and uninstall --progress (D-42)', () => {
   });
 
   afterEach(() => {
-    process.env = saved;
+    restoreEnv(saved);
     process.argv[1] = argv1 as string;
     process.exitCode = undefined;
   });
