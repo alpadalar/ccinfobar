@@ -88,14 +88,14 @@ export const reasonText = (code: string | null, status?: number): string =>
 // the editor reaches publish.ts through this entry
 export { planHash, publishPlan, remoteList, remoteShow, reviewPublish, runPublish };
 
-const shownUrl = (url: string): string => visibleTarget(clean(url));
+export const shownUrl = (url: string): string => visibleTarget(clean(url));
 
 // invisible and C1 characters as JSON escapes, so the data stays exact
 const INVISIBLE_JSON = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
 const escapeUnits = (ch: string): string =>
   [...Array(ch.length).keys()].map((i) => `\\u${ch.charCodeAt(i).toString(16).padStart(4, '0')}`).join('');
 
-function jsonOut(c: Ctx, data: object): void {
+export function jsonOut(c: Ctx, data: object): void {
   const text = withLanguage('en', () => JSON.stringify({ schema: 1, ...data }));
   c.io.log(text.replace(INVISIBLE_JSON, escapeUnits));
 }
@@ -110,9 +110,9 @@ function deps(c: Ctx): PublishDeps {
   };
 }
 
-const widthOf = (c: Ctx): number => Math.max(20, (c.io.columns ?? 80) - 1);
+export const widthOf = (c: Ctx): number => Math.max(20, (c.io.columns ?? 80) - 1);
 
-function payloadLines(payload: unknown, width: number): string[] {
+export function payloadLines(payload: unknown, width: number): string[] {
   const out: string[] = [];
   for (const line of JSON.stringify(payload, null, 2).split('\n')) {
     const lead = /^ */.exec(line)![0];
@@ -657,6 +657,15 @@ export async function runLogout(c: Ctx): Promise<void> {
   }
   const where = { endpoint: shownUrl(endpoint) };
   c.io.log(token !== null ? t('catalog.logout.done', where) : t('catalog.logout.none', where));
+}
+
+// moderation and reports load only when asked for
+export async function runReport(c: Ctx): Promise<void> {
+  await (await import('./catalog-admin.js')).runReportCommand(c);
+}
+
+export async function runAdmin(c: Ctx): Promise<void> {
+  await (await import('./catalog-admin.js')).runAdminCommand(c);
 }
 
 // an explicit action reads meta; an unreachable server keeps the old behaviour

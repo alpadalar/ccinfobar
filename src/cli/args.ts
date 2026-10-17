@@ -26,6 +26,8 @@ const VALUE_FLAGS = [
   'author',
   'note',
   'name',
+  'reason',
+  'tag',
 ];
 
 export function parseArgs(argv: string[]): Args {

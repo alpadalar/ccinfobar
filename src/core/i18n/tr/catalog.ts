@@ -105,7 +105,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Marketplace yükleniyor…',
   'catalog.usage':
-    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog list --remote [--refresh] [--kind preset|theme|bundle] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog install <publisher/slug>[@version] [--yes] [--dry-run] [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget|--check] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n          ccinfobar catalog login [--open|--no-open] [--json]\n          ccinfobar catalog logout [--json]',
+    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog list --remote [--refresh] [--kind preset|theme|bundle] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog install <publisher/slug>[@version] [--yes] [--dry-run] [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget|--check] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n          ccinfobar catalog login [--open|--no-open] [--json]\n          ccinfobar catalog logout [--json]\n          ccinfobar catalog report <publisher/slug> --reason <text> [--json]',
   'catalog.section.user': 'Sizin girdileriniz',
   'catalog.section.system': 'Yerleşik',
   'catalog.list.noUser': 'Henüz kayıtlı girdi yok. ccinfobar catalog save <name> ile bir tane kaydedin.',
@@ -296,6 +296,26 @@ export const catalogMessages = {
   'err.catalog.signInFirst': 'Önce giriş yapın: ccinfobar catalog login',
   'err.catalog.githubHandle':
     'Bu marketplace yayıncı adınızı GitHub girişinden alır, bu yüzden elle ayarlanamaz. ccinfobar catalog login komutunu çalıştırın.',
+  'catalog.report.done': '{id} marketplace yöneticilerine bildirildi.',
+  'catalog.report.already': '{id} girdisini zaten bildirdiniz.',
+  'catalog.report.failed': '{id} bildirilemedi: {reason}',
+  'err.catalog.report.reason': '--reason ile en az 1, en fazla {max} karakterlik bir neden yazın',
+  'catalog.admin.usage':
+    'Kullanım: ccinfobar catalog admin pending [--json]\n          ccinfobar catalog admin show <publisher/slug> [--json]\n          ccinfobar catalog admin approve <publisher/slug> [--tag <review tag>] [--note <text>] [--json]\n          ccinfobar catalog admin reject|remove <publisher/slug> [--note <text>] [--yes] [--json]\n          ccinfobar catalog admin ban <handle> [--note <text>] [--yes] [--json]\n          ccinfobar catalog admin unban <handle> [--note <text>] [--json]\n          ccinfobar catalog admin reports [--json]\n          ccinfobar catalog admin resolve <number> [--json]',
+  'catalog.admin.failed': 'Yönetici isteği başarısız oldu: {reason}',
+  'err.catalog.admin.notAdmin':
+    'Bunu yalnızca marketplace yöneticileri yapabilir. Yönetici bir GitHub hesabıyla giriş yapın: ccinfobar catalog login',
+  'catalog.admin.pendingTitle': '{endpoint} üzerinde inceleme bekleyen girdiler',
+  'catalog.admin.noPending': 'İnceleme bekleyen girdi yok.',
+  'catalog.admin.showHint': 'Birini incelemek için: ccinfobar catalog admin show <publisher/slug>',
+  'catalog.admin.live': 'Yayında',
+  'catalog.admin.content': 'İçerik (özet değeri {hash}):',
+  'catalog.admin.tag': 'İnceleme etiketi: {tag}',
+  'catalog.admin.approveHint':
+    'Tam olarak bu sürümü onaylamak için: ccinfobar catalog admin approve {id} --tag {tag}',
+  'catalog.admin.reportsTitle': '{endpoint} üzerindeki açık bildirimler',
+  'catalog.admin.noReports': 'Açık bildirim yok.',
+  'catalog.admin.resolveHint': 'Birini kapatmak için: ccinfobar catalog admin resolve <number>',
   'market.error.invalid': 'Marketplace girdiyi geçersiz buldu ve reddetti',
   'market.error.too-large': 'Girdi marketplace için çok büyük',
   'market.error.over-quota':

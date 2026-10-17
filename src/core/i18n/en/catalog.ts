@@ -100,7 +100,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Loading the marketplace…',
   'catalog.usage':
-    'Usage: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n       ccinfobar catalog list --remote [--refresh] [--kind preset|theme|bundle] [--json]\n       ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n       ccinfobar catalog show <publisher/slug> --remote [--json]\n       ccinfobar catalog install <publisher/slug>[@version] [--yes] [--dry-run] [--json]\n       ccinfobar catalog history <ref> [--json]\n       ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n       ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n       ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n       ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n       ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n       ccinfobar catalog author [<name>] [--dry-run] [--json]\n       ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n       ccinfobar catalog publisher [<handle>|--forget|--check] [--dry-run] [--json]\n       ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n       ccinfobar catalog login [--open|--no-open] [--json]\n       ccinfobar catalog logout [--json]',
+    'Usage: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n       ccinfobar catalog list --remote [--refresh] [--kind preset|theme|bundle] [--json]\n       ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n       ccinfobar catalog show <publisher/slug> --remote [--json]\n       ccinfobar catalog install <publisher/slug>[@version] [--yes] [--dry-run] [--json]\n       ccinfobar catalog history <ref> [--json]\n       ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n       ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n       ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n       ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n       ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n       ccinfobar catalog author [<name>] [--dry-run] [--json]\n       ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n       ccinfobar catalog publisher [<handle>|--forget|--check] [--dry-run] [--json]\n       ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n       ccinfobar catalog login [--open|--no-open] [--json]\n       ccinfobar catalog logout [--json]\n       ccinfobar catalog report <publisher/slug> --reason <text> [--json]',
   'catalog.section.user': 'Your entries',
   'catalog.section.system': 'Built in',
   'catalog.list.noUser': 'No saved entries yet. Save one with ccinfobar catalog save <name>.',
@@ -283,6 +283,26 @@ export const catalogMessages = {
   'err.catalog.signInFirst': 'Sign in first: ccinfobar catalog login',
   'err.catalog.githubHandle':
     'This marketplace takes your publisher handle from GitHub sign-in, so it cannot be set by hand. Run ccinfobar catalog login.',
+  'catalog.report.done': 'Reported {id} to the marketplace admins.',
+  'catalog.report.already': 'You already reported {id}.',
+  'catalog.report.failed': 'Could not report {id}: {reason}',
+  'err.catalog.report.reason': 'Give a reason of 1 to {max} characters with --reason',
+  'catalog.admin.usage':
+    'Usage: ccinfobar catalog admin pending [--json]\n       ccinfobar catalog admin show <publisher/slug> [--json]\n       ccinfobar catalog admin approve <publisher/slug> [--tag <review tag>] [--note <text>] [--json]\n       ccinfobar catalog admin reject|remove <publisher/slug> [--note <text>] [--yes] [--json]\n       ccinfobar catalog admin ban <handle> [--note <text>] [--yes] [--json]\n       ccinfobar catalog admin unban <handle> [--note <text>] [--json]\n       ccinfobar catalog admin reports [--json]\n       ccinfobar catalog admin resolve <number> [--json]',
+  'catalog.admin.failed': 'The admin request failed: {reason}',
+  'err.catalog.admin.notAdmin':
+    'Only marketplace admins can do this. Sign in with an admin GitHub account: ccinfobar catalog login',
+  'catalog.admin.pendingTitle': 'Waiting for review on {endpoint}',
+  'catalog.admin.noPending': 'No entries are waiting for review.',
+  'catalog.admin.showHint': 'Review one with: ccinfobar catalog admin show <publisher/slug>',
+  'catalog.admin.live': 'Live',
+  'catalog.admin.content': 'Content (hash {hash}):',
+  'catalog.admin.tag': 'Review tag: {tag}',
+  'catalog.admin.approveHint':
+    'Approve exactly this version with: ccinfobar catalog admin approve {id} --tag {tag}',
+  'catalog.admin.reportsTitle': 'Open reports on {endpoint}',
+  'catalog.admin.noReports': 'No open reports.',
+  'catalog.admin.resolveHint': 'Close one with: ccinfobar catalog admin resolve <number>',
   'market.error.invalid': 'The marketplace rejected the entry as not valid',
   'market.error.too-large': 'The entry is too large for the marketplace',
   'market.error.over-quota':

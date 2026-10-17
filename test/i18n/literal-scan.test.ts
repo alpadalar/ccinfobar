@@ -39,6 +39,7 @@ const SWEPT: string[] = [
   'src/commands/settings-file.ts',
   'src/commands/hooks-install.ts',
   'src/commands/update.ts',
+  'src/commands/catalog-admin.ts',
   'src/commands/catalog-market.ts',
   'src/commands/catalog.ts',
   'src/commands/open.ts',

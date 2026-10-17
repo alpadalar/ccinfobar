@@ -148,6 +148,7 @@ Your own `<kind>/<slug>` wins over a built-in ref with the same text.
 | `ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]` | Show what waits to publish, then send it after confirmation |
 | `ccinfobar catalog login [--open\|--no-open] [--json]` | Sign in to a GitHub marketplace: shows a code to enter at https://github.com/login/device (offers to open that page), then keeps only the marketplace token. The GitHub token is never stored. On a token-mode server it explains that publishing registers you |
 | `ccinfobar catalog logout [--json]` | Revoke the marketplace token on the server (best effort) and forget it and the handle on this computer |
+| `ccinfobar catalog report <publisher/slug> --reason <text> [--json]` | Report a marketplace entry to its admins (signed in, once per entry, a reason of 1 to 200 characters) |
 | `ccinfobar catalog list --remote [--kind ...] [--json]` | Read-only list of the marketplace entries |
 | `ccinfobar catalog show <publisher/slug> --remote [--json]` | A marketplace entry with its versions and the commands or URLs it would run or open |
 

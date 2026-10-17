@@ -186,6 +186,19 @@ describe('import graph', () => {
       expect(closure('commands/catalog.ts').has(f), f).toBe(false);
       expect(closure('editor/server.ts').has(f), f).toBe(false);
     }
+    // moderation loads from catalog-market only when asked for
+    expect(files.has('src/commands/catalog-admin.ts')).toBe(false);
+    expect(closure('commands/catalog.ts').has('src/commands/catalog-admin.ts')).toBe(false);
+    expect(closure('editor/server.ts').has('src/commands/catalog-admin.ts')).toBe(false);
+    expect(fs.readFileSync(path.join(src, 'commands/catalog-market.ts'), 'utf8')).toContain(
+      "await import('./catalog-admin.js')",
+    );
+    const admin = walk(src).filter((f) =>
+      /import\('[./]+(?:commands\/)?catalog-admin\.js'\)/.test(fs.readFileSync(f, 'utf8')),
+    );
+    expect(admin.map((f) => path.relative(root, f).replace(/\\/g, '/'))).toEqual([
+      'src/commands/catalog-market.ts',
+    ]);
     expect([...closure('commands/open.ts')].filter((f) => f.startsWith('src/editor/'))).toEqual([]);
     const lazy = walk(src).filter((f) =>
       /import\('[./]+(?:market\/client|catalog\/publish)\.js'\)/.test(fs.readFileSync(f, 'utf8')),
