@@ -45,6 +45,7 @@ export const IMPORT_SOURCES = [
   'claudebar',
   'statusline-pro',
   'claude-code-statusline',
+  'starship-claude',
 ] as const;
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];

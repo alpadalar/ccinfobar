@@ -6,6 +6,7 @@ import { claudeCodeStatuslineImporter } from './claude-code-statusline.js';
 import { claudebarImporter } from './claudebar.js';
 import type { ImportResult, ImportSource } from './index.js';
 import { homeOf, isFile, shownFile } from './io.js';
+import { starshipClaudeImporter } from './starship-claude.js';
 import { statuslineProImporter } from './statusline-pro.js';
 
 export interface ImportCtx {
@@ -71,6 +72,7 @@ export const REGISTRY: readonly ImporterDef[] = [
   claudebarImporter,
   statuslineProImporter,
   claudeCodeStatuslineImporter,
+  starshipClaudeImporter,
 ];
 
 export function registryDef(source: ImportSource): ImporterDef | null {

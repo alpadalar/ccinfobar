@@ -26,6 +26,7 @@ import {
   importFrom,
   toConfig,
 } from '../../src/importers/index.js';
+import { TARGETS as SC_TARGETS } from '../../src/importers/starship-claude.js';
 import { TARGETS as CCSP_TARGETS } from '../../src/importers/statusline-pro.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
 
@@ -182,6 +183,24 @@ const TOOLS: Tool[] = [
       '',
     ].join('\n'),
     proto: 'display.line1.components = ["model_info"]\n__proto__ = 1\n',
+  },
+  {
+    source: 'starship-claude',
+    targets: SC_TARGETS,
+    fixtures: ['starship-claude-minimal.toml', 'starship-claude-powerline.toml'],
+    ext: 'toml',
+    hasDefault: false,
+    hostile: [
+      'palette = "p"',
+      `format = ${toml(`[${HOSTILE}](fg:x) \${env_var.CLAUDE_MODEL}`)}`,
+      '[env_var.CLAUDE_MODEL]',
+      'style = "fg:x"',
+      `symbol = ${toml(HOSTILE)}`,
+      '[palettes.p]',
+      `x = ${toml(HOSTILE)}`,
+      '',
+    ].join('\n'),
+    proto: 'format = "$directory"\n[palettes.custom]\n__proto__ = "#ffffff"\n',
   },
   {
     source: 'cship',

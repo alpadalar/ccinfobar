@@ -61,6 +61,7 @@ export const importMessages = {
     '{tool} proje yapılandırmaları (~/.claude/projects/ altında) okunmadı; birini içe aktarmak için yolunu --file ile verin',
   'import.cshipNotFound': 'cship yapılandırması bulunamadı',
   'import.cshipNoLines': 'cship yapılandırmasında satır yok ({file})',
+  'import.noFormat': '{tool} yapılandırmasında format yok ({file})',
   'import.note.starshipConfig':
     '{tool} yapılandırması $STARSHIP_CONFIG içinden okundu: {file} (cship bunu yalnızca Starship modülleri için kullanır)',
   'import.note.noModule': '{tool} modülü "{name}" için ccinfobar karşılığı yok, atlandı',

@@ -57,6 +57,7 @@ export const importMessages = {
     '{tool} project configs under ~/.claude/projects/ were not read; pass one with --file to import it',
   'import.cshipNotFound': 'no cship config found',
   'import.cshipNoLines': 'cship config has no lines ({file})',
+  'import.noFormat': '{tool} config has no format ({file})',
   'import.note.starshipConfig':
     'read the {tool} config from $STARSHIP_CONFIG: {file} (cship itself only uses it for Starship modules)',
   'import.note.noModule': '{tool} module "{name}" has no ccinfobar equivalent and was skipped',

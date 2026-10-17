@@ -1,0 +1,77 @@
+# starship-claude powerline template + nord palette (configure.sh --style powerline --write)
+"$schema" = 'https://starship.rs/config-schema.json'
+
+palette = "custom"
+add_newline = false
+
+## LLMs: Avoid changing the format! You can't reliably write nerd fonts and special characters.
+format = """
+[\u2591\u2592\u2593](claude_bg)\
+[ \uf4f5 ](bg:claude_bg fg:claude)\
+[\ue0b0](bg:directory_bg fg:claude_bg)\
+$directory\
+[\ue0b0](fg:directory_bg bg:git_bg)\
+$git_branch\
+$git_status\
+[\ue0b0](fg:git_bg bg:model_bg)\
+${env_var.CLAUDE_MODEL_NERD}\
+[\ue0b0](fg:model_bg bg:context_bg)\
+${env_var.CLAUDE_CONTEXT}\
+[\ue0b0](fg:context_bg bg:cost_bg)\
+${env_var.CLAUDE_COST}\
+[\ue0b0 ](fg:cost_bg)\
+"""
+
+[directory]
+style = "bg:directory_bg fg:directory"
+format = "[ $path ]($style)"
+truncation_length = 2
+truncate_to_repo = true
+
+[git_branch]
+symbol = "\uf418"
+style = "bg:git_bg fg:git_branch"
+format = "[ $symbol $branch]($style)"
+
+[git_status]
+style = "bg:git_bg fg:git_status"
+format = "[($all_status$ahead_behind)]($style)"
+
+[env_var.CLAUDE_MODEL_NERD]
+variable = "CLAUDE_MODEL_NERD"
+format = "[ $env_value]($style)"
+style = "bg:model_bg fg:model"
+
+[env_var.CLAUDE_CONTEXT]
+variable = "CLAUDE_CONTEXT"
+format = "[ $env_value ]($style)"
+style = "bg:context_bg fg:context"
+
+[env_var.CLAUDE_COST]
+variable = "CLAUDE_COST"
+format = "[$env_value]($style)"
+style = "bg:cost_bg fg:cost"
+
+## Custom palette
+#
+
+# Nord
+[palettes.custom]
+claude = "#D97757"
+claude_bg = "#2e3440"
+
+directory = "#88c0d0"
+directory_bg = "#2e3440"
+
+git_branch = "#b48ead"
+git_status = "#bf616a"
+git_bg = "#3b4252"
+
+model = "#5e81ac"
+model_bg = "#2e3440"
+
+context = "#8fbcbb"
+context_bg = "#3b4252"
+
+cost = "#a3be8c"
+cost_bg = "#434c5e"
