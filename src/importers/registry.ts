@@ -8,6 +8,7 @@ import { claudeCodeStatuslineImporter } from './claude-code-statusline.js';
 import { claudeStatusbarImporter } from './claude-statusbar.js';
 import { claudeUltimateHudImporter } from './claude-ultimate-hud.js';
 import { claudebarImporter } from './claudebar.js';
+import { claudelineImporter } from './claudeline.js';
 import { corallineImporter } from './coralline.js';
 import type { ImportResult, ImportSource } from './index.js';
 import { homeOf, isFile, shownFile } from './io.js';
@@ -87,6 +88,7 @@ export const REGISTRY: readonly ImporterDef[] = [
   claudeUltimateHudImporter,
   ccpetImporter,
   ccStatuslineImporter,
+  claudelineImporter,
 ];
 
 export function registryDef(source: ImportSource): ImporterDef | null {

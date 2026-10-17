@@ -31,3 +31,4 @@ Hand-written fixtures in each tool's documented format; no upstream code or secr
 | `claude-ultimate-hud.json` | [ai-younggle-man/claude-ultimate-hud](https://github.com/ai-younggle-man/claude-ultimate-hud) | `commands/setup.md` (Step 2 configuration file), `README.md` (display options), `src/types.ts` | MIT |
 | `ccpet.json` | [terryso/ccpet](https://github.com/terryso/ccpet) | `src/services/ConfigService.ts` `DEFAULT_CONFIG` without its `supabase` block, `README.md` | MIT |
 | `cc-statusline.sh` | [chongdashu/cc-statusline](https://github.com/chongdashu/cc-statusline) | `src/generators/bash-generator.ts` (script header), `.claude/statusline.sh` (first four lines); header comments plus `echo` filler, not executable | MIT |
+| (none; command strings in tests) | [fredrikaverpil/claudeline](https://github.com/fredrikaverpil/claudeline) | `main.go` (flags), `internal/render/render.go` `Build` and `Output`, `README.md` (Flags) | MIT |
