@@ -23,6 +23,7 @@ const SWEPT: string[] = [
   'src/importers/io.ts',
   'src/importers/args.ts',
   'src/importers/themes-map.ts',
+  'src/importers/registry.ts',
   'src/commands/doctor.ts',
   'src/commands/manage.ts',
   'src/commands/bench.ts',

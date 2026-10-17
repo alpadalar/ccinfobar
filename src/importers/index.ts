@@ -25,6 +25,7 @@ import {
   safeThemeName,
   tableOf,
 } from './io.js';
+import { importerList, loadFromRegistry, registryDef } from './registry.js';
 
 export { MAX_SOURCE_BYTES, readSource, SourceTooLargeError } from './io.js';
 
@@ -38,7 +39,9 @@ export const IMPORT_SOURCES = [
 
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
 
-export const IMPORT_ALIASES: Record<string, ImportSource> = { ccline: 'ccometixline' };
+export const IMPORT_ALIASES: Record<string, ImportSource> = Object.fromEntries(
+  importerList().flatMap((i) => (i.aliases ?? []).map((a) => [a, i.source] as const)),
+);
 
 export interface ImportNote {
   kind: 'approx' | 'drop' | 'info';
@@ -314,6 +317,8 @@ export function importFrom(
   source: ImportSource,
   opts: { file?: string; command?: string; env?: NodeJS.ProcessEnv; cwd?: string } = {},
 ): ImportResult {
+  const def = registryDef(source);
+  if (def) return loadFromRegistry(def, opts);
   const env = opts.env ?? process.env;
   const command = opts.command ?? '';
   if (source === 'cship') {
