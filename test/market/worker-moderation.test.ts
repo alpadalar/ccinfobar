@@ -851,6 +851,32 @@ describe.skipIf(!hasSqlite)('worker moderation guards', () => {
     expect(((await r.json()) as { pending?: boolean }).pending).toBe(true);
   });
 
+  it('new content on a live entry waits for review once the publisher lost trust', async () => {
+    const s = await trusted({ ALLOW_OVERWRITE: 'true' });
+    expect((await s.publish('two')).status).toBe(201);
+    expect(await s.state('pub', 'two')).toBe('live');
+    await s.call('POST', action('pub/one', 'remove'), { token: s.admin });
+    expect(await s.publisher('pub')).toMatchObject({ trusted: 0 });
+    const v = await s.call('POST', '/v1/entries/pub/two/versions', {
+      token: s.pub,
+      headers: { 'if-match': '"1"' },
+      body: { content: preset('cwd') },
+    });
+    expect(v.status).toBe(201);
+    expect(((await v.json()) as { pending?: boolean }).pending).toBe(true);
+    expect(await s.state('pub', 'two')).toBe('pending');
+    expect(await s.indexIds()).toEqual([]);
+    expect((await s.call('GET', '/v1/entries/pub/two/2.json')).status).toBe(404);
+    expect((await s.approve('pub/two')).status).toBe(200);
+    expect(await s.state('pub', 'two')).toBe('live');
+    const o = await s.call('PUT', '/v1/entries/pub/two/versions/2', {
+      token: s.pub,
+      body: { content: preset('model') },
+    });
+    expect(o.status).toBe(200);
+    expect(((await o.json()) as { pending?: boolean }).pending).toBeUndefined();
+  });
+
   it('removed and rejected entries never come back public', async () => {
     const s = await trusted({ ALLOW_OVERWRITE: 'true' });
     await s.call('POST', action('pub/one', 'remove'), { token: s.admin });

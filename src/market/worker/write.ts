@@ -181,11 +181,13 @@ export async function addVersion(
   const body = versionText({ version, content: payload.content, hash });
   const bytes = utf8(body);
   await room(db, env, who.handle, bytes);
+  let state: unknown;
   try {
     const done = await db.batch([
       requireWriter(db, who.digest, who.handle),
       ...versionStatements(db, { entry: next, expected: row.version, expectedHash: entry.hash, body, bytes }),
     ]);
+    state = (done[2]?.results[0] as { state?: unknown } | undefined)?.state;
     await noteSize(db, done);
   } catch (err) {
     const c = writeConflict(err);
@@ -194,6 +196,7 @@ export async function addVersion(
     throw err;
   }
   await rebuildIndex(db, at);
+  if (state !== 'live') return json(201, { id: entry.id, version, hash, pending: true });
   return json(201, { id: entry.id, version, hash });
 }
 
@@ -232,14 +235,14 @@ export async function overwrite(
   const body = versionText({ version: n, content: payload.content, hash });
   const bytes = utf8(body);
   await room(db, env, who.handle, bytes);
+  let state: unknown;
   try {
-    await noteSize(
-      db,
-      await db.batch([
-        requireWriter(db, who.digest, who.handle),
-        ...overwriteStatements(db, { entry: next, expectedHash: entry.hash, body, bytes }),
-      ]),
-    );
+    const done = await db.batch([
+      requireWriter(db, who.digest, who.handle),
+      ...overwriteStatements(db, { entry: next, expectedHash: entry.hash, body, bytes }),
+    ]);
+    state = (done[1]?.results[0] as { state?: unknown } | undefined)?.state;
+    await noteSize(db, done);
   } catch (err) {
     if (writeConflict(err) !== 'guard') throw err;
     await stillWriter(db, req);
@@ -248,6 +251,7 @@ export async function overwrite(
     throw fail(409, 'conflict', LATEST_ONLY);
   }
   await rebuildIndex(db, at);
+  if (state !== 'live') return json(200, { id: entry.id, version: n, hash, pending: true });
   return json(200, { id: entry.id, version: n, hash });
 }
 
