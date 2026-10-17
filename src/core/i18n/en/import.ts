@@ -98,6 +98,8 @@ export const importMessages = {
   'import.note.includeUnsafe':
     '{tool} theme "{name}" included in the config is not a safe theme name and was ignored',
   'import.note.clockSettingOff': '{tool} {setting} is "off", so the clock segment was skipped',
+  'import.note.envFlagsIgnored':
+    '{tool} overrides in {names} were not read; only its config file was imported',
   'import.note.separatorMerged':
     '{tool} lines use different separators; every line now uses the most common one, {separator}',
   'import.note.hudIgnored': '{file} is not a JSON object and was ignored',

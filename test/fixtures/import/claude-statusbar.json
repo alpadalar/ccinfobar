@@ -1,0 +1,20 @@
+{
+  "style": "capsule",
+  "theme": "twilight",
+  "density": "regular",
+  "auto_compact_width": 100,
+  "show_weekly": true,
+  "show_language": true,
+  "show_cost": false,
+  "show_balance": true,
+  "balance_bar": true,
+  "show_cache_age": true,
+  "show_project_branch": true,
+  "show_ocs": true,
+  "show_todos": true,
+  "show_tools": false,
+  "show_agents": false,
+  "show_duration": false,
+  "show_lines": true,
+  "show_ahead_behind": false
+}

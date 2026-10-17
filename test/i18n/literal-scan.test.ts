@@ -33,6 +33,7 @@ const SWEPT: string[] = [
   'src/importers/shell-env.ts',
   'src/importers/pyccsl.ts',
   'src/importers/coralline.ts',
+  'src/importers/claude-statusbar.ts',
   'src/commands/doctor.ts',
   'src/commands/manage.ts',
   'src/commands/import-help.ts',

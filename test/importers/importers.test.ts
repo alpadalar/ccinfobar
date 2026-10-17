@@ -488,6 +488,7 @@ describe('import sources', () => {
       'starship-claude',
       'pyccsl',
       'coralline',
+      'claude-statusbar',
     ]);
     expect(resolveSource('ccstatusline')).toBe('ccstatusline');
     expect(resolveSource('CLAUDE-POWERLINE')).toBe('claude-powerline');

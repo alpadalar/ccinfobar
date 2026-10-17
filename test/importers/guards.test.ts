@@ -16,6 +16,7 @@ import { TARGETS as CC_TARGETS } from '../../src/importers/ccstatusline.js';
 import { TARGETS as CCS_TARGETS } from '../../src/importers/claude-code-statusline.js';
 import { TARGETS as HUD_TARGETS } from '../../src/importers/claude-hud.js';
 import { TARGETS as PL_TARGETS } from '../../src/importers/claude-powerline.js';
+import { TARGETS as CSB_TARGETS } from '../../src/importers/claude-statusbar.js';
 import { TARGETS as CLAUDEBAR_TARGETS } from '../../src/importers/claudebar.js';
 import { sanitizeImport } from '../../src/importers/confirm.js';
 import { TARGETS as CORALLINE_TARGETS } from '../../src/importers/coralline.js';
@@ -223,6 +224,16 @@ const TOOLS: Tool[] = [
     hasDefault: true,
     hostile: `VL_STYLE=lean\nVL_LEAN_SEP="${HOSTILE}"\nVL_SEGMENTS="model ${HOSTILE}"\n`,
     protoText: '__proto__=1\nVL_SEGMENTS=model\n',
+  },
+  {
+    source: 'claude-statusbar',
+    targets: CSB_TARGETS,
+    fixtures: ['claude-statusbar.json'],
+    ext: 'json',
+    hasDefault: true,
+    hostileIn: 'notes',
+    hostile: JSON.stringify({ style: HOSTILE, theme: HOSTILE }),
+    protoText: `{"__proto__": ${EVIL}, "show_cost": true, "nested": {"__proto__": ${EVIL}, "theme": "nord"}}`,
   },
   {
     source: 'cship',

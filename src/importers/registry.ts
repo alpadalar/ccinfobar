@@ -3,6 +3,7 @@ import { t } from '../core/i18n/index.js';
 import { commandArgs } from './args.js';
 import { bestClaudeHudImporter, byebyecodeImporter } from './ccline-family.js';
 import { claudeCodeStatuslineImporter } from './claude-code-statusline.js';
+import { claudeStatusbarImporter } from './claude-statusbar.js';
 import { claudebarImporter } from './claudebar.js';
 import { corallineImporter } from './coralline.js';
 import type { ImportResult, ImportSource } from './index.js';
@@ -77,6 +78,7 @@ export const REGISTRY: readonly ImporterDef[] = [
   starshipClaudeImporter,
   pyccslImporter,
   corallineImporter,
+  claudeStatusbarImporter,
 ];
 
 export function registryDef(source: ImportSource): ImporterDef | null {

@@ -102,6 +102,8 @@ export const importMessages = {
   'import.note.includeUnsafe':
     'yapılandırmada dahil edilen {tool} teması "{name}" güvenli bir tema adı değil, yok sayıldı',
   'import.note.clockSettingOff': '{tool} {setting} değeri "off", bu yüzden saat bölümü atlandı',
+  'import.note.envFlagsIgnored':
+    '{tool} geçersiz kılmaları ({names}) okunmadı; yalnızca yapılandırma dosyası içe aktarıldı',
   'import.note.separatorMerged':
     '{tool} satırları farklı ayraçlar kullanıyor; artık her satır en sık kullanılan ayracı ({separator}) kullanıyor',
   'import.note.hudIgnored': '{file} bir JSON nesnesi değil, yok sayıldı',
