@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import { resetLanguageCache } from '../../src/cli/lang.js';
 import { main } from '../../src/cli/main.js';
-import { importHelp } from '../../src/commands/import-help.js';
+import { importHelp, projectLabel } from '../../src/commands/import-help.js';
 import { runImportCommand } from '../../src/commands/manage.js';
 import { VERSION } from '../../src/core/version.js';
 import { visibleWidth } from '../../src/core/width.js';
@@ -34,7 +34,9 @@ function expectListing(text: string) {
   for (const [i, info] of list.entries()) {
     const ids = [info.source, ...(info.aliases ?? [])].join(', ');
     expect(lines[i]!.startsWith(`  ${ids}  `), lines[i]).toBe(true);
-    expect(lines[i]).toContain(`${info.name} (${info.repo})`);
+    expect(lines[i]).toContain(`  ${projectLabel(info)}  `);
+    expect(lines[i]!.split(info.repo).length, lines[i]).toBe(2);
+    expect(lines[i], lines[i]).not.toMatch(/\) \(/);
   }
   for (const id of IMPORT_SOURCES)
     expect(
@@ -59,6 +61,12 @@ describe('importHelp', () => {
     expect(text).toContain('  ccstatusline, ccstatusline-zh  ');
     expect(text).toContain('~/.config/ccstatusline/settings.json');
     expect(text).toContain('Without --file');
+    expect(text).toContain('  rz1989s/claude-code-statusline  ');
+    expect(text).toContain('  glauberlima/claude-code-statusline  ');
+    expect(text).toContain('  NYCU-Chung/cc-statusline  ');
+    expect(text).toContain('  sirmalloc/ccstatusline  ');
+    expect(text).toContain('  claude-statusbar (leeguooooo/claude-code-usage-bar)  ');
+    expect(text).not.toContain('(rz1989s) (');
     expectListing(text);
   });
 

@@ -1,12 +1,18 @@
 import '../core/i18n/lazy.js';
 import { t } from '../core/i18n/index.js';
 import { padVisible, visibleWidth } from '../core/width.js';
-import { importerList } from '../importers/registry.js';
+import { type ImporterInfo, importerList } from '../importers/registry.js';
+
+// the repo alone when it already names the tool
+export function projectLabel(i: ImporterInfo): string {
+  const base = i.repo.slice(i.repo.lastIndexOf('/') + 1).toLowerCase();
+  return i.name.replace(/ \([^)]*\)$/, '').toLowerCase() === base ? i.repo : `${i.name} (${i.repo})`;
+}
 
 export function importHelp(): string {
   const list = importerList().map((i) => [
     [i.source, ...(i.aliases ?? [])].join(', '),
-    `${i.name} (${i.repo})`,
+    projectLabel(i),
     i.shown ?? t('import.help.fromCommand'),
   ]);
   const ids = Math.max(...list.map((r) => visibleWidth(r[0]!)));
