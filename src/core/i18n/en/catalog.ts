@@ -230,7 +230,8 @@ export const catalogMessages = {
     'The marketplace limit is reached (entries, withdrawn entries, versions or publishers); nothing was added',
   'market.error.conflict': 'The marketplace already has an entry with this name',
   'market.error.stale': 'A newer version was published meanwhile; reload and try again',
-  'market.error.forbidden': 'The marketplace did not allow this',
+  'market.error.forbidden':
+    'The marketplace did not allow this: only the publisher can change an entry, and new content waits until an admin approves your next entry',
   'market.error.not-found': 'The entry was not found on the marketplace',
   'market.error.withdrawn': 'This entry was withdrawn from the marketplace',
   'market.error.rate-limited': 'Too many requests to the marketplace; try again later',
@@ -253,5 +254,9 @@ export const catalogMessages = {
   'market.error.changed': 'The entry changed while publishing; publish again to send the change',
   'market.error.unreviewed':
     'It changed after you reviewed it, so it was not sent; publish again to review the change',
+  'market.error.banned': 'This marketplace account is banned',
+  'market.error.not-admin': 'Only marketplace admins can do this',
+  'market.error.upstream': 'The sign-in service (GitHub) is not available; try again later',
+  'market.error.unavailable': 'Sign-in is not set up on this marketplace yet',
   'market.error.unknown': 'The marketplace request failed',
 } as const;

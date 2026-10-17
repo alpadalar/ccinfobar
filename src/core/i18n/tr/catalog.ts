@@ -240,7 +240,8 @@ export const catalogMessages = {
     'Marketplace sınırına ulaşıldı (girdi, geri çekilen girdi, sürüm veya yayıncı sayısı); hiçbir şey eklenmedi',
   'market.error.conflict': "Marketplace'te bu adla bir girdi zaten var",
   'market.error.stale': 'Bu arada daha yeni bir sürüm yayımlandı; yeniden yükleyip tekrar deneyin',
-  'market.error.forbidden': 'Marketplace buna izin vermedi',
+  'market.error.forbidden':
+    'Marketplace buna izin vermedi: bir girdiyi yalnızca yayıncısı değiştirebilir ve yeni içerik, bir yönetici sonraki girdinizi onaylayana kadar bekler',
   'market.error.not-found': "Girdi marketplace'te bulunamadı",
   'market.error.withdrawn': "Bu girdi marketplace'ten geri çekildi",
   'market.error.rate-limited': "Marketplace'e çok fazla istek gönderildi; daha sonra tekrar deneyin",
@@ -263,5 +264,9 @@ export const catalogMessages = {
   'market.error.changed': 'Girdi yayımlama sırasında değişti; değişikliği göndermek için tekrar yayımlayın',
   'market.error.unreviewed':
     'İncelemenizden sonra değiştiği için gönderilmedi; değişikliği incelemek için tekrar yayımlayın',
+  'market.error.banned': 'Bu marketplace hesabı yasaklandı',
+  'market.error.not-admin': 'Bunu yalnızca marketplace yöneticileri yapabilir',
+  'market.error.upstream': 'Giriş hizmeti (GitHub) kullanılamıyor; daha sonra tekrar deneyin',
+  'market.error.unavailable': "Bu marketplace'te giriş henüz ayarlanmamış",
   'market.error.unknown': 'Marketplace isteği başarısız oldu',
 } satisfies Record<keyof typeof enCatalog, Message>;
