@@ -1,7 +1,9 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_SEGMENTS, importClaudebar, TARGETS } from '../../src/importers/claudebar.js';
+import { detectTool, importFrom, resolveSource } from '../../src/importers/index.js';
 import { parseToml } from '../../src/importers/toml.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
 import { withLang } from '../helpers.js';
@@ -226,5 +228,106 @@ describe('importClaudebar', () => {
   it('targets only existing widgets', () => {
     const known = new Set(ALL_WIDGETS.map((w) => w.type));
     for (const type of TARGETS) expect(known.has(type), type).toBe(true);
+  });
+});
+
+describe('claudebar discovery', () => {
+  let dir: string;
+  let home: string;
+  let env: NodeJS.ProcessEnv;
+  const MINI = 'theme = "nord"\nsegments = ["model"]\n';
+  const write = (file: string, text = MINI) => {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+    return file;
+  };
+
+  beforeEach(() => {
+    dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-claudebar-')));
+    home = path.join(dir, 'home');
+    fs.mkdirSync(home);
+    env = { HOME: home, USERPROFILE: home };
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('reads <home>/.config/claudebar/config.toml', () => {
+    const file = write(path.join(home, '.config', 'claudebar', 'config.toml'));
+    const r = importFrom('claudebar', { env, cwd: dir });
+    expect(r.file).toBe(file);
+    expect(r.config.theme).toBe('nord');
+    expect(r.notes).toEqual([]);
+  });
+
+  it('prefers a non-empty XDG_CONFIG_HOME', () => {
+    write(path.join(home, '.config', 'claudebar', 'config.toml'));
+    const xdg = write(path.join(dir, 'xdg', 'claudebar', 'config.toml'), 'theme = "dracula"\n');
+    expect(
+      importFrom('claudebar', { env: { ...env, XDG_CONFIG_HOME: path.join(dir, 'xdg') }, cwd: dir }).file,
+    ).toBe(xdg);
+    const empty = importFrom('claudebar', { env: { ...env, XDG_CONFIG_HOME: '' }, cwd: dir });
+    expect(empty.file).toBe(path.join(home, '.config', 'claudebar', 'config.toml'));
+  });
+
+  it('follows --config in the status line command', () => {
+    const tilde = write(path.join(home, 'cb.toml'));
+    expect(importFrom('claudebar', { command: 'claudebar --config ~/cb.toml', env, cwd: dir }).file).toBe(
+      tilde,
+    );
+    const rel = write(path.join(dir, 'rel', 'cb.toml'));
+    const command = 'claudebar render --config=rel/cb.toml';
+    expect(importFrom('claudebar', { command, env, cwd: dir }).file).toBe(rel);
+  });
+
+  it('applies --theme and --segments from the command', () => {
+    write(path.join(home, '.config', 'claudebar', 'config.toml'));
+    const r = importFrom('claudebar', {
+      command: 'claudebar --theme gruvbox --segments cost,lines',
+      env,
+      cwd: dir,
+    });
+    expect(r.config.theme).toBe('gruvbox');
+    expect(types(r)).toEqual(['session-cost', 'lines-changed']);
+  });
+
+  it('imports the default layout when no file exists', () => {
+    const r = importFrom('claudebar', { env, cwd: dir });
+    expect(r.file).toBeNull();
+    expect(r.notes[0]!.text).toBe('no claudebar config file found, imported its default layout');
+    expect(types(r)).toHaveLength(14);
+    const missing = importFrom('claudebar', { command: 'claudebar --config ~/none.toml', env, cwd: dir });
+    expect(missing.file).toBeNull();
+  });
+
+  it('fails on a missing --file', () => {
+    const file = path.join(dir, 'missing.toml');
+    expect(() => importFrom('claudebar', { file, env, cwd: dir })).toThrow(
+      `Cannot read claudebar config at ${file}`,
+    );
+  });
+
+  it('shows a TOML error with its position', () => {
+    const file = write(path.join(dir, 'bad.toml'), 'theme = "unclosed\n');
+    expect(() => importFrom('claudebar', { file, env, cwd: dir })).toThrow(/bad\.toml:1:\d+ /);
+  });
+
+  it('is detected from its binary and resolved by name', () => {
+    expect(resolveSource('claudebar')).toBe('claudebar');
+    expect(resolveSource('ClaudeBar')).toBe('claudebar');
+    for (const command of [
+      'claudebar render',
+      '/usr/local/bin/claudebar',
+      'C:\\Users\\me\\.cargo\\bin\\claudebar.exe render',
+    ]) {
+      expect(detectTool(command), command).toMatchObject({
+        tool: 'claudebar',
+        name: 'claudebar',
+        importable: true,
+      });
+    }
+    expect(detectTool('claudebarista')!.tool).toBe('unknown');
+    expect(detectTool('claude-statusbar')!.tool).not.toBe('claudebar');
   });
 });
