@@ -55,12 +55,27 @@ function publishBody(slug: string, content: unknown = preset()) {
   };
 }
 
-// counts executed statements, batches included
-function counted(db: D1Database): { db: D1Database; n: { v: number } } {
+type Hook = { re: RegExp; fn: () => Promise<unknown> };
+
+// counts executed statements, batches included; a hook runs once right before a matching write
+function counted(db: D1Database): {
+  db: D1Database;
+  n: { v: number };
+  before(re: RegExp, fn: () => Promise<unknown>): void;
+  left(): boolean;
+} {
   const n = { v: 0 };
-  const wrap = (s: D1PreparedStatement): D1PreparedStatement => ({
-    bind: (...v) => wrap(s.bind(...v)),
-    first: ((col?: string) => {
+  let hook: Hook | null = null;
+  const fire = async (sqls: string[]) => {
+    const h = hook;
+    if (!h || !sqls.some((q) => h.re.test(q))) return;
+    hook = null;
+    await h.fn();
+  };
+  const wrap = (s: D1PreparedStatement, sql: string): D1PreparedStatement => ({
+    bind: (...v) => wrap(s.bind(...v), sql),
+    first: (async (col?: string) => {
+      await fire([sql]);
       n.v++;
       return col === undefined ? s.first() : s.first(col);
     }) as D1PreparedStatement['first'],
@@ -77,15 +92,23 @@ function counted(db: D1Database): { db: D1Database; n: { v: number } } {
       return s.raw(o);
     },
     // the real statement, for batch
-    ...{ inner: s },
+    ...{ inner: s, sql },
   });
   return {
     n,
+    // an earlier hook must have fired
+    before: (re, fn) => {
+      if (hook) throw new Error(`hook ${hook.re} never fired`);
+      hook = { re, fn };
+    },
+    left: () => hook !== null,
     db: {
-      prepare: (sql) => wrap(db.prepare(sql)),
-      batch: (list) => {
+      prepare: (sql) => wrap(db.prepare(sql), sql),
+      batch: async (list) => {
+        const inner = list as unknown as { inner: D1PreparedStatement; sql: string }[];
+        await fire(inner.map((x) => x.sql));
         n.v += list.length;
-        return db.batch(list.map((s) => (s as unknown as { inner: D1PreparedStatement }).inner));
+        return db.batch(inner.map((x) => x.inner));
       },
       exec: (sql) => db.exec(sql),
     },
@@ -134,6 +157,11 @@ async function setup(vars: Partial<Env> = {}) {
       .first();
   const versionRows = async (p: string, s: string) =>
     (await db.prepare('SELECT * FROM versions WHERE publisher = ?1 AND slug = ?2').bind(p, s).all()).results;
+  // the review tag approve has to send back
+  const pin = async (id: string, token: string): Promise<Record<string, string>> => {
+    const r = await call('GET', adminEntryPath(id), { token });
+    return { 'if-match': r.headers.get('etag') ?? '' };
+  };
   const publisher = async (h: string) =>
     db.prepare('SELECT trusted, banned_at, bytes FROM publishers WHERE handle = ?1').bind(h).first();
   return {
@@ -148,7 +176,10 @@ async function setup(vars: Partial<Env> = {}) {
     entry,
     versionRows,
     publisher,
+    pin,
     statements: c.n,
+    before: c.before,
+    hookLeft: c.left,
   };
 }
 
@@ -203,7 +234,12 @@ describe.skipIf(!hasSqlite)('worker review of new publishers', () => {
     expect(review!.content).toEqual(preset('cwd'));
     expect(review!.hash).toBe(review!.entry.hash);
 
-    const ok = await s.call('POST', action('pub/first', 'approve'), { token: admin, body: { note: 'fine' } });
+    expect(rv.headers.get('etag')).toMatch(/^"[0-9a-f]{64}-[0-9]+"$/);
+    const ok = await s.call('POST', action('pub/first', 'approve'), {
+      token: admin,
+      body: { note: 'fine' },
+      headers: await s.pin('pub/first', admin),
+    });
     expect(ok.status).toBe(200);
     expect(ok.headers.get('cache-control')).toBe('no-store');
     expect(await ok.json()).toEqual({ id: 'pub/first', approved: true });
@@ -226,7 +262,10 @@ describe.skipIf(!hasSqlite)('worker review of new publishers', () => {
     const pub = await s.signIn('pub');
     const admin = await s.signIn('admin');
     await s.call('POST', '/v1/entries', { token: pub, body: publishBody('one') });
-    expect((await s.call('POST', action('pub/one', 'approve'), { token: admin })).status).toBe(200);
+    const h = await s.pin('pub/one', admin);
+    expect((await s.call('POST', action('pub/one', 'approve'), { token: admin, headers: h })).status).toBe(
+      200,
+    );
     expect(await error(await s.call('POST', action('pub/one', 'approve'), { token: admin }))).toEqual({
       status: 409,
       code: 'conflict',
@@ -323,7 +362,8 @@ describe.skipIf(!hasSqlite)('worker review of new publishers', () => {
     await s.call('POST', '/v1/entries', { token: pub, body: publishBody('a') });
     await s.call('POST', '/v1/entries', { token: pub, body: publishBody('b') });
     const note = `\u001b[31mok\u001b[0m\n${'x'.repeat(300)}`;
-    await s.call('POST', action('pub/a', 'approve'), { token: admin, body: { note } });
+    const h = await s.pin('pub/a', admin);
+    await s.call('POST', action('pub/a', 'approve'), { token: admin, body: { note }, headers: h });
     await s.call('POST', action('pub/b', 'reject'), { token: admin });
     const log = (await s.rows('moderation')) as Record<string, unknown>[];
     expect(log.map((r) => [r.admin, r.action, r.target])).toEqual([
@@ -361,7 +401,10 @@ describe.skipIf(!hasSqlite)('worker review of new publishers', () => {
     ).toBe(415);
     expect(((await s.entry('pub', 'a')) as { state: string }).state).toBe('pending');
     expect(await s.rows('moderation')).toEqual([]);
-    expect((await s.call('POST', action('pub/a', 'approve'), { token: admin, body: {} })).status).toBe(200);
+    const h = await s.pin('pub/a', admin);
+    expect(
+      (await s.call('POST', action('pub/a', 'approve'), { token: admin, body: {}, headers: h })).status,
+    ).toBe(200);
   });
 
   it('keeps every admin request within the D1 statement budget', async () => {
@@ -380,7 +423,8 @@ describe.skipIf(!hasSqlite)('worker review of new publishers', () => {
       ['POST', adminPublisherPath('pub', 'unban')],
       ['GET', adminReportsPath()],
     ] as const) {
-      const r = await s.call(m, p, { token: admin });
+      const headers = await s.pin('pub/a', admin);
+      const r = await s.call(m, p, { token: admin, headers });
       expect(r.status, p).toBe(200);
       expect(s.statements.v, p).toBeGreaterThan(0);
       expect(s.statements.v, p).toBeLessThanOrEqual(50);
@@ -407,7 +451,10 @@ describe.skipIf(!hasSqlite)('worker moderation', () => {
     const other = await s.signIn('other');
     const [first, ...rest] = slugs;
     await s.call('POST', '/v1/entries', { token: pub, body: publishBody(first!) });
-    expect((await s.call('POST', action(`pub/${first}`, 'approve'), { token: admin })).status).toBe(200);
+    const h = await s.pin(`pub/${first}`, admin);
+    expect(
+      (await s.call('POST', action(`pub/${first}`, 'approve'), { token: admin, headers: h })).status,
+    ).toBe(200);
     for (const slug of rest) {
       expect((await s.call('POST', '/v1/entries', { token: pub, body: publishBody(slug) })).status).toBe(201);
     }
@@ -662,5 +709,277 @@ describe.skipIf(!hasSqlite)('worker moderation', () => {
       'created_at',
       'resolved_at',
     ]);
+  });
+});
+
+// findings of the 12-14 security review: moderation bypass and check-then-act races
+describe.skipIf(!hasSqlite)('worker moderation guards', () => {
+  async function three(vars: Partial<Env> = {}) {
+    const s = await setup(vars);
+    const pub = await s.signIn('pub');
+    const admin = await s.signIn('admin');
+    const other = await s.signIn('other');
+    const approve = async (id: string, headers?: Record<string, string>) =>
+      s.call('POST', action(id, 'approve'), { token: admin, headers: headers ?? (await s.pin(id, admin)) });
+    const publish = (slug: string, token = pub, content?: unknown) =>
+      s.call('POST', '/v1/entries', { token, body: publishBody(slug, content) });
+    const state = async (p: string, sl: string) =>
+      ((await s.entry(p, sl)) as { state: string } | null)?.state;
+    return { ...s, pub, admin, other, approve, publish, state };
+  }
+  // pub is trusted with one live entry
+  async function trusted(vars: Partial<Env> = {}) {
+    const s = await three(vars);
+    await s.publish('one');
+    expect((await s.approve('pub/one')).status).toBe(200);
+    return s;
+  }
+  const ban = (s: Awaited<ReturnType<typeof three>>, h = 'pub') =>
+    s.call('POST', adminPublisherPath(h, 'ban'), { token: s.admin });
+
+  it('approve needs the review tag and refuses an entry that changed after review', async () => {
+    const s = await three();
+    await s.publish('one');
+    const old = await s.pin('pub/one', s.admin);
+    expect(await error(await s.call('POST', action('pub/one', 'approve'), { token: s.admin }))).toEqual({
+      status: 412,
+      code: 'stale',
+    });
+    for (const bad of ['"x"', '*', old['if-match']!.replace(/-\d+"$/, '-0"')]) {
+      expect((await s.approve('pub/one', { 'if-match': bad })).status, bad).toBe(412);
+    }
+    const v = await s.call('POST', '/v1/entries/pub/one/versions', {
+      token: s.pub,
+      headers: { 'if-match': '"1"' },
+      body: { content: preset('cwd') },
+    });
+    expect(v.status).toBe(201);
+    expect(await error(await s.approve('pub/one', old))).toEqual({ status: 412, code: 'stale' });
+    expect(await s.state('pub', 'one')).toBe('pending');
+    expect(await s.publisher('pub')).toMatchObject({ trusted: 0 });
+    expect(await s.rows('moderation')).toEqual([]);
+    expect((await s.approve('pub/one')).status).toBe(200);
+  });
+
+  it('a new version landing inside an approval keeps the entry pending', async () => {
+    const s = await three();
+    await s.publish('one');
+    s.before(/SET state = 'live'/, () =>
+      s.call('POST', '/v1/entries/pub/one/versions', {
+        token: s.pub,
+        headers: { 'if-match': '"1"' },
+        body: { content: preset('cwd') },
+      }),
+    );
+    expect(await error(await s.approve('pub/one'))).toEqual({ status: 412, code: 'stale' });
+    expect(await s.state('pub', 'one')).toBe('pending');
+    expect(await s.indexIds()).toEqual([]);
+    expect(await s.publisher('pub')).toMatchObject({ trusted: 0 });
+    expect(s.hookLeft()).toBe(false);
+  });
+
+  it('a withdraw or an admin logout inside an approval wins', async () => {
+    const s = await three();
+    await s.publish('one');
+    s.before(/SET state = 'live'/, () => s.call('DELETE', '/v1/entries/pub/one', { token: s.pub }));
+    expect(await error(await s.approve('pub/one'))).toEqual({ status: 404, code: 'not-found' });
+    await s.publish('two');
+    s.before(/SET state = 'live'/, () => s.call('POST', '/v1/auth/logout', { token: s.admin }));
+    expect(await error(await s.approve('pub/two'))).toEqual({ status: 401, code: 'unauthorized' });
+    expect(await s.state('pub', 'two')).toBe('pending');
+    expect(await s.publisher('pub')).toMatchObject({ trusted: 0 });
+    expect(s.hookLeft()).toBe(false);
+  });
+
+  it('approval publishes only the reviewed version', async () => {
+    const s = await three();
+    await s.publish('one', s.pub, preset('git-branch'));
+    await s.call('POST', '/v1/entries/pub/one/versions', {
+      token: s.pub,
+      headers: { 'if-match': '"1"' },
+      body: { content: preset('cwd') },
+    });
+    expect((await s.approve('pub/one')).status).toBe(200);
+    expect((await s.get('/v1/entries/pub/one/1.json')).status).toBe(410);
+    const v2 = await s.get('/v1/entries/pub/one/2.json');
+    expect(v2.status).toBe(200);
+    expect(v2.json.content).toEqual(preset('cwd'));
+    const rows = await s.versionRows('pub', 'one');
+    expect(rows.map((r) => r.body === null)).toEqual([true, false]);
+    expect(Number((await s.publisher('pub'))!.bytes)).toBe(
+      new TextEncoder().encode(String(rows[1]!.body)).length,
+    );
+  });
+
+  it('an overwrite of a pending entry stays pending and voids the review', async () => {
+    const s = await three({ ALLOW_OVERWRITE: 'true' });
+    await s.publish('one');
+    const old = await s.pin('pub/one', s.admin);
+    const o = await s.call('PUT', '/v1/entries/pub/one/versions/1', {
+      token: s.pub,
+      body: { content: preset('cwd') },
+    });
+    expect(o.status).toBe(200);
+    expect(await s.state('pub', 'one')).toBe('pending');
+    expect((await s.get('/v1/entries/pub/one/1.json')).status).toBe(404);
+    expect((await s.approve('pub/one', old)).status).toBe(412);
+  });
+
+  it('trust is read when the publish commits', async () => {
+    const s = await three();
+    await s.publish('one');
+    const h = await s.pin('pub/one', s.admin);
+    s.before(/INSERT INTO entries/, () => s.approve('pub/one', h));
+    const r = await s.publish('two');
+    expect(r.status).toBe(201);
+    expect(((await r.json()) as { pending?: boolean }).pending).toBeUndefined();
+    expect(await s.indexIds()).toEqual(['pub/one', 'pub/two']);
+
+    s.before(/INSERT INTO entries/, () => s.call('POST', action('pub/one', 'remove'), { token: s.admin }));
+    const r2 = await s.publish('three');
+    expect(((await r2.json()) as { pending?: boolean }).pending).toBe(true);
+    expect(await s.state('pub', 'three')).toBe('pending');
+    expect(await s.indexIds()).toEqual(['pub/two']);
+    expect(s.hookLeft()).toBe(false);
+  });
+
+  it('a removal sends the publisher back to review', async () => {
+    const s = await trusted();
+    await s.call('POST', action('pub/one', 'remove'), { token: s.admin });
+    expect(await s.publisher('pub')).toMatchObject({ trusted: 0 });
+    const r = await s.publish('again');
+    expect(((await r.json()) as { pending?: boolean }).pending).toBe(true);
+  });
+
+  it('removed and rejected entries never come back public', async () => {
+    const s = await trusted({ ALLOW_OVERWRITE: 'true' });
+    await s.call('POST', action('pub/one', 'remove'), { token: s.admin });
+    const v = await s.call('POST', '/v1/entries/pub/one/versions', {
+      token: s.pub,
+      headers: { 'if-match': '"1"' },
+      body: { content: preset('cwd') },
+    });
+    expect(v.status).toBe(410);
+    const o = await s.call('PUT', '/v1/entries/pub/one/versions/1', {
+      token: s.pub,
+      body: { content: preset('cwd') },
+    });
+    expect(o.status).toBe(410);
+    expect((await s.call('DELETE', '/v1/entries/pub/one', { token: s.pub })).status).toBe(200);
+    expect(await s.state('pub', 'one')).toBe('removed');
+    expect((await s.publish('one')).status).toBe(409);
+    expect((await s.approve('pub/one', { 'if-match': '"x"' })).status).toBe(409);
+    expect(await s.indexIds()).toEqual([]);
+
+    await s.publish('two', s.other);
+    await s.call('POST', action('other/two', 'reject'), { token: s.admin });
+    const again = await s.publish('two', s.other);
+    expect(((await again.json()) as { pending?: boolean }).pending).toBe(true);
+    expect(await s.indexIds()).toEqual([]);
+  });
+
+  it('a ban landing right before a write batch stops the write', async () => {
+    const s = await trusted({ ALLOW_OVERWRITE: 'true' });
+    const bytes = (await s.publisher('pub'))!.bytes;
+    s.before(/INSERT INTO entries/, () => ban(s));
+    expect(await error(await s.publish('two'))).toEqual({ status: 403, code: 'banned' });
+    expect(await s.entry('pub', 'two')).toBeNull();
+    expect((await s.publisher('pub'))!.bytes).toBe(bytes);
+    await s.call('POST', adminPublisherPath('pub', 'unban'), { token: s.admin });
+
+    s.before(/INSERT INTO versions/, () => ban(s));
+    const v = await s.call('POST', '/v1/entries/pub/one/versions', {
+      token: s.pub,
+      headers: { 'if-match': '"1"' },
+      body: { content: preset('cwd') },
+    });
+    expect(await error(v)).toEqual({ status: 403, code: 'banned' });
+    expect(await s.versionRows('pub', 'one')).toHaveLength(1);
+    await s.call('POST', adminPublisherPath('pub', 'unban'), { token: s.admin });
+
+    s.before(/UPDATE versions SET body = \?4/, () => ban(s));
+    const o = await s.call('PUT', '/v1/entries/pub/one/versions/1', {
+      token: s.pub,
+      body: { content: preset('cwd') },
+    });
+    expect(await error(o)).toEqual({ status: 403, code: 'banned' });
+    await s.call('POST', adminPublisherPath('pub', 'unban'), { token: s.admin });
+
+    s.before(/SET state = \?7/, () => s.call('POST', '/v1/auth/logout', { token: s.pub }));
+    expect(await error(await s.call('DELETE', '/v1/entries/pub/one', { token: s.pub }))).toEqual({
+      status: 401,
+      code: 'unauthorized',
+    });
+    expect(await s.state('pub', 'one')).toBe('live');
+    expect((await s.get('/v1/entries/pub/one/1.json')).json.content).toEqual(preset());
+    expect(s.hookLeft()).toBe(false);
+  });
+
+  it('a ban racing an index rebuild still leaves the publisher out', async () => {
+    const s = await trusted();
+    s.before(/banned_at = CASE/, () => s.publish('two'));
+    expect((await ban(s)).status).toBe(200);
+    expect(await s.indexIds()).toEqual([]);
+    expect(s.hookLeft()).toBe(false);
+  });
+
+  it('withdrawing a pending entry while it is approved tombstones it', async () => {
+    const s = await three();
+    await s.publish('one');
+    const h = await s.pin('pub/one', s.admin);
+    s.before(/DELETE FROM entries/, () => s.approve('pub/one', h));
+    expect((await s.call('DELETE', '/v1/entries/pub/one', { token: s.pub })).status).toBe(200);
+    expect(await s.state('pub', 'one')).toBe('withdrawn');
+    expect(await s.indexIds()).toEqual([]);
+    expect(s.hookLeft()).toBe(false);
+  });
+
+  it('an approval landing inside a reject keeps the approved entry', async () => {
+    const s = await three();
+    await s.publish('one');
+    const h = await s.pin('pub/one', s.admin);
+    s.before(/DELETE FROM entries/, () => s.approve('pub/one', h));
+    expect(await error(await s.call('POST', action('pub/one', 'reject'), { token: s.admin }))).toEqual({
+      status: 409,
+      code: 'conflict',
+    });
+    expect(await s.state('pub', 'one')).toBe('live');
+    expect(s.hookLeft()).toBe(false);
+  });
+
+  it('admin actions stop when the admin token goes away mid-request', async () => {
+    const s = await trusted();
+    const logout = () => s.call('POST', '/v1/auth/logout', { token: s.admin });
+    s.before(/trusted = 0/, logout);
+    expect((await s.call('POST', action('pub/one', 'remove'), { token: s.admin })).status).toBe(401);
+    expect(await s.state('pub', 'one')).toBe('live');
+    const admin = await s.signIn('admin');
+    s.before(/banned_at = CASE/, () => s.call('POST', '/v1/auth/logout', { token: admin }));
+    expect((await s.call('POST', adminPublisherPath('pub', 'ban'), { token: admin })).status).toBe(401);
+    expect((await s.publisher('pub'))!.banned_at).toBeNull();
+    expect(((await s.rows('moderation')) as Record<string, unknown>[]).map((r) => r.action)).toEqual([
+      'approve',
+    ]);
+    expect(s.hookLeft()).toBe(false);
+  });
+
+  it('a report checks the entry and the reporter when it is stored', async () => {
+    const s = await trusted();
+    await s.publish('two');
+    s.before(/INSERT INTO reports/, () => s.call('POST', action('pub/one', 'remove'), { token: s.admin }));
+    expect(
+      await error(await s.call('POST', reportPath('pub/one'), { token: s.other, body: { reason: 'x' } })),
+    ).toEqual({ status: 404, code: 'not-found' });
+    s.before(/INSERT INTO reports/, () => ban(s, 'other'));
+    expect(
+      await error(await s.call('POST', reportPath('pub/two'), { token: s.other, body: { reason: 'x' } })),
+    ).toEqual({ status: 403, code: 'banned' });
+    s.before(/INSERT INTO reports/, () => ban(s));
+    const third = await s.signIn('third');
+    expect(
+      (await s.call('POST', reportPath('pub/two'), { token: third, body: { reason: 'x' } })).status,
+    ).toBe(404);
+    expect(await s.rows('reports')).toEqual([]);
+    expect(s.hookLeft()).toBe(false);
   });
 });

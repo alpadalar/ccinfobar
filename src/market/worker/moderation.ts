@@ -19,8 +19,10 @@ import {
   readEntryRow,
   rebuildIndex,
   removeStatements,
+  requireAdmin,
   resolveStatements,
   reviewRow,
+  reviewTag,
   writeConflict,
 } from './store.js';
 import { authPublisher, type Publisher } from './tokens.js';
@@ -84,13 +86,35 @@ export async function review(env: Env, p: string, s: string): Promise<Response> 
   }
   const v = JSON.parse(row.body) as { content: unknown; hash: string };
   const entry = { ...(JSON.parse(row.doc) as Record<string, unknown>), state: row.state };
-  return json(200, { entry, content: v.content, hash: v.hash });
+  // approve sends this tag back as If-Match
+  return json(200, { entry, content: v.content, hash: v.hash }, { etag: row.tag });
 }
 
-async function pendingOnly(env: Env, p: string, s: string): Promise<void> {
-  const row = await readEntryRow(env.DB, p, s);
+const CHANGED = 'entry changed since review';
+const PIN_RE = /^"([0-9a-f]{64})-([1-9][0-9]{0,15})"$/;
+
+// what the admin reviewed; checked again inside the approve batch
+function pinOf(req: Request): { hash: string; gen: number } {
+  const m = PIN_RE.exec(req.headers.get('if-match') ?? '');
+  if (!m) throw fail(412, 'stale', 'review the entry first');
+  return { hash: m[1]!, gen: Number(m[2]) };
+}
+
+async function pendingOnly(env: Env, p: string, s: string): Promise<string> {
+  const row = await reviewRow(env.DB, p, s);
   if (!row) throw fail(404, 'not-found');
   if (row.state !== 'pending') throw fail(409, 'conflict', 'entry is not pending');
+  return row.tag;
+}
+
+const gateOf = (env: Env, who: Publisher) => requireAdmin(env.DB, who.digest, adminIds(env));
+
+// a failed batch: the admin, the entry or its revision changed meanwhile
+async function whyNot(env: Env, req: Request, p: string, s: string, pin?: string): Promise<never> {
+  await adminOf(env, req);
+  const tag = await pendingOnly(env, p, s);
+  if (pin && tag !== pin) throw fail(412, 'stale', CHANGED);
+  throw fail(409, 'conflict');
 }
 
 export type AdminRoute = (
@@ -104,12 +128,14 @@ export type AdminRoute = (
 
 export const approve: AdminRoute = async (env, deps, req, who, p, s) => {
   const log = await logFor(deps, req, who, 'approve', `${p}/${s}`);
-  await pendingOnly(env, p, s);
+  const tag = await pendingOnly(env, p, s);
+  const pin = pinOf(req);
+  if (reviewTag(pin.hash, pin.gen) !== tag) throw fail(412, 'stale', CHANGED);
   try {
-    await env.DB.batch(approveStatements(env.DB, p, s, log));
+    await env.DB.batch(approveStatements(env.DB, gateOf(env, who), p, s, pin, log));
   } catch (err) {
-    if (writeConflict(err) === 'guard') throw fail(409, 'conflict', 'entry is not pending');
-    throw err;
+    if (writeConflict(err) !== 'guard') throw err;
+    await whyNot(env, req, p, s, tag);
   }
   await rebuildIndex(env.DB, log.at);
   return json(200, { id: `${p}/${s}`, approved: true });
@@ -119,10 +145,10 @@ export const reject: AdminRoute = async (env, deps, req, who, p, s) => {
   const log = await logFor(deps, req, who, 'reject', `${p}/${s}`);
   await pendingOnly(env, p, s);
   try {
-    await noteSize(env.DB, await env.DB.batch(dropPendingStatements(env.DB, p, s, log)));
+    await noteSize(env.DB, await env.DB.batch(dropPendingStatements(env.DB, gateOf(env, who), p, s, log)));
   } catch (err) {
-    if (writeConflict(err) === 'guard') throw fail(409, 'conflict', 'entry is not pending');
-    throw err;
+    if (writeConflict(err) !== 'guard') throw err;
+    await whyNot(env, req, p, s);
   }
   return json(200, { id: `${p}/${s}`, rejected: true });
 };
@@ -139,7 +165,7 @@ export const remove: AdminRoute = async (env, deps, req, who, p, s) => {
     if (gone(row.state)) throw fail(409, 'conflict', 'entry is already gone');
     try {
       const tomb = tombOf(row.entry, log.at);
-      await noteSize(db, await db.batch(removeStatements(db, who.digest, tomb, row.version, log)));
+      await noteSize(db, await db.batch(removeStatements(db, gateOf(env, who), tomb, row.version, log)));
     } catch (err) {
       if (writeConflict(err) !== 'guard') throw err;
       await adminOf(env, req);
@@ -165,7 +191,7 @@ export async function setBan(
   const admins = adminIds(env);
   if (ban && admins.includes(String(target.githubId))) throw fail(409, 'conflict', 'admins cannot be banned');
   try {
-    await env.DB.batch(banStatements(env.DB, who.digest, handle, ban, admins, log));
+    await env.DB.batch(banStatements(env.DB, gateOf(env, who), handle, ban, admins, log));
   } catch (err) {
     if (writeConflict(err) !== 'guard') throw err;
     await adminOf(env, req);
@@ -211,7 +237,7 @@ export async function listReports(env: Env): Promise<Response> {
 export async function resolve(env: Env, deps: WorkerDeps, req: Request, who: Publisher, id: number) {
   const log = await logFor(deps, req, who, 'resolve', `report/${id}`);
   try {
-    await env.DB.batch(resolveStatements(env.DB, who.digest, id, log));
+    await env.DB.batch(resolveStatements(env.DB, gateOf(env, who), id, log));
   } catch (err) {
     if (writeConflict(err) !== 'guard') throw err;
     await adminOf(env, req);

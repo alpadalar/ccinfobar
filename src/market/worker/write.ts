@@ -28,6 +28,7 @@ import {
   publishStatements,
   readEntryRow,
   rebuildIndex,
+  requireWriter,
   storageUse,
   versionStatements,
   versionText,
@@ -51,6 +52,13 @@ async function writer(db: D1Database, env: Env, deps: WorkerDeps, req: Request):
   if (who.banned) throw fail(403, 'banned');
   await check(db, `t:${who.handle}`, buckets(env).write, deps.now());
   return who;
+}
+
+// after a failed gate: the token or the ban changed meanwhile
+async function stillWriter(db: D1Database, req: Request): Promise<void> {
+  const who = await authPublisher(db, req);
+  if (!who) throw fail(401, 'unauthorized');
+  if (who.banned) throw fail(403, 'banned');
 }
 
 // the shared Free database and each publisher stay under their caps (R-01)
@@ -113,18 +121,24 @@ export async function publish(db: D1Database, env: Env, deps: WorkerDeps, req: R
   const body = versionText({ version: 1, content: payload.content, hash });
   const bytes = utf8(body);
   await room(db, env, who.handle, bytes);
-  // a new publisher waits for review (D-09)
-  const state = who.trusted ? 'live' : 'pending';
+  let state: unknown;
   try {
-    await noteSize(db, await db.batch(publishStatements(db, { entry, state, body, bytes, caps })));
+    const done = await db.batch([
+      requireWriter(db, who.digest, who.handle),
+      ...publishStatements(db, { entry, body, bytes, caps }),
+    ]);
+    // a new publisher waits for review (D-09)
+    state = (done[1]?.results[0] as { state?: unknown } | undefined)?.state;
+    await noteSize(db, done);
   } catch (err) {
     const c = writeConflict(err);
     if (c === 'entry') throw fail(409, 'conflict');
     if (c !== 'guard') throw err;
+    await stillWriter(db, req);
     quota(await publishCounts(db, who.handle, s), caps);
     throw fail(413, 'over-quota', 'too many entries');
   }
-  if (state === 'pending') return json(201, { id, version: 1, hash, pending: true });
+  if (state !== 'live') return json(201, { id, version: 1, hash, pending: true });
   await rebuildIndex(db, at);
   return json(201, { id, version: 1, hash });
 }
@@ -168,12 +182,14 @@ export async function addVersion(
   const bytes = utf8(body);
   await room(db, env, who.handle, bytes);
   try {
-    const done = await db.batch(
-      versionStatements(db, { entry: next, expected: row.version, expectedHash: entry.hash, body, bytes }),
-    );
+    const done = await db.batch([
+      requireWriter(db, who.digest, who.handle),
+      ...versionStatements(db, { entry: next, expected: row.version, expectedHash: entry.hash, body, bytes }),
+    ]);
     await noteSize(db, done);
   } catch (err) {
     const c = writeConflict(err);
+    if (c === 'guard') await stillWriter(db, req);
     if (c === 'version' || c === 'guard') throw fail(412, 'stale');
     throw err;
   }
@@ -219,10 +235,14 @@ export async function overwrite(
   try {
     await noteSize(
       db,
-      await db.batch(overwriteStatements(db, { entry: next, expectedHash: entry.hash, body, bytes })),
+      await db.batch([
+        requireWriter(db, who.digest, who.handle),
+        ...overwriteStatements(db, { entry: next, expectedHash: entry.hash, body, bytes }),
+      ]),
     );
   } catch (err) {
     if (writeConflict(err) !== 'guard') throw err;
+    await stillWriter(db, req);
     const now = await readEntryRow(db, p, s);
     if (now && gone(now.state)) throw fail(410, 'withdrawn');
     throw fail(409, 'conflict', LATEST_ONLY);
@@ -242,6 +262,7 @@ export async function withdraw(
 ): Promise<Response> {
   const who = await writer(db, env, deps, req);
   const done = () => json(200, { id: `${p}/${s}`, withdrawn: true });
+  const gate = () => requireWriter(db, who.digest, who.handle);
   for (let i = 0; i < 3; i++) {
     const row = await readEntryRow(db, p, s);
     if (!row) throw fail(404, 'not-found');
@@ -252,19 +273,22 @@ export async function withdraw(
     if (row.state === 'pending') {
       const log = { at, admin: who.handle, action: 'withdraw-pending', target: `${p}/${s}`, note: '' };
       try {
-        await noteSize(db, await db.batch(dropPendingStatements(db, p, s, log)));
+        await noteSize(db, await db.batch(dropPendingStatements(db, gate(), p, s, log)));
       } catch (err) {
-        if (writeConflict(err) === 'guard') continue;
-        throw err;
+        if (writeConflict(err) !== 'guard') throw err;
+        await stillWriter(db, req);
+        continue;
       }
       return done();
     }
     try {
       // a withdraw also refreshes the size, so a full database can recover
-      await noteSize(db, await db.batch(withdrawStatements(db, tombOf(row.entry, at), row.version)));
+      const tomb = tombOf(row.entry, at);
+      await noteSize(db, await db.batch([gate(), ...withdrawStatements(db, tomb, row.version)]));
     } catch (err) {
-      if (writeConflict(err) === 'guard') continue;
-      throw err;
+      if (writeConflict(err) !== 'guard') throw err;
+      await stillWriter(db, req);
+      continue;
     }
     await rebuildIndex(db, at);
     return done();

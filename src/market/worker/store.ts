@@ -216,13 +216,15 @@ const idOf = (e: StoredEntry): [string, string] => [e.publisher, e.id.slice(e.pu
 
 export interface NewEntry {
   entry: StoredEntry;
-  state: EntryState;
   body: string;
   bytes: number;
   caps: { entries: number; entriesPerPublisher: number; tombstones: number; tombstonesPerPublisher: number };
 }
 
-// caps are checked again inside the insert, so racing publishes cannot pass them
+// live only for a publisher trusted when the batch commits (D-09)
+const STATE_OF = `CASE WHEN (SELECT trusted FROM publishers WHERE handle = ?1) = 1 THEN 'live' ELSE 'pending' END`;
+
+// caps and trust are read inside the insert, so racing writes cannot pass them
 export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatement[] {
   const e = n.entry;
   const [p, s] = idOf(e);
@@ -230,17 +232,17 @@ export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatem
     db
       .prepare(
         `INSERT INTO entries (publisher, slug, kind, state, version, hash, created_at, updated_at, summary, doc, gen)
-         SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, ?9, ${NEXT_GEN}
-         WHERE (SELECT COUNT(*) FROM entries WHERE ${LIVE}) < ?10
-           AND (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${LIVE}) < ?11
-           AND (SELECT COUNT(*) FROM entries WHERE ${GONE}) < ?12
-           AND (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${GONE}) < ?13`,
+         SELECT ?1, ?2, ?3, ${STATE_OF}, ?4, ?5, ?6, ?6, ?7, ?8, ${NEXT_GEN}
+         WHERE (SELECT COUNT(*) FROM entries WHERE ${LIVE}) < ?9
+           AND (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${LIVE}) < ?10
+           AND (SELECT COUNT(*) FROM entries WHERE ${GONE}) < ?11
+           AND (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${GONE}) < ?12
+         RETURNING state`,
       )
       .bind(
         p,
         s,
         e.kind,
-        n.state,
         e.version,
         e.hash,
         e.updatedAt,
@@ -561,31 +563,57 @@ export interface ReviewRow {
   state: EntryState;
   doc: string;
   body: string | null;
+  // the entry revision the admin reviewed
+  tag: string;
 }
+
+export const reviewTag = (hash: string, gen: number): string => `"${hash}-${gen}"`;
 
 export async function reviewRow(db: D1Database, p: string, s: string): Promise<ReviewRow | null> {
   const row = await db
     .prepare(
-      `SELECT e.state AS state, e.doc AS doc, v.body AS body FROM entries e
+      `SELECT e.state AS state, e.doc AS doc, e.hash AS hash, e.gen AS gen, v.body AS body FROM entries e
        LEFT JOIN versions v ON v.publisher = e.publisher AND v.slug = e.slug AND v.version = e.version
        WHERE e.publisher = ?1 AND e.slug = ?2`,
     )
     .bind(p, s)
-    .first<{ state: EntryState; doc: string; body: string | null }>();
-  return row ? { state: row.state, doc: String(row.doc), body: row.body ?? null } : null;
+    .first<{ state: EntryState; doc: string; hash: string; gen: number; body: string | null }>();
+  if (!row) return null;
+  return {
+    state: row.state,
+    doc: String(row.doc),
+    body: row.body ?? null,
+    tag: reviewTag(String(row.hash), Number(row.gen)),
+  };
 }
 
-// the publisher is trusted from now on (D-09)
-export function approveStatements(db: D1Database, p: string, s: string, log: LogRow): D1PreparedStatement[] {
+const OLDER = 'version < (SELECT version FROM entries WHERE publisher = ?1 AND slug = ?2)';
+
+// only the reviewed revision goes public, unreviewed older bodies go; the publisher is trusted (D-09)
+export function approveStatements(
+  db: D1Database,
+  gate: D1PreparedStatement,
+  p: string,
+  s: string,
+  pin: { hash: string; gen: number },
+  log: LogRow,
+): D1PreparedStatement[] {
   return [
+    gate,
     db
       .prepare(
         `UPDATE entries SET state = 'live', gen = ${NEXT_GEN}
-         WHERE publisher = ?1 AND slug = ?2 AND state = 'pending'`,
+         WHERE publisher = ?1 AND slug = ?2 AND state = 'pending' AND hash = ?3 AND gen = ?4`,
+      )
+      .bind(p, s, pin.hash, pin.gen),
+    db.prepare(GUARD),
+    db
+      .prepare(
+        `UPDATE publishers SET trusted = 1, bytes = MAX(0, bytes - COALESCE((SELECT SUM(${BODY_BYTES})
+           FROM versions WHERE publisher = ?1 AND slug = ?2 AND ${OLDER}), 0)) WHERE handle = ?1`,
       )
       .bind(p, s),
-    db.prepare(GUARD),
-    db.prepare('UPDATE publishers SET trusted = 1 WHERE handle = ?1').bind(p),
+    db.prepare(`UPDATE versions SET body = NULL WHERE publisher = ?1 AND slug = ?2 AND ${OLDER}`).bind(p, s),
     logStatement(db, log),
     bumpGen(db),
   ];
@@ -594,11 +622,13 @@ export function approveStatements(db: D1Database, p: string, s: string, log: Log
 // only rows that were never public
 export function dropPendingStatements(
   db: D1Database,
+  gate: D1PreparedStatement,
   p: string,
   s: string,
   log: LogRow,
 ): D1PreparedStatement[] {
   return [
+    gate,
     db.prepare("DELETE FROM entries WHERE publisher = ?1 AND slug = ?2 AND state = 'pending'").bind(p, s),
     db.prepare(GUARD),
     db
@@ -616,24 +646,36 @@ export function dropPendingStatements(
 const requireSql = (cond: string): string =>
   `SELECT json_extract(CASE WHEN ${cond} THEN '{}' ELSE 'x' END, '$') AS ok`;
 
-const ACTOR = `EXISTS (SELECT 1 FROM tokens t JOIN publishers p ON p.handle = t.handle
-  WHERE t.sha256 = ?1 AND p.banned_at IS NULL)`;
+// an unbanned publisher holds the token
+const HOLDER = `SELECT 1 FROM tokens t JOIN publishers p ON p.handle = t.handle
+  WHERE t.sha256 = ?1 AND p.banned_at IS NULL`;
+const ACTOR = `EXISTS (${HOLDER})`;
 
-// the token is still valid and its publisher not banned, in the same batch
-export const requireActor = (db: D1Database, digest: string): D1PreparedStatement =>
-  db.prepare(requireSql(ACTOR)).bind(digest);
+// the token still belongs to this unbanned publisher when the batch commits
+export const requireWriter = (db: D1Database, digest: string, handle: string): D1PreparedStatement =>
+  db.prepare(requireSql(`EXISTS (${HOLDER} AND p.handle = ?2)`)).bind(digest, handle);
 
+// the token still belongs to an unbanned admin id when the batch commits (R-08)
+export const requireAdmin = (db: D1Database, digest: string, admins: string[]): D1PreparedStatement =>
+  db
+    .prepare(
+      requireSql(`EXISTS (${HOLDER} AND CAST(p.github_id AS TEXT) IN (SELECT value FROM json_each(?2)))`),
+    )
+    .bind(digest, JSON.stringify(admins));
+
+// removed content goes back to review next time
 export function removeStatements(
   db: D1Database,
-  digest: string,
+  gate: D1PreparedStatement,
   tomb: StoredEntry,
   expected: number,
   log: LogRow,
 ): D1PreparedStatement[] {
   const [p, s] = idOf(tomb);
   return [
-    requireActor(db, digest),
+    gate,
     ...withdrawStatements(db, tomb, expected, 'removed'),
+    db.prepare('UPDATE publishers SET trusted = 0 WHERE handle = ?1').bind(p),
     db
       .prepare(
         'UPDATE reports SET resolved_at = ?3 WHERE publisher = ?1 AND slug = ?2 AND resolved_at IS NULL',
@@ -657,14 +699,14 @@ export async function publisherRow(
 // admins are never banned; the first ban time stays
 export function banStatements(
   db: D1Database,
-  digest: string,
+  gate: D1PreparedStatement,
   handle: string,
   ban: boolean,
   admins: string[],
   log: LogRow,
 ): D1PreparedStatement[] {
   return [
-    requireActor(db, digest),
+    gate,
     db
       .prepare(
         `UPDATE publishers SET banned_at = CASE WHEN ?3 = 1 THEN COALESCE(banned_at, ?2) ELSE NULL END
@@ -744,12 +786,12 @@ export async function openReports(
 
 export function resolveStatements(
   db: D1Database,
-  digest: string,
+  gate: D1PreparedStatement,
   id: number,
   log: LogRow,
 ): D1PreparedStatement[] {
   return [
-    requireActor(db, digest),
+    gate,
     db.prepare('UPDATE reports SET resolved_at = COALESCE(resolved_at, ?2) WHERE id = ?1').bind(id, log.at),
     db.prepare(GUARD),
     logStatement(db, log),
