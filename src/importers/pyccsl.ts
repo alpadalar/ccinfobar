@@ -7,7 +7,6 @@ import { flagValue } from './args.js';
 import type { ImportNote, ImportResult } from './index.js';
 import { expand, readSource, SourceTooLargeError, shownFile } from './io.js';
 import type { ImporterDef } from './registry.js';
-import { parseShellEnv } from './shell-env.js';
 import { mapTheme, type ThemeTable } from './themes-map.js';
 
 const TOOL = 'pyccsl';
@@ -234,6 +233,28 @@ function readEnvFile(file: string, home: string): string {
 
 const MAX_LISTED = 10;
 
+// pyccsl's parse_env_file: split on the first "=", one pair of quotes off, nothing expanded
+export function parsePyccslEnv(text: string): { vars: Record<string, string>; skipped: number[] } {
+  const vars = Object.create(null) as Record<string, string>;
+  const skipped: number[] = [];
+  text.split(/\r\n|\r|\n/).forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) return;
+    const eq = line.indexOf('=');
+    if (eq < 0) {
+      skipped.push(i + 1);
+      return;
+    }
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    const quoted = (q: string) => value.startsWith(q) && value.endsWith(q);
+    if (quoted('"') || quoted("'")) value = value.slice(1, -1);
+    // pyccsl reads only PYCCSL_* keys
+    if (key.startsWith('PYCCSL_')) vars[key] = value;
+  });
+  return { vars, skipped };
+}
+
 export const pyccslImporter: ImporterDef = {
   source: 'pyccsl',
   name: 'pyccsl',
@@ -250,12 +271,8 @@ export const pyccslImporter: ImporterDef = {
   load: (file, ctx) => {
     const cmd = pyccslCommand(ctx.argv);
     if (!file) return { ...importPyccsl({ ...cmd, env: {} }), file: null };
-    const parsed = parseShellEnv(readEnvFile(file, ctx.home));
-    // pyccsl reads only PYCCSL_* keys and never the includes
-    const env = Object.create(null) as Record<string, string>;
-    for (const [k, v] of Object.entries(parsed.vars)) if (k.startsWith('PYCCSL_')) env[k] = v;
-    const r = importPyccsl({ ...cmd, env });
-    const skipped = [...parsed.skipped, ...parsed.includes.map((i) => i.line)].sort((a, b) => a - b);
+    const { vars, skipped } = parsePyccslEnv(readEnvFile(file, ctx.home));
+    const r = importPyccsl({ ...cmd, env: vars });
     if (skipped.length) {
       const shown = skipped.slice(0, MAX_LISTED).join(', ') + (skipped.length > MAX_LISTED ? ', …' : '');
       r.notes.push({

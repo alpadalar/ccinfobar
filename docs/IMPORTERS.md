@@ -179,7 +179,7 @@ Some tools install with a command that does not name them, for example `node ${C
 `ccinfobar import pyccsl`
 
 - Read from the status line command: the field list after `pyccsl.py`, `--theme`, `--style`, `--numbers`, `--no-emoji`, badge thresholds, and the `--env` file (or `--file`). `PYCCSL_*` keys in the env file win over the flags, as in pyccsl.
-- The env file is read as plain `NAME=value` lines. Lines that are not plain assignments are skipped and named by line number; nothing is run or expanded. Only `PYCCSL_*` keys are used, and the process environment is never read.
+- The env file is read the way pyccsl reads it: each line splits on its first `=`, one pair of surrounding quotes comes off, and the value is taken as written (so `export NAME=…` is ignored, a value may contain spaces, and a trailing `# comment` stays part of the value). Lines without `=` are skipped and named by line number; nothing is run or expanded. Only `PYCCSL_*` keys are used, and the process environment is never read.
 - Maps: fields in pyccsl's own order (badge, folder, git, model, performance metrics, input, output, tokens, cost), the nine themes and the five separator styles.
 - Approximated: the 4-dot badge (the performance widget), thresholds, number formats other than compact.
 

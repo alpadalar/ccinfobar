@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { commandArgs } from '../../src/importers/args.js';
 import { detectTool, importFrom } from '../../src/importers/index.js';
-import { importPyccsl, pyccslCommand, TARGETS } from '../../src/importers/pyccsl.js';
+import { importPyccsl, parsePyccslEnv, pyccslCommand, TARGETS } from '../../src/importers/pyccsl.js';
 import { ALL_WIDGETS } from '../../src/widgets/index.js';
 import { withLang } from '../helpers.js';
 
@@ -209,12 +209,38 @@ describe('pyccsl importer', () => {
         kind: 'approx',
         text: 'pyccsl performance thresholds became the badge warnings from their first values (hit rate below 60%, time above 10s)',
       },
-      {
-        kind: 'drop',
-        text: 'pyccsl: line 27 is not a plain assignment and was skipped; nothing in the file is run',
-      },
     ]);
     expect(JSON.stringify(r)).not.toContain('vim');
+  });
+
+  it('reads the env file the way pyccsl does, expanding nothing', () => {
+    expect(
+      parsePyccslEnv(
+        [
+          'export PYCCSL_THEME=nord',
+          'PYCCSL_FIELDS=model, cost',
+          'PYCCSL_STYLE="powerline" # kept',
+          "  PYCCSL_NUMBERS = 'full'  ",
+          'PYCCSL_PERF_CACHE=$(cat x)',
+          '# PYCCSL_NO_EMOJI=true',
+          'source ./x.sh',
+          'OTHER=1',
+          'PYCCSL_NUMBERS=raw',
+        ].join('\r\n'),
+      ),
+    ).toEqual({
+      vars: {
+        PYCCSL_FIELDS: 'model, cost',
+        PYCCSL_STYLE: '"powerline" # kept',
+        PYCCSL_NUMBERS: 'raw',
+        PYCCSL_PERF_CACHE: '$(cat x)',
+      },
+      skipped: [7],
+    });
+    expect(parsePyccslEnv("PYCCSL_THEME=\"\nPYCCSL_STYLE='a'\n").vars).toEqual({
+      PYCCSL_THEME: '',
+      PYCCSL_STYLE: 'a',
+    });
   });
 
   it('resolves a relative --env against the cwd and reads --file instead', () => {
