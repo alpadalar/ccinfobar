@@ -8,7 +8,7 @@ ccinfobar catalog apply bundle/nord-minimal
 ccinfobar catalog save "My cockpit"     # save your current setup
 ```
 
-The main surface is the Catalog page in `ccinfobar edit`. Every action also has a CLI command (see [CLI](#cli)). The TUI has no catalog view.
+The main surface is the Marketplace page in `ccinfobar edit`. Every action also has a CLI command (see [CLI](#cli)). The TUI has no catalog view.
 
 ## Kinds
 
@@ -28,13 +28,13 @@ Personal settings are never stored in an entry, never changed by applying one an
 
 ## Opening the catalog
 
-Run `ccinfobar edit` and click **Catalog** in the header. The page has these tabs:
+Run `ccinfobar edit` and click **Marketplace** in the header (the CLI command stays `ccinfobar catalog`). The page has these tabs:
 
 | Tab | Shows |
 | --- | --- |
-| Marketplace (default when a marketplace is on) | Your entries on top, grouped as Bundles, Presets and Themes, then the marketplace entries, with **Refresh** and the time of the last check |
-| User (default when the marketplace is off) | Only your entries, including the ones you installed from the marketplace. With the marketplace off it says how to turn it on |
-| Built in | Only the entries that ship with ccinfobar; they never show in the Marketplace tab |
+| Marketplace (default when a marketplace is on) | Only the marketplace entries, with **Refresh**, the time of the last check, and a note that the list may be incomplete when the marketplace changed while it loaded |
+| User (default when the marketplace is off) | Your saved and installed entries, grouped as Bundles, Presets and Themes, with **Save current as…**, **Publish…** and **Sign in with GitHub** or **Sign out**. With the marketplace off it says how to turn it on |
+| Built in | Only the entries that ship with ccinfobar; they never show in another tab |
 
 The Marketplace tab reads the marketplace list through the 24-hour cache: opening it sends nothing when the list was checked in the last 24 hours, and at most one request otherwise. **Refresh** sends one conditional request. The editor never contacts the marketplace on its own, not even when it is left open (see [MARKETPLACE.md](MARKETPLACE.md)).
 
@@ -60,7 +60,7 @@ A theme or bundle can carry its own theme. Applying it installs that theme into 
 
 ## Saving
 
-In the Catalog page, click **Save current as…**. The form has:
+On the User tab of the Marketplace page, click **Save current as…**. The form has:
 
 | Field | Notes |
 | --- | --- |
@@ -105,9 +105,9 @@ The share switch decides whether an entry should go to a marketplace. The public
 
 - Stop sharing a "Waiting to publish" entry and it goes back to Not shared. The marketplace keeps withdrawn ids reserved, so sharing a withdrawn entry again is refused (in the editor and with `catalog share` or `catalog save --share`) with "withdrawn ids stay reserved. Save it under a new name to publish it again"; it never sits in Waiting to publish.
 - Only the latest version is sent; your local history stays local. Text goes out as the marketplace stores it: control characters, escape sequences and bidi marks are removed and tabs and newlines become spaces. Your local entry keeps the original, and it stays "Published vN" until you really change it.
-- Publishing only happens when you ask for it: `ccinfobar catalog publish`, or **Publish…** in the Catalog page. Both first show exactly what will be sent (action, name, kind, description, author and the content as JSON) and name the endpoint. The review first reads the marketplace's `meta.json`, so it shows the action the server will really do (New version where the server does not allow Replace latest) and, before a first publish, the publisher handle that gets registered. The CLI sends only after you confirm in a terminal or pass `--yes`, and then plans again: if anything changed since the list was shown, nothing is sent and the new list is shown (a terminal asks again; otherwise it exits 1). The editor sends only from the Publish button in that review, and refuses if the entries changed since you opened it. Either way, each entry is sent only while it is exactly as reviewed. Nothing is ever published in the background or during a status line refresh.
-- On the public marketplace you publish as your GitHub account. `ccinfobar catalog login` signs you in (a code to enter at https://github.com/login/device; the GitHub token is never stored), and the editor's publish dialog has the same **Sign in with GitHub** step. Your publisher handle is your GitHub login. A new publisher's first entry shows **Waiting for review** (after publishing, in `catalog list`, `catalog show` and on its card) until an admin approves it; `ccinfobar catalog publisher --check` refreshes that state. `ccinfobar catalog logout`, or Sign out in the publish dialog or the Marketplace tab, signs you out. On a self-hosted server with token sign-up, a first publish registers a handle instead.
-- With the marketplace off, the Catalog page shows no Publish button and no Marketplace tab, opens on the User tab and says how to turn the marketplace on (or that shared entries wait, when some do).
+- Publishing only happens when you ask for it: `ccinfobar catalog publish`, or **Publish…** on the User tab of the Marketplace page. Both first show exactly what will be sent (action, name, kind, description, author and the content as JSON) and name the endpoint. The review first reads the marketplace's `meta.json`, so it shows the action the server will really do (New version where the server does not allow Replace latest) and, before a first publish, the publisher handle that gets registered. The CLI sends only after you confirm in a terminal or pass `--yes`, and then plans again: if anything changed since the list was shown, nothing is sent and the new list is shown (a terminal asks again; otherwise it exits 1). The editor sends only from the Publish button in that review, and refuses if the entries changed since you opened it. Either way, each entry is sent only while it is exactly as reviewed. Nothing is ever published in the background or during a status line refresh.
+- On the public marketplace you publish as your GitHub account. `ccinfobar catalog login` signs you in (a code to enter at https://github.com/login/device; the GitHub token is never stored), and the editor's User tab and publish dialog have the same **Sign in with GitHub** step. Your publisher handle is your GitHub login. A new publisher's first entry shows **Waiting for review** (after publishing, in `catalog list`, `catalog show` and on its card) until an admin approves it; `ccinfobar catalog publisher --check` refreshes that state. `ccinfobar catalog logout`, or Sign out in the publish dialog or on the User tab, signs you out. On a self-hosted server with token sign-up, a first publish registers a handle instead.
+- With the marketplace off, the Marketplace page shows no Publish button and no Marketplace tab, opens on the User tab and says how to turn the marketplace on (or that shared entries wait, when some do).
 - Deleting a published entry does not remove the published copy, and afterwards ccinfobar can no longer withdraw it. Stop sharing it and publish first to withdraw it. The editor's delete dialog and `catalog delete` say so (the CLI also after `--yes`, and `--json` adds `published: true`).
 
 Set an endpoint with `ccinfobar catalog endpoint <url>` (https only; http only for `localhost`, `127.0.0.1` and `[::1]`), or for one run with the `CCINFOBAR_MARKETPLACE_URL` environment variable, which wins over the stored one. `ccinfobar catalog endpoint --off` (or `CCINFOBAR_MARKETPLACE_URL=off` for one shell) switches the marketplace off, and `--clear` goes back to the default. See [MARKETPLACE.md](MARKETPLACE.md) for the protocol, the public server, privacy, the reference server and when ccinfobar contacts the marketplace.

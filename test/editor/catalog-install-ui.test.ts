@@ -260,7 +260,8 @@ describe('install from the marketplace (D-11)', () => {
     expect(sent[0]!.body).toEqual({ id: 'bo/night-owl', version: 3, hash: 'sha-3', targets, lang: 'en' });
     expect(toastText()).toContain('Installed Night owl. Apply it from the User tab.');
     expect(open()).toHaveLength(1);
-    expect(top().all((e) => e.getAttribute('data-ref') === 'u-n')).toHaveLength(1);
+    // the Marketplace tab never shows your entries
+    expect(top().all((e) => e.getAttribute('data-ref') === 'u-n')).toEqual([]);
     tab('user').dispatch('click');
     await tick(50);
     const card = top().all((e) => e.getAttribute('data-ref') === 'u-n')[0]!;
@@ -355,6 +356,28 @@ describe('report from the marketplace (D-09)', () => {
     await tick(50);
     expect(open()).toHaveLength(1);
     expect(posts('/api/catalog/report')).toEqual([]);
+  });
+
+  it('knows about a sign-in on the User tab and opens the report directly', async () => {
+    reply('GET /api/catalog/login/0123456789abcdef', {
+      status: 200,
+      data: { status: 'ok', handle: 'alice', admin: false },
+    });
+    await openPage();
+    tab('user').dispatch('click');
+    await tick(50);
+    catalog = { ...catalog, market: { ...catalog.market!, signedIn: true, handle: 'alice' } };
+    button('Sign in with GitHub')!.dispatch('click');
+    await tick(5050);
+    expect(texts(top())).toContain('Signed in as @alice');
+    tab('market').dispatch('click');
+    await tick(50);
+    row().dispatch('click');
+    await tick(50);
+    button('Report…')!.dispatch('click');
+    await tick(50);
+    expect(posts('/api/catalog/login')).toHaveLength(1);
+    expect(top().querySelector('H2')!.textContent).toBe('Report Night owl');
   });
 
   it('refuses a reason over 200 characters and sends a short one', async () => {

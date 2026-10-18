@@ -292,7 +292,11 @@ const SCREENS = [
     stem: 'catalog-save',
     open: `document.getElementById('catalog-btn').click()`,
     wait: `document.querySelector('.catalog-card')`,
-    next: `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Save current as…')?.click()`,
+    next: `(async () => {
+      document.querySelector('[data-tab="user"]')?.click();
+      await new Promise((r) => setTimeout(r, 400));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Save current as…')?.click();
+    })()`,
     nextWait: `document.querySelector('.modal .input')`,
     fill: ['Mocha desk', 'Cockpit layout with the Catppuccin Mocha theme'],
   },

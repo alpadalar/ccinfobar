@@ -24,7 +24,7 @@ export const catalogMessages = {
   'catalog.share.review': 'İnceleme bekliyor',
   'catalog.version': 'v{version}',
   'catalog.by': '{author} tarafından',
-  'catalog.title': 'Katalog',
+  'catalog.title': 'Marketplace',
   'catalog.apply': 'Uygula',
   'catalog.applyName': 'Uygula: {name}',
   'catalog.detailsName': '{name} ayrıntıları',

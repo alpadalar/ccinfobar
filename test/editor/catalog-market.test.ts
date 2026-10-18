@@ -526,7 +526,7 @@ describe('publish review', () => {
 });
 
 describe('marketplace tab', () => {
-  it('opens first and lists remote entries below yours with author, publisher and version', async () => {
+  it('opens first and lists only the remote entries with author, publisher and version', async () => {
     online();
     reply('GET /api/catalog/remote', 200, {
       endpoint: ENDPOINT,
@@ -542,8 +542,8 @@ describe('marketplace tab', () => {
     expect(tabs.map((e) => e.textContent)).toEqual(['Marketplace', 'User', 'Built in']);
     expect(calls.filter((c) => c.url === '/api/catalog/remote')).toHaveLength(1);
     const sections = d.all((e) => e.tagName === 'SECTION').map((e) => e.getAttribute('data-section'));
-    expect(sections).toEqual(['user', 'market']);
-    expect(d.all((e) => e.getAttribute('data-ref') === 'u-w')).toHaveLength(1);
+    expect(sections).toEqual(['market']);
+    expect(d.all((e) => e.getAttribute('data-ref') === 'u-w')).toEqual([]);
     const rows = d.all((e) => e.classList.contains('catalog-remote-row'));
     expect(rows).toHaveLength(2);
     expect(rows.every((r) => r.parent!.classList.contains('catalog-grid'))).toBe(true);
@@ -555,6 +555,7 @@ describe('marketplace tab', () => {
     tabs[1]!.dispatch('click');
     await flush();
     expect(d.all((e) => e.classList.contains('catalog-remote-row'))).toEqual([]);
+    expect(d.all((e) => e.getAttribute('data-ref') === 'u-w')).toHaveLength(1);
     d.all((e) => e.getAttribute('role') === 'tab')[0]!.dispatch('click');
     await flush();
     expect(calls.filter((c) => c.url === '/api/catalog/remote')).toHaveLength(1);
@@ -565,13 +566,64 @@ describe('marketplace tab', () => {
     reply('POST /api/catalog/publish', 200, { ok: true, code: null, results: [], catalog });
     await init();
     await openPage();
+    const d = top();
+    const tab = (id: string) => d.all((e) => e.getAttribute('data-tab') === id)[0]!;
+    tab('user').dispatch('click');
+    await flush();
     button('Publish…', foot())!.dispatch('click');
     await flush();
     button('Publish')!.dispatch('click');
     await flush();
     button('Done')!.dispatch('click');
     await flush();
+    expect(calls.filter((c) => c.url === '/api/catalog/remote')).toHaveLength(1);
+    tab('market').dispatch('click');
+    await flush();
     expect(calls.filter((c) => c.url === '/api/catalog/remote')).toHaveLength(2);
+  });
+
+  it('says when the list may be incomplete, and clears it after a full Refresh', async () => {
+    online();
+    const note =
+      'The marketplace changed while the list was loading, so some entries may be missing. Refresh to load it again.';
+    reply('GET /api/catalog/remote', 200, { endpoint: ENDPOINT, entries: [summary()], partial: true });
+    await init();
+    const { marketplaceSection } = await import('../../src/editor/web/catalog-market.js');
+    const el = marketplaceSection(catalog) as unknown as FakeEl;
+    await flush();
+    expect(texts(el)).toContain(note);
+    const hint = el.all((e) => e.classList.contains('catalog-partial'))[0]!;
+    expect(hint.hidden).toBe(false);
+    button('Refresh', el)!.dispatch('click');
+    await flush();
+    expect(texts(el)).not.toContain(note);
+    expect(hint.hidden).toBe(true);
+  });
+
+  it('has no incomplete note without partial, and says it in Turkish', async () => {
+    online();
+    await init();
+    const { marketplaceSection } = await import('../../src/editor/web/catalog-market.js');
+    const plain = marketplaceSection(catalog) as unknown as FakeEl;
+    await flush();
+    expect(texts(plain).some((x) => x.startsWith('The marketplace changed'))).toBe(false);
+    setLanguage('tr');
+    reply('GET /api/catalog/remote', 200, { endpoint: ENDPOINT, entries: [], partial: true });
+    const el = marketplaceSection(catalog) as unknown as FakeEl;
+    await flush();
+    expect(texts(el)).toContain(
+      'Liste yüklenirken marketplace değişti, bu yüzden bazı girdiler eksik olabilir. Yeniden yüklemek için yenileyin.',
+    );
+  });
+
+  it('shows the partial note in the Marketplace tab of the page', async () => {
+    online();
+    reply('GET /api/catalog/remote', 200, { endpoint: ENDPOINT, entries: [], partial: true });
+    await init();
+    await openPage();
+    expect(texts(top())).toContain(
+      'The marketplace changed while the list was loading, so some entries may be missing. Refresh to load it again.',
+    );
   });
 
   it('shows the empty note', async () => {

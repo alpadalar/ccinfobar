@@ -588,11 +588,13 @@ describe('catalog page marketplace state', () => {
     expect(remoteCalls()).toEqual([]);
   });
 
-  it('shows @handle and signs out from the Marketplace tab', async () => {
+  it('shows @handle and signs out from the User tab', async () => {
     catalog = signedIn();
     await openPage();
     const d = top();
-    tab('Marketplace', d).dispatch('click');
+    expect(texts(d)).not.toContain('Signed in as @alice');
+    expect(button('Sign out', d)).toBeUndefined();
+    tab('User', d).dispatch('click');
     await tick();
     expect(texts(d)).toContain('Signed in as @alice');
     button('Sign out', d)!.dispatch('click');
@@ -606,17 +608,71 @@ describe('catalog page marketplace state', () => {
     expect(top()).toBe(d);
     expect(texts(d)).not.toContain('Signed in as @alice');
     expect(button('Sign out', d)).toBeUndefined();
+    expect(button('Sign in with GitHub', d)).toBeDefined();
     expect(toastText()).toContain(
       `Signed out of ${ENDPOINT}. The marketplace token was removed from this computer.`,
     );
   });
 
-  it('has no account line when signed out', async () => {
+  it('offers Sign in with GitHub on the User tab when signed out', async () => {
     await openPage();
-    tab('Marketplace').dispatch('click');
+    const d = top();
+    expect(button('Sign in with GitHub', d)).toBeUndefined();
+    tab('User', d).dispatch('click');
     await tick();
+    expect(button('Sign out', d)).toBeUndefined();
+    expect(texts(d).some((x) => x.startsWith('Signed in'))).toBe(false);
+    const reads = () =>
+      calls.filter((c) => c.method === 'GET' && c.url.split('?')[0] === '/api/catalog').length;
+    const before = reads();
+    button('Sign in with GitHub', d)!.dispatch('click');
+    await tick();
+    expect(top()).not.toBe(d);
+    expect(starts()).toHaveLength(1);
+    button('Cancel')!.dispatch('click');
+    await tick(HOUR);
+    expect(top()).toBe(d);
+    expect(reads()).toBe(before);
+    expect(statusCalls()).toEqual([]);
+  });
+
+  it('signs in from the User tab and shows the handle', async () => {
+    reply(`GET /api/catalog/login/${FLOW}`, ok({ status: 'ok', handle: 'alice', admin: false }));
+    await openPage();
+    const d = top();
+    tab('User', d).dispatch('click');
+    await tick();
+    const reads = () =>
+      calls.filter((c) => c.method === 'GET' && c.url.split('?')[0] === '/api/catalog').length;
+    const before = reads();
+    catalog = signedIn();
+    button('Sign in with GitHub', d)!.dispatch('click');
+    await tick(5000);
+    await tick(200);
+    expect(top()).toBe(d);
+    expect(reads()).toBe(before + 1);
+    expect(texts(d)).toContain('Signed in as @alice');
+    expect(remoteCalls()).toHaveLength(1);
+  });
+
+  it('offers the sign-in in Turkish', async () => {
+    setLanguage('tr');
+    await openPage();
+    tab('Kullanıcı').dispatch('click');
+    await tick();
+    expect(button('GitHub ile giriş yap')).toBeDefined();
+  });
+
+  it('has no account bar when the marketplace is off', async () => {
+    catalog = {
+      ...catalog,
+      endpoint: null,
+      publishable: false,
+      market: { endpoint: null, source: 'off', signedIn: false, handle: null },
+    };
+    await openPage();
+    expect(button('Sign in with GitHub')).toBeUndefined();
     expect(button('Sign out')).toBeUndefined();
-    expect(texts(top()).some((x) => x.startsWith('Signed in'))).toBe(false);
   });
 
   it('marks entries the marketplace holds for review', async () => {
@@ -672,7 +728,8 @@ describe('catalog page marketplace state', () => {
     button('İptal', d)!.dispatch('click');
     await tick(200);
     await openPage();
-    tab('Marketplace').dispatch('click');
+    expect(texts(top())).not.toContain('@alice olarak giriş yapıldı');
+    tab('Kullanıcı').dispatch('click');
     await tick();
     expect(texts(top())).toEqual(expect.arrayContaining(['@alice olarak giriş yapıldı', 'Çıkış yap']));
     tab('Kullanıcı').dispatch('click');

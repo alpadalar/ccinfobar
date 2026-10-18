@@ -135,7 +135,7 @@ ccinfobar edit
 | Inspector (right) | Colors (16 named, 256 palette or hex), background, bold/dim/italic, label override, merge, and every widget option. The **Global** tab covers style, separators, glyphs, icons, color depth and width, and **Colors from** keeps your style while taking the colors of any theme. |
 | Theme gallery | Every theme rendered live with your own widgets. Apply with one click, filter by style, or open **New theme** to build your own: pick a starting theme, a style, and text and background colors per category or in a cycle, with a live preview. |
 | Presets | Built-in and your own layouts with live previews. **Save current as preset** keeps your layout for later. |
-| Catalog | Built-in and saved presets, themes and bundles with live previews, one-click apply, save with version history, and a marketplace to browse, install and publish ([Catalog](#catalog)). |
+| Marketplace | Built-in and saved presets, themes and bundles with live previews, one-click apply, save with version history, and a marketplace to browse, install and publish ([Catalog](#catalog)). |
 | Top bar | Presets, themes, undo/redo, import/export JSON, save (`Ctrl+S`), and one-click install into Claude Code. |
 
 The editor runs only on `127.0.0.1` with a per-session token. Press **Done** or `Ctrl+C` to stop it.
@@ -189,24 +189,24 @@ Mouse works too: click to select, drag a chip to move it.
 </details>
 
 <details>
-<summary>Catalog</summary>
+<summary>Marketplace</summary>
 
 <p><b>Dark</b></p>
-<img src="docs/images/screenshots/catalog-dark.png" alt="Catalog, dark" width="100%">
+<img src="docs/images/screenshots/catalog-dark.png" alt="Marketplace, dark" width="100%">
 
 <p><b>Light</b></p>
-<img src="docs/images/screenshots/catalog-light.png" alt="Catalog, light" width="100%">
+<img src="docs/images/screenshots/catalog-light.png" alt="Marketplace, light" width="100%">
 
 </details>
 
 <details>
-<summary>Catalog entry details</summary>
+<summary>Built-in entry details</summary>
 
 <p><b>Dark</b></p>
-<img src="docs/images/screenshots/catalog-details-dark.png" alt="Catalog entry details, dark" width="100%">
+<img src="docs/images/screenshots/catalog-details-dark.png" alt="Built-in entry details, dark" width="100%">
 
 <p><b>Light</b></p>
-<img src="docs/images/screenshots/catalog-details-light.png" alt="Catalog entry details, light" width="100%">
+<img src="docs/images/screenshots/catalog-details-light.png" alt="Built-in entry details, light" width="100%">
 
 </details>
 
@@ -222,13 +222,13 @@ Mouse works too: click to select, drag a chip to move it.
 </details>
 
 <details>
-<summary>Save to catalog</summary>
+<summary>Save to your entries</summary>
 
 <p><b>Dark</b></p>
-<img src="docs/images/screenshots/catalog-save-dark.png" alt="Save to catalog, dark" width="100%">
+<img src="docs/images/screenshots/catalog-save-dark.png" alt="Save to your entries, dark" width="100%">
 
 <p><b>Light</b></p>
-<img src="docs/images/screenshots/catalog-save-light.png" alt="Save to catalog, light" width="100%">
+<img src="docs/images/screenshots/catalog-save-light.png" alt="Save to your entries, light" width="100%">
 
 </details>
 
@@ -411,7 +411,7 @@ Any theme can be drawn in any style (`"style": "capsule"`), and per-widget color
 
 ## Catalog
 
-The catalog keeps layouts and looks you can apply in one step: presets, themes and bundles (a preset with a theme). In `ccinfobar edit`, click **Catalog** in the header. With a marketplace on, the **Marketplace** tab opens first: your own entries on top, then the marketplace entries (read from a 24-hour cache, with a **Refresh** button). **User** shows only yours (the first tab when the marketplace is off) and **Built in** only the ones that ship with ccinfobar, each grouped as bundles, presets and themes with a live preview of your config. The Apply button on a card applies it in one step (click a card for its details and full preview), `Ctrl+Z` undoes it, and nothing is written until you save.
+The catalog keeps layouts and looks you can apply in one step: presets, themes and bundles (a preset with a theme). In `ccinfobar edit`, click **Marketplace** in the header. With a marketplace on, the **Marketplace** tab opens first and shows only the marketplace entries (read from a 24-hour cache, with a **Refresh** button). **User** holds your saved and installed entries with **Save current as…**, **Publish…** and the GitHub sign-in (the first tab when the marketplace is off), and **Built in** only the ones that ship with ccinfobar, each grouped as bundles, presets and themes with a live preview of your config. The Apply button on a card applies it in one step (click a card for its details and full preview), `Ctrl+Z` undoes it, and nothing is written until you save.
 
 **Save current as…** keeps your setup as a preset, a theme or a bundle, with a name, a description and an author (remembered for next time). Saving under an existing name asks whether to update it (a new version) or overwrite the latest one, and every entry has a version history with restore. Applying changes only the layout and the theme; your budget, profiles, language and other personal settings stay.
 
@@ -454,7 +454,7 @@ ccinfobar catalog publish                     # show what would be sent, then se
 ccinfobar catalog report alice/calm-desk --reason "..."   # report an entry to the admins
 ```
 
-Saved entries are shared by default, but nothing is sent until you publish. Publishers sign in with GitHub; the GitHub token is never stored, and your handle is your GitHub login. A new publisher's first entry shows **Waiting for review** until an admin approves it. `catalog publish` and the editor's **Publish…** show the exact payload and send only after you confirm, and **Install** in the editor's Marketplace tab or `catalog install` adds an entry to yours after showing every command and URL it keeps (applying it stays a separate step). Marketplace content is data only: no `command`, `http` or `env` widgets, only http(s) links and no personal settings. Published entries are public; to ask for one to be removed, open an issue. You can also point ccinfobar at your own server (`ccinfobar catalog endpoint <url>`). Details: [docs/CATALOG.md](docs/CATALOG.md) and [docs/MARKETPLACE.md](docs/MARKETPLACE.md).
+Saved entries are shared by default, but nothing is sent until you publish. Publishers sign in with GitHub; the GitHub token is never stored, and your handle is your GitHub login. A new publisher's first entry shows **Waiting for review** until an admin approves it. `catalog publish` and **Publish…** on the editor's User tab show the exact payload and send only after you confirm, and **Install** in the editor's Marketplace tab or `catalog install` adds an entry to yours after showing every command and URL it keeps (applying it stays a separate step). Marketplace content is data only: no `command`, `http` or `env` widgets, only http(s) links and no personal settings. Published entries are public; to ask for one to be removed, open an issue. You can also point ccinfobar at your own server (`ccinfobar catalog endpoint <url>`). Details: [docs/CATALOG.md](docs/CATALOG.md) and [docs/MARKETPLACE.md](docs/MARKETPLACE.md).
 
 ## GSD integration
 

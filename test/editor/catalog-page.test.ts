@@ -228,7 +228,7 @@ describe('groupEntries', () => {
     const { groupEntries } = await import('../../src/editor/web/catalog.js');
     const key = (tab: 'market' | 'user' | 'system') =>
       groupEntries(catalog, tab).map((x) => `${x.section}/${x.kind}`);
-    expect(key('market')).toEqual(['user/bundle', 'user/preset']);
+    expect(key('market')).toEqual([]);
     expect(key('user')).toEqual(['user/bundle', 'user/preset']);
     expect(key('system')).toEqual(['system/bundle', 'system/preset', 'system/theme']);
     const sys = groupEntries(catalog, 'system').flatMap((x) => x.entries);
@@ -245,9 +245,12 @@ describe('catalog page', () => {
     expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['true', 'false']);
     expect(heads('catalog-section-head')).toEqual([]);
     expect(heads('catalog-group-head')).toEqual(['Bundles', 'Presets']);
+    expect(body.all((e) => e.getAttribute('role') === 'tablist')[0]!.getAttribute('aria-label')).toBe(
+      'Marketplace',
+    );
     const list = texts(body);
     for (const s of [
-      'Catalog',
+      'Marketplace',
       'My bundle',
       'Bundle',
       'v2',
@@ -272,7 +275,15 @@ describe('catalog page', () => {
     expect(tabs().map((x) => x.textContent)).toEqual(['Kullanıcı', 'Yerleşik']);
     expect(heads('catalog-group-head')).toEqual(['Paketler', 'Hazır ayarlar']);
     const list = texts(body);
-    for (const s of ['Katalog', 'Paket', 'Ada tarafından', 'v4 yayımlandı', 'Yayımlanmayı bekliyor', 'Tamam'])
+    expect(list).not.toContain('Katalog');
+    for (const s of [
+      'Marketplace',
+      'Paket',
+      'Ada tarafından',
+      'v4 yayımlandı',
+      'Yayımlanmayı bekliyor',
+      'Tamam',
+    ])
       expect(list).toContain(s);
     await show('system');
     expect(heads('catalog-group-head')).toEqual(['Paketler', 'Hazır ayarlar', 'Temalar']);
@@ -291,7 +302,7 @@ describe('catalog page', () => {
     expect(texts(body)).toContain('Marketplace kapalı. ccinfobar catalog endpoint <url> ile açabilirsiniz.');
   });
 
-  it('opens on the Marketplace tab with your entries on top and no built-ins (R-13)', async () => {
+  it('opens on the Marketplace tab with only the marketplace entries', async () => {
     await init();
     catalog = {
       ...catalog,
@@ -302,11 +313,13 @@ describe('catalog page', () => {
     await open();
     expect(tabs().map((x) => x.textContent)).toEqual(['Marketplace', 'User', 'Built in']);
     expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
-    expect(heads('catalog-section-head')[0]).toBe('Your entries');
-    expect(heads('catalog-group-head')).toEqual(['Bundles', 'Presets']);
-    expect(cards()).toEqual(['u-b', 'u-p']);
-    const sections = body.all((e) => e.tagName === 'SECTION').map((e) => e.getAttribute('data-section'));
-    expect(sections).toEqual(['user', 'market']);
+    expect(heads('catalog-section-head')).toEqual(['Marketplace https://market.example.com']);
+    expect(heads('catalog-group-head')).toEqual([]);
+    expect(cards()).toEqual([]);
+    expect(texts(body)).not.toContain('Your entries');
+    const sections = () =>
+      body.all((e) => e.tagName === 'SECTION').map((e) => e.getAttribute('data-section'));
+    expect(sections()).toEqual(['market']);
     expect(texts(body)).not.toContain(
       'The marketplace is off. Turn it on with ccinfobar catalog endpoint <url>.',
     );
@@ -314,6 +327,10 @@ describe('catalog page', () => {
     expect(calls.filter((c) => c.url.startsWith('/api/catalog/remote')).map((c) => c.url)).toEqual([
       '/api/catalog/remote',
     ]);
+    expect(previewCalls()).toEqual([]);
+    await show('user');
+    expect(sections()).toEqual(['user']);
+    expect(cards()).toEqual(['u-b', 'u-p']);
     expect(previewCalls().flatMap((c) => c.body.refs)).toEqual(['u-b', 'u-p']);
     // arrows move between tabs and wrap
     const arrow = (key: string) =>
@@ -322,15 +339,53 @@ describe('catalog page', () => {
         .dispatch('keydown', { key, preventDefault() {} });
     arrow('ArrowLeft');
     await flush();
+    expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
+    expect(cards()).toEqual([]);
+    arrow('ArrowLeft');
+    await flush();
     expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['false', 'false', 'true']);
     expect(cards()).toHaveLength(catalog.system.length);
+    expect(sections()).toEqual(['system']);
     arrow('ArrowRight');
     await flush();
     expect(tabs().map((x) => x.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
+    expect(sections()).toEqual(['market']);
     expect(calls.filter((c) => c.url.startsWith('/api/catalog/remote'))).toHaveLength(1);
     setLanguage('tr');
     await show('user');
     expect(tabs().map((x) => x.textContent)).toEqual(['Marketplace', 'Kullanıcı', 'Yerleşik']);
+  });
+
+  it('shows Save current as… and Publish… only on the User tab', async () => {
+    await init();
+    catalog = {
+      ...catalog,
+      endpoint: 'https://market.example.com',
+      publishable: true,
+      market: { endpoint: 'https://market.example.com', source: 'default', signedIn: false, handle: null },
+    };
+    await open();
+    const footer = (label: string) =>
+      body.all((e) => e.tagName === 'BUTTON' && e.textContent === label && e.classList.contains('btn'));
+    const shown = () =>
+      ['Save current as…', 'Publish…'].map((l) => footer(l).length === 1 && !footer(l)[0]!.hidden);
+    expect(shown()).toEqual([false, false]);
+    await show('user');
+    expect(shown()).toEqual([true, true]);
+    await show('system');
+    expect(shown()).toEqual([false, false]);
+    await show('market');
+    expect(shown()).toEqual([false, false]);
+  });
+
+  it('shows Save current as… on the default User tab when the marketplace is off', async () => {
+    await init();
+    await open();
+    const save = button('Save current as…');
+    expect(save.hidden).toBe(false);
+    expect(body.all((e) => e.tagName === 'BUTTON' && e.textContent === 'Publish…')).toEqual([]);
+    await show('system');
+    expect(save.hidden).toBe(true);
   });
 
   it('shows the empty user note', async () => {
@@ -716,7 +771,7 @@ describe('catalog details and peek', () => {
     press('Escape');
     await flush();
     expect(dialogs()).toHaveLength(1);
-    expect(titleOf(top())).toBe('Catalog');
+    expect(titleOf(top())).toBe('Marketplace');
     expect(focused).toBe(1);
     el.dispatch('click');
     await flush();

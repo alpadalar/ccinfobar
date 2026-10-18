@@ -427,21 +427,23 @@ function remoteRow(e: MarketSummaryInfo, view?: MarketView): HTMLElement {
 export function marketplaceSection(
   data: CatalogState,
   onChange?: (next: CatalogState) => void,
+  latest?: () => CatalogState,
 ): HTMLElement | null {
   if (!data.publishable) return null;
   let current = data;
+  // the page may change sign-in and entries meanwhile
   const view: MarketView = {
-    data: () => current,
+    data: () => latest?.() ?? current,
     onChange: (next) => {
       current = next;
-      renderWho();
       onChange?.(next);
     },
   };
   const status = h('p', { class: 'hint', role: 'status' }, t('catalog.remote.loading'));
+  const partial = h('p', { class: 'hint catalog-partial', role: 'status' });
+  partial.hidden = true;
   const list = h('div', { class: 'catalog-remote-list catalog-grid' });
   const head = h('h3', { class: 'catalog-section-head' }, t('catalog.tab.market'));
-  const who = h('div', { class: 'catalog-account' });
   const checked = h('span', { class: 'hint catalog-checked' });
   let busy = true;
   const refresh = h(
@@ -456,23 +458,13 @@ export function marketplaceSection(
     t('catalog.remote.refresh'),
   );
 
-  function renderWho() {
-    const market = current.market;
-    who.replaceChildren(
-      ...(market?.signedIn
-        ? accountLine(market.handle, async () => {
-            const next = await signOut(market.endpoint ?? current.endpoint ?? '');
-            if (next) view.onChange(next);
-          })
-        : []),
-    );
-  }
-
   // the only requests: opening the tab and Refresh
   async function load(again: boolean) {
     if (again && busy) return;
     busy = true;
     refresh.disabled = true;
+    partial.hidden = true;
+    partial.textContent = '';
     try {
       const r = await api.catalogRemote(again);
       head.textContent = t('catalog.remote.title', { endpoint: shown(r.endpoint) });
@@ -484,6 +476,10 @@ export function marketplaceSection(
         : entries.length
           ? ''
           : t('catalog.remote.empty');
+      if (r.partial) {
+        partial.textContent = t('catalog.remote.partial');
+        partial.hidden = false;
+      }
       checked.textContent = r.checkedAt ? t('catalog.remote.lastChecked', { time: when(r.checkedAt) }) : '';
       list.replaceChildren(...entries.map((e) => remoteRow(e, view)));
     } catch (err) {
@@ -496,17 +492,47 @@ export function marketplaceSection(
     }
   }
 
-  renderWho();
   const box = h(
     'section',
     { class: 'catalog-section', 'data-section': 'market' },
     head,
-    who,
     h('div', { class: 'catalog-remote-bar' }, refresh, checked),
     status,
+    partial,
     list,
   );
   void load(false);
+  return box;
+}
+
+// sign-in and sign-out for the User tab
+export function accountBar(data: CatalogState, onChange: (next: CatalogState) => void): HTMLElement | null {
+  const on = data.market ? data.market.endpoint !== null : data.publishable;
+  if (!on || !data.publishable) return null;
+  const market = data.market;
+  const box = h('div', { class: 'catalog-account catalog-account-bar' });
+  if (market?.signedIn) {
+    box.append(
+      ...accountLine(market.handle, async () => {
+        const next = await signOut(market.endpoint ?? data.endpoint ?? '');
+        if (next) onChange(next);
+      }),
+    );
+  } else {
+    box.append(
+      h(
+        'button',
+        {
+          class: 'btn sm',
+          type: 'button',
+          onClick: async () => {
+            if (await signInDialog()) await afterSignIn({ data: () => data, onChange });
+          },
+        },
+        t('catalog.signin.title'),
+      ),
+    );
+  }
   return box;
 }
 

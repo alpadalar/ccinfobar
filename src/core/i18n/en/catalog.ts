@@ -21,7 +21,7 @@ export const catalogMessages = {
   'catalog.share.review': 'Waiting for review',
   'catalog.version': 'v{version}',
   'catalog.by': 'by {author}',
-  'catalog.title': 'Catalog',
+  'catalog.title': 'Marketplace',
   'catalog.apply': 'Apply',
   'catalog.applyName': 'Apply {name}',
   'catalog.detailsName': 'Details of {name}',

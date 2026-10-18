@@ -187,7 +187,7 @@ async function boot() {
 }
 
 describe('editor page left idle with a marketplace endpoint (R-11)', () => {
-  it('sends nothing to the marketplace for 24 h, and the Catalog reads the list once', async () => {
+  it('sends nothing to the marketplace for 24 h, and the Marketplace page reads the list once', async () => {
     await boot();
     expect(calls.map((c) => c.url)).toContain('/api/state');
     expect(market()).toEqual([]);
@@ -202,9 +202,10 @@ describe('editor page left idle with a marketplace endpoint (R-11)', () => {
     expect(tabs().map((x) => x.textContent)).toEqual(['Marketplace', 'User', 'Built in']);
     expect(market().map((c) => c.url)).toEqual(['/api/catalog/remote']);
     await tick(DAY);
-    tabs()[1]!.dispatch('click');
-    await tick(1000);
-    tabs()[0]!.dispatch('click');
+    for (const i of [1, 2, 0, 1, 0]) {
+      tabs()[i]!.dispatch('click');
+      await tick(HOUR);
+    }
     await tick(DAY);
     expect(market().map((c) => c.url)).toEqual(['/api/catalog/remote']);
     expect(foreign()).toEqual([]);

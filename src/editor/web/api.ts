@@ -64,6 +64,7 @@ export interface RemoteListInfo {
   entries: MarketSummaryInfo[];
   checkedAt: string | null;
   stale?: boolean;
+  partial?: boolean;
 }
 
 // what the editor server would install; nothing is written yet

@@ -20,7 +20,7 @@ import {
 } from '../../importers/confirm.js';
 import { api, previewSource } from './api.js';
 import { deleteEntryDialog, historyDialog, saveCurrentDialog, toggleShare } from './catalog-dialogs.js';
-import { marketplaceSection, publishDialog } from './catalog-market.js';
+import { accountBar, marketplaceSection, publishDialog } from './catalog-market.js';
 import { clear, h, icon } from './dom.js';
 import { previewBox } from './presets.js';
 import { type CatalogEntryInfo, type CatalogState, isDirty, replaceAll, S } from './store.js';
@@ -78,7 +78,8 @@ function sourceText(e: CatalogEntryInfo): string {
   return t(e.source === 'user' ? 'catalog.section.user' : 'catalog.section.system');
 }
 
-const sectionsOf = (tab: CatalogTab): Section[] => (tab === 'market' ? ['user'] : [tab]);
+// the marketplace tab has no local entries
+const sectionsOf = (tab: CatalogTab): Section[] => (tab === 'market' ? [] : [tab]);
 
 export function groupEntries(data: CatalogState, tab: CatalogTab): CatalogGroup[] {
   const out: CatalogGroup[] = [];
@@ -241,6 +242,7 @@ export async function openCatalog(): Promise<void> {
   const list = h('div', { class: 'catalog-list' });
   let market: HTMLElement | null = null;
   let close: (v?: unknown) => void = () => {};
+  const own: HTMLElement[] = [];
 
   function hidePeek() {
     peek?.classList.remove('on');
@@ -278,9 +280,14 @@ export async function openCatalog(): Promise<void> {
   function pick(tab: CatalogTab) {
     if (tab === st.tab) return;
     st.tab = tab;
+    renderFooter();
     renderTabs();
     renderList();
     void loadPreviews();
+  }
+
+  function renderFooter() {
+    for (const b of own) b.hidden = st.tab !== 'user';
   }
 
   function renderTabs() {
@@ -549,15 +556,19 @@ export async function openCatalog(): Promise<void> {
         h('p', { class: 'hint catalog-hint' }, t(waiting ? 'catalog.noEndpointHint' : 'catalog.marketOff')),
       );
     }
+    if (st.tab === 'user') {
+      const bar = accountBar(st.data, (next) => {
+        if (!st.closed) update(next);
+      });
+      if (bar) list.append(bar);
+    }
     const groups = groupEntries(st.data, st.tab);
     for (const section of sectionsOf(st.tab)) {
-      const own = groups.filter((g) => g.section === section);
-      if (!own.length && section === 'system') continue;
+      const mine = groups.filter((g) => g.section === section);
+      if (!mine.length && section === 'system') continue;
       const box = h('section', { class: 'catalog-section', 'data-section': section });
-      if (st.tab === 'market')
-        box.append(h('h3', { class: 'catalog-section-head' }, t(`catalog.section.${section}`)));
-      if (!own.length) box.append(h('div', { class: 'empty-state small' }, t('catalog.empty.user')));
-      for (const g of own) {
+      if (!mine.length) box.append(h('div', { class: 'empty-state small' }, t('catalog.empty.user')));
+      for (const g of mine) {
         box.append(
           h('h4', { class: 'catalog-group-head' }, t(GROUP[g.kind])),
           h('div', { class: 'catalog-grid' }, ...g.entries.map(card)),
@@ -565,12 +576,15 @@ export async function openCatalog(): Promise<void> {
       }
       list.append(box);
     }
-    // yours on top, then the online entries
     if (st.tab === 'market') {
-      market ??= marketplaceSection(st.data, (next) => {
-        if (!st.closed) update(next);
-      });
-      if (market) list.append(market);
+      market ??= marketplaceSection(
+        st.data,
+        (next) => {
+          if (!st.closed) update(next);
+        },
+        () => st.data,
+      );
+      list.append(market ?? h('div', { class: 'empty-state small' }, t('catalog.remote.empty')));
     }
   }
 
@@ -618,8 +632,7 @@ export async function openCatalog(): Promise<void> {
       renderTabs();
       renderList();
       void loadPreviews();
-      return [
-        h('span', { class: 'spacer' }),
+      own.push(
         h(
           'button',
           {
@@ -632,23 +645,29 @@ export async function openCatalog(): Promise<void> {
           },
           t('catalog.saveCurrent'),
         ),
-        st.data.publishable
-          ? h(
-              'button',
-              {
-                class: 'btn',
-                type: 'button',
-                title: t('catalog.publish.title'),
-                onClick: async () => {
-                  const next = await publishDialog(st.data);
-                  if (!next || st.closed) return;
-                  market = null;
-                  update(next);
-                },
+      );
+      if (st.data.publishable)
+        own.push(
+          h(
+            'button',
+            {
+              class: 'btn',
+              type: 'button',
+              title: t('catalog.publish.title'),
+              onClick: async () => {
+                const next = await publishDialog(st.data);
+                if (!next || st.closed) return;
+                market = null;
+                update(next);
               },
-              t('catalog.publish.open'),
-            )
-          : null,
+            },
+            t('catalog.publish.open'),
+          ),
+        );
+      renderFooter();
+      return [
+        h('span', { class: 'spacer' }),
+        ...own,
         h('button', { class: 'btn primary', type: 'button', onClick: () => done() }, t('web.settings.done')),
       ];
     },

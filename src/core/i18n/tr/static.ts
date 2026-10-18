@@ -5,8 +5,9 @@ export const staticMessages = {
   'web.static.presets': 'Hazır ayarlar',
   'web.static.presetsTitle': 'Hazır ayarlara göz at',
   'web.static.themesTitle': 'Temalara göz at',
-  'web.static.catalog': 'Katalog',
-  'web.static.catalogTitle': 'Hazır ayarlara, temalara ve paketlere göz at',
+  'web.static.catalog': 'Marketplace',
+  'web.static.catalogTitle':
+    "Marketplace'e, kendi girdilerinize ve yerleşik hazır ayarlara, temalara ve paketlere göz at",
   'web.static.undo': 'Geri al',
   'web.static.undoTitle': 'Geri al (Ctrl+Z)',
   'web.static.redo': 'Yinele',
