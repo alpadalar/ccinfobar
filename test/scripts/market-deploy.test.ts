@@ -223,13 +223,17 @@ describe('market deploy workflow', () => {
     const tests = pos((s) => s.run === 'npx vitest run test/market');
     const bundle = pos((s) => s.run === 'node scripts/build.mjs --worker');
     const dry = pos((s) => s.run === `${WRANGLER} deploy --dry-run`);
+    // WR-06: a restore point in the job log before any migration
+    const bookmark = pos((s) => s.run === `${WRANGLER} d1 time-travel info ccinfobar-market --json`);
     const migrate = pos((s) => s.run === `${WRANGLER} d1 migrations apply ccinfobar-market --remote`);
     const deploy = pos((s) => s.run === `${WRANGLER} deploy`);
     const smoke = pos((s) => s.run.includes('curl'));
-    const order = [checkout, node, install, tests, bundle, dry, migrate, deploy, smoke];
+    const order = [checkout, node, install, tests, bundle, dry, bookmark, migrate, deploy, smoke];
     expect(order.every((n) => n >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    for (const n of [dry, migrate, deploy]) expect(all[n]!.workdir).toBe('worker');
+    expect(bookmark + 1).toBe(migrate);
+    for (const n of [dry, bookmark, migrate, deploy]) expect(all[n]!.workdir).toBe('worker');
+    expect(text).not.toMatch(/backs up|takes a backup/);
     expect(text).toMatch(/node-version: 22\s*$/m);
     const cfg = readLines('worker/wrangler.jsonc')
       .filter((l) => !l.trim().startsWith('//'))

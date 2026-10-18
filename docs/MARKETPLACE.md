@@ -355,14 +355,14 @@ All commands run from `worker/`, so wrangler reads `worker/wrangler.jsonc` with 
 
 - GitHub Actions → **Marketplace deploy** → Run workflow, or `gh workflow run market-deploy.yml --ref main`. A push to `main` that touches the Worker files (`src/market/**`, `src/core/entry-keys.ts`, `src/core/sanitize.ts`, `worker/**`, the build scripts or the workflow) deploys too.
 - The job runs only on `alpadalar/ccinfobar` and only once the repository variable `MARKET_URL` is set (the Worker URL, https://ccinfobar-market.alp-adalar.workers.dev). It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, which only the migration and deploy steps get.
-- Steps: `npm ci --ignore-scripts`, `npx vitest run test/market`, `node scripts/build.mjs --worker` (writes the gitignored `worker/dist/index.js`), `wrangler deploy --dry-run`, apply migrations, deploy, then a smoke check of `$MARKET_URL/v1/meta.json` and `$MARKET_URL/`.
+- Steps: `npm ci --ignore-scripts`, `npx vitest run test/market`, `node scripts/build.mjs --worker` (writes the gitignored `worker/dist/index.js`), `wrangler deploy --dry-run`, record the D1 Time Travel bookmark, apply migrations, deploy, then a smoke check of `$MARKET_URL/v1/meta.json` and `$MARKET_URL/`.
 - `wrangler deploy` also sets the cron trigger from `worker/wrangler.jsonc` (`triggers.crons`). Workers Free allows 5 cron triggers per account, and this Worker uses one; check the Worker's **Settings → Triggers** page after the first deploy with it.
 - Sign-in answers `503` until the `GITHUB_CLIENT_SECRET` secret is set (see [Tokens and secrets](#tokens-and-secrets)).
 
 ### Migrations
 
 - Add `worker/migrations/NNNN_name.sql` with the next number. Migrations are additive only: new tables, columns with defaults, new indexes. Never drop or rename what a deployed Worker reads.
-- The workflow applies them with `npx --yes wrangler@4.149.0 d1 migrations apply ccinfobar-market --remote`, which takes a backup first. Deploy the Worker code that needs a new column only after its migration.
+- The workflow applies them with `npx --yes wrangler@4.149.0 d1 migrations apply ccinfobar-market --remote`. Wrangler takes no backup of a production D1 database (that was only the old alpha backend), so the step before it prints the current Time Travel bookmark (`d1 time-travel info ccinfobar-market --json`) into the job log. To undo a migration, restore to that bookmark (see [Backups](#backups)); every write after it is lost. Deploy the Worker code that needs a new column only after its migration.
 - `npx --yes wrangler@4.149.0 d1 migrations list ccinfobar-market --remote` shows what is applied.
 
 ### Moderation
