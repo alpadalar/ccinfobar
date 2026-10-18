@@ -464,7 +464,8 @@ function processList() {
           '-Command',
           'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId)`t$($_.CommandLine)" }',
         ],
-        { timeout: 20_000 },
+        // CIM can take long on a cold Windows runner
+        { timeout: 60_000 },
       )
     : run('ps', ['-A', '-o', 'pid=,command='], { timeout: 20_000 });
   if (r.status !== 0) throw new Error(`process list failed: ${r.command}\n${trim(r.stderr)}`);
