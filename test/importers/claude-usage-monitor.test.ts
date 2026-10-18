@@ -193,6 +193,10 @@ describe('claude-usage-monitor importer', () => {
     });
     expect(r.file).toBe(file);
     expect(item(r, 'session-duration')).toBeUndefined();
+    for (const empty of ['', '  ']) {
+      const e = { HOME: env.HOME, USERPROFILE: env.HOME, CLAUDE_CONFIG_DIR: empty };
+      expect(importFrom('claude-usage-monitor', { env: e, cwd: dir }).file, JSON.stringify(empty)).toBe(file);
+    }
   });
 
   it('imports the defaults without a settings file and ignores the process env', () => {

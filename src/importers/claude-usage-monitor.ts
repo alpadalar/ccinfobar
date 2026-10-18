@@ -135,7 +135,7 @@ export function importClaudeUsageMonitor(
 // the env block of Claude's settings.json, under the injected home
 function settingsPath(ctx: ImportCtx): string {
   return claudeSettingsPath({
-    CLAUDE_CONFIG_DIR: ctx.env.CLAUDE_CONFIG_DIR ?? path.join(ctx.home, '.claude'),
+    CLAUDE_CONFIG_DIR: ctx.env.CLAUDE_CONFIG_DIR?.trim() || path.join(ctx.home, '.claude'),
   });
 }
 

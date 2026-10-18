@@ -82,7 +82,7 @@ export const LEGACY_INFO: readonly ImporterInfo[] = [
   },
 ];
 
-// later plans append one row per tool, in IMPORT_SOURCES order
+// in IMPORT_SOURCES order
 export const REGISTRY: readonly ImporterDef[] = [
   bestClaudeHudImporter,
   byebyecodeImporter,
