@@ -616,6 +616,21 @@ describe('catalog on a GitHub-backed marketplace (D-07, D-09, D-16)', () => {
     ]);
   });
 
+  it('publisher --check reports a rejected entry and frees it (WR-04)', async () => {
+    const m = githubMarket();
+    await saveMine();
+    writeCredential(GH_ENDPOINT, GH_TOKEN, cat);
+    await run(['publish', '--yes'], { env, fetch: m.fetch });
+    m.entries.delete('octo/mine');
+    const out = await run(['publisher', '--check'], { env, fetch: m.fetch });
+    expect(out.out).toEqual([
+      `Signed in to ${GH_ENDPOINT} as @octo`,
+      '1 entry was rejected by an admin; share it again to submit it as a new entry',
+      'No entries are waiting for review',
+    ]);
+    expect(readEntry(entryOf('Mine').id, cat)!.entry.share).toMatchObject({ state: 'local', remote: null });
+  });
+
   it('publisher --check asks the account and refreshes the review wait', async () => {
     const m = githubMarket();
     await saveMine();
@@ -651,6 +666,7 @@ describe('catalog on a GitHub-backed marketplace (D-07, D-09, D-16)', () => {
       admin: true,
       checked: 0,
       cleared: 0,
+      rejected: 0,
       waiting: 0,
     });
     for (const argv of [

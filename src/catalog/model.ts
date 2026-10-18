@@ -253,6 +253,11 @@ export function markWithdrawn(e: CatalogEntry): CatalogEntry {
   return withShare(e, { wanted: false, state: 'withdrawn', remote, lastError: null });
 }
 
+// rejected, or gone from the marketplace: the id is free again, so sharing publishes a new entry (WR-04)
+export function markDropped(e: CatalogEntry, code: string | null): CatalogEntry {
+  return withShare(e, { wanted: false, state: 'local', remote: null, lastError: code });
+}
+
 export function clearReview(e: CatalogEntry): CatalogEntry {
   const r = e.share.remote;
   return r?.review ? withShare(e, { remote: withoutReview(r) }) : e;

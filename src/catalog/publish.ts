@@ -9,6 +9,7 @@ import {
 import {
   canonicalJson,
   isRemoteId,
+  LIST_CAP,
   type MarketEntry,
   type MarketMeta,
   type MarketSummary,
@@ -23,6 +24,7 @@ import {
   clearReview,
   type EntryKind,
   latest,
+  markDropped,
   markError,
   marketSlug,
   markPublished,
@@ -292,20 +294,24 @@ export async function reviewPublish(ids: string[] | null, deps: PublishDeps = {}
   return { code: null, endpoint, overwrite, registration, plan };
 }
 
+// the server has no such id: rejected, never public, so the id is free (WR-04)
+const DROPPED = 'dropped';
+
 async function sendItem(
   client: MarketClient,
   item: PublishItem,
   remote: RemoteRef | null,
-): Promise<(Written & { id: string }) | null> {
+): Promise<(Written & { id: string }) | typeof DROPPED | null> {
   if (item.action === 'publish') return client.publish(item.payload as PublishPayload);
   const id = remote!.id;
   if (item.action === 'withdraw') {
     try {
       await client.withdraw(id);
     } catch (err) {
-      // already gone counts as withdrawn
       const c = codeOf(err);
-      if (c !== 'not-found' && c !== 'withdrawn') throw err;
+      if (c === 'not-found') return DROPPED;
+      // already gone counts as withdrawn
+      if (c !== 'withdrawn') throw err;
     }
     return null;
   }
@@ -377,7 +383,13 @@ export async function runPublish(
     const remote = item.remoteId ? e.share.remote : null;
     let res: PublishResult;
     try {
-      const sent = await sendItem(client, item, remote);
+      const got = await sendItem(client, item, remote);
+      if (got === DROPPED) {
+        const r = record(item.id, item.rev, (x) => markDropped(x, null), dir, now());
+        results.push({ id: item.id, ok: r.saved, code: r.code, remoteId: item.remoteId, version: null });
+        continue;
+      }
+      const sent = got;
       const ref: RemoteRef | null = sent && {
         endpoint: client.endpoint,
         id: sent.id,
@@ -396,8 +408,18 @@ export async function runPublish(
         ...(sent?.pending ? { pending: true as const } : {}),
       };
     } catch (err) {
-      const code = codeOf(err);
-      record(item.id, item.rev, (x) => markError(x, code), dir, now());
+      let code = codeOf(err);
+      // our own id is gone: rejected (404), or removed or withdrawn elsewhere (410, stays reserved)
+      const own = item.action === 'version' || item.action === 'overwrite';
+      if (own && code === 'not-found') code = 'rejected';
+      const mark = code;
+      const apply =
+        mark === 'rejected'
+          ? (x: CatalogEntry) => markDropped(x, mark)
+          : own && mark === 'withdrawn'
+            ? (x: CatalogEntry) => markError(markWithdrawn(x), mark)
+            : (x: CatalogEntry) => markError(x, mark);
+      record(item.id, item.rev, apply, dir, now());
       res = { id: item.id, ok: false, code, remoteId: item.remoteId, version: null, ...statusOf(err) };
     }
     results.push(res);
@@ -409,15 +431,16 @@ export interface ReviewCheck {
   code: string | null;
   status?: number;
   me: MeResult | null;
-  // local entries that waited, cleared now, still waiting on the server
+  // local entries that waited, cleared now, rejected, still waiting on the server
   checked: number;
   cleared: number;
+  rejected: number;
   waiting: number;
 }
 
 // asks /v1/me; only on an explicit check (D-08)
 export async function refreshReview(deps: PublishDeps = {}): Promise<ReviewCheck> {
-  const none = { me: null, checked: 0, cleared: 0, waiting: 0 };
+  const none = { me: null, checked: 0, cleared: 0, rejected: 0, waiting: 0 };
   const { dir, endpoint } = envOf(deps);
   if (!endpoint) return { code: 'no-endpoint', ...none };
   const fetchFn = deps.fetch ?? globalThis.fetch;
@@ -438,17 +461,25 @@ export async function refreshReview(deps: PublishDeps = {}): Promise<ReviewCheck
   }
   const key = endpointKey(endpoint);
   const live = new Set(me.entries.filter((x) => x.state === 'live').map((x) => x.id));
+  const listed = new Set(me.entries.map((x) => x.id));
+  // a full list may leave entries out, so a missing id proves nothing then
+  const complete = me.entries.length < LIST_CAP;
   const now = deps.now ?? (() => new Date());
   let checked = 0;
   let cleared = 0;
+  let rejected = 0;
   for (const e of listEntries(dir)) {
     const r = e.share.remote;
     if (r?.review !== 'pending' || endpointKey(r.endpoint) !== key) continue;
     checked++;
     if (live.has(r.id) && record(e.id, e.rev, clearReview, dir, now()).saved) cleared++;
+    // no longer waiting and not live: an admin rejected it (WR-04)
+    else if (complete && !listed.has(r.id)) {
+      if (record(e.id, e.rev, (x) => markDropped(x, 'rejected'), dir, now()).saved) rejected++;
+    }
   }
   const waiting = me.entries.filter((x) => x.state === 'pending').length;
-  return { code: null, me, checked, cleared, waiting };
+  return { code: null, me, checked, cleared, rejected, waiting };
 }
 
 async function reader(deps: PublishDeps): Promise<{ client: MarketClient | null; code: string | null }> {

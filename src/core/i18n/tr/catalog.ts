@@ -174,6 +174,11 @@ export const catalogMessages = {
     one: '1 girdi onaylandı ve artık yayında',
     other: '{count} girdi onaylandı ve artık yayında',
   },
+  'catalog.publisher.rejected': {
+    one: '1 girdi bir yönetici tarafından reddedildi; yeni bir girdi olarak göndermek için yeniden paylaşın',
+    other:
+      '{count} girdi bir yönetici tarafından reddedildi; yeni girdiler olarak göndermek için yeniden paylaşın',
+  },
   'catalog.publisher.waiting': {
     one: '1 girdi inceleme bekliyor',
     other: '{count} girdi inceleme bekliyor',
@@ -412,6 +417,8 @@ export const catalogMessages = {
   'market.error.handle-taken':
     "Bu yayıncı adı marketplace'te zaten alınmış; ccinfobar catalog publisher <handle> ile başka bir ad ayarlayın",
   'market.error.changed': 'Girdi yayımlama sırasında değişti; değişikliği göndermek için tekrar yayımlayın',
+  'market.error.rejected':
+    "Bir yönetici reddetti ya da artık marketplace'te değil; yeni bir girdi olarak göndermek için yeniden paylaşın",
   'market.error.unreviewed':
     'İncelemenizden sonra değiştiği için gönderilmedi; değişikliği incelemek için tekrar yayımlayın',
   'market.error.banned': 'Bu marketplace hesabı yasaklandı',

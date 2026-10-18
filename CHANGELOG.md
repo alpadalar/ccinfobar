@@ -69,6 +69,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - **Refresh** in the Marketplace tab no longer returns the cached list when it is pressed while the tab is still loading; it always checks the marketplace
 - ccinfobar never follows a redirect on a marketplace request that carries your token (account and admin reads, like writes before), so a same-host redirect cannot hand the token to another marketplace path
 - Cancelling the editor's GitHub sign-in while the marketplace exchange is running no longer leaves you signed in: the new marketplace token is revoked and nothing is stored, matching the "cancelled" the dialog shows
+- A marketplace entry an admin rejected no longer stays "Waiting for review" forever or fails every publish: `catalog publisher --check` and the next publish notice the rejection, say so, and put the entry back to not shared, so sharing it again submits it as a new entry instead of being refused as reserved. An entry removed on the marketplace is marked withdrawn instead of failing on every publish
 
 ### Security
 

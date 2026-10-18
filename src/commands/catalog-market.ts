@@ -67,6 +67,7 @@ const REASONS: Record<string, MessageId> = {
   'handle-taken': 'market.error.handle-taken',
   changed: 'market.error.changed',
   unreviewed: 'market.error.unreviewed',
+  rejected: 'market.error.rejected',
   'bad-content': 'err.catalog.badContent',
   busy: 'err.catalog.busy',
   reserved: 'catalog.publish.reserved',
@@ -752,13 +753,14 @@ export async function runPublisherCheck(c: Ctx): Promise<void> {
     else c.fail(t('catalog.publisher.checkFailed', { reason: reasonText(res.code, res.status) }));
     return;
   }
-  const { checked, cleared, waiting } = res;
+  const { checked, cleared, rejected, waiting } = res;
   if (c.json) {
-    jsonOut(c, { endpoint, publisher: me.handle, admin: me.admin, checked, cleared, waiting });
+    jsonOut(c, { endpoint, publisher: me.handle, admin: me.admin, checked, cleared, rejected, waiting });
     return;
   }
   c.io.log(t('catalog.publisher.signedIn', { endpoint: shownUrl(endpoint), handle: clean(me.handle) }));
   if (me.admin) c.io.log(t('catalog.login.admin'));
   if (cleared) c.io.log(t('catalog.publisher.approved', { count: cleared }));
+  if (rejected) c.io.log(t('catalog.publisher.rejected', { count: rejected }));
   c.io.log(waiting ? t('catalog.publisher.waiting', { count: waiting }) : t('catalog.publisher.noneWaiting'));
 }

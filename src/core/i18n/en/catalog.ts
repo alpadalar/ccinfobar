@@ -167,6 +167,10 @@ export const catalogMessages = {
     one: '1 entry was approved and is live now',
     other: '{count} entries were approved and are live now',
   },
+  'catalog.publisher.rejected': {
+    one: '1 entry was rejected by an admin; share it again to submit it as a new entry',
+    other: '{count} entries were rejected by an admin; share them again to submit them as new entries',
+  },
   'catalog.publisher.waiting': {
     one: '1 entry is waiting for review',
     other: '{count} entries are waiting for review',
@@ -396,6 +400,8 @@ export const catalogMessages = {
   'market.error.handle-taken':
     'This publisher handle is already taken on the marketplace; set another one with ccinfobar catalog publisher <handle>',
   'market.error.changed': 'The entry changed while publishing; publish again to send the change',
+  'market.error.rejected':
+    'An admin rejected it, or it is no longer on the marketplace; share it again to submit it as a new entry',
   'market.error.unreviewed':
     'It changed after you reviewed it, so it was not sent; publish again to review the change',
   'market.error.banned': 'This marketplace account is banned',

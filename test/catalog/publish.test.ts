@@ -778,7 +778,34 @@ describe('runPublish', () => {
       url: 'https://market.example.com/v1/entries/alp/mine',
     });
     expect(f.calls[1]!.headers.authorization).toBe(`Bearer ${'b'.repeat(64)}`);
-    expect(readEntry(e.id, dir)!.entry.share.state).toBe('withdrawn');
+    // never public there, so the id is free: back to local, not reserved (WR-04)
+    expect(readEntry(e.id, dir)!.entry.share).toMatchObject({ state: 'local', remote: null, wanted: false });
+  });
+
+  it('a withdraw answered 410 counts as withdrawn and keeps the id reserved', async () => {
+    const e = save();
+    const stored = readEntry(e.id, dir)!.entry;
+    const pub = markPublished(stored, {
+      endpoint: 'https://market.example.com',
+      id: 'alp/mine',
+      version: 1,
+      hash: entryHash(preset('model')),
+      publishedAt: at(1).toISOString(),
+    });
+    const c = commitEntry(pub, stored.rev, dir);
+    updateShare(e.id, false, c.rev, dir);
+    writeCredential('https://market.example.com', 'b'.repeat(64), dir);
+    const f = fakeFetch([
+      json({ protocol: 1, name: 'M', capabilities: { write: true, overwrite: true, withdraw: true } }),
+      json({ error: { code: 'withdrawn', message: 'gone' } }, 410),
+    ]);
+    const env = { CCINFOBAR_MARKETPLACE_URL: 'https://market.example.com' };
+    const out = await send(null, { dir, env, fetch: f.fetch });
+    expect(out.results).toEqual([{ id: e.id, ok: true, code: null, remoteId: 'alp/mine', version: null }]);
+    expect(readEntry(e.id, dir)!.entry.share).toMatchObject({
+      state: 'withdrawn',
+      remote: { id: 'alp/mine' },
+    });
   });
 });
 
@@ -873,10 +900,57 @@ describe('GitHub-backed marketplace (D-07, D-09)', () => {
     ]);
     expect(readEntry(a.id, dir)!.entry.share.remote?.review).toBeUndefined();
     expect(readEntry(b.id, dir)!.entry.share.remote?.review).toBe('pending');
-    // an entry the server no longer lists stays waiting
+    // an entry the server no longer lists was rejected: the id is free, so it goes back to local (WR-04)
     m.entries.delete('octo/two');
-    expect(await refreshReview({ dir, env, fetch: m.fetch })).toMatchObject({ checked: 1, cleared: 0 });
+    expect(await refreshReview({ dir, env, fetch: m.fetch })).toMatchObject({
+      checked: 1,
+      cleared: 0,
+      rejected: 1,
+      waiting: 0,
+    });
+    expect(readEntry(b.id, dir)!.entry.share).toMatchObject({
+      state: 'local',
+      wanted: false,
+      remote: null,
+      lastError: 'rejected',
+    });
+    // sharing it again publishes a fresh entry instead of a version of the dropped id
+    const again = readEntry(b.id, dir)!.entry;
+    updateShare(b.id, true, again.rev, dir);
+    const out = await send(null, { dir, env, fetch: m.fetch });
+    expect(out.results).toMatchObject([{ id: b.id, ok: true, remoteId: 'octo/two', version: 1 }]);
+    expect(m.calls.at(-1)).toMatchObject({ method: 'POST', url: `${GH_ENDPOINT}/v1/entries` });
+  });
+
+  it('refreshReview leaves a missing entry waiting when the account list is full', async () => {
+    const m = githubMarket();
+    writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+    const b = save({ name: 'Two', now: at(1) });
+    await send(null, { dir, env, fetch: m.fetch });
+    m.entries.delete('octo/two');
+    for (let i = 0; i < 200; i++) {
+      m.entries.set(`octo/x${i}`, { id: `octo/x${i}`, version: 1, state: 'live' });
+    }
+    const res = await refreshReview({ dir, env, fetch: m.fetch });
+    expect(res).toMatchObject({ rejected: 0 });
     expect(readEntry(b.id, dir)!.entry.share.remote?.review).toBe('pending');
+  });
+
+  it('a new version answered 404 marks the entry rejected and free; 410 keeps it reserved', async () => {
+    const m = githubMarket();
+    writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+    const a = save();
+    await send(null, { dir, env, fetch: m.fetch });
+    m.entries.delete('octo/mine');
+    const cur = readEntry(a.id, dir)!.entry;
+    commitEntry(appendVersion(cur, preset('cwd'), 'two', at(5).toISOString()), cur.rev, dir);
+    const out = await send(null, { dir, env, fetch: m.fetch });
+    expect(out.results).toMatchObject([{ id: a.id, ok: false, code: 'rejected' }]);
+    expect(readEntry(a.id, dir)!.entry.share).toMatchObject({
+      state: 'local',
+      remote: null,
+      lastError: 'rejected',
+    });
   });
 
   it('refreshReview needs a GitHub marketplace and a sign-in', async () => {
