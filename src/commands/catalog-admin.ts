@@ -305,6 +305,27 @@ async function approve(c: Ctx, s: Session, id: string, tag: string | null, note?
       failed(c, s, { id }, new MarketError('stale', 412), vars, 'approve');
       return;
     }
+    // no --tag: show what goes live and confirm; the tag shown is the one pinned (WR-01)
+    if (tag === null) {
+      const what = {
+        ...vars,
+        version: r.entry.version,
+        name: clean(r.entry.name) || vars.id,
+        hash: clean(r.hash.slice(0, 12)),
+      };
+      if (c.args.flags.yes !== true) {
+        if (c.json || !c.io.tty) {
+          if (c.json) jsonOut(c, { endpoint: s.endpoint, id, code: 'needs-yes' });
+          c.fail(t('err.catalog.admin.approveNeedsYes', vars));
+          return;
+        }
+        c.io.log(t('catalog.admin.approveWhat', what));
+        if (!(await c.io.ask(t('catalog.admin.ask.approve', vars), false))) {
+          c.io.log(t('catalog.admin.kept'));
+          return;
+        }
+      } else if (!c.json) c.io.log(t('catalog.admin.approveWhat', what));
+    }
     await s.client.admin.approve(id, r.etag, note);
     if (c.json) jsonOut(c, { endpoint: s.endpoint, id, approved: true });
     else c.io.log(t('catalog.admin.approved', { ...vars, version: r.entry.version }));

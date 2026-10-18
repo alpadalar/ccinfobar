@@ -165,7 +165,7 @@ Signed-in users report an entry with `ccinfobar catalog report <publisher/slug> 
 | --- | --- |
 | `catalog admin pending` | Entries waiting for review: id, kind, name, publisher, version, created |
 | `catalog admin show <publisher/slug>` | The entry, its versions and its content as sanitized JSON text (never applied or rendered), plus its review tag |
-| `catalog admin approve <publisher/slug> [--tag <review tag>] [--note <text>]` | Approve the reviewed revision (sent with `If-Match`). With `--tag` from `admin show`, a change since then is refused |
+| `catalog admin approve <publisher/slug> [--tag <review tag> \| --yes] [--note <text>]` | Approve the reviewed revision (sent with `If-Match`). With `--tag` from `admin show`, a change since then is refused. Without `--tag` it prints what goes live (name, id, version, content hash prefix) and asks in a terminal; elsewhere it needs `--yes`. Either way it pins the revision it showed |
 | `catalog admin reject\|remove <publisher/slug> [--note <text>] [--yes]` | Reject a pending entry, or remove an entry (tombstone; its publisher is reviewed again) |
 | `catalog admin ban <handle> [--note <text>] [--yes]` | Ban a publisher: their entries leave the index, and they cannot sign in, write or report |
 | `catalog admin unban <handle> [--note <text>]` | Lift a ban |
@@ -260,7 +260,7 @@ Publishers sign in with GitHub. There is no password and no registration.
 ## Moderation
 
 - **Review of new publishers.** A publisher starts untrusted. Their entries wait as `pending`: invisible to everyone else, out of the index, and listed by `catalog admin pending`. The publisher may still add versions to a pending entry or withdraw it (a pending entry that is withdrawn is deleted, since it was never public). When an admin approves an entry, only the reviewed revision goes public, older unreviewed version bodies are dropped, and the publisher becomes trusted: their later entries go live at once.
-- **Approve is pinned.** `admin show` returns a review tag (content hash and generation), and approve sends it as `If-Match`. If the entry changed since the review, approve answers `412 stale` and nothing goes public.
+- **Approve is pinned.** `admin show` returns a review tag (content hash and generation), and approve sends it as `If-Match`. If the entry changed since the review, approve answers `412 stale` and nothing goes public. `catalog admin approve` with `--tag` pins what `admin show` printed; without it, the command first prints the revision it will approve and asks (or needs `--yes`), and pins that revision, so a version added after `admin show` is never approved unseen.
 - **Live entries of untrusted publishers.** A live entry takes new content only from a trusted publisher. When an admin removes an entry, its publisher becomes untrusted again: their live entries cannot get new versions (`403 forbidden` "new content waits until an admin approves your next entry") and new entries wait for review, until an admin approves one of them. Public ids never go back to pending.
 - **Reports.** A signed-in user reports a live entry once, with a reason. `catalog admin reports` lists open reports and `catalog admin resolve <number>` closes one. Removing an entry resolves its reports.
 - **Remove** writes a tombstone like a withdraw (the name, description, author and notes are blanked and the version content is deleted), and the id stays reserved.

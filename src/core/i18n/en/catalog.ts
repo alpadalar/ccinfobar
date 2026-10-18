@@ -333,7 +333,7 @@ export const catalogMessages = {
   'catalog.report.reason': 'Reason',
   'catalog.report.send': 'Send report',
   'catalog.admin.usage':
-    'Usage: ccinfobar catalog admin pending [--json]\n       ccinfobar catalog admin show <publisher/slug> [--json]\n       ccinfobar catalog admin approve <publisher/slug> [--tag <review tag>] [--note <text>] [--json]\n       ccinfobar catalog admin reject|remove <publisher/slug> [--note <text>] [--yes] [--json]\n       ccinfobar catalog admin ban <handle> [--note <text>] [--yes] [--json]\n       ccinfobar catalog admin unban <handle> [--note <text>] [--json]\n       ccinfobar catalog admin reports [--json]\n       ccinfobar catalog admin resolve <number> [--json]',
+    'Usage: ccinfobar catalog admin pending [--json]\n       ccinfobar catalog admin show <publisher/slug> [--json]\n       ccinfobar catalog admin approve <publisher/slug> [--tag <review tag> | --yes] [--note <text>] [--json]\n       ccinfobar catalog admin reject|remove <publisher/slug> [--note <text>] [--yes] [--json]\n       ccinfobar catalog admin ban <handle> [--note <text>] [--yes] [--json]\n       ccinfobar catalog admin unban <handle> [--note <text>] [--json]\n       ccinfobar catalog admin reports [--json]\n       ccinfobar catalog admin resolve <number> [--json]',
   'catalog.admin.failed': 'The admin request failed: {reason}',
   'err.catalog.admin.notAdmin':
     'Only marketplace admins can do this. Sign in with an admin GitHub account: ccinfobar catalog login',
@@ -360,6 +360,10 @@ export const catalogMessages = {
   'catalog.admin.ask.ban':
     'Ban @{handle}? Their entries leave the marketplace list and they can no longer publish or report.',
   'catalog.admin.kept': 'Nothing was changed.',
+  'catalog.admin.approveWhat': 'This goes live: {name} ({id}) v{version}, content hash {hash}…',
+  'catalog.admin.ask.approve': 'Approve {id} as shown? Its publisher becomes trusted.',
+  'err.catalog.admin.approveNeedsYes':
+    'Nothing was changed. Review it with ccinfobar catalog admin show {id}, then approve with the --tag it prints, or pass --yes to approve what is there now.',
   'err.catalog.admin.needsYes': 'Nothing was changed. Run again with --yes to confirm.',
   'err.catalog.admin.stale':
     '{id} changed since it was reviewed; run ccinfobar catalog admin show {id} again',

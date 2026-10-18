@@ -385,15 +385,38 @@ describe.skipIf(!hasSqlite)('catalog admin moderation against the Worker', () =>
   it('approves the reviewed version so it shows in the remote list', async () => {
     const m = await seeded();
     expect(await remoteIds(m)).toEqual([]);
-    const r = await m.cli('admin', ['admin', 'approve', 'pub/mini', '--note', 'ok']);
+    // without --tag and without a terminal it needs --yes (WR-01)
+    const no = await m.cli('admin', ['admin', 'approve', 'pub/mini', '--note', 'ok']);
+    expect(no.code).toBe(1);
+    expect(no.err.join('\n')).toContain('Review it with ccinfobar catalog admin show pub/mini');
+    expect(await remoteIds(m)).toEqual([]);
+    const nj = await m.cli('admin', ['admin', 'approve', 'pub/mini', '--json']);
+    expect(JSON.parse(nj.out[0]!)).toMatchObject({ id: 'pub/mini', code: 'needs-yes' });
+    const r = await m.cli('admin', ['admin', 'approve', 'pub/mini', '--note', 'ok', '--yes']);
     expect(r.code).toBeUndefined();
-    expect(r.out).toEqual(['Approved pub/mini v1; it is live now.']);
+    expect(r.out[0]).toMatch(/^This goes live: Mini \(pub\/mini\) v1, content hash [0-9a-f]{12}…$/);
+    expect(r.out[1]).toBe('Approved pub/mini v1; it is live now.');
     expect(await remoteIds(m)).toEqual(['pub/mini']);
     const again = await m.cli('admin', ['admin', 'approve', 'pub/mini']);
     expect(again.code).toBe(1);
     expect(again.err.join('\n')).toContain('pub/mini is not waiting for review');
     const log = (await m.db.prepare('SELECT action, note FROM moderation').all()).results;
     expect(log).toEqual([{ action: 'approve', note: 'ok' }]);
+    m.db.close();
+  });
+
+  it('without --tag in a terminal, shows what goes live and asks first (WR-01)', async () => {
+    const m = await seeded();
+    const no = await m.cli('admin', ['admin', 'approve', 'pub/mini'], { tty: true, answers: [false] });
+    expect(no.out[0]).toMatch(/^This goes live: Mini \(pub\/mini\) v1, content hash [0-9a-f]{12}…$/);
+    expect(no.asked).toEqual(['Approve pub/mini as shown? Its publisher becomes trusted.']);
+    expect(no.out.at(-1)).toBe('Nothing was changed.');
+    expect(await remoteIds(m)).toEqual([]);
+    const yes = await m.cli('admin', ['admin', 'approve', 'pub/mini'], { tty: true, answers: [true] });
+    expect(yes.out.at(-1)).toBe('Approved pub/mini v1; it is live now.');
+    expect(await remoteIds(m)).toEqual(['pub/mini']);
+    const tr = await m.cli('admin', ['admin', 'approve', 'pub/none'], { tty: true });
+    expect(tr.code).toBe(1);
     m.db.close();
   });
 
@@ -455,7 +478,7 @@ describe.skipIf(!hasSqlite)('catalog admin moderation against the Worker', () =>
       headers.set('etag', `W/${tag}`);
       return new Response(await res.text(), { status: res.status, headers });
     }) as typeof fetch;
-    const ok = await m.cli('admin', ['admin', 'approve', 'pub/mini', '--json'], { fetch: weak });
+    const ok = await m.cli('admin', ['admin', 'approve', 'pub/mini', '--yes', '--json'], { fetch: weak });
     expect(ok.code).toBeUndefined();
     expect(await remoteIds(m)).toEqual(['pub/mini']);
     m.db.close();
@@ -547,7 +570,9 @@ describe.skipIf(!hasSqlite)('catalog admin moderation against the Worker', () =>
 
   it('keeps JSON English and the text Turkish under tr', async () => {
     const m = await seeded();
-    const json = await withLangAsync('tr', () => m.cli('admin', ['admin', 'approve', 'pub/mini', '--json']));
+    const json = await withLangAsync('tr', () =>
+      m.cli('admin', ['admin', 'approve', 'pub/mini', '--yes', '--json']),
+    );
     expect(JSON.parse(json.out[0]!)).toEqual({ schema: 1, endpoint: URL_, id: 'pub/mini', approved: true });
     const no = await withLangAsync('tr', () => m.cli('admin', ['admin', 'remove', 'pub/mini']));
     expect(no.err.join('\n')).toContain(

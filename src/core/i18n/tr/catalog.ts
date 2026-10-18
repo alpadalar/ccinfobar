@@ -348,7 +348,7 @@ export const catalogMessages = {
   'catalog.report.reason': 'Neden',
   'catalog.report.send': 'Bildirimi gönder',
   'catalog.admin.usage':
-    'Kullanım: ccinfobar catalog admin pending [--json]\n          ccinfobar catalog admin show <publisher/slug> [--json]\n          ccinfobar catalog admin approve <publisher/slug> [--tag <review tag>] [--note <text>] [--json]\n          ccinfobar catalog admin reject|remove <publisher/slug> [--note <text>] [--yes] [--json]\n          ccinfobar catalog admin ban <handle> [--note <text>] [--yes] [--json]\n          ccinfobar catalog admin unban <handle> [--note <text>] [--json]\n          ccinfobar catalog admin reports [--json]\n          ccinfobar catalog admin resolve <number> [--json]',
+    'Kullanım: ccinfobar catalog admin pending [--json]\n          ccinfobar catalog admin show <publisher/slug> [--json]\n          ccinfobar catalog admin approve <publisher/slug> [--tag <review tag> | --yes] [--note <text>] [--json]\n          ccinfobar catalog admin reject|remove <publisher/slug> [--note <text>] [--yes] [--json]\n          ccinfobar catalog admin ban <handle> [--note <text>] [--yes] [--json]\n          ccinfobar catalog admin unban <handle> [--note <text>] [--json]\n          ccinfobar catalog admin reports [--json]\n          ccinfobar catalog admin resolve <number> [--json]',
   'catalog.admin.failed': 'Yönetici isteği başarısız oldu: {reason}',
   'err.catalog.admin.notAdmin':
     'Bunu yalnızca marketplace yöneticileri yapabilir. Yönetici bir GitHub hesabıyla giriş yapın: ccinfobar catalog login',
@@ -376,6 +376,10 @@ export const catalogMessages = {
   'catalog.admin.ask.ban':
     '@{handle} yasaklansın mı? Girdileri marketplace listesinden çıkar; artık yayımlama ve bildirim yapamaz.',
   'catalog.admin.kept': 'Hiçbir şey değiştirilmedi.',
+  'catalog.admin.approveWhat': 'Yayına girecek olan: {name} ({id}) v{version}, içerik özeti {hash}…',
+  'catalog.admin.ask.approve': '{id} gösterildiği gibi onaylansın mı? Yayıncısı güvenilir olur.',
+  'err.catalog.admin.approveNeedsYes':
+    'Hiçbir şey değiştirilmedi. ccinfobar catalog admin show {id} ile inceleyin, sonra yazdırdığı --tag ile onaylayın ya da şu anki hâlini onaylamak için --yes verin.',
   'err.catalog.admin.needsYes': 'Hiçbir şey değiştirilmedi. Onaylamak için --yes ile tekrar çalıştırın.',
   'err.catalog.admin.stale':
     '{id} incelendikten sonra değişti; ccinfobar catalog admin show {id} komutunu yeniden çalıştırın',
