@@ -214,11 +214,18 @@ describe('market deploy workflow', () => {
     }
   });
 
+  it('pins every action by a full commit SHA (IN-08)', () => {
+    const uses = steps().flatMap((s) => (s.uses ? [s.uses] : []));
+    expect(uses.length).toBe(2);
+    for (const u of uses)
+      expect(u).toMatch(/^actions\/(?:checkout|setup-node)@[0-9a-f]{40} # v\d+\.\d+\.\d+$/);
+  });
+
   it('runs the steps in a safe order inside worker/', () => {
     const all = steps();
     const pos = (pred: (s: Step) => boolean): number => all.findIndex(pred);
-    const checkout = pos((s) => s.uses === 'actions/checkout@v5');
-    const node = pos((s) => s.uses === 'actions/setup-node@v5');
+    const checkout = pos((s) => s.uses?.startsWith('actions/checkout@') === true);
+    const node = pos((s) => s.uses?.startsWith('actions/setup-node@') === true);
     const install = pos((s) => s.run.startsWith('npm ci'));
     const tests = pos((s) => s.run === 'npx vitest run test/market');
     const bundle = pos((s) => s.run === 'node scripts/build.mjs --worker');

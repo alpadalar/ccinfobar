@@ -71,7 +71,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Cancelling the editor's GitHub sign-in while the marketplace exchange is running no longer leaves you signed in: the new marketplace token is revoked and nothing is stored, matching the "cancelled" the dialog shows
 - A marketplace entry an admin rejected no longer stays "Waiting for review" forever or fails every publish: `catalog publisher --check` and the next publish notice the rejection, say so, and put the entry back to not shared, so sharing it again submits it as a new entry instead of being refused as reserved. An entry removed on the marketplace is marked withdrawn instead of failing on every publish
 - `ccinfobar catalog admin approve` without `--tag` now prints what goes live (name, id, version, content hash) and asks in a terminal, and needs `--yes` elsewhere, so a version a publisher added after `admin show` is never approved unseen
-- The marketplace deploy workflow records a D1 Time Travel bookmark in the job log before it applies migrations, and the runbook no longer claims that wrangler backs up the database first
+- The marketplace deploy workflow records a D1 Time Travel bookmark in the job log before it applies migrations, and the runbook no longer claims that wrangler backs up the database first; its checkout and setup-node actions are pinned by commit SHA
 
 ### Security
 
