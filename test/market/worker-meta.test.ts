@@ -40,6 +40,19 @@ describe('worker landing page', () => {
     expect(html).not.toMatch(/<script/i);
   });
 
+  it('answers HEAD like GET without a body', async () => {
+    for (const p of ['/', '/v1/meta.json']) {
+      const g = await get(p);
+      const h = await handler().fetch(new Request(BASE + p, { method: 'HEAD' }));
+      expect(h.status).toBe(g.status);
+      expect(h.headers.get('content-type')).toBe(g.headers.get('content-type'));
+      expect(await h.text()).toBe('');
+    }
+    const missing = await handler().fetch(new Request(`${BASE}/nope`, { method: 'HEAD' }));
+    expect(missing.status).toBe(404);
+    expect(await missing.text()).toBe('');
+  });
+
   it('escapes the market name', async () => {
     const html = await (await get('/', { MARKET_NAME: '<b>"x" & y</b>' })).text();
     expect(html).toContain('&lt;b&gt;&quot;x&quot; &amp; y&lt;/b&gt;');

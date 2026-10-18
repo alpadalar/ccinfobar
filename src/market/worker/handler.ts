@@ -226,11 +226,16 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
 
   return {
     async fetch(req) {
+      // HEAD answers like GET without a body
+      let head = false;
+      let res: Response;
       try {
-        return await route(req);
+        head = req.method === 'HEAD';
+        res = await route(head ? new Request(req, { method: 'GET' }) : req);
       } catch (err) {
-        return errorResponse(err);
+        res = errorResponse(err);
       }
+      return head ? new Response(null, { status: res.status, headers: res.headers }) : res;
     },
   };
 }
