@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { IMPORT_SOURCES, type ImportSource, resolveSource } from '../../src/importers/index.js';
-import { homeOf } from '../../src/importers/io.js';
+import { homeOf, readJsonTool, readToml } from '../../src/importers/io.js';
 import {
   type ImportCtx,
   type ImporterDef,
@@ -91,6 +91,23 @@ describe('loadFromRegistry', () => {
     const { def, calls } = dummy(false);
     loadFromRegistry(def, { file: 'x', env });
     expect(calls).toEqual({ discover: 0, load: ['x'] });
+  });
+});
+
+describe('read helpers', () => {
+  it('show the file against the injected home, cleaned', () => {
+    const home = path.resolve('ccib-no-such-home');
+    const file = path.join(home, 'a\u001b[31mb.toml');
+    for (const read of [readToml, readJsonTool]) {
+      let message = '';
+      try {
+        read(file, 'x', home);
+      } catch (err) {
+        message = (err as Error).message;
+      }
+      expect(message).toMatch(new RegExp(`^Cannot read x config at ~\\${path.sep}a`));
+      expect(message).not.toContain('\u001b');
+    }
   });
 });
 

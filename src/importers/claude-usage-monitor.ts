@@ -155,8 +155,8 @@ export const claudeUsageMonitorImporter: ImporterDef = {
   hasDefault: true,
   detect: [/claude-usage-monitor/i],
   discover: settingsPath,
-  load: (file) =>
+  load: (file, ctx) =>
     file
-      ? { ...importClaudeUsageMonitor(cqbBlock(readJsonTool(file, TOOL))), file }
+      ? { ...importClaudeUsageMonitor(cqbBlock(readJsonTool(file, TOOL, ctx.home))), file }
       : { ...importClaudeUsageMonitor({}, { defaulted: true }), file: null },
 };

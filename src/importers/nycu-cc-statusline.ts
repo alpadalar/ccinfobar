@@ -164,6 +164,9 @@ export const nycuCcStatuslineImporter: ImporterDef = {
   discover: (ctx) => path.join(ctx.home, '.claude', 'cc-statusline-rows.json'),
   load: (file, ctx) =>
     file
-      ? { ...importNycuCcStatusline(readJsonTool(file, NAME), { file: shownFile(file, ctx.home) }), file }
+      ? {
+          ...importNycuCcStatusline(readJsonTool(file, NAME, ctx.home), { file: shownFile(file, ctx.home) }),
+          file,
+        }
       : { ...importNycuCcStatusline({}, { defaulted: true }), file: null },
 };

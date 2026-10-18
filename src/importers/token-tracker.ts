@@ -141,6 +141,9 @@ export const tokenTrackerImporter: ImporterDef = {
   discover: configPath,
   load: (file, ctx) =>
     file
-      ? { ...importTokenTracker(readJsonTool(file, TOOL), { file: shownFile(file, ctx.home) }), file }
+      ? {
+          ...importTokenTracker(readJsonTool(file, TOOL, ctx.home), { file: shownFile(file, ctx.home) }),
+          file,
+        }
       : { ...importTokenTracker({}, { defaulted: true }), file: null },
 };

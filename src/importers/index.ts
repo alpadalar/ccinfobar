@@ -3,8 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { defaultConfig, normalizeConfig } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
-import { claudeDir, claudeSettingsPath, tildify } from '../core/paths.js';
-import { sanitizeText } from '../core/sanitize.js';
+import { claudeDir, claudeSettingsPath } from '../core/paths.js';
 import type { Config } from '../core/types.js';
 import { commandArgs, flagValue, isBin, toolArgs } from './args.js';
 import { commandScript } from './cc-statusline.js';
@@ -23,6 +22,7 @@ import {
   readSource,
   readToml,
   SourceTooLargeError,
+  shownFile,
   tableOf,
 } from './io.js';
 import {
@@ -281,18 +281,18 @@ export function cshipDiscover(opts: {
   return null;
 }
 
-function importCshipFrom(found: CshipFound | null): ImportResult {
+function importCshipFrom(found: CshipFound | null, home: string): ImportResult {
   if (!found) throw new Error(t('import.cshipNotFound'));
-  const doc = tableOf(readToml(found.file, 'cship')) ?? {};
+  const doc = tableOf(readToml(found.file, 'cship', home)) ?? {};
   const wrapped = Object.hasOwn(doc, 'cship');
   const cfg = found.table === 'cship-only' || wrapped ? (tableOf(doc.cship) ?? {}) : doc;
   const hasLines = Array.isArray(cfg.lines) && cfg.lines.some((l) => typeof l === 'string');
   if (typeof cfg.format !== 'string' && !hasLines) {
-    throw new Error(t('import.cshipNoLines', { file: sanitizeText(tildify(found.file)) }));
+    throw new Error(t('import.cshipNoLines', { file: shownFile(found.file, home) }));
   }
   const result = importCship(cfg);
   if (found.note === 'starship-config') {
-    const file = sanitizeText(tildify(found.file));
+    const file = shownFile(found.file, home);
     result.notes.unshift({ kind: 'info', text: t('import.note.starshipConfig', { tool: 'cship', file }) });
   }
   return { ...result, file: found.file };
@@ -333,9 +333,9 @@ function hudExtraAllowed(env: NodeJS.ProcessEnv): boolean {
   }
 }
 
-function readHudFile(file: string, required: boolean): { value: unknown } | null {
+function readHudFile(file: string, required: boolean, home: string): { value: unknown } | null {
   if (!required && !isFile(file)) return null;
-  const shown = sanitizeText(tildify(file));
+  const shown = shownFile(file, home);
   let text: string;
   try {
     text = readSource(file);
@@ -353,13 +353,14 @@ function readHudFile(file: string, required: boolean): { value: unknown } | null
 function importHud(file: string | undefined, command: string, env: NodeJS.ProcessEnv): ImportResult {
   const paths = hudPaths(env);
   const mainFile = file ?? paths.config;
-  const main = readHudFile(mainFile, !!file);
-  const over = readHudFile(paths.override, false);
+  const home = homeOf(env);
+  const main = readHudFile(mainFile, !!file, home);
+  const over = readHudFile(paths.override, false, home);
   const notes: ImportNote[] = [];
   const objectOf = (read: { value: unknown } | null, f: string): unknown => {
     if (!read) return {};
     if (tableOf(read.value)) return read.value;
-    notes.push({ kind: 'info', text: t('import.note.hudIgnored', { file: sanitizeText(tildify(f)) }) });
+    notes.push({ kind: 'info', text: t('import.note.hudIgnored', { file: shownFile(f, home) }) });
     return {};
   };
   const merged = mergeHud(objectOf(main, mainFile), objectOf(over, paths.override));
@@ -415,12 +416,12 @@ function importLegacy(
     const found = opts.file
       ? { file: opts.file, table: cshipTable(opts.file), note: null }
       : cshipDiscover({ command, cwd, env });
-    return importCshipFrom(found);
+    return importCshipFrom(found, homeOf(env));
   }
   if (source === 'ccstatusline') {
     const file = opts.file ?? ccstatuslinePath(env, command);
     const raw = readJson(file);
-    if (!raw) throw new Error(t('import.cannotRead', { file }));
+    if (!raw) throw new Error(t('import.cannotRead', { file: shownFile(file, homeOf(env)) }));
     return { ...importCcstatusline(raw), file };
   }
   if (source === 'ccometixline') {
@@ -430,7 +431,7 @@ function importLegacy(
   const files = opts.file ? [opts.file] : powerlinePaths(env, command, opts.cwd ?? process.cwd());
   const file = files.find(isFile) ?? null;
   const raw = file ? readJson(file) : {};
-  if (file && raw === null) throw new Error(t('import.cannotParse', { file }));
+  if (file && raw === null) throw new Error(t('import.cannotParse', { file: shownFile(file, homeOf(env)) }));
   const result = importClaudePowerline(raw, parsePowerlineArgs(command));
   if (!file) result.notes.unshift({ kind: 'info', text: t('import.note.defaultLayout', { tool: source }) });
   return { ...result, file };

@@ -273,6 +273,6 @@ export const claudebarImporter: ImporterDef = {
   load: (file, ctx) => {
     const over = overrides(ctx.argv);
     if (!file) return { ...importClaudebar({}, { defaulted: true, overrides: over }), file: null };
-    return { ...importClaudebar(readToml(file, TOOL), { overrides: over }), file };
+    return { ...importClaudebar(readToml(file, TOOL, ctx.home), { overrides: over }), file };
   },
 };

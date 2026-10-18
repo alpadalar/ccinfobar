@@ -265,7 +265,10 @@ export const claudeStatusbarImporter: ImporterDef = {
   discover: (ctx) => path.join(ctx.home, '.claude', 'claude-statusbar.json'),
   load: (file, ctx) => {
     const r = file
-      ? { ...importClaudeStatusbar(readJsonTool(file, TOOL), { file: shownFile(file, ctx.home) }), file }
+      ? {
+          ...importClaudeStatusbar(readJsonTool(file, TOOL, ctx.home), { file: shownFile(file, ctx.home) }),
+          file,
+        }
       : { ...importClaudeStatusbar({}, { defaulted: true }), file: null };
     const names = overrideNames(ctx.argv, ctx.env);
     if (names.length) {

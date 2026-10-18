@@ -104,7 +104,7 @@ export const starshipClaudeImporter: ImporterDef = {
   discover,
   load: (file, ctx) => {
     const f = file ?? defaultFile(ctx);
-    const root = tableOf(readToml(f, TOOL)) ?? {};
+    const root = tableOf(readToml(f, TOOL, ctx.home)) ?? {};
     if (typeof root.format !== 'string') {
       throw new Error(t('import.noFormat', { tool: TOOL, file: shownFile(f, ctx.home) }));
     }

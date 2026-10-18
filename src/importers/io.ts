@@ -77,8 +77,8 @@ export function readJson(file: string): unknown | null {
   }
 }
 
-export function readJsonTool(file: string, tool: string): unknown {
-  const shown = sanitizeText(tildify(file));
+export function readJsonTool(file: string, tool: string, home: string): unknown {
+  const shown = shownFile(file, home);
   let text: string;
   try {
     text = readSource(file);
@@ -93,20 +93,19 @@ export function readJsonTool(file: string, tool: string): unknown {
   }
 }
 
-export function readToml(file: string, tool: string): unknown {
+export function readToml(file: string, tool: string, home: string): unknown {
+  const shown = shownFile(file, home);
   let text: string;
   try {
     text = readSource(file);
   } catch (err) {
     if (err instanceof SourceTooLargeError) throw err;
-    throw new Error(t('import.cannotReadTool', { tool, file }));
+    throw new Error(t('import.cannotReadTool', { tool, file: shown }));
   }
   try {
     return parseToml(text);
   } catch (err) {
-    if (err instanceof TomlError) {
-      throw new Error(`${sanitizeText(tildify(file))}:${err.line}:${err.col} ${err.message}`);
-    }
+    if (err instanceof TomlError) throw new Error(`${shown}:${err.line}:${err.col} ${err.message}`);
     throw err;
   }
 }

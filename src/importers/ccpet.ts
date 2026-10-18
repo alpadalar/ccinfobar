@@ -216,6 +216,6 @@ export const ccpetImporter: ImporterDef = {
   discover: (ctx) => path.join(ctx.home, '.claude-pet', 'config.json'),
   load: (file, ctx) =>
     file
-      ? { ...importCcpet(readJsonTool(file, TOOL), { file: shownFile(file, ctx.home) }), file }
+      ? { ...importCcpet(readJsonTool(file, TOOL, ctx.home), { file: shownFile(file, ctx.home) }), file }
       : { ...importCcpet({}, { defaulted: true }), file: null },
 };

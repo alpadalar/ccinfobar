@@ -158,6 +158,9 @@ export const claudeUltimateHudImporter: ImporterDef = {
   discover: (ctx) => path.join(ctx.home, '.claude', 'claude-ultimate-hud.local.json'),
   load: (file, ctx) =>
     file
-      ? { ...importClaudeUltimateHud(readJsonTool(file, TOOL), { file: shownFile(file, ctx.home) }), file }
+      ? {
+          ...importClaudeUltimateHud(readJsonTool(file, TOOL, ctx.home), { file: shownFile(file, ctx.home) }),
+          file,
+        }
       : { ...importClaudeUltimateHud({}, { defaulted: true }), file: null },
 };

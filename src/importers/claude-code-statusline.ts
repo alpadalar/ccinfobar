@@ -237,6 +237,6 @@ export const claudeCodeStatuslineImporter: ImporterDef = {
   discover: (ctx) => path.join(ctx.home, '.claude', 'statusline', 'Config.toml'),
   load: (file, ctx) => {
     const f = file ?? path.join(ctx.home, '.claude', 'statusline', 'Config.toml');
-    return { ...importClaudeCodeStatusline(readToml(f, TOOL)), file: f };
+    return { ...importClaudeCodeStatusline(readToml(f, TOOL, ctx.home)), file: f };
   },
 };

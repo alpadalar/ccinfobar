@@ -141,8 +141,8 @@ export const glauberlimaImporter: ImporterDef = {
   // the bare binary only, never statusline.sh or statusline/statusline.sh
   detect: [/[\\/]\.claude[\\/]statusline(?:\.exe)?["']?\s*$/i],
   discover: (ctx) => besideBinary(ctx) ?? path.join(ctx.home, '.claude', FILE),
-  load: (file) =>
+  load: (file, ctx) =>
     file
-      ? { ...importGlauberlima(readToml(file, TOOL)), file }
+      ? { ...importGlauberlima(readToml(file, TOOL, ctx.home)), file }
       : { ...importGlauberlima({}, { defaulted: true }), file: null },
 };

@@ -66,7 +66,7 @@ function importTheme(name: string, home: string, fam: CclineFamily): ImportResul
     return { kind: 'info', text: t('import.note.themeUnsafe', { tool, name: shown }) };
   const file = path.join(home, '.claude', fam.dir, 'themes', `${name}.toml`);
   if (isFile(file)) {
-    const result = mapToml(readToml(file, tool), fam);
+    const result = mapToml(readToml(file, tool, home), fam);
     const text = t('import.note.themeFile', { tool, name: shown, file: shownFile(file, home) });
     result.notes.unshift({ kind: 'info', text });
     return { ...result, file };
@@ -90,7 +90,7 @@ export function importCclineFamily(
   if (themed && 'config' in themed) return themed;
   const found = file ? { file, note: null } : ccometixlinePaths(command, home, fam.dir, fam.bin);
   const result = found.file
-    ? mapToml(readToml(found.file, fam.tool), fam)
+    ? mapToml(readToml(found.file, fam.tool, home), fam)
     : mapToml(CCLINE_DEFAULT, fam, true);
   if (found.note === 'command-dir' && found.file) {
     result.notes.unshift({

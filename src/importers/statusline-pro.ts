@@ -322,6 +322,6 @@ export const statuslineProImporter: ImporterDef = {
     // the project layer sits under a hashed path that is not reproduced
     const projectLayer = !file || file === discover(ctx);
     if (!file) return { ...importStatuslinePro({}, { ...opts, defaulted: true, projectLayer }), file: null };
-    return { ...importStatuslinePro(readToml(file, TOOL), { ...opts, projectLayer }), file };
+    return { ...importStatuslinePro(readToml(file, TOOL, ctx.home), { ...opts, projectLayer }), file };
   },
 };
