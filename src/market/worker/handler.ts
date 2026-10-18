@@ -135,7 +135,8 @@ async function read(db: D1Database, p: string, inm: string | null, gen?: number 
   if (!doc || hidden(doc)) throw fail(404, 'not-found');
   if (gone(doc.state)) throw fail(410, 'withdrawn');
   if (!doc.found) throw fail(404, 'not-found');
-  if (doc.body === null || !doc.hash) throw fail(410, 'withdrawn');
+  // approve drops the unreviewed older bodies of a live entry (IN-07)
+  if (doc.body === null || !doc.hash) throw fail(410, doc.state === 'live' ? 'version-dropped' : 'withdrawn');
   const tag = `"${doc.hash}"`;
   return etagMatches(inm, tag) ? notModified(tag) : publicJson(doc.body, tag);
 }

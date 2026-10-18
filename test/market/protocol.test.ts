@@ -133,7 +133,8 @@ describe('market protocol', () => {
     expect(ERROR_CODES).toContain('stale');
     expect(ERROR_CODES).toContain('unauthorized');
     expect(ERROR_CODES).toContain('over-quota');
-    expect(ERROR_CODES).toHaveLength(16);
+    expect(ERROR_CODES).toContain('version-dropped');
+    expect(ERROR_CODES).toHaveLength(17);
   });
 
   it('parsers whitelist fields and sanitize text', () => {

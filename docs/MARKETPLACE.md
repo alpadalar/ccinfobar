@@ -129,6 +129,7 @@ Error bodies are `{ "error": { "code": "<code>", "message": "<text>" } }`. Codes
 | `stale` | Not the latest version, or changed since an admin's review |
 | `forbidden` | Not your entry, register refused, or new content held for review |
 | `not-found`, `withdrawn` | No such entry or page; withdrawn or removed |
+| `version-dropped` | `410` for an older version of a live entry whose content is gone: an approval keeps only the reviewed version. Older clients see `withdrawn` |
 | `rate-limited` | Too many requests; `429` carries `Retry-After` in seconds |
 | `overwrite-disabled` | The server does not overwrite |
 | `unsupported-media` | The body is not `application/json` |

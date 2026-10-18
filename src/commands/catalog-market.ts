@@ -45,6 +45,7 @@ const REASONS: Record<string, MessageId> = {
   forbidden: 'market.error.forbidden',
   'not-found': 'market.error.not-found',
   withdrawn: 'market.error.withdrawn',
+  'version-dropped': 'market.error.version-dropped',
   'rate-limited': 'market.error.rate-limited',
   'overwrite-disabled': 'market.error.overwrite-disabled',
   'unsupported-media': 'market.error.unsupported-media',

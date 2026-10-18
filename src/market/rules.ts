@@ -42,6 +42,7 @@ export const MESSAGES: Record<string, string> = {
   forbidden: 'not your entry',
   'not-found': 'not found',
   withdrawn: 'entry withdrawn',
+  'version-dropped': 'this version is no longer available',
   unauthorized: 'missing or unknown token',
   'overwrite-disabled': 'overwrite is disabled on this server',
   'unsupported-media': 'content-type must be application/json',

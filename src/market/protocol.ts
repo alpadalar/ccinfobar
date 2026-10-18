@@ -41,6 +41,8 @@ export const ERROR_CODES = [
   'forbidden',
   'not-found',
   'withdrawn',
+  // an older version of a live entry whose body is gone (410)
+  'version-dropped',
   'rate-limited',
   'overwrite-disabled',
   'unsupported-media',

@@ -390,6 +390,8 @@ export const catalogMessages = {
     'Marketplace buna izin vermedi: bir girdiyi yalnızca yayıncısı değiştirebilir ve yeni içerik, bir yönetici sonraki girdinizi onaylayana kadar bekler',
   'market.error.not-found': "Girdi marketplace'te bulunamadı",
   'market.error.withdrawn': "Bu girdi marketplace'ten geri çekildi",
+  'market.error.version-dropped':
+    "Bu sürüm artık marketplace'te yok; yalnızca bir yöneticinin onayladığı sürümler tutulur. En son sürümü yükleyin",
   'market.error.rate-limited': "Marketplace'e çok fazla istek gönderildi; daha sonra tekrar deneyin",
   'market.error.overwrite-disabled': 'Marketplace bir sürümün üzerine yazılmasına izin vermiyor',
   'market.error.timeout': 'Marketplace zamanında yanıt vermedi',

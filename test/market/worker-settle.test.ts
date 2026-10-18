@@ -361,3 +361,63 @@ describe.skipIf(!hasSqlite)('worker moderation log (IN-02)', () => {
     db.close();
   });
 });
+
+describe.skipIf(!hasSqlite)('worker dropped versions (IN-07)', () => {
+  it('an unreviewed older version of an approved entry answers 410 version-dropped, a withdrawn one 410 withdrawn', async () => {
+    const t = await setup();
+    const bob = await t.account('bob', 8, false);
+    const boss = await t.account('boss', 65018489);
+    expect((await t.call('POST', '/v1/entries', bob, publishBody('a'))).status).toBe(201);
+    const v = await t.call(
+      'POST',
+      '/v1/entries/bob/a/versions',
+      bob,
+      { content: preset('cwd') },
+      {
+        'if-match': '"1"',
+      },
+    );
+    expect(v.status).toBe(201);
+    const tag = (await t.call('GET', '/v1/admin/entries/bob/a', boss)).headers.get('etag')!;
+    expect(
+      (await t.call('POST', '/v1/admin/entries/bob/a/approve', boss, {}, { 'if-match': tag })).status,
+    ).toBe(200);
+    const old = await t.call('GET', '/v1/entries/bob/a/1.json');
+    expect(old.status).toBe(410);
+    expect(((await old.json()) as any).error).toEqual({
+      code: 'version-dropped',
+      message: 'this version is no longer available',
+    });
+    expect((await t.call('GET', '/v1/entries/bob/a/2.json')).status).toBe(200);
+    expect((await t.call('DELETE', '/v1/entries/bob/a', bob)).status).toBe(200);
+    const gone = await t.call('GET', '/v1/entries/bob/a/2.json');
+    expect(((await gone.json()) as any).error.code).toBe('withdrawn');
+  });
+
+  it('the client keeps the code and the CLI says to install the latest version', async () => {
+    const { createMarketClient } = await import('../../src/market/client.js');
+    const { reasonText } = await import('../../src/commands/catalog-market.js');
+    const t = await setup();
+    const bob = await t.account('bob', 8, false);
+    const boss = await t.account('boss', 65018489);
+    expect((await t.call('POST', '/v1/entries', bob, publishBody('a'))).status).toBe(201);
+    await t.call(
+      'POST',
+      '/v1/entries/bob/a/versions',
+      bob,
+      { content: preset('cwd') },
+      { 'if-match': '"1"' },
+    );
+    const tag = (await t.call('GET', '/v1/admin/entries/bob/a', boss)).headers.get('etag')!;
+    await t.call('POST', '/v1/admin/entries/bob/a/approve', boss, {}, { 'if-match': tag });
+    const handler = createHandler(t.env, { now: t.clock.now, fetch: () => Promise.reject(new Error('x')) });
+    const client = createMarketClient({
+      endpoint: 'http://127.0.0.1:8787',
+      fetch: ((i: RequestInfo | URL, o?: RequestInit) => handler.fetch(new Request(i, o))) as typeof fetch,
+    });
+    const entry = await client.entry('bob/a');
+    const err = await client.version('bob/a', 1, 'preset', entry.versions[0]!.hash).catch((e) => e);
+    expect(err).toMatchObject({ code: 'version-dropped', status: 410 });
+    expect(reasonText(err.code)).toMatch(/Install the latest version/);
+  });
+});

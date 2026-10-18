@@ -374,6 +374,8 @@ export const catalogMessages = {
     'The marketplace did not allow this: only the publisher can change an entry, and new content waits until an admin approves your next entry',
   'market.error.not-found': 'The entry was not found on the marketplace',
   'market.error.withdrawn': 'This entry was withdrawn from the marketplace',
+  'market.error.version-dropped':
+    'This version is no longer on the marketplace; only versions approved by an admin are kept. Install the latest version',
   'market.error.rate-limited': 'Too many requests to the marketplace; try again later',
   'market.error.overwrite-disabled': 'The marketplace does not allow overwriting a version',
   'market.error.timeout': 'The marketplace did not answer in time',

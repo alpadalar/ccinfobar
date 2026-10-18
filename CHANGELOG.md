@@ -63,6 +63,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The marketplace server answers `403` to writes on another publisher's entry before looking it up, so signed-in users can no longer find out whether a hidden pending entry exists
 - The marketplace's moderation log tells a publisher withdrawing their own pending entry apart from admin actions (migration `0008_moderation_actor.sql`)
 - After a GitHub sign-in the marketplace server revokes the GitHub token at GitHub, so the token ccinfobar sent once is no longer valid anywhere
+- Installing an older version of an approved marketplace entry whose unreviewed content was dropped says the version is no longer available and to install the latest one, instead of "entry withdrawn" (new error code `version-dropped`)
 
 ### Security
 
