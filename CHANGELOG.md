@@ -66,6 +66,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Installing an older version of an approved marketplace entry whose unreviewed content was dropped says the version is no longer available and to install the latest one, instead of "entry withdrawn" (new error code `version-dropped`)
 - Marketplace index pages carry the generation of their build, and ccinfobar starts the walk over when a later page comes from another build, so a write during the walk can no longer hide an entry for a day; if the pages still differ, `catalog list --remote` says entries may be missing and the list is not cached
 - Marketplace entries with ids like `con/nul` or `com1/x` no longer break caching or hang on Windows: cached entry and version files are named by a hash of the id
+- **Refresh** in the Marketplace tab no longer returns the cached list when it is pressed while the tab is still loading; it always checks the marketplace
 
 ### Security
 

@@ -127,15 +127,16 @@ function walked(r: { index: MarketIndex }, at: string, save: () => void): Cached
   return { index, fromCache: false, checkedAt: at };
 }
 
-// identical calls share one walk
+// identical calls share one walk; a refresh never joins a plain load (IN-05)
 export function cachedIndex(endpoint: string, deps: CacheDeps & { refresh?: boolean }): Promise<CachedIndex> {
   const key = keyOf(endpoint);
   const root = rootOf(key, deps);
   const file = path.join(root.dir, 'index.json');
-  const running = inflight.get(file);
+  const slot = `${deps.refresh ? 'r' : 'p'}:${file}`;
+  const running = inflight.get(slot);
   if (running) return running;
-  const p = loadIndex(key, root, file, deps).finally(() => inflight.delete(file));
-  inflight.set(file, p);
+  const p = loadIndex(key, root, file, deps).finally(() => inflight.delete(slot));
+  inflight.set(slot, p);
   return p;
 }
 

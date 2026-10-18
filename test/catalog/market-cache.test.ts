@@ -226,6 +226,20 @@ describe('cachedIndex', () => {
     expect(m.calls.map((c) => c.path)).toEqual(['/v1/index.json', '/v1/index-2.json']);
   });
 
+  it('a refresh during a plain load still sends its conditional request (IN-05)', async () => {
+    const m = fakeMarket();
+    await cachedIndex(EP, { client: m.client, now: clock(T0), cacheDir });
+    m.calls.length = 0;
+    const later = { client: m.client, now: clock(T0 + 60_000), cacheDir };
+    const [plain, fresh] = await Promise.all([
+      cachedIndex(EP, later),
+      cachedIndex(EP, { ...later, refresh: true }),
+    ]);
+    expect(plain.fromCache).toBe(true);
+    expect(fresh.checkedAt).toBe(new Date(T0 + 60_000).toISOString());
+    expect(m.calls).toEqual([{ path: '/v1/index.json', inm: '"g1"' }]);
+  });
+
   it('ignores corrupt or foreign cache files and rewrites them', async () => {
     const m = fakeMarket();
     fs.mkdirSync(marketDir(), { recursive: true });
