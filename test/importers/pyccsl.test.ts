@@ -210,7 +210,7 @@ describe('pyccsl importer', () => {
         text: 'pyccsl performance thresholds became the badge warnings from their first values (hit rate below 60%, time above 10s)',
       },
     ]);
-    expect(JSON.stringify(r)).not.toContain('vim');
+    expect(JSON.stringify(r)).not.toContain('not-imported-editor-7f3a');
   });
 
   it('reads the env file the way pyccsl does, expanding nothing', () => {
