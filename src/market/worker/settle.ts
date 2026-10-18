@@ -23,7 +23,9 @@ export async function settleIndex(
     const st = await indexState(db);
     if (st.dirty <= st.built) return st.built;
     const spent = st.day === Math.floor(now / DAY_MS) && st.rows >= rebuildRows(env);
-    if (spent && !force && now - st.at < REBUILD_GAP_MS) return st.built;
+    // a takedown never stays listed, budget or not
+    const takedown = st.takedown > st.built;
+    if (spent && !force && !takedown && now - st.at < REBUILD_GAP_MS) return st.built;
     await rebuildIndex(db, new Date(now).toISOString(), now);
   } catch {
     console.error('market: index');

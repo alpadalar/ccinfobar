@@ -196,3 +196,79 @@ describe.skipIf(!hasSqlite)('worker cron (WR-03, WR-05)', () => {
     db.close();
   });
 });
+
+describe.skipIf(!hasSqlite)('worker takedowns past the budget (moderation audit)', () => {
+  const ADMIN = 65018489;
+
+  async function spent() {
+    const t = await setup({ INDEX_REBUILD_ROWS: '1' });
+    const alp = await t.account('alp', 7);
+    const boss = await t.account('boss', ADMIN);
+    for (const s of ['a', 'b', 'c']) {
+      expect((await t.call('POST', '/v1/entries', alp, publishBody(s))).status).toBe(201);
+    }
+    // the budget is spent after the first rebuild: b and c wait
+    expect(await t.stored()).toEqual(['alp/a']);
+    return { ...t, alp, boss };
+  }
+
+  it('an admin remove leaves the index at once, budget or not', async () => {
+    const t = await spent();
+    expect((await t.call('POST', '/v1/admin/entries/alp/a/remove', t.boss, {})).status).toBe(200);
+    expect(await t.stored()).not.toContain('alp/a');
+  });
+
+  it('a publisher withdraw leaves the index at once', async () => {
+    const t = await spent();
+    expect((await t.call('DELETE', '/v1/entries/alp/a', t.alp)).status).toBe(200);
+    expect(await t.stored()).not.toContain('alp/a');
+  });
+
+  it('a ban hides the publisher in the index at once; an unban may wait for the budget', async () => {
+    const t = await spent();
+    expect((await t.call('POST', '/v1/admin/publishers/alp/ban', t.boss, {})).status).toBe(200);
+    expect(await t.stored()).toEqual([]);
+    t.clock.advance(1000);
+    expect((await t.call('POST', '/v1/admin/publishers/alp/unban', t.boss, {})).status).toBe(200);
+    expect(await t.stored()).toEqual([]);
+    t.clock.advance(REBUILD_GAP_MS);
+    expect(await t.ids()).toEqual(['alp/a', 'alp/b', 'alp/c']);
+  });
+
+  it('a takedown whose rebuild failed is rebuilt by the next read, budget or not', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const t = await spent();
+    t.state.fail = 1;
+    expect((await t.call('POST', '/v1/admin/entries/alp/a/remove', t.boss, {})).status).toBe(200);
+    expect(await t.stored()).toContain('alp/a');
+    expect(await t.ids()).not.toContain('alp/a');
+  });
+
+  it('approve still pins the reviewed revision and needs the admin gate in the batch', async () => {
+    const t = await setup();
+    const bob = await t.account('bob', 8, false);
+    const boss = await t.account('boss', ADMIN);
+    expect((await t.call('POST', '/v1/entries', bob, publishBody('wait'))).status).toBe(201);
+    const tag = (await t.call('GET', '/v1/admin/entries/bob/wait', boss)).headers.get('etag')!;
+    expect(
+      (await t.call('POST', '/v1/admin/entries/bob/wait/approve', bob, {}, { 'if-match': tag })).status,
+    ).toBe(403);
+    const v = await t.call(
+      'POST',
+      '/v1/entries/bob/wait/versions',
+      bob,
+      { content: preset('cwd') },
+      {
+        'if-match': '"1"',
+      },
+    );
+    expect(v.status).toBe(201);
+    expect(
+      (await t.call('POST', '/v1/admin/entries/bob/wait/approve', boss, {}, { 'if-match': tag })).status,
+    ).toBe(412);
+    await scheduled(t.env, t.clock.now());
+    expect(await t.ids()).toEqual([]);
+    const st = await t.raw.prepare("SELECT state FROM entries WHERE slug = 'wait'").first('state');
+    expect(st).toBe('pending');
+  });
+});
