@@ -194,17 +194,18 @@ The Worker gets 100,000 requests a day on Workers Free, shared by every ccinfoba
 | Read limiter | Rate Limiting binding `READS` (600 a minute per key) |
 | Vars | `MARKET_NAME`, `GITHUB_CLIENT_ID`, `ADMIN_GITHUB_IDS`, `ALLOW_OVERWRITE` (`false`) |
 | Secret | `GITHUB_CLIENT_SECRET` (required for sign-in) |
-| Optional vars | `MAX_ENTRY_BYTES`, `MAX_DB_BYTES`, `PUBLISHER_BYTES`, `PENDING_ENTRIES`, `PENDING_PER_PUBLISHER`, `PENDING_BYTES`, `WRITE_LIMIT`, `SIGNIN_LIMIT`, `REPORT_LIMIT`, `ALLOW_UNVERIFIED_GITHUB_TOKENS` |
+| Cron | `17 */6 * * *` (every six hours): deletes salts older than two days and rate rows older than two hours in batches of 500 (at most 10,000 a run), then rebuilds an index left stale |
+| Optional vars | `MAX_ENTRY_BYTES`, `MAX_DB_BYTES`, `PUBLISHER_BYTES`, `PENDING_ENTRIES`, `PENDING_PER_PUBLISHER`, `PENDING_BYTES`, `INDEX_REBUILD_ROWS`, `WRITE_LIMIT`, `SIGNIN_LIMIT`, `REPORT_LIMIT`, `ALLOW_UNVERIFIED_GITHUB_TOKENS` |
 
 `GET /` answers a small static page (no scripts, no entry data) that says what the marketplace is, that everything published is public, and that removal requests go to a GitHub issue on alpadalar/ccinfobar.
 
 ### Materialized documents
 
-Reads never build JSON. Each entry row keeps its summary and its entry document as stored text, each version row keeps its version document, and every write rebuilds the index pages into `index_pages` with a new generation number. A read is one row lookup that sends the stored text as it is, with its `ETag`. Writes compute the canonical JSON once for the policy check and the hash, to stay inside the 10 ms CPU limit.
+Reads never build JSON. Each entry row keeps its summary and its entry document as stored text, each version row keeps its version document, and the index pages are kept in `index_pages` with a generation number. A write that changes the public index marks it stale inside its own transaction and then rebuilds the pages. If the rebuild fails (a D1 error, or the CPU limit), the write still answers success and the index stays marked stale: the next write, the next read of `index.json` or the cron job rebuilds it. A read is one row lookup that sends the stored text as it is, with its `ETag`. Writes compute the canonical JSON once for the policy check and the hash, to stay inside the 10 ms CPU limit.
 
 ### Schema
 
-`worker/migrations/0001_init.sql`, then the later files in order; later migrations are additive only. `0002_counts.sql` adds the entry counts that triggers keep up to date and the indexes the index rebuild reads; `0003_pending.sql` has triggers keep the stored bytes too, with the bytes waiting for review apart, and counts the publishers; `0004_rate_index.sql` indexes the rate windows, so old rate rows are deleted in batches of 500 without reading the rest.
+`worker/migrations/0001_init.sql`, then the later files in order; later migrations are additive only. `0002_counts.sql` adds the entry counts that triggers keep up to date and the indexes the index rebuild reads; `0003_pending.sql` has triggers keep the stored bytes too, with the bytes waiting for review apart, and counts the publishers; `0004_rate_index.sql` indexes the rate windows, so old rate rows are deleted in batches of 500 without reading the rest; `0005_index_dirty.sql` adds the stale-index marker and the rebuild budget.
 
 | Table | Holds |
 | --- | --- |
@@ -216,7 +217,7 @@ Reads never build JSON. Each entry row keeps its summary and its entry document 
 | `reports` | entry, reporter handle, reason, created and resolved times; one per reporter and entry |
 | `moderation` | every admin action: time, admin handle, action, target, note |
 | `rate`, `salts` | rate limit counters keyed by salted hashes, and one random salt per day |
-| `counters` | the index generation, the database size, and the counts of live, pending and withdrawn entries and of publishers |
+| `counters` | the index generation, the generation the index must show (`dirty`), the rows rebuilds read today, the database size, and the counts of live, pending and withdrawn entries and of publishers |
 
 ### Rate limits
 
@@ -339,7 +340,7 @@ This is not legal advice.
 
 - Published entries are public: anyone can read, download and install them. The landing page at `/` says so.
 - The public server stores only the GitHub id, login and display name of a publisher, plus what the protocol already stores: entries, versions, their notes, reports (reporter handle and reason) and the moderation log (admin handle and note). No email, no GitHub token, no machine ids, paths, personal settings or telemetry.
-- IP addresses are never stored. Write, sign-in and report limits use a hash of the address with a random salt that changes every day; a salt is deleted once it is two days old (the cleanup runs with each sign-in), which makes the old hashes unlinkable, and counters older than two hours are deleted too. The read limiter keeps its key in memory only. Worker invocation logs are off, and errors log only `market: internal`.
+- IP addresses are never stored. Write, sign-in and report limits use a hash of the address with a random salt that changes every day; a salt is deleted once it is two days old (a cron job runs the cleanup every six hours, and each sign-in runs it too), which makes the old hashes unlinkable, and counters older than two hours are deleted too. The read limiter keeps its key in memory only. Worker invocation logs are off, and errors log only `market: internal`.
 - The author field is optional free text: prefilled from the last save, editable, and it can be blank. The publisher handle is separate from the author and comes from the GitHub login, which is already public.
 - ccinfobar sends only the payload it shows: the name, description, author, note and content.
 - Withdrawing or removing an entry blanks its name, description, author and version notes in the tombstone and deletes the version content; the index does not list it. The id, the publisher handle, the times and the hashes stay so the id stays reserved.
@@ -354,6 +355,7 @@ All commands run from `worker/`, so wrangler reads `worker/wrangler.jsonc` with 
 - GitHub Actions → **Marketplace deploy** → Run workflow, or `gh workflow run market-deploy.yml --ref main`. A push to `main` that touches the Worker files (`src/market/**`, `src/core/entry-keys.ts`, `src/core/sanitize.ts`, `worker/**`, the build scripts or the workflow) deploys too.
 - The job runs only on `alpadalar/ccinfobar` and only once the repository variable `MARKET_URL` is set (the Worker URL, https://ccinfobar-market.alp-adalar.workers.dev). It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, which only the migration and deploy steps get.
 - Steps: `npm ci --ignore-scripts`, `npx vitest run test/market`, `node scripts/build.mjs --worker` (writes the gitignored `worker/dist/index.js`), `wrangler deploy --dry-run`, apply migrations, deploy, then a smoke check of `$MARKET_URL/v1/meta.json` and `$MARKET_URL/`.
+- `wrangler deploy` also sets the cron trigger from `worker/wrangler.jsonc` (`triggers.crons`). Workers Free allows 5 cron triggers per account, and this Worker uses one; check the Worker's **Settings → Triggers** page after the first deploy with it.
 - Sign-in answers `503` until the `GITHUB_CLIENT_SECRET` secret is set (see [Tokens and secrets](#tokens-and-secrets)).
 
 ### Migrations
@@ -396,7 +398,7 @@ Rows read per request:
 
 - A read of an index page, an entry or a version reads one row, plus the publisher row for entries and versions. `GET /v1/me` reads only the caller's live and pending entries, never their tombstones.
 - A write looks rows up by key only: the token, the publisher, the rate window, the salt, the entry and the counters. The entry and tombstone caps come from counters that triggers keep up to date in the same transaction (`0002_counts.sql`), so a refused write (`409`, `413`, `429`) or a pending one costs a handful of rows however many entries there are. `test/market/worker-counts.test.ts` checks the query plan of every statement.
-- A write that changes the public index (a trusted publish, a new version of a live entry, withdraw, approve, remove, ban) then rebuilds the index: one read of every live summary through a covering index, plus the banned publishers. At 5000 live entries that is about 5000 rows, so the daily budget allows about 1000 such writes. The write limits (30 a minute per address and per publisher) bound one publisher; ban a publisher who abuses it.
+- A write that changes the public index (a trusted publish, a new version of a live entry, withdraw, approve, remove, ban) then rebuilds the index: one read of every live summary through a covering index, plus the banned publishers. The rebuilds share a daily budget of `INDEX_REBUILD_ROWS` rows (2 million, 40% of the Free reads). Once it is spent, the index is rebuilt at most once every 10 minutes until the UTC day ends, so new writes show up in the index after up to 10 minutes. At 5000 live entries that caps rebuilds at about 2.7 million rows a day however many writes come in.
 
 - If large publishes fail with Cloudflare error 1102 (CPU limit), set the var `MAX_ENTRY_BYTES` lower (for example `131072`) in `worker/wrangler.jsonc` and deploy; `meta.json` then advertises the smaller limit, and the Worker refuses larger content with `400 invalid`.
 - If the free limits are no longer enough, Workers Paid ($5 a month) raises them without code changes. The marketplace stays non-commercial either way.

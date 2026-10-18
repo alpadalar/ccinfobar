@@ -5,6 +5,7 @@ import { fail, tombOf } from '../rules.js';
 import type { Env, WorkerDeps } from './env.js';
 import { json, readJsonBody } from './http.js';
 import { buckets, check } from './rate.js';
+import { settleIndex } from './settle.js';
 import {
   approveStatements,
   banStatements,
@@ -17,7 +18,6 @@ import {
   pendingEntries,
   publisherRow,
   readEntryRow,
-  rebuildIndex,
   removeStatements,
   requireAdmin,
   resolveStatements,
@@ -144,7 +144,7 @@ export const approve: AdminRoute = async (env, deps, req, who, p, s) => {
     if (writeConflict(err) !== 'guard') throw err;
     await whyNot(env, req, p, s, tag);
   }
-  await rebuildIndex(env.DB, log.at);
+  await settleIndex(env.DB, env, deps.now());
   return json(200, { id: `${p}/${s}`, approved: true });
 };
 
@@ -178,7 +178,7 @@ export const remove: AdminRoute = async (env, deps, req, who, p, s) => {
       await adminOf(env, req);
       continue;
     }
-    await rebuildIndex(db, log.at);
+    await settleIndex(db, env, deps.now());
     return json(200, { id: `${p}/${s}`, removed: true });
   }
   throw fail(409, 'conflict');
@@ -204,7 +204,7 @@ export async function setBan(
     await adminOf(env, req);
     throw fail(409, 'conflict');
   }
-  await rebuildIndex(env.DB, log.at);
+  await settleIndex(env.DB, env, deps.now());
   return json(200, { handle, banned: ban });
 }
 

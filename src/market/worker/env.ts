@@ -59,6 +59,7 @@ export interface Env {
   PENDING_ENTRIES?: string;
   PENDING_PER_PUBLISHER?: string;
   PENDING_BYTES?: string;
+  INDEX_REBUILD_ROWS?: string;
 }
 
 export interface WorkerDeps {

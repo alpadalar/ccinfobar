@@ -19,6 +19,8 @@
       "migrations_dir": "migrations"
     }
   ],
+  // cleanup and a stale index every six hours (WR-03, WR-05); Free allows 5 crons per account
+  "triggers": { "crons": ["17 */6 * * *"] },
   "ratelimits": [{ "name": "READS", "namespace_id": "1201", "simple": { "limit": 600, "period": 60 } }],
   // public values; secrets go through wrangler secret
   // sign-in answers 503 until GITHUB_CLIENT_SECRET is set (R-14)

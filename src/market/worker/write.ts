@@ -19,6 +19,7 @@ import {
 } from './env.js';
 import { json, readJsonBody } from './http.js';
 import { buckets, check } from './rate.js';
+import { settleIndex } from './settle.js';
 import {
   type Counts,
   dropPendingStatements,
@@ -31,7 +32,6 @@ import {
   publishStatements,
   type Room,
   readEntryRow,
-  rebuildIndex,
   requireWriter,
   storageUse,
   versionStatements,
@@ -167,9 +167,9 @@ export async function publish(db: D1Database, env: Env, deps: WorkerDeps, req: R
     quota(again, caps);
     throw fail(413, 'over-quota', again.trusted ? 'too many entries' : 'too many entries waiting for review');
   }
-  if (state !== 'live') return json(201, { id, version: 1, hash, pending: true });
-  await rebuildIndex(db, at);
-  return json(201, { id, version: 1, hash });
+  // a pending write still heals an index an earlier write left stale
+  await settleIndex(db, env, deps.now());
+  return json(201, state === 'live' ? { id, version: 1, hash } : { id, version: 1, hash, pending: true });
 }
 
 export async function addVersion(
@@ -230,7 +230,7 @@ export async function addVersion(
     if (c === 'version' || c === 'guard') throw fail(412, 'stale');
     throw err;
   }
-  await rebuildIndex(db, at);
+  await settleIndex(db, env, deps.now());
   return json(201, { id: entry.id, version, hash });
 }
 
@@ -285,7 +285,7 @@ export async function overwrite(
     if (now && gone(now.state)) throw fail(410, 'withdrawn');
     throw fail(409, 'conflict', LATEST_ONLY);
   }
-  await rebuildIndex(db, at);
+  await settleIndex(db, env, deps.now());
   return json(200, { id: entry.id, version: n, hash });
 }
 
@@ -328,7 +328,7 @@ export async function withdraw(
       await stillWriter(db, req);
       continue;
     }
-    await rebuildIndex(db, at);
+    await settleIndex(db, env, deps.now());
     return done();
   }
   throw fail(409, 'conflict');

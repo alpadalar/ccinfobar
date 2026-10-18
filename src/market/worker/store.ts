@@ -17,6 +17,14 @@ export const entrySummaryText = (e: StoredEntry): string => summaryText(toSummar
 export const bumpGen = (db: D1Database): D1PreparedStatement =>
   db.prepare("UPDATE counters SET n = n + 1 WHERE k = 'gen'");
 
+// a write the index must show leaves its generation; a rebuild catches up to it (WR-03)
+const DIRTY = "UPDATE counters SET n = (SELECT n FROM counters WHERE k = 'gen') WHERE k = 'dirty'";
+export const markDirty = (db: D1Database): D1PreparedStatement => db.prepare(DIRTY);
+const dirtyIfLive = (db: D1Database, p: string, s: string): D1PreparedStatement =>
+  db
+    .prepare(`${DIRTY} AND (SELECT state FROM entries WHERE publisher = ?1 AND slug = ?2) = 'live'`)
+    .bind(p, s);
+
 // summaries are already JSON text, so pages are joined, never re-stringified
 export function pageBodies(summaries: string[], iso: string): string[] {
   const pages = Math.max(1, Math.ceil(summaries.length / INDEX_PAGE));
@@ -44,7 +52,7 @@ export function pageStatements(db: D1Database, bodies: string[], gen: number): D
 }
 
 // tombstones stay out, like the reference index; banned publishers too; one covering index read
-export async function rebuildIndex(db: D1Database, iso: string): Promise<void> {
+export async function rebuildIndex(db: D1Database, iso: string, now = Date.parse(iso)): Promise<void> {
   const [gen, rows] = await db.batch([
     db.prepare("SELECT n FROM counters WHERE k = 'gen'"),
     db
@@ -57,7 +65,41 @@ export async function rebuildIndex(db: D1Database, iso: string): Promise<void> {
   ]);
   const n = Number((gen?.results[0] as { n?: number } | undefined)?.n ?? 0);
   const summaries = (rows?.results ?? []).map((r) => String((r as { summary: string }).summary));
-  await db.batch(pageStatements(db, pageBodies(summaries, iso), n));
+  const day = Math.floor(now / 86_400_000);
+  await db.batch([
+    ...pageStatements(db, pageBodies(summaries, iso), n),
+    // the rows this rebuild read, toward today's budget
+    db
+      .prepare(
+        `UPDATE counters SET n = iif((SELECT n FROM counters WHERE k = 'rebuild_day') = ?1, n, 0) + ?2
+         WHERE k = 'rebuild_rows'`,
+      )
+      .bind(day, summaries.length + 1),
+    db
+      .prepare(
+        "UPDATE counters SET n = iif(k = 'rebuild_day', ?1, ?2) WHERE k IN ('rebuild_day', 'rebuilt_at')",
+      )
+      .bind(day, now),
+  ]);
+}
+
+export interface IndexState {
+  dirty: number;
+  built: number;
+  day: number;
+  rows: number;
+  at: number;
+}
+
+export async function indexState(db: D1Database): Promise<IndexState> {
+  const row = await db
+    .prepare(
+      `SELECT ${COUNTER('dirty')} AS dirty, COALESCE((SELECT gen FROM index_pages WHERE page = 1), 0) AS built,
+         ${COUNTER('rebuild_day')} AS day, ${COUNTER('rebuild_rows')} AS rows, ${COUNTER('rebuilt_at')} AS at`,
+    )
+    .first<Record<string, number>>();
+  const n = (k: string) => Number(row?.[k] ?? 0);
+  return { dirty: n('dirty'), built: n('built'), day: n('day'), rows: n('rows'), at: n('at') };
 }
 
 export const indexTag = (gen: number): string => `"g${gen}"`;
@@ -293,6 +335,7 @@ export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatem
       .bind(p, s, e.version, n.body),
     requireRoom(db, p, s, n.room),
     bumpGen(db),
+    dirtyIfLive(db, p, s),
   ];
 }
 
@@ -331,6 +374,7 @@ export function versionStatements(db: D1Database, n: NextVersion): D1PreparedSta
     db.prepare(GUARD),
     requireRoom(db, p, s, n.room),
     bumpGen(db),
+    dirtyIfLive(db, p, s),
   ];
 }
 
@@ -358,6 +402,7 @@ export function overwriteStatements(db: D1Database, n: Overwrite): D1PreparedSta
       .bind(p, s, e.version, n.body),
     requireRoom(db, p, s, n.room),
     bumpGen(db),
+    dirtyIfLive(db, p, s),
   ];
 }
 
@@ -379,6 +424,7 @@ export function withdrawStatements(
     db.prepare(GUARD),
     db.prepare('UPDATE versions SET body = NULL WHERE publisher = ?1 AND slug = ?2').bind(p, s),
     bumpGen(db),
+    markDirty(db),
   ];
 }
 
@@ -649,6 +695,7 @@ export function approveStatements(
     db.prepare(`UPDATE versions SET body = NULL WHERE publisher = ?1 AND slug = ?2 AND ${OLDER}`).bind(p, s),
     logStatement(db, log),
     bumpGen(db),
+    markDirty(db),
   ];
 }
 
@@ -766,6 +813,7 @@ export function banStatements(
     ...drop,
     logStatement(db, log),
     bumpGen(db),
+    markDirty(db),
   ];
 }
 

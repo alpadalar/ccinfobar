@@ -298,10 +298,14 @@ describe('worker migrations', () => {
         const counters = await db.prepare('SELECT k, n FROM counters ORDER BY k').all();
         expect(counters.results).toEqual([
           { k: 'bytes', n: 0 },
+          { k: 'dirty', n: 0 },
           { k: 'gen', n: 0 },
           { k: 'live', n: 0 },
           { k: 'pending', n: 0 },
           { k: 'publishers', n: 0 },
+          { k: 'rebuild_day', n: 0 },
+          { k: 'rebuild_rows', n: 0 },
+          { k: 'rebuilt_at', n: 0 },
           { k: 'tombs', n: 0 },
         ]);
         expect(env.DB).toBe(db);

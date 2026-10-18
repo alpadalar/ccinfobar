@@ -53,7 +53,8 @@ import {
 } from './moderation.js';
 import { landingPage } from './page.js';
 import { buckets, check, ipHash, readAllowed } from './rate.js';
-import { indexEtag, readEntryDoc, readIndexPage, readVersionDoc } from './store.js';
+import { settleIndex } from './settle.js';
+import { indexEtag, indexTag, readEntryDoc, readIndexPage, readVersionDoc } from './store.js';
 import { addVersion, overwrite, publish, withdraw } from './write.js';
 
 export interface WorkerHandler {
@@ -99,9 +100,14 @@ const RESOLVE_RE = /^\/v1\/admin\/reports\/([^/]+)\/resolve$/;
 const REPORT_RE = /^\/v1\/entries\/([^/]+)\/([^/]+)\/reports$/;
 
 // one generation tag covers every page, so a match never reads a body
-async function indexPage(db: D1Database, n: number, inm: string | null): Promise<Response> {
+async function indexPage(
+  db: D1Database,
+  n: number,
+  inm: string | null,
+  gen?: number | null,
+): Promise<Response> {
   if (inm) {
-    const tag = await indexEtag(db, n);
+    const tag = typeof gen === 'number' ? indexTag(gen) : await indexEtag(db, n);
     if (tag && etagMatches(inm, tag)) return notModified(tag);
   }
   const page = await readIndexPage(db, n);
@@ -110,8 +116,8 @@ async function indexPage(db: D1Database, n: number, inm: string | null): Promise
 }
 
 // ids are checked before any SQL, in the reference order
-async function read(db: D1Database, p: string, inm: string | null): Promise<Response> {
-  if (p === indexPath()) return indexPage(db, 1, inm);
+async function read(db: D1Database, p: string, inm: string | null, gen?: number | null): Promise<Response> {
+  if (p === indexPath()) return indexPage(db, 1, inm, gen);
   const page = PAGE_RE.exec(p);
   if (page && Number(page[1]) >= 2 && Number(page[1]) <= MAX_PAGES)
     return indexPage(db, Number(page[1]), inm);
@@ -194,7 +200,9 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
       if (p === metaPath()) return json(200, meta, PUBLIC_HEADERS);
       if (p === mePath()) return me(env, req);
       if (p.startsWith('/v1/admin/')) return adminGet(req, p);
-      return read(env.DB, p, req.headers.get('if-none-match'));
+      // an index a write left stale is rebuilt first, within the budget (WR-03)
+      const gen = p === indexPath() ? await settleIndex(env.DB, env, t) : null;
+      return read(env.DB, p, req.headers.get('if-none-match'), gen);
     }
     // ids before the body, like the reference
     if (req.method === 'POST') {
