@@ -213,6 +213,8 @@ export async function publishCounts(db: D1Database, handle: string, slug: string
 // fails the batch when the statement before it changed nothing
 const GUARD = "SELECT json_extract(CASE WHEN changes() = 0 THEN 'x' ELSE '{}' END, '$') AS ok";
 const MISSED = 'malformed JSON';
+// a storage cap fails with another message
+const OVER = "'over-quota'";
 
 const NEXT_GEN = "(SELECT n FROM counters WHERE k = 'gen') + 1";
 
@@ -227,10 +229,26 @@ export interface PublishCaps {
   pendingPerPublisher: number;
 }
 
+// live and pending bytes one publisher may store
+export interface Room {
+  live: number;
+  pending: number;
+}
+
+// the bytes after this batch's own change, so racing writes cannot pass them (IN-06)
+const requireRoom = (db: D1Database, p: string, s: string, r: Room): D1PreparedStatement =>
+  db
+    .prepare(
+      `SELECT json_extract('{}', iif(iif((SELECT state FROM entries WHERE publisher = ?1 AND slug = ?2) = 'pending',
+         ${MINE('pending_bytes')} <= ?4, ${MINE('bytes - pending_bytes')} <= ?3), '$', ${OVER})) AS ok`,
+    )
+    .bind(p, s, r.live, r.pending);
+
 export interface NewEntry {
   entry: StoredEntry;
   body: string;
   caps: PublishCaps;
+  room: Room;
 }
 
 // live only for a publisher trusted when the batch commits (D-09)
@@ -273,6 +291,7 @@ export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatem
     db
       .prepare('INSERT INTO versions (publisher, slug, version, body) VALUES (?1, ?2, ?3, ?4)')
       .bind(p, s, e.version, n.body),
+    requireRoom(db, p, s, n.room),
     bumpGen(db),
   ];
 }
@@ -282,6 +301,7 @@ export interface NextVersion {
   expected: number;
   expectedHash: string;
   body: string;
+  room: Room;
 }
 
 // the versions key stops a racing twin, the guarded update a changed or overwritten entry
@@ -309,6 +329,7 @@ export function versionStatements(db: D1Database, n: NextVersion): D1PreparedSta
         n.expectedHash,
       ),
     db.prepare(GUARD),
+    requireRoom(db, p, s, n.room),
     bumpGen(db),
   ];
 }
@@ -317,6 +338,7 @@ export interface Overwrite {
   entry: StoredEntry;
   expectedHash: string;
   body: string;
+  room: Room;
 }
 
 // triggers keep the stored bytes of every body change (0003)
@@ -334,6 +356,7 @@ export function overwriteStatements(db: D1Database, n: Overwrite): D1PreparedSta
     db
       .prepare('UPDATE versions SET body = ?4 WHERE publisher = ?1 AND slug = ?2 AND version = ?3')
       .bind(p, s, e.version, n.body),
+    requireRoom(db, p, s, n.room),
     bumpGen(db),
   ];
 }
@@ -360,12 +383,13 @@ export function withdrawStatements(
 }
 
 // which guard stopped a write batch
-export function writeConflict(err: unknown): 'entry' | 'version' | 'guard' | null {
+export function writeConflict(err: unknown): 'entry' | 'version' | 'guard' | 'quota' | null {
   let msg = '';
   for (let e: unknown = err, i = 0; e instanceof Error && i < 3; e = e.cause, i++) msg += ` ${e.message}`;
   if (msg.includes('UNIQUE constraint failed: entries.')) return 'entry';
   if (msg.includes('UNIQUE constraint failed: versions.')) return 'version';
   if (msg.includes(MISSED)) return 'guard';
+  if (msg.includes(OVER)) return 'quota';
   return null;
 }
 

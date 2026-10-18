@@ -29,6 +29,7 @@ import {
   type PublishCaps,
   publishCounts,
   publishStatements,
+  type Room,
   readEntryRow,
   rebuildIndex,
   requireWriter,
@@ -65,22 +66,24 @@ async function stillWriter(db: D1Database, req: Request): Promise<void> {
   if (who.banned) throw fail(403, 'banned');
 }
 
+const MINE_FULL = 'publisher storage limit reached';
+const REVIEW_FULL = 'publisher review storage limit reached';
+
+const roomOf = (env: Env): Room => ({ live: publisherBytes(env), pending: pendingCaps(env).bytes });
+
 // the shared Free database and each publisher stay under their caps (R-01); pending content apart (WR-02)
-async function room(
-  db: D1Database,
-  env: Env,
-  handle: string,
-  bytes: number,
-  pending: boolean,
-): Promise<void> {
+async function room(db: D1Database, env: Env, handle: string, bytes: number, pending: boolean) {
   const use = await storageUse(db, handle);
   if (use.total >= maxDbBytes(env)) throw fail(413, 'over-quota', 'marketplace storage is full');
-  if (pending && use.pending + bytes > pendingCaps(env).bytes) {
-    throw fail(413, 'over-quota', 'publisher review storage limit reached');
-  }
-  if (!pending && use.mine + bytes > publisherBytes(env)) {
-    throw fail(413, 'over-quota', 'publisher storage limit reached');
-  }
+  const r = roomOf(env);
+  if (pending && use.pending + bytes > r.pending) throw fail(413, 'over-quota', REVIEW_FULL);
+  if (!pending && use.mine + bytes > r.live) throw fail(413, 'over-quota', MINE_FULL);
+}
+
+// the batch found the cap passed: a racing write took the room
+async function roomGone(db: D1Database, env: Env, handle: string, bytes: number, pending: boolean) {
+  await room(db, env, handle, bytes, pending);
+  return fail(413, 'over-quota', pending ? REVIEW_FULL : MINE_FULL);
 }
 
 // canonical text once, for the policy and the hash
@@ -149,7 +152,7 @@ export async function publish(db: D1Database, env: Env, deps: WorkerDeps, req: R
   try {
     const done = await db.batch([
       requireWriter(db, who.digest, who.handle),
-      ...publishStatements(db, { entry, body, caps }),
+      ...publishStatements(db, { entry, body, caps, room: roomOf(env) }),
     ]);
     // a new publisher waits for review (D-09)
     state = (done[1]?.results[0] as { state?: unknown } | undefined)?.state;
@@ -157,6 +160,7 @@ export async function publish(db: D1Database, env: Env, deps: WorkerDeps, req: R
   } catch (err) {
     const c = writeConflict(err);
     if (c === 'entry') throw fail(409, 'conflict');
+    if (c === 'quota') throw await roomGone(db, env, who.handle, bytes, !count.trusted);
     if (c !== 'guard') throw err;
     await stillWriter(db, req);
     const again = await publishCounts(db, who.handle, s);
@@ -209,11 +213,18 @@ export async function addVersion(
   try {
     const done = await db.batch([
       requireWriter(db, who.digest, who.handle),
-      ...versionStatements(db, { entry: next, expected: row.version, expectedHash: entry.hash, body }),
+      ...versionStatements(db, {
+        entry: next,
+        expected: row.version,
+        expectedHash: entry.hash,
+        body,
+        room: roomOf(env),
+      }),
     ]);
     await noteSize(db, done);
   } catch (err) {
     const c = writeConflict(err);
+    if (c === 'quota') throw await roomGone(db, env, who.handle, bytes, row.state === 'pending');
     if (c === 'guard') await stillWriter(db, req);
     if (c === 'guard' && (await needsReview(db, p, s))) throw fail(403, 'forbidden', REVIEW_FIRST);
     if (c === 'version' || c === 'guard') throw fail(412, 'stale');
@@ -256,15 +267,18 @@ export async function overwrite(
   };
   fits(next);
   const body = versionText({ version: n, content: payload.content, hash });
-  await room(db, env, who.handle, utf8(body), row.state === 'pending');
+  const bytes = utf8(body);
+  await room(db, env, who.handle, bytes, row.state === 'pending');
   try {
     const done = await db.batch([
       requireWriter(db, who.digest, who.handle),
-      ...overwriteStatements(db, { entry: next, expectedHash: entry.hash, body }),
+      ...overwriteStatements(db, { entry: next, expectedHash: entry.hash, body, room: roomOf(env) }),
     ]);
     await noteSize(db, done);
   } catch (err) {
-    if (writeConflict(err) !== 'guard') throw err;
+    const c = writeConflict(err);
+    if (c === 'quota') throw await roomGone(db, env, who.handle, bytes, row.state === 'pending');
+    if (c !== 'guard') throw err;
     await stillWriter(db, req);
     if (await needsReview(db, p, s)) throw fail(403, 'forbidden', REVIEW_FIRST);
     const now = await readEntryRow(db, p, s);

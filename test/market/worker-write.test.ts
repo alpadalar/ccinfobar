@@ -363,6 +363,42 @@ describe.skipIf(!hasSqlite)('worker writes', () => {
       expect(await bytesOf()).toBe(new TextEncoder().encode(seeded!).length);
     });
 
+    it('storage caps are checked again inside the batch (IN-06)', async () => {
+      const t = await setup({ vars: { PUBLISHER_BYTES: '500', PENDING_BYTES: '500' } });
+      const alp = await t.account('alp', 7);
+      const grow = (col: string, handle: string) =>
+        t.before(async () => {
+          await t.db
+            .prepare(`UPDATE publishers SET ${col} = ${col} + 400 WHERE handle = ?1`)
+            .bind(handle)
+            .run();
+        });
+      grow('bytes', 'alp');
+      const r = await t.call('POST', '/v1/entries', { token: alp, body: publishBody('mine') });
+      expect(await error(r)).toEqual({
+        status: 413,
+        code: 'over-quota',
+        message: 'publisher storage limit reached',
+      });
+      expect(await t.versions('alp', 'mine')).toEqual([]);
+      await seedPublisher(t.db, { handle: 'bob', githubId: 8 });
+      const bob = await seedToken(t.db, 'bob');
+      expect((await t.call('POST', '/v1/entries', { token: bob, body: publishBody('wait') })).status).toBe(
+        201,
+      );
+      grow('pending_bytes', 'bob');
+      const v = await t.call('POST', '/v1/entries/bob/wait/versions', {
+        token: bob,
+        headers: match(1),
+        body: { content: preset('cwd'), note: '' },
+      });
+      expect(await error(v)).toMatchObject({
+        status: 413,
+        message: 'publisher review storage limit reached',
+      });
+      expect(await t.versions('bob', 'wait')).toEqual([1]);
+    });
+
     it('a banned publisher cannot write', async () => {
       const t = await setup();
       const token = await t.account('bad', 7, { banned: true });
