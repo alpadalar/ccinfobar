@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { EntryContent } from '../../src/core/edit.js';
 import type { D1Database, D1PreparedStatement, Env } from '../../src/market/worker/env.js';
 import { createHandler } from '../../src/market/worker/handler.js';
-import { rebuildIndex } from '../../src/market/worker/store.js';
+import { cleanup } from '../../src/market/worker/rate.js';
+import { CLEANUP_BATCH, cleanupStatements, rebuildIndex } from '../../src/market/worker/store.js';
 import { d1, hasSqlite, type TestD1 } from './d1-sqlite.js';
 import { makeEnv, migrationFiles } from './worker-env.js';
 import { counts, ISO, seedEntry, seedPublisher, seedToken } from './worker-seed.js';
@@ -69,10 +70,12 @@ async function triggerStatements(db: D1Database): Promise<string[]> {
 // a full key, one entry's versions or the 10 index pages; the rebuild reads the live summaries
 // through one covering index and the banned publishers through a partial one
 const BOUNDED = [
-  /^SEARCH \w+ USING (?:INTEGER )?PRIMARY KEY \((?:k|handle|sha256|day|key|page|rowid)=\?\)$/,
-  /^SEARCH \w+ USING (?:COVERING )?INDEX sqlite_autoindex_(?:entries|versions)_1 \(publisher=\? AND slug=\?(?: AND version=\?)?\)$/,
+  /^SEARCH \w+ USING (?:INTEGER )?PRIMARY KEY \((?:k|handle|sha256|day|key|page|rowid)=\?\)(?: LEFT-JOIN)?$/,
+  /^SEARCH \w+ USING (?:COVERING )?INDEX sqlite_autoindex_(?:entries|versions)_1 \(publisher=\? AND slug=\?(?: AND version=\?)?\)(?: LEFT-JOIN)?$/,
   /^SEARCH \w+ USING (?:COVERING )?INDEX sqlite_autoindex_publishers_1 \(github_id=\?\)$/,
   /^SEARCH \w+ USING COVERING INDEX tokens_by_handle \(handle=\? AND sha256=\?\)$/,
+  // one publisher's live and pending entries, never their tombstones
+  /^SEARCH \w+ USING (?:COVERING )?INDEX entries_by_state \(state=\? AND publisher=\?\)$/,
   /^SEARCH index_pages\b/,
   /^SCAN index_pages\b/,
   /^SCAN entries USING COVERING INDEX entries_live$/,
@@ -184,6 +187,41 @@ describe.skipIf(!hasSqlite)('worker write-side reads (CR-01)', () => {
       sqls.push(t.list.map((r) => r.sql));
     }
     expect(sqls[1]).toEqual(sqls[0]);
+  });
+
+  it('account and public reads are key lookups (DoS audit)', async () => {
+    const t = await setup(40);
+    const token = await seedToken(t.db, 'pub1');
+    for (const p of ['/v1/me', '/v1/index.json', '/v1/entries/pub1/e0.json', '/v1/entries/pub1/e0/1.json']) {
+      t.list.length = 0;
+      expect((await t.call('GET', p, token)).status, p).toBe(200);
+      expect(await scans(t.db, t.list), p).toEqual([]);
+    }
+  });
+
+  it('cleanup deletes old rate rows in bounded batches through the window index (DoS audit)', async () => {
+    const { env } = await makeEnv();
+    const db = env.DB;
+    const now = Date.UTC(2026, 9, 18, 12);
+    await db.batch(
+      Array.from({ length: 1200 }, (_, i) =>
+        db.prepare('INSERT INTO rate (key, win, n) VALUES (?1, ?2, 1)').bind(`w:${i}`, now - 3 * 3_600_000),
+      ),
+    );
+    await db.prepare('INSERT INTO rate (key, win, n) VALUES (?1, ?2, 1)').bind('w:fresh', now).run();
+    const [, rate] = cleanupStatements(db, '2026-10-17', now - 7_200_000);
+    const plan = await planOf(
+      db,
+      'DELETE FROM rate WHERE key IN (SELECT key FROM rate WHERE win < ?1 LIMIT ?2)',
+      [now, CLEANUP_BATCH],
+    );
+    expect(plan).toContain('SEARCH rate USING COVERING INDEX rate_by_win (win<?)');
+    expect(rate).toBeDefined();
+    expect(await cleanup(db, now)).toBe(CLEANUP_BATCH);
+    expect(await cleanup(db, now)).toBe(CLEANUP_BATCH);
+    expect(await cleanup(db, now)).toBe(200);
+    expect(await cleanup(db, now)).toBe(0);
+    expect((await db.prepare('SELECT key FROM rate').all()).results).toEqual([{ key: 'w:fresh' }]);
   });
 
   it('trigger bodies are key lookups', async () => {

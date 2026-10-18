@@ -70,7 +70,8 @@ export async function readAllowed(env: Env, req: Request, now: number): Promise<
   }
 }
 
-// older salts go, so their hashes become unlinkable
-export async function cleanup(db: D1Database, now: number): Promise<void> {
-  await db.batch(cleanupStatements(db, dayOf(now - DAY_MS), now - 2 * HOUR_MS));
+// older salts go, so their hashes become unlinkable; answers the rate rows deleted
+export async function cleanup(db: D1Database, now: number): Promise<number> {
+  const done = await db.batch(cleanupStatements(db, dayOf(now - DAY_MS), now - 2 * HOUR_MS));
+  return Number(done[1]?.meta?.changes ?? 0);
 }

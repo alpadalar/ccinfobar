@@ -413,10 +413,15 @@ export async function bumpRate(db: D1Database, key: string, win: number): Promis
   return Number(n);
 }
 
+// bounded per call; the rate rows are found through their window index (0004)
+export const CLEANUP_BATCH = 500;
+
 export function cleanupStatements(db: D1Database, day: string, win: number): D1PreparedStatement[] {
   return [
     db.prepare('DELETE FROM salts WHERE day < ?1').bind(day),
-    db.prepare('DELETE FROM rate WHERE win < ?1').bind(win),
+    db
+      .prepare('DELETE FROM rate WHERE key IN (SELECT key FROM rate WHERE win < ?1 LIMIT ?2)')
+      .bind(win, CLEANUP_BATCH),
   ];
 }
 
@@ -560,7 +565,8 @@ export async function myEntries(
 ): Promise<{ id: string; state: 'pending' | 'live'; version: number }[]> {
   const rows = await db
     .prepare(
-      `SELECT slug, state, version FROM entries WHERE publisher = ?1 AND ${LIVE} ORDER BY slug LIMIT ?2`,
+      `SELECT slug, state, version FROM entries INDEXED BY entries_by_state
+       WHERE publisher = ?1 AND ${LIVE} ORDER BY slug LIMIT ?2`,
     )
     .bind(handle, cap)
     .all<{ slug: string; state: 'pending' | 'live'; version: number }>();

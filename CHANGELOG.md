@@ -57,6 +57,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Marketplace approval works through the weakened ETags Cloudflare sends on compressed answers, admin actions without a note and resolving a report work on the live Worker, and the Worker answers `HEAD` requests
 - The marketplace server no longer counts every entry on each write: the entry and tombstone caps read counts the database keeps up to date, and the index rebuild reads the live summaries from one index, so a refused or pending write costs a few database rows and one signed-in user can no longer use up the free daily read budget (migration `0002_counts.sql`)
 - On the marketplace server, entries waiting for review no longer fill the shared caps: they have small caps of their own (50 in total, 3 and 1 MiB per publisher; `PENDING_ENTRIES`, `PENDING_PER_PUBLISHER`, `PENDING_BYTES`, advertised in `meta.json` under `quota`), so throwaway accounts cannot lock trusted publishers out. Banning a publisher deletes their pending entries, the 10,000-publisher cap is enforced at sign-in, and stored bytes are kept by the database itself (migration `0003_pending.sql`)
+- The marketplace server's account route reads only your live and pending entries, and old rate-limit rows are deleted in bounded batches through an index (migration `0004_rate_index.sql`), so neither cost grows with the database
 
 ### Security
 

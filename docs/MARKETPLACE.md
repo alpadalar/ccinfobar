@@ -204,7 +204,7 @@ Reads never build JSON. Each entry row keeps its summary and its entry document 
 
 ### Schema
 
-`worker/migrations/0001_init.sql`, then the later files in order; later migrations are additive only. `0002_counts.sql` adds the entry counts that triggers keep up to date and the indexes the index rebuild reads; `0003_pending.sql` has triggers keep the stored bytes too, with the bytes waiting for review apart, and counts the publishers.
+`worker/migrations/0001_init.sql`, then the later files in order; later migrations are additive only. `0002_counts.sql` adds the entry counts that triggers keep up to date and the indexes the index rebuild reads; `0003_pending.sql` has triggers keep the stored bytes too, with the bytes waiting for review apart, and counts the publishers; `0004_rate_index.sql` indexes the rate windows, so old rate rows are deleted in batches of 500 without reading the rest.
 
 | Table | Holds |
 | --- | --- |
@@ -394,7 +394,7 @@ Only names of secrets appear in this repository; their values never do. The OAut
 
 Rows read per request:
 
-- A read of an index page, an entry or a version reads one row, plus the publisher row for entries and versions.
+- A read of an index page, an entry or a version reads one row, plus the publisher row for entries and versions. `GET /v1/me` reads only the caller's live and pending entries, never their tombstones.
 - A write looks rows up by key only: the token, the publisher, the rate window, the salt, the entry and the counters. The entry and tombstone caps come from counters that triggers keep up to date in the same transaction (`0002_counts.sql`), so a refused write (`409`, `413`, `429`) or a pending one costs a handful of rows however many entries there are. `test/market/worker-counts.test.ts` checks the query plan of every statement.
 - A write that changes the public index (a trusted publish, a new version of a live entry, withdraw, approve, remove, ban) then rebuilds the index: one read of every live summary through a covering index, plus the banned publishers. At 5000 live entries that is about 5000 rows, so the daily budget allows about 1000 such writes. The write limits (30 a minute per address and per publisher) bound one publisher; ban a publisher who abuses it.
 
