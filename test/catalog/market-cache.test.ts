@@ -99,6 +99,7 @@ function fakeMarket() {
         {
           ...summary(1, last.hash),
           id: em[1],
+          publisher: em[1]!.split('/')[0],
           version: list.length,
           versions: list.map((v, i) => ({
             version: i + 1,
@@ -126,6 +127,7 @@ const clock = (t: number) => () => new Date(t);
 const marketDir = () =>
   path.join(cacheDir, 'market', createHash('sha256').update(EP).digest('hex').slice(0, 16));
 const indexFile = () => path.join(marketDir(), 'index.json');
+const idKey = (id: string) => createHash('sha256').update(id).digest('hex').slice(0, 32);
 
 describe('cachedIndex', () => {
   it('never saves a partial walk, so the next load asks again (WR-08)', async () => {
@@ -339,7 +341,7 @@ describe('cachedEntry and cachedVersion', () => {
     expect(await cachedVersion(EP, 'alp/e1', 1, h, deps)).toEqual(v);
     expect(m.calls).toHaveLength(1);
     // an edited cache file is ignored and fetched again
-    const file = path.join(marketDir(), 'versions', 'alp', 'e1', '1.json');
+    const file = path.join(marketDir(), 'versions', idKey('alp/e1'), '1.json');
     const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
     raw.version.content.layout.lines[0][0].type = 'cwd';
     fs.writeFileSync(file, JSON.stringify(raw));
@@ -349,6 +351,32 @@ describe('cachedEntry and cachedVersion', () => {
     await expect(cachedVersion(EP, 'alp/e1', 1, 'f'.repeat(64), deps)).rejects.toMatchObject({
       code: 'bad-hash',
     });
+  });
+
+  it('names cache files by a hash of the id, so Windows device names never become paths (WR-09)', async () => {
+    const m = fakeMarket();
+    const c1 = m.s.versions.get('alp/e1')!;
+    for (const id of ['con/nul', 'com1/lpt9', 'aux/prn']) m.s.versions.set(id, c1);
+    for (const id of ['con/nul', 'com1/lpt9', 'aux/prn']) {
+      const e = await cachedEntry(EP, id, { client: m.client, cacheDir });
+      await cachedVersion(EP, id, 1, e.entry.hash, {
+        client: m.client,
+        cacheDir,
+        kind: 'preset',
+        immutable: true,
+      });
+    }
+    const names: string[] = [];
+    const walk = (dir: string) => {
+      for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
+        names.push(d.name);
+        if (d.isDirectory()) walk(path.join(dir, d.name));
+      }
+    };
+    walk(marketDir());
+    expect(names.filter((n) => /^(?:con|nul|aux|prn|com\d|lpt\d)(?:\.|$)/i.test(n))).toEqual([]);
+    expect(fs.existsSync(path.join(marketDir(), 'entries', `${idKey('con/nul')}.json`))).toBe(true);
+    expect(fs.existsSync(path.join(marketDir(), 'versions', idKey('com1/lpt9'), '1.json'))).toBe(true);
   });
 
   it('caches nothing while the server allows overwrites', async () => {

@@ -178,10 +178,10 @@ async function loadIndex(
   return walked(r, at, () => save(r.etag, r.index));
 }
 
+// a hash, never the id: con, nul or com1 are devices on Windows (WR-09)
 function idPath(root: Root, dir: string, id: string): string {
   if (!isRemoteId(id)) throw new MarketError('invalid');
-  const [p, s] = id.split('/') as [string, string];
-  return path.join(root.dir, dir, p, s);
+  return path.join(root.dir, dir, createHash('sha256').update(id).digest('hex').slice(0, 32));
 }
 
 // only when the user opens details or installs
