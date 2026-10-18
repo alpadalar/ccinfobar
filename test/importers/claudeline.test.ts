@@ -25,7 +25,7 @@ const TAIL = [
   'weekly-usage',
   'weekly-reset',
 ];
-const LOGIN = 'claudeline "login type" is approximated by the provider widget';
+const LOGIN = 'claudeline plan or login type is approximated by the provider widget';
 const UPDATE = 'claudeline segment "update" was dropped: ccinfobar updates itself';
 
 describe('importClaudeline', () => {
@@ -96,7 +96,7 @@ describe('importClaudeline', () => {
   it('writes its notes in Turkish', () => {
     withLang('tr', () => {
       expect(texts(run('claudeline -cwd -cwd-max-len 4 -nope'))).toEqual([
-        'claudeline "login type", provider bileşeniyle yaklaşık olarak gösteriliyor',
+        'claudeline plan veya giriş türü, provider bileşeniyle yaklaşık olarak gösteriliyor',
         'claudeline bölümü "update" atlandı: ccinfobar kendini günceller',
         'claudeline ayarları içe aktarılmadı: -cwd-max-len',
         'claudeline ayarları içe aktarılmadı: -nope',

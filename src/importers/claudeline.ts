@@ -80,10 +80,7 @@ export function importClaudeline(args: string[]): ImportResult {
   ];
 
   // the plan or login type sits before the model
-  notes.push({
-    kind: 'approx',
-    text: t('import.note.hudApprox', { tool: TOOL, name: 'login type', widget: 'provider' }),
-  });
+  notes.push({ kind: 'approx', text: t('import.note.loginTypeApprox', { tool: TOOL }) });
   notes.push({ kind: 'drop', text: t('import.note.selfUpdate', { tool: TOOL, name: 'update' }) });
   const maxLen = [
     ...(on('cwd') && given('cwd-max-len') ? ['-cwd-max-len'] : []),

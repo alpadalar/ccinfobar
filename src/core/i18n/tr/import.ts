@@ -124,6 +124,8 @@ export const importMessages = {
     '{tool} satırları farklı ayraçlar kullanıyor; artık her satır en sık kullanılan ayracı ({separator}) kullanıyor',
   'import.note.hudIgnored': '{file} bir JSON nesnesi değil, yok sayıldı',
   'import.note.hudApprox': '{tool} "{name}", {widget} bileşeniyle yaklaşık olarak gösteriliyor',
+  'import.note.loginTypeApprox':
+    '{tool} plan veya giriş türü, provider bileşeniyle yaklaşık olarak gösteriliyor',
   'import.note.hudShownAlways':
     '{tool} ayarı "{name}" = {value}, {widget} bileşenini bu değerin altında gizler; ccinfobar onu her zaman gösterir',
   'import.note.hudNoThreshold':

@@ -118,6 +118,7 @@ export const importMessages = {
     '{tool} lines use different separators; every line now uses the most common one, {separator}',
   'import.note.hudIgnored': '{file} is not a JSON object and was ignored',
   'import.note.hudApprox': '{tool} "{name}" is approximated by the {widget} widget',
+  'import.note.loginTypeApprox': '{tool} plan or login type is approximated by the provider widget',
   'import.note.hudShownAlways':
     '{tool} setting "{name}" = {value} hides {widget} below that value, ccinfobar always shows it',
   'import.note.hudNoThreshold':
