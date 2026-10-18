@@ -409,4 +409,14 @@ describe('worker/wrangler.jsonc', () => {
   it('keeps the optional READS rate limit binding', () => {
     expect(cfg.ratelimits.map((r: { name: string }) => r.name)).toEqual(['READS']);
   });
+
+  it('reads at most 60 a minute per address, far under the daily requests (WR-07)', () => {
+    const simple = cfg.ratelimits[0].simple;
+    expect(simple).toEqual({ limit: 60, period: 60 });
+    expect((simple.limit * 1440) / 100_000).toBeLessThan(0.9);
+  });
+
+  it('runs the cleanup cron every six hours (WR-05)', () => {
+    expect(cfg.triggers).toEqual({ crons: ['17 */6 * * *'] });
+  });
 });

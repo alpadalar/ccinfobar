@@ -191,7 +191,7 @@ The Worker gets 100,000 requests a day on Workers Free, shared by every ccinfoba
 | --- | --- |
 | Worker | `ccinfobar-market` on workers.dev; config `worker/wrangler.jsonc` (pinned account id, `no_bundle: true`, `preview_urls: false`, invocation logs off) |
 | Database | D1 `ccinfobar-market`, binding `DB`, schema in `worker/migrations/` |
-| Read limiter | Rate Limiting binding `READS` (600 a minute per key) |
+| Read limiter | Rate Limiting binding `READS` (60 a minute per key) |
 | Vars | `MARKET_NAME`, `GITHUB_CLIENT_ID`, `ADMIN_GITHUB_IDS`, `ALLOW_OVERWRITE` (`false`) |
 | Secret | `GITHUB_CLIENT_SECRET` (required for sign-in) |
 | Cron | `17 */6 * * *` (every six hours): deletes salts older than two days and rate rows older than two hours in batches of 500 (at most 10,000 a run), then rebuilds an index left stale |
@@ -223,7 +223,7 @@ Reads never build JSON. Each entry row keeps its summary and its entry document 
 
 | Bucket | Default | Key |
 | --- | --- | --- |
-| Reads | 600 a minute (the `READS` binding; without the binding, or when it fails, reads are not limited) | sha256 of the day and the address, in memory only |
+| Reads | 60 a minute (the `READS` binding; without the binding, or when it fails, reads are not limited). A client reads at most about a dozen documents at once (meta, up to 10 index pages, an entry and a version), and the index is cached for a day | sha256 of the day and the address, in memory only |
 | Writes (publish, new version, overwrite, withdraw) | 30 a minute per address and 30 a minute per publisher (`WRITE_LIMIT`) | salted address hash, handle |
 | Sign-in | 5 a minute per address (`SIGNIN_LIMIT`) | salted address hash |
 | Reports | 5 an hour per reporter (`REPORT_LIMIT`) | handle |
@@ -388,7 +388,7 @@ Only names of secrets appear in this repository; their values never do. The OAut
 
 | Resource | Workers Free and D1 Free | Guard |
 | --- | --- | --- |
-| Worker requests | 100,000 a day | the requests budget above; a `304` counts |
+| Worker requests | 100,000 a day, shared by all users | the requests budget above; a `304` counts. The read limiter keeps one address under 86,400 a day, but refused requests (`429`) count too, so the budget is not protected against many addresses or a determined client; Cloudflare then answers error 1027 until the UTC day ends |
 | CPU | 10 ms per request | canonical JSON once per write; `MAX_ENTRY_BYTES` |
 | D1 rows read | 5 million a day | materialized documents, one row per read; caps read counters, never count rows (see below) |
 | D1 rows written | 100,000 a day | write rate limits; only database routes count |
