@@ -311,9 +311,9 @@ describe('install checks', () => {
   it('needs a ref and an endpoint before any request', async () => {
     const m = market({});
     expect(await code(planInstall('nope', { dir, cacheDir, env: fakeEnv, fetch: m.fetch }))).toBe('bad-ref');
-    expect(await code(planInstall('alp/mini', { dir, cacheDir, env: {}, fetch: m.fetch }))).toBe(
-      'no-endpoint',
-    );
+    expect(
+      await code(planInstall('alp/mini', { dir, cacheDir, env: {}, fetch: m.fetch, defaultEndpoint: null })),
+    ).toBe('no-endpoint');
     expect(m.calls).toHaveLength(0);
   });
 

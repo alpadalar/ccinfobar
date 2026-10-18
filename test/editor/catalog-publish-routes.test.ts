@@ -95,7 +95,12 @@ beforeEach(async () => {
   process.env.USERPROFILE = path.join(dir, 'home');
   delete process.env.CCINFOBAR_MARKETPLACE_URL;
   delete process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC;
-  handle = await startEditor({ configPath: path.join(dir, 'c.json'), open: false, port: 0 });
+  handle = await startEditor({
+    configPath: path.join(dir, 'c.json'),
+    open: false,
+    port: 0,
+    market: { defaultEndpoint: null },
+  });
   port = Number(new URL(handle.url).port);
 });
 

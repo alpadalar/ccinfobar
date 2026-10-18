@@ -226,6 +226,7 @@ const fileLabel = (kind: EntryKind): MessageId =>
 function chip(a: AnyEntry, s: Summary): string {
   if (a.source === 'legacy') return t(fileLabel(a.item.kind));
   if (a.source === 'system') return t('catalog.source.system');
+  if (a.entry.origin) return t('catalog.share.installed');
   const version = a.entry.share.remote?.version ?? a.entry.version;
   if (s.share === 'published' && s.review) return t('catalog.share.review');
   return s.share ? t(SHARE_IDS[s.share], { version }) : '';

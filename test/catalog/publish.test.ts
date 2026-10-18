@@ -253,14 +253,16 @@ describe('runPublish', () => {
     updateShare(b.id, true, b.rev, dir);
     const before = snapshot(root);
     const f = fakeFetch([]);
-    const out = await send(null, { dir, env: {}, fetch: f.fetch });
+    const out = await send(null, { dir, env: {}, fetch: f.fetch, defaultEndpoint: null });
     expect(out).toEqual({ code: 'no-endpoint', results: [] });
     expect(f.calls).toHaveLength(0);
     expect(snapshot(root)).toEqual(before);
     expect(listEntries(dir).map((e) => e.share.state)).toEqual(['pending', 'pending']);
     expect(a.share.state).toBe('pending');
-    expect((await remoteList({ dir, env: {}, fetch: f.fetch })).code).toBe('no-endpoint');
-    expect(await remoteShow('alp/mine', { dir, env: {}, fetch: f.fetch })).toEqual({
+    expect((await remoteList({ dir, env: {}, fetch: f.fetch, defaultEndpoint: null })).code).toBe(
+      'no-endpoint',
+    );
+    expect(await remoteShow('alp/mine', { dir, env: {}, fetch: f.fetch, defaultEndpoint: null })).toEqual({
       code: 'no-endpoint',
       entry: null,
       latest: null,
@@ -879,7 +881,9 @@ describe('GitHub-backed marketplace (D-07, D-09)', () => {
 
   it('refreshReview needs a GitHub marketplace and a sign-in', async () => {
     const m = githubMarket();
-    expect(await refreshReview({ dir, env: {}, fetch: m.fetch })).toMatchObject({ code: 'no-endpoint' });
+    expect(await refreshReview({ dir, env: {}, fetch: m.fetch, defaultEndpoint: null })).toMatchObject({
+      code: 'no-endpoint',
+    });
     expect(m.calls).toHaveLength(0);
     expect(await refreshReview({ dir, env, fetch: m.fetch })).toMatchObject({ code: 'sign-in', me: null });
     expect(m.calls.map((c) => c.url)).toEqual([`${GH_ENDPOINT}/v1/meta.json`]);

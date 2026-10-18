@@ -96,6 +96,12 @@ function startMarket() {
   });
 }
 
+// shots show the shipped default; requests still go to the local one
+function shippedMarket() {
+  const src = fs.readFileSync(path.join(root, 'src', 'catalog', 'store.ts'), 'utf8');
+  return src.match(/DEFAULT_MARKETPLACE: string \| null = '(https:\/\/[^']+)'/)?.[1] ?? null;
+}
+
 // another publisher's entries
 function publishOthers() {
   const dir = path.join(T, 'publisher');
@@ -355,13 +361,17 @@ async function main() {
       return false;
     };
     const hideTemp = JSON.stringify(home);
+    const label = shippedMarket();
     const scrub = `(() => {
       const home = ${hideTemp};
-      const fix = (s) => s.split(home).join('~');
+      const market = ${JSON.stringify(label ? market.url : home)};
+      const label = ${JSON.stringify(label ?? '~')};
+      const fix = (s) => s.split(home).join('~').split(market).join(label);
       const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-      for (let n = walk.nextNode(); n; n = walk.nextNode()) if (n.nodeValue.includes(home)) n.nodeValue = fix(n.nodeValue);
-      for (const el of document.querySelectorAll('input, textarea')) if (el.value.includes(home)) el.value = fix(el.value);
-      for (const el of document.querySelectorAll('[title]')) if (el.title.includes(home)) el.title = fix(el.title);
+      const has = (s) => s.includes(home) || s.includes(market);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) if (has(n.nodeValue)) n.nodeValue = fix(n.nodeValue);
+      for (const el of document.querySelectorAll('input, textarea')) if (has(el.value)) el.value = fix(el.value);
+      for (const el of document.querySelectorAll('[title]')) if (has(el.title)) el.title = fix(el.title);
       return document.body.innerText.includes(${JSON.stringify(T)});
     })()`;
     fs.mkdirSync(out, { recursive: true });

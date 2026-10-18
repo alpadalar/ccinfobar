@@ -6,6 +6,7 @@ import { markPublished } from '../../src/catalog/model.js';
 import { contentFromConfig } from '../../src/catalog/snapshot.js';
 import {
   commitEntry,
+  DEFAULT_MARKETPLACE,
   listEntries,
   readEntry,
   readProfile,
@@ -84,7 +85,7 @@ async function run(argv: string[], opts: RunOpts = {}) {
     gsd: true,
     now: () => NOW,
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
-    ...(opts.defaultEndpoint !== undefined ? { defaultEndpoint: opts.defaultEndpoint } : {}),
+    defaultEndpoint: opts.defaultEndpoint !== undefined ? opts.defaultEndpoint : null,
   });
   const code = process.exitCode;
   process.exitCode = undefined;
@@ -612,6 +613,30 @@ describe('catalog author and endpoint', () => {
       { schema: 1, endpoint: 'http://127.0.0.1:7', source: 'env' },
       { schema: 1, endpoint: null, source: 'off' },
     ]);
+  });
+
+  it('ships the live marketplace as the default and sends nothing to show it (D-12)', async () => {
+    const global = vi.spyOn(globalThis, 'fetch');
+    const out: string[] = [];
+    const show = (env: Record<string, string>) =>
+      runCatalog(parseArgs(['catalog', 'endpoint']), cfg, {
+        io: {
+          tty: false,
+          columns: 100,
+          ask: async () => false,
+          log: (l) => void out.push(l),
+          error: () => {},
+        },
+        dir: cat,
+        env,
+      });
+    await show({});
+    await show({ CCINFOBAR_MARKETPLACE_URL: 'off' });
+    expect(out).toEqual([
+      `Marketplace endpoint: ${DEFAULT_MARKETPLACE} (default)`,
+      'Marketplace switched off. Nothing is sent anywhere.',
+    ]);
+    expect(global).not.toHaveBeenCalled();
   });
 });
 

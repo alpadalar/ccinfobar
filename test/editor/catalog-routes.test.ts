@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_MARKETPLACE } from '../../src/catalog/store.js';
 import { systemEntries } from '../../src/catalog/system.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { bundleText } from '../../src/core/i18n/catalog-text.js';
@@ -81,7 +82,7 @@ beforeEach(async () => {
   process.env.HOME = path.join(dir, 'home');
   process.env.USERPROFILE = path.join(dir, 'home');
   delete process.env.CCINFOBAR_MARKETPLACE_URL;
-  handle = await startEditor({ configPath: file, open: false, port: 0 });
+  handle = await startEditor({ configPath: file, open: false, port: 0, market: { defaultEndpoint: null } });
   port = Number(new URL(handle.url).port);
 });
 
@@ -97,6 +98,25 @@ afterEach(async () => {
 const cfgDir = () => process.env.CCINFOBAR_CONFIG_DIR!;
 
 describe('editor catalog routes: list, entry and previews', () => {
+  it('offers the shipped marketplace by default and contacts nothing (D-12)', async () => {
+    await handle.close();
+    handle = await startEditor({ configPath: file, open: false, port: 0 });
+    port = Number(new URL(handle.url).port);
+    const global = vi.spyOn(globalThis, 'fetch');
+    const body = await catalog();
+    expect(body.endpoint).toBe(DEFAULT_MARKETPLACE);
+    expect(body.market).toEqual({
+      endpoint: DEFAULT_MARKETPLACE,
+      source: 'default',
+      signedIn: false,
+      handle: null,
+    });
+    process.env.CCINFOBAR_MARKETPLACE_URL = 'off';
+    expect((await catalog()).market).toMatchObject({ endpoint: null, source: 'off' });
+    expect(global).not.toHaveBeenCalled();
+    global.mockRestore();
+  });
+
   it('GET /api/catalog returns system, user, profile and endpoint', async () => {
     await saveLegacyPreset('old');
     expect((await save({})).status).toBe(200);

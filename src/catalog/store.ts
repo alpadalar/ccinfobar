@@ -775,8 +775,7 @@ export function writePublisher(endpoint: string, handle: string | null, dir = ca
   });
 }
 
-// set after the first deploy
-export const DEFAULT_MARKETPLACE: string | null = null;
+export const DEFAULT_MARKETPLACE: string | null = 'https://ccinfobar-market.alp-adalar.workers.dev';
 
 export type EndpointSource = 'env' | 'set' | 'default' | 'off' | 'none';
 

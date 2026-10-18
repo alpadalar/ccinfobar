@@ -59,6 +59,7 @@ interface RunOpts {
   answers?: boolean[];
   fetch?: typeof fetch;
   now?: Date;
+  defaultEndpoint?: string | null;
 }
 
 async function run(argv: string[], opts: RunOpts = {}) {
@@ -84,6 +85,7 @@ async function run(argv: string[], opts: RunOpts = {}) {
     gsd: true,
     now: () => opts.now ?? at(),
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
+    ...(opts.defaultEndpoint !== undefined ? { defaultEndpoint: opts.defaultEndpoint } : {}),
   });
   const code = process.exitCode;
   process.exitCode = undefined;
@@ -199,7 +201,11 @@ describe('catalog install', () => {
     // applying stays a separate step
     expect(fs.readFileSync(cfg, 'utf8')).toBe(before);
     const list = await run(['list', '--user'], { env: m.env });
-    expect(list.out.join('\n')).toContain('Cockpit');
+    const row = list.out.find((l) => l.includes('Cockpit'));
+    expect(row).toMatch(/From the marketplace$/);
+    expect(list.text).not.toContain('Not shared');
+    const shown = await run(['show', e!.id], { env: m.env });
+    expect(shown.text).toContain('Bundle · v1 · by Alice · From the marketplace');
     const all = await run(['list'], { env: m.env });
     const mine = all.out.indexOf('Your entries');
     expect(mine).toBeGreaterThanOrEqual(0);
@@ -311,9 +317,15 @@ describe('catalog install', () => {
       expect(r.code, argv.join(' ')).toBe(1);
       expect(r.err[0]).toMatch(/^Usage: ccinfobar catalog list/);
     }
-    const none = await run(['install', 'alice/x', '--yes'], { fetch: f.fetch });
+    const none = await run(['install', 'alice/x', '--yes'], { fetch: f.fetch, defaultEndpoint: null });
     expect(none.code).toBe(1);
     expect(none.err).toEqual(['No marketplace endpoint set; entries stay waiting to publish']);
+    const off = await run(['install', 'alice/x', '--yes'], {
+      env: { CCINFOBAR_MARKETPLACE_URL: 'off' },
+      fetch: f.fetch,
+    });
+    expect(off.code).toBe(1);
+    expect(off.err).toEqual(['No marketplace endpoint set; entries stay waiting to publish']);
     expect(f.calls).toEqual([]);
   });
 
@@ -379,6 +391,8 @@ describe('catalog install', () => {
     expect(r.out[1]).toBe('Paket · v1 · Alice (alice) tarafından');
     expect(r.out).toContain('alice/cockpit v1, Cockpit olarak yüklendi');
     expect(r.out.at(-1)).toBe(`Uygulamak için: ccinfobar catalog apply ${shellArg('Cockpit')}`);
+    const list = await withLangAsync('tr', () => run(['list', '--user'], { env: m.env }));
+    expect(list.out.find((l) => l.includes('Cockpit'))).toMatch(/Marketplace'ten$/);
     const gone = await withLangAsync('tr', () => run(['install', 'alice/none', '--yes'], { env: m.env }));
     expect(gone.err).toEqual(["alice/none marketplace'te yok"]);
   });

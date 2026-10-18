@@ -86,6 +86,7 @@ async function run(argv: string[], opts: RunOpts = {}) {
     env: opts.env ?? {},
     gsd: true,
     now: () => NOW,
+    defaultEndpoint: null,
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
   });
   const code = process.exitCode;
@@ -169,6 +170,7 @@ describe('catalog publish', () => {
       env: s.env,
       gsd: true,
       now: () => NOW,
+      defaultEndpoint: null,
     });
     expect(asked).toHaveLength(2);
     expect(out).toContain(

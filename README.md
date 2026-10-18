@@ -444,7 +444,7 @@ ccinfobar catalog history "My setup"          # versions, then `catalog restore 
 
 ### Marketplace
 
-The ccinfobar marketplace is free, open source and non-commercial, and runs on Cloudflare Workers Free with D1. Its address becomes the default endpoint once it is deployed (set at the first deploy); until then, and whenever it is off (`ccinfobar catalog endpoint --off` or `CCINFOBAR_MARKETPLACE_URL=off`), nothing leaves your machine. ccinfobar contacts the marketplace only when you ask: never during a status line refresh, never in the background, and never from an editor left open. The list is cached for 24 hours, and **Refresh** sends one small request.
+The ccinfobar marketplace is free, open source and non-commercial, and runs on Cloudflare Workers Free with D1. It runs at https://ccinfobar-market.alp-adalar.workers.dev, which is the default endpoint. When it is off (`ccinfobar catalog endpoint --off` or `CCINFOBAR_MARKETPLACE_URL=off`), nothing leaves your machine. ccinfobar contacts the marketplace only when you ask: never during a status line refresh, never in the background, and never from an editor left open. The list is cached for 24 hours, and **Refresh** sends one small request.
 
 ```sh
 ccinfobar catalog list --remote               # browse the marketplace (cached; --refresh checks again)

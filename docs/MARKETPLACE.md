@@ -4,8 +4,8 @@ This document describes the ccinfobar marketplace: the protocol that ccinfobar s
 
 ## Status
 
-- **The public marketplace runs on Cloudflare Workers Free and D1**, with GitHub sign-in for publishers. Its URL is set at the first deploy; until then ccinfobar ships no default endpoint.
-- **Default endpoint**: once the URL is known, ccinfobar uses it as the default. `ccinfobar catalog endpoint --off` or `CCINFOBAR_MARKETPLACE_URL=off` switches the marketplace off, and nothing is ever sent without an explicit action (see [Requests budget](#requests-budget)).
+- **The public marketplace runs on Cloudflare Workers Free and D1** at https://ccinfobar-market.alp-adalar.workers.dev, with GitHub sign-in for publishers. It went live on 2026-10-18. The live smoke test passed: GitHub sign-in, publish, review and approve, install on a second computer, report and resolve, a 229 KB entry, withdraw and sign-out.
+- **Default endpoint**: ccinfobar uses https://ccinfobar-market.alp-adalar.workers.dev as the default. `ccinfobar catalog endpoint --off` or `CCINFOBAR_MARKETPLACE_URL=off` switches the marketplace off, and a URL you set with `ccinfobar catalog endpoint <url>` or `CCINFOBAR_MARKETPLACE_URL` wins. Nothing is ever sent without an explicit action (see [Requests budget](#requests-budget)).
 - What exists: protocol v1 (`src/market/protocol.ts`) with additive routes for sign-in, accounts, reports and moderation; the client (`src/market/client.ts`); browse, install, publish, sign-in and report in the CLI and the web editor; the Worker (`src/market/worker/`); and a reference server for tests and self-hosting.
 - The marketplace is free, open source and non-commercial: no paid plans, no ads, no revenue.
 
@@ -151,7 +151,7 @@ The servers also answer `500 internal`. Static hosts answer without a JSON body,
 - **Explicit only**: no background job and nothing on the status line render path loads the client (`test/foundations/import-graph.test.ts` checks this). See [Requests budget](#requests-budget).
 - **Confirmation**: publish shows each payload and names the endpoint before anything is sent. It is not blocked by `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, because the user asked for it, and the confirmation says so. The review reads `meta.json` first, so it shows the action the server will really do and, on a token server, the registration a first publish makes. The CLI and the web editor compute the same hash over the endpoint, the plan and the registration; the CLI plans again after you confirm, and the editor sends the reviewed hash. If it differs, nothing is sent and the new plan is shown. Each entry is then sent only while its rev and payload still equal the reviewed ones (otherwise it is reported as changed after the review). On a server with GitHub sign-in, publish asks you to run `ccinfobar catalog login` first.
 - **Identity**: tokens and handles are kept per endpoint (origin plus base path), so `https://host.example/team-a` and `https://host.example/team-b` never share a token or a handle. On a token server, the first publish registers a handle: the one set with `ccinfobar catalog publisher <handle>` (or the field in the editor's publish review) for that endpoint, else the author as a slug. On a GitHub server the handle comes from your GitHub login and cannot be set. The marketplace token goes to `catalog/credentials.json` (0600) and is never printed or logged. A refused token points to `catalog login` (GitHub) or `catalog publisher --forget` (token servers).
-- **Configuration**: `ccinfobar catalog endpoint <url>` stores the endpoint in `catalog/profile.json`; `CCINFOBAR_MARKETPLACE_URL` overrides it (`off` switches it off). `ccinfobar catalog endpoint --off` stores `"endpoint": false`, which switches the marketplace off (older builds read it as no endpoint); `ccinfobar catalog endpoint --clear` removes the stored value so the default applies again. The bare command shows the endpoint and its source. Order: environment, stored URL, stored off switch, shipped default (set at the first deploy).
+- **Configuration**: `ccinfobar catalog endpoint <url>` stores the endpoint in `catalog/profile.json`; `CCINFOBAR_MARKETPLACE_URL` overrides it (`off` switches it off). `ccinfobar catalog endpoint --off` stores `"endpoint": false`, which switches the marketplace off (older builds read it as no endpoint); `ccinfobar catalog endpoint --clear` removes the stored value so the default applies again. The bare command shows the endpoint and its source. Order: environment, stored URL, stored off switch, shipped default (https://ccinfobar-market.alp-adalar.workers.dev).
 - **Cache**: see [Requests budget](#requests-budget). The cache lives in the cache directory under `market/<16 hex>/`, one folder per endpoint.
 
 ### Reports and moderation from the CLI
@@ -348,7 +348,7 @@ All commands run from `worker/`, so wrangler reads `worker/wrangler.jsonc` with 
 ### Deploy
 
 - GitHub Actions → **Marketplace deploy** → Run workflow, or `gh workflow run market-deploy.yml --ref main`. A push to `main` that touches the Worker files (`src/market/**`, `src/core/entry-keys.ts`, `src/core/sanitize.ts`, `worker/**`, the build scripts or the workflow) deploys too.
-- The job runs only on `alpadalar/ccinfobar` and only once the repository variable `MARKET_URL` is set (the Worker URL, set at the first deploy). It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, which only the migration and deploy steps get.
+- The job runs only on `alpadalar/ccinfobar` and only once the repository variable `MARKET_URL` is set (the Worker URL, https://ccinfobar-market.alp-adalar.workers.dev). It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, which only the migration and deploy steps get.
 - Steps: `npm ci --ignore-scripts`, `npx vitest run test/market`, `node scripts/build.mjs --worker` (writes the gitignored `worker/dist/index.js`), `wrangler deploy --dry-run`, apply migrations, deploy, then a smoke check of `$MARKET_URL/v1/meta.json` and `$MARKET_URL/`.
 - Sign-in answers `503` until the `GITHUB_CLIENT_SECRET` secret is set (see [Tokens and secrets](#tokens-and-secrets)).
 
@@ -445,7 +445,7 @@ Option A remains possible for a read-only mirror: every read is a `.json` path, 
 - A 24-hour index cache with one conditional request per refresh, and version documents cached for good.
 - Reports and the admin commands.
 - The public landing page with the privacy and removal notice.
-- The default endpoint lands once the Worker URL is known (set at the first deploy).
+- https://ccinfobar-market.alp-adalar.workers.dev as the default endpoint, live since 2026-10-18.
 
 ## Owner decision
 
@@ -459,7 +459,7 @@ Serving:
   [ ] Not now
 
 Terms:               free, open source, non-commercial
-Repo or domain name: Worker ccinfobar-market on workers.dev (URL set at the first deploy)
+Repo or domain name: Worker ccinfobar-market at https://ccinfobar-market.alp-adalar.workers.dev
 Moderation owner:    alpadalar, GitHub id 65018489 (ADMIN_GITHUB_IDS)
 Removal requests to: a GitHub issue on alpadalar/ccinfobar
 Ship as default endpoint in ccinfobar:  [x] yes  [ ] no

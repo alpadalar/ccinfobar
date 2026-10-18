@@ -14,6 +14,7 @@ import {
   writeProfile,
   writePublisher,
 } from '../../src/catalog/store.js';
+import { checkEndpoint } from '../../src/market/endpoint.js';
 import { fakeFetch } from '../fake-fetch.js';
 
 let root = '';
@@ -95,8 +96,9 @@ describe('profile', () => {
 });
 
 describe('marketEndpoint', () => {
-  it('is null by default', () => {
-    expect(marketEndpoint({}, dir)).toBeNull();
+  it('falls back to the shipped default, or null without one', () => {
+    expect(marketEndpoint({}, dir)).toBe(DEFAULT_MARKETPLACE);
+    expect(marketEndpoint({}, dir, null)).toBeNull();
     expect(fs.existsSync(dir)).toBe(false);
   });
 
@@ -120,9 +122,19 @@ describe('marketEndpointInfo (D-12, R-06)', () => {
   const DEF = 'https://m.example.com';
   const env = (v: string) => ({ CCINFOBAR_MARKETPLACE_URL: v });
 
-  it('ships a placeholder until the first deploy', () => {
-    expect(DEFAULT_MARKETPLACE).toBeNull();
-    expect(marketEndpointInfo({}, dir)).toEqual({ url: null, source: 'none' });
+  it('ships the live marketplace as the default (D-12)', () => {
+    expect(DEFAULT_MARKETPLACE).toMatch(/^https:\/\/ccinfobar-market\.[a-z0-9-]+\.workers\.dev$/);
+    expect(checkEndpoint(DEFAULT_MARKETPLACE)?.href).toBe(`${DEFAULT_MARKETPLACE}/`);
+    expect(marketEndpointInfo({}, dir)).toEqual({ url: DEFAULT_MARKETPLACE, source: 'default' });
+    expect(marketEndpointInfo({ CCINFOBAR_MARKETPLACE_URL: 'off' }, dir)).toEqual({
+      url: null,
+      source: 'off',
+    });
+    expect(fs.existsSync(dir)).toBe(false);
+    writeProfile({ endpoint: false }, dir);
+    expect(marketEndpointInfo({}, dir)).toEqual({ url: null, source: 'off' });
+    writeProfile({ endpoint: 'https://set.example.com' }, dir);
+    expect(marketEndpointInfo({}, dir)).toEqual({ url: 'https://set.example.com', source: 'set' });
   });
 
   it('falls back to the default', () => {
