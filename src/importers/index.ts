@@ -395,46 +395,57 @@ export function importFrom(
 ): ImportResult {
   const def = registryDef(source);
   if (def) return loadFromRegistry(def, opts);
+  // never fall through to another tool
+  if (!isLegacy(source)) throw new Error(String(source));
   const result = importLegacy(source, opts);
   const command = opts.command ?? '';
-  if (isLegacy(source)) {
-    const name = LEGACY_INFO.find((i) => i.source === source)?.name ?? source;
-    const note = otherCommandNote(command, LEGACY_RUNS[source](command), name);
-    if (note) result.notes.unshift(note);
-  }
+  const name = LEGACY_INFO.find((i) => i.source === source)?.name ?? source;
+  const note = otherCommandNote(command, LEGACY_RUNS[source](command), name);
+  if (note) result.notes.unshift(note);
   return result;
 }
 
 function importLegacy(
-  source: ImportSource,
+  source: LegacySource,
   opts: { file?: string; command?: string; env?: NodeJS.ProcessEnv; cwd?: string },
 ): ImportResult {
   const env = opts.env ?? process.env;
   const command = opts.command ?? '';
-  if (source === 'cship') {
-    const cwd = opts.cwd ?? process.cwd();
-    const found = opts.file
-      ? { file: opts.file, table: cshipTable(opts.file), note: null }
-      : cshipDiscover({ command, cwd, env });
-    return importCshipFrom(found, homeOf(env));
+  switch (source) {
+    case 'cship': {
+      const cwd = opts.cwd ?? process.cwd();
+      const found = opts.file
+        ? { file: opts.file, table: cshipTable(opts.file), note: null }
+        : cshipDiscover({ command, cwd, env });
+      return importCshipFrom(found, homeOf(env));
+    }
+    case 'ccstatusline': {
+      const file = opts.file ?? ccstatuslinePath(env, command);
+      const raw = readJson(file);
+      if (!raw) throw new Error(t('import.cannotRead', { file: shownFile(file, homeOf(env)) }));
+      return { ...importCcstatusline(raw), file };
+    }
+    case 'ccometixline':
+      return importCclineFamily(opts.file, { command, home: homeOf(env) }, CCOMETIXLINE);
+    case 'claude-hud':
+      return importHud(opts.file, command, env);
+    case 'claude-powerline': {
+      const files = opts.file ? [opts.file] : powerlinePaths(env, command, opts.cwd ?? process.cwd());
+      const file = files.find(isFile) ?? null;
+      const raw = file ? readJson(file) : {};
+      if (file && raw === null) {
+        throw new Error(t('import.cannotParse', { file: shownFile(file, homeOf(env)) }));
+      }
+      const result = importClaudePowerline(raw, parsePowerlineArgs(command));
+      if (!file)
+        result.notes.unshift({ kind: 'info', text: t('import.note.defaultLayout', { tool: source }) });
+      return { ...result, file };
+    }
+    default: {
+      const unreachable: never = source;
+      throw new Error(String(unreachable));
+    }
   }
-  if (source === 'ccstatusline') {
-    const file = opts.file ?? ccstatuslinePath(env, command);
-    const raw = readJson(file);
-    if (!raw) throw new Error(t('import.cannotRead', { file: shownFile(file, homeOf(env)) }));
-    return { ...importCcstatusline(raw), file };
-  }
-  if (source === 'ccometixline') {
-    return importCclineFamily(opts.file, { command, home: homeOf(env) }, CCOMETIXLINE);
-  }
-  if (source === 'claude-hud') return importHud(opts.file, command, env);
-  const files = opts.file ? [opts.file] : powerlinePaths(env, command, opts.cwd ?? process.cwd());
-  const file = files.find(isFile) ?? null;
-  const raw = file ? readJson(file) : {};
-  if (file && raw === null) throw new Error(t('import.cannotParse', { file: shownFile(file, homeOf(env)) }));
-  const result = importClaudePowerline(raw, parsePowerlineArgs(command));
-  if (!file) result.notes.unshift({ kind: 'info', text: t('import.note.defaultLayout', { tool: source }) });
-  return { ...result, file };
 }
 
 export function toConfig(result: ImportResult): Config {

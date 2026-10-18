@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { IMPORT_SOURCES, type ImportSource, resolveSource } from '../../src/importers/index.js';
+import { IMPORT_SOURCES, type ImportSource, importFrom, resolveSource } from '../../src/importers/index.js';
 import { homeOf, readJsonTool, readToml } from '../../src/importers/io.js';
 import {
   type ImportCtx,
@@ -144,6 +144,10 @@ describe('makeCtx', () => {
 });
 
 describe('registry', () => {
+  it('refuses a source with no importer instead of falling through', () => {
+    expect(() => importFrom('no-such-tool' as ImportSource, { env: {} })).toThrow('no-such-tool');
+  });
+
   it('lists the legacy tools and registry tools in IMPORT_SOURCES order', () => {
     expect(importerList().map((i) => i.source)).toEqual([...IMPORT_SOURCES]);
     expect(LEGACY_INFO.map((i) => i.source)).toEqual([
