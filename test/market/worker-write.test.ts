@@ -399,6 +399,55 @@ describe.skipIf(!hasSqlite)('worker writes', () => {
       expect(await t.versions('bob', 'wait')).toEqual([1]);
     });
 
+    it('the database size guard is checked again inside the batch (cap audit)', async () => {
+      const t = await setup({ vars: { MAX_DB_BYTES: '1000000000' } });
+      const alp = await t.account('alp', 7);
+      t.before(async () => {
+        await t.db.prepare("UPDATE counters SET n = 1000000000 WHERE k = 'bytes'").run();
+      });
+      const r = await t.call('POST', '/v1/entries', { token: alp, body: publishBody('mine') });
+      expect(await error(r)).toEqual({
+        status: 413,
+        code: 'over-quota',
+        message: 'marketplace storage is full',
+      });
+      expect(await t.versions('alp', 'mine')).toEqual([]);
+    });
+
+    it('the pending caps are checked again inside the batch (cap audit)', async () => {
+      const t = await setup({ vars: { PENDING_PER_PUBLISHER: '1', PENDING_ENTRIES: '2' } });
+      await seedPublisher(t.db, { handle: 'bob', githubId: 8 });
+      const bob = await seedToken(t.db, 'bob');
+      t.before(async () => {
+        await seedEntry(
+          t.db,
+          { id: 'bob/other', state: 'pending', versions: [{ content: preset() }] },
+          { rebuild: false },
+        );
+      });
+      const r = await t.call('POST', '/v1/entries', { token: bob, body: publishBody('mine') });
+      expect(await error(r)).toMatchObject({
+        status: 413,
+        message: 'too many entries waiting for review for this publisher',
+      });
+      expect(await t.versions('bob', 'mine')).toEqual([]);
+      await seedPublisher(t.db, { handle: 'cem', githubId: 9 });
+      const cem = await seedToken(t.db, 'cem');
+      t.before(async () => {
+        await seedEntry(
+          t.db,
+          { id: 'dan/other', state: 'pending', versions: [{ content: preset() }] },
+          { rebuild: false },
+        );
+      });
+      const full = await t.call('POST', '/v1/entries', { token: cem, body: publishBody('mine') });
+      expect(await error(full)).toMatchObject({
+        status: 413,
+        message: 'too many entries waiting for review',
+      });
+      expect(await t.versions('cem', 'mine')).toEqual([]);
+    });
+
     it('a banned publisher cannot write', async () => {
       const t = await setup();
       const token = await t.account('bad', 7, { banned: true });

@@ -305,6 +305,7 @@ describe('worker migrations', () => {
           { k: 'publishers', n: 0 },
           { k: 'rebuild_day', n: 0 },
           { k: 'rebuild_rows', n: 0 },
+          { k: 'rebuilding', n: 0 },
           { k: 'rebuilt_at', n: 0 },
           { k: 'takedown', n: 0 },
           { k: 'tombs', n: 0 },

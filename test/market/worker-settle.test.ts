@@ -4,8 +4,8 @@ import { parseIndex } from '../../src/market/protocol.js';
 import type { D1Database, D1PreparedStatement, Env } from '../../src/market/worker/env.js';
 import { createHandler } from '../../src/market/worker/handler.js';
 import worker from '../../src/market/worker/index.js';
-import { REBUILD_GAP_MS, scheduled } from '../../src/market/worker/settle.js';
-import { indexState, readIndexPage } from '../../src/market/worker/store.js';
+import { REBUILD_GAP_MS, REBUILD_LEASE_MS, scheduled } from '../../src/market/worker/settle.js';
+import { claimHandle, indexState, readIndexPage } from '../../src/market/worker/store.js';
 import { d1, hasSqlite } from './d1-sqlite.js';
 import { makeEnv, migrationFiles } from './worker-env.js';
 import { seedPublisher, seedToken } from './worker-seed.js';
@@ -287,5 +287,59 @@ describe.skipIf(!hasSqlite)('worker hidden pending ids (IN-01)', () => {
       expect((await t.call('DELETE', `/v1/entries/bob/${slug}`, alp)).status, slug).toBe(403);
     }
     expect((await t.call('DELETE', '/v1/entries/alp/nope', alp)).status).toBe(404);
+  });
+});
+
+describe.skipIf(!hasSqlite)('worker caps under concurrency (cap audit)', () => {
+  const lease = (db: D1Database) => db.prepare("SELECT n FROM counters WHERE k = 'rebuilding'").first('n');
+
+  async function stale() {
+    const t = await setup({ INDEX_REBUILD_ROWS: '1' });
+    const alp = await t.account('alp', 7);
+    expect((await t.call('POST', '/v1/entries', alp, publishBody('a'))).status).toBe(201);
+    expect((await t.call('POST', '/v1/entries', alp, publishBody('b'))).status).toBe(201);
+    expect(t.state.rebuilds).toBe(1);
+    t.clock.advance(REBUILD_GAP_MS);
+    return t;
+  }
+
+  it('concurrent index reads past the budget run one rebuild, not one each', async () => {
+    const t = await stale();
+    const all = await Promise.all(Array.from({ length: 8 }, () => t.call('GET', '/v1/index.json')));
+    expect(all.map((r) => r.status)).toEqual(Array(8).fill(200));
+    expect(t.state.rebuilds).toBe(2);
+    expect(await t.stored()).toEqual(['alp/a', 'alp/b']);
+    expect(await lease(t.raw)).toBe(0);
+  });
+
+  it('a held lease stops a rebuild until it is released or 30 s old', async () => {
+    const t = await stale();
+    await t.raw.prepare("UPDATE counters SET n = ?1 WHERE k = 'rebuilding'").bind(t.clock.now()).run();
+    expect(await t.ids()).toEqual(['alp/a']);
+    t.clock.advance(REBUILD_LEASE_MS + 1);
+    expect(await t.ids()).toEqual(['alp/a', 'alp/b']);
+    expect(await lease(t.raw)).toBe(0);
+  });
+
+  it('a failed rebuild gives the lease back', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const t = await stale();
+    t.state.fail = 1;
+    expect(await t.ids()).toEqual(['alp/a']);
+    expect(await lease(t.raw)).toBe(0);
+    expect(await t.ids()).toEqual(['alp/a', 'alp/b']);
+  });
+
+  it('concurrent sign-ups never pass the publishers cap', async () => {
+    const { env } = await makeEnv();
+    await env.DB.prepare("UPDATE counters SET n = 9 WHERE k = 'publishers'").run();
+    const got = await Promise.all(
+      [1, 2, 3].map((id) =>
+        claimHandle(env.DB, { id, login: `u${id}`, name: `U${id}` }, `u${id}`, 'now', 10),
+      ),
+    );
+    expect(got.filter((g) => typeof g === 'object')).toHaveLength(1);
+    expect(got.filter((g) => g === 'full')).toHaveLength(2);
+    expect(await env.DB.prepare("SELECT n FROM counters WHERE k = 'publishers'").first('n')).toBe(10);
   });
 });

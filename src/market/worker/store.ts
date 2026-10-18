@@ -85,7 +85,35 @@ export async function rebuildIndex(db: D1Database, iso: string, now = Date.parse
         "UPDATE counters SET n = iif(k = 'rebuild_day', ?1, ?2) WHERE k IN ('rebuild_day', 'rebuilt_at')",
       )
       .bind(day, now),
+    releaseRebuild(db, now),
   ]);
+}
+
+// the lease of the rebuild that started at now, if still held
+export const releaseRebuild = (db: D1Database, now: number): D1PreparedStatement =>
+  db.prepare("UPDATE counters SET n = 0 WHERE k = 'rebuilding' AND n = ?1").bind(now);
+
+export interface RebuildClaim {
+  // a takedown or the cron: the budget does not apply
+  free: boolean;
+  day: number;
+  budget: number;
+  gapMs: number;
+  leaseMs: number;
+}
+
+// one atomic claim, so concurrent requests cannot all pass the budget or run side by side
+export async function claimRebuild(db: D1Database, now: number, c: RebuildClaim): Promise<boolean> {
+  const row = await db
+    .prepare(
+      `UPDATE counters SET n = ?1 WHERE k = 'rebuilding' AND (n = 0 OR n < ?1 - ?2)
+         AND (?3 = 1 OR ${COUNTER('rebuild_day')} <> ?4 OR ${COUNTER('rebuild_rows')} < ?5
+           OR ${COUNTER('rebuilt_at')} <= ?1 - ?6)
+       RETURNING n`,
+    )
+    .bind(now, c.leaseMs, c.free ? 1 : 0, c.day, c.budget, c.gapMs)
+    .first();
+  return row !== null;
 }
 
 export interface IndexState {
@@ -284,10 +312,11 @@ export interface PublishCaps {
   pendingPerPublisher: number;
 }
 
-// live and pending bytes one publisher may store
+// live and pending bytes one publisher may store, and the database size writes stop at
 export interface Room {
   live: number;
   pending: number;
+  db: number;
 }
 
 // the bytes after this batch's own change, so racing writes cannot pass them (IN-06)
@@ -295,9 +324,10 @@ const requireRoom = (db: D1Database, p: string, s: string, r: Room): D1PreparedS
   db
     .prepare(
       `SELECT json_extract('{}', iif(iif((SELECT state FROM entries WHERE publisher = ?1 AND slug = ?2) = 'pending',
-         ${MINE('pending_bytes')} <= ?4, ${MINE('bytes - pending_bytes')} <= ?3), '$', ${OVER})) AS ok`,
+         ${MINE('pending_bytes')} <= ?4, ${MINE('bytes - pending_bytes')} <= ?3)
+         AND ${COUNTER('bytes')} < ?5, '$', ${OVER})) AS ok`,
     )
-    .bind(p, s, r.live, r.pending);
+    .bind(p, s, r.live, r.pending, r.db);
 
 export interface NewEntry {
   entry: StoredEntry;

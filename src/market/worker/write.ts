@@ -69,7 +69,11 @@ async function stillWriter(db: D1Database, req: Request): Promise<void> {
 const MINE_FULL = 'publisher storage limit reached';
 const REVIEW_FULL = 'publisher review storage limit reached';
 
-const roomOf = (env: Env): Room => ({ live: publisherBytes(env), pending: pendingCaps(env).bytes });
+const roomOf = (env: Env): Room => ({
+  live: publisherBytes(env),
+  pending: pendingCaps(env).bytes,
+  db: maxDbBytes(env),
+});
 
 // the shared Free database and each publisher stay under their caps (R-01); pending content apart (WR-02)
 async function room(db: D1Database, env: Env, handle: string, bytes: number, pending: boolean) {
