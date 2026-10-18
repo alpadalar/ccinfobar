@@ -204,7 +204,7 @@ const etagOf = (h: Headers): string | null => {
 const ifTag = (etag: string | null): { ifNoneMatch?: string } =>
   etag !== null && ETAG_RE.test(etag) ? { ifNoneMatch: etag } : {};
 
-const noteBody = (note?: string): { note: string } | undefined => (note === undefined ? undefined : { note });
+const noteBody = (note?: string): { note?: string } => (note === undefined ? {} : { note });
 
 export type Changed<K extends string, T> =
   | { changed: false }
@@ -433,7 +433,7 @@ export function createMarketClient(opts: MarketClientOpts) {
         await call(
           'POST',
           route(() => adminResolvePath(reportId)),
-          undefined,
+          {},
           { auth: true },
         );
       },

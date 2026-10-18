@@ -698,11 +698,11 @@ describe('market client accounts, admin and conditional reads', () => {
     expect(calls.map((x) => [x.method, x.url.slice(BASE.length), x.body ?? null])).toEqual([
       ['GET', '/v1/admin/entries/alp/mini', null],
       ['POST', '/v1/admin/entries/alp/mini/approve', '{"note":"looks fine"}'],
-      ['POST', '/v1/admin/entries/alp/mini/reject', null],
+      ['POST', '/v1/admin/entries/alp/mini/reject', '{}'],
       ['POST', '/v1/admin/entries/alp/mini/remove', '{"note":"spam"}'],
       ['POST', '/v1/admin/publishers/bob/ban', '{"note":"abuse"}'],
-      ['POST', '/v1/admin/publishers/bob/unban', null],
-      ['POST', '/v1/admin/reports/4/resolve', null],
+      ['POST', '/v1/admin/publishers/bob/unban', '{}'],
+      ['POST', '/v1/admin/reports/4/resolve', '{}'],
     ]);
     expect(calls[1]!.headers['if-match']).toBe(`"${H}-3"`);
     expect(calls.every((x) => x.headers.authorization === 'Bearer tok-1')).toBe(true);

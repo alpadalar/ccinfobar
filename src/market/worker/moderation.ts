@@ -54,7 +54,13 @@ export function cleanText(v: string, max: number): string {
 
 // an empty request has no note
 async function readNote(req: Request): Promise<string> {
-  if (!req.body && !req.headers.get('content-type')) return '';
+  // workerd hands a bodyless POST an empty stream, so read it before asking for JSON
+  if (!req.headers.get('content-type')) {
+    if (!req.body) return '';
+    const text = await req.text();
+    if (text.trim() === '') return '';
+    throw fail(415, 'unsupported-media');
+  }
   const raw = await readJsonBody(req, NOTE_BODY_CAP);
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw fail(400, 'invalid');
   const note = (raw as { note?: unknown }).note;

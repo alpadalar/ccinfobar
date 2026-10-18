@@ -134,9 +134,14 @@ async function setup(vars: Partial<Env> = {}) {
     Object.assign(headers, o.headers);
     if (o.token) headers.authorization = `Bearer ${o.token}`;
     const body =
-      o.body === undefined ? undefined : typeof o.body === 'string' ? o.body : JSON.stringify(o.body);
+      o.body === undefined || o.body instanceof Uint8Array || typeof o.body === 'string'
+        ? o.body
+        : JSON.stringify(o.body);
+    for (const [k, v] of Object.entries(headers)) if (v === '') delete headers[k];
     c.n.v = 0;
-    return handler.fetch(new Request(BASE + p, { method, headers, ...(body === undefined ? {} : { body }) }));
+    return handler.fetch(
+      new Request(BASE + p, { method, headers, ...(body === undefined ? {} : { body: body as BodyInit }) }),
+    );
   };
   const signIn = async (who: keyof typeof GH): Promise<string> => {
     const r = await call('POST', '/v1/auth/github', { body: { token: GH[who] } });
@@ -589,6 +594,36 @@ describe.skipIf(!hasSqlite)('worker moderation', () => {
     expect((await s.call('POST', '/v1/admin/publishers/Bad/ban', { token: s.admin })).status).toBe(400);
     expect((await s.call('POST', '/v1/admin/publishers/pub/mute', { token: s.admin })).status).toBe(404);
     expect((await s.publisher('alpadalar'))!.banned_at).toBeNull();
+  });
+
+  it('takes bodyless admin actions the way workerd delivers them, as an empty stream', async () => {
+    const s = await setup();
+    const pub = await s.signIn('pub');
+    const admin = await s.signIn('admin');
+    const other = await s.signIn('other');
+    await s.call('POST', '/v1/entries', { token: pub, body: publishBody('one') });
+    const pin = await s.pin('pub/one', admin);
+    const empty = { 'content-type': '' };
+    expect(
+      (
+        await s.call('POST', action('pub/one', 'approve'), {
+          token: admin,
+          headers: { ...empty, ...pin },
+          body: new Uint8Array(0),
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await s.call('POST', reportPath('pub/one'), { token: other, body: { reason: 'spam' } })).status,
+    ).toBe(201);
+    const r = await s.call('POST', adminResolvePath(1), {
+      token: admin,
+      headers: empty,
+      body: new Uint8Array(0),
+    });
+    expect(r.status).toBe(200);
+    const bad = await s.call('POST', adminResolvePath(1), { token: admin, headers: empty, body: 'x' });
+    expect(bad.status).toBe(415);
   });
 
   it('takes one short sanitized report per entry and reporter', async () => {
