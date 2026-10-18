@@ -62,6 +62,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The marketplace server allows 60 reads a minute per address instead of 600, so one address can no longer use up the shared 100,000 requests a day on its own
 - The marketplace server answers `403` to writes on another publisher's entry before looking it up, so signed-in users can no longer find out whether a hidden pending entry exists
 - The marketplace's moderation log tells a publisher withdrawing their own pending entry apart from admin actions (migration `0008_moderation_actor.sql`)
+- After a GitHub sign-in the marketplace server revokes the GitHub token at GitHub, so the token ccinfobar sent once is no longer valid anywhere
 
 ### Security
 

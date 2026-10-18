@@ -121,8 +121,9 @@ describe.skipIf(!hasSqlite)('market client against the Worker', () => {
       if (account) expect(s.auth, s.url).not.toBeNull();
       if (path === '/v1/auth/github') expect(s.auth).toBeNull();
     }
-    // GitHub verified each token with our client id
-    expect(w.gh.calls.filter((c) => c.url.endsWith(`/applications/${CLIENT_ID}/token`))).toHaveLength(3);
+    // GitHub verified each token with our client id, then revoked it
+    const app = w.gh.calls.filter((c) => c.url.endsWith(`/applications/${CLIENT_ID}/token`));
+    expect(app.map((c) => c.method)).toEqual(['POST', 'DELETE', 'POST', 'DELETE', 'POST', 'DELETE']);
 
     const tables = (await w.db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")

@@ -29,6 +29,7 @@ const LOGIN_RE = /^[A-Za-z0-9](?:-?[A-Za-z0-9]){0,38}$/;
 const BODY_CAP = 4096;
 const ANSWER_CAP = 16 * 1024;
 const TIMEOUT_MS = 8000;
+const REVOKE_MS = 3000;
 const HANDLE_MAX = 39;
 const LAST_VARIANT = 20;
 const KEEP_TOKENS = 10;
@@ -129,6 +130,24 @@ async function viaCheckToken(
   return b.user === undefined || b.user === null ? viaUser(deps, token) : toUser(b.user);
 }
 
+// best effort: GitHub forgets the token after its one use (IN-03)
+async function revoke(deps: WorkerDeps, token: string, clientId: string, secret: string): Promise<void> {
+  try {
+    const res = await deps.fetch(`${API}/applications/${clientId}/token`, {
+      method: 'DELETE',
+      headers: {
+        ...GITHUB_HEADERS,
+        authorization: `Basic ${btoa(`${clientId}:${secret}`)}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ access_token: token }),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(REVOKE_MS),
+    });
+    await res.body?.cancel().catch(() => {});
+  } catch {}
+}
+
 // base, then base-2 … base-20 cut to fit
 export function handleCandidates(login: string): string[] {
   const base = login.toLowerCase();
@@ -166,17 +185,22 @@ export async function signInWithGitHub(env: Env, deps: WorkerDeps, req: Request)
     raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as { token?: unknown }).token : undefined;
   if (typeof token !== 'string' || !GITHUB_TOKEN_RE.test(token)) throw fail(400, 'invalid');
   const user = secret ? await viaCheckToken(deps, token, clientId, secret) : await viaUser(deps, token);
-  const at = iso(deps);
-  const account = await accountFor(env, deps, user, at);
-  if (account.banned) throw fail(403, 'banned');
-  const mine = randomToken();
-  await db.batch(tokenStatements(db, account.handle, await sha256Hex(mine), at, KEEP_TOKENS));
-  return json(200, {
-    handle: account.handle,
-    token: mine,
-    displayName: account.displayName,
-    admin: isAdmin(env, account.githubId),
-  });
+  try {
+    const at = iso(deps);
+    const account = await accountFor(env, deps, user, at);
+    if (account.banned) throw fail(403, 'banned');
+    const mine = randomToken();
+    await db.batch(tokenStatements(db, account.handle, await sha256Hex(mine), at, KEEP_TOKENS));
+    return json(200, {
+      handle: account.handle,
+      token: mine,
+      displayName: account.displayName,
+      admin: isAdmin(env, account.githubId),
+    });
+  } finally {
+    // only our own app's tokens can be revoked
+    if (secret) await revoke(deps, token, clientId, secret);
+  }
 }
 
 const bearer = async (req: Request): Promise<string | null> => {

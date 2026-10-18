@@ -83,6 +83,10 @@ export function fakeGitHub(o: FakeGitHubOpts): { fetch: typeof fetch; calls: Fak
         ...(ct.noUser ? {} : { user }),
       });
     }
+    if (check && req.method === 'DELETE' && ct) {
+      const okAuth = headers.authorization === `Basic ${btoa(`${ct.clientId}:${ct.secret}`)}`;
+      return okAuth && check[1] === ct.clientId ? new Response(null, { status: 204 }) : json(404, {});
+    }
     if (url.pathname === '/user' && req.method === 'GET') {
       const m = /^Bearer (.+)$/.exec(headers.authorization ?? '');
       const user = m ? o.users[m[1]!] : undefined;

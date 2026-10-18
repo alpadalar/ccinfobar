@@ -401,7 +401,7 @@ describe.skipIf(!hasSqlite)('worker check-token hardening', () => {
     const s = await setup(checked(), { GITHUB_CLIENT_SECRET: secret });
     const b = await ok(await s.signIn(T1));
     expect(b.handle).toBe('octo');
-    expect(s.fake.calls).toHaveLength(1);
+    expect(s.fake.calls).toHaveLength(2);
     const c = s.fake.calls[0]!;
     expect(c.method).toBe('POST');
     expect(c.url).toBe(`https://api.github.com/applications/${CLIENT_ID}/token`);
@@ -410,6 +410,36 @@ describe.skipIf(!hasSqlite)('worker check-token hardening', () => {
     expect(c.headers['x-github-api-version']).toBe('2026-03-10');
     expect(c.headers['user-agent']).toBe('ccinfobar-market');
     expect(JSON.parse(c.body)).toEqual({ access_token: T1 });
+    // then the token is revoked at GitHub (IN-03)
+    const d = s.fake.calls[1]!;
+    expect(d.method).toBe('DELETE');
+    expect(d.url).toBe(c.url);
+    expect(d.headers.authorization).toBe(c.headers.authorization);
+    expect(JSON.parse(d.body)).toEqual({ access_token: T1 });
+  });
+
+  it('revokes the token also for a banned publisher, and a failed revoke never fails the sign-in', async () => {
+    const s = await setup(checked(), { GITHUB_CLIENT_SECRET: secret });
+    await seedPublisher(s.db, { handle: 'octo', githubId: 1, banned: true });
+    expect((await s.signIn(T1)).status).toBe(403);
+    expect(s.fake.calls.map((c) => c.method)).toEqual(['POST', 'DELETE']);
+    const failing = fakeGitHub(checked());
+    const { env, clock } = await makeEnv({ GITHUB_CLIENT_SECRET: secret, SIGNIN_LIMIT: '50' });
+    const h = createHandler(env, {
+      now: clock.now,
+      fetch: (async (i: RequestInfo | URL, o?: RequestInit) => {
+        if (o?.method === 'DELETE') throw new Error('network down');
+        return failing.fetch(i, o);
+      }) as typeof fetch,
+    });
+    const r = await h.fetch(
+      new Request(`${BASE}/v1/auth/github`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: T1 }),
+      }),
+    );
+    expect(r.status).toBe(200);
   });
 
   it('answers 401 when GitHub does not know the token for our app', async () => {
@@ -435,7 +465,10 @@ describe.skipIf(!hasSqlite)('worker check-token hardening', () => {
       ALLOW_UNVERIFIED_GITHUB_TOKENS: undefined,
     });
     expect((await ok(await s.signIn(T1))).handle).toBe('octo');
-    expect(s.fake.calls.map((c) => new URL(c.url).pathname)).toEqual([`/applications/${CLIENT_ID}/token`]);
+    expect(s.fake.calls.map((c) => [c.method, new URL(c.url).pathname])).toEqual([
+      ['POST', `/applications/${CLIENT_ID}/token`],
+      ['DELETE', `/applications/${CLIENT_ID}/token`],
+    ]);
   });
 
   it('answers 503 when neither the secret nor the opt-out is set, before any GitHub call or row write', async () => {
@@ -477,6 +510,7 @@ describe.skipIf(!hasSqlite)('worker check-token hardening', () => {
     expect(s.fake.calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
       `POST /applications/${CLIENT_ID}/token`,
       'GET /user',
+      `DELETE /applications/${CLIENT_ID}/token`,
     ]);
   });
 
