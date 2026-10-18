@@ -12,7 +12,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -31,7 +31,7 @@ jobs:
         node: [20, 22, 24, 26]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
@@ -57,7 +57,7 @@ jobs:
       LANG: tr_TR.UTF-8
       LC_ALL: tr_TR.UTF-8
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Generate the Turkish locale
         if: runner.os == 'Linux'
         shell: bash
@@ -82,7 +82,7 @@ jobs:
         node: [20, 26]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
@@ -99,7 +99,7 @@ jobs:
   plugin:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: 22
