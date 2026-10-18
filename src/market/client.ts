@@ -245,6 +245,8 @@ export function createMarketClient(opts: MarketClientOpts) {
         timeoutMs: opts.timeoutMs ?? TIMEOUT_MS,
         capBytes: opts.capBytes ?? o.cap ?? CAP_BYTES,
         headers,
+        // the token never follows a redirect, not even to another path on the host (IN-09)
+        ...(headers.authorization ? { maxRedirects: 0 } : {}),
         method,
         body,
         errorBody: true,

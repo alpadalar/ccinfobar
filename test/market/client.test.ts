@@ -329,6 +329,19 @@ describe('market client', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('an authenticated read never follows a redirect, a public one still does (IN-09)', async () => {
+    const me = client([redirect(`${BASE}/team-b/v1/me`)], { token: 'tok-1' });
+    expect((await failure(me.c.me())).code).toBe('too-many-redirects');
+    expect(me.calls).toHaveLength(1);
+    const admin = client([redirect('/elsewhere')], { token: 'tok-1' });
+    expect((await failure(admin.c.admin.pending())).code).toBe('too-many-redirects');
+    expect(admin.calls).toHaveLength(1);
+    const pub = client([redirect('/v1/index-moved.json'), json({ entries: [] })], { token: 'tok-1' });
+    expect((await pub.c.index()).entries).toEqual([]);
+    expect(pub.calls).toHaveLength(2);
+    expect(pub.calls.map((x) => x.headers.authorization ?? null)).toEqual([null, null]);
+  });
+
   it('redirects are same-origin, max 3, never on writes', async () => {
     const cross = client([redirect('https://other.example/v1/index.json')]);
     expect((await failure(cross.c.index())).code).toBe('redirect');
