@@ -272,3 +272,20 @@ describe.skipIf(!hasSqlite)('worker takedowns past the budget (moderation audit)
     expect(st).toBe('pending');
   });
 });
+
+describe.skipIf(!hasSqlite)('worker hidden pending ids (IN-01)', () => {
+  it('answers 403 for any id of another publisher, existing, pending or missing', async () => {
+    const t = await setup({ ALLOW_OVERWRITE: 'true' });
+    const alp = await t.account('alp', 7);
+    const bob = await t.account('bob', 8, false);
+    expect((await t.call('POST', '/v1/entries', bob, publishBody('wait'))).status).toBe(201);
+    for (const slug of ['wait', 'nope']) {
+      const body = { content: preset('cwd') };
+      const v = await t.call('POST', `/v1/entries/bob/${slug}/versions`, alp, body, { 'if-match': '"1"' });
+      expect(v.status, slug).toBe(403);
+      expect((await t.call('PUT', `/v1/entries/bob/${slug}/versions/1`, alp, body)).status, slug).toBe(403);
+      expect((await t.call('DELETE', `/v1/entries/bob/${slug}`, alp)).status, slug).toBe(403);
+    }
+    expect((await t.call('DELETE', '/v1/entries/alp/nope', alp)).status).toBe(404);
+  });
+});

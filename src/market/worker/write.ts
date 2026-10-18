@@ -182,9 +182,10 @@ export async function addVersion(
 ): Promise<Response> {
   const raw = await readJsonBody(req, MARKET_LIMITS.maxBodyBytes);
   const who = await writer(db, env, deps, req);
+  // another publisher's id answers 403 before any lookup, so hidden pending ids stay hidden (IN-01)
+  if (who.handle !== p) throw fail(403, 'forbidden');
   const row = await readEntryRow(db, p, s);
   if (!row) throw fail(404, 'not-found');
-  if (who.handle !== p) throw fail(403, 'forbidden');
   if (gone(row.state)) throw fail(410, 'withdrawn');
   const m = IF_MATCH_RE.exec(req.headers.get('if-match') ?? '');
   if (!m || Number(m[1]) !== row.version) throw fail(412, 'stale');
@@ -246,9 +247,9 @@ export async function overwrite(
   const raw = await readJsonBody(req, MARKET_LIMITS.maxBodyBytes);
   const who = await writer(db, env, deps, req);
   if (!overwriteOn(env)) throw fail(403, 'overwrite-disabled');
+  if (who.handle !== p) throw fail(403, 'forbidden');
   const row = await readEntryRow(db, p, s);
   if (!row) throw fail(404, 'not-found');
-  if (who.handle !== p) throw fail(403, 'forbidden');
   if (gone(row.state)) throw fail(410, 'withdrawn');
   if (n !== row.version) throw fail(409, 'conflict', LATEST_ONLY);
   const payload = parseVersionPayload(raw);
@@ -301,10 +302,10 @@ export async function withdraw(
   const who = await writer(db, env, deps, req);
   const done = () => json(200, { id: `${p}/${s}`, withdrawn: true });
   const gate = () => requireWriter(db, who.digest, who.handle);
+  if (who.handle !== p) throw fail(403, 'forbidden');
   for (let i = 0; i < 3; i++) {
     const row = await readEntryRow(db, p, s);
     if (!row) throw fail(404, 'not-found');
-    if (who.handle !== p) throw fail(403, 'forbidden');
     if (gone(row.state)) return done();
     const at = iso(deps);
     // never public, so nothing to keep
