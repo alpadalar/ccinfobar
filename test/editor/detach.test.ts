@@ -76,13 +76,14 @@ describe('detached editor server', () => {
   });
 
   it('a request postpones the idle shutdown', async () => {
-    handle = await start(1000);
-    await sleep(600);
+    // wide margins: Windows runners can stall a request for a second
+    handle = await start(4000);
+    await sleep(2500);
     expect(await ping(handle.url)).toBe(200);
-    await sleep(600);
+    await sleep(2500);
     expect(fs.existsSync(stateFile)).toBe(true);
     expect(await pingEditor(handle.url)).toBe(true);
-  });
+  }, 15_000);
 
   it('keeps a state file that holds another pid', async () => {
     handle = await start(60_000);
