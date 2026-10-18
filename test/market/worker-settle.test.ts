@@ -343,3 +343,21 @@ describe.skipIf(!hasSqlite)('worker caps under concurrency (cap audit)', () => {
     expect(await env.DB.prepare("SELECT n FROM counters WHERE k = 'publishers'").first('n')).toBe(10);
   });
 });
+
+describe.skipIf(!hasSqlite)('worker moderation log (IN-02)', () => {
+  it('0008 marks the pending withdraws already logged as publisher actions', async () => {
+    const db = d1();
+    for (const m of migrationFiles()) if (m.name < '0008') await db.exec(m.sql);
+    await db.exec(`INSERT INTO moderation (at, admin, action, target) VALUES
+      ('t', 'pub', 'withdraw-pending', 'pub/a'), ('t', 'boss', 'approve', 'pub/b')`);
+    for (const m of migrationFiles()) if (m.name >= '0008') await db.exec(m.sql);
+    const rows = await (db as unknown as D1Database)
+      .prepare('SELECT action, actor FROM moderation ORDER BY id')
+      .all();
+    expect(rows.results).toEqual([
+      { action: 'withdraw-pending', actor: 'publisher' },
+      { action: 'approve', actor: 'admin' },
+    ]);
+    db.close();
+  });
+});

@@ -664,16 +664,21 @@ export async function myEntries(
 
 export interface LogRow {
   at: string;
+  // the handle that acted
   admin: string;
   action: string;
   target: string;
   note: string;
+  // a publisher acting on their own entry, apart from admin actions (IN-02)
+  actor?: 'admin' | 'publisher';
 }
 
 export const logStatement = (db: D1Database, l: LogRow): D1PreparedStatement =>
   db
-    .prepare('INSERT INTO moderation (at, admin, action, target, note) VALUES (?1, ?2, ?3, ?4, ?5)')
-    .bind(l.at, l.admin, l.action, l.target, l.note);
+    .prepare(
+      'INSERT INTO moderation (at, admin, action, target, note, actor) VALUES (?1, ?2, ?3, ?4, ?5, ?6)',
+    )
+    .bind(l.at, l.admin, l.action, l.target, l.note, l.actor ?? 'admin');
 
 const PENDING_LIST = `SELECT summary, created_at FROM entries WHERE state = 'pending'
   ORDER BY created_at, publisher, slug LIMIT ?1`;

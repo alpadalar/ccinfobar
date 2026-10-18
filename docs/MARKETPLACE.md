@@ -215,7 +215,7 @@ Reads never build JSON. Each entry row keeps its summary and its entry document 
 | `versions` | publisher, slug, version and the version document (NULL once withdrawn or removed) |
 | `index_pages` | the materialized index pages with their generation |
 | `reports` | entry, reporter handle, reason, created and resolved times; one per reporter and entry |
-| `moderation` | every admin action: time, admin handle, action, target, note |
+| `moderation` | every admin action: time, admin handle, action, target, note; a publisher withdrawing their own pending entry is logged with `actor = 'publisher'` (`0008_moderation_actor.sql`), apart from admin actions |
 | `rate`, `salts` | rate limit counters keyed by salted hashes, and one random salt per day |
 | `counters` | the index generation, the generation the index must show (`dirty`), the rows rebuilds read today, the database size, and the counts of live, pending and withdrawn entries and of publishers |
 

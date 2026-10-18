@@ -319,7 +319,13 @@ describe.skipIf(!hasSqlite)('worker review of new publishers', () => {
     expect(await s.publisher('pub')).toMatchObject({ bytes: 0 });
     const log = await s.rows('moderation');
     expect(log).toHaveLength(1);
-    expect(log[0]).toMatchObject({ admin: 'pub', action: 'withdraw-pending', target: 'pub/oops', note: '' });
+    expect(log[0]).toMatchObject({
+      admin: 'pub',
+      action: 'withdraw-pending',
+      target: 'pub/oops',
+      note: '',
+      actor: 'publisher',
+    });
     expect((await s.call('POST', '/v1/entries', { token: pub, body: publishBody('oops') })).status).toBe(201);
   });
 

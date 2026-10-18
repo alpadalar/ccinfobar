@@ -61,6 +61,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - A marketplace write whose index rebuild fails now still answers success instead of `500`, so a retry no longer gets `409` and the local entry stays linked; the index is marked stale in the write's own transaction and the next write, the next index read or a new six-hourly cron job rebuilds it. Rebuilds share a daily database budget (`INDEX_REBUILD_ROWS`), after which they run at most every 10 minutes, and the cron job also deletes old address salts and rate rows, so the two-day deletion promise holds even when nobody signs in (migration `0005_index_dirty.sql`); withdraws, removals and bans never wait for that budget and leave the index at once (migration `0006_takedown.sql`); one rebuild runs at a time under a lease that also claims the budget, so concurrent requests cannot multiply rebuilds (migration `0007_rebuild_lease.sql`), and the database size guard is checked again inside each write
 - The marketplace server allows 60 reads a minute per address instead of 600, so one address can no longer use up the shared 100,000 requests a day on its own
 - The marketplace server answers `403` to writes on another publisher's entry before looking it up, so signed-in users can no longer find out whether a hidden pending entry exists
+- The marketplace's moderation log tells a publisher withdrawing their own pending entry apart from admin actions (migration `0008_moderation_actor.sql`)
 
 ### Security
 

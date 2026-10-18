@@ -314,7 +314,14 @@ export async function withdraw(
     const at = iso(deps);
     // never public, so nothing to keep
     if (row.state === 'pending') {
-      const log = { at, admin: who.handle, action: 'withdraw-pending', target: `${p}/${s}`, note: '' };
+      const log = {
+        at,
+        admin: who.handle,
+        action: 'withdraw-pending',
+        target: `${p}/${s}`,
+        note: '',
+        actor: 'publisher' as const,
+      };
       try {
         await noteSize(db, await db.batch(dropPendingStatements(db, gate(), p, s, log)));
       } catch (err) {
