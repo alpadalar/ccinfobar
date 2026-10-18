@@ -91,7 +91,8 @@ export async function review(env: Env, p: string, s: string): Promise<Response> 
 }
 
 const CHANGED = 'entry changed since review';
-const PIN_RE = /^"([0-9a-f]{64})-([1-9][0-9]{0,15})"$/;
+// Cloudflare weakens ETags on compressed answers, so W/ is accepted
+const PIN_RE = /^(?:W\/)?"([0-9a-f]{64})-([1-9][0-9]{0,15})"$/;
 
 // what the admin reviewed; checked again inside the approve batch
 function pinOf(req: Request): { hash: string; gen: number } {

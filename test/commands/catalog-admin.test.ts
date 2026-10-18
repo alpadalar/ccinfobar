@@ -422,6 +422,45 @@ describe.skipIf(!hasSqlite)('catalog admin moderation against the Worker', () =>
     m.db.close();
   });
 
+  it('approves with the shown tag when Cloudflare weakens the ETag', async () => {
+    const m = await seeded();
+    // compressed answers come back with W/ tags through Cloudflare
+    const weak = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const res = await m.fetch(input, init);
+      const tag = res.headers.get('etag');
+      if (!tag || tag.startsWith('W/')) return res;
+      const headers = new Headers(res.headers);
+      headers.set('etag', `W/${tag}`);
+      return new Response(await res.text(), { status: res.status, headers });
+    }) as typeof fetch;
+    const shown = (await m.cli('admin', ['admin', 'show', 'pub/mini'], { fetch: weak })).out.join('\n');
+    const tag = /--tag (\S+)/.exec(shown)![1]!;
+    expect(tag).toMatch(/^[0-9a-f]{64}-\d+$/);
+    const ok = await m.cli('admin', ['admin', 'approve', 'pub/mini', '--tag', tag, '--json'], {
+      fetch: weak,
+    });
+    expect(ok.code).toBeUndefined();
+    expect(JSON.parse(ok.out[0]!)).toMatchObject({ id: 'pub/mini', approved: true });
+    expect(await remoteIds(m)).toEqual(['pub/mini']);
+    m.db.close();
+  });
+
+  it('approves without a tag when Cloudflare weakens the ETag', async () => {
+    const m = await seeded();
+    const weak = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const res = await m.fetch(input, init);
+      const tag = res.headers.get('etag');
+      if (!tag || tag.startsWith('W/')) return res;
+      const headers = new Headers(res.headers);
+      headers.set('etag', `W/${tag}`);
+      return new Response(await res.text(), { status: res.status, headers });
+    }) as typeof fetch;
+    const ok = await m.cli('admin', ['admin', 'approve', 'pub/mini', '--json'], { fetch: weak });
+    expect(ok.code).toBeUndefined();
+    expect(await remoteIds(m)).toEqual(['pub/mini']);
+    m.db.close();
+  });
+
   it('rejects after confirmation', async () => {
     const m = await seeded();
     const before = m.seen.length;

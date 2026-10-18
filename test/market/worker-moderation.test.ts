@@ -761,6 +761,14 @@ describe.skipIf(!hasSqlite)('worker moderation guards', () => {
     expect((await s.approve('pub/one')).status).toBe(200);
   });
 
+  it('approve takes the review tag in the weak form Cloudflare sends on compressed answers', async () => {
+    const s = await three();
+    await s.publish('one');
+    const pin = await s.pin('pub/one', s.admin);
+    expect((await s.approve('pub/one', { 'if-match': `W/${pin['if-match']!}` })).status).toBe(200);
+    expect(await s.state('pub', 'one')).toBe('live');
+  });
+
   it('a new version landing inside an approval keeps the entry pending', async () => {
     const s = await three();
     await s.publish('one');

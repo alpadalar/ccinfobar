@@ -301,7 +301,7 @@ async function approve(c: Ctx, s: Session, id: string, tag: string | null, note?
       failed(c, s, { id }, new MarketError('conflict', 409), vars, 'approve');
       return;
     }
-    if (!r.etag || (tag !== null && tag !== r.etag)) {
+    if (!r.etag || (tag !== null && shownTag(tag) !== shownTag(r.etag))) {
       failed(c, s, { id }, new MarketError('stale', 412), vars, 'approve');
       return;
     }
