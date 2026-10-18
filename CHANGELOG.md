@@ -55,6 +55,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `ccinfobar import <tool>` reads `--config`, `--theme` and other flags only from a status line command that runs that tool (also inside a quoted `sh -c` script). With ccinfobar's own or another tool's command it uses the tool's default files and says why, instead of reading that command's flags, so `import ccstatusline` after `install --config <file>` no longer re-imports ccinfobar's own config
 - `ccinfobar import` and the install import offer no longer hang on a FIFO, or fail on a folder, where a config file is expected: anything but a regular file is skipped and the default layout is imported
 - Marketplace approval works through the weakened ETags Cloudflare sends on compressed answers, admin actions without a note and resolving a report work on the live Worker, and the Worker answers `HEAD` requests
+- The marketplace server no longer counts every entry on each write: the entry and tombstone caps read counts the database keeps up to date, and the index rebuild reads the live summaries from one index, so a refused or pending write costs a few database rows and one signed-in user can no longer use up the free daily read budget (migration `0002_counts.sql`)
 
 ### Security
 

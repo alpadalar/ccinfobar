@@ -43,13 +43,13 @@ export function pageStatements(db: D1Database, bodies: string[], gen: number): D
   ];
 }
 
-// tombstones stay out, like the reference index; banned publishers too
+// tombstones stay out, like the reference index; banned publishers too; one covering index read
 export async function rebuildIndex(db: D1Database, iso: string): Promise<void> {
   const [gen, rows] = await db.batch([
     db.prepare("SELECT n FROM counters WHERE k = 'gen'"),
     db
       .prepare(
-        `SELECT summary FROM entries
+        `SELECT summary FROM entries INDEXED BY entries_live
          WHERE state = 'live' AND publisher NOT IN (SELECT handle FROM publishers WHERE banned_at IS NOT NULL)
          ORDER BY publisher, slug LIMIT ?1`,
       )
@@ -171,7 +171,14 @@ export async function readEntryRow(db: D1Database, p: string, s: string): Promis
 }
 
 const LIVE = "state IN ('live', 'pending')";
-const GONE = "state IN ('withdrawn', 'removed')";
+
+// trigger-kept counts (0002), so no cap check counts rows
+const COUNTER = (k: string) => `COALESCE((SELECT n FROM counters WHERE k = '${k}'), 0)`;
+const MINE = (cols: string) => `COALESCE((SELECT ${cols} FROM publishers WHERE handle = ?1), 0)`;
+const LIVE_N = `(${COUNTER('live')} + ${COUNTER('pending')})`;
+const MY_LIVE = MINE('live + pending');
+const TOMBS_N = COUNTER('tombs');
+const MY_TOMBS = MINE('tombs');
 
 export interface Counts {
   taken: boolean;
@@ -185,10 +192,7 @@ export async function publishCounts(db: D1Database, handle: string, slug: string
   const row = await db
     .prepare(
       `SELECT EXISTS (SELECT 1 FROM entries WHERE publisher = ?1 AND slug = ?2) AS taken,
-         (SELECT COUNT(*) FROM entries WHERE ${LIVE}) AS live,
-         (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${LIVE}) AS mine,
-         (SELECT COUNT(*) FROM entries WHERE ${GONE}) AS tombs,
-         (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${GONE}) AS my_tombs`,
+         ${LIVE_N} AS live, ${MY_LIVE} AS mine, ${TOMBS_N} AS tombs, ${MY_TOMBS} AS my_tombs`,
     )
     .bind(handle, slug)
     .first<{ taken: number; live: number; mine: number; tombs: number; my_tombs: number }>();
@@ -236,10 +240,7 @@ export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatem
       .prepare(
         `INSERT INTO entries (publisher, slug, kind, state, version, hash, created_at, updated_at, summary, doc, gen)
          SELECT ?1, ?2, ?3, ${STATE_OF}, ?4, ?5, ?6, ?6, ?7, ?8, ${NEXT_GEN}
-         WHERE (SELECT COUNT(*) FROM entries WHERE ${LIVE}) < ?9
-           AND (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${LIVE}) < ?10
-           AND (SELECT COUNT(*) FROM entries WHERE ${GONE}) < ?11
-           AND (SELECT COUNT(*) FROM entries WHERE publisher = ?1 AND ${GONE}) < ?12
+         WHERE ${LIVE_N} < ?9 AND ${MY_LIVE} < ?10 AND ${TOMBS_N} < ?11 AND ${MY_TOMBS} < ?12
          RETURNING state`,
       )
       .bind(

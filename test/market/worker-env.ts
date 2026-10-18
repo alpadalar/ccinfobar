@@ -28,12 +28,16 @@ function clock(): Clock {
   };
 }
 
-export function migrations(): string[] {
+export function migrationFiles(): { name: string; sql: string }[] {
   return fs
     .readdirSync(MIGRATIONS)
     .filter((f) => f.endsWith('.sql'))
     .sort()
-    .map((f) => fs.readFileSync(path.join(MIGRATIONS, f), 'utf8'));
+    .map((name) => ({ name, sql: fs.readFileSync(path.join(MIGRATIONS, name), 'utf8') }));
+}
+
+export function migrations(): string[] {
+  return migrationFiles().map((m) => m.sql);
 }
 
 export async function makeEnv(vars: Partial<Env> = {}): Promise<{ env: Env; db: TestD1; clock: Clock }> {

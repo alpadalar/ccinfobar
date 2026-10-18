@@ -6,7 +6,7 @@ import { fail, MESSAGES } from '../../src/market/rules.js';
 import { createHandler } from '../../src/market/worker/handler.js';
 import { errorResponse, readJsonBody } from '../../src/market/worker/http.js';
 import worker from '../../src/market/worker/index.js';
-import { hasSqlite } from './d1-sqlite.js';
+import { hasSqlite, statements } from './d1-sqlite.js';
 import { MIGRATIONS, makeEnv, migrations, stubEnv } from './worker-env.js';
 
 const BASE = 'http://w.test';
@@ -276,8 +276,15 @@ describe('worker migrations', () => {
     expect(migrations().length).toBe(files.length);
   });
 
-  it('never start a transaction (D1 refuses it)', () => {
-    for (const sql of migrations()) expect(sql).not.toMatch(/\b(?:BEGIN|COMMIT|ROLLBACK|SAVEPOINT)\b/i);
+  it('never start a transaction (D1 refuses it); BEGIN only opens a trigger body', () => {
+    for (const sql of migrations()) {
+      for (const s of statements(sql)) {
+        const code = s.replace(/^(?:\s+|--[^\n]*(?:\n|$))*/, '');
+        expect(code).not.toMatch(/^(?:BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i);
+        if (/^CREATE\s+TRIGGER\b/i.test(code)) expect(code).toMatch(/\nBEGIN\n[\s\S]*\nEND$/);
+        else expect(code).not.toMatch(/\b(?:BEGIN|COMMIT|ROLLBACK|SAVEPOINT)\b/i);
+      }
+    }
   });
 
   describe.skipIf(!hasSqlite)('on the D1 adapter', () => {
@@ -292,6 +299,9 @@ describe('worker migrations', () => {
         expect(counters.results).toEqual([
           { k: 'bytes', n: 0 },
           { k: 'gen', n: 0 },
+          { k: 'live', n: 0 },
+          { k: 'pending', n: 0 },
+          { k: 'tombs', n: 0 },
         ]);
         expect(env.DB).toBe(db);
         expect(env.GITHUB_CLIENT_ID).toBe('Ov23liVCN9Nf6VlLv3St');

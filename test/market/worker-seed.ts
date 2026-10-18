@@ -131,3 +131,41 @@ export async function seedEntry(
   if (opts.rebuild !== false) await rebuildIndex(db, doc.updatedAt);
   return doc;
 }
+
+export interface Counts {
+  live: number;
+  pending: number;
+  tombs: number;
+  publishers: Record<string, { live: number; pending: number; tombs: number }>;
+}
+
+// what the triggers keep, next to a recount of the rows
+export async function counts(db: D1Database): Promise<{ kept: Counts; rows: Counts }> {
+  const n = async (sql: string) => Number(await db.prepare(sql).first('n'));
+  const per = async (sql: string) =>
+    Object.fromEntries(
+      (await db.prepare(sql).all<{ h: string; live: number; pending: number; tombs: number }>()).results.map(
+        (r) => [r.h, { live: Number(r.live), pending: Number(r.pending), tombs: Number(r.tombs) }],
+      ),
+    );
+  const kept: Counts = {
+    live: await n("SELECT n FROM counters WHERE k = 'live'"),
+    pending: await n("SELECT n FROM counters WHERE k = 'pending'"),
+    tombs: await n("SELECT n FROM counters WHERE k = 'tombs'"),
+    publishers: await per('SELECT handle AS h, live, pending, tombs FROM publishers'),
+  };
+  const rows: Counts = {
+    live: await n("SELECT COUNT(*) AS n FROM entries WHERE state = 'live'"),
+    pending: await n("SELECT COUNT(*) AS n FROM entries WHERE state = 'pending'"),
+    tombs: await n("SELECT COUNT(*) AS n FROM entries WHERE state IN ('withdrawn', 'removed')"),
+    publishers: await per(
+      `SELECT p.handle AS h,
+         (SELECT COUNT(*) FROM entries e WHERE e.publisher = p.handle AND e.state = 'live') AS live,
+         (SELECT COUNT(*) FROM entries e WHERE e.publisher = p.handle AND e.state = 'pending') AS pending,
+         (SELECT COUNT(*) FROM entries e WHERE e.publisher = p.handle AND e.state IN ('withdrawn', 'removed'))
+           AS tombs
+       FROM publishers p`,
+    ),
+  };
+  return { kept, rows };
+}
