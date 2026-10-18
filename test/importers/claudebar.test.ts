@@ -321,6 +321,10 @@ describe('claudebar discovery', () => {
     expect(types(r)).toHaveLength(14);
     const missing = importFrom('claudebar', { command: 'claudebar --config ~/none.toml', env, cwd: dir });
     expect(missing.file).toBeNull();
+    expect(missing.notes.slice(0, 2).map((n) => n.text)).toEqual([
+      `the claudebar config named by the status line command or environment does not exist: ~${path.sep}none.toml`,
+      'no claudebar config file found, imported its default layout',
+    ]);
   });
 
   it('fails on a missing --file', () => {

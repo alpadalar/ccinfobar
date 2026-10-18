@@ -259,12 +259,15 @@ export const claudebarImporter: ImporterDef = {
   detect: [/\bclaudebar\b/i],
   tool: isBin('claudebar'),
   // claudebar reads HOME and XDG_CONFIG_HOME on every OS
-  discover: (ctx) => {
-    const home = ctx.env.HOME || ctx.home;
+  named: (ctx) => {
     const flag = flagValue(ctx.argv, ['--config']);
-    if (flag) return path.resolve(ctx.cwd, expand(flag, home));
+    return flag ? path.resolve(ctx.cwd, expand(flag, ctx.env.HOME || ctx.home)) : null;
+  },
+  discover: (ctx) => {
+    const flag = claudebarImporter.named!(ctx);
+    if (flag) return flag;
     const xdg = ctx.env.XDG_CONFIG_HOME;
-    const base = xdg ? path.resolve(ctx.cwd, xdg) : path.join(home, '.config');
+    const base = xdg ? path.resolve(ctx.cwd, xdg) : path.join(ctx.env.HOME || ctx.home, '.config');
     return path.join(base, 'claudebar', 'config.toml');
   },
   load: (file, ctx) => {

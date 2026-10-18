@@ -298,11 +298,13 @@ function commandOptions(ctx: ImportCtx): StatuslineProOptions {
   };
 }
 
-function discover(ctx: ImportCtx): string {
+function named(ctx: ImportCtx): string | null {
   const flag = flagValue(ctx.argv, ['-c', '--config']);
-  if (flag) return path.resolve(ctx.cwd, expand(flag, ctx.home));
-  return path.join(ctx.home, '.claude', 'statusline-pro', 'config.toml');
+  return flag ? path.resolve(ctx.cwd, expand(flag, ctx.home)) : null;
 }
+
+const discover = (ctx: ImportCtx): string =>
+  named(ctx) ?? path.join(ctx.home, '.claude', 'statusline-pro', 'config.toml');
 
 export const statuslineProImporter: ImporterDef = {
   source: 'statusline-pro',
@@ -313,6 +315,7 @@ export const statuslineProImporter: ImporterDef = {
   hasDefault: true,
   detect: [TOOL_TOKEN],
   tool: isBin('ccsp', 'claude-code-statusline-pro'),
+  named,
   discover,
   load: (file, ctx) => {
     const opts = commandOptions(ctx);

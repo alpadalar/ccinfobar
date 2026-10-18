@@ -46,6 +46,8 @@ export interface ImporterDef extends ImporterInfo {
   // file header check for commands that do not name the tool
   sniff?: { file(ctx: ImportCtx): string | null; marker: RegExp; bytes?: number };
   hasDefault: boolean;
+  // a file named by the command or env, reported when missing
+  named?(ctx: ImportCtx): string | null;
   discover(ctx: ImportCtx): string | null;
   load(file: string | null, ctx: ImportCtx): ImportResult;
 }
@@ -139,7 +141,15 @@ function loadDef(def: ImporterDef, ctx: ImportCtx, file: string | undefined): Im
   if (file) return def.load(file, ctx);
   const found = def.discover(ctx);
   if (found && isFile(found)) return def.load(found, ctx);
-  if (def.hasDefault) return def.load(null, ctx);
+  if (def.hasDefault) {
+    const result = def.load(null, ctx);
+    const named = def.named?.(ctx);
+    if (named && named === found) {
+      const text = t('import.note.namedMissing', { tool: def.name, file: shownFile(named, ctx.home) });
+      result.notes.unshift({ kind: 'info', text });
+    }
+    return result;
+  }
   const shown = found ? shownFile(found, ctx.home) : (def.shown ?? t('import.shownCommand'));
   throw new Error(t('import.notFound', { tool: def.name, file: shown }));
 }

@@ -242,10 +242,11 @@ export const pyccslImporter: ImporterDef = {
   hasDefault: true,
   detect: [/pyccsl(\.py)?\b/i],
   tool: isPyccsl,
-  discover: (ctx) => {
+  named: (ctx) => {
     const env = flagValue(ctx.argv.slice(1), ['--env']);
     return env ? path.resolve(ctx.cwd, expand(env, ctx.home)) : null;
   },
+  discover: (ctx) => pyccslImporter.named!(ctx),
   load: (file, ctx) => {
     const cmd = pyccslCommand(ctx.argv);
     if (!file) return { ...importPyccsl({ ...cmd, env: {} }), file: null };

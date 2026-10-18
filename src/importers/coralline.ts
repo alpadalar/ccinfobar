@@ -359,12 +359,11 @@ export const corallineImporter: ImporterDef = {
   shown: '~/.claude/coralline.conf',
   hasDefault: true,
   detect: [/coralline[\\/]statusline\.(sh|ps1)/i],
-  discover: (ctx) => {
+  named: (ctx) => {
     const own = ctx.env.CORALLINE_CONFIG;
-    return own
-      ? path.resolve(ctx.cwd, expand(own, ctx.home))
-      : path.join(ctx.home, '.claude', 'coralline.conf');
+    return own ? path.resolve(ctx.cwd, expand(own, ctx.home)) : null;
   },
+  discover: (ctx) => corallineImporter.named!(ctx) ?? path.join(ctx.home, '.claude', 'coralline.conf'),
   load: (file, ctx) => {
     if (!file) {
       const r = importCoralline(

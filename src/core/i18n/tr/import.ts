@@ -43,6 +43,8 @@ export const importMessages = {
   'import.note.styleApprox': '{tool} stili "{name}", {style} stiliyle yaklaşık olarak gösteriliyor',
   'import.note.ignoredSettings': '{tool} ayarları içe aktarılmadı: {names}',
   'import.note.secretDropped': '{tool} ayarı "{name}" gizli bir değer içeriyor, kopyalanmadı',
+  'import.note.namedMissing':
+    'durum satırı komutunda veya ortamda belirtilen {tool} yapılandırması yok: {file}',
   'import.note.otherCommand': 'durum satırı komutu {tool} çalıştırmıyor, komuttaki seçenekler okunmadı',
   'import.note.fileIgnored': '{tool} ayarlarını durum satırı komutundan okur, --file yok sayıldı',
   'import.note.styleUnknown': '{tool} stili "{name}" tanınmıyor, varsayılan stili ({style}) içe aktarıldı',

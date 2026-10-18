@@ -240,7 +240,15 @@ describe('pyccsl importer', () => {
       expect(r.file, command).toBeNull();
       expect(types(r), command).toEqual(['model']);
       expect(r.config.theme, command).toBe('nord');
-      expect(r.notes, command).toEqual([]);
+      const missing = command.endsWith('missing.env')
+        ? [
+            {
+              kind: 'info',
+              text: `the pyccsl config named by the status line command or environment does not exist: ${path.join(dir, 'missing.env')}`,
+            },
+          ]
+        : [];
+      expect(r.notes, command).toEqual(missing);
     }
     expect(types(importFrom('pyccsl', { env, cwd: dir }))).toHaveLength(7);
   });

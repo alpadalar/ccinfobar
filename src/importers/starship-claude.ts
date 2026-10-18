@@ -85,11 +85,12 @@ export function importStarshipClaude(root: Record<string, unknown>): ImportResul
 
 const defaultFile = (ctx: ImportCtx) => path.join(ctx.home, '.claude', 'starship.toml');
 
-function discover(ctx: ImportCtx): string {
+function named(ctx: ImportCtx): string | null {
   const flag = flagValue(ctx.argv, ['--config']);
-  if (flag) return path.resolve(ctx.cwd, expand(flag, ctx.home));
-  return defaultFile(ctx);
+  return flag ? path.resolve(ctx.cwd, expand(flag, ctx.home)) : null;
 }
+
+const discover = (ctx: ImportCtx): string => named(ctx) ?? defaultFile(ctx);
 
 export const starshipClaudeImporter: ImporterDef = {
   source: 'starship-claude',
@@ -99,6 +100,7 @@ export const starshipClaudeImporter: ImporterDef = {
   hasDefault: false,
   detect: [/starship-claude/i],
   tool: isBin('starship-claude'),
+  named,
   discover,
   load: (file, ctx) => {
     const f = file ?? defaultFile(ctx);

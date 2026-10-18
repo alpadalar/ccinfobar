@@ -39,6 +39,8 @@ export const importMessages = {
   'import.note.styleApprox': '{tool} style "{name}" is approximated by the {style} style',
   'import.note.ignoredSettings': '{tool} settings not imported: {names}',
   'import.note.secretDropped': '{tool} setting "{name}" holds a secret and was not copied',
+  'import.note.namedMissing':
+    'the {tool} config named by the status line command or environment does not exist: {file}',
   'import.note.otherCommand': 'the status line command does not run {tool}, so its flags were not read',
   'import.note.fileIgnored': '{tool} reads its settings from the status line command, --file was ignored',
   'import.note.styleUnknown': '{tool} style "{name}" is unknown, imported its default style ({style})',
