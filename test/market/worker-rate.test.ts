@@ -422,10 +422,19 @@ describe.skipIf(!hasSqlite)('worker storage guard', () => {
       return (await w.call('GET', '/v1/meta.json')).json();
     };
     const d = await meta({});
-    expect(d.quota).toEqual({ publisherBytes: 20_971_520 });
-    expect(parseMeta(d)?.quota).toEqual({ publisherBytes: 20_971_520 });
-    expect((await meta({ PUBLISHER_BYTES: '2000' })).quota).toEqual({ publisherBytes: 2000 });
-    expect((await meta({ PUBLISHER_BYTES: 'lots' })).quota).toEqual({ publisherBytes: 20_971_520 });
+    const q = { publisherBytes: 20_971_520, pendingEntries: 3, pendingBytes: 1_048_576, pendingTotal: 50 };
+    expect(d.quota).toEqual(q);
+    expect(parseMeta(d)?.quota).toEqual(q);
+    expect((await meta({ PUBLISHER_BYTES: '2000' })).quota).toEqual({ ...q, publisherBytes: 2000 });
+    expect((await meta({ PUBLISHER_BYTES: 'lots' })).quota).toEqual(q);
+    const small = { PENDING_ENTRIES: '9', PENDING_PER_PUBLISHER: '1', PENDING_BYTES: '5000' };
+    expect((await meta(small)).quota).toEqual({
+      ...q,
+      pendingEntries: 1,
+      pendingBytes: 5000,
+      pendingTotal: 9,
+    });
+    expect((await meta({ PENDING_BYTES: '0' })).quota).toEqual(q);
   });
 
   it('defaults to 400 MiB for the database', async () => {

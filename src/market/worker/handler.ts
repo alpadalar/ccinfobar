@@ -28,7 +28,15 @@ import {
   windowOf,
 } from '../rules.js';
 import { logout, me, signInWithGitHub } from './auth.js';
-import { type D1Database, type Env, intVar, overwriteOn, publisherBytes, type WorkerDeps } from './env.js';
+import {
+  type D1Database,
+  type Env,
+  intVar,
+  overwriteOn,
+  pendingCaps,
+  publisherBytes,
+  type WorkerDeps,
+} from './env.js';
 import { errorResponse, etagMatches, json, notModified, PUBLIC_HEADERS, publicJson } from './http.js';
 import {
   type AdminRoute,
@@ -69,7 +77,12 @@ export function buildMeta(env: Env): Record<string, unknown> {
     auth: ['github-device'],
     ...(clientId ? { github: { clientId } } : {}),
     limits: { ...MARKET_LIMITS, maxEntryBytes: Math.min(MARKET_LIMITS.maxEntryBytes, max ?? Infinity) },
-    quota: { publisherBytes: publisherBytes(env) },
+    quota: {
+      publisherBytes: publisherBytes(env),
+      pendingEntries: pendingCaps(env).perPublisher,
+      pendingBytes: pendingCaps(env).bytes,
+      pendingTotal: pendingCaps(env).total,
+    },
   };
 }
 

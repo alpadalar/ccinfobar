@@ -62,9 +62,11 @@ Every request can get `429 rate-limited`. Every write can also answer `415 unsup
 | `auth` | `["token"]` (the reference server: register a handle) or `["github-device"]` (GitHub sign-in) |
 | `github.clientId` | The public client id of the OAuth app that the device flow uses. It is not a secret |
 | `limits` | The size limits below; a server may advertise a smaller `maxEntryBytes` |
-| `quota.publisherBytes` | How much stored content one publisher may have |
+| `quota.publisherBytes` | How much live content one publisher may store |
+| `quota.pendingEntries`, `quota.pendingBytes` | How many entries, and how much content, one publisher may have waiting for review |
+| `quota.pendingTotal` | How many entries may wait for review in total |
 
-The public server answers `capabilities: { write: true, overwrite: false, withdraw: true, submit: "api", review: true, report: true }`, `auth: ["github-device"]`, `github: { clientId: "Ov23liVCN9Nf6VlLv3St" }` and `quota: { publisherBytes: 20971520 }`.
+The public server answers `capabilities: { write: true, overwrite: false, withdraw: true, submit: "api", review: true, report: true }`, `auth: ["github-device"]`, `github: { clientId: "Ov23liVCN9Nf6VlLv3St" }` and `quota: { publisherBytes: 20971520, pendingEntries: 3, pendingBytes: 1048576, pendingTotal: 50 }`.
 
 ### ETag and 304
 
@@ -122,7 +124,7 @@ Error bodies are `{ "error": { "code": "<code>", "message": "<text>" } }`. Codes
 | --- | --- |
 | `invalid` | Malformed request or content |
 | `too-large` | A body or content over its size limit |
-| `over-quota` | A count or storage limit: entries, withdrawn entries, versions, publisher storage or the database |
+| `over-quota` | A count or storage limit: entries, entries waiting for review, withdrawn entries, versions, publishers, publisher storage or the database |
 | `conflict` | Already exists, already reported, not pending, or no free handle |
 | `stale` | Not the latest version, or changed since an admin's review |
 | `forbidden` | Not your entry, register refused, or new content held for review |
@@ -192,7 +194,7 @@ The Worker gets 100,000 requests a day on Workers Free, shared by every ccinfoba
 | Read limiter | Rate Limiting binding `READS` (600 a minute per key) |
 | Vars | `MARKET_NAME`, `GITHUB_CLIENT_ID`, `ADMIN_GITHUB_IDS`, `ALLOW_OVERWRITE` (`false`) |
 | Secret | `GITHUB_CLIENT_SECRET` (required for sign-in) |
-| Optional vars | `MAX_ENTRY_BYTES`, `MAX_DB_BYTES`, `PUBLISHER_BYTES`, `WRITE_LIMIT`, `SIGNIN_LIMIT`, `REPORT_LIMIT`, `ALLOW_UNVERIFIED_GITHUB_TOKENS` |
+| Optional vars | `MAX_ENTRY_BYTES`, `MAX_DB_BYTES`, `PUBLISHER_BYTES`, `PENDING_ENTRIES`, `PENDING_PER_PUBLISHER`, `PENDING_BYTES`, `WRITE_LIMIT`, `SIGNIN_LIMIT`, `REPORT_LIMIT`, `ALLOW_UNVERIFIED_GITHUB_TOKENS` |
 
 `GET /` answers a small static page (no scripts, no entry data) that says what the marketplace is, that everything published is public, and that removal requests go to a GitHub issue on alpadalar/ccinfobar.
 
@@ -202,11 +204,11 @@ Reads never build JSON. Each entry row keeps its summary and its entry document 
 
 ### Schema
 
-`worker/migrations/0001_init.sql`, then the later files in order; later migrations are additive only. `0002_counts.sql` adds the entry counts that triggers keep up to date and the indexes the index rebuild reads.
+`worker/migrations/0001_init.sql`, then the later files in order; later migrations are additive only. `0002_counts.sql` adds the entry counts that triggers keep up to date and the indexes the index rebuild reads; `0003_pending.sql` has triggers keep the stored bytes too, with the bytes waiting for review apart, and counts the publishers.
 
 | Table | Holds |
 | --- | --- |
-| `publishers` | handle, GitHub id (unique), GitHub login, display name, trusted, banned time, created time, stored bytes, and the counts of their live, pending and withdrawn entries |
+| `publishers` | handle, GitHub id (unique), GitHub login, display name, trusted, banned time, created time, stored bytes (and the part of them waiting for review), and the counts of their live, pending and withdrawn entries |
 | `tokens` | sha256 of each marketplace token, handle, created time (the newest 10 per publisher are kept) |
 | `entries` | publisher, slug, kind, state (`pending`, `live`, `withdrawn`, `removed`), version, hash, times, summary and entry document, generation |
 | `versions` | publisher, slug, version and the version document (NULL once withdrawn or removed) |
@@ -214,7 +216,7 @@ Reads never build JSON. Each entry row keeps its summary and its entry document 
 | `reports` | entry, reporter handle, reason, created and resolved times; one per reporter and entry |
 | `moderation` | every admin action: time, admin handle, action, target, note |
 | `rate`, `salts` | rate limit counters keyed by salted hashes, and one random salt per day |
-| `counters` | the index generation, the database size and the counts of live, pending and withdrawn entries |
+| `counters` | the index generation, the database size, and the counts of live, pending and withdrawn entries and of publishers |
 
 ### Rate limits
 
@@ -229,7 +231,9 @@ Write counters live in D1 fixed windows. Only routes that reach the database cou
 
 ### Storage guards
 
-A Free D1 database holds at most 500 MB. The Worker refuses a write with `413 over-quota` "marketplace storage is full" once the database reaches `MAX_DB_BYTES` (400 MiB), measured from the size D1 reports after each write, and "publisher storage limit reached" once a publisher's stored content would pass `PUBLISHER_BYTES` (20 MiB). Withdraw always works and refreshes the size, so a full database can recover. The entry, tombstone and version caps are the same as on the reference server (5000 live entries, 200 per publisher, 50,000 withdrawn, 1000 per publisher, 5000 versions per entry).
+A Free D1 database holds at most 500 MB. The Worker refuses a write with `413 over-quota` "marketplace storage is full" once the database reaches `MAX_DB_BYTES` (400 MiB), measured from the size D1 reports after each write, and "publisher storage limit reached" once a publisher's live content would pass `PUBLISHER_BYTES` (20 MiB). Withdraw always works and refreshes the size, so a full database can recover. The entry, tombstone, version and publisher caps are the same as on the reference server (5000 live entries, 200 per publisher, 50,000 withdrawn, 1000 per publisher, 5000 versions per entry, 10,000 publishers; a new publisher past the cap gets `413` "too many publishers" at sign-in).
+
+Entries waiting for review do not count toward the live caps or `PUBLISHER_BYTES`, so unreviewed uploads cannot lock out trusted publishers. They have small caps of their own: 50 in total (`PENDING_ENTRIES`), 3 per publisher (`PENDING_PER_PUBLISHER`) and 1 MiB of content per publisher, versions included (`PENDING_BYTES`), answered with `413 over-quota` "too many entries waiting for review", "… for this publisher" or "publisher review storage limit reached". Pending content therefore holds at most about 50 MiB of the database. Banning a publisher deletes their pending entries, which were never public, in the same transaction.
 
 ### Overwrite off
 
@@ -258,7 +262,7 @@ Publishers sign in with GitHub. There is no password and no registration.
 - **Live entries of untrusted publishers.** A live entry takes new content only from a trusted publisher. When an admin removes an entry, its publisher becomes untrusted again: their live entries cannot get new versions (`403 forbidden` "new content waits until an admin approves your next entry") and new entries wait for review, until an admin approves one of them. Public ids never go back to pending.
 - **Reports.** A signed-in user reports a live entry once, with a reason. `catalog admin reports` lists open reports and `catalog admin resolve <number>` closes one. Removing an entry resolves its reports.
 - **Remove** writes a tombstone like a withdraw (the name, description, author and notes are blanked and the version content is deleted), and the id stays reserved.
-- **Ban** hides every entry of the publisher (reads answer `404`, the index drops them). Their tokens stay, but writes, reports, `/v1/me` and sign-in answer `403 banned`. Unban shows the live entries again.
+- **Ban** hides every live entry of the publisher (reads answer `404`, the index drops them) and deletes their pending entries, which were never public. Their tokens stay, but writes, reports, `/v1/me` and sign-in answer `403 banned`. Unban shows the live entries again.
 - Every admin action, with its note, goes to the `moderation` table.
 
 ## Reference server
@@ -386,7 +390,7 @@ Only names of secrets appear in this repository; their values never do. The OAut
 | CPU | 10 ms per request | canonical JSON once per write; `MAX_ENTRY_BYTES` |
 | D1 rows read | 5 million a day | materialized documents, one row per read; caps read counters, never count rows (see below) |
 | D1 rows written | 100,000 a day | write rate limits; only database routes count |
-| D1 storage | 500 MB per database | `MAX_DB_BYTES` (400 MiB) and `PUBLISHER_BYTES` (20 MiB) |
+| D1 storage | 500 MB per database | `MAX_DB_BYTES` (400 MiB), `PUBLISHER_BYTES` (20 MiB) and the pending caps (at most about 50 MiB waiting for review) |
 
 Rows read per request:
 

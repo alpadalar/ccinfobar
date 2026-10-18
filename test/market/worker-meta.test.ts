@@ -89,7 +89,7 @@ describe('worker meta', () => {
       auth: ['github-device'],
       github: { clientId: 'Ov23liVCN9Nf6VlLv3St' },
       limits: { ...MARKET_LIMITS },
-      quota: { publisherBytes: 20_971_520 },
+      quota: { publisherBytes: 20_971_520, pendingEntries: 3, pendingBytes: 1_048_576, pendingTotal: 50 },
     });
   });
 
@@ -301,6 +301,7 @@ describe('worker migrations', () => {
           { k: 'gen', n: 0 },
           { k: 'live', n: 0 },
           { k: 'pending', n: 0 },
+          { k: 'publishers', n: 0 },
           { k: 'tombs', n: 0 },
         ]);
         expect(env.DB).toBe(db);

@@ -136,23 +136,35 @@ export interface Counts {
   live: number;
   pending: number;
   tombs: number;
-  publishers: Record<string, { live: number; pending: number; tombs: number }>;
+  publishers: Record<
+    string,
+    { live: number; pending: number; tombs: number; bytes: number; pendingBytes: number }
+  >;
 }
+
+const LEN = 'COALESCE(SUM(length(CAST(v.body AS BLOB))), 0)';
 
 // what the triggers keep, next to a recount of the rows
 export async function counts(db: D1Database): Promise<{ kept: Counts; rows: Counts }> {
   const n = async (sql: string) => Number(await db.prepare(sql).first('n'));
   const per = async (sql: string) =>
     Object.fromEntries(
-      (await db.prepare(sql).all<{ h: string; live: number; pending: number; tombs: number }>()).results.map(
-        (r) => [r.h, { live: Number(r.live), pending: Number(r.pending), tombs: Number(r.tombs) }],
-      ),
+      (await db.prepare(sql).all<Record<string, number | string>>()).results.map((r) => [
+        String(r.h),
+        {
+          live: Number(r.live),
+          pending: Number(r.pending),
+          tombs: Number(r.tombs),
+          bytes: Number(r.bytes),
+          pendingBytes: Number(r.pending_bytes),
+        },
+      ]),
     );
   const kept: Counts = {
     live: await n("SELECT n FROM counters WHERE k = 'live'"),
     pending: await n("SELECT n FROM counters WHERE k = 'pending'"),
     tombs: await n("SELECT n FROM counters WHERE k = 'tombs'"),
-    publishers: await per('SELECT handle AS h, live, pending, tombs FROM publishers'),
+    publishers: await per('SELECT handle AS h, live, pending, tombs, bytes, pending_bytes FROM publishers'),
   };
   const rows: Counts = {
     live: await n("SELECT COUNT(*) AS n FROM entries WHERE state = 'live'"),
@@ -163,7 +175,10 @@ export async function counts(db: D1Database): Promise<{ kept: Counts; rows: Coun
          (SELECT COUNT(*) FROM entries e WHERE e.publisher = p.handle AND e.state = 'live') AS live,
          (SELECT COUNT(*) FROM entries e WHERE e.publisher = p.handle AND e.state = 'pending') AS pending,
          (SELECT COUNT(*) FROM entries e WHERE e.publisher = p.handle AND e.state IN ('withdrawn', 'removed'))
-           AS tombs
+           AS tombs,
+         (SELECT ${LEN} FROM versions v WHERE v.publisher = p.handle) AS bytes,
+         (SELECT ${LEN} FROM versions v JOIN entries e ON e.publisher = v.publisher AND e.slug = v.slug
+           WHERE v.publisher = p.handle AND e.state = 'pending') AS pending_bytes
        FROM publishers p`,
     ),
   };

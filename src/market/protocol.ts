@@ -109,7 +109,8 @@ export interface MarketMeta {
   limits: Partial<Record<keyof typeof MARKET_LIMITS, number>>;
   submitUrl?: string;
   github?: { clientId: string };
-  quota?: { publisherBytes?: number };
+  // pending: per publisher, waiting for review
+  quota?: { publisherBytes?: number; pendingEntries?: number; pendingBytes?: number; pendingTotal?: number };
 }
 
 export type MarketEntryState = 'pending' | 'live' | 'withdrawn' | 'removed';
@@ -354,8 +355,14 @@ export function parseMeta(raw: unknown): MarketMeta | null {
   const clientId = isObject(gh) ? own(gh, 'clientId') : undefined;
   if (typeof clientId === 'string' && CLIENT_ID_RE.test(clientId)) m.github = { clientId };
   const quota = own(raw, 'quota');
-  const bytes = isObject(quota) ? own(quota, 'publisherBytes') : undefined;
-  if (isVersion(bytes)) m.quota = { publisherBytes: bytes };
+  if (isObject(quota)) {
+    const q: NonNullable<MarketMeta['quota']> = {};
+    for (const k of ['publisherBytes', 'pendingEntries', 'pendingBytes', 'pendingTotal'] as const) {
+      const v = own(quota, k);
+      if (isVersion(v)) q[k] = v;
+    }
+    if (Object.keys(q).length) m.quota = q;
+  }
   return m;
 }
 

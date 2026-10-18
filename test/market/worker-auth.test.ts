@@ -144,6 +144,22 @@ describe.skipIf(!hasSqlite)('worker GitHub sign-in', () => {
     expect(await s.rows('tokens')).toHaveLength(0);
   });
 
+  it('refuses a new publisher at the publishers cap, but signs known ones in (WR-02)', async () => {
+    const s = await setup({ users: { [T1]: user(1, 'octo'), [T2]: user(2, 'known') } });
+    await seedPublisher(s.db, { handle: 'known', githubId: 2 });
+    await s.db.prepare("UPDATE counters SET n = 10000 WHERE k = 'publishers'").run();
+    expect(await error(await s.signIn(T1))).toEqual({
+      status: 413,
+      code: 'over-quota',
+      message: 'too many publishers',
+    });
+    expect(await s.rows('publishers')).toHaveLength(1);
+    expect((await ok(await s.signIn(T2))).handle).toBe('known');
+    await s.db.prepare("UPDATE counters SET n = 9999 WHERE k = 'publishers'").run();
+    expect((await ok(await s.signIn(T1))).handle).toBe('octo');
+    expect(await s.db.prepare("SELECT n FROM counters WHERE k = 'publishers'").first('n')).toBe(10000);
+  });
+
   it('decides admin by numeric GitHub id only', async () => {
     const s = await setup({
       users: { [T1]: user(65018489, 'someone-else'), [T2]: user(77, 'alpadalar') },

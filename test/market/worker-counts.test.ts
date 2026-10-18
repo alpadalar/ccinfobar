@@ -227,6 +227,10 @@ describe.skipIf(!hasSqlite)('worker counts', () => {
     await after(db, '0001_init.sql');
     const c = await counts(DB);
     expect(c.kept).toEqual(c.rows);
+    expect(c.kept.publishers.alp!.bytes).toBeGreaterThan(c.kept.publishers.alp!.pendingBytes);
+    expect(c.kept.publishers.bob!.pendingBytes).toBe(c.kept.publishers.bob!.bytes);
+    expect(c.kept.publishers.bob!.bytes).toBeGreaterThan(0);
+    expect(await DB.prepare("SELECT n FROM counters WHERE k = 'publishers'").first('n')).toBe(3);
     expect(c.kept).toMatchObject({
       live: 2,
       pending: 2,
@@ -283,5 +287,156 @@ describe.skipIf(!hasSqlite)('worker counts', () => {
     expect(await check()).toMatchObject({ live: 2, pending: 0, tombs: 1 });
     expect((await call('POST', '/v1/admin/entries/alp/one/remove', boss, {})).status).toBe(200);
     expect(await check()).toMatchObject({ live: 1, pending: 0, tombs: 2 });
+  });
+});
+
+describe.skipIf(!hasSqlite)('worker pending caps (WR-02)', () => {
+  async function world(vars: Partial<Env> = {}, caps: { entries?: number } = {}) {
+    const { env, clock } = await makeEnv(vars);
+    const handler = createHandler(env, {
+      now: clock.now,
+      fetch: () => Promise.reject(new Error('no fetch')),
+      caps,
+    });
+    const call = async (method: string, p: string, token: string, body?: unknown, headers = {}) => {
+      const r = await handler.fetch(
+        new Request(BASE + p, {
+          method,
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, ...headers },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        }),
+      );
+      clock.advance(1000);
+      return r;
+    };
+    const account = async (handle: string, githubId: number, trusted: boolean) => {
+      await seedPublisher(env.DB, { handle, githubId, trusted });
+      return seedToken(env.DB, handle);
+    };
+    const err = async (r: Response) => ({ status: r.status, ...((await r.json()) as any).error });
+    const check = async () => {
+      const c = await counts(env.DB);
+      expect(c.kept).toEqual(c.rows);
+      return c.kept;
+    };
+    return { db: env.DB, call, account, err, check };
+  }
+
+  it('pending entries have their own small caps and leave the live caps alone', async () => {
+    const w = await world({ PENDING_ENTRIES: '4' }, { entries: 1 });
+    const alp = await w.account('alp', 7, true);
+    const bob = await w.account('bob', 8, false);
+    const cem = await w.account('cem', 9, false);
+    for (const s of ['a', 'b', 'c'])
+      expect((await w.call('POST', '/v1/entries', bob, publishBody(s))).status).toBe(201);
+    expect(await w.err(await w.call('POST', '/v1/entries', bob, publishBody('d')))).toMatchObject({
+      status: 413,
+      code: 'over-quota',
+      message: 'too many entries waiting for review for this publisher',
+    });
+    expect((await w.call('POST', '/v1/entries', cem, publishBody('a'))).status).toBe(201);
+    expect(await w.err(await w.call('POST', '/v1/entries', cem, publishBody('b')))).toMatchObject({
+      status: 413,
+      message: 'too many entries waiting for review',
+    });
+    // four pending entries, yet the one live slot is free
+    expect((await w.call('POST', '/v1/entries', alp, publishBody('one'))).status).toBe(201);
+    expect(await w.err(await w.call('POST', '/v1/entries', alp, publishBody('two')))).toMatchObject({
+      status: 413,
+      message: 'too many entries',
+    });
+    expect(await w.check()).toMatchObject({ live: 1, pending: 4 });
+  });
+
+  it('pending content has its own storage cap', async () => {
+    const w = await world({ PENDING_BYTES: '200', PUBLISHER_BYTES: '200' });
+    const alp = await w.account('alp', 7, true);
+    const bob = await w.account('bob', 8, false);
+    expect((await w.call('POST', '/v1/entries', bob, publishBody('a'))).status).toBe(201);
+    expect(await w.err(await w.call('POST', '/v1/entries', bob, publishBody('b')))).toMatchObject({
+      status: 413,
+      message: 'publisher review storage limit reached',
+    });
+    const v = await w.call(
+      'POST',
+      '/v1/entries/bob/a/versions',
+      bob,
+      { content: preset('cwd') },
+      {
+        'if-match': '"1"',
+      },
+    );
+    expect(await w.err(v)).toMatchObject({ status: 413, message: 'publisher review storage limit reached' });
+    expect((await w.call('POST', '/v1/entries', alp, publishBody('a'))).status).toBe(201);
+    expect(await w.err(await w.call('POST', '/v1/entries', alp, publishBody('b')))).toMatchObject({
+      status: 413,
+      message: 'publisher storage limit reached',
+    });
+    const kept = await w.check();
+    expect(kept.publishers.bob!.pendingBytes).toBe(kept.publishers.bob!.bytes);
+    expect(kept.publishers.alp!.pendingBytes).toBe(0);
+  });
+
+  it('a ban deletes the pending entries, never public, and keeps the live ones', async () => {
+    const w = await world();
+    const boss = await w.account('boss', ADMIN, true);
+    const bob = await w.account('bob', 8, false);
+    expect((await w.call('POST', '/v1/entries', bob, publishBody('wait'))).status).toBe(201);
+    expect((await w.call('POST', '/v1/entries', bob, publishBody('also'))).status).toBe(201);
+    const v = await w.call(
+      'POST',
+      '/v1/entries/bob/also/versions',
+      bob,
+      { content: preset('cwd') },
+      {
+        'if-match': '"1"',
+      },
+    );
+    expect(v.status).toBe(201);
+    await seedEntry(w.db, { id: 'bob/old', versions: [{ content: preset() }] });
+    expect(await w.check()).toMatchObject({ live: 1, pending: 2 });
+    expect((await w.call('POST', '/v1/admin/publishers/bob/ban', boss, {})).status).toBe(200);
+    const kept = await w.check();
+    expect(kept).toMatchObject({ live: 1, pending: 0, tombs: 0 });
+    expect(kept.publishers.bob).toMatchObject({ live: 1, pending: 0, pendingBytes: 0 });
+    expect(kept.publishers.bob!.bytes).toBeGreaterThan(0);
+    const left = await w.db
+      .prepare("SELECT slug FROM versions WHERE publisher = 'bob'")
+      .all<{ slug: string }>();
+    expect(left.results.map((r) => r.slug)).toEqual(['old']);
+    expect((await w.call('POST', '/v1/admin/publishers/bob/unban', boss, {})).status).toBe(200);
+    expect(await w.check()).toMatchObject({ live: 1, pending: 0 });
+  });
+
+  it('reject, withdraw and approve keep the stored bytes equal to the bodies', async () => {
+    const w = await world();
+    const boss = await w.account('boss', ADMIN, true);
+    const bob = await w.account('bob', 8, false);
+    for (const s of ['a', 'b', 'c'])
+      expect((await w.call('POST', '/v1/entries', bob, publishBody(s))).status).toBe(201);
+    expect(
+      (
+        await w.call(
+          'POST',
+          '/v1/entries/bob/a/versions',
+          bob,
+          { content: preset('cwd') },
+          { 'if-match': '"1"' },
+        )
+      ).status,
+    ).toBe(201);
+    expect((await w.call('POST', '/v1/admin/entries/bob/b/reject', boss, {})).status).toBe(200);
+    expect((await w.call('DELETE', '/v1/entries/bob/c', bob)).status).toBe(200);
+    await w.check();
+    const review = await w.call('GET', '/v1/admin/entries/bob/a', boss);
+    const tag = review.headers.get('etag')!;
+    expect(
+      (await w.call('POST', '/v1/admin/entries/bob/a/approve', boss, {}, { 'if-match': tag })).status,
+    ).toBe(200);
+    const kept = await w.check();
+    expect(kept.publishers.bob).toMatchObject({ live: 1, pending: 0, pendingBytes: 0 });
+    expect(kept.publishers.bob!.bytes).toBeGreaterThan(0);
+    expect((await w.call('POST', '/v1/admin/entries/bob/a/remove', boss, {})).status).toBe(200);
+    expect((await w.check()).publishers.bob).toMatchObject({ live: 0, tombs: 1, bytes: 0, pendingBytes: 0 });
   });
 });

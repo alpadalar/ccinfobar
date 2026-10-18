@@ -1,7 +1,7 @@
 // GitHub sign-in; the GitHub token is used once, never stored or logged (D-06, D-10, R-14)
 import { sanitizeText } from '../../core/sanitize.js';
 import { CLIENT_ID_RE, LIST_CAP, MARKET_LIMITS } from '../protocol.js';
-import { fail, limited, TOKEN_RE } from '../rules.js';
+import { CAPS, fail, limited, TOKEN_RE } from '../rules.js';
 import { type Env, unverifiedOk, type WorkerDeps } from './env.js';
 import { boundedJson, json, PRIVATE_HEADERS, readJsonBody } from './http.js';
 import { isAdmin } from './moderation.js';
@@ -140,11 +140,13 @@ export function handleCandidates(login: string): string[] {
   return out;
 }
 
-async function accountFor(env: Env, u: GitHubUser, at: string): Promise<Account> {
+async function accountFor(env: Env, deps: WorkerDeps, u: GitHubUser, at: string): Promise<Account> {
   const known = await knownAccount(env.DB, u);
   if (known) return known;
+  const cap = deps.caps?.publishers ?? CAPS.publishers;
   for (const handle of handleCandidates(u.login)) {
-    const got = await claimHandle(env.DB, u, handle, at);
+    const got = await claimHandle(env.DB, u, handle, at, cap);
+    if (got === 'full') throw fail(413, 'over-quota', 'too many publishers');
     if (got !== 'taken') return got;
   }
   throw fail(409, 'conflict', 'no free handle');
@@ -165,7 +167,7 @@ export async function signInWithGitHub(env: Env, deps: WorkerDeps, req: Request)
   if (typeof token !== 'string' || !GITHUB_TOKEN_RE.test(token)) throw fail(400, 'invalid');
   const user = secret ? await viaCheckToken(deps, token, clientId, secret) : await viaUser(deps, token);
   const at = iso(deps);
-  const account = await accountFor(env, user, at);
+  const account = await accountFor(env, deps, user, at);
   if (account.banned) throw fail(403, 'banned');
   const mine = randomToken();
   await db.batch(tokenStatements(db, account.handle, await sha256Hex(mine), at, KEEP_TOKENS));

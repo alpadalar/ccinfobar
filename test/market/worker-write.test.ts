@@ -352,11 +352,15 @@ describe.skipIf(!hasSqlite)('worker writes', () => {
         await seedEntry(t.db, { id: 'alp/other', versions: [{ content: preset() }] }, { rebuild: false });
       });
       const g = await t.gen();
+      const bytesOf = () => t.db.prepare("SELECT bytes FROM publishers WHERE handle = 'alp'").first('bytes');
       const r = await t.call('POST', '/v1/entries', { token: alp, body: publishBody('mine') });
       expect(await error(r)).toMatchObject({ status: 413, message: 'too many entries for this publisher' });
       expect(await t.versions('alp', 'mine')).toEqual([]);
       expect(await t.gen()).toBe(g + 1);
-      expect(await t.db.prepare("SELECT bytes FROM publishers WHERE handle = 'alp'").first('bytes')).toBe(0);
+      const seeded = await t.db
+        .prepare("SELECT body FROM versions WHERE slug = 'other'")
+        .first<string>('body');
+      expect(await bytesOf()).toBe(new TextEncoder().encode(seeded!).length);
     });
 
     it('a banned publisher cannot write', async () => {

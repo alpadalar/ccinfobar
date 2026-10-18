@@ -172,18 +172,18 @@ export async function readEntryRow(db: D1Database, p: string, s: string): Promis
 
 const LIVE = "state IN ('live', 'pending')";
 
-// trigger-kept counts (0002), so no cap check counts rows
+// trigger-kept counts (0002, 0003), so no cap check counts rows; pending has its own caps (WR-02)
 const COUNTER = (k: string) => `COALESCE((SELECT n FROM counters WHERE k = '${k}'), 0)`;
-const MINE = (cols: string) => `COALESCE((SELECT ${cols} FROM publishers WHERE handle = ?1), 0)`;
-const LIVE_N = `(${COUNTER('live')} + ${COUNTER('pending')})`;
-const MY_LIVE = MINE('live + pending');
-const TOMBS_N = COUNTER('tombs');
-const MY_TOMBS = MINE('tombs');
+const MINE = (col: string) => `COALESCE((SELECT ${col} FROM publishers WHERE handle = ?1), 0)`;
+const TRUSTED = MINE('trusted');
 
 export interface Counts {
   taken: boolean;
+  trusted: boolean;
   live: number;
   mine: number;
+  pending: number;
+  myPending: number;
   tombs: number;
   myTombs: number;
 }
@@ -191,17 +191,22 @@ export interface Counts {
 export async function publishCounts(db: D1Database, handle: string, slug: string): Promise<Counts> {
   const row = await db
     .prepare(
-      `SELECT EXISTS (SELECT 1 FROM entries WHERE publisher = ?1 AND slug = ?2) AS taken,
-         ${LIVE_N} AS live, ${MY_LIVE} AS mine, ${TOMBS_N} AS tombs, ${MY_TOMBS} AS my_tombs`,
+      `SELECT EXISTS (SELECT 1 FROM entries WHERE publisher = ?1 AND slug = ?2) AS taken, ${TRUSTED} AS trusted,
+         ${COUNTER('live')} AS live, ${MINE('live')} AS mine, ${COUNTER('pending')} AS pending,
+         ${MINE('pending')} AS my_pending, ${COUNTER('tombs')} AS tombs, ${MINE('tombs')} AS my_tombs`,
     )
     .bind(handle, slug)
-    .first<{ taken: number; live: number; mine: number; tombs: number; my_tombs: number }>();
+    .first<Record<string, number>>();
+  const n = (k: string) => Number(row?.[k] ?? 0);
   return {
     taken: !!row?.taken,
-    live: Number(row?.live ?? 0),
-    mine: Number(row?.mine ?? 0),
-    tombs: Number(row?.tombs ?? 0),
-    myTombs: Number(row?.my_tombs ?? 0),
+    trusted: !!row?.trusted,
+    live: n('live'),
+    mine: n('mine'),
+    pending: n('pending'),
+    myPending: n('my_pending'),
+    tombs: n('tombs'),
+    myTombs: n('my_tombs'),
   };
 }
 
@@ -211,22 +216,25 @@ const MISSED = 'malformed JSON';
 
 const NEXT_GEN = "(SELECT n FROM counters WHERE k = 'gen') + 1";
 
-const addBytes = (db: D1Database, handle: string, bytes: number): D1PreparedStatement =>
-  db.prepare('UPDATE publishers SET bytes = bytes + ?2 WHERE handle = ?1').bind(handle, bytes);
-
-const BODY_BYTES = 'length(CAST(body AS BLOB))';
-
 const idOf = (e: StoredEntry): [string, string] => [e.publisher, e.id.slice(e.publisher.length + 1)];
+
+export interface PublishCaps {
+  entries: number;
+  entriesPerPublisher: number;
+  tombstones: number;
+  tombstonesPerPublisher: number;
+  pending: number;
+  pendingPerPublisher: number;
+}
 
 export interface NewEntry {
   entry: StoredEntry;
   body: string;
-  bytes: number;
-  caps: { entries: number; entriesPerPublisher: number; tombstones: number; tombstonesPerPublisher: number };
+  caps: PublishCaps;
 }
 
 // live only for a publisher trusted when the batch commits (D-09)
-const STATE_OF = `CASE WHEN (SELECT trusted FROM publishers WHERE handle = ?1) = 1 THEN 'live' ELSE 'pending' END`;
+const STATE_OF = `CASE WHEN ${TRUSTED} = 1 THEN 'live' ELSE 'pending' END`;
 
 // a live entry takes new content only from a trusted publisher; public ids never go back to pending (D-09)
 const MAY_CHANGE = "(state = 'pending' OR (SELECT trusted FROM publishers WHERE handle = ?1) = 1)";
@@ -240,7 +248,9 @@ export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatem
       .prepare(
         `INSERT INTO entries (publisher, slug, kind, state, version, hash, created_at, updated_at, summary, doc, gen)
          SELECT ?1, ?2, ?3, ${STATE_OF}, ?4, ?5, ?6, ?6, ?7, ?8, ${NEXT_GEN}
-         WHERE ${LIVE_N} < ?9 AND ${MY_LIVE} < ?10 AND ${TOMBS_N} < ?11 AND ${MY_TOMBS} < ?12
+         WHERE iif(${TRUSTED} = 1, ${COUNTER('live')} < ?9 AND ${MINE('live')} < ?10,
+             ${COUNTER('pending')} < ?13 AND ${MINE('pending')} < ?14)
+           AND ${COUNTER('tombs')} < ?11 AND ${MINE('tombs')} < ?12
          RETURNING state`,
       )
       .bind(
@@ -256,12 +266,13 @@ export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatem
         n.caps.entriesPerPublisher,
         n.caps.tombstones,
         n.caps.tombstonesPerPublisher,
+        n.caps.pending,
+        n.caps.pendingPerPublisher,
       ),
     db.prepare(GUARD),
     db
       .prepare('INSERT INTO versions (publisher, slug, version, body) VALUES (?1, ?2, ?3, ?4)')
       .bind(p, s, e.version, n.body),
-    addBytes(db, p, n.bytes),
     bumpGen(db),
   ];
 }
@@ -271,7 +282,6 @@ export interface NextVersion {
   expected: number;
   expectedHash: string;
   body: string;
-  bytes: number;
 }
 
 // the versions key stops a racing twin, the guarded update a changed or overwritten entry
@@ -299,7 +309,6 @@ export function versionStatements(db: D1Database, n: NextVersion): D1PreparedSta
         n.expectedHash,
       ),
     db.prepare(GUARD),
-    addBytes(db, p, n.bytes),
     bumpGen(db),
   ];
 }
@@ -308,10 +317,9 @@ export interface Overwrite {
   entry: StoredEntry;
   expectedHash: string;
   body: string;
-  bytes: number;
 }
 
-// bytes are swapped before the body, inside the same batch
+// triggers keep the stored bytes of every body change (0003)
 export function overwriteStatements(db: D1Database, n: Overwrite): D1PreparedStatement[] {
   const e = n.entry;
   const [p, s] = idOf(e);
@@ -323,12 +331,6 @@ export function overwriteStatements(db: D1Database, n: Overwrite): D1PreparedSta
       )
       .bind(p, s, e.hash, e.updatedAt, entrySummaryText(e), entryDocText(e), e.version, n.expectedHash),
     db.prepare(GUARD),
-    db
-      .prepare(
-        `UPDATE publishers SET bytes = MAX(0, bytes + ?4 - COALESCE((SELECT ${BODY_BYTES} FROM versions
-           WHERE publisher = ?1 AND slug = ?2 AND version = ?3), 0)) WHERE handle = ?1`,
-      )
-      .bind(p, s, e.version, n.bytes),
     db
       .prepare('UPDATE versions SET body = ?4 WHERE publisher = ?1 AND slug = ?2 AND version = ?3')
       .bind(p, s, e.version, n.body),
@@ -352,12 +354,6 @@ export function withdrawStatements(
       )
       .bind(p, s, tomb.updatedAt, entrySummaryText(tomb), entryDocText(tomb), expected, state),
     db.prepare(GUARD),
-    db
-      .prepare(
-        `UPDATE publishers SET bytes = MAX(0, bytes - COALESCE((SELECT SUM(${BODY_BYTES}) FROM versions
-           WHERE publisher = ?1 AND slug = ?2), 0)) WHERE handle = ?1`,
-      )
-      .bind(p, s),
     db.prepare('UPDATE versions SET body = NULL WHERE publisher = ?1 AND slug = ?2').bind(p, s),
     bumpGen(db),
   ];
@@ -400,15 +396,20 @@ export function cleanupStatements(db: D1Database, day: string, win: number): D1P
   ];
 }
 
-export async function storageUse(db: D1Database, handle: string): Promise<{ total: number; mine: number }> {
+// mine is live content only; pending bytes count apart (WR-02)
+export async function storageUse(
+  db: D1Database,
+  handle: string,
+): Promise<{ total: number; mine: number; pending: number }> {
   const row = await db
     .prepare(
       `SELECT (SELECT n FROM counters WHERE k = 'bytes') AS total,
-         (SELECT bytes FROM publishers WHERE handle = ?1) AS mine`,
+         (SELECT bytes - pending_bytes FROM publishers WHERE handle = ?1) AS mine,
+         (SELECT pending_bytes FROM publishers WHERE handle = ?1) AS pending`,
     )
     .bind(handle)
-    .first<{ total: number | null; mine: number | null }>();
-  return { total: Number(row?.total ?? 0), mine: Number(row?.mine ?? 0) };
+    .first<{ total: number | null; mine: number | null; pending: number | null }>();
+  return { total: Number(row?.total ?? 0), mine: Number(row?.mine ?? 0), pending: Number(row?.pending ?? 0) };
 }
 
 // the database size D1 reports after a write; bookkeeping only
@@ -479,24 +480,27 @@ export async function knownAccount(db: D1Database, u: GitHubUser): Promise<Accou
   return row ? toAccount(row) : null;
 }
 
-// 'taken' when the handle is; a racing insert of the same id wins
+// 'taken' when the handle is, 'full' at the publishers cap; a racing insert of the same id wins
 export async function claimHandle(
   db: D1Database,
   u: GitHubUser,
   handle: string,
   iso: string,
-): Promise<Account | 'taken'> {
-  const [, row] = await db.batch([
+  cap: number,
+): Promise<Account | 'taken' | 'full'> {
+  const [, row, count] = await db.batch([
     db
       .prepare(
         `INSERT INTO publishers (handle, github_id, github_login, display_name, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT DO NOTHING`,
+         SELECT ?1, ?2, ?3, ?4, ?5 WHERE ${COUNTER('publishers')} < ?6 ON CONFLICT DO NOTHING`,
       )
-      .bind(handle, u.id, u.login, u.name, iso),
+      .bind(handle, u.id, u.login, u.name, iso, cap),
     db.prepare(`SELECT ${ACCOUNT_COLS} FROM publishers p WHERE p.github_id = ?1`).bind(u.id),
+    db.prepare(`SELECT ${COUNTER('publishers')} AS n`),
   ]);
   const r = row?.results[0] as AccountRow | undefined;
-  return r ? toAccount(r) : 'taken';
+  if (r) return toAccount(r);
+  return Number((count?.results[0] as { n?: number } | undefined)?.n ?? 0) >= cap ? 'full' : 'taken';
 }
 
 // the new token always stays, even when timestamps tie
@@ -611,12 +615,7 @@ export function approveStatements(
       )
       .bind(p, s, pin.hash, pin.gen),
     db.prepare(GUARD),
-    db
-      .prepare(
-        `UPDATE publishers SET trusted = 1, bytes = MAX(0, bytes - COALESCE((SELECT SUM(${BODY_BYTES})
-           FROM versions WHERE publisher = ?1 AND slug = ?2 AND ${OLDER}), 0)) WHERE handle = ?1`,
-      )
-      .bind(p, s),
+    db.prepare('UPDATE publishers SET trusted = 1 WHERE handle = ?1').bind(p),
     db.prepare(`UPDATE versions SET body = NULL WHERE publisher = ?1 AND slug = ?2 AND ${OLDER}`).bind(p, s),
     logStatement(db, log),
     bumpGen(db),
@@ -635,12 +634,6 @@ export function dropPendingStatements(
     gate,
     db.prepare("DELETE FROM entries WHERE publisher = ?1 AND slug = ?2 AND state = 'pending'").bind(p, s),
     db.prepare(GUARD),
-    db
-      .prepare(
-        `UPDATE publishers SET bytes = MAX(0, bytes - COALESCE((SELECT SUM(${BODY_BYTES}) FROM versions
-           WHERE publisher = ?1 AND slug = ?2), 0)) WHERE handle = ?1`,
-      )
-      .bind(p, s),
     db.prepare('DELETE FROM versions WHERE publisher = ?1 AND slug = ?2').bind(p, s),
     logStatement(db, log),
   ];
@@ -711,7 +704,7 @@ export async function publisherRow(
   return row ? { githubId: Number(row.github_id), banned: !!row.banned } : null;
 }
 
-// admins are never banned; the first ban time stays
+// admins are never banned; the first ban time stays; a ban deletes pending entries, never public (WR-02)
 export function banStatements(
   db: D1Database,
   gate: D1PreparedStatement,
@@ -720,6 +713,17 @@ export function banStatements(
   admins: string[],
   log: LogRow,
 ): D1PreparedStatement[] {
+  const drop = ban
+    ? [
+        db
+          .prepare(
+            `DELETE FROM versions WHERE publisher = ?1
+             AND slug IN (SELECT slug FROM entries WHERE publisher = ?1 AND state = 'pending')`,
+          )
+          .bind(handle),
+        db.prepare("DELETE FROM entries WHERE publisher = ?1 AND state = 'pending'").bind(handle),
+      ]
+    : [];
   return [
     gate,
     db
@@ -729,6 +733,7 @@ export function banStatements(
       )
       .bind(handle, log.at, ban ? 1 : 0, JSON.stringify(admins)),
     db.prepare(GUARD),
+    ...drop,
     logStatement(db, log),
     bumpGen(db),
   ];

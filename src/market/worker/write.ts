@@ -13,6 +13,7 @@ import {
   intVar,
   maxDbBytes,
   overwriteOn,
+  pendingCaps,
   publisherBytes,
   type WorkerDeps,
 } from './env.js';
@@ -25,6 +26,7 @@ import {
   needsReview,
   noteSize,
   overwriteStatements,
+  type PublishCaps,
   publishCounts,
   publishStatements,
   readEntryRow,
@@ -63,11 +65,20 @@ async function stillWriter(db: D1Database, req: Request): Promise<void> {
   if (who.banned) throw fail(403, 'banned');
 }
 
-// the shared Free database and each publisher stay under their caps (R-01)
-async function room(db: D1Database, env: Env, handle: string, bytes: number): Promise<void> {
+// the shared Free database and each publisher stay under their caps (R-01); pending content apart (WR-02)
+async function room(
+  db: D1Database,
+  env: Env,
+  handle: string,
+  bytes: number,
+  pending: boolean,
+): Promise<void> {
   const use = await storageUse(db, handle);
   if (use.total >= maxDbBytes(env)) throw fail(413, 'over-quota', 'marketplace storage is full');
-  if (use.mine + bytes > publisherBytes(env)) {
+  if (pending && use.pending + bytes > pendingCaps(env).bytes) {
+    throw fail(413, 'over-quota', 'publisher review storage limit reached');
+  }
+  if (!pending && use.mine + bytes > publisherBytes(env)) {
     throw fail(413, 'over-quota', 'publisher storage limit reached');
   }
 }
@@ -84,11 +95,22 @@ async function checkedHash(env: Env, kind: MarketEntry['kind'], content: unknown
   return sha256Hex(canonical);
 }
 
-// withdrawn slugs stay reserved and count against the tombstone caps
-function quota(c: Counts, caps: typeof CAPS): void {
-  if (c.live >= caps.entries) throw fail(413, 'over-quota', 'too many entries');
-  if (c.mine >= caps.entriesPerPublisher)
+const capsOf = (env: Env, deps: WorkerDeps): PublishCaps => {
+  const p = pendingCaps(env);
+  return { ...CAPS, pending: p.total, pendingPerPublisher: p.perPublisher, ...deps.caps };
+};
+
+// withdrawn slugs stay reserved and count against the tombstone caps; pending entries have their own
+function quota(c: Counts, caps: PublishCaps): void {
+  if (c.trusted && c.live >= caps.entries) throw fail(413, 'over-quota', 'too many entries');
+  if (c.trusted && c.mine >= caps.entriesPerPublisher)
     throw fail(413, 'over-quota', 'too many entries for this publisher');
+  if (!c.trusted && c.pending >= caps.pending) {
+    throw fail(413, 'over-quota', 'too many entries waiting for review');
+  }
+  if (!c.trusted && c.myPending >= caps.pendingPerPublisher) {
+    throw fail(413, 'over-quota', 'too many entries waiting for review for this publisher');
+  }
   if (c.tombs >= caps.tombstones) throw fail(413, 'over-quota', 'too many withdrawn entries');
   if (c.myTombs >= caps.tombstonesPerPublisher) {
     throw fail(413, 'over-quota', 'too many withdrawn entries for this publisher');
@@ -101,7 +123,7 @@ export async function publish(db: D1Database, env: Env, deps: WorkerDeps, req: R
   const payload = parsePublishPayload(raw);
   if (!payload) throw fail(400, 'invalid');
   const hash = await checkedHash(env, payload.kind, payload.content);
-  const caps = { ...CAPS, ...deps.caps };
+  const caps = capsOf(env, deps);
   const s = payload.slug;
   const count = await publishCounts(db, who.handle, s);
   if (count.taken) throw fail(409, 'conflict');
@@ -122,12 +144,12 @@ export async function publish(db: D1Database, env: Env, deps: WorkerDeps, req: R
   };
   const body = versionText({ version: 1, content: payload.content, hash });
   const bytes = utf8(body);
-  await room(db, env, who.handle, bytes);
+  await room(db, env, who.handle, bytes, !count.trusted);
   let state: unknown;
   try {
     const done = await db.batch([
       requireWriter(db, who.digest, who.handle),
-      ...publishStatements(db, { entry, body, bytes, caps }),
+      ...publishStatements(db, { entry, body, caps }),
     ]);
     // a new publisher waits for review (D-09)
     state = (done[1]?.results[0] as { state?: unknown } | undefined)?.state;
@@ -137,8 +159,9 @@ export async function publish(db: D1Database, env: Env, deps: WorkerDeps, req: R
     if (c === 'entry') throw fail(409, 'conflict');
     if (c !== 'guard') throw err;
     await stillWriter(db, req);
-    quota(await publishCounts(db, who.handle, s), caps);
-    throw fail(413, 'over-quota', 'too many entries');
+    const again = await publishCounts(db, who.handle, s);
+    quota(again, caps);
+    throw fail(413, 'over-quota', again.trusted ? 'too many entries' : 'too many entries waiting for review');
   }
   if (state !== 'live') return json(201, { id, version: 1, hash, pending: true });
   await rebuildIndex(db, at);
@@ -182,11 +205,11 @@ export async function addVersion(
   fits(next);
   const body = versionText({ version, content: payload.content, hash });
   const bytes = utf8(body);
-  await room(db, env, who.handle, bytes);
+  await room(db, env, who.handle, bytes, row.state === 'pending');
   try {
     const done = await db.batch([
       requireWriter(db, who.digest, who.handle),
-      ...versionStatements(db, { entry: next, expected: row.version, expectedHash: entry.hash, body, bytes }),
+      ...versionStatements(db, { entry: next, expected: row.version, expectedHash: entry.hash, body }),
     ]);
     await noteSize(db, done);
   } catch (err) {
@@ -233,12 +256,11 @@ export async function overwrite(
   };
   fits(next);
   const body = versionText({ version: n, content: payload.content, hash });
-  const bytes = utf8(body);
-  await room(db, env, who.handle, bytes);
+  await room(db, env, who.handle, utf8(body), row.state === 'pending');
   try {
     const done = await db.batch([
       requireWriter(db, who.digest, who.handle),
-      ...overwriteStatements(db, { entry: next, expectedHash: entry.hash, body, bytes }),
+      ...overwriteStatements(db, { entry: next, expectedHash: entry.hash, body }),
     ]);
     await noteSize(db, done);
   } catch (err) {

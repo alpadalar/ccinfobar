@@ -56,13 +56,16 @@ export interface Env {
   REPORT_LIMIT?: string;
   MAX_DB_BYTES?: string;
   PUBLISHER_BYTES?: string;
+  PENDING_ENTRIES?: string;
+  PENDING_PER_PUBLISHER?: string;
+  PENDING_BYTES?: string;
 }
 
 export interface WorkerDeps {
   now: () => number;
   fetch: typeof fetch;
   // tests only
-  caps?: Partial<typeof CAPS & { versions: number }>;
+  caps?: Partial<typeof CAPS & { versions: number; pending: number; pendingPerPublisher: number }>;
 }
 
 // a positive integer var, else null
@@ -82,3 +85,10 @@ export const overwriteOn = (env: Env): boolean => env.ALLOW_OVERWRITE === 'true'
 export const maxDbBytes = (env: Env): number => intVar(env.MAX_DB_BYTES) ?? 419_430_400;
 
 export const publisherBytes = (env: Env): number => intVar(env.PUBLISHER_BYTES) ?? 20_971_520;
+
+// entries waiting for review have small caps of their own (WR-02)
+export const pendingCaps = (env: Env): { total: number; perPublisher: number; bytes: number } => ({
+  total: intVar(env.PENDING_ENTRIES) ?? 50,
+  perPublisher: intVar(env.PENDING_PER_PUBLISHER) ?? 3,
+  bytes: intVar(env.PENDING_BYTES) ?? 1_048_576,
+});
