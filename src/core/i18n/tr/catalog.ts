@@ -366,7 +366,8 @@ export const catalogMessages = {
   'catalog.admin.approved': '{id} v{version} onaylandı; artık yayında.',
   'catalog.admin.rejected': '{id} reddedildi; bekleyen sürümleri silindi.',
   'catalog.admin.removed': "{id} marketplace'ten kaldırıldı; yayıncısının sonraki girdisi yeniden incelenir.",
-  'catalog.admin.banned': '@{handle} yasaklandı; girdileri marketplace listesinden çıkarıldı.',
+  'catalog.admin.banned':
+    '@{handle} yasaklandı; girdileri marketplace listesinden çıkarıldı ve inceleme bekleyen girdileri silindi.',
   'catalog.admin.unbanned':
     '@{handle} için yasak kaldırıldı; yayındaki girdileri yeniden marketplace listesinde.',
   'catalog.admin.resolved': '#{id} numaralı bildirim kapatıldı.',
@@ -374,7 +375,7 @@ export const catalogMessages = {
   'catalog.admin.ask.remove':
     "{id} marketplace'ten kaldırılsın mı? İçeriği silinir ve kimliği başkasına verilmez.",
   'catalog.admin.ask.ban':
-    '@{handle} yasaklansın mı? Girdileri marketplace listesinden çıkar; artık yayımlama ve bildirim yapamaz.',
+    '@{handle} yasaklansın mı? Girdileri marketplace listesinden çıkar, inceleme bekleyen girdileri silinir; artık yayımlama ve bildirim yapamaz.',
   'catalog.admin.kept': 'Hiçbir şey değiştirilmedi.',
   'catalog.admin.approveWhat': 'Yayına girecek olan: {name} ({id}) v{version}, içerik özeti {hash}…',
   'catalog.admin.ask.approve': '{id} gösterildiği gibi onaylansın mı? Yayıncısı güvenilir olur.',

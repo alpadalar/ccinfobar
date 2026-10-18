@@ -532,9 +532,11 @@ describe.skipIf(!hasSqlite)('catalog admin moderation against the Worker', () =>
     expect(no.code).toBe(1);
     const asked = await m.cli('admin', ['admin', 'ban', '@bob'], { tty: true, answers: [true] });
     expect(asked.asked).toEqual([
-      'Ban @bob? Their entries leave the marketplace list and they can no longer publish or report.',
+      'Ban @bob? Their entries leave the marketplace list, their entries waiting for review are deleted, and they can no longer publish or report.',
     ]);
-    expect(asked.out).toEqual(['Banned @bob; their entries left the marketplace list.']);
+    expect(asked.out).toEqual([
+      'Banned @bob; their entries left the marketplace list and their entries waiting for review were deleted.',
+    ]);
     expect(await remoteIds(m)).toEqual([]);
     const un = await m.cli('admin', ['admin', 'unban', 'bob', '--json']);
     expect(JSON.parse(un.out[0]!)).toEqual({ schema: 1, endpoint: URL_, handle: 'bob', banned: false });

@@ -351,14 +351,15 @@ export const catalogMessages = {
   'catalog.admin.approved': 'Approved {id} v{version}; it is live now.',
   'catalog.admin.rejected': 'Rejected {id}; its pending versions were deleted.',
   'catalog.admin.removed': "Removed {id} from the marketplace; its publisher's next entry needs review.",
-  'catalog.admin.banned': 'Banned @{handle}; their entries left the marketplace list.',
+  'catalog.admin.banned':
+    'Banned @{handle}; their entries left the marketplace list and their entries waiting for review were deleted.',
   'catalog.admin.unbanned': 'Unbanned @{handle}; their live entries are back in the marketplace list.',
   'catalog.admin.resolved': 'Closed report #{id}.',
   'catalog.admin.ask.reject': 'Reject {id}? Its pending versions are deleted.',
   'catalog.admin.ask.remove':
     'Remove {id} from the marketplace? Its content is deleted and the id stays reserved.',
   'catalog.admin.ask.ban':
-    'Ban @{handle}? Their entries leave the marketplace list and they can no longer publish or report.',
+    'Ban @{handle}? Their entries leave the marketplace list, their entries waiting for review are deleted, and they can no longer publish or report.',
   'catalog.admin.kept': 'Nothing was changed.',
   'catalog.admin.approveWhat': 'This goes live: {name} ({id}) v{version}, content hash {hash}…',
   'catalog.admin.ask.approve': 'Approve {id} as shown? Its publisher becomes trusted.',
