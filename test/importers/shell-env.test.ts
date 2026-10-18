@@ -24,7 +24,7 @@ describe('parseShellEnv', () => {
       VL_LEAN_SEP: '·',
       PYCCSL_THEME: 'nord',
     });
-    expect(r.includes).toEqual([{ line: 6, name: 'nord' }]);
+    expect(r.includes).toMatchObject([{ line: 6, name: 'nord' }]);
     expect(r.skipped).toEqual([7, 8]);
   });
 
@@ -97,9 +97,9 @@ describe('parseShellEnv', () => {
       ].join('\n'),
     );
     expect({ ...r.vars }).toEqual({ A: '3', B: 'two' });
-    expect(r.includes).toEqual([
+    expect(r.includes).toMatchObject([
       { line: 3, name: 'pyccsl' },
-      { line: 4, name: 'gruvbox-dark' },
+      { line: 4, name: 'gruvbox-dark', path: 'C:\\Users\\me\\themes\\gruvbox-dark.sh' },
     ]);
     expect(r.skipped).toEqual([5]);
   });

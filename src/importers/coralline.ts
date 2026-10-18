@@ -380,9 +380,11 @@ export const corallineImporter: ImporterDef = {
       throw new Error(t('import.cannotReadTool', { tool: TOOL, file: shownFile(file, ctx.home) }));
     }
     const parsed = parseShellEnv(text);
-    const last = parsed.includes.at(-1);
-    const skipped = [...parsed.skipped, ...parsed.includes.slice(0, -1).map((i) => i.line)];
-    const theme = last?.name ?? null;
+    // the theme include wins over a later overrides file
+    const themed = [...parsed.includes].reverse().find((i) => /coralline[\\/]themes[\\/]/i.test(i.path));
+    const pick = themed ?? parsed.includes.at(-1);
+    const skipped = [...parsed.skipped, ...parsed.includes.filter((i) => i !== pick).map((i) => i.line)];
+    const theme = pick?.name ?? null;
     const read = theme === null ? null : readTheme(theme, ctx);
     const r = importCoralline(parsed.vars, {
       theme,

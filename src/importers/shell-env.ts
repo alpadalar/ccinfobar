@@ -2,7 +2,7 @@
 
 export interface ShellEnv {
   vars: Record<string, string>;
-  includes: { line: number; name: string }[];
+  includes: { line: number; name: string; path: string }[];
   skipped: number[];
 }
 
@@ -164,7 +164,7 @@ export function parseShellEnv(text: string): ShellEnv {
     if ((first.text === '.' || first.text === 'source') && first.eq < 0 && ws.length === 2) {
       const name = includeName(ws[1]!.text);
       if (name) {
-        includes.push({ line: n, name });
+        includes.push({ line: n, name, path: ws[1]!.text });
         continue;
       }
     }

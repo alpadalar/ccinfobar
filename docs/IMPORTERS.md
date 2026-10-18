@@ -188,7 +188,7 @@ Some tools install with a command that does not name them, for example `node ${C
 `ccinfobar import coralline`
 
 - File: `$CORALLINE_CONFIG`, else `~/.claude/coralline.conf`. Without a file, coralline's defaults.
-- The file is read as plain assignments. It is never sourced or run.
+- The file is read as plain assignments. It is never sourced or run. The theme is the last `. …/coralline/themes/<name>.conf` include, else the last include; other includes are listed as skipped lines.
 - Maps: `VL_SEGMENTS`, `VL_SEGMENTS2` and `VL_SEGMENTS3` as lines (or auto wrapping), the pill, lean and classic styles, the clock, bar width, cost decimals, ASCII mode, the theme and `VL_BG_*` colors.
 - Themes: catppuccin-mocha, gruvbox-dark, tokyo-night, nord, dracula and mono map to built-in themes. For coralline-only themes the colors come from `~/.claude/coralline/themes/<name>.conf` (`$CLAUDE_CONFIG_DIR/coralline/themes/` when set), read the same way and only when the name is a safe theme name.
 - Approximated: the context gauge, time to first token, the classic style, warn and hot thresholds. Dropped: node and python segments, float output, subagent and burn tuning keys.

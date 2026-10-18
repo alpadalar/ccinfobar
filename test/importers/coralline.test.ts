@@ -344,6 +344,16 @@ describe('coralline importer', () => {
     expect(tilde.file).toBe(home);
   });
 
+  it('takes the themes include over a later overrides include', () => {
+    const conf = writeConf(
+      '. ~/.claude/coralline/themes/nord.conf\n. ~/.claude/coralline-local.conf\nVL_SEGMENTS=model\n',
+    );
+    const r = importFrom('coralline', { file: conf, env, cwd: dir });
+    expect(r.config.theme).toBe('nord');
+    expect(texts(r).join('\n')).toMatch(/line 2\b/);
+    expect(texts(r).join('\n')).not.toMatch(/coralline-local/);
+  });
+
   it('reads colors from the themes dir by the include basename, never from the include path', () => {
     const outside = path.join(dir, 'outside', 'reverie.conf');
     fs.mkdirSync(path.dirname(outside), { recursive: true });
