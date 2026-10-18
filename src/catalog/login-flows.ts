@@ -156,10 +156,12 @@ export function createLoginFlows(deps: LoginFlowDeps) {
       }
       if (r.status !== 'ok') return finish(f, { status: r.status });
       try {
-        const res = await finishSignIn(f.endpoint, r.token, { fetch: deps.fetch, dir: dir() });
+        const keep = () => flows.get(id) === f;
+        const res = await finishSignIn(f.endpoint, r.token, { fetch: deps.fetch, dir: dir(), keep });
         return finish(f, { status: 'ok', handle: res.handle, admin: res.admin });
       } catch (err) {
         const e = err instanceof SignInError ? err : new SignInError('failed');
+        if (e.code === 'cancelled') return { status: 'cancelled' };
         return finish(f, {
           status: 'failed',
           code: e.code,

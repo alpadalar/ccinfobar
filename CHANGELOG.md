@@ -68,6 +68,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Marketplace entries with ids like `con/nul` or `com1/x` no longer break caching or hang on Windows: cached entry and version files are named by a hash of the id
 - **Refresh** in the Marketplace tab no longer returns the cached list when it is pressed while the tab is still loading; it always checks the marketplace
 - ccinfobar never follows a redirect on a marketplace request that carries your token (account and admin reads, like writes before), so a same-host redirect cannot hand the token to another marketplace path
+- Cancelling the editor's GitHub sign-in while the marketplace exchange is running no longer leaves you signed in: the new marketplace token is revoked and nothing is stored, matching the "cancelled" the dialog shows
 
 ### Security
 

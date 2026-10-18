@@ -80,7 +80,7 @@ const githubClientId = (meta: MarketMeta): string | null =>
 export async function finishSignIn(
   endpoint: string,
   githubToken: string,
-  deps: Pick<SignInDeps, 'fetch' | 'dir'>,
+  deps: Pick<SignInDeps, 'fetch' | 'dir'> & { keep?: () => boolean },
   client: Client = createMarketClient({ endpoint, fetch: deps.fetch }),
 ): Promise<SignedIn> {
   let res: Awaited<ReturnType<Client['signIn']>>;
@@ -88,6 +88,13 @@ export async function finishSignIn(
     res = await client.signIn(githubToken);
   } catch (err) {
     throw fromMarket(err);
+  }
+  // cancelled during the exchange: the new token is revoked, never stored (IN-04)
+  if (deps.keep && !deps.keep()) {
+    await createMarketClient({ endpoint, fetch: deps.fetch, token: res.token })
+      .logout()
+      .catch(() => {});
+    throw new SignInError('cancelled');
   }
   const dir = deps.dir ?? catalogDir();
   writeCredential(endpoint, res.token, dir);
