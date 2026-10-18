@@ -31,9 +31,9 @@ const dirtyIfLive = (db: D1Database, p: string, s: string): D1PreparedStatement 
     .bind(p, s);
 
 // summaries are already JSON text, so pages are joined, never re-stringified
-export function pageBodies(summaries: string[], iso: string): string[] {
+export function pageBodies(summaries: string[], iso: string, gen: number): string[] {
   const pages = Math.max(1, Math.ceil(summaries.length / INDEX_PAGE));
-  const at = JSON.stringify(iso);
+  const at = `${JSON.stringify(iso)},"gen":${gen}`;
   const out: string[] = [];
   for (let n = 1; n <= pages; n++) {
     const list = summaries.slice((n - 1) * INDEX_PAGE, n * INDEX_PAGE).join(',');
@@ -72,7 +72,7 @@ export async function rebuildIndex(db: D1Database, iso: string, now = Date.parse
   const summaries = (rows?.results ?? []).map((r) => String((r as { summary: string }).summary));
   const day = Math.floor(now / 86_400_000);
   await db.batch([
-    ...pageStatements(db, pageBodies(summaries, iso), n),
+    ...pageStatements(db, pageBodies(summaries, iso, n), n),
     // the rows this rebuild read, toward today's budget
     db
       .prepare(

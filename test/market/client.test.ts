@@ -605,6 +605,51 @@ describe('market client accounts, admin and conditional reads', () => {
     expect(noAuth(calls)).toEqual([null, null]);
   });
 
+  it('restarts the walk once when a later page is from another index build (WR-08)', async () => {
+    const { c, calls } = client([
+      json({ entries: [summary()], next: 'index-2.json', generatedAt: 'g', gen: 5 }, 200, { etag: '"g5"' }),
+      json({ entries: [summary({ id: 'alp/two' })], gen: 6 }, 200, { etag: '"g6"' }),
+      json({ entries: [summary()], next: 'index-2.json', generatedAt: 'h', gen: 6 }, 200, { etag: '"g6"' }),
+      json({ entries: [summary({ id: 'alp/two' })], gen: 6 }, 200, { etag: '"g6"' }),
+    ]);
+    const r = await c.indexIfChanged('"g4"');
+    expect(r).toMatchObject({ changed: true, etag: '"g6"' });
+    if (!r.changed) return;
+    expect(r.index.entries.map((e) => e.id)).toEqual(['alp/mini', 'alp/two']);
+    expect(r.index).toMatchObject({ generatedAt: 'h', gen: 6 });
+    expect(r.index.partial).toBeUndefined();
+    expect(calls.map((x) => [new URL(x.url).pathname, x.headers['if-none-match'] ?? null])).toEqual([
+      ['/v1/index.json', '"g4"'],
+      ['/v1/index-2.json', null],
+      ['/v1/index.json', null],
+      ['/v1/index-2.json', null],
+    ]);
+  });
+
+  it('marks the index partial when the build changes again during the second walk', async () => {
+    const { c, calls } = client([
+      json({ entries: [summary()], next: 'index-2.json', gen: 5 }, 200, { etag: '"g5"' }),
+      json({ entries: [summary({ id: 'alp/two' })], gen: 6 }),
+      json({ entries: [summary()], next: 'index-2.json', gen: 6 }, 200, { etag: '"g6"' }),
+      json({ entries: [summary({ id: 'alp/two' })], gen: 7 }),
+    ]);
+    const idx = await c.index();
+    expect(idx.partial).toBe(true);
+    expect(idx.entries.map((e) => e.id)).toEqual(['alp/mini']);
+    expect(calls).toHaveLength(4);
+  });
+
+  it('never compares pages of a server that sends no generation', async () => {
+    const { c, calls } = client([
+      json({ entries: [summary()], next: 'index-2.json' }),
+      json({ entries: [summary({ id: 'alp/two' })], gen: 3 }),
+    ]);
+    const idx = await c.index();
+    expect(idx.entries).toHaveLength(2);
+    expect(idx.partial).toBeUndefined();
+    expect(calls).toHaveLength(2);
+  });
+
   it('indexIfChanged without a usable tag reads unconditionally; a bad server tag is dropped', async () => {
     const { c, calls } = client([
       json({ entries: [] }, 200, { etag: '"ok"' }),

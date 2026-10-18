@@ -175,6 +175,10 @@ export interface MarketIndex {
   generatedAt: string;
   // the next page, relative to v1/
   next?: string;
+  // every page of one build carries the same generation (WR-08)
+  gen?: number;
+  // client only: pages of different builds, so entries may be missing
+  partial?: true;
 }
 
 export interface MarketVersionInfo {
@@ -400,6 +404,8 @@ export function parseIndex(raw: unknown, page = 1): MarketIndex | null {
   const link = own(raw, 'next');
   const next = page < MAX_PAGES && link === indexFile(page + 1) ? link : null;
   const generatedAt = optText(own(raw, 'generatedAt'), STAMP) ?? '';
+  const g = own(raw, 'gen');
+  const gen = typeof g === 'number' && Number.isSafeInteger(g) && g >= 0 ? { gen: g } : {};
   const seen = new Set<string>();
   const entries: MarketSummary[] = [];
   for (const item of list) {
@@ -409,7 +415,7 @@ export function parseIndex(raw: unknown, page = 1): MarketIndex | null {
     seen.add(s.id);
     entries.push(s);
   }
-  return next ? { entries, generatedAt, next } : { entries, generatedAt };
+  return next ? { entries, generatedAt, ...gen, next } : { entries, generatedAt, ...gen };
 }
 
 export function parseRemoteEntry(raw: unknown): MarketEntry | null {

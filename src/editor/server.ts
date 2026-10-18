@@ -1288,6 +1288,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           entries: out.entries,
           checkedAt: out.checkedAt ?? null,
           ...(out.stale ? { stale: true } : {}),
+          ...(out.partial ? { partial: true } : {}),
         });
         return;
       }

@@ -16,6 +16,7 @@ const BASE = 'http://w.test';
 const preset = (type = 'model') => ({ layout: { lines: [[{ type }]] } }) as unknown as EntryContent;
 const at = (ms: number) => new Date(START + ms).toISOString();
 const match = (n: number) => ({ 'if-match': `"${n}"` });
+const noGen = (text: string) => text.replace(/"gen":\d+/, '"gen":0');
 
 function publishBody(slug: string, content: unknown = preset()) {
   return {
@@ -138,8 +139,9 @@ describe.skipIf(!hasSqlite)('worker writes', () => {
         '/v1/entries/alp/mine/1.json',
         '/v1/entries/alp/mine/2.json',
       ]) {
-        const a = await (await fetch(`${ref.url}${p}`)).text();
-        const b = await (await w.call('GET', p)).text();
+        // each server counts its own index builds (WR-08)
+        const a = noGen(await (await fetch(`${ref.url}${p}`)).text());
+        const b = noGen(await (await w.call('GET', p)).text());
         expect(`${b}\n`, p).toBe(a);
       }
     } finally {
@@ -1040,8 +1042,9 @@ describe.skipIf(!hasSqlite)('worker writes', () => {
         '/v1/entries/alp/mine/1.json',
         '/v1/entries/alp/mine/2.json',
       ]) {
-        const a = await (await fetch(`${ref.url}${p}`)).text();
-        const b = await (await w.call('GET', p)).text();
+        // each server counts its own index builds (WR-08)
+        const a = noGen(await (await fetch(`${ref.url}${p}`)).text());
+        const b = noGen(await (await w.call('GET', p)).text());
         expect(`${b}\n`, p).toBe(a);
       }
       const a = await fetch(`${ref.url}/v1/entries/alp/two/1.json`);

@@ -478,6 +478,7 @@ export interface RemoteList {
   // the last time the server confirmed the index
   checkedAt?: string;
   stale?: true;
+  partial?: true;
 }
 
 // R-12: a day from the cache; refresh sends one conditional request
@@ -494,6 +495,7 @@ export async function remoteList(deps: PublishDeps & { refresh?: boolean } = {})
       entries: r.index.entries.filter((e) => !e.withdrawn),
       checkedAt: r.checkedAt,
       ...(r.stale ? { stale: true } : {}),
+      ...(r.partial ? { partial: true } : {}),
     };
   } catch (err) {
     return { code: codeOf(err), ...statusOf(err), entries: [] };

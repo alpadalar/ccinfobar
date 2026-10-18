@@ -217,6 +217,8 @@ export const catalogMessages = {
   'catalog.remote.installHint': 'Install it with: ccinfobar catalog install {id}',
   'catalog.remote.checked': 'Last checked {time}; run with --refresh to check again',
   'catalog.remote.stale': 'The marketplace could not be reached, so this is the saved list.',
+  'catalog.remote.partial':
+    'The marketplace changed while the list was loading, so some entries may be missing. Refresh to load it again.',
   'catalog.install.existing': 'You already have {id} v{version} as {name}.',
   'catalog.install.update': 'Installing adds v{version} to your entry {name}.',
   'catalog.install.targetLong': '  {kind}: {count} characters, too long to show',

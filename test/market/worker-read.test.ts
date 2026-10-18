@@ -96,7 +96,7 @@ describe.skipIf(!hasSqlite)('worker store', () => {
     const { env } = await makeEnv();
     await rebuildIndex(env.DB, ISO);
     const page = await readIndexPage(env.DB, 1);
-    expect(page!.body).toBe(JSON.stringify({ entries: [], generatedAt: ISO }));
+    expect(page!.body).toBe(JSON.stringify({ entries: [], generatedAt: ISO, gen: 0 }));
     expect(page!.etag).toBe('"g0"');
   });
 
@@ -274,7 +274,9 @@ describe.skipIf(!hasSqlite)('worker store', () => {
       expect((await readVersionDoc(env.DB, 'alp', 'mine', 1))!.body).toBe(
         await ref('/v1/entries/alp/mine/1.json'),
       );
-      expect((await readIndexPage(env.DB, 1))!.body).toBe(await ref('/v1/index.json'));
+      // each server counts its own index builds (WR-08)
+      const noGen = (text: string) => text.replace(/"gen":\d+/, '"gen":0');
+      expect(noGen((await readIndexPage(env.DB, 1))!.body)).toBe(noGen(await ref('/v1/index.json')));
     } finally {
       await t.close();
     }

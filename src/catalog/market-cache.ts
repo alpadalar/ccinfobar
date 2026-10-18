@@ -38,6 +38,8 @@ export interface CachedIndex {
   // the last time the server confirmed the index
   checkedAt: string;
   stale?: true;
+  // pages of two index builds: shown once, never saved (WR-08)
+  partial?: true;
 }
 
 export interface CachedEntry {
@@ -117,6 +119,14 @@ function readIndex(file: string, key: string): IndexFile | null {
 
 const inflight = new Map<string, Promise<CachedIndex>>();
 
+// a partial walk is never saved as fresh, so the next load asks again
+function walked(r: { index: MarketIndex }, at: string, save: () => void): CachedIndex {
+  const { partial, ...index } = r.index;
+  if (partial) return { index, fromCache: false, checkedAt: at, partial: true };
+  save();
+  return { index, fromCache: false, checkedAt: at };
+}
+
 // identical calls share one walk
 export function cachedIndex(endpoint: string, deps: CacheDeps & { refresh?: boolean }): Promise<CachedIndex> {
   const key = keyOf(endpoint);
@@ -161,13 +171,11 @@ async function loadIndex(
       save(cache.etag, cache.index);
       return { ...hit, checkedAt: at };
     }
-    save(r.etag, r.index);
-    return { index: r.index, fromCache: false, checkedAt: at };
+    return walked(r, at, () => save(r.etag, r.index));
   }
   const r = await deps.client.indexIfChanged(null);
   if (!r.changed) throw new MarketError('bad-json');
-  save(r.etag, r.index);
-  return { index: r.index, fromCache: false, checkedAt: at };
+  return walked(r, at, () => save(r.etag, r.index));
 }
 
 function idPath(root: Root, dir: string, id: string): string {

@@ -227,6 +227,8 @@ export const catalogMessages = {
   'catalog.remote.installHint': 'Yüklemek için: ccinfobar catalog install {id}',
   'catalog.remote.checked': 'Son kontrol: {time}; yeniden kontrol etmek için --refresh ile çalıştırın',
   'catalog.remote.stale': "Marketplace'e ulaşılamadı, bu yüzden kayıtlı liste gösteriliyor.",
+  'catalog.remote.partial':
+    'Liste yüklenirken marketplace değişti, bu yüzden bazı girdiler eksik olabilir. Yeniden yüklemek için yenileyin.',
   'catalog.install.existing': '{id} v{version} zaten kataloğunuzda {name} adıyla var.',
   'catalog.install.update': 'Yükleme, {name} girdinize v{version} sürümünü ekler.',
   'catalog.install.targetLong': '  {kind}: {count} karakter, gösterilemeyecek kadar uzun',

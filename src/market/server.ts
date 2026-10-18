@@ -201,6 +201,7 @@ export async function startMarketServer(
   };
 
   const summaries = new Map<string, MarketSummary>();
+  let indexGen = 0;
   const caps = { ...CAPS, ...opts.caps };
 
   // pages of INDEX_PAGE, each linking the next; tombstones stay out, so
@@ -212,8 +213,10 @@ export async function startMarketServer(
       .slice(0, MAX_INDEX);
     const pages = Math.max(1, Math.ceil(entries.length / INDEX_PAGE));
     const generatedAt = iso();
+    // one generation per build, so a client can tell pages of two builds apart (WR-08)
+    const gen = ++indexGen;
     for (let n = 1; n <= pages; n++) {
-      const page = { entries: entries.slice((n - 1) * INDEX_PAGE, n * INDEX_PAGE), generatedAt };
+      const page = { entries: entries.slice((n - 1) * INDEX_PAGE, n * INDEX_PAGE), generatedAt, gen };
       writeJson(pub(indexFile(n)), n < pages ? { ...page, next: indexFile(n + 1) } : page);
     }
     for (let n = pages + 1; n <= MAX_PAGES; n++) {

@@ -268,12 +268,21 @@ export function createMarketClient(opts: MarketClientOpts) {
     return res.status === 304 ? null : { index: need(parseIndex(res.body, n)), etag: etagOf(res.headers) };
   };
 
-  // follows next pages up to MAX_INDEX entries
-  async function walk(first: MarketIndex): Promise<MarketIndex> {
+  // follows next pages up to MAX_INDEX entries; pages of another build restart the walk once (WR-08)
+  async function walk(
+    first: MarketIndex,
+    etag: string | null,
+    retry = true,
+  ): Promise<{ index: MarketIndex; etag: string | null }> {
     const seen = new Set<string>();
     const entries: MarketIndex['entries'] = [];
     let cur: MarketIndex | null = first;
+    let mixed = false;
     for (let n = 1; cur; n++) {
+      if (first.gen !== undefined && cur.gen !== first.gen) {
+        mixed = true;
+        break;
+      }
       for (const e of cur.entries) {
         if (entries.length >= MAX_INDEX || seen.has(e.id)) continue;
         seen.add(e.id);
@@ -281,7 +290,15 @@ export function createMarketClient(opts: MarketClientOpts) {
       }
       cur = cur.next && entries.length < MAX_INDEX ? need(await page(n + 1)).index : null;
     }
-    return { entries, generatedAt: first.generatedAt };
+    if (mixed && retry) {
+      const again = need(await page(1));
+      return walk(again.index, again.etag, false);
+    }
+    const gen = first.gen === undefined ? {} : { gen: first.gen };
+    return {
+      index: { entries, generatedAt: first.generatedAt, ...gen, ...(mixed ? { partial: true } : {}) },
+      etag,
+    };
   }
 
   async function entryIfChanged(id: string, etag: string | null): Promise<Changed<'entry', MarketEntry>> {
@@ -316,13 +333,15 @@ export function createMarketClient(opts: MarketClientOpts) {
       return need(parseMeta(await call('GET', metaPath())));
     },
     async index(): Promise<MarketIndex> {
-      return walk(need(await page(1)).index);
+      const first = need(await page(1));
+      return (await walk(first.index, first.etag)).index;
     },
     // one conditional request; a 304 sends nothing more
     async indexIfChanged(etag: string | null): Promise<Changed<'index', MarketIndex>> {
       const first = await page(1, ifTag(etag));
       if (!first) return { changed: false };
-      return { changed: true, index: await walk(first.index), etag: first.etag };
+      const w = await walk(first.index, first.etag);
+      return { changed: true, index: w.index, etag: w.etag };
     },
     async entry(id: string): Promise<MarketEntry> {
       const r = await entryIfChanged(id, null);

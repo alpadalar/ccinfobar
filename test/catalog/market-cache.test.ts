@@ -128,6 +128,26 @@ const marketDir = () =>
 const indexFile = () => path.join(marketDir(), 'index.json');
 
 describe('cachedIndex', () => {
+  it('never saves a partial walk, so the next load asks again (WR-08)', async () => {
+    const m = fakeMarket();
+    const partial = {
+      ...m.client,
+      indexIfChanged: async () => ({
+        changed: true as const,
+        etag: '"g9"',
+        index: { entries: [], generatedAt: 'x', gen: 9, partial: true as const },
+      }),
+    };
+    const r = await cachedIndex(EP, { client: partial, now: clock(T0), cacheDir });
+    expect(r).toMatchObject({ fromCache: false, partial: true });
+    expect(r.index).not.toHaveProperty('partial');
+    expect(fs.existsSync(indexFile())).toBe(false);
+    const again = await cachedIndex(EP, { client: m.client, now: clock(T0 + 1000), cacheDir });
+    expect(again.fromCache).toBe(false);
+    expect(again.partial).toBeUndefined();
+    expect(fs.existsSync(indexFile())).toBe(true);
+  });
+
   it('walks once, then serves the cache for 24 hours with no request', async () => {
     const m = fakeMarket();
     const first = await cachedIndex(EP, { client: m.client, now: clock(T0), cacheDir });

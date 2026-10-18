@@ -64,6 +64,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The marketplace's moderation log tells a publisher withdrawing their own pending entry apart from admin actions (migration `0008_moderation_actor.sql`)
 - After a GitHub sign-in the marketplace server revokes the GitHub token at GitHub, so the token ccinfobar sent once is no longer valid anywhere
 - Installing an older version of an approved marketplace entry whose unreviewed content was dropped says the version is no longer available and to install the latest one, instead of "entry withdrawn" (new error code `version-dropped`)
+- Marketplace index pages carry the generation of their build, and ccinfobar starts the walk over when a later page comes from another build, so a write during the walk can no longer hide an entry for a day; if the pages still differ, `catalog list --remote` says entries may be missing and the list is not cached
 
 ### Security
 

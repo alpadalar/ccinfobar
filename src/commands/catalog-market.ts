@@ -384,6 +384,7 @@ export async function runRemoteList(c: Ctx): Promise<void> {
       entries,
       checkedAt: res.checkedAt ?? null,
       ...(res.stale ? { stale: true } : {}),
+      ...(res.partial ? { partial: true } : {}),
     });
     return;
   }
@@ -392,6 +393,7 @@ export async function runRemoteList(c: Ctx): Promise<void> {
   else listRows(c, entries);
   c.io.log('');
   if (res.stale) c.io.log(t('catalog.remote.stale'));
+  if (res.partial) c.io.log(t('catalog.remote.partial'));
   if (res.checkedAt) c.io.log(t('catalog.remote.checked', { time: when(res.checkedAt) }));
 }
 
