@@ -31,7 +31,7 @@ const from = (theme: string, colors: string, features: string) =>
 
 const ALL = ['directory', 'git', 'model', 'context', 'usage', 'tokens', 'burnrate', 'session'];
 const HEADER_ONLY =
-  'only the cc-statusline script header (theme, colors and features) was read; changes made below it are not imported';
+  'only the cc-statusline (chongdashu) script header (theme, colors and features) was read; changes made below it are not imported';
 
 describe('parseCcStatuslineHeader', () => {
   it('reads theme, colors and features from the fixture', () => {
@@ -71,9 +71,18 @@ describe('importCcStatusline', () => {
     expect(item(r, 'model')!.id).toBe('cc-statusline-model');
     expect(r.notes).toEqual([
       { kind: 'info', text: HEADER_ONLY },
-      { kind: 'approx', text: 'cc-statusline "context" is approximated by the context-bar widget' },
-      { kind: 'approx', text: 'cc-statusline "session" is approximated by the five-hour-reset widget' },
-      { kind: 'approx', text: 'cc-statusline "burnrate" is approximated by the output-speed widget' },
+      {
+        kind: 'approx',
+        text: 'cc-statusline (chongdashu) "context" is approximated by the context-bar widget',
+      },
+      {
+        kind: 'approx',
+        text: 'cc-statusline (chongdashu) "session" is approximated by the five-hour-reset widget',
+      },
+      {
+        kind: 'approx',
+        text: 'cc-statusline (chongdashu) "burnrate" is approximated by the output-speed widget',
+      },
     ]);
   });
 
@@ -91,12 +100,14 @@ describe('importCcStatusline', () => {
     const minimal = from('minimal', 'true', 'session');
     expect(item(minimal, 'five-hour-usage')!.options).toBeUndefined();
     expect(minimal.config.theme).toBe('classic');
-    expect(texts(minimal)).toContain('cc-statusline theme "minimal" is approximated by the classic theme');
+    expect(texts(minimal)).toContain(
+      'cc-statusline (chongdashu) theme "minimal" is approximated by the classic theme',
+    );
     expect(texts(from('compact', 'true', 'git'))).toContain(
-      'cc-statusline theme "compact" is approximated by the classic theme',
+      'cc-statusline (chongdashu) theme "compact" is approximated by the classic theme',
     );
     expect(texts(from('neon', 'true', 'git'))).toContain(
-      'cc-statusline theme "neon" has no ccinfobar equivalent, used the classic theme',
+      'cc-statusline (chongdashu) theme "neon" has no ccinfobar equivalent, used the classic theme',
     );
   });
 
@@ -104,9 +115,9 @@ describe('importCcStatusline', () => {
     const r = from('detailed', 'true', 'git, weather, __proto__, constructor, weather');
     expect(types(r)).toEqual([['git-branch', 'claude-version', 'output-style']]);
     expect(texts(r).slice(1)).toEqual([
-      'cc-statusline widget "weather" has no ccinfobar equivalent and was skipped',
-      'cc-statusline widget "__proto__" has no ccinfobar equivalent and was skipped',
-      'cc-statusline widget "constructor" has no ccinfobar equivalent and was skipped',
+      'cc-statusline (chongdashu) widget "weather" has no ccinfobar equivalent and was skipped',
+      'cc-statusline (chongdashu) widget "__proto__" has no ccinfobar equivalent and was skipped',
+      'cc-statusline (chongdashu) widget "constructor" has no ccinfobar equivalent and was skipped',
     ]);
   });
 
@@ -118,8 +129,8 @@ describe('importCcStatusline', () => {
   it('writes its notes in Turkish', () => {
     withLang('tr', () => {
       expect(texts(from('compact', 'true', 'git'))).toEqual([
-        'cc-statusline betiğinin yalnızca başlığı (tema, renkler ve özellikler) okundu; altındaki değişiklikler içe aktarılmadı',
-        'cc-statusline teması "compact", classic temasıyla yaklaşık olarak gösteriliyor',
+        'cc-statusline (chongdashu) betiğinin yalnızca başlığı (tema, renkler ve özellikler) okundu; altındaki değişiklikler içe aktarılmadı',
+        'cc-statusline (chongdashu) teması "compact", classic temasıyla yaklaşık olarak gösteriliyor',
       ]);
     });
   });

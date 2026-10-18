@@ -8,6 +8,7 @@ import { readJsonTool, shownFile, tableOf } from './io.js';
 import type { ImporterDef } from './registry.js';
 
 const TOOL = 'cc-statusline';
+const NAME = 'cc-statusline (NYCU-Chung)';
 const SHOWN = '~/.claude/cc-statusline-rows.json';
 
 export const TARGETS: readonly string[] = [
@@ -61,7 +62,7 @@ export function importNycuCcStatusline(
   opts: { defaulted?: boolean; file?: string } = {},
 ): ImportResult {
   const notes: ImportNote[] = [];
-  if (opts.defaulted) notes.push({ kind: 'info', text: t('import.note.defaultLayout', { tool: TOOL }) });
+  if (opts.defaulted) notes.push({ kind: 'info', text: t('import.note.defaultLayout', { tool: NAME }) });
   const table = tableOf(raw);
   if (!table && !opts.defaulted) {
     notes.push({
@@ -73,10 +74,10 @@ export function importNycuCcStatusline(
   const has = (k: string) => Object.hasOwn(c, k);
   const on = (k: string) => (has(k) ? !!c[k] : true);
   if (has('enabled') && c.enabled === false) {
-    notes.push({ kind: 'info', text: t('import.note.toolDisabled', { tool: TOOL }) });
+    notes.push({ kind: 'info', text: t('import.note.toolDisabled', { tool: NAME }) });
   }
   const approx = (name: string, widget: string) =>
-    notes.push({ kind: 'approx', text: t('import.note.hudApprox', { tool: TOOL, name, widget }) });
+    notes.push({ kind: 'approx', text: t('import.note.hudApprox', { tool: NAME, name, widget }) });
 
   const days = num(c.aggWindowDays, 0) ?? 0;
   const total = days === 1 ? 'cost-today' : 'cost-week';
@@ -135,7 +136,7 @@ export function importNycuCcStatusline(
   if (ignored.length) {
     notes.push({
       kind: 'drop',
-      text: t('import.note.ignoredSettings', { tool: TOOL, names: ignored.join(', ') }),
+      text: t('import.note.ignoredSettings', { tool: NAME, names: ignored.join(', ') }),
     });
   }
 
@@ -154,7 +155,7 @@ export function importNycuCcStatusline(
 
 export const nycuCcStatuslineImporter: ImporterDef = {
   source: 'nycu-cc-statusline',
-  name: 'cc-statusline (NYCU-Chung)',
+  name: NAME,
   repo: 'NYCU-Chung/cc-statusline',
   shown: SHOWN,
   hasDefault: true,
@@ -163,6 +164,6 @@ export const nycuCcStatuslineImporter: ImporterDef = {
   discover: (ctx) => path.join(ctx.home, '.claude', 'cc-statusline-rows.json'),
   load: (file, ctx) =>
     file
-      ? { ...importNycuCcStatusline(readJsonTool(file, TOOL), { file: shownFile(file, ctx.home) }), file }
+      ? { ...importNycuCcStatusline(readJsonTool(file, NAME), { file: shownFile(file, ctx.home) }), file }
       : { ...importNycuCcStatusline({}, { defaulted: true }), file: null },
 };

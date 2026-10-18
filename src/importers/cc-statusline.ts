@@ -57,21 +57,21 @@ export function parseCcStatuslineHeader(text: string): CcStatuslineHeader | null
 type Types = [string, Record<string, OptionValue>?][];
 
 export function importCcStatusline(header: CcStatuslineHeader): ImportResult {
-  const notes: ImportNote[] = [{ kind: 'info', text: t('import.note.headerOnly', { tool: TOOL }) }];
+  const notes: ImportNote[] = [{ kind: 'info', text: t('import.note.headerOnly', { tool: NAME }) }];
   const on = new Set(header.features.filter((f) => FEATURES.has(f)));
   const approx = (name: string, widget: string) =>
-    notes.push({ kind: 'approx', text: t('import.note.hudApprox', { tool: TOOL, name, widget }) });
+    notes.push({ kind: 'approx', text: t('import.note.hudApprox', { tool: NAME, name, widget }) });
 
   const theme = header.theme.toLowerCase();
   if (theme === 'minimal' || theme === 'compact') {
     notes.push({
       kind: 'approx',
-      text: t('import.note.themeApprox', { tool: TOOL, name: theme, theme: 'classic' }),
+      text: t('import.note.themeApprox', { tool: NAME, name: theme, theme: 'classic' }),
     });
   } else if (theme !== 'detailed') {
     notes.push({
       kind: 'approx',
-      text: t('import.note.themeMissing', { tool: TOOL, name: sanitizeText(header.theme), theme: 'classic' }),
+      text: t('import.note.themeMissing', { tool: NAME, name: sanitizeText(header.theme), theme: 'classic' }),
     });
   }
 
@@ -112,7 +112,7 @@ export function importCcStatusline(header: CcStatuslineHeader): ImportResult {
   for (const name of unknown) {
     notes.push({
       kind: 'drop',
-      text: t('import.note.noEquivalent', { tool: TOOL, name: sanitizeText(name) }),
+      text: t('import.note.noEquivalent', { tool: NAME, name: sanitizeText(name) }),
     });
   }
 
@@ -163,7 +163,7 @@ function loadScript(file: string | null, ctx: ImportCtx): ImportResult {
     text = readSource(file);
   } catch (err) {
     if (err instanceof SourceTooLargeError) throw err;
-    throw new Error(t('import.cannotReadTool', { tool: TOOL, file: shown }));
+    throw new Error(t('import.cannotReadTool', { tool: NAME, file: shown }));
   }
   const header = parseCcStatuslineHeader(text);
   if (!header) throw new Error(t('import.notScript', { file: shown }));

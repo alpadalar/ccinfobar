@@ -44,9 +44,15 @@ describe('importNycuCcStatusline', () => {
     expect(item(r, 'agents')!.hideEmpty).toBe(true);
     expect(item(r, 'model')!.id).toBe('nycu-cc-statusline-model');
     expect(r.notes).toEqual([
-      { kind: 'approx', text: 'cc-statusline "summary" is approximated by the session-name widget' },
-      { kind: 'approx', text: 'cc-statusline "duration" is approximated by the session-duration widget' },
-      { kind: 'approx', text: 'cc-statusline "cost" is approximated by the cost-week widget' },
+      {
+        kind: 'approx',
+        text: 'cc-statusline (NYCU-Chung) "summary" is approximated by the session-name widget',
+      },
+      {
+        kind: 'approx',
+        text: 'cc-statusline (NYCU-Chung) "duration" is approximated by the session-duration widget',
+      },
+      { kind: 'approx', text: 'cc-statusline (NYCU-Chung) "cost" is approximated by the cost-week widget' },
     ]);
   });
 
@@ -60,12 +66,12 @@ describe('importNycuCcStatusline', () => {
     expect(r.config.maxWidth).toBeUndefined();
     expect(r.config.widthOffset).toBeUndefined();
     expect(texts(r)).toEqual([
-      'no cc-statusline config file found, imported its default layout',
-      'cc-statusline "summary" is approximated by the session-name widget',
-      'cc-statusline "duration" is approximated by the session-duration widget',
-      'cc-statusline "cost" is approximated by the cost-week widget',
-      'cc-statusline "memory_mcp" is approximated by the env-counts widget',
-      'cc-statusline settings not imported: edited, history',
+      'no cc-statusline (NYCU-Chung) config file found, imported its default layout',
+      'cc-statusline (NYCU-Chung) "summary" is approximated by the session-name widget',
+      'cc-statusline (NYCU-Chung) "duration" is approximated by the session-duration widget',
+      'cc-statusline (NYCU-Chung) "cost" is approximated by the cost-week widget',
+      'cc-statusline (NYCU-Chung) "memory_mcp" is approximated by the env-counts widget',
+      'cc-statusline (NYCU-Chung) settings not imported: edited, history',
     ]);
   });
 
@@ -74,7 +80,7 @@ describe('importNycuCcStatusline', () => {
     expect(types(r)).toEqual(ROWS);
     expect(r.notes[0]).toEqual({
       kind: 'info',
-      text: 'cc-statusline is turned off ("enabled": false), its rows were imported anyway',
+      text: 'cc-statusline (NYCU-Chung) is turned off ("enabled": false), its rows were imported anyway',
     });
   });
 
@@ -95,7 +101,9 @@ describe('importNycuCcStatusline', () => {
     expect(types(r)).toEqual([['cwd', 'lines-changed'], ['session-duration']]);
     const m = importNycuCcStatusline({ duration: false, summary: false, edited: false, history: false });
     expect(types(m)[2]).toEqual(['model', 'effort']);
-    expect(texts(m)).not.toContain('cc-statusline "duration" is approximated by the session-duration widget');
+    expect(texts(m)).not.toContain(
+      'cc-statusline (NYCU-Chung) "duration" is approximated by the session-duration widget',
+    );
   });
 
   it('maps the cost window and the width keys', () => {
@@ -137,12 +145,12 @@ describe('importNycuCcStatusline', () => {
     });
     expect(r.notes.at(-1)).toEqual({
       kind: 'drop',
-      text: 'cc-statusline settings not imported: summaryInterval, theme, extraRow',
+      text: 'cc-statusline (NYCU-Chung) settings not imported: summaryInterval, theme, extraRow',
     });
     expect(texts(r).join('\n')).not.toContain('neon-value');
     expect(
       texts(importNycuCcStatusline({ edited: false, history: false, summaryInterval: 10 })),
-    ).not.toContain('cc-statusline settings not imported: summaryInterval');
+    ).not.toContain('cc-statusline (NYCU-Chung) settings not imported: summaryInterval');
   });
 
   it('imports every row with one note for a file that is not a JSON object', () => {
@@ -174,9 +182,9 @@ describe('importNycuCcStatusline', () => {
     withLang('tr', () => {
       const r = importNycuCcStatusline({ enabled: false, summary: false, duration: false, cost: false });
       expect(texts(r)).toEqual([
-        'cc-statusline kapalı ("enabled": false), satırları yine de içe aktarıldı',
-        'cc-statusline "memory_mcp", env-counts bileşeniyle yaklaşık olarak gösteriliyor',
-        'cc-statusline ayarları içe aktarılmadı: edited, history',
+        'cc-statusline (NYCU-Chung) kapalı ("enabled": false), satırları yine de içe aktarıldı',
+        'cc-statusline (NYCU-Chung) "memory_mcp", env-counts bileşeniyle yaklaşık olarak gösteriliyor',
+        'cc-statusline (NYCU-Chung) ayarları içe aktarılmadı: edited, history',
       ]);
     });
   });
@@ -208,7 +216,9 @@ describe('nycu-cc-statusline importer', () => {
   it('finds ~/.claude/cc-statusline-rows.json even with CLAUDE_CONFIG_DIR, else imports every row', () => {
     const none = importFrom('nycu-cc-statusline', { env, cwd: dir });
     expect(none.file).toBeNull();
-    expect(texts(none)[0]).toBe('no cc-statusline config file found, imported its default layout');
+    expect(texts(none)[0]).toBe(
+      'no cc-statusline (NYCU-Chung) config file found, imported its default layout',
+    );
 
     const cc = path.join(dir, 'cc');
     fs.mkdirSync(cc);
@@ -226,7 +236,7 @@ describe('nycu-cc-statusline importer', () => {
     );
     fs.writeFileSync(homeFile(), '{"dir": ');
     expect(() => importFrom('nycu-cc-statusline', { env, cwd: dir })).toThrow(
-      /Cannot parse cc-statusline config/,
+      /Cannot parse cc-statusline \(NYCU-Chung\) config/,
     );
   });
 
