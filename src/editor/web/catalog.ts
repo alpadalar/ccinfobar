@@ -307,7 +307,8 @@ export async function openCatalog(): Promise<void> {
       peek.style.height = `${(box.offsetHeight || 0) * scale}px`;
     }
     const at = anchor.getBoundingClientRect();
-    const own = peek.getBoundingClientRect();
+    // layout size; the closed peek is scaled
+    const own = { width: peek.offsetWidth, height: peek.offsetHeight };
     const below = at.top + at.height + GAP;
     const top =
       below + own.height <= window.innerHeight - GAP ? below : Math.max(GAP, at.top - GAP - own.height);
