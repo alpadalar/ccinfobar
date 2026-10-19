@@ -137,6 +137,10 @@ beforeAll(() => {
     if (u.startsWith('/api/catalog/previews'))
       return res(200, { previews: Object.fromEntries((b.refs as string[]).map((r) => [r, [`line ${r}`]])) });
     if (u.startsWith('/api/catalog/publish/plan')) return res(200, plan());
+    if (u.startsWith('/api/catalog/remote/previews'))
+      return res(200, {
+        previews: Object.fromEntries((b.ids as string[]).map((id) => [id, [`line ${id}`]])),
+      });
     if (u.startsWith('/api/catalog/remote/')) return res(200, { entry: remoteEntry(), latest: null });
     if (u.startsWith('/api/catalog/remote')) return res(200, { endpoint: ENDPOINT, entries: [] });
     if (u.startsWith('/api/catalog')) return res(200, catalog);
@@ -539,7 +543,7 @@ describe('marketplace tab', () => {
     await openPage();
     const d = top();
     const tabs = d.all((e) => e.getAttribute('role') === 'tab');
-    expect(tabs.map((e) => e.textContent)).toEqual(['Marketplace', 'User', 'Built in']);
+    expect(tabs.map((e) => e.textContent)).toEqual(['Bundles', 'Presets', 'Themes', 'User', 'Built in']);
     expect(calls.filter((c) => c.url === '/api/catalog/remote')).toHaveLength(1);
     const sections = d.all((e) => e.tagName === 'SECTION').map((e) => e.getAttribute('data-section'));
     expect(sections).toEqual(['market']);
@@ -552,7 +556,7 @@ describe('marketplace tab', () => {
     expect(texts(rows[0]!)).toEqual(expect.arrayContaining(['My setup', 'Bundle', 'v2', 'Ada · @ada']));
     expect(texts(rows[1]!)).toEqual(expect.arrayContaining(['Gone', '@bo', 'Withdrawn']));
     // tab switch keeps the loaded list
-    tabs[1]!.dispatch('click');
+    tabs[3]!.dispatch('click');
     await flush();
     expect(d.all((e) => e.classList.contains('catalog-remote-row'))).toEqual([]);
     expect(d.all((e) => e.getAttribute('data-ref') === 'u-w')).toHaveLength(1);
@@ -577,7 +581,7 @@ describe('marketplace tab', () => {
     button('Done')!.dispatch('click');
     await flush();
     expect(calls.filter((c) => c.url === '/api/catalog/remote')).toHaveLength(1);
-    tab('market').dispatch('click');
+    tab('market-bundle').dispatch('click');
     await flush();
     expect(calls.filter((c) => c.url === '/api/catalog/remote')).toHaveLength(2);
   });
@@ -589,7 +593,7 @@ describe('marketplace tab', () => {
     reply('GET /api/catalog/remote', 200, { endpoint: ENDPOINT, entries: [summary()], partial: true });
     await init();
     const { marketplaceSection } = await import('../../src/editor/web/catalog-market.js');
-    const el = marketplaceSection(catalog) as unknown as FakeEl;
+    const el = marketplaceSection(catalog)!.el as unknown as FakeEl;
     await flush();
     expect(texts(el)).toContain(note);
     const hint = el.all((e) => e.classList.contains('catalog-partial'))[0]!;
@@ -604,12 +608,12 @@ describe('marketplace tab', () => {
     online();
     await init();
     const { marketplaceSection } = await import('../../src/editor/web/catalog-market.js');
-    const plain = marketplaceSection(catalog) as unknown as FakeEl;
+    const plain = marketplaceSection(catalog)!.el as unknown as FakeEl;
     await flush();
     expect(texts(plain).some((x) => x.startsWith('The marketplace changed'))).toBe(false);
     setLanguage('tr');
     reply('GET /api/catalog/remote', 200, { endpoint: ENDPOINT, entries: [], partial: true });
-    const el = marketplaceSection(catalog) as unknown as FakeEl;
+    const el = marketplaceSection(catalog)!.el as unknown as FakeEl;
     await flush();
     expect(texts(el)).toContain(
       'Liste yüklenirken marketplace değişti, bu yüzden bazı girdiler eksik olabilir. Yeniden yüklemek için yenileyin.',
@@ -630,7 +634,7 @@ describe('marketplace tab', () => {
     online();
     await init();
     const { marketplaceSection } = await import('../../src/editor/web/catalog-market.js');
-    const el = marketplaceSection(catalog) as unknown as FakeEl;
+    const el = marketplaceSection(catalog)!.el as unknown as FakeEl;
     await flush();
     expect(texts(el)).toContain('The marketplace has no entries yet.');
   });
@@ -645,7 +649,7 @@ describe('marketplace tab', () => {
       code: 'network',
     });
     const { marketplaceSection } = await import('../../src/editor/web/catalog-market.js');
-    const el = marketplaceSection(catalog) as unknown as FakeEl;
+    const el = marketplaceSection(catalog)!.el as unknown as FakeEl;
     await flush();
     expect(texts(el)).toContain("Marketplace okunamadı: Marketplace'e ulaşılamadı");
   });
@@ -732,5 +736,194 @@ describe('marketplace tab', () => {
     await remoteEntryDialog('ada/x');
     expect(toastText()).toContain('The entry was not found on the marketplace');
     expect(open()).toEqual([]);
+  });
+});
+
+describe('marketplace tabs by kind', () => {
+  const mixed = () => [
+    summary({ id: 'ada/b1', name: 'B1', kind: 'bundle' }),
+    summary({ id: 'ada/b2', name: 'B2', kind: 'bundle', withdrawn: true }),
+    summary({ id: 'ada/p1', name: 'P1', kind: 'preset' }),
+    summary({ id: 'ada/p2', name: 'P2', kind: 'preset' }),
+  ];
+  const tabEl = (id: string) => top().all((e) => e.getAttribute('data-tab') === id)[0]!;
+  const show = async (id: string) => {
+    tabEl(id).dispatch('click');
+    await flush();
+  };
+  const rows = () => top().all((e) => e.classList.contains('catalog-remote-row'));
+  const names = () => rows().map((r) => r.querySelector('STRONG')!.textContent);
+  const lists = () => calls.filter((c) => c.method === 'GET' && c.url.startsWith('/api/catalog/remote'));
+  const asked = () => calls.filter((c) => c.url === '/api/catalog/remote/previews').map((c) => c.body.ids);
+  const thumbOf = (r: FakeEl) => r.querySelector('.catalog-thumb')!;
+  const html = (el: FakeEl) => el.querySelector('.theme-preview')?.getAttribute('innerHTML') ?? '';
+  const peeks = () => body.all((e) => e.classList.contains('catalog-peek'));
+
+  it('lists each kind in its own tab from one index load, with its own empty note', async () => {
+    online();
+    reply('GET /api/catalog/remote', 200, { endpoint: ENDPOINT, entries: mixed() });
+    await init();
+    await openPage();
+    const tabs = top().all((e) => e.getAttribute('role') === 'tab');
+    expect(tabs.map((e) => e.textContent)).toEqual(['Bundles', 'Presets', 'Themes', 'User', 'Built in']);
+    expect(tabs[0]!.getAttribute('data-tab')).toBe('market-bundle');
+    expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
+    expect(names()).toEqual(['B1', 'B2']);
+    await show('market-preset');
+    expect(names()).toEqual(['P1', 'P2']);
+    await show('market-theme');
+    expect(names()).toEqual([]);
+    expect(texts(top())).toContain('The marketplace has no themes yet.');
+    await show('user');
+    expect(rows()).toEqual([]);
+    await show('market-bundle');
+    expect(names()).toEqual(['B1', 'B2']);
+    expect(texts(top())).not.toContain('The marketplace has no themes yet.');
+    expect(lists().map((c) => c.url)).toEqual(['/api/catalog/remote']);
+    reply('GET /api/catalog/remote', 200, {
+      endpoint: ENDPOINT,
+      entries: [...mixed(), summary({ id: 'ada/t1', name: 'T1', kind: 'theme' })],
+    });
+    button('Refresh')!.dispatch('click');
+    await flush();
+    await show('market-theme');
+    expect(names()).toEqual(['T1']);
+    await show('market-preset');
+    expect(lists().map((c) => c.url)).toEqual(['/api/catalog/remote', '/api/catalog/remote?refresh=1']);
+  });
+
+  it('says the marketplace is empty when no kind has entries', async () => {
+    online();
+    await init();
+    await openPage();
+    expect(texts(top())).toContain('The marketplace has no entries yet.');
+    await show('market-preset');
+    expect(texts(top())).toContain('The marketplace has no entries yet.');
+    expect(texts(top())).not.toContain('The marketplace has no presets yet.');
+    expect(asked()).toEqual([]);
+  });
+
+  it('says it in Turkish', async () => {
+    online();
+    setLanguage('tr');
+    reply('GET /api/catalog/remote', 200, { endpoint: ENDPOINT, entries: mixed() });
+    await init();
+    await openPage();
+    expect(
+      top()
+        .all((e) => e.getAttribute('role') === 'tab')
+        .map((e) => e.textContent),
+    ).toEqual(['Paketler', 'Hazır ayarlar', 'Temalar', 'Kullanıcı', 'Yerleşik']);
+    await show('market-theme');
+    expect(texts(top())).toContain("Marketplace'te henüz tema yok.");
+  });
+
+  it('asks previews once per id and version, only for the shown tab', async () => {
+    online();
+    reply('GET /api/catalog/remote', 200, { endpoint: ENDPOINT, entries: mixed() });
+    await init();
+    await openPage();
+    expect(asked()).toEqual([['ada/b1']]);
+    expect(calls.find((c) => c.url === '/api/catalog/remote/previews')!.body).toMatchObject({
+      config: expect.any(Object),
+      width: expect.any(Number),
+      lang: 'en',
+    });
+    const [b1, b2] = rows();
+    expect(html(thumbOf(b1!))).toContain('line ada/b1');
+    expect(html(thumbOf(b2!))).not.toContain('line ada/');
+    await show('market-preset');
+    expect(asked()).toEqual([['ada/b1'], ['ada/p1', 'ada/p2']]);
+    expect(rows().map((r) => html(thumbOf(r)))).toEqual([
+      expect.stringContaining('line ada/p1'),
+      expect.stringContaining('line ada/p2'),
+    ]);
+    await show('market-bundle');
+    await show('user');
+    await show('market-preset');
+    await show('market-theme');
+    expect(asked()).toHaveLength(2);
+    // after Refresh only the new version is asked
+    reply('GET /api/catalog/remote', 200, {
+      endpoint: ENDPOINT,
+      entries: [
+        summary({ id: 'ada/b1', name: 'B1', kind: 'bundle' }),
+        summary({ id: 'ada/p1', name: 'P1', kind: 'preset', version: 3 }),
+        summary({ id: 'ada/p2', name: 'P2', kind: 'preset' }),
+      ],
+    });
+    await show('market-preset');
+    button('Refresh')!.dispatch('click');
+    await flush();
+    expect(asked()).toEqual([['ada/b1'], ['ada/p1', 'ada/p2'], ['ada/p1']]);
+    await show('market-bundle');
+    expect(asked()).toHaveLength(3);
+  });
+
+  it('asks again later when a preview request fails', async () => {
+    online();
+    reply('GET /api/catalog/remote', 200, { endpoint: ENDPOINT, entries: mixed() });
+    reply('POST /api/catalog/remote/previews', 502, { error: 'no', errorId: 'market.error.network' });
+    await init();
+    await openPage();
+    expect(asked()).toEqual([['ada/b1']]);
+    expect(html(thumbOf(rows()[0]!))).not.toContain('line ada/');
+    await show('market-preset');
+    await show('market-bundle');
+    expect(asked()).toEqual([['ada/b1'], ['ada/p1', 'ada/p2'], ['ada/b1']]);
+    expect(html(thumbOf(rows()[0]!))).toContain('line ada/b1');
+  });
+
+  it('peeks on mouse hover and keyboard focus, and shows the preview in the details', async () => {
+    online();
+    reply('GET /api/catalog/remote', 200, { endpoint: ENDPOINT, entries: mixed() });
+    reply('GET /api/catalog/remote/ada/b1', 200, {
+      entry: remoteEntry({ id: 'ada/b1', name: 'B1' }),
+      latest: { version: 2, content, targets: [] },
+    });
+    await init();
+    await openPage();
+    const row = rows()[0]!;
+    expect(row.tagName).toBe('DIV');
+    expect(row.getAttribute('role')).toBe('button');
+    expect(row.getAttribute('tabindex')).toBe('0');
+    thumbOf(row).dispatch('pointerenter', { pointerType: 'touch' });
+    expect(peeks().filter((p) => p.classList.contains('on'))).toEqual([]);
+    thumbOf(row).dispatch('pointerenter', { pointerType: 'mouse' });
+    const p = peeks()[0]!;
+    expect(p.classList.contains('on')).toBe(true);
+    expect(html(p)).toContain('line ada/b1');
+    thumbOf(row).dispatch('pointerleave', {});
+    expect(p.classList.contains('on')).toBe(false);
+    (row as any).matches = (sel: string) => sel === ':focus-visible';
+    row.dispatch('focus', {});
+    expect(p.classList.contains('on')).toBe(true);
+    row.dispatch('blur', {});
+    expect(p.classList.contains('on')).toBe(false);
+    const key = (type: string, k: string) =>
+      row.dispatch(type, { key: k, target: row, currentTarget: row, preventDefault() {} });
+    key('keydown', 'Enter');
+    await flush();
+    const d = top();
+    expect(d.querySelector('H2')!.textContent).toBe('B1');
+    expect(html(d.querySelector('.catalog-detail-preview')!)).toContain('line ada/b1');
+    expect(asked()).toEqual([['ada/b1']]);
+  });
+
+  it('opens the details on space release', async () => {
+    online();
+    reply('GET /api/catalog/remote', 200, { endpoint: ENDPOINT, entries: mixed() });
+    await init();
+    await openPage();
+    const row = rows()[0]!;
+    const before = open().length;
+    const key = (type: string, k: string) =>
+      row.dispatch(type, { key: k, target: row, currentTarget: row, preventDefault() {} });
+    key('keydown', ' ');
+    await flush();
+    expect(open()).toHaveLength(before);
+    key('keyup', ' ');
+    await flush();
+    expect(open()).toHaveLength(before + 1);
   });
 });

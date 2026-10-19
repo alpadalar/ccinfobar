@@ -199,10 +199,10 @@ describe('editor page left idle with a marketplace endpoint (R-11)', () => {
 
     el('catalog-btn').dispatch('click');
     await tick(1000);
-    expect(tabs().map((x) => x.textContent)).toEqual(['Marketplace', 'User', 'Built in']);
+    expect(tabs().map((x) => x.textContent)).toEqual(['Bundles', 'Presets', 'Themes', 'User', 'Built in']);
     expect(market().map((c) => c.url)).toEqual(['/api/catalog/remote']);
     await tick(DAY);
-    for (const i of [1, 2, 0, 1, 0]) {
+    for (const i of [1, 2, 3, 4, 0, 2, 3, 0]) {
       tabs()[i]!.dispatch('click');
       await tick(HOUR);
     }

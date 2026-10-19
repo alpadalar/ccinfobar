@@ -118,6 +118,10 @@ beforeAll(() => {
       });
     if (u.startsWith('/api/catalog/previews'))
       return res(200, { previews: Object.fromEntries((b.refs as string[]).map((r) => [r, [`line ${r}`]])) });
+    if (key === 'POST /api/catalog/remote/previews')
+      return res(200, {
+        previews: Object.fromEntries((b.ids as string[]).map((id) => [id, [`line ${id}`]])),
+      });
     if (key === 'GET /api/catalog/remote')
       return res(200, {
         endpoint: ENDPOINT,
@@ -370,7 +374,7 @@ describe('report from the marketplace (D-09)', () => {
     button('Sign in with GitHub')!.dispatch('click');
     await tick(5050);
     expect(texts(top())).toContain('Signed in as @alice');
-    tab('market').dispatch('click');
+    tab('market-bundle').dispatch('click');
     await tick(50);
     row().dispatch('click');
     await tick(50);
@@ -451,7 +455,7 @@ describe('marketplace refresh (R-12)', () => {
       },
     });
     await openPage();
-    const remote = () => calls.filter((c) => c.url.startsWith('/api/catalog/remote'));
+    const remote = () => calls.filter((c) => c.method === 'GET' && c.url.startsWith('/api/catalog/remote'));
     expect(remote().map((c) => c.url)).toEqual(['/api/catalog/remote']);
     const checked = () => top().querySelector('.catalog-checked')!.textContent;
     const first = checked();

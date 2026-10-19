@@ -562,19 +562,21 @@ describe('publish dialog sign-in step', () => {
 });
 
 describe('catalog page marketplace state', () => {
-  it('opens on the Marketplace tab for the default endpoint and reads it once', async () => {
+  it('opens on the marketplace Bundles tab for the default endpoint and reads it once', async () => {
     await openPage();
-    expect(tabNames()).toEqual(['Marketplace', 'User', 'Built in']);
+    expect(tabNames()).toEqual(['Bundles', 'Presets', 'Themes', 'User', 'Built in']);
     expect(remoteCalls().map((c) => c.url)).toEqual(['/api/catalog/remote']);
     await tick(HOUR);
     tab('User').dispatch('click');
     await tick();
-    tab('Marketplace').dispatch('click');
+    tab('Themes').dispatch('click');
+    await tick();
+    tab('Bundles').dispatch('click');
     await tick(HOUR);
     expect(remoteCalls()).toHaveLength(1);
   });
 
-  it('hides the Marketplace tab when the marketplace is off', async () => {
+  it('hides the marketplace tabs when the marketplace is off', async () => {
     catalog = {
       ...catalog,
       endpoint: null,
@@ -582,7 +584,7 @@ describe('catalog page marketplace state', () => {
       market: { endpoint: null, source: 'off', signedIn: false, handle: null },
     };
     await openPage();
-    expect(tabNames()).not.toContain('Marketplace');
+    expect(tabNames()).toEqual(['User', 'Built in']);
     expect(button('Publish…')).toBeUndefined();
     await tick(HOUR);
     expect(remoteCalls()).toEqual([]);

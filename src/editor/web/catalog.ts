@@ -20,14 +20,27 @@ import {
 } from '../../importers/confirm.js';
 import { api, previewSource } from './api.js';
 import { deleteEntryDialog, historyDialog, saveCurrentDialog, toggleShare } from './catalog-dialogs.js';
-import { accountBar, marketplaceSection, publishDialog } from './catalog-market.js';
+import {
+  accountBar,
+  type MarketPreviews,
+  type MarketSection,
+  marketplaceSection,
+  publishDialog,
+} from './catalog-market.js';
 import { clear, h, icon } from './dom.js';
 import { previewBox } from './presets.js';
-import { type CatalogEntryInfo, type CatalogState, isDirty, replaceAll, S } from './store.js';
+import {
+  type CatalogEntryInfo,
+  type CatalogState,
+  isDirty,
+  type MarketSummaryInfo,
+  replaceAll,
+  S,
+} from './store.js';
 import { askThemeColors } from './themes.js';
 import { confirmDialog, modal, toast } from './ui.js';
 
-export type CatalogTab = 'market' | 'user' | 'system';
+export type CatalogTab = 'market-bundle' | 'market-preset' | 'market-theme' | 'user' | 'system';
 type Section = 'user' | 'system';
 
 export interface CatalogGroup {
@@ -37,12 +50,26 @@ export interface CatalogGroup {
 }
 
 const TABS: readonly CatalogTab[] = ['user', 'system'];
+const MARKET_TABS: readonly CatalogTab[] = ['market-bundle', 'market-preset', 'market-theme'];
+const MARKET_KIND: Partial<Record<CatalogTab, EntryKind>> = {
+  'market-bundle': 'bundle',
+  'market-preset': 'preset',
+  'market-theme': 'theme',
+};
+const marketKind = (tab: CatalogTab): EntryKind | null => MARKET_KIND[tab] ?? null;
+const TAB_LABEL: Record<CatalogTab, MessageId> = {
+  'market-bundle': 'catalog.tab.marketBundle',
+  'market-preset': 'catalog.tab.marketPreset',
+  'market-theme': 'catalog.tab.marketTheme',
+  user: 'catalog.tab.user',
+  system: 'catalog.tab.system',
+};
 // any active endpoint, the shipped default too; none when switched off
 const marketOn = (data: CatalogState): boolean =>
   data.market ? data.market.endpoint !== null : data.publishable;
 // built-in entries only in their own tab
 export const tabsOf = (data: CatalogState): readonly CatalogTab[] =>
-  marketOn(data) ? ['market', ...TABS] : TABS;
+  marketOn(data) ? [...MARKET_TABS, ...TABS] : TABS;
 const WAITING: ReadonlySet<ShareState> = new Set(['pending', 'outdated', 'withdraw-pending']);
 const KINDS: readonly EntryKind[] = ['bundle', 'preset', 'theme'];
 const GROUP: Record<EntryKind, MessageId> = {
@@ -59,6 +86,8 @@ const STATE: Record<ShareState, MessageId> = {
   withdrawn: 'catalog.share.withdrawn',
 };
 const BATCH = 100;
+// the server's cap per request
+const REMOTE_BATCH = 24;
 const GAP = 6;
 
 // previews are asked at full size; cards clip them
@@ -78,8 +107,8 @@ function sourceText(e: CatalogEntryInfo): string {
   return t(e.source === 'user' ? 'catalog.section.user' : 'catalog.section.system');
 }
 
-// the marketplace tab has no local entries
-const sectionsOf = (tab: CatalogTab): Section[] => (tab === 'market' ? [] : [tab]);
+// marketplace tabs have no local entries
+const sectionsOf = (tab: CatalogTab): Section[] => (tab === 'user' || tab === 'system' ? [tab] : []);
 
 export function groupEntries(data: CatalogState, tab: CatalogTab): CatalogGroup[] {
   const out: CatalogGroup[] = [];
@@ -240,7 +269,7 @@ export async function openCatalog(): Promise<void> {
   const tabs = h('div', { class: 'tabs catalog-tabs', role: 'tablist', 'aria-label': t('catalog.title') });
   const status = h('span', { class: 'hint catalog-status', role: 'status' });
   const list = h('div', { class: 'catalog-list' });
-  let market: HTMLElement | null = null;
+  let market: MarketSection | null = null;
   let close: (v?: unknown) => void = () => {};
   const own: HTMLElement[] = [];
 
@@ -248,8 +277,7 @@ export async function openCatalog(): Promise<void> {
     peek?.classList.remove('on');
   }
 
-  function showPeek(e: CatalogEntryInfo, anchor: HTMLElement) {
-    const lines = st.previews.get(e.ref);
+  function showPeek(lines: string[] | undefined, anchor: HTMLElement) {
     if (!lines || st.closed) return;
     if (!peek) {
       peek = h('div', { class: 'catalog-peek', 'aria-hidden': 'true' });
@@ -315,7 +343,7 @@ export async function openCatalog(): Promise<void> {
               tabs.querySelector<HTMLElement>(`[data-tab="${next}"]`)?.focus();
             },
           },
-          t(`catalog.tab.${id}`),
+          t(TAB_LABEL[id]),
         ),
       );
     }
@@ -476,7 +504,7 @@ export async function openCatalog(): Promise<void> {
     const slot = h('div', { class: 'catalog-preview catalog-thumb' }, previewBox(st.previews.get(e.ref)));
     slots.set(e.ref, slot);
     slot.addEventListener('pointerenter', (ev) => {
-      if (ev.pointerType === 'mouse' || ev.pointerType === 'pen') showPeek(e, slot);
+      if (ev.pointerType === 'mouse' || ev.pointerType === 'pen') showPeek(st.previews.get(e.ref), slot);
     });
     slot.addEventListener('pointerleave', hidePeek);
     const own = (ev: Event) => ev.target === ev.currentTarget || !ev.currentTarget;
@@ -512,7 +540,7 @@ export async function openCatalog(): Promise<void> {
           openDetails(e);
         },
         onFocus: () => {
-          if (el.matches?.(':focus-visible')) showPeek(e, slot);
+          if (el.matches?.(':focus-visible')) showPeek(st.previews.get(e.ref), slot);
         },
         onBlur: () => {
           armed = false;
@@ -545,6 +573,83 @@ export async function openCatalog(): Promise<void> {
     return el;
   }
 
+  // marketplace previews by id and version; asked only when a tab shows
+  const remoteLines = new Map<string, string[]>();
+  const remoteAsked = new Set<string>();
+  // the last card and dialog shown per key
+  const remoteSlots = new Map<string, HTMLElement>();
+  const remoteDetail = new Map<string, HTMLElement>();
+  const keyOf = (e: Pick<MarketSummaryInfo, 'id' | 'version'>) => `${e.id}@${e.version}`;
+  let remoteVersion = 0;
+
+  function fillRemote(key: string, lines: string[]) {
+    remoteSlots.get(key)?.replaceChildren(previewBox(lines));
+    remoteDetail.get(key)?.replaceChildren(previewBox(lines));
+  }
+
+  async function loadRemote(entries: MarketSummaryInfo[]) {
+    const v = ++remoteVersion;
+    await new Promise((r) => requestAnimationFrame(r));
+    if (st.closed || v !== remoteVersion) return;
+    const want = new Map<string, MarketSummaryInfo>();
+    for (const e of entries) {
+      const key = keyOf(e);
+      if (!e.withdrawn && !remoteLines.has(key) && !remoteAsked.has(key)) want.set(key, e);
+    }
+    if (!want.size) return;
+    for (const key of want.keys()) remoteAsked.add(key);
+    const cols = previewCols(list);
+    const all = [...want.values()];
+    inflight++;
+    status.textContent = t('catalog.loading');
+    for (let i = 0; i < all.length && !st.closed; i += REMOTE_BATCH) {
+      const batch = all.slice(i, i + REMOTE_BATCH);
+      try {
+        const r = await api.catalogRemotePreviews(
+          S.config,
+          previewSource(S),
+          cols,
+          batch.map((e) => e.id),
+        );
+        for (const e of batch) {
+          const lines = r.previews[e.id];
+          if (!Array.isArray(lines) || st.closed) continue;
+          remoteLines.set(keyOf(e), lines);
+          fillRemote(keyOf(e), lines);
+        }
+      } catch {
+        for (const e of batch) remoteAsked.delete(keyOf(e));
+      }
+    }
+    if (!--inflight) status.textContent = '';
+  }
+
+  const remote: MarketPreviews = {
+    thumb(e) {
+      const key = keyOf(e);
+      const slot = h('div', { class: 'catalog-preview catalog-thumb' }, previewBox(remoteLines.get(key)));
+      remoteSlots.set(key, slot);
+      slot.addEventListener('pointerenter', (ev) => {
+        if (ev.pointerType === 'mouse' || ev.pointerType === 'pen') showPeek(remoteLines.get(key), slot);
+      });
+      slot.addEventListener('pointerleave', hidePeek);
+      return slot;
+    },
+    detail(e) {
+      const key = keyOf(e);
+      const el = h(
+        'div',
+        { class: 'catalog-detail-preview', role: 'group', 'aria-label': t('catalog.details.preview') },
+        previewBox(remoteLines.get(key)),
+      );
+      remoteDetail.set(key, el);
+      return el;
+    },
+    peek: (e, anchor) => showPeek(remoteLines.get(keyOf(e)), anchor),
+    hide: hidePeek,
+    load: (entries) => void loadRemote(entries),
+  };
+
   function renderList() {
     hidePeek();
     clear(list);
@@ -576,15 +681,19 @@ export async function openCatalog(): Promise<void> {
       }
       list.append(box);
     }
-    if (st.tab === 'market') {
-      market ??= marketplaceSection(
-        st.data,
-        (next) => {
-          if (!st.closed) update(next);
-        },
-        () => st.data,
-      );
-      list.append(market ?? h('div', { class: 'empty-state small' }, t('catalog.remote.empty')));
+    const kind = marketKind(st.tab);
+    if (kind) {
+      if (market) market.show(kind);
+      else
+        market = marketplaceSection(
+          st.data,
+          (next) => {
+            if (!st.closed) update(next);
+          },
+          () => st.data,
+          { kind, previews: remote },
+        );
+      list.append(market?.el ?? h('div', { class: 'empty-state small' }, t('catalog.remote.empty')));
     }
   }
 

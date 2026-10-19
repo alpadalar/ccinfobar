@@ -1,4 +1,5 @@
 import '../../core/i18n/lazy.js';
+import type { EntryKind } from '../../core/edit.js';
 import { formatDateTime } from '../../core/i18n/format.js';
 import { languageLocale, type MessageId, t } from '../../core/i18n/index.js';
 import { MAX_TARGET_CHARS, visibleTarget } from '../../importers/confirm.js';
@@ -395,7 +396,28 @@ function meta(e: MarketSummaryInfo): HTMLElement[] {
 export interface MarketView {
   data: () => CatalogState;
   onChange: (next: CatalogState) => void;
+  previews?: MarketPreviews;
 }
+
+// owned by the page: one preview per id and version
+export interface MarketPreviews {
+  thumb(e: MarketSummaryInfo): HTMLElement;
+  detail(e: Pick<MarketSummaryInfo, 'id' | 'version'>): HTMLElement;
+  peek(e: MarketSummaryInfo, anchor: HTMLElement): void;
+  hide(): void;
+  load(entries: MarketSummaryInfo[]): void;
+}
+
+export interface MarketSection {
+  el: HTMLElement;
+  show(kind: EntryKind): void;
+}
+
+const EMPTY: Record<EntryKind, MessageId> = {
+  bundle: 'catalog.remote.emptyBundles',
+  preset: 'catalog.remote.emptyPresets',
+  theme: 'catalog.remote.emptyThemes',
+};
 
 const signedIn = (view?: MarketView) => view?.data().market?.signedIn === true;
 
@@ -409,28 +431,70 @@ async function afterSignIn(view?: MarketView): Promise<void> {
 
 function remoteRow(e: MarketSummaryInfo, view?: MarketView): HTMLElement {
   const name = shown(e.name);
-  return h(
-    'button',
+  const previews = view?.previews;
+  const thumb = previews?.thumb(e) ?? null;
+  const open = () => {
+    previews?.hide();
+    void remoteEntryDialog(e.id, view);
+  };
+  const own = (ev: Event) => ev.target === ev.currentTarget || !ev.currentTarget;
+  let armed = false;
+  const el = h(
+    'div',
     {
       class: 'catalog-remote-row catalog-card',
-      type: 'button',
+      role: 'button',
+      tabindex: 0,
+      'data-id': e.id,
       title: t('catalog.detailsName', { name }),
       'aria-haspopup': 'dialog',
-      onClick: () => void remoteEntryDialog(e.id, view),
+      onClick: open,
+      onKeydown: (ev: KeyboardEvent) => {
+        if (!own(ev)) return;
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          open();
+        } else if (ev.key === ' ') {
+          ev.preventDefault();
+          armed = true;
+        }
+      },
+      // like a native button, space acts on release
+      onKeyup: (ev: KeyboardEvent) => {
+        if (!own(ev) || ev.key !== ' ' || !armed) return;
+        armed = false;
+        ev.preventDefault();
+        open();
+      },
+      onFocus: () => {
+        if (thumb && el.matches?.(':focus-visible')) previews?.peek(e, thumb);
+      },
+      onBlur: () => {
+        armed = false;
+        previews?.hide();
+      },
     },
     h('span', { class: 'theme-card-head' }, h('strong', null, name)),
     h('span', { class: 'catalog-meta' }, ...meta(e)),
     e.description ? h('span', { class: 'theme-desc' }, shown(e.description)) : null,
+    thumb,
   );
+  return el;
 }
 
 export function marketplaceSection(
   data: CatalogState,
   onChange?: (next: CatalogState) => void,
   latest?: () => CatalogState,
-): HTMLElement | null {
+  opts: { kind?: EntryKind; previews?: MarketPreviews } = {},
+): MarketSection | null {
   if (!data.publishable) return null;
   let current = data;
+  let kind = opts.kind;
+  let entries: MarketSummaryInfo[] = [];
+  let stale = false;
+  let loaded = false;
+  let failed = false;
   // the page may change sign-in and entries meanwhile
   const view: MarketView = {
     data: () => latest?.() ?? current,
@@ -438,6 +502,7 @@ export function marketplaceSection(
       current = next;
       onChange?.(next);
     },
+    ...(opts.previews ? { previews: opts.previews } : {}),
   };
   const status = h('p', { class: 'hint', role: 'status' }, t('catalog.remote.loading'));
   const partial = h('p', { class: 'hint catalog-partial', role: 'status' });
@@ -468,21 +533,20 @@ export function marketplaceSection(
     try {
       const r = await api.catalogRemote(again);
       head.textContent = t('catalog.remote.title', { endpoint: shown(r.endpoint) });
-      const entries = Array.isArray(r.entries) ? r.entries : [];
+      entries = Array.isArray(r.entries) ? r.entries : [];
+      stale = r.stale === true;
+      loaded = true;
+      failed = false;
       status.className = 'hint';
       status.setAttribute('role', 'status');
-      status.textContent = r.stale
-        ? t('catalog.remote.stale')
-        : entries.length
-          ? ''
-          : t('catalog.remote.empty');
       if (r.partial) {
         partial.textContent = t('catalog.remote.partial');
         partial.hidden = false;
       }
       checked.textContent = r.checkedAt ? t('catalog.remote.lastChecked', { time: when(r.checkedAt) }) : '';
-      list.replaceChildren(...entries.map((e) => remoteRow(e, view)));
+      render();
     } catch (err) {
+      failed = true;
       status.className = 'form-error';
       status.setAttribute('role', 'alert');
       status.textContent = t('catalog.remote.failed', { reason: (err as Error).message });
@@ -501,8 +565,30 @@ export function marketplaceSection(
     partial,
     list,
   );
+
+  // no request: the loaded list filtered by kind
+  function render() {
+    const rows = kind ? entries.filter((e) => e.kind === kind) : entries;
+    if (!failed)
+      status.textContent = stale
+        ? t('catalog.remote.stale')
+        : !entries.length
+          ? t('catalog.remote.empty')
+          : rows.length || !kind
+            ? ''
+            : t(EMPTY[kind]);
+    list.replaceChildren(...rows.map((e) => remoteRow(e, view)));
+    opts.previews?.load(rows);
+  }
+
   void load(false);
-  return box;
+  return {
+    el: box,
+    show(next: EntryKind) {
+      kind = next;
+      if (loaded) render();
+    },
+  };
 }
 
 // sign-in and sign-out for the User tab
@@ -585,6 +671,7 @@ export async function remoteEntryDialog(id: string, view?: MarketView): Promise<
     h('div', { class: 'catalog-remote-head' }, ...meta(e), h('code', null, shown(e.id))),
   ];
   if (e.description) body.push(h('p', { class: 'theme-desc' }, shown(e.description)));
+  if (view?.previews && !e.withdrawn) body.push(view.previews.detail(e));
   body.push(
     h('h4', { class: 'catalog-group-head' }, t('catalog.remote.versions')),
     h('ol', { class: 'catalog-history' }, ...versions.map(versionRow)),
