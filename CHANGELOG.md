@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - The Marketplace page splits the marketplace into **Bundles**, **Presets** and **Themes** tabs (Bundles opens first), followed by **User** and **Built in**. The three tabs share one cached list and one **Refresh**, so switching between them sends nothing
+- The web editor no longer shows the address of the shipped marketplace; it says "ccinfobar marketplace" in the publish, sign-out and Marketplace texts. A marketplace you set yourself is still shown by its address
 
 ## [0.8.0] - 2026-10-20
 

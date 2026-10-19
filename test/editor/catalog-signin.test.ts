@@ -602,7 +602,7 @@ describe('catalog page marketplace state', () => {
     button('Sign out', d)!.dispatch('click');
     await tick();
     expect(texts(top())).toContain(
-      `Sign out of ${ENDPOINT}? ccinfobar removes the marketplace token from this computer.`,
+      'Sign out of the ccinfobar marketplace? ccinfobar removes the marketplace token from this computer.',
     );
     button('Sign out')!.dispatch('click');
     await tick();
@@ -612,7 +612,20 @@ describe('catalog page marketplace state', () => {
     expect(button('Sign out', d)).toBeUndefined();
     expect(button('Sign in with GitHub', d)).toBeDefined();
     expect(toastText()).toContain(
-      `Signed out of ${ENDPOINT}. The marketplace token was removed from this computer.`,
+      'Signed out of the ccinfobar marketplace. The marketplace token was removed from this computer.',
+    );
+  });
+
+  it('names a marketplace the user set by its address', async () => {
+    catalog = { ...signedIn(), market: { ...signedIn().market!, source: 'set' } };
+    await openPage();
+    const d = top();
+    tab('User', d).dispatch('click');
+    await tick();
+    button('Sign out', d)!.dispatch('click');
+    await tick();
+    expect(texts(top())).toContain(
+      `Sign out of ${ENDPOINT}? ccinfobar removes the marketplace token from this computer.`,
     );
   });
 

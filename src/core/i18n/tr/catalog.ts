@@ -224,6 +224,7 @@ export const catalogMessages = {
   'catalog.publish.readOnly':
     'Bu marketplace salt okunur. Girdilerinizi bunun yerine {url} adresinden gönderin.',
   'catalog.publish.error': 'Yayımlama başarısız oldu: {reason}',
+  'catalog.market.name': 'ccinfobar marketplace',
   'catalog.remote.title': 'Marketplace {endpoint}',
   'catalog.remote.empty': "Marketplace'te henüz girdi yok.",
   'catalog.remote.emptyBundles': "Marketplace'te henüz paket yok.",

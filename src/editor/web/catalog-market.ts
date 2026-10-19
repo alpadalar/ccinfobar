@@ -55,9 +55,13 @@ const needsSignIn = (e: unknown) => e instanceof ApiError && e.data?.code === 's
 const accountText = (handle: string | null) =>
   handle ? t('catalog.login.done', { handle: shown(handle) }) : t('catalog.signin.signedIn');
 
+// the shipped marketplace goes by name
+const place = (endpoint: string, data?: CatalogState) =>
+  data?.market?.source === 'default' ? t('catalog.market.name') : shown(endpoint);
+
 // asks first; the token cannot be shown again
-async function signOut(endpoint: string): Promise<CatalogState | null> {
-  const where = { endpoint: shown(endpoint) };
+async function signOut(endpoint: string, data?: CatalogState): Promise<CatalogState | null> {
+  const where = { endpoint: place(endpoint, data) };
   const sure = await confirmDialog(
     t('catalog.signin.out'),
     t('catalog.signin.outText', where),
@@ -241,7 +245,7 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
 
   async function leave() {
     if (busy) return;
-    const next = await signOut(endpoint);
+    const next = await signOut(endpoint, data);
     if (!next) return;
     latest = next;
     account = null;
@@ -304,7 +308,7 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
       h(
         'p',
         { class: 'catalog-publish-where' },
-        t('catalog.publish.where', { endpoint: shown(view.endpoint) }),
+        t('catalog.publish.where', { endpoint: place(view.endpoint, data) }),
       ),
     );
   }
@@ -532,7 +536,10 @@ export function marketplaceSection(
     partial.textContent = '';
     try {
       const r = await api.catalogRemote(again);
-      head.textContent = t('catalog.remote.title', { endpoint: shown(r.endpoint) });
+      head.textContent =
+        view.data().market?.source === 'default'
+          ? t('catalog.tab.market')
+          : t('catalog.remote.title', { endpoint: shown(r.endpoint) });
       entries = Array.isArray(r.entries) ? r.entries : [];
       stale = r.stale === true;
       loaded = true;
@@ -600,7 +607,7 @@ export function accountBar(data: CatalogState, onChange: (next: CatalogState) =>
   if (market?.signedIn) {
     box.append(
       ...accountLine(market.handle, async () => {
-        const next = await signOut(market.endpoint ?? data.endpoint ?? '');
+        const next = await signOut(market.endpoint ?? data.endpoint ?? '', data);
         if (next) onChange(next);
       }),
     );

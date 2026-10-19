@@ -302,6 +302,18 @@ describe('catalog page', () => {
     expect(texts(body)).toContain('Marketplace kapalı. ccinfobar catalog endpoint <url> ile açabilirsiniz.');
   });
 
+  it('shows the address of a marketplace the user set', async () => {
+    await init();
+    catalog = {
+      ...catalog,
+      endpoint: 'https://market.example.com',
+      publishable: true,
+      market: { endpoint: 'https://market.example.com', source: 'set', signedIn: false, handle: null },
+    };
+    await open();
+    expect(heads('catalog-section-head')).toEqual(['Marketplace https://market.example.com']);
+  });
+
   it('opens on the marketplace Bundles tab with only the marketplace entries', async () => {
     await init();
     catalog = {
@@ -320,7 +332,8 @@ describe('catalog page', () => {
       'false',
     ]);
     expect(tabs()[0]!.getAttribute('data-tab')).toBe('market-bundle');
-    expect(heads('catalog-section-head')).toEqual(['Marketplace https://market.example.com']);
+    // the shipped marketplace hides its address
+    expect(heads('catalog-section-head')).toEqual(['Marketplace']);
     expect(heads('catalog-group-head')).toEqual([]);
     expect(cards()).toEqual([]);
     expect(texts(body)).not.toContain('Your entries');

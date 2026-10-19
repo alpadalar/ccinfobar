@@ -213,6 +213,7 @@ export const catalogMessages = {
   'catalog.publish.failed': '{name}: {reason}',
   'catalog.publish.readOnly': 'This marketplace is read-only. Submit your entries at {url} instead.',
   'catalog.publish.error': 'Publishing failed: {reason}',
+  'catalog.market.name': 'the ccinfobar marketplace',
   'catalog.remote.title': 'Marketplace {endpoint}',
   'catalog.remote.empty': 'The marketplace has no entries yet.',
   'catalog.remote.emptyBundles': 'The marketplace has no bundles yet.',
