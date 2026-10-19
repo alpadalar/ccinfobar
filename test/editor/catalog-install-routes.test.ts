@@ -294,6 +294,49 @@ describe('editor install routes', () => {
   });
 });
 
+describe('editor remote previews route', () => {
+  it('renders a published entry; the index comes from the cache the second time', async () => {
+    const m = await market();
+    await m.send('Linked', LINKED);
+    const id = remoteIdOf('Linked');
+    const c = counted();
+    await boot({ fetch: c.fetch });
+    const body = { config: { lines: [[{ id: 'a', type: 'model' }]] }, ids: [id, 'alice/nothing-here', 7] };
+    const res = await request('POST', '/api/catalog/remote/previews', body);
+    expect(res.status).toBe(200);
+    const previews = res.json().previews;
+    expect(Object.keys(previews)).toEqual([id]);
+    expect(previews[id].length).toBeGreaterThan(0);
+    expect(previews[id].join('')).not.toBe('');
+    const sent = c.seen.length;
+    const again = await request('POST', '/api/catalog/remote/previews', body);
+    expect(again.json()).toEqual(res.json());
+    // overwrite on: the version is asked again, the index is not
+    expect(c.seen.slice(sent).map((x) => x.path)).toEqual([`/v1/entries/${id}/1.json`, '/v1/meta.json']);
+  });
+
+  it('answers 400 without an ids array and 409 with the marketplace off', async () => {
+    await market();
+    await boot({ fetch: counted().fetch });
+    const bad = await request('POST', '/api/catalog/remote/previews', { ids: 'alice/x' });
+    expect(bad.status).toBe(400);
+    await handle!.close();
+    delete process.env.CCINFOBAR_MARKETPLACE_URL;
+    const calls: string[] = [];
+    await boot({
+      fetch: (async (u: string) => {
+        calls.push(String(u));
+        return json({});
+      }) as unknown as typeof fetch,
+      defaultEndpoint: null,
+    });
+    const off = await request('POST', '/api/catalog/remote/previews', { ids: [] });
+    expect(off.status).toBe(409);
+    expect(off.json().errorId).toBe('err.catalog.noEndpoint');
+    expect(calls).toEqual([]);
+  });
+});
+
 describe('editor report route', () => {
   function reports(answer: () => Response) {
     const calls: { url: string; method: string; auth: string | null; body: string }[] = [];

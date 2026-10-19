@@ -764,18 +764,27 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     return s.entry.rev;
   }
 
-  function previewOf(current: Config, a: Found, source: PreviewSource, width: number): string[] {
-    const kind = entryKind(a);
-    const content = contentOf(a);
-    const theme = kind !== 'preset' && content.theme ? draftTheme(content.theme) : undefined;
+  function previewContent(
+    current: Config,
+    kind: EntryKind,
+    content: EntryContent,
+    system: boolean,
+    source: PreviewSource,
+    width: number,
+  ): string[] {
     try {
+      const theme = kind !== 'preset' && content.theme ? draftTheme(content.theme) : undefined;
       const next = applyCatalogContent(current, content, kind);
       // built-in layouts carry English labels
-      const shown = a.source === 'system' && kind !== 'theme' ? presetLabels(next) : next;
+      const shown = system && kind !== 'theme' ? presetLabels(next) : next;
       return renderPreview(shown, source, width, theme);
     } catch {
       return [];
     }
+  }
+
+  function previewOf(current: Config, a: Found, source: PreviewSource, width: number): string[] {
+    return previewContent(current, entryKind(a), contentOf(a), a.source === 'system', source, width);
   }
 
   // marketplace code loads only after the endpoint check
@@ -1276,6 +1285,25 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           })),
           catalog: catalogBody(diskLang(body.lang)),
         });
+        return;
+      }
+      case 'POST /api/catalog/remote/previews': {
+        needEndpoint();
+        const body = asObject(await readBody(req));
+        if (!Array.isArray(body.ids)) throw httpError(400, 'err.catalog.badRequest');
+        const config = normalizeConfig(body.config);
+        if (config.colorLevel === 'auto') config.colorLevel = 3;
+        const source = previewSourceOf(body);
+        const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 100));
+        const m = await loadMarket();
+        const out = await m.remotePreviewContents(body.ids, marketDeps());
+        if (out.code) throw marketError(out.code, m.reasonId(out.code), out.status);
+        const previews: Record<string, string[]> = {};
+        withLanguage(uiLang(body.lang, config), () => {
+          for (const it of out.items)
+            previews[it.id] = previewContent(config, it.kind, it.content, false, source, width);
+        });
+        send(res, 200, { previews });
         return;
       }
       case 'GET /api/catalog/remote': {

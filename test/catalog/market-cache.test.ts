@@ -12,6 +12,11 @@ import {
   MIN_REFRESH_MS,
 } from '../../src/catalog/market-cache.js';
 import type { EntryContent } from '../../src/catalog/model.js';
+import {
+  MAX_REMOTE_PREVIEWS,
+  REMOTE_PREVIEW_CONCURRENCY,
+  remotePreviewContents,
+} from '../../src/catalog/publish.js';
 import { contentHash, createMarketClient } from '../../src/market/client.js';
 
 let root = '';
@@ -444,5 +449,106 @@ describe('planInstall with the caches', () => {
       '/v1/entries/alp/e1/1.json',
       '/v1/meta.json',
     ]);
+  });
+});
+
+describe('remotePreviewContents', () => {
+  // n preset entries, each with one version
+  function many(n: number) {
+    const m = fakeMarket();
+    const c = content('model');
+    const h = contentHash(c);
+    m.s.pages = [Array.from({ length: n }, (_, i) => summary(i + 1, h))];
+    m.s.versions = new Map(Array.from({ length: n }, (_, i) => [`alp/e${i + 1}`, [{ content: c, hash: h }]]));
+    return m;
+  }
+  const depsOf = (fetch: typeof globalThis.fetch) => ({
+    dir: path.join(root, 'catalog'),
+    cacheDir,
+    env: { CCINFOBAR_MARKETPLACE_URL: EP },
+    now: clock(T0),
+    fetch,
+  });
+  const versionCalls = (calls: Call[]) => calls.filter((c) => /\/\d+\.json$/.test(c.path));
+
+  it('sends nothing when the index is fresh and every version is on disk', async () => {
+    const m = many(3);
+    const ids = ['alp/e1', 'alp/e2', 'alp/e3'];
+    const a = await remotePreviewContents(ids, depsOf(m.fetch));
+    expect(a.code).toBeNull();
+    expect(a.items.map((i) => i.id)).toEqual(ids);
+    expect(a.items[0]).toMatchObject({ kind: 'preset', version: 1, content: content('model') });
+    const sent = m.calls.length;
+    const b = await remotePreviewContents(ids, depsOf(m.fetch));
+    expect(b.items).toEqual(a.items);
+    expect(m.calls.length).toBe(sent);
+  });
+
+  it('skips a version whose hash differs from the index, keeping the others', async () => {
+    const m = many(3);
+    const other = content('cost');
+    m.s.versions.set('alp/e2', [{ content: other, hash: contentHash(other) }]);
+    const out = await remotePreviewContents(['alp/e1', 'alp/e2', 'alp/e3'], depsOf(m.fetch));
+    expect(out.code).toBeNull();
+    expect(out.items.map((i) => i.id)).toEqual(['alp/e1', 'alp/e3']);
+  });
+
+  it('skips withdrawn, unknown, duplicate and malformed ids', async () => {
+    const m = many(2);
+    m.s.pages[0]![1] = { ...m.s.pages[0]![1]!, withdrawn: true } as never;
+    const out = await remotePreviewContents(
+      ['alp/e1', 'alp/e1', 'alp/e2', 'alp/zzz', 42, null, 'Not An Id', { id: 'alp/e1' }],
+      depsOf(m.fetch),
+    );
+    expect(out.items.map((i) => i.id)).toEqual(['alp/e1']);
+    expect(versionCalls(m.calls).map((c) => c.path)).toEqual(['/v1/entries/alp/e1/1.json']);
+  });
+
+  it('caps the ids and keeps a bounded number of downloads in flight', async () => {
+    const m = many(MAX_REMOTE_PREVIEWS + 6);
+    let live = 0;
+    let peak = 0;
+    const slow = (async (input: string, init?: RequestInit) => {
+      const v = /\/\d+\.json$/.test(new URL(input).pathname);
+      if (v) peak = Math.max(peak, ++live);
+      try {
+        if (v) await new Promise((r) => setTimeout(r, 5));
+        return await m.fetch(input, init);
+      } finally {
+        if (v) live--;
+      }
+    }) as unknown as typeof fetch;
+    const ids = Array.from({ length: MAX_REMOTE_PREVIEWS + 6 }, (_, i) => `alp/e${i + 1}`);
+    const out = await remotePreviewContents(ids, depsOf(slow));
+    expect(out.items.map((i) => i.id)).toEqual(ids.slice(0, MAX_REMOTE_PREVIEWS));
+    expect(versionCalls(m.calls)).toHaveLength(MAX_REMOTE_PREVIEWS);
+    expect(peak).toBe(REMOTE_PREVIEW_CONCURRENCY);
+  });
+
+  it('reads meta once per call, only on a miss', async () => {
+    const m = many(5);
+    const ids = ['alp/e1', 'alp/e2', 'alp/e3', 'alp/e4', 'alp/e5'];
+    await remotePreviewContents(ids, depsOf(m.fetch));
+    expect(m.calls.filter((c) => c.path === '/v1/meta.json')).toHaveLength(1);
+    m.calls.length = 0;
+    await remotePreviewContents(ids, depsOf(m.fetch));
+    expect(m.calls).toEqual([]);
+  });
+
+  it('skips content the kind does not allow', async () => {
+    const m = many(2);
+    m.s.pages[0]![0] = { ...m.s.pages[0]![0]!, kind: 'theme' };
+    const out = await remotePreviewContents(['alp/e1', 'alp/e2'], depsOf(m.fetch));
+    expect(out.items.map((i) => i.id)).toEqual(['alp/e2']);
+  });
+
+  it('answers no-endpoint with no items and sends nothing', async () => {
+    const m = many(1);
+    const out = await remotePreviewContents(['alp/e1'], {
+      ...depsOf(m.fetch),
+      env: { CCINFOBAR_MARKETPLACE_URL: 'off' },
+    });
+    expect(out).toEqual({ code: 'no-endpoint', items: [] });
+    expect(m.calls).toEqual([]);
   });
 });

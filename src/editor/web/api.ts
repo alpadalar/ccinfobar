@@ -267,6 +267,15 @@ export const api = {
   // the 24 h cache; refresh sends one conditional request
   catalogRemote: (refresh?: boolean) =>
     call<RemoteListInfo>('GET', `/api/catalog/remote${refresh ? '?refresh=1' : ''}`),
+  // cached versions; asked only when a marketplace tab shows
+  catalogRemotePreviews: (config: Config, src: PreviewSrc, width: number, ids: string[]) =>
+    call<{ previews: Record<string, string[]> }>('POST', '/api/catalog/remote/previews', {
+      config,
+      ...src,
+      width,
+      ids,
+      lang: language(),
+    }),
   catalogInstallPlan: (id: string, version?: number) =>
     call<MarketInstallPlanInfo>('POST', '/api/catalog/install/plan', { id, version }),
   // only the reviewed hash and targets install

@@ -22,6 +22,7 @@ import { cachedEntry, cachedIndex, cachedVersion } from './market-cache.js';
 import {
   type CatalogEntry,
   clearReview,
+  type EntryContent,
   type EntryKind,
   latest,
   markDropped,
@@ -568,4 +569,57 @@ export async function remoteShow(
   } catch (err) {
     return { code: codeOf(err), ...statusOf(err), entry, latest: null };
   }
+}
+
+export const MAX_REMOTE_PREVIEWS = 24;
+export const REMOTE_PREVIEW_CONCURRENCY = 4;
+
+export interface RemotePreviewItem {
+  id: string;
+  kind: EntryKind;
+  version: number;
+  content: EntryContent;
+}
+
+export async function remotePreviewContents(
+  ids: unknown[],
+  deps: PublishDeps = {},
+): Promise<{ code: string | null; status?: number; items: RemotePreviewItem[] }> {
+  const { client, code } = await reader(deps);
+  if (!client) return { code, items: [] };
+  const valid = ids.filter((id): id is string => typeof id === 'string' && isRemoteId(id));
+  const want = [...new Set(valid)].slice(0, MAX_REMOTE_PREVIEWS);
+  const cache = cacheOf(client, deps);
+  let entries: MarketSummary[];
+  try {
+    entries = (await cachedIndex(client.endpoint, { ...cache, refresh: false })).index.entries;
+  } catch (err) {
+    return { code: codeOf(err), ...statusOf(err), items: [] };
+  }
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const queue = want.map((id) => byId.get(id)).filter((e): e is MarketSummary => !!e && !e.withdrawn);
+  let meta: Promise<boolean> | null = null;
+  const immutable = () => {
+    meta ??= client.meta().then((m) => !m.capabilities.overwrite);
+    return meta;
+  };
+  const got = new Map<string, RemotePreviewItem>();
+  let next = 0;
+  const worker = async () => {
+    while (next < queue.length) {
+      const s = queue[next++]!;
+      try {
+        // render only: the hash is checked against the index summary
+        const v = await cachedVersion(client.endpoint, s.id, s.version, s.hash, {
+          ...cache,
+          kind: s.kind,
+          immutable,
+        });
+        const r = validateReceived(s.kind, v.content);
+        if (r) got.set(s.id, { id: s.id, kind: s.kind, version: v.version, content: r.content });
+      } catch {}
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(REMOTE_PREVIEW_CONCURRENCY, queue.length) }, worker));
+  return { code: null, items: queue.flatMap((s) => got.get(s.id) ?? []) };
 }
