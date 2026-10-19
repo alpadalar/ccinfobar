@@ -346,7 +346,7 @@ User docs: [CATALOG.md](CATALOG.md) and [MARKETPLACE.md](MARKETPLACE.md).
 | `commands/catalog-admin.ts` | `catalog admin`, loaded with `await import()` from `catalog-market.ts` only |
 | `market/worker/` | The Worker: `handler.ts` (routing), `store.ts` (D1 statements), `write.ts`, `auth.ts`, `moderation.ts`, `rate.ts`, `http.ts`, `page.ts`, `tokens.ts`, `env.ts` (hand-written Workers types) |
 | `editor/server.ts` | `/api/catalog*` routes |
-| `editor/web/catalog.ts`, `catalog-dialogs.ts`, `catalog-market.ts` | Marketplace page (Marketplace, User and Built in tabs), save/history/share/delete dialogs, publish review, account bar and Marketplace tab |
+| `editor/web/catalog.ts`, `catalog-dialogs.ts`, `catalog-market.ts` | Marketplace page (Bundles, Presets, Themes, User and Built in tabs), save/history/share/delete dialogs, publish review, account bar, marketplace section and card previews |
 
 **Why the content op lives in `core/edit.ts`.** `core/presets.ts` imports `edit.ts`, and presets is on the render path (`cli/render.ts` → `core/load.ts` → `core/presets.ts`), so `edit.ts` is in the render closure. It must stay pure and must never import `src/catalog/`. The catalog imports the key lists and `applyCatalogContent` from it (`model.ts` re-exports them), so the CLI, the editor server's previews and the browser all apply through one function. The browser wraps it in `replaceAll`, so applying is one undo step and nothing is written until Save.
 

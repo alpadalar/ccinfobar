@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Marketplace cards and the marketplace details dialog show a live preview of your config with the entry applied, as local cards do; point at a preview or move keyboard focus to a card to see it full size. Each shown entry's latest version is downloaded once, checked against the hash in the index and validated like an install, at most 24 entries per request and 4 downloads at a time, only when a marketplace tab is shown or after **Refresh**
+
+### Changed
+
+- The Marketplace page splits the marketplace into **Bundles**, **Presets** and **Themes** tabs (Bundles opens first), followed by **User** and **Built in**. The three tabs share one cached list and one **Refresh**, so switching between them sends nothing
+
 ## [0.8.0] - 2026-10-20
 
 ### Added
