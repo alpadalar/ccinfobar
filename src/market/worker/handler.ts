@@ -74,6 +74,7 @@ export function buildMeta(env: Env): Record<string, unknown> {
       submit: 'api',
       review: true,
       report: true,
+      cols: true,
     },
     auth: ['github-device'],
     ...(clientId ? { github: { clientId } } : {}),

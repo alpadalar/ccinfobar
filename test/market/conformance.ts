@@ -328,6 +328,90 @@ export function describeConformance(name: string, make: (o: TargetOpts) => Promi
           expect(index.entries[0]).toMatchObject({ id: 'alp/mine', version: 2, hash: sha(next) });
         }));
 
+      it('cols rides along as metadata outside the content hash', () =>
+        open({}, async (t) => {
+          expect(parseMeta((await request(t, 'GET', '/v1/meta.json')).json())?.capabilities.cols).toBe(true);
+          const token = await t.signIn('alp');
+          const content = preset();
+          const r = await request(t, 'POST', '/v1/entries', {
+            token,
+            body: { ...publishBody('wide', content), cols: 150 },
+          });
+          expect(r.status).toBe(201);
+          expect(r.json().hash).toBe(sha(content));
+          const plain = await request(t, 'POST', '/v1/entries', {
+            token,
+            body: publishBody('plain', content),
+          });
+          expect(plain.json().hash).toBe(sha(content));
+          const bad = await request(t, 'POST', '/v1/entries', {
+            token,
+            body: { ...publishBody('bad'), cols: 5 },
+          });
+          expect(bad.status).toBe(201);
+          const summaries = async () =>
+            new Map(
+              parseIndex((await request(t, 'GET', '/v1/index.json')).json())!.entries.map((e) => [e.id, e]),
+            );
+          const doc = async (slug: string) =>
+            (await request(t, 'GET', `/v1/entries/alp/${slug}.json`)).json();
+          let index = await summaries();
+          expect(index.get('alp/wide')?.cols).toBe(150);
+          expect(index.get('alp/plain')).not.toHaveProperty('cols');
+          expect(index.get('alp/bad')).not.toHaveProperty('cols');
+          expect((await doc('wide')).cols).toBe(150);
+          expect(await doc('plain')).not.toHaveProperty('cols');
+          expect(await doc('bad')).not.toHaveProperty('cols');
+
+          const p = '/v1/entries/alp/wide/versions';
+          const two = preset([[{ type: 'cwd' }]]);
+          const v2 = await request(t, 'POST', p, {
+            token,
+            headers: { 'if-match': '"1"' },
+            body: { content: two, note: '' },
+          });
+          expect(v2.status).toBe(201);
+          index = await summaries();
+          expect(index.get('alp/wide')).toMatchObject({ version: 2, cols: 150 });
+          const v3 = await request(t, 'POST', p, {
+            token,
+            headers: { 'if-match': '"2"' },
+            body: { content: preset(), note: '', cols: 90 },
+          });
+          expect(v3.status).toBe(201);
+          index = await summaries();
+          expect(index.get('alp/wide')).toMatchObject({ version: 3, cols: 90 });
+          expect(parseRemoteEntry(await doc('wide'))?.cols).toBe(90);
+
+          expect((await request(t, 'DELETE', '/v1/entries/alp/wide', { token })).status).toBe(200);
+          const tomb = await doc('wide');
+          expect(tomb.withdrawn).toBe(true);
+          expect(tomb).not.toHaveProperty('cols');
+        }));
+
+      it('overwrite sets cols', (ctx) =>
+        open({ allowOverwrite: true }, async (t) => {
+          if (!t.caps.overwrite) return ctx.skip();
+          const token = await t.signIn('alp');
+          await request(t, 'POST', '/v1/entries', { token, body: { ...publishBody('wide'), cols: 150 } });
+          const keep = await request(t, 'PUT', '/v1/entries/alp/wide/versions/1', {
+            token,
+            body: { content: preset([[{ type: 'cwd' }]]), note: '' },
+          });
+          expect(keep.status).toBe(200);
+          let doc = (await request(t, 'GET', '/v1/entries/alp/wide.json')).json();
+          expect(doc.cols).toBe(150);
+          const r = await request(t, 'PUT', '/v1/entries/alp/wide/versions/1', {
+            token,
+            body: { content: preset(), note: '', cols: 200 },
+          });
+          expect(r.status).toBe(200);
+          doc = (await request(t, 'GET', '/v1/entries/alp/wide.json')).json();
+          expect(doc.cols).toBe(200);
+          const index = parseIndex((await request(t, 'GET', '/v1/index.json')).json())!;
+          expect(index.entries[0]?.cols).toBe(200);
+        }));
+
       it('only the owner token may write its entries', () =>
         open({}, async (t) => {
           const alp = await t.signIn('alp');

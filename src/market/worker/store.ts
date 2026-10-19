@@ -1,5 +1,12 @@
 // all SQL of the Worker; bound parameters only
-import { INDEX_PAGE, indexFile, MAX_INDEX, type MarketSummary, type MarketVersion } from '../protocol.js';
+import {
+  INDEX_PAGE,
+  indexFile,
+  MAX_INDEX,
+  type MarketSummary,
+  type MarketVersion,
+  type MeEntry,
+} from '../protocol.js';
 import { type StoredEntry, toSummary } from '../rules.js';
 import type { D1Database, D1PreparedStatement, D1Result } from './env.js';
 
@@ -349,8 +356,8 @@ export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatem
   return [
     db
       .prepare(
-        `INSERT INTO entries (publisher, slug, kind, state, version, hash, created_at, updated_at, summary, doc, gen)
-         SELECT ?1, ?2, ?3, ${STATE_OF}, ?4, ?5, ?6, ?6, ?7, ?8, ${NEXT_GEN}
+        `INSERT INTO entries (publisher, slug, kind, state, version, hash, created_at, updated_at, summary, doc, gen, cols)
+         SELECT ?1, ?2, ?3, ${STATE_OF}, ?4, ?5, ?6, ?6, ?7, ?8, ${NEXT_GEN}, ?15
          WHERE iif(${TRUSTED} = 1, ${COUNTER('live')} < ?9 AND ${MINE('live')} < ?10,
              ${COUNTER('pending')} < ?13 AND ${MINE('pending')} < ?14)
            AND ${COUNTER('tombs')} < ?11 AND ${MINE('tombs')} < ?12
@@ -371,6 +378,7 @@ export function publishStatements(db: D1Database, n: NewEntry): D1PreparedStatem
         n.caps.tombstonesPerPublisher,
         n.caps.pending,
         n.caps.pendingPerPublisher,
+        e.cols ?? null,
       ),
     db.prepare(GUARD),
     db
@@ -400,7 +408,8 @@ export function versionStatements(db: D1Database, n: NextVersion): D1PreparedSta
       .bind(p, s, e.version, n.body),
     db
       .prepare(
-        `UPDATE entries SET version = ?3, hash = ?4, updated_at = ?5, summary = ?6, doc = ?7, gen = ${NEXT_GEN}
+        `UPDATE entries SET version = ?3, hash = ?4, updated_at = ?5, summary = ?6, doc = ?7, gen = ${NEXT_GEN},
+           cols = ?10
          WHERE publisher = ?1 AND slug = ?2 AND version = ?8 AND hash = ?9 AND ${LIVE} AND ${MAY_CHANGE}`,
       )
       .bind(
@@ -413,6 +422,7 @@ export function versionStatements(db: D1Database, n: NextVersion): D1PreparedSta
         entryDocText(e),
         n.expected,
         n.expectedHash,
+        e.cols ?? null,
       ),
     db.prepare(GUARD),
     requireRoom(db, p, s, n.room),
@@ -435,10 +445,20 @@ export function overwriteStatements(db: D1Database, n: Overwrite): D1PreparedSta
   return [
     db
       .prepare(
-        `UPDATE entries SET hash = ?3, updated_at = ?4, summary = ?5, doc = ?6, gen = ${NEXT_GEN}
+        `UPDATE entries SET hash = ?3, updated_at = ?4, summary = ?5, doc = ?6, gen = ${NEXT_GEN}, cols = ?9
          WHERE publisher = ?1 AND slug = ?2 AND version = ?7 AND hash = ?8 AND ${LIVE} AND ${MAY_CHANGE}`,
       )
-      .bind(p, s, e.hash, e.updatedAt, entrySummaryText(e), entryDocText(e), e.version, n.expectedHash),
+      .bind(
+        p,
+        s,
+        e.hash,
+        e.updatedAt,
+        entrySummaryText(e),
+        entryDocText(e),
+        e.version,
+        n.expectedHash,
+        e.cols ?? null,
+      ),
     db.prepare(GUARD),
     db
       .prepare('UPDATE versions SET body = ?4 WHERE publisher = ?1 AND slug = ?2 AND version = ?3')
@@ -647,19 +667,19 @@ export async function deleteToken(db: D1Database, digest: string): Promise<boole
   return row !== null;
 }
 
-export async function myEntries(
-  db: D1Database,
-  handle: string,
-  cap: number,
-): Promise<{ id: string; state: 'pending' | 'live'; version: number }[]> {
+export async function myEntries(db: D1Database, handle: string, cap: number): Promise<MeEntry[]> {
   const rows = await db
     .prepare(
-      `SELECT slug, state, version FROM entries INDEXED BY entries_by_state
+      `SELECT slug, state, version, cols FROM entries INDEXED BY entries_by_state
        WHERE publisher = ?1 AND ${LIVE} ORDER BY slug LIMIT ?2`,
     )
     .bind(handle, cap)
-    .all<{ slug: string; state: 'pending' | 'live'; version: number }>();
-  return rows.results.map((r) => ({ id: `${handle}/${r.slug}`, state: r.state, version: Number(r.version) }));
+    .all<{ slug: string; state: 'pending' | 'live'; version: number; cols: number | null }>();
+  return rows.results.map((r) => {
+    const e: MeEntry = { id: `${handle}/${r.slug}`, state: r.state, version: Number(r.version) };
+    if (typeof r.cols === 'number') e.cols = r.cols;
+    return e;
+  });
 }
 
 export interface LogRow {

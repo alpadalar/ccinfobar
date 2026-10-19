@@ -406,3 +406,27 @@ describe('installed entries stay the publisher’s', () => {
     }
   });
 });
+
+describe('install: cols', () => {
+  it('copies the entry cols into the local entry', async () => {
+    const s = await server();
+    const env = { CCINFOBAR_MARKETPLACE_URL: s.url };
+    save({ cols: 150 });
+    expect((await publish(env)).results[0]).toMatchObject({ ok: true });
+    const plan = await planInstall('alperen/links', { dir, cacheDir, env, fetch: globalThis.fetch });
+    expect(plan.cols).toBe(150);
+    const got = runInstall(plan, { dir, now: () => at(1) });
+    expect(readEntry(got.entryId, dir)!.entry.versions.at(-1)!.cols).toBe(150);
+  });
+
+  it('leaves cols out when the entry has none', async () => {
+    const s = await server();
+    const env = { CCINFOBAR_MARKETPLACE_URL: s.url };
+    save();
+    await publish(env);
+    const plan = await planInstall('alperen/links', { dir, cacheDir, env, fetch: globalThis.fetch });
+    expect(plan).not.toHaveProperty('cols');
+    const got = runInstall(plan, { dir, now: () => at(1) });
+    expect(readEntry(got.entryId, dir)!.entry.versions.at(-1)).not.toHaveProperty('cols');
+  });
+});

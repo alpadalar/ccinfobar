@@ -5,6 +5,7 @@ import {
   type EntryKind,
   LAYOUT_KEYS,
   PERSONAL_KEYS,
+  parseCols,
 } from '../core/entry-keys.js';
 import { deepSanitize, safeUrl, sanitizeText } from '../core/sanitize.js';
 
@@ -106,6 +107,7 @@ export interface MarketMeta {
     submit: 'api' | 'pull-request';
     review?: boolean;
     report?: boolean;
+    cols?: boolean;
   };
   auth: string[];
   limits: Partial<Record<keyof typeof MARKET_LIMITS, number>>;
@@ -130,6 +132,7 @@ export interface MeEntry {
   id: string;
   state: 'pending' | 'live';
   version: number;
+  cols?: number;
 }
 
 export interface MeResult {
@@ -168,6 +171,7 @@ export interface MarketSummary {
   updatedAt: string;
   hash: string;
   withdrawn?: boolean;
+  cols?: number;
 }
 
 export interface MarketIndex {
@@ -206,6 +210,7 @@ export interface PublishPayload {
   author: string;
   content: EntryContent;
   note: string;
+  cols?: number;
 }
 
 export interface VersionPayload {
@@ -213,6 +218,7 @@ export interface VersionPayload {
   note: string;
   name?: string;
   description?: string;
+  cols?: number;
 }
 
 export function isRemoteId(id: string): boolean {
@@ -357,6 +363,7 @@ export function parseMeta(raw: unknown): MarketMeta | null {
   if (href) m.submitUrl = href;
   if (own(caps, 'review') === true) m.capabilities.review = true;
   if (own(caps, 'report') === true) m.capabilities.report = true;
+  if (own(caps, 'cols') === true) m.capabilities.cols = true;
   const gh = own(raw, 'github');
   const clientId = isObject(gh) ? own(gh, 'clientId') : undefined;
   if (typeof clientId === 'string' && CLIENT_ID_RE.test(clientId)) m.github = { clientId };
@@ -392,7 +399,9 @@ function parseSummary(raw: unknown): MarketSummary | null {
   if (!isVersion(version)) return null;
   if (updatedAt === null || !h) return null;
   const s: MarketSummary = { id, kind: k, name, description, author, publisher, version, updatedAt, hash: h };
+  const cols = parseCols(own(raw, 'cols'));
   if (withdrawn) s.withdrawn = true;
+  else if (cols !== undefined) s.cols = cols;
   return s;
 }
 
@@ -496,7 +505,8 @@ function meEntry(raw: unknown): MeEntry | null {
   const version = own(raw, 'version');
   if (typeof id !== 'string' || !isRemoteId(id) || !isVersion(version)) return null;
   if (state !== 'pending' && state !== 'live') return null;
-  return { id, state, version };
+  const cols = parseCols(own(raw, 'cols'));
+  return cols === undefined ? { id, state, version } : { id, state, version, cols };
 }
 
 export function parseMe(raw: unknown): MeResult | null {
@@ -567,7 +577,10 @@ export function parsePublishPayload(raw: unknown): PublishPayload | null {
   const content = parseContent(own(raw, 'content'));
   if (!k || typeof slug !== 'string' || !ID_PART_RE.test(slug) || !name) return null;
   if (description === null || author === null || note === null || !content) return null;
-  return { kind: k, slug, name, description, author, content, note };
+  const p: PublishPayload = { kind: k, slug, name, description, author, content, note };
+  const cols = parseCols(own(raw, 'cols'));
+  if (cols !== undefined) p.cols = cols;
+  return p;
 }
 
 export function parseVersionPayload(raw: unknown): VersionPayload | null {
@@ -586,6 +599,8 @@ export function parseVersionPayload(raw: unknown): VersionPayload | null {
     if (d === null) return null;
     p.description = d;
   }
+  const cols = parseCols(own(raw, 'cols'));
+  if (cols !== undefined) p.cols = cols;
   return p;
 }
 

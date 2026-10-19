@@ -54,6 +54,7 @@ export interface InstallPlan {
   content: EntryContent;
   targets: ImportTarget[];
   existing: { entryId: string; same: boolean } | null;
+  cols?: number;
 }
 
 export interface InstallDeps {
@@ -129,6 +130,7 @@ export async function planInstall(ref: string, deps: InstallDeps): Promise<Insta
       publisher: entry.publisher,
       content: got.content,
       targets: importTargets(got.content.layout ?? {}),
+      ...(entry.cols === undefined ? {} : { cols: entry.cols }),
     };
     const hit = existingOf(plan, dir);
     return { ...plan, existing: hit && { entryId: hit.entry.id, same: hit.same } };
@@ -167,6 +169,7 @@ export function runInstall(plan: InstallPlan, deps: Omit<InstallDeps, 'fetch'> =
     description: plan.description,
     content: plan.content,
     note: `installed v${plan.version}`,
+    ...(plan.cols === undefined ? {} : { cols: plan.cols }),
     share: false,
     origin,
     now,

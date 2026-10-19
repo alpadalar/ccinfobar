@@ -16,6 +16,7 @@ import {
 import {
   entryHash,
   type PublishDeps,
+  planHash,
   publishPlan,
   refreshReview,
   remoteList,
@@ -1071,5 +1072,83 @@ describe('remote browse', () => {
     });
     expect((await remoteShow('../etc', { dir, env, fetch: f.fetch })).code).toBe('invalid');
     expect(f.calls).toHaveLength(2);
+  });
+});
+
+describe('publish: cols', () => {
+  const env = { CCINFOBAR_MARKETPLACE_URL: GH_ENDPOINT };
+
+  it('publishPlan sends cols only with the capability', () => {
+    const wide = newEntry({
+      ...entry(1),
+      content: preset('model'),
+      share: true,
+      now: at(0).toISOString(),
+      cols: 150,
+    });
+    expect(publishPlan([wide], EP, { overwrite: true, cols: true })[0]!.payload).toMatchObject({ cols: 150 });
+    expect(publishPlan([wide], EP, { overwrite: true, cols: false })[0]!.payload).not.toHaveProperty('cols');
+    expect(publishPlan([wide], EP)[0]!.payload).not.toHaveProperty('cols');
+    expect(publishPlan([entry(2)], EP, { overwrite: true, cols: true })[0]!.payload).not.toHaveProperty(
+      'cols',
+    );
+    let next = markPublished(wide, remote(wide, 1, entryHash(preset('model'))));
+    next = appendVersion(next, preset('cwd'), 'v2', at(1).toISOString(), 90);
+    const [v] = publishPlan([next], EP, { overwrite: true, cols: true });
+    expect(v).toMatchObject({ action: 'version', payload: { cols: 90 } });
+    expect(publishPlan([next], EP, { overwrite: true })[0]!.payload).not.toHaveProperty('cols');
+    const over = overwriteVersion(
+      markPublished(next, remote(next, 2, entryHash(preset('cwd')))),
+      preset('cost'),
+      '',
+      at(2).toISOString(),
+      120,
+    );
+    expect(publishPlan([over], EP, { overwrite: true, cols: true })[0]).toMatchObject({
+      action: 'overwrite',
+      payload: { cols: 120 },
+    });
+    const review = (e: typeof wide) => ({
+      endpoint: EP,
+      registration: null,
+      plan: publishPlan([e], EP, { overwrite: true, cols: true }),
+    });
+    const other = { ...wide, versions: [{ ...wide.versions[0]!, cols: 151 }] };
+    expect(planHash(review(wide))).not.toBe(planHash(review(other)));
+  });
+
+  it('a capable server gets cols and lists it; an older one never sees it', async () => {
+    const s = await server();
+    const deps = { dir, env: { CCINFOBAR_MARKETPLACE_URL: s.url }, now: () => at(5) };
+    save({ cols: 150 });
+    const review = await reviewPublish(null, deps);
+    expect(review.cols).toBe(true);
+    expect(review.plan[0]!.payload).toMatchObject({ cols: 150 });
+    expect((await runPublish(review, deps)).results[0]).toMatchObject({ ok: true });
+    const index = await (await fetch(`${s.url}/v1/index.json`)).json();
+    expect(index.entries[0].cols).toBe(150);
+
+    const m = githubMarket({ auth: ['token', 'github-device'] });
+    const old = await reviewPublish(null, { dir: path.join(root, 'other'), env, fetch: m.fetch });
+    expect(old.plan).toEqual([]);
+    const sub = path.join(root, 'old');
+    saveEntry(
+      {
+        kind: 'preset',
+        name: 'Wide',
+        description: '',
+        author: 'Alperen',
+        content: preset('model'),
+        cols: 150,
+        share: true,
+        mode: 'new',
+        now: at(0),
+      },
+      sub,
+    );
+    const r = await reviewPublish(null, { dir: sub, env, fetch: m.fetch });
+    expect(r.code).toBeNull();
+    expect(r.cols).toBe(false);
+    expect(r.plan[0]!.payload).not.toHaveProperty('cols');
   });
 });

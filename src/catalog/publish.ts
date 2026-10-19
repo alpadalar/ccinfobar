@@ -98,6 +98,8 @@ export interface PublishReview {
   submitUrl?: string;
   endpoint: string;
   overwrite: boolean;
+  // the server keeps cols
+  cols?: boolean;
   registration: Registration | null;
   plan: PublishItem[];
 }
@@ -136,7 +138,7 @@ export function marketSlugs(all: CatalogEntry[]): Map<string, string> {
 export function publishPlan(
   entries: CatalogEntry[],
   endpoint: string,
-  opts: { overwrite: boolean } = { overwrite: true },
+  opts: { overwrite: boolean; cols?: boolean } = { overwrite: true },
   all: CatalogEntry[] = entries,
 ): PublishItem[] {
   const key = endpointKey(endpoint);
@@ -157,6 +159,8 @@ export function publishPlan(
       continue;
     }
     const v = latest(e);
+    // older servers never see cols
+    const cols = opts.cols === true && typeof v.cols === 'number' ? { cols: v.cols } : {};
     if (!remote) {
       out.push({
         ...base,
@@ -169,6 +173,7 @@ export function publishPlan(
           author: e.author,
           content,
           note: v.note,
+          ...cols,
         },
       });
       continue;
@@ -177,7 +182,7 @@ export function publishPlan(
     out.push({
       ...base,
       action: overwrite ? 'overwrite' : 'version',
-      payload: { content, note: v.note, name: e.name, description: e.description },
+      payload: { content, note: v.note, name: e.name, description: e.description, ...cols },
     });
   }
   return out;
@@ -288,11 +293,12 @@ export async function reviewPublish(ids: string[] | null, deps: PublishDeps = {}
     return { code: codeOf(err), ...statusOf(err), ...none };
   }
   const overwrite = meta.capabilities.overwrite;
+  const cols = meta.capabilities.cols === true;
   const token = readCredential(anon.endpoint, dir);
   if (!token && signInOnly(meta)) return { code: 'sign-in', ...none };
-  const plan = publishPlan(entries, endpoint, { overwrite }, every);
+  const plan = publishPlan(entries, endpoint, { overwrite, cols }, every);
   const registration = token ? null : registrationOf(anon.endpoint, plan, entries, deps, dir);
-  return { code: null, endpoint, overwrite, registration, plan };
+  return { code: null, endpoint, overwrite, cols, registration, plan };
 }
 
 // the server has no such id: rejected, never public, so the id is free (WR-04)
@@ -376,7 +382,8 @@ export async function runPublish(
   for (const item of items) {
     const cur = readEntry(item.id, dir)?.entry;
     const e = cur && normalizeEntry(cur);
-    const again = e && publishPlan([e], endpoint, { overwrite: review.overwrite }, every)[0];
+    const again =
+      e && publishPlan([e], endpoint, { overwrite: review.overwrite, cols: review.cols === true }, every)[0];
     if (!e || !again || canonicalJson(again) !== canonicalJson(item)) {
       results.push(notSent(item));
       continue;
@@ -579,6 +586,7 @@ export interface RemotePreviewItem {
   kind: EntryKind;
   version: number;
   content: EntryContent;
+  cols?: number;
 }
 
 export async function remotePreviewContents(
@@ -616,7 +624,8 @@ export async function remotePreviewContents(
           immutable,
         });
         const r = validateReceived(s.kind, v.content);
-        if (r) got.set(s.id, { id: s.id, kind: s.kind, version: v.version, content: r.content });
+        const cols = s.cols === undefined ? {} : { cols: s.cols };
+        if (r) got.set(s.id, { id: s.id, kind: s.kind, version: v.version, content: r.content, ...cols });
       } catch {}
     }
   };

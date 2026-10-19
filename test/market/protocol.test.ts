@@ -3,7 +3,7 @@ import { systemEntries } from '../../src/catalog/system.js';
 import * as edit from '../../src/core/edit.js';
 import { LAYOUT_KEYS as EDIT_LAYOUT_KEYS } from '../../src/core/edit.js';
 import type { EntryKind } from '../../src/core/entry-keys.js';
-import { APPEARANCE_KEYS, LAYOUT_KEYS, PERSONAL_KEYS } from '../../src/core/entry-keys.js';
+import { APPEARANCE_KEYS, LAYOUT_KEYS, PERSONAL_KEYS, parseCols } from '../../src/core/entry-keys.js';
 import {
   adminActionPath,
   adminEntryPath,
@@ -771,5 +771,67 @@ describe('market protocol: sign-in, accounts, reports and moderation', () => {
       expect(o).not.toBeNull();
       walk(o);
     }
+  });
+});
+
+describe('market protocol: cols', () => {
+  const version = { version: 2, at: '2026-10-16T08:00:00.000Z', note: '', hash: H };
+  const pub = { kind: 'preset', slug: 'x', name: 'X', description: '', author: '', content: {}, note: '' };
+
+  it('parseCols keeps whole numbers from 40 to 400 only', () => {
+    for (const v of [130, 40, 400]) expect(parseCols(v)).toBe(v);
+    for (const v of [39, 401, 12.5, '130', null, Number.NaN, undefined]) expect(parseCols(v)).toBeUndefined();
+  });
+
+  it('summaries keep a valid cols and drop an invalid one', () => {
+    const list = parseIndex({
+      entries: [
+        summary(),
+        summary({ id: 'alp/a', cols: 150 }),
+        summary({ id: 'alp/b', cols: 5 }),
+        summary({ id: 'alp/c', cols: 'wide' }),
+        summary({ id: 'alp/d', cols: 150, name: '', withdrawn: true }),
+      ],
+    })!.entries;
+    expect(list).toHaveLength(5);
+    expect(list[0]).not.toHaveProperty('cols');
+    expect(list[1]!.cols).toBe(150);
+    expect(list[2]).not.toHaveProperty('cols');
+    expect(list[3]).not.toHaveProperty('cols');
+    expect(list[4]).not.toHaveProperty('cols');
+    expect(parseRemoteEntry({ ...summary({ cols: 150 }), versions: [version] })?.cols).toBe(150);
+    expect(parseRemoteEntry({ ...summary({ cols: 5 }), versions: [version] })).not.toHaveProperty('cols');
+  });
+
+  it('/v1/me keeps a valid cols and the item with an invalid one', () => {
+    const me = parseMe({
+      handle: 'alp',
+      displayName: 'Alp',
+      login: 'alp',
+      entries: [
+        { id: 'alp/a', state: 'live', version: 1, cols: 120 },
+        { id: 'alp/b', state: 'live', version: 1, cols: 9999 },
+      ],
+    })!;
+    expect(me.entries).toEqual([
+      { id: 'alp/a', state: 'live', version: 1, cols: 120 },
+      { id: 'alp/b', state: 'live', version: 1 },
+    ]);
+  });
+
+  it('publish and version payloads keep a valid cols and stay valid without one', () => {
+    expect(parsePublishPayload({ ...pub, cols: 150 })?.cols).toBe(150);
+    expect(parsePublishPayload(pub)).not.toHaveProperty('cols');
+    expect(parsePublishPayload({ ...pub, cols: 1.5 })).not.toBeNull();
+    expect(parsePublishPayload({ ...pub, cols: 1.5 })).not.toHaveProperty('cols');
+    expect(parseVersionPayload({ content: {}, note: '', cols: 150 })?.cols).toBe(150);
+    expect(parseVersionPayload({ content: {}, note: '' })).not.toHaveProperty('cols');
+    expect(parseVersionPayload({ content: {}, note: '', cols: 'x' })).toEqual({ content: {}, note: '' });
+  });
+
+  it('meta advertises cols only for true', () => {
+    const meta = (cols: unknown) => parseMeta({ protocol: 1, name: 'x', capabilities: { cols } })!;
+    expect(meta(true).capabilities.cols).toBe(true);
+    for (const v of [false, 'true', 1, undefined]) expect(meta(v).capabilities).not.toHaveProperty('cols');
   });
 });

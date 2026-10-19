@@ -578,6 +578,30 @@ describe.skipIf(!hasSqlite)('worker logout and /v1/me', () => {
     expect(parseMe(body)).toEqual(body);
   });
 
+  it('/v1/me lists cols for entries published with cols', async () => {
+    const s = await setup({ users: {} });
+    await seedPublisher(s.db, { handle: 'me', githubId: 10, trusted: true });
+    const token = await seedToken(s.db, 'me');
+    const body = (slug: string, extra = {}) => ({
+      body: { kind: 'preset', slug, name: slug, description: '', author: '', content: preset, ...extra },
+      token,
+    });
+    expect((await s.call('POST', '/v1/entries', body('wide', { cols: 150 }))).status).toBe(201);
+    expect((await s.call('POST', '/v1/entries', body('plain'))).status).toBe(201);
+    const v = await s.call('POST', '/v1/entries/me/wide/versions', {
+      token,
+      body: { content: preset, note: '' },
+      headers: { 'if-match': '"1"' },
+    });
+    expect(v.status).toBe(201);
+    const me = parseMe(await (await s.call('GET', '/v1/me', { token })).json());
+    expect(me?.entries).toEqual([
+      { id: 'me/plain', state: 'live', version: 1 },
+      { id: 'me/wide', state: 'live', version: 2, cols: 150 },
+    ]);
+    expect(await s.db.prepare("SELECT cols FROM entries WHERE slug = 'plain'").first('cols')).toBeNull();
+  });
+
   it('/v1/me needs a known token', async () => {
     const s = await setup({ users: {} });
     expect(await error(await s.call('GET', '/v1/me'))).toMatchObject({ status: 401, code: 'unauthorized' });

@@ -48,3 +48,11 @@ export const PERSONAL_KEYS = [
   'version',
   '$schema',
 ] as const satisfies readonly (keyof Config)[];
+
+// the author's preview width
+export const COLS_MIN = 40;
+export const COLS_MAX = 400;
+
+export function parseCols(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isSafeInteger(v) && v >= COLS_MIN && v <= COLS_MAX ? v : undefined;
+}

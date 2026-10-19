@@ -533,3 +533,41 @@ describe('catalog store', () => {
     });
   });
 });
+
+describe('catalog store: cols', () => {
+  it('round-trips cols per version, keeps it when a save has none and drops an invalid one', () => {
+    const e = saveEntry(input({ cols: 150 }), dir);
+    expect(rawOf(e.id).versions[0].cols).toBe(150);
+    const two = saveEntry(input({ mode: 'update', id: e.id, content: content('cwd'), now: at(1) }), dir);
+    expect(two.versions.map((v) => v.cols)).toEqual([150, 150]);
+    const three = saveEntry(input({ mode: 'update', id: e.id, cols: 90, now: at(2) }), dir);
+    expect(three.versions.at(-1)!.cols).toBe(90);
+    const over = saveEntry(input({ mode: 'overwrite', id: e.id, content: content('cwd'), now: at(3) }), dir);
+    expect(over.versions.at(-1)!.cols).toBe(90);
+    const over2 = saveEntry(input({ mode: 'overwrite', id: e.id, cols: 200, now: at(4) }), dir);
+    expect(readEntry(e.id, dir)?.entry.versions.map((v) => v.cols)).toEqual([150, 150, 200]);
+    const bad = saveEntry(input({ mode: 'update', id: e.id, cols: 7, now: at(5) }), dir);
+    expect(bad.versions.at(-1)!.cols).toBe(200);
+    expect(over2.rev).toBeGreaterThan(0);
+    const restored = restoreEntry(e.id, 1, bad.rev, '', dir, at(6));
+    expect(restored.versions.at(-1)!.cols).toBe(150);
+  });
+
+  it('loads an old file without cols and a hand-edited invalid one', () => {
+    const plain = stored('u-0000000000a1');
+    handWrite(plain.id, JSON.stringify(plain));
+    expect(readEntry(plain.id, dir)?.entry.versions[0]).not.toHaveProperty('cols');
+    const raw = JSON.parse(JSON.stringify(stored('u-0000000000a2')));
+    raw.versions[0].cols = 'huge';
+    handWrite(raw.id, JSON.stringify(raw));
+    const got = readEntry(raw.id, dir)?.entry;
+    expect(got).toBeTruthy();
+    expect(got!.versions[0]).not.toHaveProperty('cols');
+    const next = saveEntry(
+      input({ kind: 'preset', name: raw.id, mode: 'update', id: raw.id, now: at(1) }),
+      dir,
+    );
+    expect(next.versions.map((v) => v.cols)).toEqual([undefined, undefined]);
+    expect(next.versions.at(-1)).not.toHaveProperty('cols');
+  });
+});

@@ -149,6 +149,7 @@ export async function publish(db: D1Database, env: Env, deps: WorkerDeps, req: R
     hash,
     versions: [{ version: 1, at, note: payload.note, hash }],
   };
+  if (payload.cols !== undefined) entry.cols = payload.cols;
   const body = versionText({ version: 1, content: payload.content, hash });
   const bytes = utf8(body);
   await room(db, env, who.handle, bytes, !count.trusted);
@@ -211,6 +212,7 @@ export async function addVersion(
     hash,
     versions: [...entry.versions, { version, at, note: payload.note, hash }],
   };
+  if (payload.cols !== undefined) next.cols = payload.cols;
   fits(next);
   const body = versionText({ version, content: payload.content, hash });
   const bytes = utf8(body);
@@ -270,6 +272,7 @@ export async function overwrite(
     hash,
     versions: [...entry.versions.slice(0, -1), { ...last, note: payload.note, hash, overwrittenAt: at }],
   };
+  if (payload.cols !== undefined) next.cols = payload.cols;
   fits(next);
   const body = versionText({ version: n, content: payload.content, hash });
   const bytes = utf8(body);

@@ -328,3 +328,36 @@ describe('catalog model', () => {
     expect(ENTRY_ID_RE.test(ID)).toBe(true);
   });
 });
+
+describe('catalog model: cols', () => {
+  const wide = () => newEntry({ ...entry(false), content: content(1), share: false, now: T0, cols: 150 });
+
+  it('puts cols on version 1 and keeps it on later versions without cols', () => {
+    expect(latest(wide()).cols).toBe(150);
+    expect(latest(entry())).not.toHaveProperty('cols');
+    const two = appendVersion(wide(), content(2), '', T1);
+    expect(latest(two).cols).toBe(150);
+    expect(latest(appendVersion(two, content(3), '', T2, 90)).cols).toBe(90);
+    expect(latest(appendVersion(entry(), content(2), '', T1))).not.toHaveProperty('cols');
+    expect(latest(overwriteVersion(wide(), content(2), '', T1)).cols).toBe(150);
+    expect(latest(overwriteVersion(wide(), content(2), '', T1, 200)).cols).toBe(200);
+    expect(latest(overwriteVersion(entry(), content(2), '', T1))).not.toHaveProperty('cols');
+  });
+
+  it('restore copies the restored version cols', () => {
+    const two = appendVersion(wide(), content(2), '', T1, 90);
+    expect(latest(restoreVersion(two, 1, '', T2)!).cols).toBe(150);
+    const plain = appendVersion(entry(), content(2), '', T1, 90);
+    expect(latest(restoreVersion(plain, 1, '', T2)!)).not.toHaveProperty('cols');
+  });
+
+  it('parses cols per version and drops an invalid one', () => {
+    const raw = JSON.parse(JSON.stringify(appendVersion(wide(), content(2), '', T1, 90)));
+    expect(parseEntry(raw)?.versions.map((v) => v.cols)).toEqual([150, 90]);
+    raw.versions[0].cols = 'wide';
+    raw.versions[1].cols = 5000;
+    const e = parseEntry(raw)!;
+    expect(e).not.toBeNull();
+    for (const v of e.versions) expect(v).not.toHaveProperty('cols');
+  });
+});

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomHex } from '../core/builtins.js';
 import { normalizeConfig } from '../core/config.js';
+import { parseCols } from '../core/entry-keys.js';
 import { configDir } from '../core/paths.js';
 import { deleteUserPreset, ID_RE, listPresets, type Preset } from '../core/presets.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -85,6 +86,8 @@ export interface SaveInput {
   author?: string;
   content: EntryContent;
   note?: string;
+  // the author's preview width; update and overwrite keep it when undefined
+  cols?: number;
   share: boolean;
   mode: 'new' | 'update' | 'overwrite';
   // update and overwrite: a new share choice, in the same write
@@ -293,6 +296,7 @@ function saveLocked(input: SaveInput, dir: string): CatalogEntry {
   if (!KINDS.includes(input.kind)) fail('bad-content', { kind: input.kind });
   const content = cleanContent(input.kind, input.content);
   const note = input.note ?? '';
+  const cols = parseCols(input.cols);
   if (input.mode === 'new') {
     const hit = findByName(input.kind, name, dir);
     if (hit) fail('exists', { id: hit.id, version: hit.version, name: hit.name });
@@ -304,6 +308,7 @@ function saveLocked(input: SaveInput, dir: string): CatalogEntry {
       author: clip(input.author, ENTRY_LIMITS.author),
       content,
       note,
+      ...(cols === undefined ? {} : { cols }),
       share: input.share === true && !input.origin,
       now: at,
     });
@@ -323,8 +328,8 @@ function saveLocked(input: SaveInput, dir: string): CatalogEntry {
   if (rev !== cur.rev) fail('changed', { id, rev: cur.rev });
   const next =
     input.mode === 'update'
-      ? appendVersion(cur, content, note, at)
-      : overwriteVersion(cur, content, note, at);
+      ? appendVersion(cur, content, note, at, cols)
+      : overwriteVersion(cur, content, note, at, cols);
   next.description = clip(input.description, ENTRY_LIMITS.description);
   if (input.author !== undefined) next.author = clip(input.author, ENTRY_LIMITS.author);
   if (input.origin) next.origin = structuredClone(input.origin);

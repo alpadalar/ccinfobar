@@ -195,7 +195,13 @@ export async function startMarketServer(
   const meta: MarketMeta = {
     protocol: PROTOCOL_VERSION,
     name: opts.name ?? 'ccinfobar reference marketplace',
-    capabilities: { write: true, overwrite: opts.allowOverwrite ?? true, withdraw: true, submit: 'api' },
+    capabilities: {
+      write: true,
+      overwrite: opts.allowOverwrite ?? true,
+      withdraw: true,
+      submit: 'api',
+      cols: true,
+    },
     auth: ['token'],
     limits: { ...MARKET_LIMITS },
   };
@@ -343,6 +349,7 @@ export async function startMarketServer(
       hash,
       versions: [...entry.versions.slice(0, -1), { ...last, note: payload.note, hash, overwrittenAt: at }],
     };
+    if (payload.cols !== undefined) next.cols = payload.cols;
     fits(next);
     writeJson(pub('entries', p, s, `${n}.json`), { version: n, content: payload.content, hash });
     writeJson(entryFile(p, s), next);
@@ -463,6 +470,7 @@ export async function startMarketServer(
       hash,
       versions: [{ version: 1, at, note: payload.note, hash }],
     };
+    if (payload.cols !== undefined) entry.cols = payload.cols;
     writeJson(entryFile(handle, s), entry);
     indexEntry(entry);
     send(res, 201, { id, version: 1, hash });
@@ -497,6 +505,7 @@ export async function startMarketServer(
       hash,
       versions: [...entry.versions, { version, at, note: payload.note, hash }],
     };
+    if (payload.cols !== undefined) next.cols = payload.cols;
     fits(next);
     writeVersion(p, s, { version, content: payload.content, hash });
     writeJson(entryFile(p, s), next);

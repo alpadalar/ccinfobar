@@ -142,6 +142,7 @@ export function toSummary(e: MarketEntry): MarketSummary {
     hash: e.hash,
   };
   if (e.withdrawn) s.withdrawn = true;
+  else if (typeof e.cols === 'number') s.cols = e.cols;
   return s;
 }
 

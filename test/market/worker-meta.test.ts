@@ -85,6 +85,7 @@ describe('worker meta', () => {
         submit: 'api',
         review: true,
         report: true,
+        cols: true,
       },
       auth: ['github-device'],
       github: { clientId: 'Ov23liVCN9Nf6VlLv3St' },

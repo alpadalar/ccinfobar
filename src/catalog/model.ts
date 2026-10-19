@@ -7,6 +7,7 @@ import {
   LAYOUT_KEYS,
   PERSONAL_KEYS,
 } from '../core/edit.js';
+import { parseCols } from '../core/entry-keys.js';
 import type { ThemeInput } from '../core/themes/style.js';
 import type { Config } from '../core/types.js';
 
@@ -42,6 +43,7 @@ export interface EntryVersion {
   content: EntryContent;
   restoredFrom?: number;
   overwrittenAt?: string;
+  cols?: number;
 }
 
 export interface RemoteRef {
@@ -146,6 +148,7 @@ export interface NewEntryInput {
   author: string;
   content: EntryContent;
   note?: string;
+  cols?: number;
   share: boolean;
   now: string;
 }
@@ -170,6 +173,7 @@ export function newEntry(i: NewEntryInput): CatalogEntry {
         at: i.now,
         note: cut(i.note ?? '', ENTRY_LIMITS.note),
         content: structuredClone(i.content),
+        ...(i.cols === undefined ? {} : { cols: i.cols }),
       },
     ],
     share: { wanted: i.share, state: i.share ? 'pending' : 'local', remote: null, lastError: null },
@@ -193,8 +197,14 @@ export function appendVersion(
   content: EntryContent,
   note: string,
   now: string,
+  cols?: number,
 ): CatalogEntry {
-  return push(e, { at: now, note: cut(note, ENTRY_LIMITS.note), content }, now);
+  const c = cols ?? latest(e).cols;
+  return push(
+    e,
+    { at: now, note: cut(note, ENTRY_LIMITS.note), content, ...(c === undefined ? {} : { cols: c }) },
+    now,
+  );
 }
 
 export function overwriteVersion(
@@ -202,12 +212,14 @@ export function overwriteVersion(
   content: EntryContent,
   note: string,
   now: string,
+  cols?: number,
 ): CatalogEntry {
   const next = structuredClone(e);
   const last = latest(next);
   last.content = structuredClone(content);
   last.note = cut(note, ENTRY_LIMITS.note);
   last.overwrittenAt = now;
+  if (cols !== undefined) last.cols = cols;
   next.updatedAt = now;
   return next;
 }
@@ -217,7 +229,13 @@ export function restoreVersion(e: CatalogEntry, n: number, note: string, now: st
   if (!from) return null;
   return push(
     e,
-    { at: now, note: cut(note, ENTRY_LIMITS.note), content: from.content, restoredFrom: n },
+    {
+      at: now,
+      note: cut(note, ENTRY_LIMITS.note),
+      content: from.content,
+      restoredFrom: n,
+      ...(from.cols === undefined ? {} : { cols: from.cols }),
+    },
     now,
   );
 }
@@ -341,6 +359,8 @@ function parseVersion(v: unknown): EntryVersion | null {
   const out: EntryVersion = { version: v.version, at: v.at, note: str(v.note), content };
   if (isInt(v.restoredFrom, 1)) out.restoredFrom = v.restoredFrom;
   if (isStr(v.overwrittenAt)) out.overwrittenAt = v.overwrittenAt;
+  const cols = parseCols(v.cols);
+  if (cols !== undefined) out.cols = cols;
   return out;
 }
 

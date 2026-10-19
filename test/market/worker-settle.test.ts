@@ -362,6 +362,28 @@ describe.skipIf(!hasSqlite)('worker moderation log (IN-02)', () => {
   });
 });
 
+describe.skipIf(!hasSqlite)('worker entry cols', () => {
+  it('0009 adds a null cols to existing rows and leaves summary and doc alone', async () => {
+    const db = d1();
+    for (const m of migrationFiles()) if (m.name < '0009') await db.exec(m.sql);
+    await db.exec(`INSERT INTO entries (publisher, slug, kind, state, version, hash, created_at, updated_at, summary, doc, gen)
+      VALUES ('pub', 'a', 'preset', 'live', 1, 'h', 't', 't', '{"s":1}', '{"d":1}', 1)`);
+    for (const m of migrationFiles()) if (m.name >= '0009') await db.exec(m.sql);
+    const row = await (db as unknown as D1Database).prepare('SELECT summary, doc, cols FROM entries').first();
+    expect(row).toEqual({ summary: '{"s":1}', doc: '{"d":1}', cols: null });
+    db.close();
+  });
+
+  it('0009 is one nullable ADD COLUMN', () => {
+    const m = migrationFiles().find((f) => f.name.startsWith('0009'))!;
+    const sql = m.sql
+      .split('\n')
+      .filter((l) => l.trim() && !l.trim().startsWith('--'))
+      .join('\n');
+    expect(sql).toBe('ALTER TABLE entries ADD COLUMN cols INTEGER;');
+  });
+});
+
 describe.skipIf(!hasSqlite)('worker dropped versions (IN-07)', () => {
   it('an unreviewed older version of an approved entry answers 410 version-dropped, a withdrawn one 410 withdrawn', async () => {
     const t = await setup();
