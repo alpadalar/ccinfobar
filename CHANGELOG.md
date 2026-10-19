@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-20
+
 ### Added
 
 - Marketplace cards and the marketplace details dialog show a live preview of your config with the entry applied, as local cards do; point at a preview or move keyboard focus to a card to see it full size. Each shown entry's latest version is downloaded once, checked against the hash in the index and validated like an install, at most 24 entries per request and 4 downloads at a time, only when a marketplace tab is shown or after **Refresh**
@@ -528,7 +530,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/alpadalar/ccinfobar/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/alpadalar/ccinfobar/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/alpadalar/ccinfobar/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/alpadalar/ccinfobar/compare/v0.6.1...v0.6.2
