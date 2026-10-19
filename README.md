@@ -594,7 +594,7 @@ Skills (you run them; Claude never starts them on its own):
 
 The plugin has no status line, no renderer, no hooks of its own and never writes a settings file; only `ccinfobar` commands change settings. If `ccinfobar` is not installed, a skill offers `npx ccinfobar@latest install` and runs it (dry run first) only after you agree.
 
-**Pinning.** `claude plugin marketplace add alpadalar/ccinfobar#v0.7.0` pins the plugin to the release tag of this version; any later tag works the same way. The marketplace needs the first release that contains `.claude-plugin/marketplace.json` (the first release after 0.6.2); older tags have no plugin. Third-party marketplaces do not auto-update by default. That is harmless here, because the skills only call the `ccinfobar` command, which keeps itself up to date.
+**Pinning.** `claude plugin marketplace add alpadalar/ccinfobar#v0.8.0` pins the plugin to the release tag of this version; any later tag works the same way. The marketplace needs the first release that contains `.claude-plugin/marketplace.json` (the first release after 0.6.2); older tags have no plugin. Third-party marketplaces do not auto-update by default. That is harmless here, because the skills only call the `ccinfobar` command, which keeps itself up to date.
 
 **Removal order.** Run `/ccinfobar:uninstall` or `ccinfobar uninstall` first, then `claude plugin uninstall ccinfobar@ccinfobar` or `npm rm -g ccinfobar`. Removing the plugin leaves nothing in your settings.
 

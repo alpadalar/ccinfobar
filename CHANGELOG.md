@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-20
+
 ### Added
 
 - Nine built-in presets for `ccinfobar init <id>`, both editors and the catalog, in English and Turkish: `cost` (session, daily and weekly cost with a budget bar), `limits` (5h and weekly limits with pace, projection and resets), `git` (repo, branch, sync, staged/unstaged files, stash, worktree, PR), `workspace` (every repo in a folder of projects), `compact` (one dense line), `two-line` (a balanced two-line layout), `agents` (turn timer, tools, subagents, permission waits, tasks), `charts` (sparklines) and `session` (session stats). Existing presets are unchanged
@@ -517,7 +519,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/alpadalar/ccinfobar/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/alpadalar/ccinfobar/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/alpadalar/ccinfobar/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/alpadalar/ccinfobar/compare/v0.6.0...v0.6.1
