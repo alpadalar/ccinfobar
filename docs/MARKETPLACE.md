@@ -225,7 +225,7 @@ Reads never build JSON. Each entry row keeps its summary and its entry document 
 
 | Bucket | Default | Key |
 | --- | --- | --- |
-| Reads | 60 a minute (the `READS` binding; without the binding, or when it fails, reads are not limited). A client reads at most about a dozen documents at once (meta, up to 10 index pages, an entry and a version), and the index is cached for a day | sha256 of the day and the address, in memory only |
+| Reads | 60 a minute (the `READS` binding; without the binding, or when it fails, reads are not limited). A client reads about a dozen documents at once (meta, up to 10 index pages, an entry and a version), plus one version per entry the first time its card preview is shown; the index is cached for a day and versions for good | sha256 of the day and the address, in memory only |
 | Writes (publish, new version, overwrite, withdraw) | 30 a minute per address and 30 a minute per publisher (`WRITE_LIMIT`) | salted address hash, handle |
 | Sign-in | 5 a minute per address (`SIGNIN_LIMIT`) | salted address hash |
 | Reports | 5 an hour per reporter (`REPORT_LIMIT`) | handle |
