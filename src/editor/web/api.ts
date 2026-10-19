@@ -79,6 +79,7 @@ export interface MarketInstallPlanInfo {
   publisher: string;
   targets: MarketTarget[];
   existing: { entryId: string; same: boolean } | null;
+  cols?: number | null;
 }
 
 export interface MarketInstallInfo {
@@ -99,6 +100,7 @@ export interface CatalogSaveBody {
   note?: string;
   id?: string;
   rev?: number;
+  cols?: number;
   config: Config;
 }
 

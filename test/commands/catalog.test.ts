@@ -190,6 +190,7 @@ describe('catalog command', () => {
       version: 1,
       share: 'local',
       updatedAt: NOW.toISOString(),
+      cols: null,
     });
     expect(data.user[1]).toMatchObject({ source: 'legacy', kind: 'preset', share: null, updatedAt: null });
     expect(data.system).toHaveLength(61);
@@ -221,6 +222,49 @@ describe('catalog command', () => {
     expect(data.entry.versions).toBeUndefined();
     expect(Array.isArray(data.preview) && data.preview.length > 0).toBe(true);
     expect(data.preview.every((l: unknown) => typeof l === 'string' && !l.includes('\u001b'))).toBe(true);
+  });
+
+  it('list and show print cols and show previews at it', async () => {
+    const wide = saveEntry(
+      {
+        kind: 'bundle',
+        name: 'Wide',
+        description: '',
+        author: 'Ann',
+        content: {
+          layout: {
+            lines: [
+              [
+                { id: 'm', type: 'model' },
+                { id: 'f', type: 'flex' },
+                { id: 'c', type: 'text', options: { text: 'end' } },
+              ],
+            ],
+          },
+          appearance: { theme: 'nord' },
+        },
+        cols: 150,
+        share: false,
+        mode: 'new',
+        now: NOW,
+      },
+      cat,
+    );
+    saveBundle();
+    const list = await run(['list', '--user']);
+    expect(list.out.find((l) => l.includes('Wide'))).toContain('v1  150 cols');
+    expect(list.out.find((l) => l.includes('My look'))).not.toContain('cols');
+    const json = JSON.parse((await run(['list', '--json', '--user'])).out[0]!);
+    expect(json.user.map((u: { cols: number | null }) => u.cols).sort()).toEqual([150, null]);
+    const show = await run(['show', wide.id]);
+    expect(show.out[1]).toBe('Bundle · v1 · 150 cols · by Ann · Not shared');
+    const preview = show.out.slice(show.out.indexOf('Preview') + 1);
+    const w = Math.max(...preview.map((l) => [...l].length));
+    expect(w).toBeGreaterThan(120);
+    expect(w).toBeLessThanOrEqual(152);
+    const narrow = await run(['show', wide.id, '--width', '80']);
+    const p2 = narrow.out.slice(narrow.out.indexOf('Preview') + 1);
+    expect(Math.max(...p2.map((l) => [...l].length))).toBeLessThanOrEqual(82);
   });
 
   it('show uses --scenario and an embedded theme without installing it', async () => {

@@ -22,6 +22,7 @@ import { api, previewSource } from './api.js';
 import { deleteEntryDialog, historyDialog, saveCurrentDialog, toggleShare } from './catalog-dialogs.js';
 import {
   accountBar,
+  colsTag,
   type MarketPreviews,
   type MarketSection,
   marketplaceSection,
@@ -36,6 +37,7 @@ import {
   type MarketSummaryInfo,
   replaceAll,
   S,
+  setWidth,
 } from './store.js';
 import { askThemeColors } from './themes.js';
 import { confirmDialog, modal, toast } from './ui.js';
@@ -225,10 +227,14 @@ export async function applyEntry(e: CatalogEntryInfo, close: (v?: unknown) => vo
     }
   }
   replaceAll(keepLanguage(localize(e, applyCatalogContent(base, content, e.kind, themeId)), S.config));
+  const cols = typeof e.cols === 'number' ? e.cols : null;
+  if (cols !== null) setWidth(cols);
   toast(
     dropped
       ? t('catalog.consent.dropped', { name: e.name, count: dropped })
-      : t('catalog.applied', { name: e.name }),
+      : cols !== null
+        ? t('catalog.appliedCols', { name: e.name, n: cols })
+        : t('catalog.applied', { name: e.name }),
     'info',
   );
   close();
@@ -451,6 +457,7 @@ export async function openCatalog(): Promise<void> {
           h('span', { class: 'theme-tag' }, t(`catalog.kind.${e.kind}`)),
           h('span', { class: 'catalog-version' }, t('catalog.version', { version: e.version })),
           h('span', { class: 'theme-tag' }, sourceText(e)),
+          colsTag(e.cols),
           e.author ? h('span', { class: 'catalog-author' }, t('catalog.by', { author: e.author })) : null,
           chip(e),
         ),
@@ -559,6 +566,7 @@ export async function openCatalog(): Promise<void> {
         { class: 'catalog-meta' },
         h('span', { class: 'theme-tag' }, t(`catalog.kind.${e.kind}`)),
         h('span', { class: 'catalog-version' }, t('catalog.version', { version: e.version })),
+        colsTag(e.cols),
         e.author ? h('span', { class: 'catalog-author' }, t('catalog.by', { author: e.author })) : null,
         chip(e),
         e.source === 'legacy' ? h('span', { class: 'theme-tag' }, sourceText(e)) : null,

@@ -229,6 +229,18 @@ describe('save current dialog', () => {
     expect(d.all((e) => e.tagName === 'LABEL' && e.textContent === 'Note')[0]!.parent!.hidden).toBe(true);
   });
 
+  it('shows the width it saves at and sends it as cols', async () => {
+    const store = await init();
+    store.S.width = 172;
+    reply('POST /api/catalog/save', 200, { ok: true, entry: savedEntry(), catalog });
+    await saveDialog();
+    expect(texts(top())).toContain('Saved at 172 cols');
+    type(input('Name'), 'New');
+    button('Save').dispatch('click');
+    await flush();
+    expect(saves()[0]!.body).toMatchObject({ cols: 172 });
+  });
+
   it('sends a new bundle with author and share on', async () => {
     const store = await init();
     const before = clone(store.S.config);
@@ -247,6 +259,7 @@ describe('save current dialog', () => {
         author: 'Alp',
         share: true,
         mode: 'new',
+        cols: store.S.width,
         config: before,
         lang: 'en',
       },

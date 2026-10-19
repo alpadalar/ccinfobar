@@ -156,6 +156,7 @@ describe('editor catalog routes: list, entry and previews', () => {
       expect(Object.keys(s).sort()).toEqual(
         [
           'author',
+          'cols',
           'content',
           'description',
           'id',
@@ -339,6 +340,43 @@ describe('editor catalog routes: list, entry and previews', () => {
     );
     const host = await request('GET', '/api/catalog', { headers: { host: 'evil.example:80' } });
     expect(host.status).toBe(403);
+  });
+});
+
+describe('editor catalog routes: cols', () => {
+  const flex = (): Config => ({
+    ...defaultConfig(),
+    lines: [
+      [
+        { id: 'm', type: 'model' },
+        { id: 'f', type: 'flex' },
+        { id: 'c', type: 'text', options: { text: 'end' } },
+      ],
+    ],
+  });
+
+  it('save stores cols, drops a bad one and keeps it on update', async () => {
+    const a = (await save({ config: flex(), cols: 150 })).json();
+    expect(a.entry.cols).toBe(150);
+    const b = (await save({ name: 'Bad', cols: 5 })).json();
+    expect(b.entry.cols).toBeNull();
+    const up = (await save({ config: flex(), mode: 'update', id: a.entry.id, rev: a.entry.rev })).json();
+    expect(up.entry).toMatchObject({ version: 2, cols: 150 });
+    const body = await catalog();
+    expect(body.user.find((u: { id: string }) => u.id === a.entry.id).cols).toBe(150);
+    for (const s of body.system) expect(s.cols).toBeNull();
+  });
+
+  it('previews a user entry at its cols, others at the asked width', async () => {
+    const wide = (await save({ config: flex(), cols: 150 })).json().entry.id;
+    const plain = (await save({ name: 'Plain', config: flex() })).json().entry.id;
+    const res = await request('POST', '/api/catalog/previews', {
+      body: { config: flex(), width: 96, refs: [wide, plain] },
+    });
+    const { previews } = res.json();
+    expect(visibleWidth(previews[wide][0])).toBeGreaterThan(120);
+    expect(visibleWidth(previews[wide][0])).toBeLessThanOrEqual(150);
+    expect(visibleWidth(previews[plain][0])).toBeLessThanOrEqual(96);
   });
 });
 

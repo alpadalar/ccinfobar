@@ -120,7 +120,12 @@ async function market(opts: { allowOverwrite?: boolean } = {}) {
   servers.push(s);
   const env = { CCINFOBAR_MARKETPLACE_URL: s.url, CCINFOBAR_CACHE_DIR: cache };
   // the publisher's own computer
-  const send = async (name: string, content: EntryContent, kind: 'bundle' | 'preset' = 'bundle') => {
+  const send = async (
+    name: string,
+    content: EntryContent,
+    kind: 'bundle' | 'preset' = 'bundle',
+    cols?: number,
+  ) => {
     const hit = listEntries(pub).find((e) => e.name === name);
     saveEntry(
       {
@@ -131,6 +136,7 @@ async function market(opts: { allowOverwrite?: boolean } = {}) {
         content,
         share: true,
         now: at(),
+        ...(cols === undefined ? {} : { cols }),
         ...(hit ? { mode: 'update' as const, id: hit.id, rev: hit.rev } : { mode: 'new' as const }),
       },
       pub,
@@ -395,6 +401,25 @@ describe('catalog install', () => {
     expect(list.out.find((l) => l.includes('Cockpit'))).toMatch(/Marketplace'ten$/);
     const gone = await withLangAsync('tr', () => run(['install', 'alice/none', '--yes'], { env: m.env }));
     expect(gone.err).toEqual(["alice/none marketplace'te yok"]);
+  });
+});
+
+describe('catalog remote cols', () => {
+  it('list --remote and show --remote print cols when set, install keeps it', async () => {
+    const m = await market();
+    await m.send('Wide', LINKED, 'bundle', 150);
+    await m.send('Plain', PLAIN, 'preset');
+    const list = await run(['list', '--remote'], { env: m.env });
+    expect(list.out.find((l) => l.includes('Wide'))).toContain('v1  150 cols');
+    expect(list.out.find((l) => l.includes('Plain'))).not.toContain('cols');
+    const id = listEntries(pub).find((e) => e.name === 'Wide')!.share.remote!.id;
+    const show = await run(['show', id, '--remote'], { env: m.env });
+    expect(show.out[1]).toContain('v1 · 150 cols · by');
+    const json = JSON.parse((await run(['show', id, '--remote', '--json'], { env: m.env })).out[0]!);
+    expect(json.entry.cols).toBe(150);
+    expect((await run(['install', id, '--yes'], { env: m.env })).code).toBeUndefined();
+    const got = listEntries(cat).find((e) => e.origin?.id === id)!;
+    expect(got.versions.at(-1)!.cols).toBe(150);
   });
 });
 

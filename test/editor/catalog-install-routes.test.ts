@@ -102,7 +102,12 @@ async function market() {
   const s = await startMarketServer({ dataDir: path.join(dir, `data-${servers.length}`) });
   servers.push(s);
   process.env.CCINFOBAR_MARKETPLACE_URL = s.url;
-  const send = async (name: string, content: EntryContent, mode: 'new' | 'update' | 'overwrite' = 'new') => {
+  const send = async (
+    name: string,
+    content: EntryContent,
+    mode: 'new' | 'update' | 'overwrite' = 'new',
+    cols?: number,
+  ) => {
     const hit = listEntries(pub).find((e) => e.name === name);
     saveEntry(
       {
@@ -113,6 +118,7 @@ async function market() {
         content,
         share: true,
         now: new Date(T0),
+        ...(cols === undefined ? {} : { cols }),
         ...(hit ? { mode, id: hit.id, rev: hit.rev } : { mode: 'new' as const }),
       },
       pub,
@@ -120,7 +126,7 @@ async function market() {
     const deps = { dir: pub, env: { CCINFOBAR_MARKETPLACE_URL: s.url }, fetch: globalThis.fetch };
     const res = await runPublish(await reviewPublish(null, deps), deps);
     expect(res.code).toBeNull();
-    expect(res.results.every((r) => r.ok)).toBe(true);
+    expect(res.results.filter((r) => !r.ok)).toEqual([]);
   };
   return { url: s.url, send };
 }
@@ -334,6 +340,46 @@ describe('editor remote previews route', () => {
     expect(off.status).toBe(409);
     expect(off.json().errorId).toBe('err.catalog.noEndpoint');
     expect(calls).toEqual([]);
+  });
+});
+
+describe('editor remote cols', () => {
+  const flex: EntryContent = {
+    layout: {
+      lines: [
+        [
+          { id: 'm', type: 'model' },
+          { id: 'f', type: 'flex' },
+          { id: 'c', type: 'text', options: { text: 'end' } },
+        ],
+      ],
+    },
+    appearance: { theme: 'nord' },
+  };
+  const width = (l: string) => [...l.replace(/\x1b\[[0-9;]*m/g, '')].length;
+
+  it('passes cols through list, entry and install plan, and previews at it', async () => {
+    const m = await market();
+    await m.send('Wide', flex, 'new', 150);
+    await m.send('Plain', flex);
+    const wide = remoteIdOf('Wide');
+    const plain = remoteIdOf('Plain');
+    await boot({ fetch: globalThis.fetch });
+    const list = (await request('GET', '/api/catalog/remote')).json().entries;
+    expect(list.find((e: { id: string }) => e.id === wide).cols).toBe(150);
+    expect(list.find((e: { id: string }) => e.id === plain)).not.toHaveProperty('cols');
+    expect((await request('GET', `/api/catalog/remote/${wide}`)).json().entry.cols).toBe(150);
+    expect((await request('POST', '/api/catalog/install/plan', { id: wide })).json().cols).toBe(150);
+    expect((await request('POST', '/api/catalog/install/plan', { id: plain })).json().cols).toBeNull();
+    const res = await request('POST', '/api/catalog/remote/previews', {
+      config: { lines: [[{ id: 'a', type: 'model' }]] },
+      width: 96,
+      ids: [wide, plain],
+    });
+    const { previews } = res.json();
+    expect(width(previews[wide][0])).toBeGreaterThan(120);
+    expect(width(previews[wide][0])).toBeLessThanOrEqual(150);
+    expect(width(previews[plain][0])).toBeLessThanOrEqual(96);
   });
 });
 

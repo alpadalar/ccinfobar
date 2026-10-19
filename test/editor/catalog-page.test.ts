@@ -901,3 +901,46 @@ describe('catalog details and peek', () => {
     expect(texts(d)).toContain('Sizin girdileriniz');
   });
 });
+
+describe('catalog page: cols', () => {
+  const wide = () => user({ ref: 'u-w', id: 'u-w', name: 'Wide', cols: 150 });
+  const tagsOf = (el: FakeEl) =>
+    el.all((e) => e.classList.contains('catalog-cols')).map((e) => e.textContent);
+
+  it('tags cards and details with cols only when set', async () => {
+    catalog.user = [wide(), myPreset()];
+    await init();
+    await open();
+    expect(tagsOf(card('u-w'))).toEqual(['150 cols']);
+    expect(tagsOf(card('u-p'))).toEqual([]);
+    card('u-w').dispatch('click');
+    await flush();
+    expect(tagsOf(top())).toEqual(['150 cols']);
+  });
+
+  it('applying an entry with cols sets the preview width like the slider', async () => {
+    catalog.user = [wide(), myPreset()];
+    const store = await init();
+    const set: [string, string][] = [];
+    const old = g.localStorage;
+    g.localStorage = { getItem: () => null, setItem: (k: string, v: string) => set.push([k, v]) };
+    let emitted = 0;
+    store.on('width', () => emitted++);
+    store.S.width = 96;
+    try {
+      await open();
+      applyBtn('u-w').dispatch('click');
+      await flush();
+      expect(store.S.width).toBe(150);
+      expect(set).toEqual([['ccinfobar.previewWidth', '150']]);
+      expect(emitted).toBe(1);
+      expect(toastText()).toContain('Applied Wide at 150 cols. Save to keep it.');
+      applyBtn('u-p').dispatch('click');
+      await flush();
+      expect(store.S.width).toBe(150);
+      expect(emitted).toBe(1);
+    } finally {
+      g.localStorage = old;
+    }
+  });
+});

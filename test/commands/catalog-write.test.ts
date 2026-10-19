@@ -242,6 +242,29 @@ describe('catalog apply', () => {
 });
 
 describe('catalog save', () => {
+  it('stores --cols, keeps it on --update and refuses a bad one', async () => {
+    writeCfg({ lines: [model], theme: 'nord' });
+    const dry = await run(['save', 'Wide', '--cols', '150', '--dry-run', '--json']);
+    expect(JSON.parse(dry.out[0]!)).toMatchObject({ cols: 150, dryRun: true });
+    expect(listEntries(cat)).toEqual([]);
+    expect((await run(['save', 'Wide', '--cols', '150'])).code).toBeUndefined();
+    const id = listEntries(cat)[0]!.id;
+    expect(readEntry(id, cat)!.entry.versions[0]!.cols).toBe(150);
+    const keep = await run(['save', 'Wide', '--update', '--dry-run', '--json']);
+    expect(JSON.parse(keep.out[0]!).cols).toBe(150);
+    await run(['save', 'Wide', '--update']);
+    expect(readEntry(id, cat)!.entry.versions.map((v) => v.cols)).toEqual([150, 150]);
+    for (const bad of ['5', 'wide', '401']) {
+      const r = await run(['save', 'Other', '--cols', bad]);
+      expect(r.code).toBe(1);
+      expect(r.err).toEqual(['--cols must be a whole number from 40 to 400']);
+    }
+    expect((await run(['save', 'Other', '--cols'])).code).toBe(1);
+    expect(listEntries(cat)).toHaveLength(1);
+    const plain = await run(['save', 'Plain', '--dry-run', '--json']);
+    expect(JSON.parse(plain.out[0]!).cols).toBeNull();
+  });
+
   it('saves a bundle waiting to publish with the remembered author', async () => {
     writeProfile({ author: 'Pat' }, cat);
     writeCfg({ lines: [model], theme: 'nord' });

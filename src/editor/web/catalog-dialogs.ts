@@ -142,6 +142,7 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
         mode,
         ...(target ? { id: target.id, note: note.value.trim() } : {}),
         ...(typeof rev === 'number' ? { rev } : {}),
+        cols: S.width,
         config: S.config,
       });
       toast(t('catalog.save.saved', { name: r.entry.name, version: r.entry.version }));
@@ -175,6 +176,7 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
       field(t('catalog.save.share'), shareSwitch, t('catalog.save.shareHint'), true),
       clashBox,
       noteField,
+      h('div', { class: 'hint catalog-save-cols' }, t('catalog.save.cols', { n: S.width })),
       err,
     ],
     actions: (done) => {

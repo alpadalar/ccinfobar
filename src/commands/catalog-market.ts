@@ -407,7 +407,9 @@ function listRows(c: Ctx, entries: MarketSummary[]): void {
       clean(e.name),
       clean(e.id),
       t(`catalog.kind.${e.kind}`),
-      t('catalog.version', { version: e.version }),
+      e.cols === undefined
+        ? t('catalog.version', { version: e.version })
+        : `${t('catalog.version', { version: e.version })}  ${t('catalog.cols', { n: e.cols })}`,
       authorText(e),
     ],
   }));
@@ -442,6 +444,7 @@ export async function runRemoteShow(c: Ctx): Promise<void> {
     return;
   }
   const meta = [t(`catalog.kind.${e.kind}`), t('catalog.version', { version: e.version })];
+  if (e.cols !== undefined) meta.push(t('catalog.cols', { n: e.cols }));
   meta.push(t('catalog.by', { author: authorText(e) }));
   if (e.withdrawn) meta.push(t('catalog.share.withdrawn'));
   // a tombstone has no name

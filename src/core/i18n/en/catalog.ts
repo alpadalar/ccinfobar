@@ -23,6 +23,7 @@ export const catalogMessages = {
   'catalog.share.withdrawn': 'Withdrawn',
   'catalog.share.review': 'Waiting for review',
   'catalog.version': 'v{version}',
+  'catalog.cols': '{n} cols',
   'catalog.by': 'by {author}',
   'catalog.title': 'Marketplace',
   'catalog.apply': 'Apply',
@@ -32,6 +33,7 @@ export const catalogMessages = {
   'catalog.applyTitle': 'Apply {name}?',
   'catalog.applyText': 'Your unsaved changes stay in undo history.',
   'catalog.applied': 'Applied {name}. Save to keep it.',
+  'catalog.appliedCols': 'Applied {name} at {n} cols. Save to keep it.',
   'catalog.consent.title': 'Commands and links in {name}',
   'catalog.consent.text':
     'These widgets run commands, send HTTP requests or open URLs from your status line. Apply without them, or keep them if you trust this entry.',
@@ -61,6 +63,8 @@ export const catalogMessages = {
   'catalog.save.shareHint':
     'On by default. Without a marketplace endpoint it waits to publish and nothing is sent.',
   'catalog.save.note': 'Note',
+  'catalog.save.cols': 'Saved at {n} cols',
+  'catalog.save.badCols': '--cols must be a whole number from {min} to {max}',
   'catalog.save.notePlaceholder': 'What changed (optional)',
   'catalog.save.existsText':
     '{name} already exists as v{version}. Update adds v{next} and keeps the history; overwrite replaces v{version}.',
@@ -102,7 +106,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Loading the marketplace…',
   'catalog.usage':
-    'Usage: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n       ccinfobar catalog list --remote [--refresh] [--kind preset|theme|bundle] [--json]\n       ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n       ccinfobar catalog show <publisher/slug> --remote [--json]\n       ccinfobar catalog install <publisher/slug>[@version] [--yes] [--dry-run] [--json]\n       ccinfobar catalog history <ref> [--json]\n       ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n       ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n       ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n       ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n       ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n       ccinfobar catalog author [<name>] [--dry-run] [--json]\n       ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n       ccinfobar catalog publisher [<handle>|--forget|--check] [--dry-run] [--json]\n       ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n       ccinfobar catalog login [--open|--no-open] [--json]\n       ccinfobar catalog logout [--json]\n       ccinfobar catalog report <publisher/slug> --reason <text> [--json]',
+    'Usage: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n       ccinfobar catalog list --remote [--refresh] [--kind preset|theme|bundle] [--json]\n       ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n       ccinfobar catalog show <publisher/slug> --remote [--json]\n       ccinfobar catalog install <publisher/slug>[@version] [--yes] [--dry-run] [--json]\n       ccinfobar catalog history <ref> [--json]\n       ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n       ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--cols <n>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n       ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n       ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n       ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n       ccinfobar catalog author [<name>] [--dry-run] [--json]\n       ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n       ccinfobar catalog publisher [<handle>|--forget|--check] [--dry-run] [--json]\n       ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n       ccinfobar catalog login [--open|--no-open] [--json]\n       ccinfobar catalog logout [--json]\n       ccinfobar catalog report <publisher/slug> --reason <text> [--json]',
   'catalog.section.user': 'Your entries',
   'catalog.section.system': 'Built in',
   'catalog.list.noUser': 'No saved entries yet. Save one with ccinfobar catalog save <name>.',

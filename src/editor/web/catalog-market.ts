@@ -91,6 +91,9 @@ const isPlan = (x: unknown): x is PublishPlanInfo =>
   Array.isArray((x as PublishPlanInfo).plan) &&
   typeof (x as PublishPlanInfo).planHash === 'string';
 
+export const colsTag = (n: unknown): HTMLElement | null =>
+  typeof n === 'number' ? h('span', { class: 'theme-tag catalog-cols' }, t('catalog.cols', { n })) : null;
+
 function planItem(item: PlanItem): HTMLElement {
   return h(
     'li',
@@ -101,6 +104,7 @@ function planItem(item: PlanItem): HTMLElement {
       h('span', { class: `theme-tag ${item.action}` }, t(`catalog.publish.action.${item.action}`)),
       h('strong', null, shown(item.name)),
       h('span', { class: 'theme-tag' }, t(`catalog.kind.${item.kind}`)),
+      colsTag((item.payload as { cols?: unknown } | null)?.cols),
       item.remoteId ? h('code', null, shown(item.remoteId)) : null,
     ),
     item.payload === null
@@ -391,6 +395,7 @@ function meta(e: MarketSummaryInfo): HTMLElement[] {
   return [
     h('span', { class: 'theme-tag' }, t(`catalog.kind.${e.kind}`)),
     h('span', { class: 'catalog-version' }, t('catalog.version', { version: e.version })),
+    ...(e.withdrawn ? [] : [colsTag(e.cols)].filter((x) => x !== null)),
     h('span', { class: 'catalog-author' }, by(e)),
     ...(e.withdrawn ? [h('span', { class: 'catalog-chip withdrawn' }, t('catalog.share.withdrawn'))] : []),
   ];
@@ -808,6 +813,7 @@ export async function installDialog(id: string, view?: MarketView): Promise<bool
         h('strong', null, shown(p.name)),
         h('span', { class: 'theme-tag' }, t(`catalog.kind.${p.kind}`)),
         h('span', { class: 'catalog-version' }, t('catalog.version', { version: p.version })),
+        colsTag(p.cols),
         h('span', { class: 'catalog-author' }, by(p)),
         h('code', null, shown(p.id)),
       ),

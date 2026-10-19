@@ -111,6 +111,8 @@ export interface CatalogEntryInfo {
   origin?: { endpoint: string; id: string; version: number } | null;
   updatedAt: string | null;
   scenario: string | null;
+  // the author's preview width
+  cols?: number | null;
   content: EntryContent;
 }
 
@@ -183,6 +185,7 @@ export interface MarketSummaryInfo {
   updatedAt: string;
   hash: string;
   withdrawn?: boolean;
+  cols?: number;
 }
 
 export interface MarketEntryInfo extends MarketSummaryInfo {
@@ -216,7 +219,7 @@ export interface CommitOpts {
   select?: string | null;
 }
 
-type Topic = 'config' | 'selection' | 'ui' | 'preview';
+type Topic = 'config' | 'selection' | 'ui' | 'preview' | 'width';
 type Listener = (opts: CommitOpts) => void;
 
 export let S: Store;
@@ -225,6 +228,7 @@ const listeners: Record<Topic, Set<Listener>> = {
   selection: new Set(),
   ui: new Set(),
   preview: new Set(),
+  width: new Set(),
 };
 let lastKey: string | null = null;
 let lastAt = 0;
@@ -269,6 +273,16 @@ function savedWidth(): number {
     if (Number.isFinite(n) && n >= 40 && n <= 400) return n;
   } catch {}
   return 130;
+}
+
+// the slider and an applied entry share this path
+export function setWidth(n: number): void {
+  if (!Number.isFinite(n)) return;
+  S.width = Math.max(40, Math.min(400, Math.round(n)));
+  try {
+    localStorage.setItem(WIDTH_KEY, String(S.width));
+  } catch {}
+  emit('width');
 }
 
 export function isDirty(): boolean {

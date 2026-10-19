@@ -42,8 +42,8 @@ import {
   replaceAll,
   S,
   select,
+  setWidth,
   undo,
-  WIDTH_KEY,
   type WidgetInfo,
 } from './store.js';
 import { chipMenu, copyStyle, paintOnto, pasteStyle, rememberStyles, setPainting } from './styles.js';
@@ -736,11 +736,9 @@ function setupStatic(): void {
   });
   const slider = $<HTMLInputElement>('width');
   slider.value = String(S.width);
-  slider.addEventListener('input', () => {
-    S.width = Number(slider.value);
-    try {
-      localStorage.setItem(WIDTH_KEY, String(S.width));
-    } catch {}
+  slider.addEventListener('input', () => setWidth(Number(slider.value)));
+  on('width', () => {
+    slider.value = String(S.width);
     applyWidth();
     schedulePreview();
   });

@@ -25,6 +25,7 @@ const VALUE_FLAGS = [
   'description',
   'author',
   'note',
+  'cols',
   'name',
   'reason',
   'tag',

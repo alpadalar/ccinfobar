@@ -927,3 +927,37 @@ describe('marketplace tabs by kind', () => {
     expect(open()).toHaveLength(before + 1);
   });
 });
+
+describe('marketplace cols', () => {
+  const colsTags = (el: FakeEl) =>
+    el.all((e) => e.classList.contains('catalog-cols')).map((e) => e.textContent);
+
+  it('tags cards and details with cols only when set', async () => {
+    online();
+    reply('GET /api/catalog/remote', 200, {
+      endpoint: ENDPOINT,
+      entries: [summary({ cols: 150 }), summary({ id: 'ada/plain', name: 'Plain' })],
+    });
+    reply('GET /api/catalog/remote/ada/my-setup', 200, { entry: remoteEntry({ cols: 150 }), latest: null });
+    await init();
+    await openPage();
+    const rows = top().all((e) => e.classList.contains('catalog-remote-row'));
+    expect(colsTags(rows[0]!)).toEqual(['150 cols']);
+    expect(colsTags(rows[1]!)).toEqual([]);
+    rows[0]!.dispatch('click');
+    await flush();
+    expect(colsTags(top())).toContain('150 cols');
+  });
+
+  it('the publish plan item shows a cols tag when its payload has cols', async () => {
+    online();
+    const p = plan();
+    (p.plan[0]!.payload as Record<string, unknown>).cols = 150;
+    reply('POST /api/catalog/publish/plan', 200, p);
+    await init();
+    await publish();
+    const items = top().all((e) => e.classList.contains('catalog-publish-item'));
+    expect(colsTags(items[0]!)).toEqual(['150 cols']);
+    expect(colsTags(items[1]!)).toEqual([]);
+  });
+});

@@ -50,6 +50,7 @@ import type { Args } from '../cli/args.js';
 import { stripAnsi } from '../core/ansi.js';
 import { defaultConfig, type LoadResult, saveConfig } from '../core/config.js';
 import { keepLanguage } from '../core/edit.js';
+import { COLS_MAX, COLS_MIN, parseCols } from '../core/entry-keys.js';
 import { resolveGlyphMode } from '../core/glyphs.js';
 import { bundleText, presetText, themeDescription } from '../core/i18n/catalog-text.js';
 import { formatDateTime } from '../core/i18n/format.js';
@@ -95,6 +96,7 @@ interface Summary {
   version: number;
   share: ShareState | null;
   updatedAt: string | null;
+  cols: number | null;
   review?: 'pending';
 }
 
@@ -191,6 +193,7 @@ function summary(a: AnyEntry): Summary {
       version: e.version,
       share: shareState(e),
       updatedAt: e.updatedAt,
+      cols: latest(e).cols ?? null,
       ...(e.share.remote?.review === 'pending' ? { review: 'pending' as const } : {}),
     };
   }
@@ -204,6 +207,7 @@ function summary(a: AnyEntry): Summary {
     version: 1,
     share: null,
     updatedAt: null,
+    cols: null,
   };
 }
 
@@ -286,7 +290,9 @@ function sectionLines(entries: AnyEntry[]): string[] {
         s.name,
         s.ref,
         t(`catalog.kind.${s.kind}`),
-        t('catalog.version', { version: s.version }),
+        s.cols === null
+          ? t('catalog.version', { version: s.version })
+          : `${t('catalog.version', { version: s.version })}  ${t('catalog.cols', { n: s.cols })}`,
         s.author,
       ],
     };
@@ -362,7 +368,8 @@ function runShow(c: Ctx): void {
   const hit = find(c, c.args.positional[1]);
   if (!hit) return;
   const w = typeof c.args.flags.width === 'string' ? Math.floor(Number(c.args.flags.width)) : Number.NaN;
-  const width = Number.isFinite(w) && w > 0 ? Math.min(400, Math.max(20, w)) : (c.io.columns ?? 120);
+  const own = hit.source === 'user' ? latest(hit.entry).cols : undefined;
+  const width = Number.isFinite(w) && w > 0 ? Math.min(400, Math.max(20, w)) : (own ?? c.io.columns ?? 120);
   const source: PreviewSource = flag.kind === 'scenario' ? { scenario: flag.id } : 'sample';
   if (c.args.flags.json === true) {
     json(c, () => {
@@ -374,6 +381,7 @@ function runShow(c: Ctx): void {
   }
   const s = summary(hit);
   const meta = [t(`catalog.kind.${s.kind}`), t('catalog.version', { version: s.version })];
+  if (s.cols !== null) meta.push(t('catalog.cols', { n: s.cols }));
   if (s.author) meta.push(t('catalog.by', { author: s.author }));
   const state = chip(hit, s);
   if (state) meta.push(state);
@@ -583,6 +591,12 @@ async function runSave(c: Ctx): Promise<void> {
     c.fail(t('catalog.save.bothModes'));
     return;
   }
+  const colsFlag = c.args.flags.cols;
+  const cols = colsFlag === undefined ? undefined : parseCols(Math.floor(Number(colsFlag)));
+  if (colsFlag !== undefined && cols === undefined) {
+    c.fail(t('catalog.save.badCols', { min: COLS_MIN, max: COLS_MAX }));
+    return;
+  }
   const loaded = loadForUse(c.cfgFile, () => c.gsd);
   if (!usable(c, loaded)) return;
   const content = contentFromConfig(loaded.config, kind);
@@ -623,6 +637,7 @@ async function runSave(c: Ctx): Promise<void> {
         version,
         share: state,
         mode,
+        cols: cols ?? (old ? latest(old).cols : undefined) ?? null,
         dryRun: true,
         content,
       }));
@@ -640,6 +655,7 @@ async function runSave(c: Ctx): Promise<void> {
       author,
       content,
       note,
+      ...(cols === undefined ? {} : { cols }),
       share: share !== false,
       mode,
       ...(old ? { id: old.id, rev: old.rev } : {}),

@@ -26,6 +26,7 @@ export const catalogMessages = {
   'catalog.share.withdrawn': 'Geri çekildi',
   'catalog.share.review': 'İnceleme bekliyor',
   'catalog.version': 'v{version}',
+  'catalog.cols': '{n} sütun',
   'catalog.by': '{author} tarafından',
   'catalog.title': 'Marketplace',
   'catalog.apply': 'Uygula',
@@ -35,6 +36,7 @@ export const catalogMessages = {
   'catalog.applyTitle': '{name} uygulansın mı?',
   'catalog.applyText': 'Kaydedilmemiş değişiklikleriniz geri alma geçmişinde kalır.',
   'catalog.applied': '{name} uygulandı. Kalıcı olması için kaydedin.',
+  'catalog.appliedCols': '{name} {n} sütun genişliğinde uygulandı. Kalıcı olması için kaydedin.',
   'catalog.consent.title': '{name} içindeki komutlar ve bağlantılar',
   'catalog.consent.text':
     'Bu bileşenler durum satırınızdan komut çalıştırır, HTTP isteği gönderir veya URL açar. Bunlar olmadan uygulayın ya da bu girdiye güveniyorsanız koruyun.',
@@ -65,6 +67,8 @@ export const catalogMessages = {
   'catalog.save.shareHint':
     'Varsayılan olarak açık. Marketplace adresi yoksa yayımlanmayı bekler ve hiçbir şey gönderilmez.',
   'catalog.save.note': 'Not',
+  'catalog.save.cols': '{n} sütun genişliğinde kaydedilir',
+  'catalog.save.badCols': '--cols {min} ile {max} arasında bir tam sayı olmalı',
   'catalog.save.notePlaceholder': 'Ne değişti (isteğe bağlı)',
   'catalog.save.existsText':
     '{name} zaten v{version} olarak var. Güncelleme v{next} sürümünü ekler ve geçmişi korur; üzerine yazma v{version} sürümünü değiştirir.',
@@ -107,7 +111,7 @@ export const catalogMessages = {
   'catalog.remote.publisher': '@{publisher}',
   'catalog.remote.loading': 'Marketplace yükleniyor…',
   'catalog.usage':
-    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog list --remote [--refresh] [--kind preset|theme|bundle] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog install <publisher/slug>[@version] [--yes] [--dry-run] [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget|--check] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n          ccinfobar catalog login [--open|--no-open] [--json]\n          ccinfobar catalog logout [--json]\n          ccinfobar catalog report <publisher/slug> --reason <text> [--json]',
+    'Kullanım: ccinfobar catalog list [--kind preset|theme|bundle] [--user|--system|--remote] [--json]\n          ccinfobar catalog list --remote [--refresh] [--kind preset|theme|bundle] [--json]\n          ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]\n          ccinfobar catalog show <publisher/slug> --remote [--json]\n          ccinfobar catalog install <publisher/slug>[@version] [--yes] [--dry-run] [--json]\n          ccinfobar catalog history <ref> [--json]\n          ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]\n          ccinfobar catalog save <name> [--kind bundle|preset|theme] [--description <text>] [--author <name>] [--note <text>] [--cols <n>] [--no-share] [--update|--overwrite] [--dry-run] [--json]\n          ccinfobar catalog restore <ref> <version> [--dry-run] [--json]\n          ccinfobar catalog share|unshare <ref> [--dry-run] [--json]\n          ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]\n          ccinfobar catalog author [<name>] [--dry-run] [--json]\n          ccinfobar catalog endpoint [<url>|--off|--clear] [--dry-run] [--json]\n          ccinfobar catalog publisher [<handle>|--forget|--check] [--dry-run] [--json]\n          ccinfobar catalog publish [<ref>...] [--yes] [--dry-run] [--json]\n          ccinfobar catalog login [--open|--no-open] [--json]\n          ccinfobar catalog logout [--json]\n          ccinfobar catalog report <publisher/slug> --reason <text> [--json]',
   'catalog.section.user': 'Sizin girdileriniz',
   'catalog.section.system': 'Yerleşik',
   'catalog.list.noUser': 'Henüz kayıtlı girdi yok. ccinfobar catalog save <name> ile bir tane kaydedin.',

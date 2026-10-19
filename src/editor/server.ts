@@ -84,6 +84,7 @@ import {
   setProgress,
   upgradeOptions,
 } from '../core/edit.js';
+import { parseCols } from '../core/entry-keys.js';
 import { bundleText, presetLabels, presetText, themeDescription } from '../core/i18n/catalog-text.js';
 import { type MessageId, type Params, setLanguage, t, withLanguage } from '../core/i18n/index.js';
 import { isLanguageId, type LanguageId } from '../core/i18n/languages.js';
@@ -361,6 +362,8 @@ export interface EntrySummary {
   origin: { endpoint: string; id: string; version: number } | null;
   updatedAt: string | null;
   scenario: string | null;
+  // the author's preview width
+  cols: number | null;
   content: EntryContent;
 }
 
@@ -425,6 +428,7 @@ function installView(p: InstallPlan) {
     publisher: clean(p.publisher),
     targets: p.targets.map((x) => ({ kind: x.kind, target: x.target })),
     existing: p.existing,
+    cols: p.cols ?? null,
   };
 }
 
@@ -497,6 +501,8 @@ function systemText(e: SystemEntry, field: 'name' | 'description'): string {
   return field === 'name' ? e.name : themeDescription(e);
 }
 
+const colsOf = (a: Found): number | undefined => (a.source === 'user' ? latest(a.entry).cols : undefined);
+
 function summaryOf(a: Found): EntrySummary {
   const base = { ref: refOf(a), source: a.source, kind: entryKind(a), content: contentOf(a) };
   if (a.source === 'user') {
@@ -523,9 +529,18 @@ function summaryOf(a: Found): EntrySummary {
         : null,
       updatedAt: e.updatedAt,
       scenario: null,
+      cols: latest(e).cols ?? null,
     };
   }
-  const fixed = { version: 1, rev: null, share: null, remote: null, origin: null, updatedAt: null };
+  const fixed = {
+    version: 1,
+    rev: null,
+    share: null,
+    remote: null,
+    origin: null,
+    updatedAt: null,
+    cols: null,
+  };
   if (a.source === 'legacy') {
     const i = a.item;
     return {
@@ -1173,7 +1188,8 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         withLanguage(uiLang(body.lang, config), () => {
           for (const ref of refs) {
             const hit = byRef.get(ref);
-            if (hit && !Object.hasOwn(previews, ref)) previews[ref] = previewOf(config, hit, source, width);
+            if (hit && !Object.hasOwn(previews, ref))
+              previews[ref] = previewOf(config, hit, source, colsOf(hit) ?? width);
           }
         });
         send(res, 200, { previews });
@@ -1189,6 +1205,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           throw httpError(400, 'err.catalog.badRequest');
         const config = normalizeConfig(body.config);
         const author = typeof body.author === 'string' ? body.author : undefined;
+        const cols = parseCols(body.cols);
         let e: CatalogEntry;
         try {
           e = saveEntry({
@@ -1198,6 +1215,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
             ...(author === undefined ? {} : { author }),
             content: contentFromConfig(config, kind),
             note: str(body.note),
+            ...(cols === undefined ? {} : { cols }),
             share: body.share !== false,
             mode,
             ...(mode !== 'new' && typeof body.share === 'boolean' ? { shareChange: body.share } : {}),
@@ -1301,7 +1319,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const previews: Record<string, string[]> = {};
         withLanguage(uiLang(body.lang, config), () => {
           for (const it of out.items)
-            previews[it.id] = previewContent(config, it.kind, it.content, false, source, width);
+            previews[it.id] = previewContent(config, it.kind, it.content, false, source, it.cols ?? width);
         });
         send(res, 200, { previews });
         return;
