@@ -600,6 +600,15 @@ describe.skipIf(!hasSqlite)('worker logout and /v1/me', () => {
       { id: 'me/wide', state: 'live', version: 2, cols: 150 },
     ]);
     expect(await s.db.prepare("SELECT cols FROM entries WHERE slug = 'plain'").first('cols')).toBeNull();
+    expect((await s.call('DELETE', '/v1/entries/me/wide', { token })).status).toBe(200);
+    const row = await s.db.prepare("SELECT cols, summary, doc FROM entries WHERE slug = 'wide'").first<{
+      cols: number | null;
+      summary: string;
+      doc: string;
+    }>();
+    expect(row?.cols).toBeNull();
+    expect(JSON.parse(row!.summary)).not.toHaveProperty('cols');
+    expect(JSON.parse(row!.doc)).not.toHaveProperty('cols');
   });
 
   it('/v1/me needs a known token', async () => {

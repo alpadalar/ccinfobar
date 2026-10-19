@@ -480,7 +480,7 @@ export function withdrawStatements(
   return [
     db
       .prepare(
-        `UPDATE entries SET state = ?7, updated_at = ?3, summary = ?4, doc = ?5, gen = ${NEXT_GEN}
+        `UPDATE entries SET state = ?7, updated_at = ?3, summary = ?4, doc = ?5, gen = ${NEXT_GEN}, cols = NULL
          WHERE publisher = ?1 AND slug = ?2 AND version = ?6 AND ${LIVE}`,
       )
       .bind(p, s, tomb.updatedAt, entrySummaryText(tomb), entryDocText(tomb), expected, state),
