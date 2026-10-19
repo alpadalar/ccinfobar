@@ -163,7 +163,7 @@ describe('cachedIndex', () => {
     expect(first.index.entries.map((e) => e.id)).toEqual(['alp/e1', 'alp/e2']);
     expect(m.calls.map((c) => c.path)).toEqual(['/v1/index.json', '/v1/index-2.json']);
     const file = JSON.parse(fs.readFileSync(indexFile(), 'utf8'));
-    expect(file).toMatchObject({ schema: 1, endpoint: EP, etag: '"g1"', generatedAt: 'gen-1' });
+    expect(file).toMatchObject({ schema: 2, endpoint: EP, etag: '"g1"', generatedAt: 'gen-1' });
     const later = await cachedIndex(EP, { client: m.client, now: clock(T0 + 23 * HOUR), cacheDir });
     expect(later).toEqual({ index: first.index, fromCache: true, checkedAt: first.checkedAt });
     expect(m.calls).toHaveLength(2);
@@ -251,8 +251,16 @@ describe('cachedIndex', () => {
     for (const bad of [
       '{nope',
       JSON.stringify({
-        schema: 1,
+        schema: 2,
         endpoint: 'https://other.example.com',
+        etag: null,
+        checkedAt: new Date(T0).toISOString(),
+        generatedAt: '',
+        entries: [],
+      }),
+      JSON.stringify({
+        schema: 3,
+        endpoint: EP,
         etag: null,
         checkedAt: new Date(T0).toISOString(),
         generatedAt: '',
@@ -261,21 +269,13 @@ describe('cachedIndex', () => {
       JSON.stringify({
         schema: 2,
         endpoint: EP,
-        etag: null,
-        checkedAt: new Date(T0).toISOString(),
-        generatedAt: '',
-        entries: [],
-      }),
-      JSON.stringify({
-        schema: 1,
-        endpoint: EP,
         etag: 'bad tag',
         checkedAt: new Date(T0).toISOString(),
         generatedAt: '',
         entries: [],
       }),
       JSON.stringify({
-        schema: 1,
+        schema: 2,
         endpoint: EP,
         etag: null,
         checkedAt: 'soon',
@@ -328,6 +328,38 @@ describe('cachedIndex', () => {
 });
 
 describe('cachedEntry and cachedVersion', () => {
+  it('drops a schema 1 cache from before cols and fetches again without a tag (WR-01)', async () => {
+    const m = fakeMarket();
+    m.s.pages[0] = [{ ...summary(1, m.s.pages[0]![0]!.hash), cols: 150 } as never];
+    fs.mkdirSync(marketDir(), { recursive: true });
+    const old = {
+      schema: 1,
+      endpoint: EP,
+      etag: '"g1"',
+      checkedAt: new Date(T0).toISOString(),
+      generatedAt: 'gen-1',
+      entries: [summary(1, m.s.pages[0]![0]!.hash)],
+    };
+    fs.writeFileSync(indexFile(), JSON.stringify(old));
+    const r = await cachedIndex(EP, { client: m.client, now: clock(T0 + HOUR), cacheDir });
+    expect(r.fromCache).toBe(false);
+    expect(m.calls[0]).toEqual({ path: '/v1/index.json', inm: null });
+    expect(r.index.entries[0]!.cols).toBe(150);
+    expect(JSON.parse(fs.readFileSync(indexFile(), 'utf8')).schema).toBe(2);
+    const entryDir = path.join(marketDir(), 'entries');
+    fs.mkdirSync(entryDir, { recursive: true });
+    m.calls.length = 0;
+    const e = await cachedEntry(EP, 'alp/e1', { client: m.client, now: clock(T0), cacheDir });
+    for (const f of fs.readdirSync(entryDir)) {
+      const raw = JSON.parse(fs.readFileSync(path.join(entryDir, f), 'utf8'));
+      fs.writeFileSync(path.join(entryDir, f), JSON.stringify({ ...raw, schema: 1 }));
+    }
+    m.calls.length = 0;
+    const again = await cachedEntry(EP, 'alp/e1', { client: m.client, now: clock(T0 + HOUR), cacheDir });
+    expect(m.calls).toEqual([{ path: '/v1/entries/alp/e1.json', inm: null }]);
+    expect(again).toEqual({ ...e, checkedAt: new Date(T0 + HOUR).toISOString() });
+  });
+
   it('revalidates a cached entry with one conditional request', async () => {
     const m = fakeMarket();
     const first = await cachedEntry(EP, 'alp/e1', { client: m.client, now: clock(T0), cacheDir });

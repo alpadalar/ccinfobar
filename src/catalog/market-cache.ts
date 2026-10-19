@@ -20,7 +20,8 @@ import { endpointKey } from './store.js';
 export const INDEX_TTL_MS = 86_400_000;
 export const MIN_REFRESH_MS = 30_000;
 
-const SCHEMA = 1;
+// 2: summaries and entries keep cols
+const SCHEMA = 2;
 const READ_CAP = 16 * 1024 * 1024;
 const ETAG_RE = /^(?:W\/)?"[\x21\x23-\x7e]{1,128}"$/;
 const HASH_RE = /^[0-9a-f]{64}$/;
