@@ -21,18 +21,18 @@ All paths are relative to the endpoint, which may have a base path (`https://exa
 
 | Op | Method and path | Request body | Success | Errors |
 | --- | --- | --- | --- | --- |
-| Discover | `GET /v1/meta.json` | | `{ protocol: 1, name, capabilities: { write, overwrite, withdraw, submit, review?, report? }, auth, limits, submitUrl?, github?, quota? }` | |
+| Discover | `GET /v1/meta.json` | | `{ protocol: 1, name, capabilities: { write, overwrite, withdraw, submit, review?, report?, cols? }, auth, limits, submitUrl?, github?, quota? }` | |
 | List | `GET /v1/index.json`, then `GET /v1/index-<n>.json` while `next` is set | | `{ entries: Summary[], generatedAt, next? }` | `404` for a page that does not exist |
 | Entry and history | `GET /v1/entries/<publisher>/<slug>.json` | | Summary plus `versions: [{ version, at, note, hash }]` | `400 invalid`, `404 not-found` |
 | Version content | `GET /v1/entries/<publisher>/<slug>/<n>.json` | | `{ version, content, hash }` | `400`, `410 withdrawn`, `404` |
 | Register | `POST /v1/publishers` | `{ handle, displayName }` | `201 { handle, token }` | `400 invalid`, `409 conflict`, `413 over-quota`; `403 forbidden` on a server with GitHub sign-in |
-| Publish new | `POST /v1/entries` | `{ kind, slug, name, description, author, content, note }` | `201 { id, version: 1, hash, pending? }` | `401`, `403 banned`, `400 invalid`, `409 conflict`, `413 over-quota` |
-| New version | `POST /v1/entries/<publisher>/<slug>/versions` with `If-Match: "<latest version>"` | `{ content, note, name?, description? }` | `201 { id, version, hash }` | `401`, `404`, `403 forbidden`, `410 withdrawn`, `412 stale`, `400 invalid`, `413 over-quota` |
-| Overwrite latest | `PUT /v1/entries/<publisher>/<slug>/versions/<n>` | `{ content, note, name?, description? }` | `200 { id, version, hash }` | `401`, `403 overwrite-disabled`, `404`, `403 forbidden`, `410`, `409 conflict` (n is not the latest), `400 invalid` |
+| Publish new | `POST /v1/entries` | `{ kind, slug, name, description, author, content, note, cols? }` | `201 { id, version: 1, hash, pending? }` | `401`, `403 banned`, `400 invalid`, `409 conflict`, `413 over-quota` |
+| New version | `POST /v1/entries/<publisher>/<slug>/versions` with `If-Match: "<latest version>"` | `{ content, note, name?, description?, cols? }` | `201 { id, version, hash }` | `401`, `404`, `403 forbidden`, `410 withdrawn`, `412 stale`, `400 invalid`, `413 over-quota` |
+| Overwrite latest | `PUT /v1/entries/<publisher>/<slug>/versions/<n>` | `{ content, note, name?, description?, cols? }` | `200 { id, version, hash }` | `401`, `403 overwrite-disabled`, `404`, `403 forbidden`, `410`, `409 conflict` (n is not the latest), `400 invalid` |
 | Withdraw | `DELETE /v1/entries/<publisher>/<slug>` | | `200 { id, withdrawn: true }` (also when repeated) | `401`, `404`, `403 forbidden` |
 | Sign in | `POST /v1/auth/github` | `{ token }` (a GitHub user token from the device flow) | `200 { handle, token, displayName, admin }` | `400 invalid`, `401 unauthorized`, `403 banned`, `409 conflict` (no free handle), `502 upstream`, `503 unavailable` |
 | Sign out | `POST /v1/auth/logout` | | `204` | `401` |
-| Account | `GET /v1/me` | | `{ handle, displayName, login, admin, trusted, entries: [{ id, state, version }] }` | `401`, `403 banned` |
+| Account | `GET /v1/me` | | `{ handle, displayName, login, admin, trusted, entries: [{ id, state, version, cols? }] }` | `401`, `403 banned` |
 | Report | `POST /v1/entries/<publisher>/<slug>/reports` | `{ reason }` (1 to 200 characters) | `201 { id }` | `401`, `403 banned`, `400 invalid`, `404` (not a live entry), `409 conflict` (already reported) |
 | Pending entries | `GET /v1/admin/pending` | | `{ entries: [Summary plus createdAt] }` | `401`, `403 not-admin` |
 | Review one | `GET /v1/admin/entries/<publisher>/<slug>` | | `{ entry (with state), content, hash }` and an `ETag` review tag | `404`, `410` |
@@ -45,7 +45,8 @@ All paths are relative to the endpoint, which may have a base path (`https://exa
 
 Every request can get `429 rate-limited`. Every write can also answer `415 unsupported-media` (the body must be `application/json`) and `413 too-large` (body over 1 MiB). Every admin route answers `401` without a token and `403 not-admin` for a signed-in user who is not an admin; the admin check comes before ids and bodies. Lists (account entries, pending entries, reports) hold at most 200 rows. Errors are listed in the order the reference server checks them. The Worker answers `403 forbidden` to a new version, overwrite or withdraw of another publisher's id before it looks the entry up, so a pending entry hidden from reads cannot be probed through the write routes.
 
-- **Summary**: `{ id, kind, name, description, author, publisher, version, updatedAt, hash, withdrawn? }`. `publisher` must equal the first part of `id`, or the client drops the row.
+- **Summary**: `{ id, kind, name, description, author, publisher, version, updatedAt, hash, withdrawn?, cols? }`. `publisher` must equal the first part of `id`, or the client drops the row.
+- **Cols** is the terminal width the author designed the entry at, a whole number from 40 to 400. It is metadata outside the hashed `content`, so the same content has the same hash with or without it. Index summaries, entry documents and `/v1/me` entries carry it when it is set. A new version or overwrite without `cols` keeps the entry's cols; one with `cols` replaces it. An invalid value in a body or a document is dropped, never a reason to reject the request or the row. Tombstones carry no cols. ccinfobar sends `cols` only to a server whose meta has `capabilities.cols: true`, so older self-hosted servers keep working; it previews an entry at its cols and sets the editor width to it on apply.
 - **Index pages**: `index.json` holds at most 500 summaries. When there are more, `next` names the next page relative to `v1/` (`index-2.json`, then `index-3.json`), up to `index-10.json` (5000 entries). A page may only link to the page right after it; any other `next` ends the list, and the client stops at 5000 entries. A static host serves the pages as plain files. Each page may carry `gen`, a number that every page of one index build shares (both servers send it). When a later page has another `gen` than page 1, the index changed during the walk: the client starts over from page 1 once, and if the pages still differ it shows what it got with a note that entries may be missing and does not cache it, so the next load asks again. Pages without `gen` (static hosts, older servers) are not compared.
 - **Withdraw** is soft. The entry file stays as a tombstone with `withdrawn: true` that keeps only the id, kind, publisher, version numbers, times and hashes; the name, description, author and version notes are blanked in the tombstone and the index, because they are personal data. Version content answers `410`, and the id stays reserved: publishing the same slug again gives `409`. The servers leave tombstones out of the index, so withdrawing never grows it; a static host that lists them must mark them `withdrawn: true`, and only such a summary may have an empty name.
 - **Overwrite** is allowed only when `capabilities.overwrite` is true. ccinfobar reads it before the publish review, so the review shows "New version" where overwrite is off. A reviewed overwrite that the server then refuses with `403 overwrite-disabled` is reported and never turned into a new version. The public server has overwrite off, so a published version never changes.
@@ -59,6 +60,7 @@ Every request can get `429 rate-limited`. Every write can also answer `415 unsup
 | `capabilities.submit` | `api` (writes through this protocol) or `pull-request` (read-only, submit at `submitUrl`) |
 | `capabilities.review` | New entries of a new publisher wait for an admin (`pending`) |
 | `capabilities.report` | The server takes reports (`POST .../reports`) |
+| `capabilities.cols` | The server stores `cols` and returns it; without it clients leave `cols` out of write bodies |
 | `auth` | `["token"]` (the reference server: register a handle) or `["github-device"]` (GitHub sign-in) |
 | `github.clientId` | The public client id of the OAuth app that the device flow uses. It is not a secret |
 | `limits` | The size limits below; a server may advertise a smaller `maxEntryBytes` |
@@ -66,7 +68,7 @@ Every request can get `429 rate-limited`. Every write can also answer `415 unsup
 | `quota.pendingEntries`, `quota.pendingBytes` | How many entries, and how much content, one publisher may have waiting for review |
 | `quota.pendingTotal` | How many entries may wait for review in total |
 
-The public server answers `capabilities: { write: true, overwrite: false, withdraw: true, submit: "api", review: true, report: true }`, `auth: ["github-device"]`, `github: { clientId: "Ov23liVCN9Nf6VlLv3St" }` and `quota: { publisherBytes: 20971520, pendingEntries: 3, pendingBytes: 1048576, pendingTotal: 50 }`.
+The public server answers `capabilities: { write: true, overwrite: false, withdraw: true, submit: "api", review: true, report: true, cols: true }`, `auth: ["github-device"]`, `github: { clientId: "Ov23liVCN9Nf6VlLv3St" }` and `quota: { publisherBytes: 20971520, pendingEntries: 3, pendingBytes: 1048576, pendingTotal: 50 }`.
 
 ### ETag and 304
 
@@ -207,13 +209,13 @@ Reads never build JSON. Each entry row keeps its summary and its entry document 
 
 ### Schema
 
-`worker/migrations/0001_init.sql`, then the later files in order; later migrations are additive only. `0002_counts.sql` adds the entry counts that triggers keep up to date and the indexes the index rebuild reads; `0003_pending.sql` has triggers keep the stored bytes too, with the bytes waiting for review apart, and counts the publishers; `0004_rate_index.sql` indexes the rate windows, so old rate rows are deleted in batches of 500 without reading the rest; `0005_index_dirty.sql` adds the stale-index marker and the rebuild budget.
+`worker/migrations/0001_init.sql`, then the later files in order; later migrations are additive only. `0002_counts.sql` adds the entry counts that triggers keep up to date and the indexes the index rebuild reads; `0003_pending.sql` has triggers keep the stored bytes too, with the bytes waiting for review apart, and counts the publishers; `0004_rate_index.sql` indexes the rate windows, so old rate rows are deleted in batches of 500 without reading the rest; `0005_index_dirty.sql` adds the stale-index marker and the rebuild budget; `0009_entry_cols.sql` adds the nullable `entries.cols` column with no default, check or backfill, so it needs no table rebuild. The deploy applies migrations before the new Worker, and the old Worker's inserts and updates name their columns, so it keeps working against the new column until it is replaced.
 
 | Table | Holds |
 | --- | --- |
 | `publishers` | handle, GitHub id (unique), GitHub login, display name, trusted, banned time, created time, stored bytes (and the part of them waiting for review), and the counts of their live, pending and withdrawn entries |
 | `tokens` | sha256 of each marketplace token, handle, created time (the newest 10 per publisher are kept) |
-| `entries` | publisher, slug, kind, state (`pending`, `live`, `withdrawn`, `removed`), version, hash, times, summary and entry document, generation |
+| `entries` | publisher, slug, kind, state (`pending`, `live`, `withdrawn`, `removed`), version, hash, times, summary and entry document, generation, and the author's preview width `cols` (NULL when unset, `0009_entry_cols.sql`) so `/v1/me` lists it without parsing the document |
 | `versions` | publisher, slug, version and the version document (NULL once withdrawn or removed) |
 | `index_pages` | the materialized index pages with their generation |
 | `reports` | entry, reporter handle, reason, created and resolved times; one per reporter and entry |

@@ -52,6 +52,8 @@ Click **Apply** on a card or in its details to apply it. Only the keys of the en
 - A **theme** replaces your theme and style overrides and keeps your lines. If your widgets have their own colors, the editor asks whether to clear them, as the Theme gallery does.
 - A **bundle** replaces both.
 
+An entry saved with a preview width (`cols`) is previewed at that width, and applying it in the editor sets the preview width to it, as the width slider does, and says so ("Applied Wide at 150 cols"). In the CLI, `catalog show` previews at it unless you pass `--width`.
+
 In the editor, applying is one undoable step. If you have unsaved changes, it asks first; they stay in the undo history. A saved or pre-catalog entry with command, HTTP or link widgets first lists them, like `catalog apply` in a terminal: **Apply without them** (the default), **Keep them** or **Cancel**. Each target is shown in full exactly as it runs or opens, wrapped and never cut, with invisible, bidi and control characters shown as ⟨U+XXXX⟩ and runs of spaces as ⟨N spaces⟩; a target longer than 2000 characters is too long to review and is always dropped. Built-in entries apply directly. Nothing is written to your config until you click Save. Built-in labels follow the editor language.
 
 A theme or bundle can carry its own theme. Applying it installs that theme into your `themes` folder (this happens at apply time, even before you save the config). If a different theme already uses that id, the new one is installed as `<id>-2` (then `-3`, and so on), and you get a message with the new id. A theme that looks the same (same colors, style, separator, padding and glyphs) is reused, so applying a bundle you saved from your own theme keeps using that theme.
@@ -69,6 +71,8 @@ On the User tab of the Marketplace page, click **Save current as…**. The form 
 | Description | Up to 200 characters |
 | Author | Up to 64 characters. Prefilled with the author of your last save, and remembered for the next one when you change it. On Update or Overwrite it shows the entry's own author, which stays unless you type another |
 | Share to marketplace | On by default. Without a marketplace endpoint the entry waits to publish and nothing is sent |
+
+The form also shows "Saved at N cols": the editor's current preview width, saved with the new version as its `cols` so others preview the entry at the width you designed it at. From the CLI, `catalog save --cols <n>` (40 to 400) sets it. A save without a width (an Update or Overwrite from the CLI without `--cols`) keeps the previous version's width. Cards and details show an "N cols" tag when an entry has one, and `catalog list` and `catalog show` print it.
 
 When you save a theme or bundle, a built-in theme without overrides is stored as a reference to its id. Anything else (your own theme, a built-in with style overrides, or a user theme that replaces a built-in id) is stored as the full theme, so it looks the same on another machine. Your charset and glyph mode are not baked in; the machine that applies it uses its own.
 
@@ -104,7 +108,7 @@ The share switch decides whether an entry should go to a marketplace. The public
 | From the marketplace | You installed it from the marketplace; it cannot be shared as your own |
 
 - Stop sharing a "Waiting to publish" entry and it goes back to Not shared. The marketplace keeps withdrawn ids reserved, so sharing a withdrawn entry again is refused (in the editor and with `catalog share` or `catalog save --share`) with "withdrawn ids stay reserved. Save it under a new name to publish it again"; it never sits in Waiting to publish.
-- Only the latest version is sent; your local history stays local. Text goes out as the marketplace stores it: control characters, escape sequences and bidi marks are removed and tabs and newlines become spaces. Your local entry keeps the original, and it stays "Published vN" until you really change it.
+- Only the latest version is sent; your local history stays local. Its `cols` goes along only when the marketplace advertises it (`capabilities.cols`). The publish state follows the content, so changing only the width does not make an entry "Changed since publish"; the width travels with the next content change you publish. Text goes out as the marketplace stores it: control characters, escape sequences and bidi marks are removed and tabs and newlines become spaces. Your local entry keeps the original, and it stays "Published vN" until you really change it.
 - Publishing only happens when you ask for it: `ccinfobar catalog publish`, or **Publish…** on the User tab of the Marketplace page. Both first show exactly what will be sent (action, name, kind, description, author and the content as JSON) and name the endpoint. The review first reads the marketplace's `meta.json`, so it shows the action the server will really do (New version where the server does not allow Replace latest) and, before a first publish, the publisher handle that gets registered. The CLI sends only after you confirm in a terminal or pass `--yes`, and then plans again: if anything changed since the list was shown, nothing is sent and the new list is shown (a terminal asks again; otherwise it exits 1). The editor sends only from the Publish button in that review, and refuses if the entries changed since you opened it. Either way, each entry is sent only while it is exactly as reviewed. Nothing is ever published in the background or during a status line refresh.
 - On the public marketplace you publish as your GitHub account. `ccinfobar catalog login` signs you in (a code to enter at https://github.com/login/device; the GitHub token is never stored), and the editor's User tab and publish dialog have the same **Sign in with GitHub** step. Your publisher handle is your GitHub login. A new publisher's first entry shows **Waiting for review** (after publishing, in `catalog list`, `catalog show` and on its card) until an admin approves it; `ccinfobar catalog publisher --check` refreshes that state. `ccinfobar catalog logout`, or Sign out in the publish dialog or on the User tab, signs you out. On a self-hosted server with token sign-up, a first publish registers a handle instead.
 - With the marketplace off, the Marketplace page shows no Publish button and no marketplace tabs, opens on the User tab and says how to turn the marketplace on (or that shared entries wait, when some do).
@@ -118,7 +122,7 @@ Everything lives in the ccinfobar config folder (`~/.config/ccinfobar` on Linux 
 
 | File | What it is |
 | --- | --- |
-| `catalog/entries/<id>.json` | One file per entry. Ids are `u-` plus 12 hex characters, so names never become file names |
+| `catalog/entries/<id>.json` | One file per entry. Ids are `u-` plus 12 hex characters, so names never become file names. Each version may have `cols`, the preview width it was saved at; files without it load as before, and an invalid one is ignored. Installing from the marketplace copies the entry's `cols` |
 | `catalog/entries/<id>.json.bak` | The previous content of the entry file, written before every change |
 | `catalog/.lock` | Held for a moment while ccinfobar writes an entry, the profile or a token, so the editor and the CLI never write at once. A lock older than 10 s is taken over |
 | `catalog/trash/` | Deleted entries and copies of deleted pre-catalog files. The newest 20 are kept |
@@ -145,7 +149,7 @@ Your own `<kind>/<slug>` wins over a built-in ref with the same text.
 | `ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]` | Details and a preview of your config with the entry applied. Writes nothing |
 | `ccinfobar catalog history <ref> [--json]` | Versions with time, note, restores and overwrites |
 | `ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]` | Apply to the config file (backup first) |
-| `ccinfobar catalog save <name> [--kind bundle\|preset\|theme] [--description <text>] [--author <name>] [--note <text>] [--no-share] [--update\|--overwrite] [--dry-run] [--json]` | Save the current setup. Kind defaults to bundle, share is on unless `--no-share`. `--author` is remembered |
+| `ccinfobar catalog save <name> [--kind bundle\|preset\|theme] [--description <text>] [--author <name>] [--note <text>] [--cols <n>] [--no-share] [--update\|--overwrite] [--dry-run] [--json]` | Save the current setup. Kind defaults to bundle, share is on unless `--no-share`. `--author` is remembered. `--cols` records the preview width (40 to 400); without it an update keeps the previous width |
 | `ccinfobar catalog restore <ref> <version> [--dry-run] [--json]` | Restore an older version as a new one (`2` or `v2`) |
 | `ccinfobar catalog share\|unshare <ref> [--dry-run] [--json]` | Turn sharing on or off |
 | `ccinfobar catalog delete <ref> [--yes] [--dry-run] [--json]` | Move an entry to the trash. Asks in a terminal; needs `--yes` otherwise |

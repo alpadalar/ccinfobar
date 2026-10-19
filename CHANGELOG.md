@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Catalog and marketplace entries remember the preview width they were saved at (`cols`): **Save current as…** records the editor's width, `catalog save --cols <n>` sets it from the CLI, and an update without one keeps the previous width. Previews render at that width, applying an entry sets the editor's preview width to it, cards and details show an "N cols" tag, and `catalog list`/`show` (also `--remote`) print it. Installs copy it, and publishing sends it only to a marketplace that advertises `capabilities.cols`; the public marketplace stores it in a new nullable D1 column (migration `0009_entry_cols.sql`)
+
 ## [0.8.1] - 2026-10-20
 
 ### Added
