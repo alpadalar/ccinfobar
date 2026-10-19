@@ -50,7 +50,7 @@ import type { Args } from '../cli/args.js';
 import { stripAnsi } from '../core/ansi.js';
 import { defaultConfig, type LoadResult, saveConfig } from '../core/config.js';
 import { keepLanguage } from '../core/edit.js';
-import { COLS_MAX, COLS_MIN, parseCols } from '../core/entry-keys.js';
+import { COLS_MAX, COLS_MIN, parseCols, takesCols } from '../core/entry-keys.js';
 import { resolveGlyphMode } from '../core/glyphs.js';
 import { bundleText, presetText, themeDescription } from '../core/i18n/catalog-text.js';
 import { formatDateTime } from '../core/i18n/format.js';
@@ -592,7 +592,9 @@ async function runSave(c: Ctx): Promise<void> {
     return;
   }
   const colsFlag = c.args.flags.cols;
-  const cols = colsFlag === undefined ? undefined : parseCols(Math.floor(Number(colsFlag)));
+  // digits only, no leading zero: 40.5, 1e2, 0x50 and 007 are refused
+  const cols =
+    typeof colsFlag === 'string' && /^[1-9][0-9]*$/.test(colsFlag) ? parseCols(Number(colsFlag)) : undefined;
   if (colsFlag !== undefined && cols === undefined) {
     c.fail(t('catalog.save.badCols', { min: COLS_MIN, max: COLS_MAX }));
     return;
@@ -637,7 +639,7 @@ async function runSave(c: Ctx): Promise<void> {
         version,
         share: state,
         mode,
-        cols: cols ?? (old ? latest(old).cols : undefined) ?? null,
+        cols: takesCols(kind) ? (cols ?? (old ? latest(old).cols : undefined) ?? null) : null,
         dryRun: true,
         content,
       }));

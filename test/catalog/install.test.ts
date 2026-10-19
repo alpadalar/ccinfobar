@@ -430,3 +430,51 @@ describe('install: cols', () => {
     expect(readEntry(got.entryId, dir)!.entry.versions.at(-1)).not.toHaveProperty('cols');
   });
 });
+
+describe('install: cols on the same content (WR-03)', () => {
+  const good = preset('model');
+  const H = contentHash(good);
+  const docs = (over: Record<string, unknown> = {}, kind = 'preset') =>
+    market({
+      '/v1/entries/alp/mini.json': entryDoc('alp/mini', [H], { kind, ...over }),
+      '/v1/entries/alp/mini/1.json': { version: 1, content: good, hash: H },
+    });
+  const install = async (m: ReturnType<typeof market>, min: number) =>
+    runInstall(await planInstall('alp/mini', { dir, cacheDir, env: fakeEnv, fetch: m.fetch }), {
+      dir,
+      now: () => at(min),
+    });
+
+  it('updates the local cols when only the width differs, also from none', async () => {
+    const first = await install(docs(), 0);
+    expect(first.result).toBe('new');
+    expect(readEntry(first.entryId, dir)!.entry.versions.at(-1)).not.toHaveProperty('cols');
+    fs.rmSync(cacheDir, { recursive: true, force: true });
+    const again = await install(docs({ cols: 150 }), 1);
+    expect(again).toMatchObject({ result: 'same', entryId: first.entryId });
+    const e = readEntry(first.entryId, dir)!.entry;
+    expect(e.version).toBe(1);
+    expect(e.versions.at(-1)!.cols).toBe(150);
+    fs.rmSync(cacheDir, { recursive: true, force: true });
+    await install(docs({ cols: 90 }), 2);
+    expect(readEntry(first.entryId, dir)!.entry.versions.at(-1)!.cols).toBe(90);
+    fs.rmSync(cacheDir, { recursive: true, force: true });
+    const rev = readEntry(first.entryId, dir)!.entry.rev;
+    await install(docs(), 3);
+    expect(readEntry(first.entryId, dir)!.entry).toMatchObject({ rev });
+    expect(readEntry(first.entryId, dir)!.entry.versions.at(-1)!.cols).toBe(90);
+  });
+
+  it('a theme never takes cols', async () => {
+    const theme = { appearance: { theme: 'nord' } } as EntryContent;
+    const TH = contentHash(theme);
+    const m = market({
+      '/v1/entries/alp/mini.json': entryDoc('alp/mini', [TH], { kind: 'theme', cols: 150 }),
+      '/v1/entries/alp/mini/1.json': { version: 1, content: theme, hash: TH },
+    });
+    const plan = await planInstall('alp/mini', { dir, cacheDir, env: fakeEnv, fetch: m.fetch });
+    expect(plan).not.toHaveProperty('cols');
+    const got = runInstall(plan, { dir, now: () => at(0) });
+    expect(readEntry(got.entryId, dir)!.entry.versions.at(-1)).not.toHaveProperty('cols');
+  });
+});

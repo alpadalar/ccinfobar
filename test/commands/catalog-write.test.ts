@@ -254,7 +254,7 @@ describe('catalog save', () => {
     expect(JSON.parse(keep.out[0]!).cols).toBe(150);
     await run(['save', 'Wide', '--update']);
     expect(readEntry(id, cat)!.entry.versions.map((v) => v.cols)).toEqual([150, 150]);
-    for (const bad of ['5', 'wide', '401']) {
+    for (const bad of ['5', 'wide', '401', '40.5', '1e2', '0x50', ' 50', '+60', '007', '0100', '150 ']) {
       const r = await run(['save', 'Other', '--cols', bad]);
       expect(r.code).toBe(1);
       expect(r.err).toEqual(['--cols must be a whole number from 40 to 400']);
@@ -263,6 +263,16 @@ describe('catalog save', () => {
     expect(listEntries(cat)).toHaveLength(1);
     const plain = await run(['save', 'Plain', '--dry-run', '--json']);
     expect(JSON.parse(plain.out[0]!).cols).toBeNull();
+  });
+
+  it('a theme never records cols', async () => {
+    writeCfg({ lines: [model], theme: 'nord' });
+    const dry = await run(['save', 'Look', '--kind', 'theme', '--cols', '150', '--dry-run', '--json']);
+    expect(JSON.parse(dry.out[0]!).cols).toBeNull();
+    expect((await run(['save', 'Look', '--kind', 'theme', '--cols', '150'])).code).toBeUndefined();
+    expect(listEntries(cat)[0]!.versions[0]).not.toHaveProperty('cols');
+    expect((await run(['save', 'Edge', '--cols', '400'])).code).toBeUndefined();
+    expect((await run(['save', 'Low', '--cols', '40'])).code).toBeUndefined();
   });
 
   it('saves a bundle waiting to publish with the remembered author', async () => {

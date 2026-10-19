@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomHex } from '../core/builtins.js';
 import { normalizeConfig } from '../core/config.js';
-import { parseCols } from '../core/entry-keys.js';
+import { parseCols, takesCols } from '../core/entry-keys.js';
 import { configDir } from '../core/paths.js';
 import { deleteUserPreset, ID_RE, listPresets, type Preset } from '../core/presets.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -296,7 +296,7 @@ function saveLocked(input: SaveInput, dir: string): CatalogEntry {
   if (!KINDS.includes(input.kind)) fail('bad-content', { kind: input.kind });
   const content = cleanContent(input.kind, input.content);
   const note = input.note ?? '';
-  const cols = parseCols(input.cols);
+  const cols = takesCols(input.kind) ? parseCols(input.cols) : undefined;
   if (input.mode === 'new') {
     const hit = findByName(input.kind, name, dir);
     if (hit) fail('exists', { id: hit.id, version: hit.version, name: hit.name });

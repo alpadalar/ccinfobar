@@ -571,3 +571,27 @@ describe('catalog store: cols', () => {
     expect(next.versions.at(-1)).not.toHaveProperty('cols');
   });
 });
+
+describe('catalog store: themes carry no cols (WR-07)', () => {
+  it('drops cols on save, update and a hand-edited theme file', () => {
+    const e = saveEntry(input({ kind: 'theme', content: { appearance: { theme: 'nord' } }, cols: 150 }), dir);
+    expect(e.versions[0]).not.toHaveProperty('cols');
+    expect(rawOf(e.id).versions[0]).not.toHaveProperty('cols');
+    const up = saveEntry(
+      input({
+        kind: 'theme',
+        content: { appearance: { theme: 'nord' } },
+        mode: 'update',
+        id: e.id,
+        cols: 90,
+        now: at(1),
+      }),
+      dir,
+    );
+    expect(up.versions.at(-1)).not.toHaveProperty('cols');
+    const raw = rawOf(e.id);
+    raw.versions[0].cols = 150;
+    handWrite(e.id, JSON.stringify(raw));
+    expect(readEntry(e.id, dir)!.entry.versions[0]).not.toHaveProperty('cols');
+  });
+});

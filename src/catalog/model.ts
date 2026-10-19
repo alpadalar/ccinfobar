@@ -7,7 +7,7 @@ import {
   LAYOUT_KEYS,
   PERSONAL_KEYS,
 } from '../core/edit.js';
-import { parseCols } from '../core/entry-keys.js';
+import { parseCols, takesCols } from '../core/entry-keys.js';
 import type { ThemeInput } from '../core/themes/style.js';
 import type { Config } from '../core/types.js';
 
@@ -173,7 +173,7 @@ export function newEntry(i: NewEntryInput): CatalogEntry {
         at: i.now,
         note: cut(i.note ?? '', ENTRY_LIMITS.note),
         content: structuredClone(i.content),
-        ...(i.cols === undefined ? {} : { cols: i.cols }),
+        ...(i.cols === undefined || !takesCols(i.kind) ? {} : { cols: i.cols }),
       },
     ],
     share: { wanted: i.share, state: i.share ? 'pending' : 'local', remote: null, lastError: null },
@@ -199,7 +199,7 @@ export function appendVersion(
   now: string,
   cols?: number,
 ): CatalogEntry {
-  const c = cols ?? latest(e).cols;
+  const c = takesCols(e.kind) ? (cols ?? latest(e).cols) : undefined;
   return push(
     e,
     { at: now, note: cut(note, ENTRY_LIMITS.note), content, ...(c === undefined ? {} : { cols: c }) },
@@ -219,7 +219,7 @@ export function overwriteVersion(
   last.content = structuredClone(content);
   last.note = cut(note, ENTRY_LIMITS.note);
   last.overwrittenAt = now;
-  if (cols !== undefined) last.cols = cols;
+  if (cols !== undefined && takesCols(e.kind)) last.cols = cols;
   next.updatedAt = now;
   return next;
 }
@@ -413,6 +413,7 @@ export function parseEntry(raw: unknown): CatalogEntry | null {
   for (const r of raw.versions) {
     const v = parseVersion(r);
     if (!v || (versions.length && v.version <= versions[versions.length - 1]!.version)) return null;
+    if (!takesCols(kind as EntryKind)) delete v.cols;
     versions.push(v);
   }
   if (versions[versions.length - 1]!.version !== version) return null;

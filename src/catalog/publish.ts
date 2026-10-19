@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { takesCols } from '../core/entry-keys.js';
 import {
   createMarketClient,
   type MarketClient,
@@ -160,7 +161,8 @@ export function publishPlan(
     }
     const v = latest(e);
     // older servers never see cols
-    const cols = opts.cols === true && typeof v.cols === 'number' ? { cols: v.cols } : {};
+    const cols =
+      opts.cols === true && takesCols(e.kind) && typeof v.cols === 'number' ? { cols: v.cols } : {};
     if (!remote) {
       out.push({
         ...base,

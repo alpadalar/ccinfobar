@@ -53,6 +53,9 @@ export const PERSONAL_KEYS = [
 export const COLS_MIN = 40;
 export const COLS_MAX = 400;
 
+// a theme looks the same at any width
+export const takesCols = (kind: EntryKind): boolean => kind !== 'theme';
+
 export function parseCols(v: unknown): number | undefined {
   return typeof v === 'number' && Number.isSafeInteger(v) && v >= COLS_MIN && v <= COLS_MAX ? v : undefined;
 }

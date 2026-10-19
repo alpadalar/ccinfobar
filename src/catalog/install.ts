@@ -1,11 +1,20 @@
 // marketplace entries into the user's catalog; applying is a separate step (D-11)
 
+import { takesCols } from '../core/entry-keys.js';
 import { type ImportTarget, importTargets } from '../importers/confirm.js';
 import { createMarketClient, MarketError, validateReceived } from '../market/client.js';
 import { canonicalJson, isRemoteId } from '../market/protocol.js';
 import { cachedEntry, cachedVersion } from './market-cache.js';
-import { type CatalogEntry, ENTRY_LIMITS, type EntryContent, type EntryKind, slug } from './model.js';
-import { catalogDir, endpointKey, listEntries, marketEndpoint, saveEntry, withStoreLock } from './store.js';
+import { type CatalogEntry, ENTRY_LIMITS, type EntryContent, type EntryKind, latest, slug } from './model.js';
+import {
+  catalogDir,
+  commitEntry,
+  endpointKey,
+  listEntries,
+  marketEndpoint,
+  saveEntry,
+  withStoreLock,
+} from './store.js';
 
 // or a MarketError code
 export type InstallCode =
@@ -130,7 +139,7 @@ export async function planInstall(ref: string, deps: InstallDeps): Promise<Insta
       publisher: entry.publisher,
       content: got.content,
       targets: importTargets(got.content.layout ?? {}),
-      ...(entry.cols === undefined ? {} : { cols: entry.cols }),
+      ...(entry.cols === undefined || !takesCols(entry.kind) ? {} : { cols: entry.cols }),
     };
     const hit = existingOf(plan, dir);
     return { ...plan, existing: hit && { entryId: hit.entry.id, same: hit.same } };
@@ -177,7 +186,15 @@ export function runInstall(plan: InstallPlan, deps: Omit<InstallDeps, 'fetch'> =
   return withStoreLock(dir, () => {
     // the catalog may have changed since the plan
     const hit = existingOf(plan, dir);
-    if (hit?.same) return { entryId: hit.entry.id, name: hit.entry.name, result: 'same' };
+    if (hit?.same) {
+      // same content, newer width: metadata only (WR-03)
+      if (plan.cols !== undefined && latest(hit.entry).cols !== plan.cols) {
+        const next = structuredClone(hit.entry);
+        latest(next).cols = plan.cols;
+        commitEntry(next, hit.entry.rev, dir, now);
+      }
+      return { entryId: hit.entry.id, name: hit.entry.name, result: 'same' };
+    }
     if (hit) {
       const e = saveEntry(
         { ...base, name: hit.entry.name, mode: 'update', id: hit.entry.id, rev: hit.entry.rev },

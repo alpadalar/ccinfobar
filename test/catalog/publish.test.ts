@@ -1092,6 +1092,8 @@ describe('publish: cols', () => {
     expect(publishPlan([entry(2)], EP, { overwrite: true, cols: true })[0]!.payload).not.toHaveProperty(
       'cols',
     );
+    const theme = { ...wide, kind: 'theme' as const };
+    expect(publishPlan([theme], EP, { overwrite: true, cols: true })[0]!.payload).not.toHaveProperty('cols');
     let next = markPublished(wide, remote(wide, 1, entryHash(preset('model'))));
     next = appendVersion(next, preset('cwd'), 'v2', at(1).toISOString(), 90);
     const [v] = publishPlan([next], EP, { overwrite: true, cols: true });
