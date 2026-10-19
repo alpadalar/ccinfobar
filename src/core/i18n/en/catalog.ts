@@ -63,7 +63,7 @@ export const catalogMessages = {
   'catalog.save.shareHint':
     'On by default. Without a marketplace endpoint it waits to publish and nothing is sent.',
   'catalog.save.note': 'Note',
-  'catalog.save.cols': 'Saved at {n} cols',
+  'catalog.save.cols': 'Will be saved at {n} cols',
   'catalog.save.badCols': '--cols must be a whole number from {min} to {max}',
   'catalog.save.notePlaceholder': 'What changed (optional)',
   'catalog.save.existsText':

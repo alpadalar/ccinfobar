@@ -1,5 +1,6 @@
 import '../../core/i18n/lazy.js';
 import type { EntryKind } from '../../core/edit.js';
+import { takesCols } from '../../core/entry-keys.js';
 import { formatDateTime } from '../../core/i18n/format.js';
 import { languageLocale, t } from '../../core/i18n/index.js';
 import { ApiError, api } from './api.js';
@@ -59,6 +60,7 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
   const note = textInput('', 200, t('catalog.save.notePlaceholder'));
   const kindBox = h('div', { class: 'catalog-kind' });
   const kindHint = h('div', { class: 'hint' });
+  const colsHint = h('div', { class: 'hint catalog-save-cols' }, t('catalog.save.cols', { n: S.width }));
   const shareSwitch = toggle(share, (v) => {
     share = v;
     shareTouched = true;
@@ -98,6 +100,7 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
       ),
     );
     kindHint.textContent = t(`catalog.save.kindHint.${kind}`);
+    colsHint.hidden = !takesCols(kind);
   }
 
   function setClash(c: Clash | null) {
@@ -142,7 +145,7 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
         mode,
         ...(target ? { id: target.id, note: note.value.trim() } : {}),
         ...(typeof rev === 'number' ? { rev } : {}),
-        cols: S.width,
+        ...(takesCols(kind) ? { cols: S.width } : {}),
         config: S.config,
       });
       toast(t('catalog.save.saved', { name: r.entry.name, version: r.entry.version }));
@@ -176,7 +179,7 @@ export async function saveCurrentDialog(data: CatalogState): Promise<CatalogStat
       field(t('catalog.save.share'), shareSwitch, t('catalog.save.shareHint'), true),
       clashBox,
       noteField,
-      h('div', { class: 'hint catalog-save-cols' }, t('catalog.save.cols', { n: S.width })),
+      colsHint,
       err,
     ],
     actions: (done) => {

@@ -944,3 +944,87 @@ describe('catalog page: cols', () => {
     }
   });
 });
+
+describe('catalog page: cols follow-ups', () => {
+  const wide = (cols = 80) => user({ ref: 'u-w', id: 'u-w', name: 'Wide', kind: 'bundle', cols });
+
+  it('a width-only change previews the entry again (WR-04)', async () => {
+    catalog.user = [wide(), myPreset()];
+    await init();
+    await open();
+    const before = previewCalls().length;
+    const old = g.fetch;
+    const next = { ...catalog, user: [wide(200), myPreset()] };
+    g.fetch = async (url: string, init: { method: string; body?: string }) => {
+      if (String(url).startsWith('/api/catalog/share')) {
+        calls.push({ method: init.method, url: String(url), body: JSON.parse(init.body ?? 'null') });
+        return { ok: true, status: 200, json: async () => ({ ok: true, entry: wide(200), catalog: next }) };
+      }
+      return old(url, init);
+    };
+    try {
+      card('u-w').dispatch('click');
+      await flush();
+      button('Stop sharing').dispatch('click');
+      await flush();
+    } finally {
+      g.fetch = old;
+    }
+    const again = previewCalls().slice(before);
+    expect(again.flatMap((c) => c.body.refs)).toEqual(['u-w']);
+  });
+
+  it('the peek scales a preview wider than the window down to fit (WR-05)', async () => {
+    const desc = Object.getOwnPropertyDescriptors(FakeEl.prototype);
+    Object.defineProperty(FakeEl.prototype, 'offsetWidth', {
+      configurable: true,
+      get(this: FakeEl) {
+        return this.classList.contains('theme-preview') ? 2848 : 0;
+      },
+    });
+    Object.defineProperty(FakeEl.prototype, 'offsetHeight', {
+      configurable: true,
+      get(this: FakeEl) {
+        return this.classList.contains('theme-preview') ? 40 : 0;
+      },
+    });
+    try {
+      await init();
+      await open();
+      thumb('u-p').dispatch('pointerenter', { pointerType: 'mouse' });
+      const p = peek()[0]!;
+      const box = p.querySelector('.theme-preview')!;
+      expect((box.style as any).transform).toBe('scale(0.5)');
+      expect((p.style as any).width).toBe('1424px');
+      expect((p.style as any).height).toBe('20px');
+    } finally {
+      for (const k of ['offsetWidth', 'offsetHeight']) {
+        if (desc[k]) Object.defineProperty(FakeEl.prototype, k, desc[k]);
+        else delete (FakeEl.prototype as any)[k];
+      }
+    }
+  });
+
+  it('a narrow preview is not scaled', async () => {
+    await init();
+    await open();
+    thumb('u-p').dispatch('pointerenter', { pointerType: 'mouse' });
+    const p = peek()[0]!;
+    expect((p.querySelector('.theme-preview')!.style as any).transform).toBeUndefined();
+    expect((p.style as any).width).toBe('');
+  });
+
+  it('applying a theme with a stray cols leaves the width alone (WR-07)', async () => {
+    catalog.user = [
+      user({ ref: 'u-t', id: 'u-t', name: 'Tint', kind: 'theme', cols: 150, content: {} }),
+      myPreset(),
+    ];
+    const store = await init();
+    store.S.width = 96;
+    await open();
+    applyBtn('u-t').dispatch('click');
+    await flush();
+    expect(store.S.width).toBe(96);
+    expect(toastText()).toContain('Applied Tint. Save to keep it.');
+  });
+});

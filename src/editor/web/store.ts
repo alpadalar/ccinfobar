@@ -1,5 +1,6 @@
 import type { ShareState } from '../../catalog/model.js';
 import type { EntryContent, EntryKind, StyleGroup, StyleHistory, StyleSnapshot } from '../../core/edit.js';
+import { COLS_MAX, COLS_MIN } from '../../core/entry-keys.js';
 import type { Config, OptionSpec, WidgetCategory } from '../../core/types.js';
 
 export type HiddenWhy = 'rule' | 'priority';
@@ -270,7 +271,7 @@ export const WIDTH_KEY = 'ccinfobar.previewWidth';
 function savedWidth(): number {
   try {
     const n = Number(localStorage.getItem(WIDTH_KEY));
-    if (Number.isFinite(n) && n >= 40 && n <= 400) return n;
+    if (Number.isFinite(n) && n >= COLS_MIN && n <= COLS_MAX) return n;
   } catch {}
   return 130;
 }
@@ -278,7 +279,7 @@ function savedWidth(): number {
 // the slider and an applied entry share this path
 export function setWidth(n: number): void {
   if (!Number.isFinite(n)) return;
-  S.width = Math.max(40, Math.min(400, Math.round(n)));
+  S.width = Math.max(COLS_MIN, Math.min(COLS_MAX, Math.round(n)));
   try {
     localStorage.setItem(WIDTH_KEY, String(S.width));
   } catch {}

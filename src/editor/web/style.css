@@ -2427,7 +2427,8 @@ a.btn.primary {
   top: 0;
   left: 0;
   z-index: 160;
-  max-width: min(56rem, calc(100vw - 1rem));
+  max-width: calc(100vw - 1rem);
+  overflow: hidden;
   border-radius: calc(var(--r-lg) - 0.35rem);
   box-shadow:
     0 0 0 0.0625rem var(--line-strong),
@@ -2448,8 +2449,11 @@ a.btn.primary {
   scale: 1;
 }
 
+/* full width; scaled down to fit the window in catalog.ts */
 .catalog-peek .theme-preview {
+  width: max-content;
   overflow: hidden;
+  transform-origin: top left;
 }
 
 @media (prefers-reduced-motion: reduce) {

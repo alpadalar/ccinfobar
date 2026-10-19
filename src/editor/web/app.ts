@@ -10,6 +10,7 @@ import {
   uniqueId,
 } from '../../core/edit.js';
 import '../../core/i18n/lazy.js';
+import { COLS_MAX, COLS_MIN } from '../../core/entry-keys.js';
 import { installBundled } from '../../core/i18n/bundled.js';
 import { scenarioText } from '../../core/i18n/catalog-text.js';
 import { type LanguageId, language, type MessageId, setLanguage, t } from '../../core/i18n/index.js';
@@ -735,6 +736,8 @@ function setupStatic(): void {
     renderPalette();
   });
   const slider = $<HTMLInputElement>('width');
+  slider.min = String(COLS_MIN);
+  slider.max = String(COLS_MAX);
   slider.value = String(S.width);
   slider.addEventListener('input', () => setWidth(Number(slider.value)));
   on('width', () => {

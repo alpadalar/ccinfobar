@@ -234,7 +234,7 @@ describe('save current dialog', () => {
     store.S.width = 172;
     reply('POST /api/catalog/save', 200, { ok: true, entry: savedEntry(), catalog });
     await saveDialog();
-    expect(texts(top())).toContain('Saved at 172 cols');
+    expect(texts(top())).toContain('Will be saved at 172 cols');
     type(input('Name'), 'New');
     button('Save').dispatch('click');
     await flush();
@@ -268,6 +268,22 @@ describe('save current dialog', () => {
     expect(toastText()).toContain('Saved New v1');
     expect(store.S.config).toEqual(before);
     expect(open()).toEqual([]);
+  });
+
+  it('a theme saves no width and hides the width line (WR-07)', async () => {
+    const store = await init();
+    store.S.width = 172;
+    reply('POST /api/catalog/save', 200, { ok: true, entry: savedEntry(), catalog });
+    await saveDialog();
+    const hint = top().all((e) => e.classList.contains('catalog-save-cols'))[0]!;
+    expect(hint.hidden).toBe(false);
+    button('Theme only').dispatch('click');
+    expect(hint.hidden).toBe(true);
+    type(input('Name'), 'New');
+    button('Save').dispatch('click');
+    await flush();
+    expect(saves()[0]!.body.kind).toBe('theme');
+    expect(saves()[0]!.body).not.toHaveProperty('cols');
   });
 
   it('sends share false and the chosen kind', async () => {

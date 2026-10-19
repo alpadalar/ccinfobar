@@ -7,6 +7,7 @@ import {
   hasOwnColors,
   keepLanguage,
 } from '../../core/edit.js';
+import { takesCols } from '../../core/entry-keys.js';
 import { presetLabels } from '../../core/i18n/catalog-text.js';
 import { type MessageId, t } from '../../core/i18n/index.js';
 import type { Config } from '../../core/types.js';
@@ -91,6 +92,7 @@ const BATCH = 100;
 // the server's cap per request
 const REMOTE_BATCH = 24;
 const GAP = 6;
+const PEEK_MARGIN = 8;
 
 // previews are asked at full size; cards clip them
 function previewCols(root: HTMLElement): number {
@@ -227,7 +229,7 @@ export async function applyEntry(e: CatalogEntryInfo, close: (v?: unknown) => vo
     }
   }
   replaceAll(keepLanguage(localize(e, applyCatalogContent(base, content, e.kind, themeId)), S.config));
-  const cols = typeof e.cols === 'number' ? e.cols : null;
+  const cols = typeof e.cols === 'number' && takesCols(e.kind) ? e.cols : null;
   if (cols !== null) setWidth(cols);
   toast(
     dropped
@@ -289,15 +291,27 @@ export async function openCatalog(): Promise<void> {
       peek = h('div', { class: 'catalog-peek', 'aria-hidden': 'true' });
       document.body.append(peek);
     }
-    peek.replaceChildren(previewBox(lines));
+    const box = previewBox(lines);
+    peek.replaceChildren(box);
     peek.style.left = '0px';
     peek.style.top = '0px';
+    peek.style.width = '';
+    peek.style.height = '';
+    // a wide entry shrinks to fit the window, never clips (WR-05)
+    const room = window.innerWidth - 2 * PEEK_MARGIN;
+    const natural = box.offsetWidth || 0;
+    if (natural > room && room > 0) {
+      const scale = room / natural;
+      box.style.transform = `scale(${scale})`;
+      peek.style.width = `${room}px`;
+      peek.style.height = `${(box.offsetHeight || 0) * scale}px`;
+    }
     const at = anchor.getBoundingClientRect();
     const own = peek.getBoundingClientRect();
     const below = at.top + at.height + GAP;
     const top =
       below + own.height <= window.innerHeight - GAP ? below : Math.max(GAP, at.top - GAP - own.height);
-    const left = Math.max(8, Math.min(at.left, window.innerWidth - own.width - 8));
+    const left = Math.max(PEEK_MARGIN, Math.min(at.left, window.innerWidth - own.width - PEEK_MARGIN));
     peek.style.left = `${left}px`;
     peek.style.top = `${top}px`;
     peek.classList.add('on');
@@ -357,9 +371,11 @@ export async function openCatalog(): Promise<void> {
 
   // re-render from the server's list; changed entries get new previews
   function update(next: CatalogState, focus?: string) {
-    const old = new Map(st.data.user.map((e) => [e.ref, JSON.stringify(e.content)]));
+    // the width renders too (WR-04)
+    const key = (e: CatalogEntryInfo) => `${e.cols ?? ''}|${JSON.stringify(e.content)}`;
+    const old = new Map(st.data.user.map((e) => [e.ref, key(e)]));
     for (const e of next.user) {
-      if (old.has(e.ref) && old.get(e.ref) !== JSON.stringify(e.content)) {
+      if (old.has(e.ref) && old.get(e.ref) !== key(e)) {
         st.previews.delete(e.ref);
         asked.delete(e.ref);
       }
