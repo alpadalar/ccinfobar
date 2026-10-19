@@ -263,7 +263,7 @@ const SCREENS = [
   {
     stem: 'catalog',
     open: `document.getElementById('catalog-btn').click()`,
-    wait: `document.querySelectorAll('.catalog-remote-row').length >= 3`,
+    wait: `document.querySelectorAll('.catalog-remote-row').length >= 3 && !document.querySelector('.catalog-remote-row .term-muted')`,
   },
   {
     stem: 'catalog-details',
@@ -370,7 +370,9 @@ async function main() {
       const home = ${hideTemp};
       const market = ${JSON.stringify(label ? market.url : home)};
       const label = ${JSON.stringify(label ?? '~')};
-      const fix = (s) => s.split(home).join('~').split(market).join(label);
+      // the shipped marketplace hides its address
+      const fix = (s) =>
+        s.split(home).join('~').split('Marketplace ' + market).join('Marketplace').split(market).join(label);
       const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       const has = (s) => s.includes(home) || s.includes(market);
       for (let n = walk.nextNode(); n; n = walk.nextNode()) if (has(n.nodeValue)) n.nodeValue = fix(n.nodeValue);
