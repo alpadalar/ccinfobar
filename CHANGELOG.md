@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-20
+
 ### Added
 
 - Preset and bundle entries in the catalog and the marketplace remember the preview width they were saved at (`cols`): **Save current as…** records the editor's width, `catalog save --cols <n>` (40 to 400) sets it from the CLI, and an update without one keeps the previous width. Themes carry no width. Previews render at that width (the hover preview shrinks a wide one to fit the window), applying an entry sets the editor's preview width to it, cards and details show an "N cols" tag, and `catalog list`/`show` (also `--remote`) print it. Installs copy it, installing the same content again picks up a changed width, and publishing sends it only to a marketplace that advertises `capabilities.cols`; the width is metadata, so changing only the width publishes no new version. The public marketplace stores it in a new nullable D1 column (migration `0009_entry_cols.sql`)
@@ -539,7 +541,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Presets: default, minimal, gsd, powerline, full
 - JSON schema for the config file
 
-[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/alpadalar/ccinfobar/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/alpadalar/ccinfobar/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/alpadalar/ccinfobar/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/alpadalar/ccinfobar/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/alpadalar/ccinfobar/compare/v0.6.2...v0.7.0
