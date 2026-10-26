@@ -131,7 +131,7 @@ export const git: MetaFile = {
     'Bookmarks shown': 'Yer imi sınırı',
     Separator: 'Ayırıcı',
     'Hide the default workspace': 'Varsayılan çalışma alanını gizle',
-    'Snapshot working copy': 'Çalışma kopyasının anlık görüntüsünü al',
+    'Snapshot working copy': 'Anlık görüntü al',
     'Off reads the last snapshot and never writes to the repo':
       'Kapalıyken son anlık görüntüyü okur ve depoya hiç yazmaz',
   },

@@ -59,7 +59,7 @@ const r2 = (n) => Math.round(n * 100) / 100;
 
 // copies of src/data/git.ts, kept equal by test/scripts/startup-probe.test.ts
 export const HARDEN = ['-c', 'core.fsmonitor=false', '--no-optional-locks'];
-export const SCOPED_RE = '^(remote\\.origin\\.url|filter\\..+\\.(clean|smudge|process))$';
+export const SCOPED_RE = '^(remote\\.(origin|upstream|fork)\\.url|filter\\..+\\.(clean|smudge|process))$';
 const SCRUB = new Set([
   'GIT_DIR',
   'GIT_WORK_TREE',
