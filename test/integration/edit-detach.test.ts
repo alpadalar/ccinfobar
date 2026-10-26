@@ -78,7 +78,7 @@ afterEach(async () => {
     await waitFor(() => !alive(pid as number), 2000);
   }
   pid = null;
-  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
 });
 
 describe.skipIf(!fs.existsSync(bin))('edit --detach', () => {
