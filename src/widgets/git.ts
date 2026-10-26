@@ -4,6 +4,7 @@ import { t } from '../core/i18n/index.js';
 import type { GhValue } from '../core/job-values.js';
 import { safeUrl } from '../core/sanitize.js';
 import type { OptionSpec, RenderContext, WidgetDef, WidgetItem } from '../core/types.js';
+import type { GitInfo } from '../data/git.js';
 import { ghKey, ghParam } from '../data/jobs/keys.js';
 import { jobValue } from '../data/jobs/runner.js';
 import { pickRepos } from '../data/repos.js';
@@ -14,6 +15,16 @@ export function parseRemote(url: string | null | undefined): string | null {
   if (!/^[\w.+-]+:\/\/|^[^/\\:]+@[^:]+:|^[\w.-]+:[^\\/]/.test(url.trim())) return null;
   const m = /[:/]([^/:]+)\/([^/]+?)(?:\.git)?\/?$/.exec(url.trim());
   return m ? `${m[1]}/${m[2]}` : null;
+}
+
+// upstream remote: origin is the fork; fork remote: origin is the parent
+export function forkInfo(g: GitInfo | null | undefined): { fork: string; parent: string } | null {
+  if (!g) return null;
+  const origin = parseRemote(g.remoteUrl);
+  const upstream = parseRemote(g.upstreamUrl);
+  const [fork, parent] = upstream ? [origin, upstream] : [parseRemote(g.forkUrl), origin];
+  if (!fork || !parent || fork.toLowerCase() === parent.toLowerCase()) return null;
+  return { fork, parent };
 }
 
 export const PR_CI_GONE_MS = 3_600_000;
@@ -234,12 +245,38 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '', emoji: '📁' },
     color: 'blue',
     sample: 'acme/acme-app',
-    options: [{ key: 'nameOnly', label: 'Name only', kind: 'boolean', default: false }],
+    options: [
+      { key: 'nameOnly', label: 'Name only', kind: 'boolean', default: false },
+      { key: 'ownerOnlyWhenFork', label: 'Owner only in a fork', kind: 'boolean', default: false },
+    ],
     render(ctx, item) {
       const r = ctx.payload.workspace?.repo;
       const full = r?.owner && r.name ? `${r.owner}/${r.name}` : parseRemote(ctx.data.git()?.remoteUrl);
       if (!full) return null;
-      return opt(item, 'nameOnly', false) ? full.slice(full.indexOf('/') + 1) : full;
+      const slash = full.indexOf('/');
+      if (opt(item, 'ownerOnlyWhenFork', false) && forkInfo(ctx.data.git())) return full.slice(0, slash);
+      return opt(item, 'nameOnly', false) ? full.slice(slash + 1) : full;
+    },
+  },
+  {
+    type: 'git-is-fork',
+    name: 'Git is fork',
+    category: 'git',
+    hideWhenEmpty: true,
+    description: 'Marks a repo that is a fork, from the upstream or fork remote',
+    icon: { nerd: '', emoji: '🍴' },
+    color: 'yellow',
+    sample: '⑂',
+    options: [
+      { key: 'symbol', label: 'Symbol', kind: 'text', default: '', help: 'Empty uses ⑂' },
+      { key: 'showParent', label: 'Show parent repo', kind: 'boolean', default: false },
+    ],
+    render(ctx, item) {
+      const f = forkInfo(ctx.data.git());
+      if (!f) return null;
+      const custom = opt<string>(item, 'symbol', '');
+      const symbol = custom || (ctx.config.charset === 'text' ? t('widget.gitIsFork.text') : '⑂');
+      return opt(item, 'showParent', false) ? `${symbol} ${f.parent}` : symbol;
     },
   },
   {

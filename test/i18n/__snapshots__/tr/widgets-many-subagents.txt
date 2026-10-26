@@ -84,9 +84,15 @@ git-conflicts: 0
 git-stash: 1
 git-operation: (empty)
 git-repo: acme/acme-app
+git-is-fork: (empty)
 git-worktree: (empty)
 pr: #128 pending
 workspace-repos: (empty)
+jj-bookmarks: (empty)
+jj-workspace: (empty)
+jj-revision: (empty)
+jj-description: (empty)
+jj-changes: (empty)
 cwd: acme-app
 project-dir: acme-app
 clock: 12:00

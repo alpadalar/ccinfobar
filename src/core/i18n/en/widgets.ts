@@ -18,6 +18,8 @@ export const widgetMessages = {
   'widget.status.ok': '✓ Claude OK',
   'widget.status.okText': 'Claude OK',
   'widget.pr.ciPassText': 'ok',
+  'widget.gitIsFork.text': 'fork',
+  'widget.jjDescription.none': '(no description)',
   'widget.gsd.concerns': { one: '⚠ {count} concern', other: '⚠ {count} concerns' },
   'widget.gsd.todos': { one: '{count} todo', other: '{count} todos' },
   'widget.gsd.staleHooks': '⚠ stale hooks',

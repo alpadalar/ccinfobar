@@ -19,6 +19,7 @@ export const explainMessages = {
   'explain.reason.no-transcript':
     'no transcript yet: Claude Code creates it with the first message of the session',
   'explain.reason.no-git': 'not a git repository, or git is not on PATH',
+  'explain.reason.no-jj': 'not a Jujutsu (jj) repository, or jj is not on PATH',
   'explain.reason.inside-repo': 'the folder is inside a git repo',
   'explain.reason.no-child-repos': 'no child folder is a git repo',
   'explain.reason.no-tools': 'no tool is running and none ran in this {scope}',
@@ -121,6 +122,7 @@ export const explainMessages = {
   'explain.source.ledger': 'cost ledger',
   'explain.source.ledger.age': 'cost ledger, updated {age} ago',
   'explain.source.git': 'git (live)',
+  'explain.source.jj': 'jj (live)',
   'explain.source.gsd': 'GSD {path}',
   'explain.source.history': 'history',
   'explain.source.repos': 'workspace repos scan',

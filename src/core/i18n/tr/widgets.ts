@@ -21,6 +21,8 @@ export const widgetMessages = {
   'widget.status.ok': '✓ Claude sorunsuz',
   'widget.status.okText': 'Claude sorunsuz',
   'widget.pr.ciPassText': 'tamam',
+  'widget.gitIsFork.text': 'fork',
+  'widget.jjDescription.none': '(açıklama yok)',
   'widget.gsd.concerns': { one: '⚠ {count} sorun', other: '⚠ {count} sorun' },
   'widget.gsd.todos': { one: '{count} yapılacak', other: '{count} yapılacak' },
   'widget.gsd.staleHooks': "⚠ hook'lar eski",

@@ -8,6 +8,7 @@ export type SourceKind =
   | 'agents'
   | 'git'
   | 'gsd'
+  | 'jj'
   | 'history'
   | 'ledger'
   | 'repos'
@@ -126,6 +127,8 @@ export function createTrace(): Trace {
     if (repos) data.repos = via('repos', () => repos());
     const hooks = d.hooks;
     if (hooks) data.hooks = via('hooks', () => hooks());
+    const jj = d.jj;
+    if (jj) data.jj = via('jj', () => jj());
     const environment = d.environment;
     if (environment) data.environment = via('environment', () => environment());
     const jobs = d.jobs;

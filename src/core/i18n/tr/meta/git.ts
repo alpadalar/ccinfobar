@@ -61,6 +61,11 @@ export const git: MetaFile = {
       description: 'Depo sahibi/adı',
       hint: 'depo',
     },
+    'git-is-fork': {
+      name: 'Git fork mu',
+      description: 'Depo bir fork ise upstream ya da fork uzak deposuna bakarak işaretler',
+      hint: 'fork',
+    },
     'git-worktree': {
       name: 'Git worktree',
       description: "Bağlı worktree'nin adı",
@@ -74,6 +79,29 @@ export const git: MetaFile = {
       name: 'Çalışma alanı depoları',
       description: 'Klasörün kendisi depo değilken git deposu olan alt klasörler',
       label: 'depolar: ',
+    },
+    'jj-bookmarks': {
+      name: 'JJ yer imleri',
+      description: 'Çalışma kopyasının yer imi olan en yakın atasındaki yer imleri',
+      hint: 'yer imleri',
+    },
+    'jj-workspace': {
+      name: 'JJ çalışma alanı',
+      description: 'Geçerli jj çalışma alanının adı',
+      hint: 'çalışma alanı',
+    },
+    'jj-revision': {
+      name: 'JJ değişikliği',
+      description: "Çalışma kopyasının kısa değişiklik ID'si",
+    },
+    'jj-description': {
+      name: 'JJ açıklaması',
+      description: 'Çalışma kopyası açıklamasının ilk satırı',
+    },
+    'jj-changes': {
+      name: 'JJ değişiklikleri',
+      description: 'Çalışma kopyası değişikliğinde eklenen ve silinen satırlar',
+      hint: 'değişiklikler',
     },
   },
   options: {
@@ -96,5 +124,15 @@ export const git: MetaFile = {
       'Depolar gösterilirken diğer git bileşenleri — göstermek yerine gizlenir',
     'Mark repos with uncommitted changes': 'Değişikliği olan depoları işaretle',
     'Checked in the background': 'Arka planda denetlenir',
+    'Owner only in a fork': 'Fork ise yalnızca sahip',
+    Symbol: 'Simge',
+    'Empty uses ⑂': 'Boşsa ⑂ kullanılır',
+    'Show parent repo': 'Ana depoyu göster',
+    'Bookmarks shown': 'Yer imi sınırı',
+    Separator: 'Ayırıcı',
+    'Hide the default workspace': 'Varsayılan çalışma alanını gizle',
+    'Snapshot working copy': 'Çalışma kopyasının anlık görüntüsünü al',
+    'Off reads the last snapshot and never writes to the repo':
+      'Kapalıyken son anlık görüntüyü okur ve depoya hiç yazmaz',
   },
 };

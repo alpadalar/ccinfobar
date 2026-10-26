@@ -84,9 +84,15 @@ git-conflicts: (empty)
 git-stash: (empty)
 git-operation: (empty)
 git-repo: (empty)
+git-is-fork: (empty)
 git-worktree: (empty)
 pr: (empty)
 workspace-repos: api (main) · docs (main) · infra (main) · mobile (release/2.1) · web (dev) +2
+jj-bookmarks: (empty)
+jj-workspace: (empty)
+jj-revision: (empty)
+jj-description: (empty)
+jj-changes: (empty)
 cwd: workspace
 project-dir: workspace
 clock: 12:00

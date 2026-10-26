@@ -59,6 +59,7 @@ export type EmptyCode =
   | 'no-context-window'
   | 'no-transcript'
   | 'no-git'
+  | 'no-jj'
   | 'inside-repo'
   | 'no-child-repos'
   | 'no-tools'
@@ -349,6 +350,7 @@ export function emptyReason(
     return reason('no-data', t('explain.reason.providerFirstParty'));
   }
   if (item.type === 'workspace-repos') return reason(ctx.data.repos?.() ? 'no-child-repos' : 'inside-repo');
+  if (item.type.startsWith('jj-') && !ctx.data.jj?.()) return reason('no-jj');
   if (def.category === 'git' && !ctx.data.git()) return reason('no-git');
   if (TRANSCRIPT_TYPES.has(item.type) && !ctx.data.transcript()) return reason('no-transcript');
   if (item.type === 'permission-wait') {

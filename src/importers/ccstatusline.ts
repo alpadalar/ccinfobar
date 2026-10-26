@@ -37,6 +37,12 @@ const SAME = new Set([
   'git-ahead-behind',
   'git-status',
   'git-worktree',
+  'git-is-fork',
+  'jj-bookmarks',
+  'jj-workspace',
+  'jj-revision',
+  'jj-description',
+  'jj-changes',
   'terminal-width',
   'link',
 ]);
@@ -68,6 +74,9 @@ const RENAMED: Record<string, { type: string; options?: Record<string, OptionVal
   'git-staged-files': { type: 'git-staged' },
   'git-unstaged-files': { type: 'git-unstaged' },
   'git-untracked-files': { type: 'git-untracked' },
+  'jj-insertions': { type: 'jj-changes' },
+  'jj-deletions': { type: 'jj-changes' },
+  'jj-root-dir': { type: 'project-dir' },
   'worktree-name': { type: 'git-worktree' },
   'worktree-branch': { type: 'git-branch' },
   'current-working-dir': { type: 'cwd' },
@@ -80,16 +89,25 @@ export const TARGETS: readonly string[] = [
 ];
 
 // ccinfobar widgets already hide when there is no data
-const NO_DATA_STATES = new Set(['no-git', 'no-jj', 'no-remote', 'no-upstream', 'no-data', 'empty']);
+const NO_DATA_STATES = new Set([
+  'no-git',
+  'no-jj',
+  'not-fork',
+  'no-remote',
+  'no-upstream',
+  'no-data',
+  'empty',
+]);
 
-function hideNotes(type: string, hide: unknown, notes: ImportNote[]): void {
-  if (typeof hide !== 'string') return;
+function hideNotes(type: string, hide: unknown, notes: ImportNote[]): Set<string> {
+  if (typeof hide !== 'string') return new Set();
   const states = new Set(hide.split(',').map((s) => s.trim()));
   for (const state of states) {
     if (!state || NO_DATA_STATES.has(state)) continue;
     const text = t('import.note.hideState', { name: sanitizeText(type), state: sanitizeText(state) });
     notes.push({ kind: 'approx', text });
   }
+  return states;
 }
 
 export function convertColor(v: unknown): string | undefined {
@@ -131,7 +149,15 @@ function convertItem(raw: Raw, notes: ImportNote[]): WidgetItem | null {
     return null;
   }
   const meta = (raw.metadata && typeof raw.metadata === 'object' ? raw.metadata : {}) as Raw;
-  hideNotes(type, meta.hide, notes);
+  const states = hideNotes(type, meta.hide, notes);
+  if (type.startsWith('jj-') && states.has('no-jj')) item.hideEmpty = true;
+  if (type === 'git-is-fork') {
+    item.hideEmpty = states.has('not-fork');
+    const symbol = typeof raw.character === 'string' ? sanitizeText(raw.character) : '';
+    if (symbol) item.options = { ...item.options, symbol };
+  }
+  if (type === 'git-origin-owner-repo' && meta.ownerOnlyWhenFork === 'true')
+    item.options = { ...item.options, ownerOnlyWhenFork: true };
   if (type === 'skills' && typeof meta.mode === 'string' && meta.mode)
     item.options = { ...item.options, mode: meta.mode };
   if (type === 'link') {

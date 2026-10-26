@@ -114,6 +114,42 @@ describe('ccstatusline import', () => {
     expect(r.notes.map((n) => n.kind)).toEqual(types.map(() => 'drop'));
   });
 
+  it('maps jj and fork widgets with their hide states', () => {
+    const r = importCcstatusline({
+      lines: [
+        [
+          { id: 'b', type: 'jj-bookmarks', metadata: { hide: 'no-jj' } },
+          { id: 'w', type: 'jj-workspace' },
+          { id: 'r', type: 'jj-revision' },
+          { id: 'd', type: 'jj-description' },
+          { id: 'c', type: 'jj-changes' },
+          { id: 'i', type: 'jj-insertions' },
+          { id: 'x', type: 'jj-deletions', metadata: { hide: 'no-jj' } },
+          { id: 'root', type: 'jj-root-dir' },
+          { id: 'f1', type: 'git-is-fork' },
+          { id: 'f2', type: 'git-is-fork', character: '\x1b[31mF', metadata: { hide: 'not-fork' } },
+          { id: 'o1', type: 'git-origin-owner-repo', metadata: { ownerOnlyWhenFork: 'true' } },
+          { id: 'o2', type: 'git-origin-owner-repo', metadata: { ownerOnlyWhenFork: 'yes' } },
+        ],
+      ],
+    });
+    expect(r.notes).toEqual([]);
+    expect(r.config.lines![0]).toEqual([
+      { id: 'b', type: 'jj-bookmarks', hideEmpty: true },
+      { id: 'w', type: 'jj-workspace' },
+      { id: 'r', type: 'jj-revision' },
+      { id: 'd', type: 'jj-description' },
+      { id: 'c', type: 'jj-changes' },
+      { id: 'i', type: 'jj-changes' },
+      { id: 'x', type: 'jj-changes', hideEmpty: true },
+      { id: 'root', type: 'project-dir' },
+      { id: 'f1', type: 'git-is-fork', hideEmpty: false },
+      { id: 'f2', type: 'git-is-fork', hideEmpty: true, options: { symbol: 'F' } },
+      { id: 'o1', type: 'git-repo', options: { ownerOnlyWhenFork: true } },
+      { id: 'o2', type: 'git-repo' },
+    ]);
+  });
+
   it('imports the usable context widget as basis usable', () => {
     const r = importCcstatusline({ lines: [[{ id: '1', type: 'context-percentage-usable' }]] });
     expect(r.config.lines![0]).toEqual([
@@ -128,7 +164,7 @@ describe('ccstatusline import', () => {
         [
           { id: '1', type: 'model', color: 'hex:FF8800', backgroundColor: 'bgBlue', bold: true },
           { id: '2', type: 'separator' },
-          { id: '3', type: 'jj-revision' },
+          { id: '3', type: 'git-upstream-owner' },
           { id: '4', type: 'custom-command', commandPath: 'echo hi', timeout: 500 },
         ],
       ],
@@ -143,7 +179,7 @@ describe('ccstatusline import', () => {
     expect(r.notes).toEqual([
       {
         kind: 'drop',
-        text: 'ccstatusline widget "jj-revision" has no ccinfobar equivalent and was skipped',
+        text: 'ccstatusline widget "git-upstream-owner" has no ccinfobar equivalent and was skipped',
       },
     ]);
     expect(convertColor('ansi256:208')).toBe('ansi256:208');
@@ -461,9 +497,9 @@ describe('import text', () => {
 
   it('follows the active language and keeps names', () => {
     withLang('tr', () => {
-      const cc = importCcstatusline({ lines: [[{ id: '1', type: 'jj-revision' }]] });
+      const cc = importCcstatusline({ lines: [[{ id: '1', type: 'git-upstream-owner' }]] });
       expect(cc.notes.map((n) => n.text)).toEqual([
-        'ccstatusline bileşeni "jj-revision" için ccinfobar karşılığı yok, atlandı',
+        'ccstatusline bileşeni "git-upstream-owner" için ccinfobar karşılığı yok, atlandı',
       ]);
       const pl = importClaudePowerline({ theme: 'custom', display: { lines: [{ segments: { tmux: {} } }] } });
       expect(pl.notes.map((n) => n.text)).toEqual([

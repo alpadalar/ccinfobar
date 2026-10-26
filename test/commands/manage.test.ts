@@ -139,7 +139,7 @@ describe('import', () => {
         lines: [
           [
             { id: '1', type: 'git-branch', metadata: { hide: 'no-git,zero' } },
-            { id: '2', type: 'jj-revision' },
+            { id: '2', type: 'git-upstream-owner' },
           ],
         ],
       }),
@@ -151,7 +151,7 @@ describe('import', () => {
       '  Approximated:',
       '    - git-branch: hiding when "zero" is not supported, it stays visible',
       '  Dropped:',
-      '    - ccstatusline widget "jj-revision" has no ccinfobar equivalent and was skipped',
+      '    - ccstatusline widget "git-upstream-owner" has no ccinfobar equivalent and was skipped',
     ]);
     const g = path.join(root, 'upper.json');
     const upper = await captureAsync(() =>

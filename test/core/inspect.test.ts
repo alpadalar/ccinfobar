@@ -183,6 +183,7 @@ describe('inspectRows sources', () => {
       path: 'rate_limits.five_hour.used_percentage',
     });
     expect(one('git-branch').sources).toEqual([{ kind: 'git' }]);
+    expect(one('jj-revision').sources).toEqual([{ kind: 'jj' }]);
     const [a, b] = rows(['context-graph', 'cost-graph']);
     expect(a!.sources).toContainEqual({ kind: 'history' });
     expect(b!.sources).toContainEqual({ kind: 'history' });
@@ -529,6 +530,10 @@ describe('emptyReason', () => {
     expect(emptyReason(ctxWith({ git: () => null }), item('git-branch'))).toEqual({
       code: 'no-git',
       text: t('explain.reason.no-git'),
+    });
+    expect(emptyReason(ctxWith({ git: () => null, jj: () => null }), item('jj-revision'))).toEqual({
+      code: 'no-jj',
+      text: t('explain.reason.no-jj'),
     });
     expect(emptyReason(ctxWith({ transcript: () => null }), item('skills'))).toEqual({
       code: 'no-transcript',

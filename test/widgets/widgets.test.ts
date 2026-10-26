@@ -23,6 +23,7 @@ const noData = (config?: Partial<Config>) =>
     repos: () => null,
     hooks: () => null,
     environment: () => null,
+    jj: () => null,
     config,
   });
 
