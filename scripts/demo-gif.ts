@@ -17,17 +17,17 @@ const H = 268;
 const SCALE = 2;
 const DELAY_MS = 1000;
 
-const FRAMES: [preset: string, theme: string][] = [
+const FRAMES: [preset: string, theme: string, terminal?: string][] = [
   ['default', 'classic'],
-  ['gsd', 'tokyo-night'],
-  ['cockpit', 'classic'],
-  ['minimal', 'catppuccin'],
-  ['full', 'dracula'],
-  ['gsd', 'neon'],
-  ['default', 'blocks'],
-  ['powerline', 'nord'],
-  ['gsd', 'gruvbox'],
+  ['powerline', 'tokyo-night'],
+  ['cockpit', 'catppuccin'],
+  ['default', 'paper', 'light'],
   ['default', 'panel'],
+  ['git', 'gruvbox'],
+  ['limits', 'blocks'],
+  ['two-line', 'one-dark'],
+  ['agents', 'neon'],
+  ['charts', 'slate'],
 ];
 
 function browser(): string {
@@ -42,20 +42,30 @@ function browser(): string {
   throw new Error('No Chrome or Chromium found; set CHROME=/path/to/chrome');
 }
 
-function page(lines: string[], title: string, box = false, height = H): string {
-  const term = TERMINALS.find((t) => t.id === 'default')!;
+function page(lines: string[], title: string, box = false, height = H, terminal = 'default'): string {
+  const term = TERMINALS.find((t) => t.id === terminal) ?? TERMINALS.find((t) => t.id === 'default')!;
+  const ui = term.light
+    ? { page: '#f6f8fa', ring: '#d0d7de', bar: '#e8e8ec', text: '#6e6e78', dot: '#c8c8d0', border: '#d8d8de' }
+    : {
+        page: '#0d1117',
+        ring: '#30363d',
+        bar: '#16171c',
+        text: '#8b8b96',
+        dot: '#3a3b42',
+        border: '#2a2b31',
+      };
   const vars = term.palette.map((c, i) => `--ansi-${i}:${c}`).join(';');
   const body = lines.map((l) => `<div class="line">${ansiToHtml(l) || '&nbsp;'}</div>`).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 :root{${vars};--term-bg:${term.bg};--term-fg:${term.fg}}
 *{box-sizing:border-box;margin:0}
-html,body{width:${W}px;height:${height}px;background:#0d1117;overflow:hidden}
+html,body{width:${W}px;height:${height}px;background:${ui.page};overflow:hidden}
 body{padding:14px;font:14px/1.25 "DejaVu Sans Mono","Noto Sans Mono",monospace}
-.win{height:100%;border-radius:10px;background:var(--term-bg);color:var(--term-fg);box-shadow:0 0 0 1px #30363d;overflow:hidden}
-.bar{display:flex;align-items:center;gap:7px;height:30px;padding:0 12px;background:#16171c;color:#8b8b96;font:12px system-ui,sans-serif}
-.bar i{width:11px;height:11px;border-radius:50%;background:#3a3b42}
+.win{height:100%;border-radius:10px;background:var(--term-bg);color:var(--term-fg);box-shadow:0 0 0 1px ${ui.ring};overflow:hidden}
+.bar{display:flex;align-items:center;gap:7px;height:30px;padding:0 12px;background:${ui.bar};color:${ui.text};font:12px system-ui,sans-serif}
+.bar i{width:11px;height:11px;border-radius:50%;background:${ui.dot}}
 .bar span{margin-left:8px}
-.prompt{margin:12px 14px 10px;padding:6px 10px;border:1px solid #2a2b31;border-radius:6px;color:#6e6e78}
+.prompt{margin:12px 14px 10px;padding:6px 10px;border:1px solid ${ui.border};border-radius:6px;color:${ui.text}}
 .prompt b{color:#e8895a;font-weight:400}
 .lines{padding:0 14px;white-space:pre;font-variant-ligatures:none}
 .cell{display:inline-block;width:1ch;overflow:visible;text-align:center}
@@ -88,7 +98,7 @@ function shoot(html: string, png: string, height: number): void {
   ]);
 }
 const shots: string[] = [];
-FRAMES.forEach(([presetId, themeId], i) => {
+FRAMES.forEach(([presetId, themeId, terminal], i) => {
   const preset = getPreset(presetId);
   if (!preset) throw new Error(`unknown preset ${presetId}`);
   const theme = resolveTheme(themeId);
@@ -106,7 +116,8 @@ FRAMES.forEach(([presetId, themeId], i) => {
   };
   const lines = renderPreview(config, 'sample', COLS).slice(0, theme.style === 'tui' ? ROWS + 2 : ROWS);
   const html = path.join(tmp, `frame-${i}.html`);
-  fs.writeFileSync(html, page(lines, `${theme.name} theme · ${preset.name} preset`, theme.style === 'tui'));
+  const title = `${theme.name} theme · ${preset.name} preset`;
+  fs.writeFileSync(html, page(lines, title, theme.style === 'tui', H, terminal));
   const png = path.join(tmp, `frame-${String(i).padStart(2, '0')}.png`);
   shoot(html, png, H);
   shots.push(png);
