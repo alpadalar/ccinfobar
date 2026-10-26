@@ -11,7 +11,6 @@
 **A customizable status line for Claude Code, with a drag-and-drop editor.**
 
 [![npm](https://img.shields.io/npm/v/ccinfobar?color=cb3837)](https://www.npmjs.com/package/ccinfobar)
-[![CI](https://github.com/alpadalar/ccinfobar/actions/workflows/ci.yml/badge.svg)](https://github.com/alpadalar/ccinfobar/actions/workflows/ci.yml)
 [![node](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=nodedotjs&logoColor=white)](package.json)
 [![dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
 [![license](https://img.shields.io/github/license/alpadalar/ccinfobar)](LICENSE)
