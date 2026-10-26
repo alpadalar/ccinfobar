@@ -48,6 +48,7 @@
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [Acknowledgements](#acknowledgements)
+- [License](#license)
 
 ## Why ccinfobar
 
@@ -130,13 +131,13 @@ ccinfobar edit
 | Area | What you can do |
 | --- | --- |
 | Palette (left) | Search and browse widgets by category, each with a description and sample output. Drag one into any line or click `+`. The GSD category appears once GSD is installed. |
-| Preview (top) | A terminal-style live preview. Switch between sample data, your last real session and a named situation from the **Scenario** picker (context nearly full, near the 5h limit, API key user and more), adjust the width, and pick your terminal's colors (16 profiles such as Windows Terminal, macOS Terminal, Solarized, Dracula, or custom) so the preview matches what you will really see. When started from a terminal, `ccinfobar edit` detects its colors automatically. |
+| Preview (top) | A terminal-style live preview. Switch between sample data, your last real session and a named situation from the **Scenario** picker (context nearly full, near the 5h limit, API key user and more), adjust the width (up to 400 columns), and pick your terminal's colors (16 profiles such as Windows Terminal, macOS Terminal, Solarized, Dracula, or custom) so the preview matches what you will really see. When started from a terminal, `ccinfobar edit` detects its colors automatically. |
 | Lines (center) | Drag chips to reorder them or move them between lines, drop them on the trash to remove, drag line handles to reorder lines. `Alt` + arrow keys move the selected chip. |
 | Inspector (right) | Colors (16 named, 256 palette or hex), background, bold/dim/italic, label override, merge, and every widget option. The **Global** tab covers style, separators, glyphs, icons, color depth and width, and **Colors from** keeps your style while taking the colors of any theme. |
 | Theme gallery | Every theme rendered live with your own widgets. Apply with one click, filter by style, or open **New theme** to build your own: pick a starting theme, a style, and text and background colors per category or in a cycle, with a live preview. |
 | Presets | Built-in and your own layouts with live previews. **Save current as preset** keeps your layout for later. |
-| Marketplace | Built-in and saved presets, themes and bundles with live previews, one-click apply, save with version history, and a marketplace to browse, install and publish ([Catalog](#catalog)). |
-| Top bar | Presets, themes, undo/redo, import/export JSON, save (`Ctrl+S`), and one-click install into Claude Code. |
+| Marketplace | Built-in and saved presets, themes and bundles with live previews, one-click apply, save with version history, and a marketplace to browse, install and publish, in **Bundles**, **Presets**, **Themes**, **User** and **Built in** tabs ([Catalog](#catalog)). |
+| Top bar | Presets, Marketplace, themes, undo/redo, import/export JSON, save (`Ctrl+S`), one-click install into Claude Code, and Settings. |
 
 The editor runs only on `127.0.0.1` with a per-session token. Press **Done** or `Ctrl+C` to stop it.
 
@@ -298,7 +299,7 @@ Mouse works too: click to select, drag a chip to move it.
 | Tokens & cache | input, output, cached, total, cache hit rate, cache expiry countdown, last cache miss cause, output speed, performance (`performance`: hit rate and average response time) |
 | Cost & time | session cost, cost per hour, estimated cost today, this week and per project across sessions (`cost-today`, `cost-week`, `cost-project`), budget, session and API duration, lines changed, message count |
 | Usage limits | 5-hour and weekly usage (percent or 13 bar styles, with an even-pace marker), reset countdowns, per-model weekly limits such as Fable, spend limit, usage pace, projected usage at the reset (`usage-projection`), time until 100% (`limit-eta`), an at-risk chip (`limit-risk`) |
-| Charts | moving sparklines of tokens per minute, context fill, 5-hour or weekly usage and dollars per hour over the session, activity across all your sessions in 15-minute slots (`activity-strip`) |
+| Charts | moving sparklines of tokens per minute, output speed, context fill, 5-hour or weekly usage and dollars per hour over the session, activity across all your sessions in 15-minute slots (`activity-strip`) |
 | Agents & tasks | Claude's task list, a table of the turn's subagents (type, job, last tool, tokens per minute, share, tokens, time, model), subagent count, the running tool and the turn's tool counts (`tool-activity`) |
 | GSD | milestone, milestone progress, phase, status, plans, plan progress, next step, workstream, blockers, todos, requirements, last command, update notice, current task, summary |
 | Git | branch, sha, changes, status, staged, unstaged, untracked, ahead/behind, conflicts, stash, in-progress operation, repo, worktree, pull request with optional CI check status (`pr` option `ci`), child repos of a workspace folder (`workspace-repos`) |
@@ -413,7 +414,7 @@ Any theme can be drawn in any style (`"style": "capsule"`), and per-widget color
 
 The catalog keeps layouts and looks you can apply in one step: presets, themes and bundles (a preset with a theme). In `ccinfobar edit`, click **Marketplace** in the header. With a marketplace on, the **Bundles**, **Presets** and **Themes** tabs show the marketplace entries of each kind with live previews (Bundles opens first; one list from a 24-hour cache, with a **Refresh** button). **User** holds your saved and installed entries with **Save current as…**, **Publish…** and the GitHub sign-in (the first tab when the marketplace is off), and **Built in** only the ones that ship with ccinfobar, each grouped as bundles, presets and themes with a live preview of your config. The Apply button on a card applies it in one step (click a card for its details and full preview), `Ctrl+Z` undoes it, and nothing is written until you save.
 
-**Save current as…** keeps your setup as a preset, a theme or a bundle, with a name, a description and an author (remembered for next time). Saving under an existing name asks whether to update it (a new version) or overwrite the latest one, and every entry has a version history with restore. Applying changes only the layout and the theme; your budget, profiles, language and other personal settings stay.
+**Save current as…** keeps your setup as a preset, a theme or a bundle, with a name, a description and an author (remembered for next time). Saving under an existing name asks whether to update it (a new version) or overwrite the latest one, and every entry has a version history with restore. Preset and bundle entries also keep the preview width they were saved at (`cols`, the editor's width, or `catalog save --cols <n>` from 40 to 400): their previews render at it, applying one sets the editor's preview width, and cards show it as "N cols". Applying changes only the layout and the theme; your budget, profiles, language and other personal settings stay.
 
 The Built in tab has every built-in preset and theme, plus 15 ready bundles:
 
@@ -427,7 +428,7 @@ The Built in tab has every built-in preset and theme, plus 15 ready bundles:
 - Kanagawa agents (`agents` + Kanagawa)
 - Rosé Pine 2-line (`two-line` + Rosé Pine)
 - One Dark cost (`cost` + One Dark capsules)
-- Solarized GSD (`gsd` + Solarized)
+- Solarized GSD (`gsd` + Solarized, shown once GSD is installed)
 - Panel dashboard (`dashboard`, boxed)
 - Paper default (`default` + Paper, for light terminals)
 - Neon charts (`charts` + Neon)
@@ -439,6 +440,7 @@ Every action has a CLI command too:
 ccinfobar catalog list                        # your entries, then the built-in ones
 ccinfobar catalog apply bundle/nord-minimal   # apply the Nord minimal bundle (backup first)
 ccinfobar catalog save "My setup"             # save your current setup as a bundle
+ccinfobar catalog save "Wide" --cols 160      # ... previewed at 160 columns
 ccinfobar catalog history "My setup"          # versions, then `catalog restore <ref> <version>`
 ```
 
@@ -640,24 +642,24 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--yes` to replace another tool's without asking, `--dry-run` to only show the plan, `--import`, `--no-import`, `--allow-commands` to keep imported commands, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally, or a pinned copy with `--no-global`) |
 | `ccinfobar install --hooks` | Also add the optional [hooks](#hooks) (`--hooks=permission` adds PermissionRequest) |
 | `ccinfobar install --progress` | Show context fill as the terminal tab's progress bar (OSC 9;4) through synchronous hooks; needs Claude Code 2.1.141+ and adds about 60-110 ms before each prompt |
-| `ccinfobar usage` | Fetch your 5-hour and weekly usage from Claude now |
 | `ccinfobar install --project` | Use ccinfobar in this project even if its `.claude/settings.json` sets another status line |
 | `ccinfobar uninstall` | Remove ccinfobar and its hooks from Claude Code settings and restore the status line you had before (`--project` for the project file). Run it before `npm rm -g ccinfobar` |
 | `ccinfobar uninstall --hooks` | Remove only ccinfobar's hooks and keep the status line |
 | `ccinfobar uninstall --progress` | Remove only the terminal progress handlers, turn `progress.enabled` off and clear the bar |
 | `ccinfobar themes` | Preview every theme (`--width <n>`; `--list` prints ids and names only) |
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
-| `ccinfobar import <tool>` | Import a `ccstatusline`, `claude-powerline`, `ccometixline` (`ccline`), `cship` or `claude-hud` layout (`--file <path>`, `--force`, `--dry-run` to only show the report and a preview, `--allow-commands` to keep its commands and URLs without asking, `--command <cmd>` to read that status line command instead of the current one) |
-| `ccinfobar report` | Tokens, estimated cost and active time per project ([Reports](#reports); `--period day\|week\|month`, `--since`/`--until <date>`, `--all`, `--project <text>`, `--csv`, `--json`, `--rebuild`) |
+| `ccinfobar import <tool>` | Import another status line's layout; `ccinfobar import --help` lists every tool, also in [Coming from another status line](#coming-from-another-status-line) (`--file <path>`, `--force`, `--dry-run` to only show the report and a preview, `--allow-commands` to keep its commands and URLs without asking, `--command <cmd>` to read that status line command instead of the current one) |
+| `ccinfobar report` | Tokens, estimated cost and active time per project ([Reports](#reports); `--period day\|week\|month`, `--since`/`--until <date>`, `--all`, `--project <text>`, `--csv`, `--json` or `--format table\|csv\|json`, `--rebuild`) |
 | `ccinfobar init [preset]` | Write a [preset](#presets): `default`, `cockpit`, `dashboard`, `minimal`, `gsd`, `powerline`, `full`, `cost`, `limits`, `git`, `workspace`, `compact`, `two-line`, `agents`, `charts`, `session` (`--force` to overwrite) |
 | `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--glyph-mode <mode>` to try a glyph mode without saving it, for example `paste-safe` for text that stays aligned in a GitHub issue, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `bedrock-user`, `gateway-glm`, `near-7d-limit`, `over-budget`, `workspace-folder`, `waiting-permission`, `service-incident`, `pr-ci-failing`; a bare `--scenario` lists them) |
 | `ccinfobar update` | Update to the latest release now (`--check` to only look) |
+| `ccinfobar usage` | Fetch your 5-hour and weekly usage from Claude now |
 | `ccinfobar widgets` | List all widgets |
 | `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off; points to `ccinfobar explain` for details |
 | `ccinfobar explain [widget-id]` | Show each widget's value, where it came from (payload field, cache and its age, git, GSD) and why it is empty (`--json` for bug reports, `--scenario <name>`, `--payload <file>`). `env`, `command`, `http` and `tool-activity` values are redacted; `--show-values` shows them in a terminal |
 | `ccinfobar bench` | Measure render time: a `node -e 0` control, then cold and warm median and p95 (`--runs <n>`, `--scenario <name>`, `--json`) |
 | `ccinfobar config get\|set\|unset <path> [value]` | Read or change one config value by dotted path, e.g. `ccinfobar config set gitHardening false` or `ccinfobar config get lines.0.2.type`. Values are parsed as JSON, else taken as a string; a value that would not pass validation is refused and nothing is written |
-| `ccinfobar catalog <command>` | Browse, apply and save presets, themes and bundles ([Catalog](#catalog)): `list`, `show`, `history`, `apply`, `save`, `restore`, `share`, `unshare`, `delete`, `author`, `endpoint`, `publisher`, `publish`, `install`, `login`, `logout`, `report` (`--json`, `--dry-run` on the write commands, `--remote` to browse the marketplace) |
+| `ccinfobar catalog <command>` | Browse, apply and save presets, themes and bundles ([Catalog](#catalog)): `list`, `show`, `history`, `apply`, `save`, `restore`, `share`, `unshare`, `delete`, `author`, `endpoint`, `publisher`, `publish`, `install`, `login`, `logout`, `report` (`--json`, `--dry-run` on the write commands, `--remote` to browse the marketplace, `save --cols <n>` for the preview width) |
 | `ccinfobar hook <Event>` | Used by Claude Code hooks: records one event and prints nothing |
 
 All commands accept `--config <file>`.
@@ -711,7 +713,7 @@ All sessions of one account share the same limits: the newest value wins, so an 
 - **Fonts.** Powerline arrows, capsule caps and the `nerd` icon set need a [Nerd Font](https://www.nerdfonts.com/). With the default `charset: "auto"`, ccinfobar avoids them in Apple Terminal (whose default fonts lack them) and draws plain colored blocks and half-block caps instead. Set `charset` to `nerd` once your terminal uses a Nerd Font, or to `text` for pure ASCII.
 - **Colors.** The color depth is detected automatically and honors `NO_COLOR`, `FORCE_COLOR` and `COLORTERM`. Set `colorLevel` if your terminal disagrees.
 - **Terminal width.** Used for `flex` spacing and truncation. ccinfobar probes the terminal Claude Code runs in on Linux and macOS. On Windows, set `maxWidth` to a fixed number if you use `flex`.
-- **Windows.** Works in Windows Terminal, PowerShell and cmd. Prefer a global install; `npx` startup on Windows is slow.
+- **Windows.** Works in Windows Terminal, PowerShell, cmd and Git Bash. Prefer a global install; `npx` startup on Windows is slow.
 
 ## Troubleshooting
 
@@ -740,6 +742,8 @@ Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and
 git clone https://github.com/alpadalar/ccinfobar.git && cd ccinfobar
 npm install && npm run check && npm run build
 ```
+
+After changing widgets, `npm run docs` regenerates docs/WIDGETS.md and the schemas; `npm run demo` and `npm run screenshots` regenerate the README images.
 
 ## Acknowledgements
 
