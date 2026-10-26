@@ -227,4 +227,16 @@ export const editorMessages = {
   'web.color.default': 'Varsayılan',
   'web.color.defaultValue': 'Varsayılan ({color})',
   'web.color.usingDefault': 'Varsayılan renk ',
+  'web.tips.label': 'İpucu',
+  'web.tips.next': 'Sonraki ipucu',
+  'web.tips.dismiss': 'İpuçlarını gizle',
+  'web.tips.doubleClick': 'Paletteki bir bileşene çift tıklayarak onu etkin satıra ekleyin.',
+  'web.tips.copyPaste':
+    'Bir bileşen seçip {mod}+C ve {mod}+V ile tüm seçenekleriyle kopyalayıp yapıştırın. {mod}+D çoğaltır.',
+  'web.tips.styleCopy': '{mod}+Alt+C ve {mod}+Alt+V yalnızca stili kopyalayıp yapıştırır.',
+  'web.tips.move': 'Alt + ok tuşları seçili bileşeni taşır, başka bir satıra da.',
+  'web.tips.resize':
+    'Önizlemenin sağ kenarını sürükleyerek genişliğini değiştirin. Sıfırlamak için kenara çift tıklayın.',
+  'web.tips.undo': '{mod}+Z geri alır, {mod}+Shift+Z yineler.',
+  'web.tips.save': '{mod}+S kaydeder. Claude Code değişikliği bir sonraki yenilemede gösterir.',
 } satisfies Record<keyof typeof enEditor, Message>;

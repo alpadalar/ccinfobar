@@ -48,4 +48,6 @@ export const staticMessages = {
   'web.static.tabGlobal': 'Genel',
   'web.static.bootTitle': 'Editöre ulaşılamıyor',
   'web.static.bootHelp': '{error}. {command} komutunun yazdırdığı adresi yeniden açın.',
+  'web.static.resizeTitle':
+    'Önizlemeyi boyutlandırmak için sürükleyin. Genişliği sıfırlamak için çift tıklayın.',
 } satisfies Record<keyof typeof enStatic, Message>;

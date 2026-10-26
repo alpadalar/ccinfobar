@@ -53,8 +53,10 @@ import {
   type WidgetInfo,
 } from './store.js';
 import { chipMenu, copyStyle, paintOnto, pasteStyle, rememberStyles, setPainting } from './styles.js';
+import { initTermResize } from './term-resize.js';
 import { initTerminalPicker } from './terminal-picker.js';
 import { openGallery } from './themes.js';
+import { initTips } from './tips.js';
 import { confirmDialog, modal, toast } from './ui.js';
 
 installBundled();
@@ -713,6 +715,7 @@ function lastTitle(): void {
 }
 
 let relabelPicker = () => {};
+let relabelTips = () => {};
 
 // config, then this machine's auto answer, then the browser
 function uiLanguage(): LanguageId {
@@ -727,6 +730,7 @@ function syncLanguage(): boolean {
   renderScenarios();
   lastTitle();
   relabelPicker();
+  relabelTips();
   renderConfigBanner();
   applyWidth();
   renderPalette();
@@ -817,6 +821,8 @@ function setupStatic(): void {
   lastTitle();
   setSource('sample');
   relabelPicker = initTerminalPicker($('term-picker'), S.api.terminal);
+  relabelTips = initTips($('tips'));
+  initTermResize($('term-resize'), $('term-screen'));
   initInspector();
   window.addEventListener('keydown', onKeydown);
   window.addEventListener('beforeunload', onUnload);

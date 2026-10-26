@@ -96,6 +96,8 @@ const SWEPT: string[] = [
   'src/editor/web/terminals.ts',
   'src/editor/web/i18n-static.ts',
   'src/editor/web/update-info.ts',
+  'src/editor/web/term-resize.ts',
+  'src/editor/web/tips.ts',
   'src/tui/fields.ts',
   'src/tui/state.ts',
   'src/tui/index.ts',

@@ -43,4 +43,5 @@ export const staticMessages = {
   'web.static.tabGlobal': 'Global',
   'web.static.bootTitle': 'Cannot reach the editor',
   'web.static.bootHelp': '{error}. Reopen the URL printed by {command}.',
+  'web.static.resizeTitle': 'Drag to resize the preview. Double-click to reset the width.',
 } as const;

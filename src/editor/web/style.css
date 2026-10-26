@@ -903,6 +903,47 @@ input[type="range"]::-moz-range-thumb {
     0 0 0 0.0625rem rgba(255, 255, 255, 0.07),
     0 0.625rem 1.875rem rgba(0, 0, 0, 0.35);
   overflow: hidden;
+  position: relative;
+}
+
+.term-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--cols) * 1ch + 2.25rem - 0.375rem);
+  z-index: 2;
+  width: 0.75rem;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.term-resize::after {
+  content: "";
+  position: absolute;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  left: calc(50% - 0.09375rem);
+  width: 0.1875rem;
+  border-radius: 0.125rem;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.14s;
+}
+
+.term-resize:hover::after,
+body.resizing-term .term-resize::after {
+  opacity: 1;
+}
+
+body.resizing-term {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.term-probe {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
 }
 
 .term-bar {
@@ -1247,6 +1288,37 @@ body.dragging-chip .trash {
 
 .add-line:active {
   scale: 0.99;
+}
+
+.tips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.71875rem;
+}
+
+.tip-label {
+  font-weight: 650;
+}
+
+.tip-text {
+  flex: 1;
+  min-width: 12rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tip-text.tip-in {
+    animation: tip-in 0.3s ease-out;
+  }
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .config-path {

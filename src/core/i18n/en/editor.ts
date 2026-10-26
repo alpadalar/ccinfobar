@@ -220,4 +220,16 @@ export const editorMessages = {
   'web.color.default': 'Default',
   'web.color.defaultValue': 'Default ({color})',
   'web.color.usingDefault': 'Using default ',
+  'web.tips.label': 'Tip',
+  'web.tips.next': 'Next tip',
+  'web.tips.dismiss': 'Hide tips',
+  'web.tips.doubleClick': 'Double-click a widget in the palette to add it to the active line.',
+  'web.tips.copyPaste':
+    'Select a chip, then {mod}+C and {mod}+V copy and paste it with all its options. {mod}+D duplicates it.',
+  'web.tips.styleCopy': '{mod}+Alt+C and {mod}+Alt+V copy and paste only the style.',
+  'web.tips.move': 'Alt + arrow keys move the selected chip, also to another line.',
+  'web.tips.resize':
+    'Drag the right edge of the preview to change its width. Double-click the edge to reset it.',
+  'web.tips.undo': '{mod}+Z undoes and {mod}+Shift+Z redoes any edit.',
+  'web.tips.save': '{mod}+S saves. Claude Code shows the change on its next refresh.',
 } as const;
