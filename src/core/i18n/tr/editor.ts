@@ -169,6 +169,7 @@ export const editorMessages = {
   'web.app.noMatch': '"{query}" ile eşleşen bileşen yok',
   'web.app.addToLine': 'Seçili satıra ekle',
   'web.app.addNamed': '{name} bileşenini seçili satıra ekle',
+  'web.app.widgetCopied': '{name} kopyalandı',
   'web.app.noOutput': '(çıktı yok)',
   'web.app.cols': '{n} sütun',
   'web.app.unsaved': 'Kaydedilmemiş değişiklikler',

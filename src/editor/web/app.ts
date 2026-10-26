@@ -1,12 +1,17 @@
 import {
   addLine,
+  findItem,
   insertItem,
   keepLanguage,
+  lineEnd,
   moveItem,
   moveLine,
+  pasteItem,
+  pasteTarget,
   removeItem,
   removeLine,
   setLineAlign,
+  takeItem,
   uniqueId,
 } from '../../core/edit.js';
 import '../../core/i18n/lazy.js';
@@ -67,6 +72,11 @@ function addWidget(type: string, line: number, index: number): void {
   commit(insertItem(S.config, { type }, { line, index }));
   pendingFocus = null;
   select(id, Math.min(line, S.config.lines.length - 1));
+}
+
+function addToActive(type: string): void {
+  const at = lineEnd(S.config, S.selectedLine);
+  addWidget(type, at.line, at.index);
 }
 
 function handleDrop(spec: DragSpec, target: DropTarget): void {
@@ -275,7 +285,11 @@ function renderCanvas(): void {
     );
     const row = h(
       'div',
-      { class: `line${li === S.selectedLine ? ' selected' : ''}`, 'data-line': String(li) },
+      {
+        class: `line${li === S.selectedLine ? ' selected' : ''}`,
+        'data-line': String(li),
+        'aria-current': li === S.selectedLine ? 'true' : null,
+      },
       h(
         'div',
         { class: 'line-head' },
@@ -387,10 +401,8 @@ function paletteCard(w: WidgetInfo): HTMLElement {
         title: t('web.app.addToLine'),
         'aria-label': t('web.app.addNamed', { name }),
         onPointerdown: (e: Event) => e.stopPropagation(),
-        onClick: () => {
-          const line = Math.max(0, Math.min(S.selectedLine, S.config.lines.length - 1));
-          addWidget(w.type, line, S.config.lines[line]?.length ?? 0);
-        },
+        onDblclick: (e: Event) => e.stopPropagation(),
+        onClick: () => addToActive(w.type),
       },
       icon('plus', 14),
     ),
@@ -398,6 +410,7 @@ function paletteCard(w: WidgetInfo): HTMLElement {
   card.addEventListener('pointerdown', (e) =>
     press(e, { kind: 'palette', type: w.type, label: name, color }, { drop: handleDrop }),
   );
+  card.addEventListener('dblclick', () => addToActive(w.type));
   return card;
 }
 
@@ -614,6 +627,33 @@ function inTextField(t: EventTarget | null): boolean {
   return !['checkbox', 'radio', 'button', 'range', 'color', 'file'].includes((el as HTMLInputElement).type);
 }
 
+function pasteCopy(snap: NonNullable<typeof S.itemClip>): void {
+  const { config, id } = pasteItem(S.config, snap, pasteTarget(S.config, S.selectedId, S.selectedLine));
+  commit(config);
+  pendingFocus = id;
+  select(id);
+}
+
+// widget copy, paste and duplicate; native behaviour otherwise
+function itemShortcut(e: KeyboardEvent, key: string): void {
+  const found = S.selectedId ? findItem(S.config, S.selectedId) : null;
+  if (key === 'c') {
+    if (!found || window.getSelection?.()?.toString()) return;
+    e.preventDefault();
+    S.itemClip = takeItem(found.item);
+    const info = S.widgetMap.get(found.item.type);
+    toast(t('web.app.widgetCopied', { name: info ? widgetText(info, 'name') : found.item.type }), 'info');
+  } else if (key === 'v') {
+    if (!S.itemClip) return;
+    e.preventDefault();
+    pasteCopy(S.itemClip);
+  } else if (key === 'd') {
+    if (!found) return;
+    e.preventDefault();
+    pasteCopy(takeItem(found.item));
+  }
+}
+
 function onKeydown(e: KeyboardEvent): void {
   const mod = e.ctrlKey || e.metaKey;
   if (document.querySelector('.overlay')) return;
@@ -625,6 +665,17 @@ function onKeydown(e: KeyboardEvent): void {
     e.preventDefault();
     if (e.code === 'KeyC') copyStyle();
     else if (S.selectedId) pasteStyle([S.selectedId]);
+    return;
+  }
+  const key = e.key.toLowerCase();
+  if (
+    mod &&
+    !e.altKey &&
+    !e.shiftKey &&
+    !inTextField(e.target) &&
+    (key === 'c' || key === 'v' || key === 'd')
+  ) {
+    itemShortcut(e, key);
     return;
   }
   if (mod && e.key.toLowerCase() === 's') {

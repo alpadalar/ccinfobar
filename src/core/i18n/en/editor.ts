@@ -163,6 +163,7 @@ export const editorMessages = {
   'web.app.noMatch': 'No widgets match "{query}"',
   'web.app.addToLine': 'Add to selected line',
   'web.app.addNamed': 'Add {name} to selected line',
+  'web.app.widgetCopied': 'Copied {name}',
   'web.app.noOutput': '(no output)',
   'web.app.cols': '{n} cols',
   'web.app.unsaved': 'Unsaved changes',

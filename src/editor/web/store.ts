@@ -2,7 +2,7 @@ import type { ShareState } from '../../catalog/model.js';
 import type { EntryContent, EntryKind, StyleGroup, StyleHistory, StyleSnapshot } from '../../core/edit.js';
 import { COLS_MAX, COLS_MIN } from '../../core/entry-keys.js';
 import { pickRotationTheme } from '../../core/rotation.js';
-import type { Config, OptionSpec, WidgetCategory } from '../../core/types.js';
+import type { Config, OptionSpec, WidgetCategory, WidgetItem } from '../../core/types.js';
 
 export type HiddenWhy = 'rule' | 'priority';
 
@@ -210,6 +210,7 @@ export interface Store {
   api: ApiState;
   widgetMap: Map<string, WidgetInfo>;
   clip: { snap: StyleSnapshot; from: string; type: string } | null;
+  itemClip: Omit<WidgetItem, 'id'> | null;
   groups: StyleGroup[];
   painting: boolean;
   hidden: ReadonlyMap<string, HiddenWhy>;
@@ -252,6 +253,7 @@ export function init(api: ApiState): void {
     api: { ...api, configIssue: api.configIssue ?? null, scenarios: api.scenarios ?? [] },
     widgetMap: new Map(api.widgets.map((w) => [w.type, w])),
     clip: null,
+    itemClip: null,
     groups: ['colors', 'text'],
     painting: false,
     hidden: new Map(),
@@ -267,6 +269,7 @@ export function emit(topic: Topic, opts: CommitOpts = {}): void {
 }
 
 export const WIDTH_KEY = 'ccinfobar.previewWidth';
+export const DEFAULT_WIDTH = 130;
 
 // preview width only, remembered in the browser
 function savedWidth(): number {
@@ -274,7 +277,7 @@ function savedWidth(): number {
     const n = Number(localStorage.getItem(WIDTH_KEY));
     if (Number.isFinite(n) && n >= COLS_MIN && n <= COLS_MAX) return n;
   } catch {}
-  return 130;
+  return DEFAULT_WIDTH;
 }
 
 // the slider and an applied entry share this path

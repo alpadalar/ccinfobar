@@ -73,6 +73,31 @@ export function insertItem(
   return next;
 }
 
+export function lineEnd(config: Config, line: number): Position {
+  const at = Math.max(0, Math.min(line, config.lines.length - 1));
+  return { line: at, index: config.lines[at]?.length ?? 0 };
+}
+
+export function takeItem(item: WidgetItem): Omit<WidgetItem, 'id'> {
+  const { id: _, ...rest } = item;
+  return JSON.parse(JSON.stringify(rest)) as Omit<WidgetItem, 'id'>;
+}
+
+// after the selected chip, else the end of the line
+export function pasteTarget(config: Config, selectedId: string | null, line: number): Position {
+  const found = selectedId ? findItem(config, selectedId) : null;
+  return found ? { line: found.line, index: found.index + 1 } : lineEnd(config, line);
+}
+
+export function pasteItem(
+  config: Config,
+  snap: Omit<WidgetItem, 'id'>,
+  at: Position,
+): { config: Config; id: string } {
+  const id = uniqueId(config, snap.type);
+  return { config: insertItem(config, { ...snap, id }, at), id };
+}
+
 export function removeItem(config: Config, id: string): Config {
   const next = clone(config);
   next.lines = next.lines.map((l) => l.filter((i) => i.id !== id));

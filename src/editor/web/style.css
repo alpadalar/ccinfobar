@@ -1014,7 +1014,11 @@ body.dragging-chip .trash {
 }
 
 .line.selected {
-  box-shadow: 0 0 0 0.0625rem var(--line-strong);
+  box-shadow: 0 0 0 0.09375rem var(--accent-ring);
+}
+
+.line.selected .line-title {
+  color: var(--accent);
 }
 
 .line.drop-target {
