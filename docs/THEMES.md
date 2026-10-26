@@ -9,6 +9,8 @@ ccinfobar theme nord        # switch
 
 Both editors have a theme gallery with live previews: **Theme** in `ccinfobar edit`, `T` in `ccinfobar tui`.
 
+To switch between several themes by hour, day, week or weekday, see [Theme rotation](CONFIGURATION.md#theme-rotation).
+
 Named colors such as `red` or `brightBlue` look different in every terminal color scheme, while hex colors stay the same. Pick your terminal's colors next to the editor preview (or let `ccinfobar edit` detect them) so theme previews match your terminal.
 
 ## Built-in themes

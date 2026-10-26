@@ -1457,6 +1457,26 @@ body.dragging-chip .trash {
   width: 5.5rem;
 }
 
+.rotation-name {
+  min-width: 9rem;
+}
+
+.theme-tag.missing {
+  color: var(--danger);
+}
+
+.rotation-days {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.375rem 0.75rem;
+}
+
+.rotation-day {
+  display: grid;
+  gap: 0.125rem;
+  font-size: 0.75rem;
+}
+
 .empty-state {
   display: grid;
   justify-items: center;

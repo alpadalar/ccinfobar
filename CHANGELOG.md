@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Theme rotation: the new `themeRotation` config key switches the status line between a pool of themes every hour, day, week or N minutes, in order or in a fixed shuffle, and can pin a theme per weekday. It follows the local clock, stores nothing and is off unless you set it. Set it with `ccinfobar theme rotate <id...> [--every hour|day|week|<minutes>] [--shuffle|--cycle] [--weekdays mon=nord,...]` (`theme rotate off` turns it off), in the web editor's Settings (**Theme rotation**) or in the TUI's settings. `ccinfobar theme` and `ccinfobar doctor` show the rotation and the next change; doctor warns about ids that do not exist. Catalog and marketplace apply keep it, and the theme gallery and catalog previews still show their own theme
+
 ## [0.8.2] - 2026-10-20
 
 ### Added

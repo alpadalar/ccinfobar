@@ -5,7 +5,7 @@ import type { Config } from '../../core/types.js';
 import { api, previewSource } from './api.js';
 import { clear, h, icon } from './dom.js';
 import { previewBox } from './presets.js';
-import { commit, currentTheme, S, type StyleId, type ThemeInfo } from './store.js';
+import { commit, currentTheme, rotatedTheme, S, type StyleId, type ThemeInfo } from './store.js';
 import { openThemeBuilder } from './theme-builder.js';
 import { confirmDialog, modal, toast } from './ui.js';
 
@@ -98,7 +98,8 @@ export async function openGallery(): Promise<void> {
   }
 
   function renderLive() {
-    const th = currentTheme();
+    const rotated = rotatedTheme();
+    const th = rotated ?? currentTheme();
     clear(live);
     live.append(
       h(
@@ -106,6 +107,7 @@ export async function openGallery(): Promise<void> {
         { class: 'gallery-live-head' },
         h('span', null, t('themes.yourLine')),
         h('span', { class: 'theme-tag' }, th?.name ?? S.config.theme),
+        S.config.themeRotation ? h('span', { class: 'theme-tag now' }, t('web.rotation.rotating')) : null,
       ),
       previewBox(liveLines),
     );

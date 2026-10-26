@@ -75,6 +75,7 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
 | `version` | `1` | `1` | Config format version |
 | `lines` | `Widget[][]` | see presets | One array per status line, top to bottom. Lines with nothing to show are skipped. |
 | `theme` | string | `"classic"` | Built-in theme id or the name of your own theme file. See [THEMES.md](THEMES.md). |
+| `themeRotation` | object | | Switch between themes by hour, day, week or minutes, or pin one per weekday; see [Theme rotation](#theme-rotation) |
 | `style` | `text` \| `blocks` \| `powerline` \| `capsule` \| `tui` | theme | Overrides the theme style |
 | `separator` | string | theme | Overrides the text between widgets. Use `""` and `separator` widgets for full manual control. |
 | `separatorColor` | color | theme | Overrides the separator color |
@@ -311,6 +312,49 @@ With `charset: "text"` every bar becomes `=====-----`.
 Amounts must be positive; anything else is dropped. Set them with `ccinfobar config set budget.daily 10` (remove with `ccinfobar config unset budget.daily`), in the web editor's Settings (Budget) or in the TUI's settings.
 
 The `budget` widget shows spend against one of them: `period` is `daily` (default, from the [cost ledger](#estimated-cost)) or `session` (this session's cost), and `display` is `amount` (`~$4.10/$10`), `percent` or `bar`. It is green below `warnAt`, yellow from `warnAt` and red at 100% or more, and it shows `—` while that budget is not set (`ccinfobar explain` says so). It is separate from `spend-limit`, which shows the spend limit Claude reports for your plan.
+
+## Theme rotation
+
+```json
+{
+  "themeRotation": {
+    "themes": ["nord", "dracula", "tokyo-night"],
+    "every": "day",
+    "order": "shuffle",
+    "weekdays": { "fri": "bubblegum" }
+  }
+}
+```
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `themes` | string[] | | Theme ids in the pool, up to 32 |
+| `every` | `hour` \| `day` \| `week` \| minutes | `day` | How often the theme changes; a number is minutes from 1 to 10080 |
+| `order` | `cycle` \| `shuffle` | `cycle` | `cycle` walks the pool in order, `shuffle` uses a fixed shuffle |
+| `weekdays` | object | | `mon` to `sun` mapped to a theme id; that day always shows it |
+
+While `themeRotation` is set it picks the theme and `theme` is the fallback. Without it nothing changes.
+
+- Periods follow your computer's local clock, like the `time.hour` and `time.weekday` rules: an hour starts at :00, a day at local midnight and a week on Monday 00:00. Minutes count from local midnight, so `30` changes at :00 and :30. On a daylight saving change the repeated hour keeps its theme and a day is still one day.
+- `shuffle` shows every pool theme once per round, in an order that depends only on the round and the pool, and never shows the same theme twice in a row at a round boundary. Nothing is stored, so every refresh in a period shows the same theme.
+- A weekday entry wins on its day; other days use the pool. A rotation with only `weekdays` shows `theme` on the other days.
+- Ids that do not exist (for example a deleted theme of your own) are skipped. If no pool theme exists, `theme` is shown. `ccinfobar doctor` lists them.
+- `style`, `separator`, `separatorColor`, `padding` and `glyphs` overrides still apply on top of the rotated theme.
+- The theme changes at the next status line refresh after the period ends; set `refreshInterval` in Claude Code's `statusLine` if you want it on time while idle.
+- The status line, `ccinfobar preview`, `ccinfobar explain` and the editors' live previews use the rotated theme. The theme gallery, `ccinfobar themes` and catalog previews still show the theme they are about.
+- Applying a catalog or marketplace theme, preset or bundle keeps your rotation, and `catalog save` never exports it. Picking a theme keeps it too; turn it off to go back to one theme.
+
+```sh
+ccinfobar theme rotate nord dracula tokyo-night --every day --shuffle
+ccinfobar theme rotate --every 45                     # change only the period
+ccinfobar theme rotate --cycle                        # back to in-order
+ccinfobar theme rotate --weekdays mon=nord,fri=dracula
+ccinfobar theme rotate --weekdays off                 # clear the weekday map
+ccinfobar theme rotate                                # show the rotation and the next change
+ccinfobar theme rotate off
+```
+
+The web editor's Settings has a **Theme rotation** section (pool with add, reorder and remove, period, order and a theme per weekday), and the TUI's settings have **Rotation themes**, **Rotation change**, **Rotation order** and **Rotation by weekday**.
 
 ## Shared limits
 

@@ -5,10 +5,17 @@ import {
   REFRESH_SUGGEST,
   refreshReasons,
   removeProfileOverride,
+  rotationAddTheme,
+  rotationMoveTheme,
+  rotationRemoveTheme,
   setBudget,
   setLanguageSetting,
   setProfilesBuiltIn,
   setProgress,
+  setRotationEvery,
+  setRotationOrder,
+  setRotationWeekday,
+  setThemeRotation,
   timeRuleFeed,
   updateProfileOverride,
 } from '../../core/edit.js';
@@ -25,7 +32,13 @@ import {
   PROFILES_UPDATED,
   type ProfileVendor,
 } from '../../core/profiles.js';
-import type { Config, ProfileOverride, ProgressConfig } from '../../core/types.js';
+import {
+  nextRotationChange,
+  pickRotationTheme,
+  ROTATION_DAYS,
+  ROTATION_MINUTES_MAX,
+} from '../../core/rotation.js';
+import type { Config, ProfileOverride, ProgressConfig, RotationDay } from '../../core/types.js';
 import { api, idText } from './api.js';
 import { clear, h, icon } from './dom.js';
 import { browserLanguages } from './i18n-static.js';
@@ -249,6 +262,185 @@ export function profilesFields(c: Config, apply: ProfileApply, draft: ProfileDra
       t('web.profile.yoursHelp'),
     ),
   ];
+}
+
+export interface RotationTheme {
+  id: string;
+  name: string;
+}
+
+function rotationSelect(
+  label: string,
+  options: [value: string, text: string][],
+  value: string,
+  onPick: (v: string) => void,
+): HTMLSelectElement {
+  const sel = h(
+    'select',
+    { class: 'input', 'aria-label': label, onChange: () => onPick(sel.value) },
+    ...options.map(([v, text]) => h('option', { value: v }, text)),
+  );
+  sel.value = value;
+  return sel;
+}
+
+export function rotationFields(c: Config, themes: RotationTheme[], apply: ProfileApply): HTMLElement[] {
+  const rot = c.themeRotation;
+  const pool = rot?.themes ?? [];
+  const known = (id: string) => themes.some((x) => x.id === id);
+  const nameOf = (id: string) => themes.find((x) => x.id === id)?.name ?? id;
+  const rows = pool.map((id, i) => {
+    const name = nameOf(id);
+    return h(
+      'div',
+      { class: 'profile-row rotation-row' },
+      h('span', { class: 'rotation-name' }, name),
+      known(id) ? null : h('span', { class: 'theme-tag missing' }, t('web.rotation.missing')),
+      h(
+        'button',
+        {
+          class: 'icon-btn',
+          type: 'button',
+          disabled: i === 0,
+          title: t('web.rotation.up'),
+          'aria-label': t('web.rotation.upName', { name }),
+          onClick: () => apply((x) => rotationMoveTheme(x, id, -1)),
+        },
+        '↑',
+      ),
+      h(
+        'button',
+        {
+          class: 'icon-btn',
+          type: 'button',
+          disabled: i === pool.length - 1,
+          title: t('web.rotation.down'),
+          'aria-label': t('web.rotation.downName', { name }),
+          onClick: () => apply((x) => rotationMoveTheme(x, id, 1)),
+        },
+        '↓',
+      ),
+      h(
+        'button',
+        {
+          class: 'icon-btn danger',
+          type: 'button',
+          title: t('pinsp.remove'),
+          'aria-label': t('web.rotation.remove', { name }),
+          onClick: () => apply((x) => rotationRemoveTheme(x, id)),
+        },
+        icon('trash'),
+      ),
+    );
+  });
+  const free = themes.filter((x) => !pool.includes(x.id));
+  const add = rotationSelect(
+    t('web.rotation.add'),
+    [['', t('web.rotation.add')], ...free.map((x): [string, string] => [x.id, x.name])],
+    '',
+    (v) => {
+      if (v) apply((x) => rotationAddTheme(x, v));
+    },
+  );
+  const out: HTMLElement[] = [
+    field(
+      t('web.rotation.pool'),
+      h('div', { class: 'profile-rows' }, ...rows, free.length ? add : null),
+      t('web.rotation.poolHelp'),
+    ),
+  ];
+  if (pool.length) {
+    const every = rot?.every ?? 'day';
+    const kind = typeof every === 'number' ? 'custom' : every;
+    const period = rotationSelect(
+      t('web.rotation.every'),
+      [
+        ['hour', t('web.rotation.hourly')],
+        ['day', t('web.rotation.daily')],
+        ['week', t('web.rotation.weekly')],
+        ['custom', t('web.rotation.custom')],
+      ],
+      kind,
+      (v) => {
+        const next =
+          v === 'custom' ? (typeof every === 'number' ? every : 30) : (v as 'hour' | 'day' | 'week');
+        apply((x) => setRotationEvery(x, next));
+      },
+    );
+    const minutes =
+      typeof every === 'number'
+        ? numberInput(
+            every,
+            (v) => {
+              if (v !== null && Number.isInteger(v) && v >= 1 && v <= ROTATION_MINUTES_MAX)
+                apply((x) => setRotationEvery(x, v), 'themeRotation.every');
+            },
+            { min: 1, max: ROTATION_MINUTES_MAX, step: 1, 'aria-label': t('web.rotation.minutes') },
+          )
+        : null;
+    out.push(
+      field(t('web.rotation.every'), h('div', { class: 'row-inline' }, period, minutes)),
+      field(
+        t('web.rotation.order'),
+        rotationSelect(
+          t('web.rotation.order'),
+          [
+            ['cycle', t('web.rotation.cycle')],
+            ['shuffle', t('web.rotation.shuffle')],
+          ],
+          rot?.order ?? 'cycle',
+          (v) => apply((x) => setRotationOrder(x, v === 'shuffle' ? 'shuffle' : undefined)),
+        ),
+      ),
+    );
+  }
+  const dayOptions: [string, string][] = [
+    ['', t('web.rotation.dayPool')],
+    ...themes.map((x): [string, string] => [x.id, x.name]),
+  ];
+  const days = ROTATION_DAYS.map((d: RotationDay) => {
+    const id = rot?.weekdays?.[d] ?? '';
+    const opts = id && !known(id) ? [...dayOptions, [id, id] as [string, string]] : dayOptions;
+    return h(
+      'label',
+      { class: 'rotation-day' },
+      h('span', null, t(`web.rotation.day.${d}`)),
+      rotationSelect(t(`web.rotation.day.${d}`), opts, id, (v) =>
+        apply((x) => setRotationWeekday(x, d, v || undefined)),
+      ),
+    );
+  });
+  out.push(
+    field(
+      t('web.rotation.weekdays'),
+      h('div', { class: 'rotation-days' }, ...days),
+      t('web.rotation.weekdaysHelp'),
+    ),
+  );
+  if (rot) {
+    const now = new Date();
+    const id = pickRotationTheme(rot, now, known) ?? c.theme;
+    out.push(
+      h(
+        'div',
+        { class: 'hint rotation-status' },
+        t('web.rotation.status', {
+          name: nameOf(id),
+          next: formatDateTime(nextRotationChange(rot, now), languageLocale()),
+        }),
+      ),
+      h(
+        'div',
+        { class: 'row-inline' },
+        h(
+          'button',
+          { class: 'btn', type: 'button', onClick: () => apply((x) => setThemeRotation(x, undefined)) },
+          t('web.rotation.off'),
+        ),
+      ),
+    );
+  }
+  return out;
 }
 
 // option texts are native names
@@ -609,6 +801,13 @@ export async function openSettings(): Promise<void> {
         ),
       ),
       section(t('insp.appearance'), ...appearanceFields(c, render)),
+      section(
+        t('web.rotation.section'),
+        ...rotationFields(c, S.api.themes, (fn, coalesce) => {
+          commit(fn(S.config), coalesce ? { coalesce } : {});
+          if (!coalesce) render();
+        }),
+      ),
       section(
         t('web.settings.data'),
         field(

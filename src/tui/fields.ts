@@ -25,6 +25,9 @@ import {
   setPriority,
   setProfilesBuiltIn,
   setProgress,
+  setRotationEvery,
+  setRotationOrder,
+  setThemeRotation,
   updateItem,
 } from '../core/edit.js';
 import { styleText } from '../core/i18n/catalog-text.js';
@@ -33,8 +36,9 @@ import { LANGUAGES, nativeName } from '../core/i18n/languages.js';
 import { choiceLabel, optionHelp, optionLabel } from '../core/i18n/widget-text.js';
 import { BOX_PRESETS } from '../core/panel.js';
 import { resolveAppearance } from '../core/renderer.js';
+import { formatWeekdays, parseEvery, parseWeekdays } from '../core/rotation.js';
 import { sanitizeText } from '../core/sanitize.js';
-import { resolveTheme, STYLES } from '../core/themes.js';
+import { activeThemeId, resolveTheme, STYLES, themeExists } from '../core/themes.js';
 import type {
   Config,
   GlyphMode,
@@ -619,7 +623,7 @@ export function panelFields(): Field[] {
 export function globalFields(config?: Config, autoLanguage?: LanguageId, brew = false): Field[] {
   const panel = config && resolveAppearance(config).style === 'tui' ? panelFields() : [];
   const all = baseGlobalFields(autoLanguage, brew);
-  all.splice(2, 0, ...panel);
+  all.splice(all.findIndex((f) => f.id === 'style') + 1, 0, ...panel);
   return all;
 }
 
@@ -640,6 +644,80 @@ function languageField(autoLanguage?: LanguageId): Field {
   );
 }
 
+const splitIds = (text: string): string[] => text.split(/[\s,]+/).filter(Boolean);
+
+function rotationFields(): Field[] {
+  return [
+    {
+      id: 'rotation.themes',
+      label: t('tui.field.rotationThemes'),
+      kind: 'text',
+      resettable: true,
+      help: t('tui.field.rotationThemesHelp'),
+      get: (c) => c.themeRotation?.themes?.join(', '),
+      set: (c, v) =>
+        setThemeRotation(c, { ...c.themeRotation, themes: v === undefined ? [] : splitIds(String(v)) }),
+      parse: (text) => {
+        const ids = splitIds(text);
+        const bad = ids.find((id) => !themeExists(id));
+        if (bad !== undefined)
+          return { ok: false, error: t('tui.parse.rotationTheme', { id: sanitizeText(bad) }) };
+        return { ok: true, value: ids.length ? ids.join(', ') : undefined };
+      },
+    },
+    {
+      id: 'rotation.every',
+      label: t('tui.field.rotationEvery'),
+      kind: 'text',
+      resettable: true,
+      help: t('tui.field.rotationEveryHelp'),
+      get: (c) => c.themeRotation?.every,
+      effective: (c) => (c.themeRotation ? (c.themeRotation.every ?? 'day') : undefined),
+      set: (c, v) => setRotationEvery(c, v === undefined ? undefined : (parseEvery(String(v)) ?? undefined)),
+      parse: (text) => {
+        if (!text.trim()) return { ok: true, value: undefined };
+        const every = parseEvery(text);
+        return every === null
+          ? { ok: false, error: t('tui.parse.rotationEvery') }
+          : { ok: true, value: every };
+      },
+    },
+    {
+      id: 'rotation.order',
+      label: t('tui.field.rotationOrder'),
+      kind: 'select',
+      resettable: true,
+      defaultEntry: t('tui.field.rotationCycle'),
+      choices: [{ value: 'shuffle', label: t('tui.field.rotationShuffle') }],
+      get: (c) => c.themeRotation?.order,
+      set: (c, v) => setRotationOrder(c, v === 'shuffle' ? 'shuffle' : undefined),
+      parse: parseText,
+    },
+    {
+      id: 'rotation.weekdays',
+      label: t('tui.field.rotationWeekdays'),
+      kind: 'text',
+      resettable: true,
+      help: t('tui.field.rotationWeekdaysHelp'),
+      get: (c) => formatWeekdays(c.themeRotation?.weekdays) || undefined,
+      set: (c, v) => {
+        const p = v === undefined ? null : parseWeekdays(String(v));
+        return setThemeRotation(c, { ...c.themeRotation, weekdays: p?.ok ? p.map : {} });
+      },
+      parse: (text) => {
+        const p = parseWeekdays(text);
+        if (!p.ok)
+          return { ok: false, error: t('tui.parse.rotationWeekdays', { value: sanitizeText(p.bad) }) };
+        const bad = Object.values(p.map).find((id) => !themeExists(id));
+        if (bad !== undefined)
+          return { ok: false, error: t('tui.parse.rotationTheme', { id: sanitizeText(bad) }) };
+        const out = formatWeekdays(p.map);
+        return { ok: true, value: out || undefined };
+      },
+    },
+  ];
+}
+
 function baseGlobalFields(autoLanguage?: LanguageId, brew = false): Field[] {
   return [
     {
@@ -650,7 +728,10 @@ function baseGlobalFields(autoLanguage?: LanguageId, brew = false): Field[] {
       resettable: false,
       get: (c) => c.theme,
       set: (c) => c,
-      effective: (c) => resolveTheme(c.theme).name,
+      effective: (c) =>
+        c.themeRotation
+          ? `${resolveTheme(activeThemeId(c)).name} ${t('tui.field.rotating')}`
+          : resolveTheme(c.theme).name,
       parse: parseText,
     },
     overrideField({
@@ -692,6 +773,7 @@ function baseGlobalFields(autoLanguage?: LanguageId, brew = false): Field[] {
     glyphField('thin', t('tui.field.glyphThin')),
     glyphField('startCap', t('tui.field.glyphStartCap')),
     glyphField('endCap', t('tui.field.glyphEndCap')),
+    ...rotationFields(),
     globalField(
       'loadingText',
       t('tui.field.loadingText'),

@@ -198,7 +198,9 @@ const english = (() => {
       .filter((s) => !trValues.has(s)),
   );
 })();
-const foreign = (el: FakeEl) => texts(el).filter((s) => english.has(s));
+// theme names stay literal, like in the gallery
+const themeNames = new Set(listThemes(path.join(__dirname, 'no-such-themes-dir')).map((th) => th.name));
+const foreign = (el: FakeEl) => texts(el).filter((s) => english.has(s) && !themeNames.has(s));
 
 const overlay = (app: App) => app.root.all((e) => e.classList.contains('overlay')).at(-1)!;
 const langSelect = (app: App) =>

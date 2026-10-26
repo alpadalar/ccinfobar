@@ -1,6 +1,7 @@
 import type { ShareState } from '../../catalog/model.js';
 import type { EntryContent, EntryKind, StyleGroup, StyleHistory, StyleSnapshot } from '../../core/edit.js';
 import { COLS_MAX, COLS_MIN } from '../../core/entry-keys.js';
+import { pickRotationTheme } from '../../core/rotation.js';
 import type { Config, OptionSpec, WidgetCategory } from '../../core/types.js';
 
 export type HiddenWhy = 'rule' | 'priority';
@@ -367,4 +368,12 @@ export function replaceAll(config: Config): void {
 export function currentTheme(): ThemeInfo | undefined {
   const id = S.config.theme || 'classic';
   return S.api.themes.find((t) => t.id === id) ?? S.api.themes.find((t) => t.id === 'classic');
+}
+
+// the theme rotation shows right now, if any
+export function rotatedTheme(): ThemeInfo | undefined {
+  const rot = S.config.themeRotation;
+  if (!rot) return undefined;
+  const id = pickRotationTheme(rot, new Date(), (x) => S.api.themes.some((t) => t.id === x));
+  return id ? S.api.themes.find((t) => t.id === id) : undefined;
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
+import { setThemeRotation } from '../../src/core/edit.js';
 import { resolveAppearance } from '../../src/core/renderer.js';
+import { resolveTheme } from '../../src/core/themes.js';
 import type { Config } from '../../src/core/types.js';
 import {
   cycled,
@@ -577,5 +579,55 @@ describe('updates field on a Homebrew copy', () => {
     expect(withLang('tr', () => help(true))).toBe(
       'Bu kopyayı Homebrew güncelliyor: brew upgrade ccinfobar çalıştırın. auto, notify gibi bir not gösterir, off hiç denetlemez',
     );
+  });
+});
+
+describe('theme rotation fields', () => {
+  const ok = (id: string, text: string) => {
+    const r = field(id).parse(text);
+    if (!r.ok) throw new Error(r.error);
+    return r.value;
+  };
+
+  it('lists the four rotation fields', () => {
+    const ids = globalFields().map((f) => f.id);
+    for (const id of ['rotation.themes', 'rotation.every', 'rotation.order', 'rotation.weekdays'])
+      expect(ids).toContain(id);
+  });
+
+  it('parses and sets the pool, period, order and weekdays', () => {
+    let c = field('rotation.themes').set(defaultConfig(), ok('rotation.themes', 'nord, dracula'));
+    expect(c.themeRotation).toEqual({ themes: ['nord', 'dracula'] });
+    expect(field('rotation.themes').get(c)).toBe('nord, dracula');
+    c = field('rotation.every').set(c, ok('rotation.every', '30m'));
+    expect(c.themeRotation?.every).toBe(30);
+    c = field('rotation.order').set(c, 'shuffle');
+    c = field('rotation.weekdays').set(c, ok('rotation.weekdays', 'Friday=nord'));
+    expect(c.themeRotation).toEqual({
+      themes: ['nord', 'dracula'],
+      every: 30,
+      order: 'shuffle',
+      weekdays: { fri: 'nord' },
+    });
+    expect(field('rotation.weekdays').get(c)).toBe('fri=nord');
+    c = field('rotation.every').set(c, ok('rotation.every', ''));
+    c = field('rotation.order').set(c, undefined);
+    c = field('rotation.weekdays').set(c, undefined);
+    expect(c.themeRotation).toEqual({ themes: ['nord', 'dracula'] });
+    c = field('rotation.themes').set(c, ok('rotation.themes', ''));
+    expect('themeRotation' in c).toBe(false);
+  });
+
+  it('rejects bad text', () => {
+    expect(field('rotation.every').parse('0x').ok).toBe(false);
+    expect(field('rotation.weekdays').parse('xyz=nord').ok).toBe(false);
+    expect(field('rotation.weekdays').parse('mon=ghost').ok).toBe(false);
+    expect(field('rotation.themes').parse('nord ghost').ok).toBe(false);
+  });
+
+  it('shows the rotated theme on the theme field', () => {
+    const c = setThemeRotation({ ...defaultConfig(), theme: 'classic' }, { themes: ['dracula'] });
+    expect(field('theme').effective!(c)).toBe(`${resolveTheme('dracula').name} (rotating)`);
+    expect(field('theme').effective!(defaultConfig())).toBe(resolveTheme('classic').name);
   });
 });

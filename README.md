@@ -362,7 +362,10 @@ Every rule, metric and mode is in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#
 ```sh
 ccinfobar themes          # preview every theme in your terminal
 ccinfobar theme dracula   # switch
+ccinfobar theme rotate nord dracula tokyo-night --every day --shuffle
 ```
+
+Theme rotation switches between a pool of themes every hour, day, week or N minutes, in order or shuffled, or pins a theme per weekday; see [Theme rotation](docs/CONFIGURATION.md#theme-rotation).
 
 | Style | Themes |
 | --- | --- |
@@ -647,6 +650,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar uninstall --progress` | Remove only the terminal progress handlers, turn `progress.enabled` off and clear the bar |
 | `ccinfobar themes` | Preview every theme (`--width <n>`; `--list` prints ids and names only) |
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
+| `ccinfobar theme rotate <id...>` | Rotate themes ([Theme rotation](docs/CONFIGURATION.md#theme-rotation); `--every hour\|day\|week\|<minutes>`, `--shuffle` or `--cycle`, `--weekdays mon=nord,...` or `--weekdays off`); `theme rotate` shows it, `theme rotate off` turns it off |
 | `ccinfobar import <tool>` | Import another status line's layout; `ccinfobar import --help` lists every tool, also in [Coming from another status line](#coming-from-another-status-line) (`--file <path>`, `--force`, `--dry-run` to only show the report and a preview, `--allow-commands` to keep its commands and URLs without asking, `--command <cmd>` to read that status line command instead of the current one) |
 | `ccinfobar report` | Tokens, estimated cost and active time per project ([Reports](#reports); `--period day\|week\|month`, `--since`/`--until <date>`, `--all`, `--project <text>`, `--csv`, `--json` or `--format table\|csv\|json`, `--rebuild`) |
 | `ccinfobar init [preset]` | Write a [preset](#presets): `default`, `cockpit`, `dashboard`, `minimal`, `gsd`, `powerline`, `full`, `cost`, `limits`, `git`, `workspace`, `compact`, `two-line`, `agents`, `charts`, `session` (`--force` to overwrite) |
