@@ -116,6 +116,24 @@ The share switch decides whether an entry should go to a marketplace. The public
 
 Set an endpoint with `ccinfobar catalog endpoint <url>` (https only; http only for `localhost`, `127.0.0.1` and `[::1]`), or for one run with the `CCINFOBAR_MARKETPLACE_URL` environment variable, which wins over the stored one. `ccinfobar catalog endpoint --off` (or `CCINFOBAR_MARKETPLACE_URL=off` for one shell) switches the marketplace off, and `--clear` goes back to the default. See [MARKETPLACE.md](MARKETPLACE.md) for the protocol, the public server, privacy, the reference server and when ccinfobar contacts the marketplace.
 
+## Share codes
+
+A share code carries a layout and its theme as one line of text you can paste into a chat or an issue. No server is involved: the code is the config.
+
+```bash
+ccinfobar share                       # prints ccib1:… (size and removed widgets on stderr)
+ccinfobar edit --open 'ccib1:…'       # open it in the editor, unsaved
+ccinfobar catalog apply 'ccib1:…'     # or write it to your config (backup first)
+```
+
+- Format: `ccib1:` followed by base64url (no padding) of deflate-raw compressed JSON `{"v":1,"content":{"layout","appearance","theme"},"cols"}`. The digit is the format version; a code is at most 32768 characters and unpacks to at most 256 KiB.
+- Included: the layout keys (`lines`, `align`, `lineAlign`, `overflow`, `autoWrap`, `widthOffset`, `tui`) and the theme: a built-in theme by id, or the full theme JSON for one of your own themes or when the config overrides its style, separator, padding or glyphs. `cols` is the editor's preview width when the code comes from the editor.
+- Never included: personal settings such as budget, profiles, language, charset, icons, glyph mode, update, usage API, theme rotation, progress and the saved payload.
+- Command, HTTP and link widgets are removed by default and listed (`ccinfobar share` on stderr, the editor's Share dialog in its list). `ccinfobar share --include-commands`, or **Include commands and links** in the dialog, keeps them.
+- Opening a code always shows the commands, HTTP calls and links it has, with the same consent as an import: the editor asks to drop or keep them, `catalog apply` drops them unless you pass `--allow-commands` or keep them at the prompt, and an overlong one is never kept. Unsafe links (`javascript:`, `data:`) are dropped and escape and control characters are removed from all text.
+- Opening never saves: `ccinfobar edit --open` and the editor's **Open…** load the config unsaved (undo works) and keep your language. An embedded theme is installed into `themes/` when the code is opened, as with Apply in the catalog; a clashing id gets a `-2` suffix.
+- Pasting works with a bare code, with surrounding quotes or line breaks, and with a link whose fragment is `#c=<code>` (a future web link wraps the same code).
+
 ## Files
 
 Everything lives in the ccinfobar config folder (`~/.config/ccinfobar` on Linux and macOS, `%APPDATA%\ccinfobar` on Windows, or `CCINFOBAR_CONFIG_DIR`). Nothing goes into Claude Code's settings.
@@ -148,7 +166,7 @@ Your own `<kind>/<slug>` wins over a built-in ref with the same text.
 | `ccinfobar catalog list [--kind preset\|theme\|bundle] [--user\|--system] [--json]` | Your entries first, then the built-in ones, grouped by kind, with ref, version, author and share state |
 | `ccinfobar catalog show <ref> [--scenario <name>] [--width <n>] [--json]` | Details and a preview of your config with the entry applied. Writes nothing |
 | `ccinfobar catalog history <ref> [--json]` | Versions with time, note, restores and overwrites |
-| `ccinfobar catalog apply <ref> [--allow-commands] [--yes] [--dry-run] [--json]` | Apply to the config file (backup first) |
+| `ccinfobar catalog apply <ref\|code> [--allow-commands] [--yes] [--dry-run] [--json]` | Apply to the config file (backup first). A [share code](#share-codes) works in place of a ref |
 | `ccinfobar catalog save <name> [--kind bundle\|preset\|theme] [--description <text>] [--author <name>] [--note <text>] [--cols <n>] [--no-share] [--update\|--overwrite] [--dry-run] [--json]` | Save the current setup. Kind defaults to bundle, share is on unless `--no-share`. `--author` is remembered. `--cols` records the preview width (40 to 400, presets and bundles only); without it an update keeps the previous width |
 | `ccinfobar catalog restore <ref> <version> [--dry-run] [--json]` | Restore an older version as a new one (`2` or `v2`) |
 | `ccinfobar catalog share\|unshare <ref> [--dry-run] [--json]` | Turn sharing on or off |

@@ -134,6 +134,8 @@ export interface EditorOptions {
   installKind?: () => InstallKind;
   fetchLatest?: (timeoutMs: number) => Promise<string>;
   detached?: { idleMs: number; stateFile: string; checkMs?: number; now?: () => number };
+  // a decoded share code; the page opens it from #c=
+  share?: string;
   // tests inject the network and the clock of marketplace and GitHub calls
   market?: {
     fetch?: typeof fetch;
@@ -1698,8 +1700,9 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     });
   }
 
-  const url = `http://127.0.0.1:${port}/?t=${token}`;
-  if (opts.detached) startDetached(opts.detached, url);
+  const base = `http://127.0.0.1:${port}/?t=${token}`;
+  if (opts.detached) startDetached(opts.detached, base);
+  const url = opts.share ? `${base}#c=${opts.share}` : base;
   const say = (line: () => string) => console.log(withLanguage(cli, line));
   const onSigint = () => {
     say(() => t('edit.stopping'));

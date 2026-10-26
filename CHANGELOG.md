@@ -12,6 +12,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Web editor: `Ctrl`/`Cmd` + `C`, `Ctrl`/`Cmd` + `V` and `Ctrl`/`Cmd` + `D` copy, paste and duplicate the selected widget with all its options, style and rules. Each paste is one undo step, the shortcuts never fire inside text fields or over selected page text, and `Ctrl`/`Cmd` + `Alt` + `C`/`V` still copy and paste only the style
 - Web editor: drag the preview's right edge to resize it (40 to 400 columns, synced with the width slider), double-click the edge to reset it to 130
 - Web editor: a rotating tips line under the lines shows shortcuts. It pauses on hover or focus, does not rotate when the system asks for reduced motion, and can be hidden for good
+- Share codes: `ccinfobar share` prints a `ccib1:` code (compressed, base64url) with your layout and theme and none of your personal settings. Command, HTTP and link widgets are removed unless you pass `--include-commands`, and `--json` prints the code with its size and what was removed. `ccinfobar edit --open <code>` (or `ccinfobar edit <code>`) opens the editor with it loaded and unsaved, and `ccinfobar catalog apply <code>` writes it with the usual consent, `--dry-run`, `--json` and backup. A damaged, oversized or unknown-version code is refused before anything starts
 
 ## [0.8.2] - 2026-10-20
 

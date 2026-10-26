@@ -9,6 +9,8 @@ export const cliMessages = {
   'help.cmd.render': "Durum satırını görüntüler (Claude Code JSON'unu stdin'den okur)",
   'help.cmd.edit': 'Sürükle-bırak editörü tarayıcınızda açar',
   'help.cmd.editDetach': "Editörü arka planda başlatır, URL'sini yazar ve çıkar",
+  'help.cmd.editOpen':
+    "Editörü bir paylaşım kodu yüklü olarak açar (Kaydet'e basana kadar hiçbir şey kaydedilmez)",
   'help.cmd.tui': 'Terminal editörünü açar',
   'help.cmd.install': "Claude Code'un statusLine ayarını ccinfobar'a yönlendirir",
   'help.cmd.installProject': "Bu projenin kendi statusLine ayarını da devralır (örn. GSD'ninkini)",
@@ -35,9 +37,10 @@ export const cliMessages = {
   'help.cmd.catalogInstall':
     "Bir marketplace girdisini komutlarını ve URL'lerini gösterdikten sonra kataloğunuza yükler",
   'help.cmd.catalogSave':
-    'Bir katalog girdisini uygular veya düzeninizi girdi olarak kaydeder; tüm alt komutlar için ccinfobar catalog çalıştırın',
+    'Bir katalog girdisini veya paylaşım kodunu uygular ya da düzeninizi girdi olarak kaydeder; tüm alt komutlar için ccinfobar catalog çalıştırın',
   'help.cmd.catalogPublish': 'Paylaşılan girdilerinizi gösterir, sonra marketplace adresine gönderir',
   'help.cmd.catalogLogin': "GitHub ile marketplace'e giriş yapar veya çıkış yapar",
+  'help.cmd.share': 'Düzeniniz ve temanız için bir paylaşım kodu yazdırır (kişisel ayarlar dahil edilmez)',
   'help.cmd.preview': 'Durum satırını örnek verilerle yazdırır',
   'help.cmd.previewScenario': 'Adı verilen bir durumu önizler (liste için --scenario)',
   'help.cmd.previewGlyphMode': "Bir glif moduyla önizler, örn. GitHub issue'ları için paste-safe",
@@ -76,6 +79,7 @@ export const cliMessages = {
   'help.opt.import': 'install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz',
   'help.opt.file': 'import: bu ayar dosyasını okur',
   'help.opt.allowCommands': "import, install: içe aktarılan komutları ve URL'leri sormadan korur",
+  'help.opt.includeCommands': 'share: komut, HTTP ve bağlantı bileşenlerini kodda tutar',
   'help.opt.command': 'install: yazılacak komut (varsayılan: auto); import: okunacak durum satırı komutu',
   'help.opt.hooks':
     "install: hook'ları ekler (=permission, PermissionRequest de ekler);\nuninstall: yalnızca ccinfobar'ın hook'larını kaldırır",

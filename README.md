@@ -640,6 +640,8 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar` | Render the status line from the JSON on stdin (what Claude Code runs) |
 | `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
 | `ccinfobar edit --detach` | Start the editor in the background, print its URL and exit; a running one is reused, and it stops after 30 minutes idle |
+| `ccinfobar edit --open <code>` | Open the editor with a [share code](docs/CATALOG.md#share-codes) loaded (also `ccinfobar edit <code>`; works with `--detach` and `--no-open`). Commands, HTTP calls and links in it are shown first and dropped unless you keep them, and nothing is saved until you click Save |
+| `ccinfobar share` | Print a [share code](docs/CATALOG.md#share-codes) (`ccib1:…`) for your layout and theme on stdout, its size and anything removed on stderr. Command, HTTP and link widgets are removed unless you pass `--include-commands`; `--json` prints `{schema, code, chars, max, included, dropped}` |
 | `ccinfobar tui` | Open the terminal editor |
 | `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--yes` to replace another tool's without asking, `--dry-run` to only show the plan, `--import`, `--no-import`, `--allow-commands` to keep imported commands, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally, or a pinned copy with `--no-global`) |
 | `ccinfobar install --hooks` | Also add the optional [hooks](#hooks) (`--hooks=permission` adds PermissionRequest) |
@@ -662,7 +664,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar explain [widget-id]` | Show each widget's value, where it came from (payload field, cache and its age, git, GSD) and why it is empty (`--json` for bug reports, `--scenario <name>`, `--payload <file>`). `env`, `command`, `http` and `tool-activity` values are redacted; `--show-values` shows them in a terminal |
 | `ccinfobar bench` | Measure render time: a `node -e 0` control, then cold and warm median and p95 (`--runs <n>`, `--scenario <name>`, `--json`) |
 | `ccinfobar config get\|set\|unset <path> [value]` | Read or change one config value by dotted path, e.g. `ccinfobar config set gitHardening false` or `ccinfobar config get lines.0.2.type`. Values are parsed as JSON, else taken as a string; a value that would not pass validation is refused and nothing is written |
-| `ccinfobar catalog <command>` | Browse, apply and save presets, themes and bundles ([Catalog](#catalog)): `list`, `show`, `history`, `apply`, `save`, `restore`, `share`, `unshare`, `delete`, `author`, `endpoint`, `publisher`, `publish`, `install`, `login`, `logout`, `report` (`--json`, `--dry-run` on the write commands, `--remote` to browse the marketplace, `save --cols <n>` for the preview width) |
+| `ccinfobar catalog <command>` | Browse, apply and save presets, themes and bundles ([Catalog](#catalog)): `list`, `show`, `history`, `apply` (a ref or a share code), `save`, `restore`, `share`, `unshare`, `delete`, `author`, `endpoint`, `publisher`, `publish`, `install`, `login`, `logout`, `report` (`--json`, `--dry-run` on the write commands, `--remote` to browse the marketplace, `save --cols <n>` for the preview width) |
 | `ccinfobar hook <Event>` | Used by Claude Code hooks: records one event and prints nothing |
 
 All commands accept `--config <file>`.

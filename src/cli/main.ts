@@ -64,6 +64,16 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   }
 }
 
+// a bad code fails before any server starts
+async function shareArg(args: Args): Promise<{ share?: string }> {
+  const raw = args.positional[0];
+  if (raw === undefined) return {};
+  const { decodeShare } = await import('../catalog/share-code.js');
+  const r = decodeShare(raw);
+  if (!r.ok) throw new Error(t(r.errorId));
+  return { share: r.code };
+}
+
 async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
   switch (args.command) {
     case null: {
@@ -78,9 +88,11 @@ async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
     case 'edit':
     case 'editor': {
       const port = typeof args.flags.port === 'string' ? Number(args.flags.port) : undefined;
+      const share = await shareArg(args);
       if (args.flags.detach === true) {
         const { runDetach } = await import('../editor/detach.js');
-        process.exitCode = await runDetach({ configPath: cfgFile, port, open: args.flags.open !== false });
+        const open = args.flags.open !== false;
+        process.exitCode = await runDetach({ configPath: cfgFile, port, open, ...share });
         return;
       }
       const { startEditor } = await import('../editor/server.js');
@@ -92,7 +104,7 @@ async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
       }
       const { queryTerminalColors } = await import('../editor/terminal-colors.js');
       const terminal = args.flags.detect === false ? null : await queryTerminalColors();
-      await startEditor({ configPath: cfgFile, port, open: args.flags.open !== false, terminal });
+      await startEditor({ configPath: cfgFile, port, open: args.flags.open !== false, terminal, ...share });
       return;
     }
     case 'tui': {
@@ -183,6 +195,11 @@ async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
     case 'report': {
       const { runReport } = await import('../commands/report.js');
       runReport(args, cfgFile, reportDeps());
+      return;
+    }
+    case 'share': {
+      const { runShare } = await import('../commands/share.js');
+      runShare(args, cfgFile);
       return;
     }
     case 'catalog': {

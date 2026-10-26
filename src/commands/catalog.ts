@@ -62,6 +62,7 @@ import { type PreviewSource, renderPreview, scenarioFlag, scenarioListLines } fr
 import { finalizeLine } from '../core/renderer.js';
 import { withoutRotation } from '../core/rotation.js';
 import { sanitizeText } from '../core/sanitize.js';
+import { extractCode } from '../core/share-code.js';
 import { parseThemeInput, resolveThemeInput, type Theme } from '../core/themes.js';
 import { padVisible, visibleWidth } from '../core/width.js';
 import { gsdInstalled } from '../data/gsd.js';
@@ -500,21 +501,45 @@ function writable(c: Ctx, hit: AnyEntry): CatalogEntry | null {
 
 const targetKey = (x: ImportTarget) => `${x.kind}\u0000${x.target}`;
 
+interface ApplySource {
+  ref: string;
+  kind: EntryKind;
+  name: string;
+  content: EntryContent;
+  // a share code is never echoed in a hint
+  code?: boolean;
+}
+
 async function runApply(c: Ctx): Promise<void> {
-  const hit = find(c, c.args.positional[1]);
+  const arg = c.args.positional[1];
+  if (arg !== undefined && !('errorId' in extractCode(arg))) {
+    const { decodeShare } = await import('../catalog/share-code.js');
+    const r = decodeShare(arg);
+    if (!r.ok) {
+      c.fail(t(r.errorId));
+      return;
+    }
+    const name = t('share.entryName');
+    await applySource(c, { ref: 'share-code', kind: 'bundle', name, content: r.content, code: true });
+    return;
+  }
+  const hit = find(c, arg);
   if (!hit) return;
+  const content = structuredClone(contentOf(hit));
+  await applySource(c, { ref: refOf(hit), kind: kindOf(hit), name: summary(hit).name, content });
+}
+
+async function applySource(c: Ctx, src: ApplySource): Promise<void> {
   const loaded = loadForUse(c.cfgFile, () => c.gsd);
   if (!usable(c, loaded)) return;
   const current = loaded.config;
   const m = await import('./manage.js');
-  const ref = refOf(hit);
-  const kind = kindOf(hit);
-  const name = summary(hit).name;
-  const content = structuredClone(contentOf(hit));
+  const { ref, kind, name, content } = src;
   let dropped: ImportTarget[] = [];
   if (kind !== 'theme' && content.layout) {
     const before = importTargets(content.layout);
-    const parts = [m.selfCommand(), 'catalog', 'apply', m.shellArg(ref) ?? ref, '--allow-commands'];
+    const refArg = src.code ? '<code>' : (m.shellArg(ref) ?? ref);
+    const parts = [m.selfCommand(), 'catalog', 'apply', refArg, '--allow-commands'];
     if (c.dryRun) parts.push('--dry-run');
     const rerun = { command: sanitizeText(parts.join(' ')), addFile: false, addCommand: false };
     const flags = {

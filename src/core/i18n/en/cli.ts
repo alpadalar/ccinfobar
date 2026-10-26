@@ -6,6 +6,7 @@ export const cliMessages = {
   'help.cmd.render': 'Render the status line (reads Claude Code JSON from stdin)',
   'help.cmd.edit': 'Open the drag-and-drop editor in your browser',
   'help.cmd.editDetach': 'Start the editor in the background, print its URL and exit',
+  'help.cmd.editOpen': 'Open the editor with a share code loaded (nothing is saved until you click Save)',
   'help.cmd.tui': 'Open the terminal editor',
   'help.cmd.install': "Point Claude Code's statusLine at ccinfobar",
   'help.cmd.installProject': "Also win over this project's own statusLine (e.g. GSD's)",
@@ -31,9 +32,10 @@ export const cliMessages = {
   'help.cmd.catalogInstall':
     'Install a marketplace entry into your catalog after showing its commands and URLs',
   'help.cmd.catalogSave':
-    'Apply a catalog entry or save your setup as one; run ccinfobar catalog for all subcommands',
+    'Apply a catalog entry or a share code, or save your setup as an entry; run ccinfobar catalog for all subcommands',
   'help.cmd.catalogPublish': 'Show your shared entries, then send them to the marketplace endpoint',
   'help.cmd.catalogLogin': 'Sign in to the marketplace with GitHub, or sign out',
+  'help.cmd.share': 'Print a share code for your layout and theme (personal settings stay out)',
   'help.cmd.preview': 'Print the status line with sample data',
   'help.cmd.previewScenario': 'Preview a named situation (list them with --scenario)',
   'help.cmd.previewGlyphMode': 'Preview with a glyph mode, e.g. paste-safe for GitHub issues',
@@ -72,6 +74,7 @@ export const cliMessages = {
   'help.opt.import': "install: import the previous status line's layout without asking",
   'help.opt.file': 'import: read this settings file',
   'help.opt.allowCommands': 'import, install: keep imported commands and URLs without asking',
+  'help.opt.includeCommands': 'share: keep command, HTTP and link widgets in the code',
   'help.opt.command': 'install: command to write (default: auto); import: status line command to read',
   'help.opt.hooks':
     "install: add hooks (=permission adds PermissionRequest);\nuninstall: remove only ccinfobar's hooks",

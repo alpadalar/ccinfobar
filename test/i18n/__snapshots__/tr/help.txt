@@ -5,6 +5,7 @@ Kullanım
   ccinfobar                       Durum satırını görüntüler (Claude Code JSON'unu stdin'den okur)
   ccinfobar edit                  Sürükle-bırak editörü tarayıcınızda açar
   ccinfobar edit --detach         Editörü arka planda başlatır, URL'sini yazar ve çıkar
+  ccinfobar edit --open <code>    Editörü bir paylaşım kodu yüklü olarak açar (Kaydet'e basana kadar hiçbir şey kaydedilmez)
   ccinfobar tui                   Terminal editörünü açar
   ccinfobar install               Claude Code'un statusLine ayarını ccinfobar'a yönlendirir
   ccinfobar install --project     Bu projenin kendi statusLine ayarını da devralır (örn. GSD'ninkini)
@@ -33,10 +34,11 @@ Kullanım
                                   Yerleşik ve kayıtlı hazır ayarlara, temalara ve paketlere göz atar (--remote: marketplace)
   ccinfobar catalog install <publisher>/<slug>
                                   Bir marketplace girdisini komutlarını ve URL'lerini gösterdikten sonra kataloğunuza yükler
-  ccinfobar catalog apply|save <name>
-                                  Bir katalog girdisini uygular veya düzeninizi girdi olarak kaydeder; tüm alt komutlar için ccinfobar catalog çalıştırın
+  ccinfobar catalog apply <ref|code>|save <name>
+                                  Bir katalog girdisini veya paylaşım kodunu uygular ya da düzeninizi girdi olarak kaydeder; tüm alt komutlar için ccinfobar catalog çalıştırın
   ccinfobar catalog publish       Paylaşılan girdilerinizi gösterir, sonra marketplace adresine gönderir
   ccinfobar catalog login|logout  GitHub ile marketplace'e giriş yapar veya çıkış yapar
+  ccinfobar share                 Düzeniniz ve temanız için bir paylaşım kodu yazdırır (kişisel ayarlar dahil edilmez)
   ccinfobar preview               Durum satırını örnek verilerle yazdırır
   ccinfobar preview --scenario <name>
                                   Adı verilen bir durumu önizler (liste için --scenario)
@@ -82,6 +84,7 @@ Seçenekler
   --import / --no-import          install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz
   --file <path>                   import: bu ayar dosyasını okur
   --allow-commands                import, install: içe aktarılan komutları ve URL'leri sormadan korur
+  --include-commands              share: komut, HTTP ve bağlantı bileşenlerini kodda tutar
   --command <cmd>                 install: yazılacak komut (varsayılan: auto); import: okunacak durum satırı komutu
   --hooks[=permission]            install: hook'ları ekler (=permission, PermissionRequest de ekler);
                                   uninstall: yalnızca ccinfobar'ın hook'larını kaldırır

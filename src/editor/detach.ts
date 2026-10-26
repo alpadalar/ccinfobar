@@ -17,6 +17,7 @@ export interface DetachOptions {
   configPath: string;
   port?: number | undefined;
   open: boolean;
+  share?: string;
   env?: NodeJS.ProcessEnv;
   spawn?: (args: string[]) => number | null;
   waitMs?: number;
@@ -93,7 +94,9 @@ async function reusable(env: NodeJS.ProcessEnv, config: string, port?: number): 
 export async function runDetach(opts: DetachOptions): Promise<number> {
   const env = opts.env ?? process.env;
   const log = opts.log ?? ((s: string) => console.log(s));
-  const ready = async (url: string) => {
+  const ready = async (live: string) => {
+    const base = live.split('#')[0]!;
+    const url = opts.share ? `${base}#c=${opts.share}` : base;
     log(t('edit.running', { url }));
     if (opts.open) await openUrl(url);
     return 0;
