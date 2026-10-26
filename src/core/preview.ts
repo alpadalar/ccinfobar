@@ -22,6 +22,7 @@ import {
   sampleGsd,
   sampleHistory,
   sampleHooks,
+  sampleJj,
   sampleJobs,
   sampleLedger,
   sampleLimits,
@@ -185,6 +186,7 @@ function previewContext(raw: Config, source: PreviewSource, width: number, theme
     data: {
       git: sampleGit,
       gsd: sampleGsd,
+      jj: sampleJj,
       transcript: () => sampleTranscript(now),
       history: () => sampleHistory(now),
       agents: () => sampleAgents(now),

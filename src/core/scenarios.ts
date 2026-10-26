@@ -41,6 +41,7 @@ function base(now: number): ScenarioBundle {
       git: sampleGit,
       transcript: () => sampleTranscript(now),
       gsd: () => null,
+      jj: () => null,
       history: () => sampleHistory(now),
       agents: () => sampleAgents(now),
       // follows the bundle's rate_limits

@@ -4,6 +4,7 @@ import type { GitInfo } from '../data/git.js';
 import type { GsdInfo } from '../data/gsd.js';
 import type { HistorySample } from '../data/history.js';
 import type { HookState } from '../data/hooks.js';
+import type { JjReader } from '../data/jj.js';
 import type { JobEnvelope, JobReader } from '../data/jobs/runner.js';
 import type { LedgerView } from '../data/ledger.js';
 import type { LimitsView, ResolvedWindow } from '../data/limits.js';
@@ -100,6 +101,16 @@ export function sampleGit(): GitInfo {
     operation: null,
     remoteUrl: 'git@github.com:acme/acme-app.git',
     isWorktree: false,
+  };
+}
+
+export function sampleJj(): JjReader {
+  return {
+    root: '/home/dev/projects/acme-app',
+    bookmarks: () => ['main'],
+    workspace: () => 'default',
+    change: () => ({ id: 'kkmpptxz', description: 'Wire GSD widgets into renderer' }),
+    diff: () => ({ insertions: 42, deletions: 10 }),
   };
 }
 

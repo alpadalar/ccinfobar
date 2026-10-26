@@ -347,5 +347,6 @@ export interface DataSources {
   hooks?(): import('../data/hooks.js').HookState | null;
   environment?(): import('../data/environment.js').EnvCounts | null;
   jobs?(): import('../data/jobs/runner.js').JobReader;
+  jj?(): import('../data/jj.js').JjReader | null;
   agents(): import('../data/agents.js').AgentInfo[];
 }

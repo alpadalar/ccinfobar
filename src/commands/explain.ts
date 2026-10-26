@@ -30,6 +30,7 @@ import {
   sampleGsd,
   sampleHistory,
   sampleHooks,
+  sampleJj,
   sampleJobs,
   sampleLedger,
   sampleLimits,
@@ -151,6 +152,7 @@ function sampleData(now: number, payload: StatusPayload): DataSources {
   return {
     git: sampleGit,
     gsd: sampleGsd,
+    jj: sampleJj,
     transcript: () => sampleTranscript(now),
     history: () => sampleHistory(now),
     agents: () => sampleAgents(now),

@@ -20,11 +20,14 @@ export interface GitInfo {
   stash: number;
   operation: string | null;
   remoteUrl: string | null;
+  upstreamUrl?: string | null;
+  forkUrl?: string | null;
   isWorktree: boolean;
 }
 
 // spawning git is slow on Windows
-const TIMEOUT = Number(process.env.CCINFOBAR_GIT_TIMEOUT) || (process.platform === 'win32' ? 1500 : 400);
+export const GIT_TIMEOUT =
+  Number(process.env.CCINFOBAR_GIT_TIMEOUT) || (process.platform === 'win32' ? 1500 : 400);
 
 export const HARDEN = ['-c', 'core.fsmonitor=false', '--no-optional-locks'] as const;
 
@@ -80,7 +83,7 @@ function execAsync(
 }
 
 function git(cwd: string, args: string[], pre: readonly string[] = []): string | null {
-  return exec(cwd, [...pre, ...args], TIMEOUT, {
+  return exec(cwd, [...pre, ...args], GIT_TIMEOUT, {
     ...process.env,
     GIT_OPTIONAL_LOCKS: '0',
     LC_ALL: 'C',
@@ -209,7 +212,7 @@ export function localFilterOverrides(entries: ScopedEntry[]): string[] {
   return out;
 }
 
-const SCOPED_RE = '^(remote\\.origin\\.url|filter\\..+\\.(clean|smudge|process))$';
+const SCOPED_RE = '^(remote\\.(origin|upstream|fork)\\.url|filter\\..+\\.(clean|smudge|process))$';
 
 export async function hardenedGit(
   cwd: string,
@@ -246,16 +249,12 @@ export function readGit(cwd: string, opts: { harden?: boolean } = {}): GitInfo |
   const gitDir = path.resolve(cwd, gitDirRaw);
   const common = commonRaw ? path.resolve(cwd, commonRaw) : gitDir;
 
-  let remote: string | null = null;
-  let safe: readonly string[] = [];
-  if (harden) {
-    // exits 1 when nothing matches
-    const entries = parseScopedConfig(
-      git(cwd, ['config', '--show-scope', '--get-regexp', SCOPED_RE], HARDEN) ?? '',
-    );
-    remote = entries.find((e) => e.key === 'remote.origin.url')?.value.trim() || null;
-    safe = [...HARDEN, ...localFilterOverrides(entries)];
-  }
+  // exits 1 when nothing matches
+  const entries = parseScopedConfig(
+    git(cwd, ['config', '--show-scope', '--get-regexp', SCOPED_RE], pre) ?? '',
+  );
+  const url = (name: string) => entries.find((e) => e.key === `remote.${name}.url`)?.value.trim() || null;
+  const safe: readonly string[] = harden ? [...HARDEN, ...localFilterOverrides(entries)] : [];
 
   const base = ['status', '--porcelain=v2', '--branch'];
   const status = git(cwd, [...base, '--show-stash'], safe) ?? git(cwd, base, safe);
@@ -267,14 +266,15 @@ export function readGit(cwd: string, opts: { harden?: boolean } = {}): GitInfo |
     : ['diff', 'HEAD', '--shortstat'];
   const diff = git(cwd, diffArgs, safe);
   const stat = diff ? parseShortstat(diff) : { insertions: 0, deletions: 0 };
-  if (!harden) remote = git(cwd, ['config', '--get', 'remote.origin.url'])?.trim() || null;
 
   return finishGit({
     root: path.resolve(top),
     ...s,
     ...stat,
     operation: detectOperation(gitDir),
-    remoteUrl: remote,
+    remoteUrl: url('origin'),
+    upstreamUrl: url('upstream'),
+    forkUrl: url('fork'),
     isWorktree: gitDir !== common,
   });
 }

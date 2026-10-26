@@ -110,6 +110,21 @@ describe.skipIf(!available)('readGit', () => {
     expect(g.deletions).toBe(0);
   });
 
+  it('reads the upstream and fork remotes in both modes', () => {
+    expect(readGit(dir)!.upstreamUrl).toBeNull();
+    git('remote', 'add', 'upstream', 'git@github.com:parent/demo.git');
+    try {
+      for (const harden of [true, false]) {
+        const g = readGit(dir, { harden })!;
+        expect(g.remoteUrl).toBe('git@github.com:acme/demo.git');
+        expect(g.upstreamUrl).toBe('git@github.com:parent/demo.git');
+        expect(g.forkUrl).toBeNull();
+      }
+    } finally {
+      git('remote', 'remove', 'upstream');
+    }
+  });
+
   it('detects a merge in progress', () => {
     fs.writeFileSync(path.join(dir, '.git', 'MERGE_HEAD'), 'x\n');
     expect(readGit(dir)!.operation).toBe('MERGING');

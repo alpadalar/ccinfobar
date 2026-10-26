@@ -3,6 +3,7 @@ import { readEnvironment } from '../data/environment.js';
 import { readGit } from '../data/git.js';
 import { readGsd } from '../data/gsd.js';
 import { readHookState } from '../data/hooks.js';
+import { readJj } from '../data/jj.js';
 import { createJobReader } from '../data/jobs/runner.js';
 import { hookTurnStart } from '../data/live.js';
 import { readRepos } from '../data/repos.js';
@@ -66,6 +67,7 @@ export function createContext(opts: ContextOptions): RenderContext {
       git: opts.data?.git ?? lazy(() => readGit(cwd, { harden: opts.config.gitHardening !== false })),
       transcript,
       gsd: opts.data?.gsd ?? lazy(() => readGsd(cwd)),
+      jj: opts.data?.jj ?? lazy(() => readJj(cwd)),
       ...(opts.data?.history ? { history: opts.data.history } : {}),
       ...(opts.data?.limits ? { limits: opts.data.limits } : {}),
       ...(opts.data?.ledger ? { ledger: opts.data.ledger } : {}),
