@@ -4,6 +4,7 @@ import { writeAtomic } from '../data/store.js';
 import { parseColor } from './ansi.js';
 import { t } from './i18n/index.js';
 import { configDir } from './paths.js';
+import { pickRotationTheme } from './rotation.js';
 import { BASE, BUILTIN } from './themes/builtin.js';
 import {
   type ColorMode,
@@ -16,7 +17,7 @@ import {
   type ThemeGlyphs,
   type ThemeInput,
 } from './themes/style.js';
-import type { ThemeStyle, WidgetCategory } from './types.js';
+import type { Config, ThemeStyle, WidgetCategory } from './types.js';
 
 export type { ColorMode, Swatch, Theme, ThemeColors, ThemeGlyphs, ThemeInput, ThemeStyle };
 export { STYLE_GLYPHS, STYLE_SEPARATOR, STYLES };
@@ -149,6 +150,22 @@ export function resolveTheme(id: string | undefined, dir = themesDir(), depth = 
     return merge(parent, user, 'user');
   }
   return builtins.get(want) ?? BASE;
+}
+
+export function themeExists(id: string, dir = themesDir()): boolean {
+  return builtins.has(id) || (ID_RE.test(id) && fs.existsSync(path.join(dir, `${id}.json`)));
+}
+
+export function activeThemeId(config: Config, now = new Date(), dir = themesDir()): string {
+  const rot = config.themeRotation;
+  if (!rot) return config.theme;
+  return pickRotationTheme(rot, now, (id) => themeExists(id, dir)) ?? config.theme;
+}
+
+export function withActiveTheme(config: Config, now?: Date, dir?: string): Config {
+  if (!config.themeRotation) return config;
+  const id = activeThemeId(config, now, dir);
+  return id === config.theme ? config : { ...config, theme: id };
 }
 
 export function resolveThemeInput(input: ThemeInput, dir = themesDir()): Theme {

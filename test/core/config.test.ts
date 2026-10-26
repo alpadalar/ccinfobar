@@ -242,3 +242,14 @@ describe('display keys', () => {
     expect(normalizeConfig({})).toStrictEqual(before);
   });
 });
+
+describe('themeRotation', () => {
+  it('keeps a valid block and drops an invalid one', () => {
+    expect(
+      normalizeConfig({ themeRotation: { themes: ['nord', 'nord'], every: 'hour' } }).themeRotation,
+    ).toEqual({ themes: ['nord'], every: 'hour' });
+    expect('themeRotation' in normalizeConfig({ themeRotation: { themes: [] } })).toBe(false);
+    expect('themeRotation' in normalizeConfig({ themeRotation: 'nord' })).toBe(false);
+    expect(normalizeConfig({ theme: 'nord' })).toStrictEqual({ ...defaultConfig(), theme: 'nord' });
+  });
+});

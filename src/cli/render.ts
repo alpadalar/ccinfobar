@@ -7,6 +7,7 @@ import { loadForUse } from '../core/load.js';
 import { lastPayloadPath } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
 import { finalizeLine, render } from '../core/renderer.js';
+import { withActiveTheme } from '../core/themes.js';
 import type { Config, DataSources, RenderContext, StatusPayload } from '../core/types.js';
 import { scheduleJobs } from '../data/jobs/index.js';
 import {
@@ -66,7 +67,14 @@ function statusContext(
   data?: Partial<DataSources>,
 ): RenderContext {
   const width = widthFlag ?? terminalWidth(payload.session_id, payload.terminal_width ?? payload.columns);
-  return createContext({ payload, config, terminalWidth: width, ...(data ? { data } : {}) });
+  const now = new Date();
+  return createContext({
+    payload,
+    config: withActiveTheme(config, now),
+    now,
+    terminalWidth: width,
+    ...(data ? { data } : {}),
+  });
 }
 
 export function renderStatus(

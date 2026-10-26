@@ -30,7 +30,7 @@ import {
 } from './sample.js';
 import { sanitizeText } from './sanitize.js';
 import { getScenario, SCENARIO_NOW, scenarioConfig, scenarioEnv, scenarioList } from './scenarios.js';
-import type { Theme } from './themes.js';
+import { type Theme, withActiveTheme } from './themes.js';
 import type { Config, RenderContext, StatusPayload } from './types.js';
 import { padVisible, visibleWidth } from './width.js';
 
@@ -110,7 +110,8 @@ export function previewHidden(config: Config, source: PreviewSource, width: numb
   return previewHiddenBy(config, source, width, theme).hidden;
 }
 
-function previewContext(config: Config, source: PreviewSource, width: number, theme?: Theme): RenderContext {
+function previewContext(raw: Config, source: PreviewSource, width: number, theme?: Theme): RenderContext {
+  const config = theme ? raw : withActiveTheme(raw, new Date());
   if (typeof source === 'object') {
     const scenario = getScenario(source.scenario);
     if (!scenario) throw new Error(t('err.preview.unknownScenario'));

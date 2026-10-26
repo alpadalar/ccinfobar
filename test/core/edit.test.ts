@@ -26,6 +26,9 @@ import {
   removeItem,
   removeLine,
   removeProfileOverride,
+  rotationAddTheme,
+  rotationMoveTheme,
+  rotationRemoveTheme,
   ruleFromText,
   ruleQuickState,
   ruleToText,
@@ -40,7 +43,11 @@ import {
   setPriority,
   setProfilesBuiltIn,
   setProgress,
+  setRotationEvery,
+  setRotationOrder,
+  setRotationWeekday,
   setRuleQuick,
+  setThemeRotation,
   takeStyle,
   timeRuleFeed,
   updateItem,
@@ -607,6 +614,35 @@ describe('rule edits', () => {
   });
 });
 
+describe('theme rotation ops', () => {
+  it('builds, edits and removes the block', () => {
+    let c = rotationAddTheme(base(), 'nord');
+    expect(c.themeRotation).toEqual({ themes: ['nord'] });
+    c = rotationAddTheme(rotationAddTheme(c, 'dracula'), 'nord');
+    expect(c.themeRotation).toEqual({ themes: ['nord', 'dracula'] });
+    c = rotationMoveTheme(c, 'dracula', -1);
+    expect(c.themeRotation?.themes).toEqual(['dracula', 'nord']);
+    expect(rotationMoveTheme(c, 'dracula', -1)).toBe(c);
+    expect(rotationMoveTheme(c, 'ghost', 1)).toBe(c);
+    c = setRotationEvery(c, 30);
+    c = setRotationOrder(c, 'shuffle');
+    c = setRotationWeekday(c, 'mon', 'tokyo-night');
+    expect(c.themeRotation).toEqual({
+      themes: ['dracula', 'nord'],
+      every: 30,
+      order: 'shuffle',
+      weekdays: { mon: 'tokyo-night' },
+    });
+    c = setRotationEvery(setRotationOrder(c, 'cycle'), 'day');
+    expect(c.themeRotation).toEqual({ themes: ['dracula', 'nord'], weekdays: { mon: 'tokyo-night' } });
+    c = setRotationWeekday(c, 'mon', undefined);
+    expect(c.themeRotation).toEqual({ themes: ['dracula', 'nord'] });
+    c = rotationRemoveTheme(rotationRemoveTheme(c, 'nord'), 'dracula');
+    expect('themeRotation' in c).toBe(false);
+    expect('themeRotation' in setThemeRotation(rotationAddTheme(base(), 'nord'), undefined)).toBe(false);
+  });
+});
+
 describe('applyCatalogContent', () => {
   const current = (): Config => ({
     ...base(),
@@ -683,6 +719,14 @@ describe('applyCatalogContent', () => {
     expect('extra' in next).toBe(false);
   });
 
+  it('keeps the theme rotation for every kind', () => {
+    const c = { ...current(), themeRotation: { themes: ['nord', 'dracula'] } };
+    const bad = { ...content(), appearance: { ...content().appearance, themeRotation: { themes: ['x'] } } };
+    for (const kind of ['theme', 'bundle', 'preset'] as const) {
+      expect(applyCatalogContent(c, bad as EntryContent, kind).themeRotation).toEqual(c.themeRotation);
+    }
+  });
+
   it('keeps required keys the content leaves out', () => {
     const c = current();
     const next = applyCatalogContent(c, {}, 'bundle');
@@ -740,6 +784,7 @@ describe('applyCatalogContent', () => {
       ambiguousWidth: 'personal',
       progress: 'personal',
       language: 'personal',
+      themeRotation: 'personal',
     };
     const lists = { layout: LAYOUT_KEYS, appearance: APPEARANCE_KEYS, personal: PERSONAL_KEYS };
     const all: string[] = [...LAYOUT_KEYS, ...APPEARANCE_KEYS, ...PERSONAL_KEYS];

@@ -18,6 +18,7 @@ import { APPEARANCE_KEYS, type EntryContent, type EntryKind, LAYOUT_KEYS } from 
 import type { MessageId } from './i18n/index.js';
 import { LANGUAGE_SETTINGS, type LanguageSetting } from './i18n/languages.js';
 import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
+import { normalizeThemeRotation } from './rotation.js';
 import type {
   Align,
   BudgetConfig,
@@ -29,6 +30,9 @@ import type {
   ProfileOverride,
   ProfilesConfig,
   ProgressConfig,
+  RotationDay,
+  RotationEvery,
+  ThemeRotation,
   WidgetItem,
 } from './types.js';
 
@@ -360,6 +364,53 @@ export function setBudget(config: Config, key: keyof BudgetConfig, value: number
   const next: Config = { ...config, budget };
   if (!Object.keys(budget).length) delete next.budget;
   return next;
+}
+
+// normalizes, drops defaults; removes an empty rotation
+export function setThemeRotation(config: Config, rot: ThemeRotation | undefined): Config {
+  const clean = normalizeThemeRotation(rot);
+  if (clean?.every === 'day') delete clean.every;
+  if (clean?.order === 'cycle') delete clean.order;
+  const next: Config = { ...config };
+  if (clean) next.themeRotation = clean;
+  else delete next.themeRotation;
+  return next;
+}
+
+export function rotationAddTheme(config: Config, id: string): Config {
+  const rot = config.themeRotation ?? {};
+  return setThemeRotation(config, { ...rot, themes: [...(rot.themes ?? []), id] });
+}
+
+export function rotationRemoveTheme(config: Config, id: string): Config {
+  const rot = config.themeRotation ?? {};
+  return setThemeRotation(config, { ...rot, themes: (rot.themes ?? []).filter((t) => t !== id) });
+}
+
+export function rotationMoveTheme(config: Config, id: string, delta: -1 | 1): Config {
+  const themes = [...(config.themeRotation?.themes ?? [])];
+  const i = themes.indexOf(id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= themes.length) return config;
+  [themes[i], themes[j]] = [themes[j]!, themes[i]!];
+  return setThemeRotation(config, { ...config.themeRotation, themes });
+}
+
+export function setRotationEvery(config: Config, every: RotationEvery | undefined): Config {
+  const { every: _e, ...rot } = config.themeRotation ?? {};
+  return setThemeRotation(config, every === undefined ? rot : { ...rot, every });
+}
+
+export function setRotationOrder(config: Config, order: ThemeRotation['order'] | undefined): Config {
+  const { order: _o, ...rot } = config.themeRotation ?? {};
+  return setThemeRotation(config, order === undefined ? rot : { ...rot, order });
+}
+
+export function setRotationWeekday(config: Config, day: RotationDay, id: string | undefined): Config {
+  const weekdays = { ...config.themeRotation?.weekdays };
+  if (id) weekdays[day] = id;
+  else delete weekdays[day];
+  return setThemeRotation(config, { ...config.themeRotation, weekdays });
 }
 
 export const PROGRESS_DEFAULTS: Required<ProgressConfig> = {

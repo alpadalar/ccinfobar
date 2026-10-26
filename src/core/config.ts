@@ -7,6 +7,7 @@ import { asciiLower, LANGUAGE_SETTINGS } from './i18n/languages.js';
 import { locateJsonError, locateKey } from './json-locate.js';
 import { configPath } from './paths.js';
 import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
+import { normalizeThemeRotation } from './rotation.js';
 import { sanitizeText } from './sanitize.js';
 import type {
   Align,
@@ -348,6 +349,8 @@ export function normalizeConfig(raw: unknown): Config {
   if (budget) cfg.budget = budget;
   const profiles = normalizeProfiles(raw.profiles);
   if (profiles) cfg.profiles = profiles;
+  const rotation = normalizeThemeRotation(raw.themeRotation);
+  if (rotation) cfg.themeRotation = rotation;
   const progress = normalizeProgress(raw.progress);
   if (progress) cfg.progress = progress;
   const tui = normalizeTui(raw.tui);

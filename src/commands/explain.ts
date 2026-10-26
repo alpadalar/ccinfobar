@@ -38,6 +38,7 @@ import {
 } from '../core/sample.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { getScenario, SCENARIO_NOW, scenarioConfig, scenarioEnv } from '../core/scenarios.js';
+import { withActiveTheme } from '../core/themes.js';
 import type { JobSource } from '../core/trace.js';
 import type {
   Config,
@@ -351,7 +352,7 @@ export function loadInspectInput(opts: LoadOptions): InspectInput | null {
   }
   const ctx = createContext({
     payload: shown,
-    config: { ...config, colorLevel: 0, lines },
+    config: { ...withActiveTheme(config, new Date()), colorLevel: 0, lines },
     env,
     now,
     terminalWidth: width,

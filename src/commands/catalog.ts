@@ -60,6 +60,7 @@ import { tildify } from '../core/paths.js';
 import { ID_RE } from '../core/presets.js';
 import { type PreviewSource, renderPreview, scenarioFlag, scenarioListLines } from '../core/preview.js';
 import { finalizeLine } from '../core/renderer.js';
+import { withoutRotation } from '../core/rotation.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { parseThemeInput, resolveThemeInput, type Theme } from '../core/themes.js';
 import { padVisible, visibleWidth } from '../core/width.js';
@@ -349,7 +350,7 @@ function previewLines(c: Ctx, a: AnyEntry, source: PreviewSource, width: number)
   const theme = kind !== 'preset' && content.theme ? draftTheme(content.theme) : undefined;
   const config = applyCatalogContent(current, content, kind);
   const pasteSafe = resolveGlyphMode(config, c.env) === 'paste-safe';
-  return renderPreview(config, source, width, theme).map((l) =>
+  return renderPreview(withoutRotation(config), source, width, theme).map((l) =>
     pasteSafe ? finalizeLine(l, { pasteSafe }) : l,
   );
 }

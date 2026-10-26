@@ -287,6 +287,38 @@ function schema(): object {
         examples: BUILTIN_THEMES.map((t) => t.id),
         default: 'classic',
       },
+      themeRotation: {
+        type: 'object',
+        description:
+          'Switch between themes by local hour, day, week or minutes; overrides theme while active',
+        properties: {
+          themes: {
+            type: 'array',
+            items: { type: 'string', pattern: '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$' },
+            maxItems: 32,
+            uniqueItems: true,
+            description: 'Theme ids in the rotation pool',
+          },
+          every: {
+            oneOf: [
+              { enum: ['hour', 'day', 'week'] },
+              { type: 'integer', minimum: 1, maximum: 10080, description: 'Minutes' },
+            ],
+            default: 'day',
+            description: 'How often the theme changes',
+          },
+          order: { enum: ['cycle', 'shuffle'], default: 'cycle', description: 'In order or shuffled' },
+          weekdays: {
+            type: 'object',
+            description: 'Pin a theme to a weekday; other days use the pool',
+            properties: Object.fromEntries(
+              ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((d) => [d, { type: 'string' }]),
+            ),
+            additionalProperties: false,
+          },
+        },
+        additionalProperties: false,
+      },
       style: { enum: STYLES.map((s) => s.id), description: 'Overrides the theme style' },
       separator: { type: 'string', description: 'Overrides the theme separator' },
       separatorColor: { ...color, description: 'Overrides the theme separator color' },

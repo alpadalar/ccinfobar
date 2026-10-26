@@ -213,6 +213,16 @@ export interface ProfilesConfig {
   models?: ProfileOverride[];
 }
 
+export type RotationEvery = 'hour' | 'day' | 'week' | number;
+export type RotationDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+export interface ThemeRotation {
+  themes?: string[];
+  every?: RotationEvery;
+  order?: 'cycle' | 'shuffle';
+  weekdays?: Partial<Record<RotationDay, string>>;
+}
+
 export interface Config {
   $schema?: string;
   version: 1;
@@ -220,6 +230,7 @@ export interface Config {
   align?: Align;
   lineAlign?: (Align | null)[];
   theme: string;
+  themeRotation?: ThemeRotation;
   style?: ThemeStyle;
   separator?: string;
   separatorColor?: string;

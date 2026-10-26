@@ -16,6 +16,7 @@ import { tildify } from '../core/paths.js';
 import { forGsd, listPresets } from '../core/presets.js';
 import { type PreviewSource, renderPreview, scenarioFlag, scenarioListLines } from '../core/preview.js';
 import { finalizeLine } from '../core/renderer.js';
+import { withoutRotation } from '../core/rotation.js';
 import { sanitizeText } from '../core/sanitize.js';
 import {
   listThemes,
@@ -223,7 +224,7 @@ export function dryRunPreview(config: Config, io: PromptIo, theme?: Theme): stri
     items.map((item) => (item.type === 'command' ? { ...item, type: 'text', options: { text } } : item)),
   );
   const plain = plainOutput(io.tty);
-  return renderPreview({ ...config, lines }, 'sample', io.columns ?? 100, theme).map((l) =>
+  return renderPreview(withoutRotation({ ...config, lines }), 'sample', io.columns ?? 100, theme).map((l) =>
     plain ? stripAnsi(l) : l,
   );
 }
@@ -391,7 +392,7 @@ export function runThemes(args: Args, cfgFile: string): void {
       glyphs: undefined,
       lines: [DEMO_LINE],
     };
-    for (const line of renderPreview(demo, 'sample', width)) console.log(`  ${line}`);
+    for (const line of renderPreview(withoutRotation(demo), 'sample', width)) console.log(`  ${line}`);
   }
   console.log(t('cmd.themes.footer', { dir: tildify(themesDir()) }));
 }
@@ -446,7 +447,7 @@ export function runTheme(args: Args, cfgFile: string): void {
   saveConfig(next, cfgFile);
   console.log(t('cmd.theme.set', { name: clean(known.name) }));
   const width = process.stdout.columns ?? 120;
-  for (const line of renderPreview(next, 'sample', width)) console.log(line);
+  for (const line of renderPreview(withoutRotation(next), 'sample', width)) console.log(line);
 }
 
 export function runWidgets(_args: Args, _cfgFile: string): void {

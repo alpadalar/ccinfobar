@@ -43,6 +43,7 @@ export const PERSONAL_KEYS = [
   'loadingText',
   'budget',
   'profiles',
+  'themeRotation',
   'progress',
   'language',
   'version',

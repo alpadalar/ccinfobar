@@ -92,6 +92,7 @@ import { availablePresets, loadForUse } from '../core/load.js';
 import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { deleteUserPreset, listPresets, presetsDir, saveUserPreset } from '../core/presets.js';
 import { type PreviewSource, renderPreview, renderPreviewReport } from '../core/preview.js';
+import { withoutRotation } from '../core/rotation.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { getScenario, scenarioList } from '../core/scenarios.js';
 import {
@@ -792,7 +793,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       const next = applyCatalogContent(current, content, kind);
       // built-in layouts carry English labels
       const shown = system && kind !== 'theme' ? presetLabels(next) : next;
-      return renderPreview(shown, source, width, theme);
+      return renderPreview(withoutRotation(shown), source, width, theme);
     } catch {
       return [];
     }
@@ -1132,7 +1133,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
             glyphs: undefined,
             tui: undefined,
           };
-          previews[t.id] = withLanguage(auto.id, () => renderPreview(cfg, source, width));
+          previews[t.id] = withLanguage(auto.id, () => renderPreview(withoutRotation(cfg), source, width));
         }
         send(res, 200, { previews });
         return;

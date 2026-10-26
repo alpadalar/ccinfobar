@@ -3,6 +3,7 @@ import { presetText, themeDescription } from '../core/i18n/catalog-text.js';
 import { language, type MessageId, t } from '../core/i18n/index.js';
 import { widgetText } from '../core/i18n/widget-text.js';
 import { renderPreview } from '../core/preview.js';
+import { withoutRotation } from '../core/rotation.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { resolveTheme } from '../core/themes.js';
 import type { Config, WidgetItem } from '../core/types.js';
@@ -357,7 +358,7 @@ function themePreviewLine(state: State, id: string, width: number): string {
   if (themeLineCache.size > 200) themeLineCache = new Map();
   let line = '';
   try {
-    const demo: Config = { ...withTheme(state.config, id), lines: [lines] };
+    const demo: Config = withoutRotation({ ...withTheme(state.config, id), lines: [lines] });
     const out = renderPreview(demo, 'sample', width + state.config.widthOffset);
     line = (resolveTheme(id).style === 'tui' && out.length >= 3 ? out[1] : out[0]) ?? '';
   } catch {

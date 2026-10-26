@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { normalizeConfig } from '../../src/core/config.js';
 import { previewHidden, previewHiddenBy, renderPreview } from '../../src/core/preview.js';
+import { pickRotationTheme } from '../../src/core/rotation.js';
+import { resolveTheme } from '../../src/core/themes.js';
 import { withoutSideEffects } from '../helpers.js';
 
 const config = (items: Record<string, unknown>[]) => normalizeConfig({ lines: [items] });
@@ -68,5 +70,43 @@ describe('previewHidden', () => {
     const before = withoutSideEffects(() => renderPreview(c, src, 120));
     expect(withoutSideEffects(() => previewHidden(c, src, 120))).toEqual(['x']);
     expect(withoutSideEffects(() => renderPreview(c, src, 120))).toEqual(before);
+  });
+});
+
+describe('theme rotation in previews', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const items = [
+    { id: 'm', type: 'model' },
+    { id: 'c', type: 'context-percentage' },
+  ];
+
+  it('renders the rotated theme', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 13, 10, 0));
+    const rot = {
+      themes: ['dracula', 'powerline', 'nord'],
+      every: 'hour' as const,
+      order: 'shuffle' as const,
+    };
+    const c = normalizeConfig({ lines: [items], colorLevel: 3, themeRotation: rot });
+    const want = pickRotationTheme(rot, new Date(), () => true)!;
+    const plain = normalizeConfig({ lines: [items], colorLevel: 3, theme: want });
+    const got = withoutSideEffects(() => renderPreview(c, 'sample', 120));
+    expect(got).toEqual(withoutSideEffects(() => renderPreview(plain, 'sample', 120)));
+    expect(got).not.toEqual(
+      withoutSideEffects(() => renderPreview({ ...plain, theme: 'classic' }, 'sample', 120)),
+    );
+  });
+
+  it('uses an explicit theme over the rotation', () => {
+    const c = normalizeConfig({ lines: [items], colorLevel: 3, themeRotation: { themes: ['dracula'] } });
+    const th = resolveTheme('nord');
+    const plain = normalizeConfig({ lines: [items], colorLevel: 3 });
+    expect(withoutSideEffects(() => renderPreview(c, 'sample', 120, th))).toEqual(
+      withoutSideEffects(() => renderPreview(plain, 'sample', 120, th)),
+    );
   });
 });
