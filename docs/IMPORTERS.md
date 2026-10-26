@@ -84,7 +84,7 @@ Some tools install with a command that does not name them, for example `node ${C
 `ccinfobar import ccstatusline`, also `ccinfobar import ccstatusline-zh` (same file and format).
 
 - File: `--config` in the status line command, else `$XDG_CONFIG_HOME/ccstatusline/settings.json`, else `~/.config/ccstatusline/settings.json`.
-- Maps: lines, widgets, colors, labels (custom text), separators, merge, raw values, powerline mode and caps, the `full-minus-40` width. Claude status, spend limit amount, staged/unstaged/untracked file counts and the worktree branch map one to one.
+- Maps: lines, widgets, colors, labels (custom text), separators, merge, raw values, powerline mode and caps, the `full-minus-40` width. Claude status, spend limit amount, staged/unstaged/untracked file counts and the worktree branch map one to one. The Jujutsu widgets map to the `jj-*` widgets (`jj-insertions` and `jj-deletions` fold into `jj-changes`, `jj-root-dir` into `project-dir`), `git-is-fork` keeps its symbol, the origin owner/repo widget keeps its owner-only-when-fork flag (`ownerOnlyWhenFork`), and the `no-jj` and `not-fork` hide states become `hideEmpty`.
 - Dropped: widgets with no close equivalent, such as the spend limit percentage, the `upstream` remote owner and repo and the origin owner.
 - Custom commands are listed for consent.
 
