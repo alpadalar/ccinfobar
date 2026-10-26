@@ -17,6 +17,8 @@ const VALUE_FLAGS = [
   'runs',
   'glyph-mode',
   'period',
+  'every',
+  'weekdays',
   'since',
   'until',
   'project',

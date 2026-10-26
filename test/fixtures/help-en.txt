@@ -23,6 +23,11 @@ Usage
   ccinfobar themes --list         List theme ids and names only
   ccinfobar theme <id>            Switch theme
   ccinfobar theme new <id>        Create your own theme (--from <theme>)
+  ccinfobar theme rotate <id...> [--every hour|day|week|<min>] [--shuffle]
+                                  Rotate themes by hour, day, week or minutes, in order or shuffled
+  ccinfobar theme rotate --weekdays mon=nord,...
+                                  Pin a theme to a weekday (off clears the map)
+  ccinfobar theme rotate off      Turn theme rotation off
   ccinfobar init [preset]         Write a preset config (default, cockpit, dashboard, minimal, gsd, powerline, full, cost, limits, git, workspace, compact, two-line, agents, charts, session)
   ccinfobar catalog list|show|history
                                   Browse built-in and saved presets, themes and bundles (--remote: the marketplace)

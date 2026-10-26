@@ -10,6 +10,7 @@ const SWEPT: string[] = [
   'src/cli/main.ts',
   'src/cli/render.ts',
   'src/cli/lang.ts',
+  'src/core/rotation.ts',
   'src/importers/index.ts',
   'src/importers/ccstatusline.ts',
   'src/importers/claude-powerline.ts',
@@ -243,6 +244,9 @@ const ALLOW: Record<string, string[]> = {
   'src/cli/help.ts': [
     // usage column stays literal (D-13)
     'ccinfobar theme new <id>',
+    'ccinfobar theme rotate <id...> [--every hour|day|week|<min>] [--shuffle]',
+    'ccinfobar theme rotate --weekdays mon=nord,...',
+    'ccinfobar theme rotate off',
     'ccinfobar config get <path>',
     'ccinfobar config set <path> <value>',
     'ccinfobar config unset <path>',

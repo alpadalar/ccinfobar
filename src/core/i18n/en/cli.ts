@@ -23,6 +23,9 @@ export const cliMessages = {
   'help.cmd.themesList': 'List theme ids and names only',
   'help.cmd.theme': 'Switch theme',
   'help.cmd.themeNew': 'Create your own theme (--from <theme>)',
+  'help.cmd.themeRotate': 'Rotate themes by hour, day, week or minutes, in order or shuffled',
+  'help.cmd.themeRotateWeekdays': 'Pin a theme to a weekday (off clears the map)',
+  'help.cmd.themeRotateOff': 'Turn theme rotation off',
   'help.cmd.init': 'Write a preset config ({presets})',
   'help.cmd.catalog': 'Browse built-in and saved presets, themes and bundles (--remote: the marketplace)',
   'help.cmd.catalogInstall':

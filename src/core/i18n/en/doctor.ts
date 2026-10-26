@@ -32,6 +32,8 @@ export const doctorMessages = {
   'doctor.http.plain':
     '⚠ http on line {line}: {host} uses plain http, so the reply can be read or changed on the way. Use https.',
   'doctor.gitHardeningOff': '  Git hardening off (gitHardening: false)',
+  'doctor.rotation': '  {status}',
+  'doctor.rotationMissing': '  ⚠ Theme rotation lists themes that do not exist and are skipped: {ids}',
   'doctor.manifest': '  Manifest {file}: {count} recorded change(s)',
   'doctor.manifestEntry': '    {kind} in {file}',
   'doctor.backups': '  Backups {dir}',

@@ -35,6 +35,8 @@ export const doctorMessages = {
   'doctor.http.plain':
     '⚠ {line}. satırdaki http: {host} şifresiz http kullanıyor, bu yüzden yanıt yolda okunabilir ya da değiştirilebilir. https kullanın.',
   'doctor.gitHardeningOff': '  Git sıkılaştırması kapalı (gitHardening: false)',
+  'doctor.rotation': '  {status}',
+  'doctor.rotationMissing': '  ⚠ Tema döngüsünde olmayan temalar var, atlanıyorlar: {ids}',
   'doctor.manifest': '  Manifest {file}: {count} kayıtlı değişiklik',
   'doctor.manifestEntry': '    {file} içinde {kind}',
   'doctor.backups': '  Yedekler {dir}',

@@ -26,6 +26,9 @@ export const cliMessages = {
   'help.cmd.themesList': "Yalnızca tema id'lerini ve adlarını listeler",
   'help.cmd.theme': 'Temayı değiştirir',
   'help.cmd.themeNew': 'Kendi temanızı oluşturur (--from <theme>)',
+  'help.cmd.themeRotate': 'Temaları saate, güne, haftaya ya da dakikaya göre sırayla veya karışık döndürür',
+  'help.cmd.themeRotateWeekdays': 'Bir haftanın gününe tema sabitler (off listeyi temizler)',
+  'help.cmd.themeRotateOff': 'Tema döngüsünü kapatır',
   'help.cmd.init': 'Hazır ayar yapılandırması yazar ({presets})',
   'help.cmd.catalog':
     'Yerleşik ve kayıtlı hazır ayarlara, temalara ve paketlere göz atar (--remote: marketplace)',

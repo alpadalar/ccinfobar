@@ -23,6 +23,11 @@ Kullanım
   ccinfobar themes --list         Yalnızca tema id'lerini ve adlarını listeler
   ccinfobar theme <id>            Temayı değiştirir
   ccinfobar theme new <id>        Kendi temanızı oluşturur (--from <theme>)
+  ccinfobar theme rotate <id...> [--every hour|day|week|<min>] [--shuffle]
+                                  Temaları saate, güne, haftaya ya da dakikaya göre sırayla veya karışık döndürür
+  ccinfobar theme rotate --weekdays mon=nord,...
+                                  Bir haftanın gününe tema sabitler (off listeyi temizler)
+  ccinfobar theme rotate off      Tema döngüsünü kapatır
   ccinfobar init [preset]         Hazır ayar yapılandırması yazar (default, cockpit, dashboard, minimal, gsd, powerline, full, cost, limits, git, workspace, compact, two-line, agents, charts, session)
   ccinfobar catalog list|show|history
                                   Yerleşik ve kayıtlı hazır ayarlara, temalara ve paketlere göz atar (--remote: marketplace)

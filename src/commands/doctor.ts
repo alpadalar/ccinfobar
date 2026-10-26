@@ -15,7 +15,9 @@ import { titleWidgets } from '../core/panel.js';
 import { cacheDir, claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { readLastPayload } from '../core/preview.js';
 import { overflowOf, resolveAppearance } from '../core/renderer.js';
+import { rotationIds } from '../core/rotation.js';
 import { sanitizeText } from '../core/sanitize.js';
+import { themeExists } from '../core/themes.js';
 import type { Config, OptionSpec, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { readHookState } from '../data/hooks.js';
@@ -55,6 +57,7 @@ import {
 } from './hooks-doctor.js';
 import { parseClaudeVersion } from './hooks-install.js';
 import { currentStatusLine, projectOverride, projectSettingsPath } from './install.js';
+import { rotationStatus } from './manage.js';
 import {
   classifyOwner,
   findHookEntries,
@@ -471,6 +474,12 @@ export function runDoctor(
     console.log(t('doctor.priorityTui'));
   if (/JetBrains/.test(process.env.TERMINAL_EMULATOR ?? '') && (cfg.glyphMode ?? 'normal') === 'normal')
     console.log(t('doctor.jetbrains'));
+  const rotation = rotationStatus(cfg);
+  if (rotation && cfg.themeRotation) {
+    console.log(t('doctor.rotation', { status: rotation }));
+    const missing = rotationIds(cfg.themeRotation).filter((id) => !themeExists(id));
+    if (missing.length) console.log(t('doctor.rotationMissing', { ids: safe(missing.join(', ')) }));
+  }
   console.log(languageLine(lang));
   if (manifest.readOnly) console.log(`⚠ ${t('install.manifestReadOnly', { file: tildify(manifestFile()) })}`);
   else {
