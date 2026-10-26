@@ -51,7 +51,7 @@
     "version": "node scripts/sync-plugin-version.mjs && git add plugin/.claude-plugin/plugin.json INSTALL.md README.md"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.15",
+    "@biomejs/biome": "^2.6.2",
     "@types/node": "^22.20.5",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",

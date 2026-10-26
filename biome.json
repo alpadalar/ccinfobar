@@ -37,6 +37,12 @@
   },
   "overrides": [
     {
+      "includes": ["**/*.md", "**/*.yml", "**/*.yaml"],
+      "formatter": {
+        "enabled": false
+      }
+    },
+    {
       "includes": ["**/*.css"],
       "linter": {
         "rules": {
@@ -45,6 +51,9 @@
           },
           "complexity": {
             "noImportantStyles": "off"
+          },
+          "correctness": {
+            "noInvalidGridAreas": "off"
           }
         }
       }
