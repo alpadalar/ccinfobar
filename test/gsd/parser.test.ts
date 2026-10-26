@@ -262,8 +262,11 @@ const REAL = [
   '/media/workspace/ailab-super-app',
 ];
 
-describe.skipIf(!REAL.some((d) => fs.existsSync(d)))('real projects', () => {
-  it.each(REAL.filter((d) => fs.existsSync(d)))('%s', (dir) => {
+// only local folders that still hold a GSD project
+const LOCAL = REAL.filter((d) => fs.existsSync(path.join(d, '.planning', 'ROADMAP.md')));
+
+describe.skipIf(LOCAL.length === 0)('real projects', () => {
+  it.each(LOCAL)('%s', (dir) => {
     const info = readGsd(dir, {});
     if (process.env.GSD_DUMP) console.log(dir, JSON.stringify(info, null, 1));
     expect(info).not.toBeNull();
