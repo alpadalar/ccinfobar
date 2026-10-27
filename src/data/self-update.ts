@@ -1,5 +1,6 @@
 import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type { Config } from '../core/types.js';
 import { VERSION } from '../core/version.js';
@@ -11,6 +12,7 @@ import {
   localPrefix,
   safeCwd,
 } from './update-state.js';
+import { writeAtomic } from './store.js';
 
 // the update check and npm install: the update job loads it with import()
 export const REPO = 'alpadalar/ccinfobar';
@@ -152,12 +154,105 @@ export async function installVersionAsync(
   throw last;
 }
 
+export type Verify = (
+  version: string,
+  env: NodeJS.ProcessEnv,
+  signal?: AbortSignal,
+) => Promise<string | null>;
+
+const VERIFY_TIMEOUT_MS = 15_000;
+
+interface RunResult {
+  code: number | string | null;
+  stdout: string;
+}
+
+// static code only: dist/ was just replaced under us
+export async function verifyInstall(
+  version: string,
+  env: NodeJS.ProcessEnv,
+  signal?: AbortSignal,
+  entry: string = process.argv[1] ?? '',
+): Promise<string | null> {
+  let real: string;
+  try {
+    real = fs.realpathSync(entry);
+  } catch {
+    return 'entry-missing';
+  }
+  let tmp: string;
+  try {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccinfobar-verify-'));
+  } catch {
+    return 'verify-failed';
+  }
+  try {
+    const payload = path.join(tmp, 'payload.json');
+    writeAtomic(
+      payload,
+      JSON.stringify({
+        session_id: 'verify',
+        model: { id: 'claude-sonnet-4-5', display_name: 'Claude' },
+        workspace: { current_dir: tmp },
+        cwd: tmp,
+      }),
+    );
+    const childEnv: NodeJS.ProcessEnv = {
+      ...env,
+      CCINFOBAR_CONFIG_DIR: path.join(tmp, 'config'),
+      CCINFOBAR_CACHE_DIR: path.join(tmp, 'cache'),
+      CLAUDE_CONFIG_DIR: path.join(tmp, 'claude'),
+      CCINFOBAR_NO_JOBS: '1',
+      CCINFOBAR_NO_UPDATE: '1',
+      CCINFOBAR_NO_USAGE_API: '1',
+      CCINFOBAR_LANG: 'en',
+      NO_COLOR: '1',
+    };
+    const run = (args: string[]) =>
+      new Promise<RunResult>((resolve) => {
+        const child = execFile(
+          process.execPath,
+          [real, ...args],
+          {
+            env: childEnv,
+            cwd: safeCwd(),
+            timeout: VERIFY_TIMEOUT_MS,
+            windowsHide: true,
+            encoding: 'utf8',
+            ...(signal ? { signal } : {}),
+          },
+          (err, stdout) => {
+            const e = err as (Error & { code?: number | string; killed?: boolean }) | null;
+            const code = !e ? 0 : e.killed ? 'ETIMEDOUT' : (e.code ?? 'error');
+            resolve({ code, stdout: String(stdout ?? '') });
+          },
+        );
+        child.stdin?.end();
+      });
+    const v = await run(['--version']);
+    if (v.code === 'ETIMEDOUT') return 'verify-timeout';
+    if (v.stdout.trim() !== version) return `version-mismatch:${v.stdout.trim().slice(0, 40)}`;
+    const r = await run(['--payload', payload, '--width', '80']);
+    if (r.code === 'ETIMEDOUT') return 'verify-timeout';
+    if (r.code !== 0 || !r.stdout.trim() || r.stdout.startsWith('ccinfobar: ')) {
+      return `render-failed:${r.code}`;
+    }
+    return null;
+  } finally {
+    try {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    } catch {}
+  }
+}
+
 export interface CheckDeps {
   fetch?: typeof fetch;
   signal?: AbortSignal;
   kind?: InstallKind;
   fetchLatest?: (timeoutMs?: number) => Promise<string>;
   install?: (version: string, prefix?: string, signal?: AbortSignal) => void | Promise<void>;
+  verify?: Verify;
+  rejected?: string | null;
 }
 
 export async function checkForUpdate(
@@ -165,7 +260,13 @@ export async function checkForUpdate(
   current: string = VERSION,
   env: NodeJS.ProcessEnv = process.env,
   deps: CheckDeps = {},
-): Promise<{ latest: string; installed?: string }> {
+): Promise<{
+  latest: string;
+  installed?: string;
+  rejected?: string;
+  rollback?: 'ok' | 'failed';
+  reason?: string;
+}> {
   const latest = deps.fetchLatest ? await deps.fetchLatest() : await fetchLatest(undefined, deps.fetch);
   const kind = deps.kind ?? installKind();
   if (
@@ -173,9 +274,21 @@ export async function checkForUpdate(
     compareVersions(latest, current) > 0 &&
     (kind === 'npm-global' || kind === 'local')
   ) {
+    if (deps.rejected && deps.rejected === latest) return { latest, rejected: latest };
+    const prefix = kind === 'local' ? localPrefix(env) : undefined;
     const install = deps.install ?? installVersionAsync;
-    await install(latest, kind === 'local' ? localPrefix(env) : undefined, deps.signal);
-    return { latest, installed: latest };
+    await install(latest, prefix, deps.signal);
+    const verify: Verify = deps.verify ?? (deps.install ? async () => null : verifyInstall);
+    const bad = await verify(latest, env, deps.signal);
+    if (bad === null) return { latest, installed: latest };
+    let rollback: 'ok' | 'failed' = 'ok';
+    try {
+      await install(current, prefix, deps.signal);
+      if ((await verify(current, env, deps.signal)) !== null) rollback = 'failed';
+    } catch {
+      rollback = 'failed';
+    }
+    return { latest, rejected: latest, rollback, reason: bad.slice(0, 200) };
   }
   return { latest };
 }

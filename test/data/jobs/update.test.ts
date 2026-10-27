@@ -173,10 +173,12 @@ describe('update job run', () => {
 
   it('auto-installs with installVersionAsync, never the sync install', async () => {
     mocks.kind.mockReturnValue('npm-global');
-    mocks.execFile.mockImplementation((_f: string, _a: string[], _o: object, cb: (e: null) => void) => {
-      cb(null);
-      return { stdin: { end() {} } };
-    });
+    mocks.execFile.mockImplementation(
+      (_f: string, _a: string[], _o: object, cb: (e: null, out: string) => void) => {
+        cb(null, '9.9.9');
+        return { stdin: { end() {} } };
+      },
+    );
     const env = sandbox();
     const f = redirect('https://github.com/alpadalar/ccinfobar/releases/tag/v9.9.9');
     const e = await updateJob.run({ key: 'update' }, ctx(env, cfg('auto'), f));
