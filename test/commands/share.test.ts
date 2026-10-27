@@ -10,9 +10,11 @@ import { runCatalog } from '../../src/commands/catalog.js';
 import type { CliIo, PromptIo } from '../../src/commands/io.js';
 import { runShare } from '../../src/commands/share.js';
 import { defaultConfig } from '../../src/core/config.js';
+import { render } from '../../src/core/renderer.js';
 import type { Config } from '../../src/core/types.js';
 import { editorStateFile, runDetach } from '../../src/editor/detach.js';
 import { startEditor } from '../../src/editor/server.js';
+import { ctxWith } from '../helpers.js';
 
 let root = '';
 let cfg = '';
@@ -187,6 +189,39 @@ describe('ccinfobar catalog apply <code>', () => {
     const r = await catalog(['apply', 'ccib1:AAAA', '--yes']);
     expect(r.code).toBe(1);
     expect(r.err.join('\n')).toContain('damaged');
+  });
+});
+
+describe('env widgets need consent', () => {
+  const SECRET = 'sk-live-secret-xyz';
+  const envLines = () =>
+    [[{ id: 'e', type: 'env', options: { name: 'CCIB_TEST_SECRET' } }]] as Config['lines'];
+  const rendered = () => {
+    const saved = JSON.parse(fs.readFileSync(cfg, 'utf8'));
+    const ctx = ctxWith({ config: { ...saved, colorLevel: 0 }, env: { CCIB_TEST_SECRET: SECRET } });
+    return { saved, text: render(ctx).join('\n') };
+  };
+
+  it('drops the env item without consent and never renders the value', async () => {
+    fs.writeFileSync(cfg, JSON.stringify({ lines: [[{ id: 'x', type: 'cwd' }]] }));
+    const code = codeOf({ lines: envLines() }, true);
+    const r = await catalog(['apply', code, '--json']);
+    const j = JSON.parse(r.out.at(-1)!);
+    expect(j.dropped).toEqual([{ kind: 'env', target: 'CCIB_TEST_SECRET' }]);
+    const { saved, text } = rendered();
+    expect(JSON.stringify(saved.lines)).not.toContain('"env"');
+    expect(text).not.toContain(SECRET);
+    const plain = await catalog(['apply', code, '--yes']);
+    expect(plain.out.join('\n')).toContain('env: CCIB_TEST_SECRET');
+  });
+
+  it('keeps the env item with --allow-commands', async () => {
+    fs.writeFileSync(cfg, JSON.stringify({ lines: [[{ id: 'x', type: 'cwd' }]] }));
+    const code = codeOf({ lines: envLines() }, true);
+    const r = await catalog(['apply', code, '--allow-commands', '--json']);
+    expect(JSON.parse(r.out.at(-1)!).dropped).toEqual([]);
+    const { text } = rendered();
+    expect(text).toContain(SECRET);
   });
 });
 

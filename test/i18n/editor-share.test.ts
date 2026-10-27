@@ -281,6 +281,27 @@ describe('opening a share code', () => {
     expect(posts('/api/share/open')).toHaveLength(1);
   });
 
+  it('lists an env widget by name in the consent dialog', async () => {
+    await boot();
+    openReply = {
+      status: 200,
+      data: {
+        ...shared,
+        content: {
+          ...shared.content,
+          layout: { lines: [[{ id: 'e', type: 'env', options: { name: 'CCIB_TEST_SECRET' } }]] },
+        },
+        targets: [{ kind: 'env', line: 0, index: 0, target: 'CCIB_TEST_SECRET' }],
+      },
+    };
+    const { openShareCode } = await import('../../src/editor/web/share.js');
+    void openShareCode(CODE);
+    await flush();
+    const text = texts(top()).join('\n');
+    expect(text).toContain('env');
+    expect(text).toContain('CCIB_TEST_SECRET');
+  });
+
   it('the Import dialog sends a pasted code to the same flow', async () => {
     await boot();
     byId.get('import')!.dispatch('click');
