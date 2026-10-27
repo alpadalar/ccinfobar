@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { t } from '../core/i18n/index.js';
+import { titleWidgets } from '../core/panel.js';
 import {
   claudeDir,
   claudeJsonPath,
@@ -9,6 +10,7 @@ import {
   configDir,
   projectSettingsPath,
 } from '../core/paths.js';
+import type { Config } from '../core/types.js';
 import { HARDEN } from '../data/git.js';
 import type { HookEvent } from '../data/hooks.js';
 import { safeCwd } from '../data/update-state.js';
@@ -300,11 +302,19 @@ export class InstallNeedsConfirmError extends Error {
   }
 }
 
-function proposal(command: string, owner: Owner, current: StatusLineSetting | null, refresh?: number) {
+function proposal(
+  command: string,
+  owner: Owner,
+  current: StatusLineSetting | null,
+  refresh?: number,
+  hideVim?: boolean,
+) {
   const statusLine: StatusLineSetting = { ...(current ?? {}), type: 'command', command, padding: 0 };
   const r = refresh ?? (isMine(owner) ? current?.refreshInterval : undefined);
   if (typeof r === 'number' && Number.isFinite(r) && r > 0) statusLine.refreshInterval = Math.floor(r);
   else delete statusLine.refreshInterval;
+  if (hideVim === true) statusLine.hideVimModeIndicator = true;
+  else if (hideVim === false) delete statusLine.hideVimModeIndicator;
   return statusLine;
 }
 
@@ -337,12 +347,20 @@ function planSubagent(
   return { current, owner, proposed, changes: !deepEqual(current, proposed), asked };
 }
 
+export function hasVimWidget(config: Config): boolean {
+  return (
+    config.lines.flat().some((w) => w.type === 'vim-mode') ||
+    (config.tui ? titleWidgets(config.tui).has('vim-mode') : false)
+  );
+}
+
 // reads only
 export function planInstall(opts: {
   file?: string;
   command: string;
   refresh?: number;
   subagents?: boolean;
+  hideVim?: boolean;
   env?: NodeJS.ProcessEnv;
 }): InstallPlan {
   const env = opts.env ?? process.env;
@@ -351,7 +369,7 @@ export function planInstall(opts: {
   const settings = readSettings(file).data;
   const current = statusLineOf(settings);
   const owner = classify(m, file, current, opts.command);
-  const proposed = proposal(opts.command, owner, current, opts.refresh);
+  const proposed = proposal(opts.command, owner, current, opts.refresh, opts.hideVim);
   const subagent = planSubagent(m, file, settings, opts.command, opts.subagents === true);
   return {
     file,
