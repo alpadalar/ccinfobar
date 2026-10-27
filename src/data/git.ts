@@ -2,6 +2,8 @@ import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { deepSanitize } from '../core/sanitize.js';
+import { cacheKey, readCache } from './cache.js';
+import { findUp, gitdirOf, parseHead, readSmall } from './repos.js';
 import { binary, whichDeps } from './which.js';
 
 export interface GitInfo {
@@ -287,4 +289,139 @@ export function readGit(cwd: string, opts: { harden?: boolean } = {}): GitInfo |
     forkUrl: url('fork'),
     isWorktree: gitDir !== common,
   });
+}
+
+export interface GitLayout {
+  root: string;
+  gitdir: string;
+  common: string;
+}
+
+const DISCOVERY_ENV = [
+  'GIT_DIR',
+  'GIT_WORK_TREE',
+  'GIT_COMMON_DIR',
+  'GIT_INDEX_FILE',
+  'GIT_CEILING_DIRECTORIES',
+  'GIT_DISCOVERY_ACROSS_FILESYSTEM',
+];
+
+// file walk only; null means use the spawning path uncached
+export function discoverGit(cwd: string, env: NodeJS.ProcessEnv = process.env): GitLayout | null {
+  try {
+    const win = process.platform === 'win32';
+    for (const k of Object.keys(env)) {
+      const key = win ? k.toUpperCase() : k;
+      if (DISCOVERY_ENV.includes(key) && env[k] !== undefined) return null;
+    }
+    const holder = findUp(cwd, '.git', 'any');
+    if (!holder) return null;
+    const dotgit = path.join(holder, '.git');
+    let gitdir: string;
+    if (fs.statSync(dotgit).isDirectory()) {
+      gitdir = dotgit;
+    } else {
+      const text = readSmall(dotgit);
+      const g = text === null ? null : gitdirOf(text, holder);
+      if (!g) return null;
+      gitdir = g;
+    }
+    const head = readSmall(path.join(gitdir, 'HEAD'));
+    if (head === null || /^ref:\s*refs\/heads\/\.invalid\s*$/.test(head.trim())) return null;
+    const cd = readSmall(path.join(gitdir, 'commondir'));
+    const common = cd === null ? gitdir : path.resolve(gitdir, cd.trim());
+    let root: string;
+    try {
+      root = fs.realpathSync.native(holder);
+    } catch {
+      root = path.resolve(holder);
+    }
+    return { root, gitdir, common };
+  } catch {
+    return null;
+  }
+}
+
+export type GitSig = [string, number, number] | [string, null];
+
+function statSig(f: string): GitSig {
+  try {
+    const st = fs.statSync(f, { throwIfNoEntry: false });
+    if (st) return [f, st.mtimeMs, st.size];
+  } catch {}
+  return [f, null];
+}
+
+export function gitSig(layout: GitLayout): GitSig[] {
+  const { gitdir, common } = layout;
+  const out: GitSig[] = [
+    statSig(path.join(gitdir, 'HEAD')),
+    statSig(path.join(gitdir, 'index')),
+    statSig(path.join(common, 'packed-refs')),
+    statSig(path.join(common, 'config')),
+  ];
+  const raw = readSmall(path.join(gitdir, 'HEAD'));
+  const branch = raw === null ? null : parseHead(raw);
+  if (branch && !branch.detached && branch.branch) {
+    out.push(statSig(path.join(common, 'refs', 'heads', branch.branch)));
+  }
+  out.push(statSig(path.join(gitdir, 'logs', 'HEAD')), statSig(path.join(common, 'refs', 'stash')));
+  return out;
+}
+
+export function sameSig(a: GitSig[], b: GitSig[]): boolean {
+  return (
+    a.length === b.length && a.every((x, i) => x[0] === b[i]![0] && x[1] === b[i]![1] && x[2] === b[i]![2])
+  );
+}
+
+export const GIT_TTL = 2000;
+const GIT_CACHE_VERSION = 1;
+
+export function gitCacheName(root: string, gitdir: string, harden: boolean, gitBin: string): string {
+  return `git-${cacheKey(root, gitdir, harden ? '1' : '0', gitBin)}.json`;
+}
+
+export interface GitCacheEntry {
+  v: number;
+  at: number;
+  sig: GitSig[];
+  info: GitInfo;
+  cfg?: { sig: GitSig; out: string };
+}
+
+function isSig(x: unknown): x is GitSig {
+  if (!Array.isArray(x) || typeof x[0] !== 'string') return false;
+  if (x.length === 2) return x[1] === null;
+  return x.length === 3 && typeof x[1] === 'number' && typeof x[2] === 'number';
+}
+
+const num = (x: unknown): boolean => typeof x === 'number' && Number.isFinite(x);
+const numOrNull = (x: unknown): boolean => x === null || num(x);
+
+function isInfo(x: unknown): x is GitInfo {
+  if (!x || typeof x !== 'object') return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.root === 'string' &&
+    (o.branch === null || typeof o.branch === 'string') &&
+    ['ahead', 'behind', 'staged', 'unstaged', 'untracked', 'conflicts'].every((k) => num(o[k])) &&
+    ['insertions', 'deletions', 'stash'].every((k) => numOrNull(o[k])) &&
+    typeof o.isWorktree === 'boolean'
+  );
+}
+
+export function readGitCache(name: string, env: NodeJS.ProcessEnv): GitCacheEntry | null {
+  const raw = readCache<unknown>(name, env);
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  if (o.v !== GIT_CACHE_VERSION || typeof o.at !== 'number') return null;
+  if (!Array.isArray(o.sig) || !o.sig.every(isSig) || !isInfo(o.info)) return null;
+  const entry: GitCacheEntry = { v: o.v, at: o.at, sig: o.sig as GitSig[], info: deepSanitize(o.info) };
+  if (o.cfg !== undefined) {
+    const c = o.cfg as Record<string, unknown> | null;
+    if (!c || typeof c !== 'object' || typeof c.out !== 'string' || !isSig(c.sig)) return null;
+    entry.cfg = { sig: c.sig, out: deepSanitize(c.out) };
+  }
+  return entry;
 }
