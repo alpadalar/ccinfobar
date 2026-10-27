@@ -24,6 +24,7 @@ vi.mock('node:child_process', async (orig) => ({
 vi.mock('../../src/data/which.js', () => ({
   binary: () => h.current,
   whichDeps: () => ({}),
+  pathValue: (e: NodeJS.ProcessEnv) => e.PATH ?? '',
 }));
 
 const { readGit, hardenedGit } = await import('../../src/data/git.js');
@@ -31,6 +32,7 @@ const { readJj } = await import('../../src/data/jj.js');
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-which-')));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
+const env = { ...process.env, CCINFOBAR_CACHE_DIR: path.join(tmp, 'cache') };
 
 beforeEach(() => {
   h.calls.length = 0;
@@ -57,14 +59,14 @@ describe('git and jj spawn through binary()', () => {
   it('spawns nothing when jj is not found', () => {
     const d = path.join(tmp, 'jjrepo');
     fs.mkdirSync(path.join(d, '.jj'), { recursive: true });
-    expect(readJj(d)!.change()).toBeNull();
+    expect(readJj(d, { env })).toBeNull();
     expect(h.calls).toEqual([]);
   });
 
   it('spawns the resolved jj path', () => {
     h.current = 'C:\\jj\\jj.exe';
     const d = path.join(tmp, 'jjrepo');
-    readJj(d)!.change();
+    readJj(d, { env })!.change();
     expect(h.calls.map((c) => c.file)).toEqual(['C:\\jj\\jj.exe']);
   });
 });
