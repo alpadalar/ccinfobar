@@ -103,7 +103,8 @@ export function updateManifest(
   fs.mkdirSync(path.dirname(lock), { recursive: true });
   const start = now();
   while (!acquireLock(lock, LOCK_STALE_MS, now())) {
-    if (now() - start >= LOCK_WAIT_MS) throw new Error(t('install.manifestBusy', { file: manifestFile(env) }));
+    if (now() - start >= LOCK_WAIT_MS)
+      throw new Error(t('install.manifestBusy', { file: manifestFile(env) }));
     sleepSync(LOCK_STEP_MS);
   }
   // lock only around read-merge-write; never across settings patches
