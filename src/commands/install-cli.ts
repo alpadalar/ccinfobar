@@ -377,8 +377,10 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     io.log(t('install.subagentsProjectIgnored'));
     subagents = false;
   }
-  const hideVimFlag =
+  const hideVimArg =
     typeof args.flags['hide-vim-indicator'] === 'boolean' ? args.flags['hide-vim-indicator'] : undefined;
+  if (hideVimArg !== undefined && project) io.log(t('install.hideVimProjectIgnored'));
+  const hideVimFlag = project ? undefined : hideVimArg;
   let hideVim = hideVimFlag;
   const planWith = (withSubagents: boolean) =>
     planInstall({

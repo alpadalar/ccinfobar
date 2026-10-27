@@ -163,7 +163,7 @@ describe('install hide-vim offer', () => {
     expect(fs.readFileSync(settings, 'utf8')).toBe(before);
   });
 
-  it('does not offer or write with --project', async () => {
+  it('does not offer or write with --project, and says so for the flag', async () => {
     config(true);
     writeJson(settings, { editorMode: 'vim' });
     const f = fake(true, true);
@@ -172,6 +172,10 @@ describe('install hide-vim offer', () => {
     const local = path.join(cwd, '.claude', 'settings.local.json');
     const written = fs.existsSync(local) ? fs.readFileSync(local, 'utf8') : '';
     expect(written).not.toContain('hideVimModeIndicator');
+    const g = fake(true, true);
+    await runInstall(inst('--project', '--hide-vim-indicator'), cfg, g.io);
+    expect(g.text()).toContain(t('install.hideVimProjectIgnored'));
+    expect(fs.readFileSync(local, 'utf8')).not.toContain('hideVimModeIndicator');
   });
 
   it('does not offer when the statusLine already hides it', async () => {

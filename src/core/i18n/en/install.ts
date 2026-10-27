@@ -28,6 +28,8 @@ export const installMessages = {
     'The statusLine in {file} changed while installing; nothing was written. Run install again.',
   'install.unchanged': 'statusLine already runs ccinfobar; nothing to change.',
   'install.subagentsProjectIgnored': '--subagents only applies to user settings; ignored with --project.',
+  'install.hideVimProjectIgnored':
+    '--hide-vim-indicator only applies to user settings; ignored with --project.',
   'install.subagentsUninstallProject': '--subagents only applies to user settings; ignored with --project.',
   'install.dry.subagentAdd': 'Would set subagentStatusLine to "{command}"',
   'install.dry.subagentRewrite': 'Would update subagentStatusLine from "{from}" to "{command}"',

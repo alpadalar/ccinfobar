@@ -18,6 +18,8 @@ export const installMessages = {
   'install.paddingDiff': '  padding: {current} -> {proposed}',
   'install.replacePrompt': 'Değiştirilsin mi?',
   'install.kept': 'Mevcut statusLine korundu. Hiçbir şey değiştirilmedi.',
+  'install.hideVimProjectIgnored':
+    '--hide-vim-indicator yalnızca kullanıcı ayarları için geçerli; --project ile yok sayıldı.',
   'install.subagentsProjectIgnored':
     '--subagents yalnızca kullanıcı ayarları için geçerli; --project ile yok sayıldı.',
   'install.subagentsUninstallProject':
