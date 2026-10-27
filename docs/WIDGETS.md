@@ -143,13 +143,13 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | --- | --- | --- | --- |
 | `git-branch` | Current branch, or short sha when detached | `feat/statusline` | `showIcon` boolean, default `false` |
 | `git-sha` | Short commit hash | `a1b2c3d` |  |
-| `git-changes` | Inserted and deleted lines versus HEAD | `+148 -37` |  |
+| `git-changes` | Inserted and deleted lines versus HEAD | `+148 -37` | `hideZero` boolean, default `false` |
 | `git-status` | Clean or dirty working tree | `● +3 ~2 ?1` | `counts` boolean, default `true` |
 | `git-staged` | Staged files | `Staged 3` | `hideZero` boolean, default `false` |
 | `git-unstaged` | Modified files not yet staged | `Modified 2` | `hideZero` boolean, default `false` |
 | `git-untracked` | Untracked files | `Untracked 1` | `hideZero` boolean, default `false` |
 | `git-ahead-behind` | Commits ahead of and behind upstream | `↑2 ↓0` |  |
-| `git-conflicts` | Files with merge conflicts | `Conflicts 2` |  |
+| `git-conflicts` | Files with merge conflicts | `Conflicts 2` | `hideZero` boolean, default `false` |
 | `git-stash` | Number of stash entries | `Stash 1` |  |
 | `git-operation` | Merge, rebase, cherry-pick, revert or bisect in progress | `MERGING` |  |
 | `git-repo` | Repository owner/name | `acme/acme-app` | `nameOnly` boolean, default `false`<br>`ownerOnlyWhenFork` boolean, default `false` |
