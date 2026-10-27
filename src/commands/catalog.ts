@@ -66,7 +66,7 @@ import { extractCode } from '../core/share-code.js';
 import { parseThemeInput, resolveThemeInput, type Theme } from '../core/themes.js';
 import { padVisible, visibleWidth } from '../core/width.js';
 import { gsdInstalled } from '../data/gsd.js';
-import { type ImportTarget, importTargets } from '../importers/confirm.js';
+import { type ImportTarget, importTargets, shortTarget } from '../importers/confirm.js';
 import { checkEndpoint } from '../market/endpoint.js';
 import { type PromptIo, plainOutput, promptIo, reportConfigIssue } from './io.js';
 
@@ -508,6 +508,7 @@ interface ApplySource {
   content: EntryContent;
   // a share code is never echoed in a hint
   code?: boolean;
+  unsafe?: ImportTarget[];
 }
 
 async function runApply(c: Ctx): Promise<void> {
@@ -520,7 +521,14 @@ async function runApply(c: Ctx): Promise<void> {
       return;
     }
     const name = t('share.entryName');
-    await applySource(c, { ref: 'share-code', kind: 'bundle', name, content: r.content, code: true });
+    await applySource(c, {
+      ref: 'share-code',
+      kind: 'bundle',
+      name,
+      content: r.content,
+      code: true,
+      unsafe: r.unsafe,
+    });
     return;
   }
   const hit = find(c, arg);
@@ -535,7 +543,10 @@ async function applySource(c: Ctx, src: ApplySource): Promise<void> {
   const current = loaded.config;
   const m = await import('./manage.js');
   const { ref, kind, name, content } = src;
-  let dropped: ImportTarget[] = [];
+  let dropped: ImportTarget[] = [...(src.unsafe ?? [])];
+  if (!c.json) {
+    for (const x of src.unsafe ?? []) c.io.log(t('import.note.unsafeLink', { url: shortTarget(x.target) }));
+  }
   if (kind !== 'theme' && content.layout) {
     const before = importTargets(content.layout);
     const refArg = src.code ? '<code>' : (m.shellArg(ref) ?? ref);
@@ -550,11 +561,13 @@ async function applySource(c: Ctx, src: ApplySource): Promise<void> {
     const io: PromptIo = c.json ? { ...c.io, tty: false, log: () => {} } : c.io;
     const kept = await m.confirmTargets({ config: content.layout, notes: [] }, flags, io, rerun);
     const left = importTargets(kept.config).map(targetKey);
-    dropped = before.filter((x) => {
-      const i = left.indexOf(targetKey(x));
-      if (i >= 0) left.splice(i, 1);
-      return i < 0;
-    });
+    dropped = dropped.concat(
+      before.filter((x) => {
+        const i = left.indexOf(targetKey(x));
+        if (i >= 0) left.splice(i, 1);
+        return i < 0;
+      }),
+    );
     content.layout = kept.config;
   }
   const lost = () => dropped.map((x) => ({ kind: x.kind, target: x.target }));

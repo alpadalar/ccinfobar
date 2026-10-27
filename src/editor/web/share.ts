@@ -32,6 +32,7 @@ export async function openShareCode(code: string): Promise<void> {
     toast(message(err), 'error');
     return;
   }
+  if (r.unsafe.length) toast(t('share.open.unsafeDropped', { count: r.unsafe.length }), 'info');
   let content = r.content;
   let dropped = 0;
   if (r.targets.length && content.layout) {

@@ -1477,7 +1477,13 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       case 'POST /api/share/open': {
         const r = decodeShare(asObject(await readBody(req)).code);
         if (!r.ok) throw httpError(400, r.errorId);
-        send(res, 200, { code: r.code, content: r.content, cols: r.cols ?? null, targets: r.targets });
+        send(res, 200, {
+          code: r.code,
+          content: r.content,
+          cols: r.cols ?? null,
+          targets: r.targets,
+          unsafe: r.unsafe,
+        });
         return;
       }
       case 'POST /api/share/install-theme': {

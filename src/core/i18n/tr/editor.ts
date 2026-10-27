@@ -266,4 +266,8 @@ export const editorMessages = {
     one: 'Paylaşım kodu 1 komut veya bağlantı bileşeni olmadan açıldı. Kalıcı olması için kaydedin.',
     other: 'Paylaşım kodu {count} komut veya bağlantı bileşeni olmadan açıldı. Kalıcı olması için kaydedin.',
   },
+  'share.open.unsafeDropped': {
+    one: 'http(s) olmayan 1 bağlantı çıkarıldı',
+    other: 'http(s) olmayan {count} bağlantı çıkarıldı',
+  },
 } satisfies Record<keyof typeof enEditor, Message>;

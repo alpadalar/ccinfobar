@@ -258,4 +258,8 @@ export const editorMessages = {
     one: 'Opened the share code without 1 command or link widget. Save to keep it.',
     other: 'Opened the share code without {count} command or link widgets. Save to keep it.',
   },
+  'share.open.unsafeDropped': {
+    one: 'Dropped 1 link with a URL that is not http(s)',
+    other: 'Dropped {count} links with URLs that are not http(s)',
+  },
 } as const;

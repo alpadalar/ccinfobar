@@ -225,6 +225,21 @@ describe('env widgets need consent', () => {
   });
 });
 
+describe('catalog apply <code> with unsafe links', () => {
+  const linkLines = () =>
+    [[{ id: 'l', type: 'link', options: { url: 'file:///x', text: 'x' } }]] as Config['lines'];
+
+  it('names the dropped link and lists it in --json', async () => {
+    fs.writeFileSync(cfg, JSON.stringify({ lines: [[{ id: 'x', type: 'cwd' }]] }));
+    const code = codeOf({ lines: linkLines() }, true);
+    const plain = await catalog(['apply', code, '--yes']);
+    expect(plain.out.join('\n')).toContain('file:///x');
+    fs.writeFileSync(cfg, JSON.stringify({ lines: [[{ id: 'x', type: 'cwd' }]] }));
+    const r = await catalog(['apply', code, '--yes', '--json']);
+    expect(JSON.parse(r.out.at(-1)!).dropped).toEqual([{ kind: 'link', target: 'file:///x' }]);
+  });
+});
+
 describe('ccinfobar edit <code>', () => {
   it('rejects a bad code before starting a server', async () => {
     write();

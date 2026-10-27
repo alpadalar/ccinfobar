@@ -95,6 +95,7 @@ const state = () => ({
 const CODE = 'ccib1:AbC';
 const shared = {
   code: CODE,
+  unsafe: [] as unknown[],
   content: {
     layout: {
       lines: [
@@ -279,6 +280,18 @@ describe('opening a share code', () => {
     button('Open').dispatch('click');
     await flush();
     expect(posts('/api/share/open')).toHaveLength(1);
+  });
+
+  it('toasts the count of dropped non-http(s) links', async () => {
+    await boot();
+    openReply = {
+      status: 200,
+      data: { ...shared, targets: [], unsafe: [{ kind: 'link', line: 0, index: 1, target: 'file:///x' }] },
+    };
+    const { openShareCode } = await import('../../src/editor/web/share.js');
+    void openShareCode(CODE);
+    await flush();
+    expect(toastText()).toContain('Dropped 1 link with a URL that is not http(s)');
   });
 
   it('lists an env widget by name in the consent dialog', async () => {

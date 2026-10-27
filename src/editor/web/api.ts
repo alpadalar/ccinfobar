@@ -119,6 +119,7 @@ export interface ShareOpenInfo {
   content: EntryContent;
   cols: number | null;
   targets: ImportTarget[];
+  unsafe: ImportTarget[];
 }
 
 let token = '';
