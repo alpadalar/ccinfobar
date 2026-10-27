@@ -125,14 +125,19 @@ export async function releaseDigest(
   timeoutMs = 8000,
 ): Promise<string | null> {
   try {
-    const res = await fetcher(`https://api.github.com/repos/${REPO}/releases/tags/v${assertVersion(version)}`, {
-      signal: AbortSignal.timeout(timeoutMs),
-      headers: { accept: 'application/vnd.github+json', 'user-agent': 'ccinfobar' },
-    });
+    const res = await fetcher(
+      `https://api.github.com/repos/${REPO}/releases/tags/v${assertVersion(version)}`,
+      {
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: { accept: 'application/vnd.github+json', 'user-agent': 'ccinfobar' },
+      },
+    );
     if (!res.ok) return null;
     const body = (await res.json()) as { assets?: { name?: unknown; digest?: unknown }[] };
     const asset = body.assets?.find((a) => a.name === 'ccinfobar.tgz');
-    return typeof asset?.digest === 'string' ? (/^sha256:([0-9a-f]{64})$/.exec(asset.digest)?.[1] ?? null) : null;
+    return typeof asset?.digest === 'string'
+      ? (/^sha256:([0-9a-f]{64})$/.exec(asset.digest)?.[1] ?? null)
+      : null;
   } catch {
     return null;
   }

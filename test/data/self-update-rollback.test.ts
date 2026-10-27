@@ -14,7 +14,9 @@ vi.mock('node:child_process', async (orig) => {
   return { ...real, execFile: (...a: unknown[]) => mocks.execFile(...a) };
 });
 
-const { checkForUpdate, fetchTarball, installVersionAsync, releaseDigest, verifyInstall } = await import('../../src/data/self-update.js');
+const { checkForUpdate, fetchTarball, installVersionAsync, releaseDigest, verifyInstall } = await import(
+  '../../src/data/self-update.js'
+);
 const realExecFile = (await vi.importActual<typeof import('node:child_process')>('node:child_process'))
   .execFile;
 
@@ -121,7 +123,8 @@ describe('tarball digest verification', () => {
       return { stdin: { end() {} } };
     });
   };
-  const specs = () => mocks.execFile.mock.calls.map((c) => (c[1] as string[]).find((x) => /ccinfobar/.test(x)));
+  const specs = () =>
+    mocks.execFile.mock.calls.map((c) => (c[1] as string[]).find((x) => /ccinfobar/.test(x)));
 
   it('releaseDigest returns the hex or null', async () => {
     expect(await releaseDigest('9.9.9', fakeFetch([release(`sha256:${hex}`)]).fetch)).toBe(hex);

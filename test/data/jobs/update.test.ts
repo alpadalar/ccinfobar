@@ -139,7 +139,8 @@ describe('legacy update.json fallback', () => {
 
   it('rejectedUpdate reports only a still-current rejection newer than the running version', () => {
     const env = sandbox();
-    const put = (v: UpdateValue) => writeEnvelope(okEnvelope<UpdateValue>('update', v, Date.now(), 's1'), env);
+    const put = (v: UpdateValue) =>
+      writeEnvelope(okEnvelope<UpdateValue>('update', v, Date.now(), 's1'), env);
     expect(rejectedUpdate('0.1.0', env)).toBeNull();
     put({ latest: '9.9.9', rejected: '9.9.9' });
     expect(rejectedUpdate('0.1.0', env)).toEqual({ rejected: '9.9.9' });

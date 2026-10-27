@@ -29,7 +29,10 @@ async function render(update: string): Promise<string> {
   fs.writeFileSync(payload, JSON.stringify({ session_id: 'rej', workspace: { current_dir: dir } }));
   fs.mkdirSync(configDir(), { recursive: true });
   const cfg = path.join(configDir(), 'render-rejected.json');
-  fs.writeFileSync(cfg, JSON.stringify({ update, lines: [[{ id: 'a', type: 'text', options: { text: 'hi' } }]] }));
+  fs.writeFileSync(
+    cfg,
+    JSON.stringify({ update, lines: [[{ id: 'a', type: 'text', options: { text: 'hi' } }]] }),
+  );
   let out = '';
   vi.spyOn(process.stdout, 'write').mockImplementation((s) => {
     out += String(s);
@@ -44,7 +47,12 @@ describe('render with a rejected update', () => {
   useIdleEntry();
   it('shows the notice in auto mode and hides it when updates are off', async () => {
     writeEnvelope(
-      okEnvelope<UpdateValue>('update', { latest: '999.0.0', rejected: '999.0.0', rollback: 'ok' }, Date.now(), 's'),
+      okEnvelope<UpdateValue>(
+        'update',
+        { latest: '999.0.0', rejected: '999.0.0', rollback: 'ok' },
+        Date.now(),
+        's',
+      ),
     );
     const on = await render('auto');
     expect(on).toContain(`failed its check, still on ${VERSION}`);
