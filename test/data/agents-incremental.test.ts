@@ -11,7 +11,7 @@ afterEach(() => {
   for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
 });
 
-function run(name: string, input: Record<string, unknown>) {
+function run(name: string, input: Record<string, unknown>, description = 'd') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-agents-inc-'));
   dirs.push(dir);
   const transcript = path.join(dir, 'session.jsonl');
@@ -19,7 +19,7 @@ function run(name: string, input: Record<string, unknown>) {
   fs.mkdirSync(sub, { recursive: true });
   fs.writeFileSync(
     path.join(sub, 'a1.meta.json'),
-    JSON.stringify({ agentType: 'Bash', description: 'd', toolUseId: 't1' }),
+    JSON.stringify({ agentType: 'Bash', description, toolUseId: 't1' }),
   );
   const jsonl = path.join(sub, 'a1.jsonl');
   const now = Date.now();
@@ -55,6 +55,16 @@ describe('agents argument masking', () => {
     expect(path.basename(file).startsWith('agent3-')).toBe(true);
     const text = fs.readFileSync(file, 'utf8');
     for (const bad of ['sk-abcdef', 'pw@', 'token=abc']) expect(text).not.toContain(bad);
+  });
+
+  it('masks the meta description in the row and the listing cache', () => {
+    const { rows, env } = run('Bash', { command: 'ls' }, 'curl -H "X-Api-Key: abc123secret" api');
+    expect(rows[0]!.description).toContain('X-Api-Key: …');
+    expect(rows[0]!.description).not.toContain('abc123secret');
+    const cache = path.join(env.CCINFOBAR_CACHE_DIR!);
+    const files = fs.readdirSync(cache).filter((f) => f.startsWith('agents-dir-'));
+    expect(files.length).toBeGreaterThan(0);
+    for (const f of files) expect(fs.readFileSync(path.join(cache, f), 'utf8')).not.toContain('abc123secret');
   });
 
   it('shows the basename of file_path', () => {

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { sanitizeText } from '../core/sanitize.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
 import type { HookAgent, HookState } from './hooks.js';
-import { headHash, shortArg, type TranscriptInfo } from './transcript.js';
+import { headHash, maskSecrets, shortArg, type TranscriptInfo } from './transcript.js';
 
 export interface AgentInfo {
   id: string;
@@ -227,6 +227,8 @@ export function agentsDirCacheName(dir: string): string {
 }
 
 const strOrNull = (v: unknown): string | null => (typeof v === 'string' ? sanitizeText(v) : null);
+const descOrNull = (v: unknown): string | null =>
+  typeof v === 'string' ? maskSecrets(sanitizeText(v)) : null;
 
 function validListing(files: unknown): files is AgentListing[] {
   return (
@@ -256,7 +258,7 @@ function listAgents(dir: string, env: NodeJS.ProcessEnv, persist: boolean): Agen
     return hit.files.map((f) => ({
       id: f.id,
       agentType: strOrNull(f.agentType),
-      description: strOrNull(f.description),
+      description: descOrNull(f.description),
       toolUseId: strOrNull(f.toolUseId),
     }));
   }
@@ -276,7 +278,7 @@ function listAgents(dir: string, env: NodeJS.ProcessEnv, persist: boolean): Agen
       files.push({
         id,
         agentType: strOrNull(m.agentType),
-        description: strOrNull(m.description),
+        description: descOrNull(m.description),
         toolUseId: strOrNull(m.toolUseId),
       });
     } catch {}
@@ -306,7 +308,7 @@ function row(
   return {
     id: id.replace(/^agent-/, ''),
     type: r.type ?? metaType(meta),
-    description: typeof meta.description === 'string' ? sanitizeText(meta.description) : '',
+    description: descOrNull(meta.description) ?? '',
     model: s.model === null ? null : sanitizeText(s.model),
     input: s.input,
     output: s.output,
