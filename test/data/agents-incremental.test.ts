@@ -152,6 +152,36 @@ describe('incremental reads', () => {
     expect(f.read()).toHaveLength(2);
   });
 
+  it('lists a subagent created in the same directory mtime tick', () => {
+    const f = fixture();
+    f.add('a1', line(1));
+    f.touchDir(NOW - 60_000);
+    expect(f.read()).toHaveLength(1);
+    f.add('a2', line(2));
+    f.touchDir(NOW - 60_000);
+    expect(f.read()).toHaveLength(2);
+  });
+
+  it('retries a meta file that failed to parse', () => {
+    const f = fixture();
+    const T = NOW - 60_000;
+    const cacheText = () => {
+      const dir = path.join(path.dirname(f.sub), '..', 'cache');
+      const names = fs.existsSync(dir) ? fs.readdirSync(dir).filter((n) => n.startsWith('agents-dir-')) : [];
+      return names.map((n) => fs.readFileSync(path.join(dir, n), 'utf8')).join('');
+    };
+    f.add('a1', line(1));
+    fs.writeFileSync(path.join(f.sub, 'a2.meta.json'), '{not json');
+    fs.writeFileSync(f.jsonl('a2'), line(2));
+    f.touchDir(T);
+    expect(f.read()).toHaveLength(1);
+    expect(cacheText()).not.toContain('"a2"');
+    f.add('a2', line(2));
+    f.touchDir(T);
+    expect(f.read()).toHaveLength(2);
+    expect(cacheText()).toContain('"a2"');
+  });
+
   it('resets on truncation and on a replaced head', () => {
     const f = fixture();
     f.add('a1', line(1) + line(2) + line(3));

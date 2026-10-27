@@ -219,7 +219,7 @@ interface AgentListing {
   toolUseId: string | null;
 }
 
-const LISTING_VERSION = 1;
+const LISTING_VERSION = 2;
 const AGENT_ID = /^[A-Za-z0-9_-]+$/;
 
 export function agentsDirCacheName(dir: string): string {
@@ -244,17 +244,34 @@ function validListing(files: unknown): files is AgentListing[] {
   );
 }
 
-// the directory mtime moves on create/delete, not on append
+const sameList = (a: string[], b: string[]): boolean =>
+  a.length === b.length && a.every((v, i) => v === b[i]);
+
+// same mtime tick can hide a second agent (D-05)
 function listAgents(dir: string, env: NodeJS.ProcessEnv, persist: boolean): AgentListing[] {
   let dirMtime: number;
+  let ids: string[];
   try {
     dirMtime = fs.statSync(dir).mtimeMs;
+    ids = fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith('.meta.json'))
+      .map((f) => f.slice(0, -'.meta.json'.length))
+      .filter((id) => AGENT_ID.test(id))
+      .sort();
   } catch {
     return [];
   }
   const name = agentsDirCacheName(dir);
-  const hit = readCache<{ v: number; dirMtime: number; files: unknown }>(name, env);
-  if (hit && hit.v === LISTING_VERSION && hit.dirMtime === dirMtime && validListing(hit.files)) {
+  const hit = readCache<{ v: number; dirMtime: number; ids: unknown; files: unknown }>(name, env);
+  if (
+    hit &&
+    hit.v === LISTING_VERSION &&
+    hit.dirMtime === dirMtime &&
+    Array.isArray(hit.ids) &&
+    sameList(hit.ids as string[], ids) &&
+    validListing(hit.files)
+  ) {
     return hit.files.map((f) => ({
       id: f.id,
       agentType: strOrNull(f.agentType),
@@ -263,17 +280,10 @@ function listAgents(dir: string, env: NodeJS.ProcessEnv, persist: boolean): Agen
     }));
   }
   const files: AgentListing[] = [];
-  let names: string[];
-  try {
-    names = fs.readdirSync(dir).filter((f) => f.endsWith('.meta.json'));
-  } catch {
-    return [];
-  }
-  for (const f of names) {
-    const id = f.slice(0, -'.meta.json'.length);
-    if (!AGENT_ID.test(id)) continue;
+  let failed = false;
+  for (const id of ids) {
     try {
-      const parsed: unknown = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      const parsed: unknown = JSON.parse(fs.readFileSync(path.join(dir, `${id}.meta.json`), 'utf8'));
       const m = (parsed && typeof parsed === 'object' ? parsed : {}) as Json;
       files.push({
         id,
@@ -281,9 +291,11 @@ function listAgents(dir: string, env: NodeJS.ProcessEnv, persist: boolean): Agen
         description: descOrNull(m.description),
         toolUseId: strOrNull(m.toolUseId),
       });
-    } catch {}
+    } catch {
+      failed = true;
+    }
   }
-  if (persist) writeCache(name, { v: LISTING_VERSION, dirMtime, files }, env);
+  if (persist && !failed) writeCache(name, { v: LISTING_VERSION, dirMtime, ids, files }, env);
   return files;
 }
 
