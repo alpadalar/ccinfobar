@@ -32,8 +32,8 @@ export interface WorkerDeps {
   takeOver?: (env: NodeJS.ProcessEnv) => void;
 }
 
-// longer than the update job's npm install budget
-export const WORKER_DEADLINE_MS = 330_000;
+// longer than the update job's install, verify and rollback budgets
+export const WORKER_DEADLINE_MS = 570_000;
 const MAX_REQUESTS = 32;
 const MAX_ARG = 4200;
 const SWEEP_AGE = 7 * 86_400_000;

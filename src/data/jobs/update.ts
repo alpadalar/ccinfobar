@@ -3,7 +3,14 @@ import path from 'node:path';
 import { cacheDir } from '../../core/paths.js';
 import { sanitizeText } from '../../core/sanitize.js';
 import type { Config } from '../../core/types.js';
-import { failEnvelope, type Job, type JobEnvelope, okEnvelope, readEnvelope } from './runner.js';
+import {
+  failEnvelope,
+  type Job,
+  type JobEnvelope,
+  okEnvelope,
+  readEnvelope,
+  writeEnvelope,
+} from './runner.js';
 
 export interface UpdateValue {
   latest: string | null;
@@ -128,7 +135,7 @@ export const updateJob: Job<UpdateValue> = {
   id: 'update',
   network: 'auto',
   lockMs: UPDATE_LOCK_MS,
-  timeoutMs: 300_000,
+  timeoutMs: 540_000,
   retryMs: 0,
   keyRe: /^update$/,
   paramRe: SESSION_RE,
@@ -159,6 +166,9 @@ export const updateJob: Job<UpdateValue> = {
       const value = await m.checkForUpdate(ctx.config, undefined, ctx.env, {
         fetch: ctx.fetch,
         rejected: prevValue?.rejected ?? null,
+        recordRejected: (v) => {
+          writeEnvelope(okEnvelope('update', v, ctx.now, req.param), ctx.env);
+        },
         ...(ctx.signal ? { signal: ctx.signal } : {}),
       });
       return okEnvelope('update', value, ctx.now, req.param);

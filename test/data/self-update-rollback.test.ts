@@ -62,6 +62,49 @@ describe('checkForUpdate verify and rollback', () => {
     expect(b).toMatchObject({ rejected: '9.9.9', rollback: 'failed', reason: 'render-failed:1' });
   });
 
+  it('gives the rollback its own budget and records the rejection before it starts', async () => {
+    const ac = new AbortController();
+    const calls: string[] = [];
+    const signals: AbortSignal[] = [];
+    const install = vi.fn(async (v: string, _p?: string, signal?: AbortSignal) => {
+      calls.push(`install:${v}`);
+      signals.push(signal!);
+      if (v === '9.9.9') ac.abort();
+    });
+    const verify = async (v: string) => (v === '9.9.9' ? 'render-failed:1' : null);
+    const recordRejected = vi.fn(() => {
+      calls.push('record');
+    });
+    const out = await checkForUpdate(
+      cfg,
+      '0.1.0',
+      {},
+      { ...base, install, verify, recordRejected, signal: ac.signal },
+    );
+    expect(calls).toEqual(['install:9.9.9', 'record', 'install:0.1.0']);
+    expect(signals[1]!.aborted).toBe(false);
+    expect(out).toMatchObject({ rejected: '9.9.9', rollback: 'ok' });
+    expect(recordRejected).toHaveBeenCalledWith({
+      latest: '9.9.9',
+      rejected: '9.9.9',
+      rollback: 'failed',
+      reason: 'render-failed:1',
+    });
+  });
+
+  it('still rejects the version when the rollback runs out of its budget', async () => {
+    const install = vi.fn(
+      (v: string, _p?: string, signal?: AbortSignal) =>
+        new Promise<void>((resolve, reject) => {
+          if (v === '9.9.9') return resolve();
+          signal?.addEventListener('abort', () => reject(new Error('install cancelled')));
+        }),
+    );
+    const verify = async (v: string) => (v === '9.9.9' ? 'render-failed:1' : null);
+    const out = await checkForUpdate(cfg, '0.1.0', {}, { ...base, install, verify, rollbackMs: 20 });
+    expect(out).toMatchObject({ rejected: '9.9.9', rollback: 'failed', reason: 'render-failed:1' });
+  });
+
   it('keeps the install when verify passes', async () => {
     const install = vi.fn();
     const out = await checkForUpdate(cfg, '0.1.0', {}, { ...base, install, verify: async () => null });
