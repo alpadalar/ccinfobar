@@ -84,7 +84,7 @@ export function globalBinary(): string | null {
     const out = execFileSync(win ? 'where' : 'which', win ? ['ccinfobar'] : ['-a', 'ccinfobar'], {
       encoding: 'utf8',
       windowsHide: true,
-      timeout: 2000,
+      timeout: 10_000,
     });
     const hit = out
       .split(/\r?\n/)
@@ -561,7 +561,7 @@ function projectRoots(dir: string): string[] {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
       windowsHide: true,
-      timeout: 2000,
+      timeout: 10_000,
     }).trim();
     if (top && !roots.includes(path.resolve(top))) roots.push(path.resolve(top));
   } catch {}
@@ -614,7 +614,7 @@ export function ignoreLocally(file: string): boolean {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
       windowsHide: true,
-      timeout: 2000,
+      timeout: 10_000,
     }).trim();
   try {
     git(['rev-parse', '--git-dir']);
@@ -726,7 +726,7 @@ export function npmGlobalBin(): string | null {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
       windowsHide: true,
-      timeout: 15_000,
+      timeout: 60_000,
       shell: npm.shell,
     }).trim();
     const bin =
