@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { subagentMain } from '../../src/cli/subagent-line.js';
 import { configPath } from '../../src/core/paths.js';
-import { visibleWidth } from '../../src/core/width.js';
+import { NORMAL_WIDTH, setWidthMode, visibleWidth } from '../../src/core/width.js';
 import { withLangAsync, withoutSideEffectsAsync } from '../helpers.js';
 
 const fixture = fs.readFileSync(path.resolve(__dirname, '../fixtures/subagent-payload.json'), 'utf8');
@@ -106,6 +106,19 @@ describe('subagent-line', () => {
     );
     expect(lines(out).map((r) => r.id)).toEqual(['full']);
     expect(await run(JSON.stringify({ columns: 60, tasks: [{ id: 'empty' }] }))).toBe('');
+  });
+
+  it('measures with the configured ambiguous width and restores the mode', async () => {
+    fs.writeFileSync(
+      configPath(env),
+      JSON.stringify({ ambiguousWidth: 2, subagentLine: { fields: ['label'] } }),
+    );
+    const out = await run(JSON.stringify({ columns: 30, tasks: [{ id: 'a', label: '\u03a9'.repeat(40) }] }));
+    setWidthMode({ emoji: 2, ambiguous: 2 });
+    const wide = visibleWidth(lines(out)[0]!.content);
+    setWidthMode(NORMAL_WIDTH);
+    expect(wide).toBeLessThanOrEqual(30);
+    expect(visibleWidth(lines(out)[0]!.content)).toBeLessThan(wide);
   });
 
   it('strips escape sequences from task text', async () => {

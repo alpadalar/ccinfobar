@@ -4,6 +4,7 @@ import { fs } from '../core/builtins.js';
 import { configPath } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
 import type { ColorLevel } from '../core/types.js';
+import { setWidthMode } from '../core/width.js';
 import { readJsonSafe } from '../data/store.js';
 import { SUBAGENT_FIELDS, type SubagentField } from '../widgets/shared.js';
 import { subagentRow } from '../widgets/subagent-row.js';
@@ -75,16 +76,25 @@ export async function subagentMain(argv: string[], deps: SubagentDeps = {}): Pro
     const level = detectLevel((cfg?.colorLevel as ColorLevel | undefined) ?? 'auto', env);
     const columns = typeof payload.columns === 'number' ? payload.columns : Number.NaN;
     const now = (deps.now ?? Date.now)();
+    // mirrors widthModeFor; importing core/glyphs.ts would add chunks
+    const jb =
+      cfg?.glyphMode === 'jetbrains' ||
+      (cfg?.glyphMode === 'auto' && /JetBrains/.test(env.TERMINAL_EMULATOR ?? ''));
+    const prev = setWidthMode({ emoji: jb ? 1 : 2, ambiguous: cfg?.ambiguousWidth === 2 ? 2 : 1 });
     const out: string[] = [];
-    for (const task of payload.tasks) {
-      try {
-        if (!isObject(task) || typeof task.id !== 'string') continue;
-        const content = subagentRow(task, { columns, now, fields, text, level });
-        if (content === '') continue; // keep Claude Code's default row
-        out.push(`${JSON.stringify({ id: task.id, content })}\n`);
-      } catch {
-        // skip this task
+    try {
+      for (const task of payload.tasks) {
+        try {
+          if (!isObject(task) || typeof task.id !== 'string') continue;
+          const content = subagentRow(task, { columns, now, fields, text, level });
+          if (content === '') continue; // keep Claude Code's default row
+          out.push(`${JSON.stringify({ id: task.id, content })}\n`);
+        } catch {
+          // skip this task
+        }
       }
+    } finally {
+      setWidthMode(prev);
     }
     if (out.length) (deps.write ?? ((s) => void process.stdout.write(s)))(out.join(''));
   } catch {
