@@ -72,6 +72,7 @@ jobs:
       - name: Confirm the ICU default is Turkish
         shell: bash
         run: node -e "const l=Intl.DateTimeFormat().resolvedOptions().locale;console.log(l);if(!/^tr\b/.test(l))process.exit(1)"
+      - run: npm run build
       - run: npm run check
 
   clean-install:
@@ -96,6 +97,31 @@ jobs:
         continue-on-error: true
         shell: bash
         run: npm run build >/dev/null && node dist/ccinfobar.js bench --runs 10 --json
+
+  jj:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CCIB_REQUIRE_JJ: '1'
+      JJ_USER: ci
+      JJ_EMAIL: ci@example.com
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install jj
+        shell: bash
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/jj.tar.gz" https://github.com/jj-vcs/jj/releases/download/v0.46.0/jj-v0.46.0-x86_64-unknown-linux-musl.tar.gz
+          echo "fce0271158e665ceb82dc66c5eb95b1728649094e9133074f3b5baece345fc08  $RUNNER_TEMP/jj.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/jj"
+          tar -xzf "$RUNNER_TEMP/jj.tar.gz" -C "$RUNNER_TEMP/jj"
+          dirname "$(find "$RUNNER_TEMP/jj" -type f -name jj | head -n 1)" >> "$GITHUB_PATH"
+      - run: jj --version
+      - run: npx vitest run test/data/jj.test.ts test/widgets/jj.test.ts
 
   plugin:
     runs-on: ubuntu-latest

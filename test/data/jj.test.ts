@@ -5,7 +5,15 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { findJjRoot, parseBookmarks, parseJjChange, readJj } from '../../src/data/jj.js';
 
+process.env.JJ_USER ??= 'ci';
+process.env.JJ_EMAIL ??= 'ci@example.com';
+
 const hasJj = spawnSync('jj', ['--version'], { stdio: 'ignore', windowsHide: true }).status === 0;
+const requireJj = process.env.CCIB_REQUIRE_JJ === '1';
+
+it.skipIf(!requireJj)('jj is installed when CCIB_REQUIRE_JJ is set', () => {
+  expect(hasJj, 'jj not found on PATH but CCIB_REQUIRE_JJ=1').toBe(true);
+});
 
 let tmp: string;
 
@@ -140,14 +148,31 @@ describe('readJj', () => {
   });
 });
 
-describe.skipIf(!hasJj)('readJj with jj', () => {
+describe.skipIf(!hasJj && !requireJj)('readJj with jj', () => {
+  const jj = (cwd: string, ...args: string[]) =>
+    expect(spawnSync('jj', args, { cwd, stdio: 'ignore', windowsHide: true }).status).toBe(0);
+
   it('reads a fresh repo', () => {
     const d = path.join(tmp, 'real');
     fs.mkdirSync(d);
-    const init = spawnSync('jj', ['git', 'init'], { cwd: d, stdio: 'ignore', windowsHide: true });
-    expect(init.status).toBe(0);
+    jj(d, 'git', 'init');
     const r = readJj(d)!;
     expect(r.workspace()).toBe('default');
     expect(r.change()).not.toBeNull();
+  });
+
+  it('reads description, bookmarks, workspace and diff through every template', () => {
+    const d = path.join(tmp, 'real-full');
+    fs.mkdirSync(d);
+    jj(d, 'git', 'init');
+    jj(d, 'describe', '-m', 'msg');
+    jj(d, 'bookmark', 'create', 'main', '-r', '@');
+    fs.writeFileSync(path.join(d, 'a.txt'), 'one\ntwo\n');
+    const r = readJj(d)!;
+    expect(r.change()?.description).toContain('msg');
+    expect(r.bookmarks()).toContain('main');
+    expect(r.workspace()).toBe('default');
+    expect(r.diff(false)).toEqual(expect.objectContaining({ insertions: expect.any(Number) }));
+    expect(r.diff(true)!.insertions).toBeGreaterThan(0);
   });
 });

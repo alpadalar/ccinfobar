@@ -566,6 +566,8 @@ It also guards the network: `fetch`, `http.request` and `https.request` to any h
 
 CI runs the suite on Linux, macOS and Windows with Node 20, 22, 24 and 26.
 
+The suites that need `dist/` (`test/integration`, the built-CLI parts of `test/commands/bench.test.ts` and `test/foundations/import-graph.test.ts`) skip locally without a build (`skipDist` in `test/dist.ts`) and fail when `CI` is set, so every CI job that runs them builds first. The real-jj suite (`test/data/jj.test.ts`) runs against a pinned jj in the `jj` CI job (`CCIB_REQUIRE_JJ=1`) and skips locally when jj is not installed.
+
 ### Clean-install check
 
 ```sh
