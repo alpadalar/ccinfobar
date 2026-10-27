@@ -81,7 +81,7 @@ Options
                                   report: first and last day, YYYY-MM-DD or 7d, 4w, 3m back
   --all                           report: everything in the history
   --format table|csv|json         report: output format (default table)
-  --import / --no-import          install: import the previous status line's layout without asking
+  --import / --no-import          install: import the previous status line's layout without asking (needed without a terminal when a config exists)
   --file <path>                   import: read this settings file
   --allow-commands                import, install: keep imported commands, URLs and env widgets without asking
   --include-commands              share: keep command, HTTP, link and env widgets in the code

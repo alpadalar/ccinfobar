@@ -81,7 +81,7 @@ Seçenekler
                                   report: ilk ve son gün, YYYY-MM-DD ya da 7d, 4w, 3m geriye
   --all                           report: geçmişin tamamı
   --format table|csv|json         report: çıktı biçimi (varsayılan table)
-  --import / --no-import          install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz
+  --import / --no-import          install: önceki durum satırının düzenini sormadan içe aktarır (yapılandırma varken terminal yokken gerekir)
   --file <path>                   import: bu ayar dosyasını okur
   --allow-commands                import, install: içe aktarılan komutları, URL'leri ve ortam değişkeni bileşenlerini sormadan korur
   --include-commands              share: komut, HTTP, bağlantı ve ortam değişkeni bileşenlerini kodda tutar

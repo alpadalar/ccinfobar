@@ -71,7 +71,7 @@ export const cliMessages = {
   'help.opt.since': 'report: first and last day, YYYY-MM-DD or 7d, 4w, 3m back',
   'help.opt.all': 'report: everything in the history',
   'help.opt.format': 'report: output format (default table)',
-  'help.opt.import': "install: import the previous status line's layout without asking",
+  'help.opt.import': "install: import the previous status line's layout without asking (needed without a terminal when a config exists)",
   'help.opt.file': 'import: read this settings file',
   'help.opt.allowCommands': 'import, install: keep imported commands, URLs and env widgets without asking',
   'help.opt.includeCommands': 'share: keep command, HTTP, link and env widgets in the code',

@@ -17,10 +17,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- `ccinfobar install` no longer imports the previous status line's layout over an existing ccinfobar config unless you answer yes (the default is now no) or pass `--import`; `--yes` alone no longer imports in that case, and the import runs only after the settings were written
 - `jj-changes` no longer snapshots the working copy by default, so a status line refresh never writes to the jj operation log; set `snapshot: true` to get the old behaviour
 
 ### Fixed
 
+- `install` keeps other keys inside Claude Code's `statusLine` object (such as `hideVimModeIndicator`) when it rewrites the command
 - Minute-based theme rotation now restarts at local midnight as documented, so `every: 7` does not drift across days
 - Usage widgets no longer print `Infinity%` or `NaN%` when the payload carries a non-finite `used_percentage`; they show the loading state instead
 - `git-is-fork` compares the remote host and the full path, so GitLab subgroups and same-path repos on different hosts are detected correctly (`git-repo` output is unchanged).

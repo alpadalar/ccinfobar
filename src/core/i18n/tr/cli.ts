@@ -76,7 +76,7 @@ export const cliMessages = {
   'help.opt.since': 'report: ilk ve son gün, YYYY-MM-DD ya da 7d, 4w, 3m geriye',
   'help.opt.all': 'report: geçmişin tamamı',
   'help.opt.format': 'report: çıktı biçimi (varsayılan table)',
-  'help.opt.import': 'install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz',
+  'help.opt.import': 'install: önceki durum satırının düzenini sormadan içe aktarır (yapılandırma varken terminal yokken gerekir)',
   'help.opt.file': 'import: bu ayar dosyasını okur',
   'help.opt.allowCommands':
     "import, install: içe aktarılan komutları, URL'leri ve ortam değişkeni bileşenlerini sormadan korur",
