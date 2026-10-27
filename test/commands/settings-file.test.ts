@@ -126,6 +126,75 @@ describe('settings file format', () => {
     expect(JSON.parse(fs.readFileSync(fx.file, 'utf8')).statusLine).toBeUndefined();
   });
 
+  const stamped = (env: NodeJS.ProcessEnv) => {
+    try {
+      return fs.readdirSync(backupsDir(env)).filter((n) => !n.endsWith('-original.json'));
+    } catch {
+      return [];
+    }
+  };
+  const seed = (env: NodeJS.ProcessEnv, prefix = 'settings') => {
+    fs.mkdirSync(backupsDir(env), { recursive: true });
+    const names: string[] = [];
+    for (let i = 1; i <= 10; i++) {
+      const name = `${prefix}-202001${String(i).padStart(2, '0')}T000000Z.json`;
+      fs.writeFileSync(path.join(backupsDir(env), name), '{}');
+      names.push(name);
+    }
+    return names;
+  };
+
+  it('one backup from the bytes that were read when a concurrent write forces a retry', () => {
+    const fx = settingsFixture({ data: base });
+    const before = stamped(fx.env).length;
+    let hits = 0;
+    const res = patchSettings(fx.file, setLine, {
+      env: fx.env,
+      beforeRename: () => {
+        if (hits++ === 0) fs.writeFileSync(fx.file, JSON.stringify({ ...base, other: true }));
+      },
+    });
+    expect(res.attempts).toBe(2);
+    const after = stamped(fx.env);
+    expect(after.length - before).toBe(1);
+    expect(JSON.parse(fs.readFileSync(path.join(backupsDir(fx.env), after[0]!), 'utf8'))).toEqual({
+      ...base,
+      other: true,
+    });
+    expect(JSON.parse(fs.readFileSync(fx.file, 'utf8'))).toEqual({ ...base, other: true, statusLine: sl });
+  });
+
+  it('a failed CAS leaves no backup behind and rotates nothing', () => {
+    const fx = settingsFixture({ data: base });
+    const names = seed(fx.env);
+    let n = 0;
+    const touch = () => fs.writeFileSync(fx.file, JSON.stringify({ ...base, n: n++ }));
+    expect(() => patchSettings(fx.file, setLine, { env: fx.env, beforeRename: touch })).toThrow(/changed/);
+    expect(stamped(fx.env).sort()).toEqual([...names].sort());
+  });
+
+  it('rotation happens only after a successful rename', () => {
+    const fx = settingsFixture({ data: base });
+    const names = seed(fx.env);
+    patchSettings(fx.file, setLine, { env: fx.env });
+    const after = stamped(fx.env).sort();
+    expect(after.length).toBe(10);
+    expect(after).not.toContain(names[0]);
+    expect(after.filter((x) => !names.includes(x)).length).toBe(1);
+  });
+
+  it('deleteSettingsFile leaves no backup when the file changes before the delete', () => {
+    const fx = settingsFixture({ data: base });
+    const before = stamped(fx.env).length;
+    const res = deleteSettingsFile(fx.file, {
+      env: fx.env,
+      beforeRename: () => fs.writeFileSync(fx.file, JSON.stringify({ changed: true })),
+    });
+    expect(res).toBeNull();
+    expect(JSON.parse(fs.readFileSync(fx.file, 'utf8'))).toEqual({ changed: true });
+    expect(stamped(fx.env).length).toBe(before);
+  });
+
   it('hashes bytes with a sha256 prefix', () => {
     expect(hashBytes(Buffer.from('x'))).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(hashBytes('x')).toBe(hashBytes(Buffer.from('x')));
