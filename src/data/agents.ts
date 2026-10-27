@@ -133,7 +133,9 @@ function advanceSummary(s: Summary, fd: number, size: number, budget: number): n
     let start = 0;
     let nl = chunk.indexOf(10, start);
     while (nl !== -1) {
-      const seg = parts.length ? Buffer.concat([...parts, chunk.subarray(start, nl)]) : chunk.subarray(start, nl);
+      const seg = parts.length
+        ? Buffer.concat([...parts, chunk.subarray(start, nl)])
+        : chunk.subarray(start, nl);
       parts = [];
       if (seg.length > 0) applyLine(s, seg.toString('utf8'));
       start = nl + 1;
