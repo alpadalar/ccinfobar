@@ -46,6 +46,44 @@ export class FakeEl {
   getAttribute(k: string) {
     return this.attrs.get(k) ?? null;
   }
+  removeAttribute(k: string) {
+    this.attrs.delete(k);
+  }
+  hasAttribute(k: string) {
+    return this.attrs.has(k);
+  }
+  toggleAttribute(k: string, force?: boolean) {
+    const want = force ?? !this.attrs.has(k);
+    if (want) this.attrs.set(k, '');
+    else this.attrs.delete(k);
+    return want;
+  }
+  get parentElement(): FakeEl | null {
+    return this.parent;
+  }
+  matches(sel: string): boolean {
+    return sel.split(',').some((part) => {
+      const p = part.trim();
+      if (!p) return false;
+      const re = /^([\w-]+)|\.([\w-]+)|\[([\w-]+)(?:=["']?([^\]"']*)["']?)?\]/y;
+      let ok = true;
+      let n = 0;
+      for (let m = re.exec(p); m; m = re.exec(p)) {
+        n = re.lastIndex;
+        if (m[1]) ok &&= this.tagName === m[1].toUpperCase();
+        else if (m[2]) ok &&= this.classList.contains(m[2]);
+        else if (m[3]) {
+          const v = m[4] === undefined ? undefined : m[4];
+          ok &&= v === undefined ? this.attrs.has(m[3]) : this.attrs.get(m[3]) === v;
+        }
+      }
+      return ok && n === p.length;
+    });
+  }
+  closest(sel: string): FakeEl | null {
+    for (let n: FakeEl | null = this; n; n = n.parent) if (n.matches(sel)) return n;
+    return null;
+  }
   style = { cssText: '', setProperty() {} };
   readonly listeners = new Map<string, ((e: unknown) => void)[]>();
   addEventListener(type: string, fn: (e: unknown) => void) {
@@ -55,7 +93,10 @@ export class FakeEl {
   dispatch(type: string, e: unknown = { target: this, stopPropagation() {}, preventDefault() {} }) {
     for (const fn of this.listeners.get(type) ?? []) fn(e);
   }
-  focus() {}
+  focus() {
+    const d = (globalThis as { document?: { activeElement?: unknown } }).document;
+    if (d && 'activeElement' in d) d.activeElement = this;
+  }
   click() {}
   getBoundingClientRect() {
     return { left: 0, top: 0, width: 0, height: 0 };
@@ -88,11 +129,13 @@ export class FakeEl {
     list.splice(list.indexOf(this) + 1, 0, ...c);
   }
   querySelector(sel: string): FakeEl | null {
+    if (sel.includes(',') || sel.includes('[')) return this.querySelectorAll(sel)[0] ?? null;
     const cls = sel.startsWith('.') ? sel.slice(1) : null;
     return this.all((e) => (cls ? e.classList.contains(cls) : e.tagName === sel.toUpperCase()))[0] ?? null;
   }
   querySelectorAll(sel: string): FakeEl[] {
     const attr = /^\[([\w-]+)\]$/.exec(sel)?.[1];
+    if (!attr && /[,.[]/.test(sel)) return this.all((e) => e.matches(sel));
     return this.all((e) => (attr ? e.attrs.has(attr) : e.tagName === sel.toUpperCase()));
   }
   all(pred: (e: FakeEl) => boolean): FakeEl[] {
