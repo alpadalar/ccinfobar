@@ -651,6 +651,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar install --hooks` | Also add the optional [hooks](#hooks) (`--hooks=permission` adds PermissionRequest) |
 | `ccinfobar install --progress` | Show context fill as the terminal tab's progress bar (OSC 9;4) through synchronous hooks; needs Claude Code 2.1.141+ and adds about 60-110 ms before each prompt |
 | `ccinfobar install --subagents` | Also set Claude Code's `subagentStatusLine` so the agent panel rows are drawn by ccinfobar ([Subagent rows](docs/CONFIGURATION.md#subagent-rows)); a foreign value is replaced only after asking (`--yes` skips the question), `--dry-run` previews |
+| `ccinfobar install --hide-vim-indicator` | Set `statusLine.hideVimModeIndicator` so Claude Code stops printing `-- INSERT --` under the prompt when the `vim-mode` widget shows the mode (`--no-hide-vim-indicator` removes it; an interactive `install` offers it when both are on, and `doctor` warns when the mode is shown twice) |
 | `ccinfobar install --project` | Use ccinfobar in this project even if its `.claude/settings.json` sets another status line |
 | `ccinfobar uninstall` | Remove ccinfobar and its hooks from Claude Code settings and restore the status line you had before (`--project` for the project file). Run it before `npm rm -g ccinfobar` |
 | `ccinfobar uninstall --hooks` | Remove only ccinfobar's hooks and keep the status line |

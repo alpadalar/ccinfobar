@@ -378,6 +378,8 @@ Resuming or forking a session, `/clear`, compaction, `/login` and two terminals 
 
 `tool-activity`, `turn-timer`, `permission-wait`, `env-counts` and `workspace-repos` are opt-in; the default layout does not use them. The `agents` preset uses `tool-activity`, `turn-timer` and `permission-wait`, and the `workspace` preset uses `workspace-repos`. Their options are in [WIDGETS.md](WIDGETS.md).
 
+The `vim-mode` widget shows the vim mode in the status line, but Claude Code also prints `-- INSERT --` under the prompt. Run `ccinfobar install --hide-vim-indicator` to set `statusLine.hideVimModeIndicator` and turn that off (`--no-hide-vim-indicator` undoes it); `ccinfobar doctor` warns when the mode is shown twice.
+
 ### Refresh interval
 
 Claude Code runs the status line when a session starts or resumes, on each new assistant message, when `/compact` finishes, when the permission mode or vim mode changes, when the `statusLine` command changes (no debounce), when a rate-limit window reaches its `resets_at`, when a warm prompt cache reaches its `expires_at`, and on the optional `refreshInterval` timer (`statusLine.refreshInterval` in Claude Code's settings, not in this config; seconds, minimum 1). Other updates are debounced by 300 ms, and a newer trigger cancels a run still in progress. Output is shown only when the command exits 0. The line is hidden, not paused, while a permission prompt or the help menu is open. Token, model and effort changes are not triggers, and neither are hook events or tool results. Between triggers nothing moves, so countdowns and timers tick only with `refreshInterval`; `cache-timer` still turns cold, and reset widgets roll over, on time without it.
