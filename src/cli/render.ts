@@ -73,7 +73,7 @@ function statusContext(
   const hint = payload.terminal_width ?? payload.columns;
   const width =
     widthFlag ??
-    (needsWidth(cfg, cfg.style ?? theme.style)
+    (needsWidth(cfg)
       ? terminalWidth(payload.session_id, hint)
       : cachedTerminalWidth(payload.session_id, hint));
   return createContext({

@@ -12,28 +12,29 @@ const plain = (): Config => ({
 });
 
 describe('needsWidth', () => {
-  it('is false for a plain layout', () => {
-    expect(needsWidth(plain(), 'powerline')).toBe(false);
+  it('implicit truncate needs a width (D-03)', () => {
+    expect(needsWidth(plain())).toBe(true);
   });
 
   it('is true for the default config (autoWrap)', () => {
-    expect(needsWidth(defaultConfig(), 'text')).toBe(true);
+    expect(needsWidth(defaultConfig())).toBe(true);
   });
 
   it('is false with a numeric maxWidth even with autoWrap', () => {
-    expect(needsWidth({ ...defaultConfig(), maxWidth: 80 }, 'tui')).toBe(false);
+    expect(needsWidth({ ...defaultConfig(), maxWidth: 80 })).toBe(false);
+    expect(needsWidth({ ...plain(), maxWidth: 80 })).toBe(false);
   });
 
   it('is true for each trigger alone', () => {
-    expect(needsWidth({ ...plain(), overflow: 'truncate' }, 'text')).toBe(true);
-    expect(needsWidth({ ...plain(), lines: [[w('model'), w('flex')]] }, 'text')).toBe(true);
-    expect(needsWidth({ ...plain(), align: 'right' }, 'text')).toBe(true);
-    expect(needsWidth({ ...plain(), lineAlign: [null, 'center'] }, 'text')).toBe(true);
-    expect(needsWidth(plain(), 'tui')).toBe(true);
-    expect(needsWidth({ ...plain(), lines: [[w('terminal-width')]] }, 'text')).toBe(true);
+    expect(needsWidth({ ...plain(), overflow: 'truncate' })).toBe(true);
+    expect(needsWidth({ ...plain(), lines: [[w('model'), w('flex')]] })).toBe(true);
+    expect(needsWidth({ ...plain(), align: 'right' })).toBe(true);
+    expect(needsWidth({ ...plain(), lineAlign: [null, 'center'] })).toBe(true);
+    expect(needsWidth(plain())).toBe(true);
+    expect(needsWidth({ ...plain(), lines: [[w('terminal-width')]] })).toBe(true);
   });
 
-  it('left align does not trigger', () => {
-    expect(needsWidth({ ...plain(), align: 'left', lineAlign: ['left', null] }, 'text')).toBe(false);
+  it('left align changes nothing', () => {
+    expect(needsWidth({ ...plain(), align: 'left', lineAlign: ['left', null] })).toBe(true);
   });
 });
