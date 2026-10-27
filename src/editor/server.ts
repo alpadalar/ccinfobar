@@ -931,6 +931,8 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
 
     if (!url.pathname.startsWith('/api/')) throw new HttpError(404, 'Not found');
     if (req.headers['x-ccinfobar-token'] !== token) throw httpError(401, 'err.server.badToken');
+    // only the authenticated tab keeps a detached server alive
+    lastRequest = now();
     if (method !== 'GET') {
       const origin = req.headers.origin;
       if (origin !== undefined && !originOk(origin)) throw new HttpError(403, 'Forbidden origin');
@@ -1679,7 +1681,6 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const now = opts.detached?.now ?? Date.now;
   let lastRequest = now();
   const server = http.createServer((req, res) => {
-    lastRequest = now();
     handle(req, res).catch((caught: unknown) => {
       if (res.headersSent) return res.end();
       const err = caught instanceof CatalogStoreError ? storeError(caught) : caught;

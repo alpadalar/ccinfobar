@@ -85,6 +85,45 @@ describe('detached editor server', () => {
     expect(await pingEditor(handle.url)).toBe(true);
   }, 15_000);
 
+  it('counts only token-checked requests as activity (injected clock)', async () => {
+    let clock = 0;
+    const startClock = () =>
+      startEditor({
+        configPath: path.join(dir, 'c.json'),
+        open: false,
+        port: 0,
+        detached: { idleMs: 1000, checkMs: 10, stateFile, now: () => clock },
+      });
+    handle = await startClock();
+    clock = 900;
+    expect(await ping(handle.url)).toBe(200);
+    await sleep(60);
+    expect(fs.existsSync(stateFile)).toBe(true);
+    clock = 1800;
+    await sleep(60);
+    expect(fs.existsSync(stateFile)).toBe(true);
+    clock = 2000;
+    await sleep(100);
+    expect(await closed(handle)).toBe(true);
+
+    clock = 0;
+    handle = await startClock();
+    clock = 900;
+    const u = new URL(handle.url);
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port: u.port, path: '/api/ping' }, (res) => {
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      });
+      req.on('error', reject);
+      req.end();
+    });
+    expect(status).toBe(401);
+    clock = 1500;
+    await sleep(100);
+    expect(await closed(handle)).toBe(true);
+  });
+
   it('keeps a state file that holds another pid', async () => {
     handle = await start(60_000);
     fs.writeFileSync(stateFile, JSON.stringify({ url: handle.url, pid: process.pid + 1, startedAt: 1 }));
