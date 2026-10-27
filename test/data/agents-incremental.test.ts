@@ -50,7 +50,7 @@ describe('agents argument masking', () => {
     const tool = rows[0]!.tool!;
     expect(tool.startsWith('Bash[')).toBe(true);
     for (const bad of ['sk-abcdef', 'pw@', 'token=abc']) expect(tool).not.toContain(bad);
-    expect(tool).toContain('Bearer …');
+    expect(tool).toContain('Authorization: …');
     const file = cacheFile(agentsCacheName(jsonl), env);
     expect(path.basename(file).startsWith('agent3-')).toBe(true);
     const text = fs.readFileSync(file, 'utf8');
