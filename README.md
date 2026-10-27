@@ -23,6 +23,8 @@
 
 </div>
 
+ccinfobar is a status line for Claude Code: it renders the JSON that Claude Code sends on every refresh as a themed line (or several). It is for Claude Code users who want to see model, context, cost, limits, git and more without writing a script. It comes with a drag-and-drop web editor and a terminal editor; 117 widgets, 30 themes and a marketplace of presets and bundles; and zero runtime dependencies on Windows, macOS and Linux, with an install that backs up `settings.json` and an uninstall that restores it byte for byte.
+
 <p align="center"><img src="docs/images/demo.gif" alt="ccinfobar status lines cycling through themes and presets" width="100%"></p>
 
 ## Contents

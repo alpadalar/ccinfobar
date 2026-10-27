@@ -1,7 +1,7 @@
 {
   "name": "ccinfobar",
   "version": "0.8.2",
-  "description": "A customizable status line for Claude Code with a drag-and-drop editor",
+  "description": "Status line for Claude Code with a drag-and-drop web editor and a terminal editor, 117 widgets, 30 themes and a marketplace; zero dependencies, TypeScript, Windows, macOS and Linux, safe install and uninstall",
   "keywords": [
     "claude",
     "claude-code",
@@ -10,7 +10,19 @@
     "gsd",
     "get-shit-done",
     "powerline",
-    "cli"
+    "cli",
+    "claude-code-statusline",
+    "status-bar",
+    "editor",
+    "tui",
+    "themes",
+    "widgets",
+    "marketplace",
+    "windows",
+    "macos",
+    "linux",
+    "zero-dependency",
+    "typescript"
   ],
   "homepage": "https://github.com/alpadalar/ccinfobar#readme",
   "bugs": {
