@@ -2,8 +2,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findJjRoot, parseBookmarks, parseJjChange, readJj } from '../../src/data/jj.js';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { findJjRoot, type JjExec, parseBookmarks, parseJjChange, readJj } from '../../src/data/jj.js';
 
 process.env.JJ_USER ??= 'ci';
 process.env.JJ_EMAIL ??= 'ci@example.com';
@@ -174,5 +174,110 @@ describe.skipIf(!hasJj && !requireJj)('readJj with jj', () => {
     expect(r.workspace()).toBe('default');
     expect(r.diff(false)).toEqual(expect.objectContaining({ insertions: expect.any(Number) }));
     expect(r.diff(true)!.insertions).toBeGreaterThan(0);
+  });
+});
+
+describe('jj caches (injected exec)', () => {
+  const T = 1_700_000_000_000;
+
+  function fakeExec(codes: Record<string, string> = {}) {
+    const calls: string[][] = [];
+    const exec: JjExec = (_bin, args) => {
+      calls.push(args);
+      const key = args.includes('workspace')
+        ? 'workspace'
+        : args.includes('diff')
+          ? 'diff'
+          : args.includes('@')
+            ? 'change'
+            : 'bookmarks';
+      if (key in codes) return { out: null, code: codes[key]! };
+      const outs: Record<string, string> = {
+        bookmarks: 'main\n',
+        workspace: 'default\n',
+        change: 'abcd1234\tdesc\n',
+        diff: '1 file changed, 2 insertions(+), 1 deletion(-)\n',
+      };
+      return { out: outs[key]! };
+    };
+    return { calls, exec };
+  }
+
+  function setup(name: string, heads = true) {
+    const root = repo(name);
+    if (heads) fs.mkdirSync(path.join(root, '.jj', 'repo', 'op_heads', 'heads'), { recursive: true });
+    if (heads) fs.writeFileSync(path.join(root, '.jj', 'repo', 'op_heads', 'heads', 'a'), '');
+    const cache = fs.mkdtempSync(path.join(tmp, 'cache-'));
+    const env = { ...process.env, CCINFOBAR_CACHE_DIR: cache };
+    return { root, cache, env };
+  }
+
+  it('remembers a missing binary for five minutes', () => {
+    const { root, env } = setup('enoent', false);
+    const f = fakeExec({ bookmarks: 'ENOENT' });
+    expect(readJj(root, { exec: f.exec, env, now: T })?.bookmarks()).toBeNull();
+    expect(f.calls.length).toBe(1);
+    expect(readJj(root, { exec: f.exec, env, now: T + 1000 })).toBeNull();
+    expect(f.calls.length).toBe(1);
+    readJj(root, { exec: f.exec, env, now: T + 300_001 })?.bookmarks();
+    expect(f.calls.length).toBe(2);
+  });
+
+  it('backs off for a minute after a timeout', () => {
+    const { root, env } = setup('timeout', false);
+    const f = fakeExec({ bookmarks: 'ETIMEDOUT' });
+    readJj(root, { exec: f.exec, env, now: T })?.bookmarks();
+    expect(f.calls.length).toBe(1);
+    const r = readJj(root, { exec: f.exec, env, now: T + 1000 })!;
+    expect(r.bookmarks()).toBeNull();
+    expect(r.workspace()).toBeNull();
+    expect(r.change()).toBeNull();
+    expect(r.diff(false)).toBeNull();
+    expect(f.calls.length).toBe(1);
+    const ok = fakeExec();
+    expect(readJj(root, { exec: ok.exec, env, now: T + 60_001 })?.bookmarks()).toEqual(['main']);
+    expect(ok.calls.length).toBe(1);
+  });
+
+  it('caches read-only results on op_heads', () => {
+    const { root, env } = setup('heads');
+    const f = fakeExec();
+    const a = readJj(root, { exec: f.exec, env, now: T })!;
+    expect(a.bookmarks()).toEqual(['main']);
+    expect(a.change()?.id).toBe('abcd1234');
+    expect(a.diff(false)).toEqual({ insertions: 2, deletions: 1 });
+    expect(f.calls.length).toBe(3);
+    const b = readJj(root, { exec: f.exec, env, now: T + 10 })!;
+    expect(b.bookmarks()).toEqual(['main']);
+    expect(b.change()?.id).toBe('abcd1234');
+    expect(b.diff(false)).toEqual({ insertions: 2, deletions: 1 });
+    expect(f.calls.length).toBe(3);
+    b.diff(true);
+    readJj(root, { exec: f.exec, env, now: T + 20 })!.diff(true);
+    expect(f.calls.length).toBe(5);
+    const future = new Date(Date.now() + 60_000);
+    fs.utimesSync(path.join(root, '.jj', 'repo', 'op_heads', 'heads'), future, future);
+    readJj(root, { exec: f.exec, env, now: T + 30 })!.bookmarks();
+    expect(f.calls.length).toBe(6);
+  });
+
+  it('persist false writes nothing, missing op_heads caches nothing', () => {
+    const a = setup('nopersist');
+    const f = fakeExec();
+    readJj(a.root, { exec: f.exec, env: a.env, now: T, persist: false })!.bookmarks();
+    expect(fs.readdirSync(a.cache).filter((n) => n.startsWith('jj-'))).toEqual([]);
+    const b = setup('noheads', false);
+    readJj(b.root, { exec: f.exec, env: b.env, now: T })!.bookmarks();
+    readJj(b.root, { exec: f.exec, env: b.env, now: T })!.bookmarks();
+    expect(f.calls.length).toBe(3);
+    expect(fs.readdirSync(b.cache).filter((n) => n.startsWith('jj-'))).toEqual([]);
+  });
+
+  it('reads the timeout from CCINFOBAR_JJ_TIMEOUT', async () => {
+    vi.resetModules();
+    vi.stubEnv('CCINFOBAR_JJ_TIMEOUT', '1234');
+    const m = await import('../../src/data/jj.js');
+    expect(m.JJ_TIMEOUT).toBe(1234);
+    vi.unstubAllEnvs();
   });
 });
