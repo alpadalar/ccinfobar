@@ -64,6 +64,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `git-conflicts` has a `hideZero` option.
 - `model`'s `showId` option treats the string `"false"` as off.
 - `showWhen`/`hideWhen` rules on `cost.*` and `usage.*` metrics now work on every widget type (the ledger or limits store is turned on by the rule itself), and `ccinfobar explain` says when a rule's metric has no data source.
+- Secret masking no longer slows the status line on very long tool arguments or subagent descriptions: `maskSecrets` caps its input at 1024 characters and every rule runs in linear time (the URL-credential rule was quadratic on long words).
 
 ### Security
 
