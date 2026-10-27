@@ -67,9 +67,9 @@ describe('install refresh suggestion', () => {
     expect(fs.readFileSync(cfg, 'utf8')).toBe(before);
   });
 
-  it('says Claude Code does not re-run it on hooks or during a permission dialog', () => {
+  it('says Claude Code does not re-run it on hooks or while a permission prompt or the help menu is open', () => {
     expect(hint('clock')).toMatch(/hook events/);
-    expect(hint('clock')).toMatch(/permission dialog/);
+    expect(hint('clock')).toMatch(/permission prompt or the help menu/);
     expect(t('doctor.refreshHint', { widgets: 'clock' })).toContain('ccinfobar install --refresh 5');
     expect(t('doctor.refreshHint', { widgets: 'clock' })).toMatch(/permission prompt or the help menu/);
   });
