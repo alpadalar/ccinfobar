@@ -11,6 +11,7 @@ import {
   type LimitObs,
   type LimitsStore,
   limitsFile,
+  limitsOn,
   mergeObservation,
   parseLimitsStore,
   pick,
@@ -50,6 +51,15 @@ const win = (
 });
 const five = (pct: number, resetsAt: number) => ({
   rate_limits: { five_hour: { used_percentage: pct, resets_at: sec(resetsAt) } },
+});
+
+describe('limitsOn', () => {
+  const cfg = { lines: [[{ id: '1', type: 'model', hideWhen: 'usage.5h < 50' }]] } as never;
+  it('follows usage rules under a subscription only', () => {
+    expect(limitsOn(cfg, {})).toBe(true);
+    expect(limitsOn(cfg, { ANTHROPIC_API_KEY: 'k' })).toBe(false);
+    expect(limitsOn({ lines: [[{ id: '1', type: 'model' }]] } as never, {})).toBe(false);
+  });
 });
 
 describe('account key', () => {

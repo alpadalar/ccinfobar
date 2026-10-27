@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { ruleNeeds } from '../core/conditions.js';
 import { cacheDir, MAX_PROJECT, normalizeRoot } from '../core/paths.js';
 import { addDays, dayKey, mondayOf, monthKey } from '../core/time.js';
 import type { Config, StatusPayload } from '../core/types.js';
@@ -516,9 +517,10 @@ export function ledgerView(
 }
 
 export function ledgerOn(config: Config): boolean {
-  return config.lines.some((items) =>
+  const widgets = config.lines.some((items) =>
     items.some((i) => LEDGER_TYPES.has(i.type) || (i.type === 'budget' && i.options?.period !== 'session')),
   );
+  return widgets || ruleNeeds(config, 'ledger');
 }
 
 function transcriptHash(file: string | undefined): string {

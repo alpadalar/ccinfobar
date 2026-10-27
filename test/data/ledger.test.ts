@@ -306,6 +306,11 @@ describe('ledgerOn', () => {
     expect(ledgerOn(cfg('cost-today'))).toBe(true);
     expect(ledgerOn(cfg('session-cost'))).toBe(false);
   });
+
+  it('is on for a cost rule on any widget', () => {
+    const c = { lines: [[{ id: '1', type: 'model', showWhen: 'cost.today > 5' }]] } as never;
+    expect(ledgerOn(c)).toBe(true);
+  });
 });
 
 describe('ledger files', () => {

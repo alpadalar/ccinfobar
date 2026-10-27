@@ -6,7 +6,7 @@ import { stripAnsi } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { createContext } from '../../src/core/context.js';
 import { render, renderPart } from '../../src/core/renderer.js';
-import { sampleGit, samplePayload } from '../../src/core/sample.js';
+import { sampleGit, sampleLedger, samplePayload } from '../../src/core/sample.js';
 import type { RenderContext, StatusPayload, WidgetItem } from '../../src/core/types.js';
 import { findUp } from '../../src/data/repos.js';
 import { ctxWith, NOW, withoutSideEffects } from '../helpers.js';
@@ -50,6 +50,13 @@ describe('rule gate', () => {
     expect(out).toContain('left');
     expect(out).toContain('right');
     expect(out).not.toContain('—');
+  });
+
+  it('evaluates cost.today against the ledger', () => {
+    const item: WidgetItem = { id: 'm', type: 'model', showWhen: 'cost.today > 5' };
+    const at = (today: number) => ctxWith({ ledger: () => ({ ...sampleLedger(NOW.getTime()), today }) });
+    expect(renderPart(at(7), item)).not.toBeNull();
+    expect(renderPart(at(2), item)).toBeNull();
   });
 
   it('shows by context percent', () => {

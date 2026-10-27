@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { ruleNeeds } from '../core/conditions.js';
 import { cacheDir, claudeDir } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { toEpochMs } from '../core/time.js';
@@ -109,7 +110,8 @@ export function limitsFile(env: NodeJS.ProcessEnv = process.env): string {
 
 export function limitsOn(config: Config, env: NodeJS.ProcessEnv = process.env): boolean {
   if (!detectProvider(env).planLimits) return false;
-  return config.lines.some((items) => items.some((i) => getWidget(i.type)?.category === 'limits'));
+  const widgets = config.lines.some((items) => items.some((i) => getWidget(i.type)?.category === 'limits'));
+  return widgets || ruleNeeds(config, 'limits');
 }
 
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
