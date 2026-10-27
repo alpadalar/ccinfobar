@@ -171,6 +171,7 @@ export const updateJob: Job<UpdateValue> = {
         },
         ...(ctx.signal ? { signal: ctx.signal } : {}),
       });
+      if (value.error) return failEnvelope('update', ctx.prev, value.error, ctx.now, p);
       return okEnvelope('update', value, ctx.now, req.param);
     } catch (err) {
       return failEnvelope('update', ctx.prev, (err as Error)?.message ?? 'failed', ctx.now, p);

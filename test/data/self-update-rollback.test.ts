@@ -105,6 +105,31 @@ describe('checkForUpdate verify and rollback', () => {
     expect(out).toMatchObject({ rejected: '9.9.9', rollback: 'failed', reason: 'render-failed:1' });
   });
 
+  it('keeps the install and records an error when the machine, not the version, failed to verify', async () => {
+    for (const why of ['entry-missing', 'verify-failed']) {
+      const install = vi.fn();
+      const out = await checkForUpdate(cfg, '0.1.0', {}, { ...base, install, verify: async () => why });
+      expect(install).toHaveBeenCalledTimes(1);
+      expect(out).toEqual({ latest: '9.9.9', installed: '9.9.9', error: `verify-inconclusive:${why}` });
+      expect(out.rejected).toBeUndefined();
+    }
+  });
+
+  it('rolls back a verify timeout without rejecting the version', async () => {
+    const install = vi.fn();
+    const verify = async (v: string) => (v === '9.9.9' ? 'verify-timeout' : null);
+    const out = await checkForUpdate(cfg, '0.1.0', {}, { ...base, install, verify });
+    expect(install.mock.calls.map((c) => c[0])).toEqual(['9.9.9', '0.1.0']);
+    expect(out).toEqual({ latest: '9.9.9', error: 'verify-timeout:rolled-back' });
+    const bad = await checkForUpdate(
+      cfg,
+      '0.1.0',
+      {},
+      { ...base, install, verify: async () => 'verify-timeout' },
+    );
+    expect(bad).toEqual({ latest: '9.9.9', error: 'verify-timeout:rollback-failed' });
+  });
+
   it('keeps the install when verify passes', async () => {
     const install = vi.fn();
     const out = await checkForUpdate(cfg, '0.1.0', {}, { ...base, install, verify: async () => null });

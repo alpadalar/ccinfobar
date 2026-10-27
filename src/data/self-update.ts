@@ -366,6 +366,26 @@ function within(ms: number, parent?: AbortSignal): AbortSignal {
   return c.signal;
 }
 
+const KEEP_REASONS = new Set(['entry-missing', 'verify-failed']);
+
+// own budget: the install budget must not abort the rollback
+async function rollBack(
+  install: NonNullable<CheckDeps['install']>,
+  verify: Verify,
+  current: string,
+  prefix: string | undefined,
+  env: NodeJS.ProcessEnv,
+  ms = ROLLBACK_BUDGET_MS,
+): Promise<boolean> {
+  const own = AbortSignal.timeout(ms);
+  try {
+    await install(current, prefix, own);
+    return (await verify(current, env, own)) === null;
+  } catch {
+    return false;
+  }
+}
+
 export async function checkForUpdate(
   config: Config,
   current: string = VERSION,
@@ -377,6 +397,7 @@ export async function checkForUpdate(
   rejected?: string;
   rollback?: 'ok' | 'failed';
   reason?: string;
+  error?: string;
 }> {
   const latest = deps.fetchLatest ? await deps.fetchLatest() : await fetchLatest(undefined, deps.fetch);
   const kind = deps.kind ?? installKind();
@@ -393,19 +414,20 @@ export async function checkForUpdate(
     const bad = await verify(latest, env, deps.signal);
     if (bad === null) return { latest, installed: latest };
     const reason = bad.slice(0, 200);
+    // the machine, not the version, failed: keep the install, retry later
+    if (KEEP_REASONS.has(bad)) return { latest, installed: latest, error: `verify-inconclusive:${bad}` };
+    // a render that hangs is not safe to keep, but says nothing certain about the version
+    if (bad === 'verify-timeout') {
+      const ok = await rollBack(install, verify, current, prefix, env, deps.rollbackMs);
+      return { latest, error: `verify-timeout:${ok ? 'rolled-back' : 'rollback-failed'}` };
+    }
     // recorded first so a killed rollback still blacklists the version
     try {
       deps.recordRejected?.({ latest, rejected: latest, rollback: 'failed', reason });
     } catch {}
-    let rollback: 'ok' | 'failed' = 'ok';
-    // own budget: the install budget must not abort the rollback
-    const own = AbortSignal.timeout(deps.rollbackMs ?? ROLLBACK_BUDGET_MS);
-    try {
-      await install(current, prefix, own);
-      if ((await verify(current, env, own)) !== null) rollback = 'failed';
-    } catch {
-      rollback = 'failed';
-    }
+    const rollback = (await rollBack(install, verify, current, prefix, env, deps.rollbackMs))
+      ? 'ok'
+      : 'failed';
     return { latest, rejected: latest, rollback, reason };
   }
   return { latest };
