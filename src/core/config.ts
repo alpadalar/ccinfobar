@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { writeAtomic } from '../data/store.js';
+import { SUBAGENT_FIELDS, type SubagentField } from '../widgets/shared.js';
 import { GLYPH_MODES, OVERFLOW_MODES } from './display-opts.js';
 import { normalizeHeaderSpec, parseHeaderSpec, parseUrlTemplate } from './http-spec.js';
 import { t } from './i18n/index.js';
@@ -15,6 +16,7 @@ import type {
   Config,
   GlyphOverrides,
   ProgressConfig,
+  SubagentLineConfig,
   ThemeStyle,
   TuiBreakpoint,
   TuiConfig,
@@ -256,6 +258,19 @@ const bool = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? v : 
 const pct = (v: unknown): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) ? Math.min(100, Math.max(1, Math.round(v))) : undefined;
 
+export function normalizeSubagentLine(raw: unknown): SubagentLineConfig | undefined {
+  if (!isObject(raw) || !Array.isArray(raw.fields)) return undefined;
+  const fields = [
+    ...new Set(
+      raw.fields.filter(
+        (f): f is SubagentField =>
+          typeof f === 'string' && (SUBAGENT_FIELDS as readonly string[]).includes(f),
+      ),
+    ),
+  ];
+  return fields.length ? { fields } : undefined;
+}
+
 export function normalizeProgress(raw: unknown): ProgressConfig | undefined {
   if (!isObject(raw)) return undefined;
   return compact({
@@ -353,6 +368,8 @@ export function normalizeConfig(raw: unknown): Config {
   if (rotation) cfg.themeRotation = rotation;
   const progress = normalizeProgress(raw.progress);
   if (progress) cfg.progress = progress;
+  const sub = normalizeSubagentLine(raw.subagentLine);
+  if (sub) cfg.subagentLine = sub;
   const tui = normalizeTui(raw.tui);
   if (tui) cfg.tui = tui;
   if (typeof raw.style === 'string' && STYLE_IDS.includes(raw.style)) cfg.style = raw.style as ThemeStyle;

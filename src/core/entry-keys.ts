@@ -45,6 +45,7 @@ export const PERSONAL_KEYS = [
   'profiles',
   'themeRotation',
   'progress',
+  'subagentLine',
   'language',
   'version',
   '$schema',

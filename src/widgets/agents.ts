@@ -2,15 +2,9 @@ import { visibleWidth } from '../core/ansi.js';
 import { t as tr } from '../core/i18n/index.js';
 import type { RenderContext, WidgetDef } from '../core/types.js';
 import type { AgentInfo } from '../data/agents.js';
-import { formatTokens, opt, span } from './shared.js';
+import { formatTokens, opt, shortModel, span } from './shared.js';
 
 const text = (ctx: RenderContext) => ctx.config.charset === 'text';
-
-export function shortModel(model: string | null): string {
-  if (!model) return '';
-  const m = /claude-(?:\d[\d.-]*-)?([a-z]+)/i.exec(model);
-  return (m?.[1] ?? model).toLowerCase();
-}
 
 function mark(ctx: RenderContext, status: string): string {
   if (text(ctx)) return status === 'completed' ? '[x]' : status === 'in_progress' ? '[>]' : '[ ]';

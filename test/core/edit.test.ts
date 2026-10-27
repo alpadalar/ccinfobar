@@ -783,6 +783,7 @@ describe('applyCatalogContent', () => {
       glyphMode: 'personal',
       ambiguousWidth: 'personal',
       progress: 'personal',
+      subagentLine: 'personal',
       language: 'personal',
       themeRotation: 'personal',
     };

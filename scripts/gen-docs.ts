@@ -11,6 +11,7 @@ import {
 import { BUILTIN_THEMES, STYLES } from '../src/core/themes.js';
 import type { OptionSpec } from '../src/core/types.js';
 import { CATEGORIES, ALL_WIDGETS as EVERY_WIDGET } from '../src/widgets/index.js';
+import { SUBAGENT_FIELDS } from '../src/widgets/shared.js';
 
 const ALL_WIDGETS = EVERY_WIDGET.filter((w) => !w.hidden);
 
@@ -450,6 +451,20 @@ function schema(): object {
             enum: ['allowlist', 'always'],
             default: 'allowlist',
             description: 'allowlist emits only in terminals known to draw it',
+          },
+        },
+        additionalProperties: false,
+      },
+      subagentLine: {
+        type: 'object',
+        description:
+          'Rows for the Claude Code subagent panel printed by `ccinfobar subagent-line` (set up with `ccinfobar install --subagents`)',
+        properties: {
+          fields: {
+            type: 'array',
+            description: 'Parts of each row in order; the default is every part',
+            items: { enum: [...SUBAGENT_FIELDS] },
+            uniqueItems: true,
           },
         },
         additionalProperties: false,

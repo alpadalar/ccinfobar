@@ -1,3 +1,4 @@
+import type { SubagentField } from '../widgets/shared.js';
 import type { LanguageSetting } from './i18n/languages.js';
 
 export interface RateWindow {
@@ -224,6 +225,10 @@ export interface ThemeRotation {
   weekdays?: Partial<Record<RotationDay, string>>;
 }
 
+export interface SubagentLineConfig {
+  fields?: SubagentField[];
+}
+
 export interface Config {
   $schema?: string;
   version: 1;
@@ -256,6 +261,7 @@ export interface Config {
   glyphMode?: GlyphMode;
   ambiguousWidth?: 1 | 2;
   progress?: ProgressConfig;
+  subagentLine?: SubagentLineConfig;
   language?: LanguageSetting;
 }
 

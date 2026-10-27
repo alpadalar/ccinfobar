@@ -8,6 +8,7 @@ import {
   normalizeConfig,
   normalizeHttpOptions,
   normalizeProgress,
+  normalizeSubagentLine,
   saveConfig,
 } from '../../src/core/config.js';
 
@@ -195,6 +196,20 @@ describe('display keys', () => {
     }
     expect('language' in normalizeConfig({})).toBe(false);
     expect('language' in defaultConfig()).toBe(false);
+  });
+
+  it('normalizes subagentLine fields', () => {
+    expect(normalizeSubagentLine({ fields: ['tokens', 'label', 'tokens', 'nope', 3] })).toEqual({
+      fields: ['tokens', 'label'],
+    });
+    expect(normalizeSubagentLine({ fields: [] })).toBeUndefined();
+    expect(normalizeSubagentLine({ fields: ['x'] })).toBeUndefined();
+    expect(normalizeSubagentLine({})).toBeUndefined();
+    expect(normalizeSubagentLine('on')).toBeUndefined();
+    expect(normalizeConfig({ subagentLine: { fields: ['label', 'tokens'] } }).subagentLine).toEqual({
+      fields: ['label', 'tokens'],
+    });
+    expect('subagentLine' in normalizeConfig({})).toBe(false);
   });
 
   it('keeps only valid progress keys', () => {

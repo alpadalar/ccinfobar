@@ -501,6 +501,21 @@
       },
       "additionalProperties": false
     },
+    "subagentLine": {
+      "type": "object",
+      "description": "Rows for the Claude Code subagent panel printed by `ccinfobar subagent-line` (set up with `ccinfobar install --subagents`)",
+      "properties": {
+        "fields": {
+          "type": "array",
+          "description": "Parts of each row in order; the default is every part",
+          "items": {
+            "enum": ["status", "type", "label", "spark", "tokens", "context", "model", "effort", "elapsed"]
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
     "profiles": {
       "type": "object",
       "description": "Model names, context windows and prices for third-party providers (built-ins updated 2026-10-14)",

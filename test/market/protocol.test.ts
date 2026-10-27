@@ -437,6 +437,9 @@ describe('market protocol', () => {
     expect(
       contentProblems('bundle', { layout: { lines }, appearance: { theme: 'x', language: 'tr' } }),
     ).toContain('personal-key:language');
+    expect(contentProblems('preset', { layout: { lines, subagentLine: { fields: ['label'] } } })).toContain(
+      'personal-key:subagentLine',
+    );
     expect(contentProblems('preset', { layout: { lines, theme: 'nord' } })).toContain('unknown-key:theme');
     expect(contentProblems('preset', { layout: { lines, wat: 1 } })).toContain('unknown-key:wat');
     expect(contentProblems('preset', { layout: { lines }, appearance: { theme: 'x' } })).toContain(

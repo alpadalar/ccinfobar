@@ -8,7 +8,7 @@ import { dashboardConfig } from '../../src/core/presets.js';
 import { gradientColor, render } from '../../src/core/renderer.js';
 import { readAgents } from '../../src/data/agents.js';
 import { parseTranscriptText } from '../../src/data/transcript.js';
-import { shortModel } from '../../src/widgets/agents.js';
+import { shortModel } from '../../src/widgets/shared.js';
 import { ctxWith, NOW, renderWidget } from '../helpers.js';
 
 const line = (o: object) => JSON.stringify(o);

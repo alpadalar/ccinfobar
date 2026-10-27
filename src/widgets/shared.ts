@@ -263,3 +263,22 @@ export function sparkline(
   });
   return ramp[0]!.repeat(Math.max(0, width - chars.length)) + chars.join('');
 }
+
+export function shortModel(model: string | null): string {
+  if (!model) return '';
+  const m = /claude-(?:\d[\d.-]*-)?([a-z]+)/i.exec(model);
+  return (m?.[1] ?? model).toLowerCase();
+}
+
+export const SUBAGENT_FIELDS = [
+  'status',
+  'type',
+  'label',
+  'spark',
+  'tokens',
+  'context',
+  'model',
+  'effort',
+  'elapsed',
+] as const;
+export type SubagentField = (typeof SUBAGENT_FIELDS)[number];

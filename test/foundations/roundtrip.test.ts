@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { normalizeConfig, SCHEMA_URL } from '../../src/core/config.js';
 import type { Config, ProgressConfig, TuiConfig, WidgetItem } from '../../src/core/types.js';
+import { SUBAGENT_FIELDS } from '../../src/widgets/shared.js';
 
 const ITEM_KEYS = [
   'id',
@@ -53,6 +54,7 @@ const CONFIG_KEYS = [
   'glyphMode',
   'ambiguousWidth',
   'progress',
+  'subagentLine',
   'language',
 ] as const;
 
@@ -205,6 +207,7 @@ const FULL_CONFIG: Required<Config> = {
   glyphMode: 'paste-safe',
   ambiguousWidth: 2,
   progress: FULL_PROGRESS,
+  subagentLine: { fields: [...SUBAGENT_FIELDS] },
   language: 'tr',
 };
 
@@ -250,5 +253,9 @@ describe('config round-trip', () => {
 
   it('matches the schema progress property set', () => {
     expect(sorted(Object.keys(schema.properties.progress?.properties ?? {}))).toEqual(sorted(PROGRESS_KEYS));
+  });
+
+  it('matches the schema subagentLine property set', () => {
+    expect(sorted(Object.keys(schema.properties.subagentLine?.properties ?? {}))).toEqual(['fields']);
   });
 });
