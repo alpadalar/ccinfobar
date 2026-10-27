@@ -71,7 +71,7 @@ export function insideRepo(start: string, p: path.PlatformPath = path): string |
 }
 
 // nonblocking open, so a FIFO never hangs the render
-function readSmall(file: string): string | null {
+export function readSmall(file: string): string | null {
   let fd: number | undefined;
   try {
     fd = fs.openSync(file, RD);
