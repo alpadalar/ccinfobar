@@ -261,14 +261,15 @@ export function jobOff(network: JobNetwork, env: NodeJS.ProcessEnv = process.env
   return jobsDisabled(env) || blockedByTraffic(network, env);
 }
 
-// home, else temp: never a cwd that may hold a planted binary
-export function safeCwd(): string | undefined {
-  for (const d of [os.homedir(), os.tmpdir()]) {
+// home, else temp, else node's own folder: never a cwd that may hold a planted binary
+export function safeCwd(): string {
+  const exeDir = path.dirname(process.execPath);
+  for (const d of [os.homedir(), os.tmpdir(), exeDir]) {
     try {
       if (fs.statSync(d).isDirectory()) return d;
     } catch {}
   }
-  return undefined;
+  return exeDir;
 }
 
 const PATH_VARS = [

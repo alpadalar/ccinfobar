@@ -23,6 +23,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Windows: the background update and the `where`/`npm` lookups run from a defined safe folder (home, temp, then Node's folder) instead of falling back to the current folder when neither home nor temp exists
 - `git-is-fork` with `showParent` keeps the host in the parent label when the two remotes live on different hosts, so it no longer prints the same name as the repo itself
 - Windows: PATH entries written with forward slashes (`C:/Program Files/Git/cmd`) are accepted when looking for `git` and `jj`, so those widgets no longer disappear
 - `install` and `uninstall` decide whether the status line is ccinfobar's by comparing only the keys ccinfobar owns (`type`, `command`, `padding`, `refreshInterval`), so a hand-added key such as `hideVimModeIndicator` no longer makes the next install lose your original line. Uninstall still restores it and still never removes another tool's status line
