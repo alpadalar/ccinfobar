@@ -12,6 +12,7 @@ const readLines = (rel: string): string[] => {
 const release = readLines('.github/workflows/release.yml');
 const ci = readLines('.github/workflows/ci.yml');
 const releaseText = release.join('\n');
+const ciText = ci.join('\n');
 
 const indent = (l: string): number => l.length - l.trimStart().length;
 
@@ -48,16 +49,9 @@ describe('release workflow', () => {
     }
   });
 
-  it('pins every action in the ci jj job, which runs a downloaded binary', () => {
-    const start = ci.findIndex((l) => /^ {2}jj:\s*$/.test(l));
-    expect(start).toBeGreaterThan(-1);
-    let end = ci.findIndex((l, i) => i > start && /^ {2}[a-z][\w-]*:\s*$/.test(l));
-    if (end < 0) end = ci.length;
-    const uses = ci
-      .slice(start, end)
-      .filter((l) => /\buses:/.test(l))
-      .map((l) => l.replace(/^.*uses:\s*/, '').trim());
-    expect(uses.length).toBeGreaterThan(0);
+  it('pins every action in every job of ci.yml by commit SHA with a version comment', () => {
+    const uses = ci.filter((l) => /\buses:/.test(l)).map((l) => l.replace(/^.*uses:\s*/, '').trim());
+    expect(uses.length).toBeGreaterThanOrEqual(12);
     for (const u of uses) {
       expect(u, `unpinned action: ${u}`).toMatch(
         /^actions\/(?:checkout|setup-node)@[0-9a-f]{40} # v\d+\.\d+\.\d+$/,
@@ -68,6 +62,7 @@ describe('release workflow', () => {
   it('has no floating tags and pins npm', () => {
     expect(releaseText).not.toMatch(/@latest/);
     expect(releaseText).not.toMatch(/@v\d+(?:\s|$)/m);
+    expect(ciText).not.toMatch(/@v\d+(?:\s|$)/m);
     expect(releaseText).toMatch(/npm install -g npm@\d+\.\d+\.\d+/);
   });
 
