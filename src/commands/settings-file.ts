@@ -208,7 +208,7 @@ function rotate(dir: string, prefix: string, env: NodeJS.ProcessEnv): void {
   }
 }
 
-export function backupSettings(
+function writeBackup(
   real: string,
   bytes: Uint8Array,
   opts: { env?: NodeJS.ProcessEnv; now?: Date } = {},
@@ -220,7 +220,20 @@ export function backupSettings(
   let target = path.join(dir, `${name}.json`);
   for (let n = 2; fs.existsSync(target); n++) target = path.join(dir, `${name}-${n}.json`);
   writeAtomic(target, bytes, { mode: 0o600, class: 'settings' });
-  rotate(dir, prefix, env);
+  return target;
+}
+
+export function rotateBackups(real: string, env: NodeJS.ProcessEnv = process.env): void {
+  rotate(backupsDir(env), backupPrefix(real, env), env);
+}
+
+export function backupSettings(
+  real: string,
+  bytes: Uint8Array,
+  opts: { env?: NodeJS.ProcessEnv; now?: Date } = {},
+): string {
+  const target = writeBackup(real, bytes, opts);
+  rotateBackups(real, opts.env);
   return target;
 }
 
@@ -247,7 +260,7 @@ function takeBackup(raw: RawRead, opts: PatchOpts): string | null {
   if (!raw.exists || opts.backup === false) return null;
   if (opts.original !== false)
     ensureOriginal(raw.real, raw.bytes, { env: opts.env, legacyFile: legacyFile(raw) });
-  return backupSettings(raw.real, raw.bytes, { env: opts.env });
+  return writeBackup(raw.real, raw.bytes, { env: opts.env });
 }
 
 function legacyFile(raw: RawRead): string | undefined {
@@ -261,6 +274,8 @@ function legacyFile(raw: RawRead): string | undefined {
 function commit(raw: RawRead, bytes: Uint8Array, opts: PatchOpts): string | null | false {
   fs.mkdirSync(path.dirname(raw.real), { recursive: true });
   const tmp = writeTmp(raw.real, bytes, { mode: raw.mode, flush: true });
+  let backup: string | null = null;
+  let renamed = false;
   try {
     fs.chmodSync(tmp, raw.mode);
     if (posix && raw.uid !== undefined && raw.gid !== undefined) {
@@ -268,18 +283,27 @@ function commit(raw: RawRead, bytes: Uint8Array, opts: PatchOpts): string | null
         fs.chownSync(tmp, raw.uid, raw.gid);
       } catch {}
     }
+    backup = takeBackup(raw, opts);
     opts.beforeRename?.();
+    // hash check right before the rename; backup already taken from the bytes we read
     if (currentHash(raw.real) !== raw.hash) {
       fs.unlinkSync(tmp);
+      if (backup) fs.rmSync(backup, { force: true });
       return false;
     }
-    const backup = takeBackup(raw, opts);
     renameWithRetry(tmp, raw.real, 2000);
+    renamed = true;
+    if (backup) rotateBackups(raw.real, opts.env ?? process.env);
     return backup;
   } catch (e) {
     try {
       fs.unlinkSync(tmp);
     } catch {}
+    if (backup && !renamed) {
+      try {
+        fs.rmSync(backup, { force: true });
+      } catch {}
+    }
     throw e;
   }
 }
@@ -342,10 +366,14 @@ export function deleteSettingsFile(
     const backup = commit(cur, empty, opts);
     return backup === false ? null : { changed: true, real: cur.real, backup };
   }
-  opts.beforeRename?.();
   const backup = takeBackup(cur, opts);
-  if (currentHash(cur.real) !== expected) return null;
+  opts.beforeRename?.();
+  if (currentHash(cur.real) !== expected) {
+    if (backup) fs.rmSync(backup, { force: true });
+    return null;
+  }
   fs.rmSync(cur.real, { force: true });
+  if (backup) rotateBackups(cur.real, opts.env ?? process.env);
   return { changed: true, real: cur.real, backup };
 }
 
