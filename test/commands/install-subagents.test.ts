@@ -75,6 +75,24 @@ describe('install --subagents', () => {
     expect(bytes(fx.file).equals(before)).toBe(true);
   });
 
+  it('keeps hand-added sub-keys on an owned rewrite and does not write when nothing owned changed', () => {
+    const fx = settingsFixture({ data: { model: 'opus' } });
+    install(fx, { command: '/old/ccinfobar', subagents: true });
+    const data = read(fx.file);
+    data.subagentStatusLine.hint = 'mine';
+    fs.writeFileSync(fx.file, `${JSON.stringify(data, null, 2)}\n`);
+    const same = planInstall({ file: fx.file, command: '/old/ccinfobar', env: fx.env });
+    expect(same.subagent?.changes).toBe(false);
+    const res = install(fx, { command: '/new/ccinfobar' });
+    expect(res.subagent).toBe('rewritten');
+    expect(read(fx.file).subagentStatusLine).toEqual({
+      type: 'command',
+      command: '/new/ccinfobar subagent-line',
+      hint: 'mine',
+    });
+    expect(entry(fx)?.value).toEqual({ type: 'command', command: '/new/ccinfobar subagent-line' });
+  });
+
   it('asks before replacing a foreign entry and restores it on uninstall (D-03)', () => {
     const fx = settingsFixture({ data: { subagentStatusLine: foreign } });
     const before = bytes(fx.file);

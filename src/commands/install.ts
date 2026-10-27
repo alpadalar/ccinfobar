@@ -191,6 +191,7 @@ function statusLineOf(data: Record<string, unknown>): StatusLineSetting | null {
 export interface SubagentSetting {
   type: 'command';
   command: string;
+  [k: string]: unknown;
 }
 
 export const subagentCommand = (command: string) => `${command} subagent-line`;
@@ -343,7 +344,8 @@ function planSubagent(
   const owner: SubagentOwner =
     current === null ? 'none' : entry && ownedEqual(current, entry.value) ? 'ours' : 'foreign';
   if (!asked && owner !== 'ours') return undefined;
-  const proposed: SubagentSetting = { type: 'command', command: subagentCommand(command) };
+  const base = current && typeof current === 'object' ? (current as Record<string, unknown>) : {};
+  const proposed: SubagentSetting = { ...base, type: 'command', command: subagentCommand(command) };
   return { current, owner, proposed, changes: !deepEqual(current, proposed), asked };
 }
 
@@ -458,7 +460,7 @@ export function applyInstall(
     subApplied && sub
       ? recordSubagentLine(cur, {
           file: res.real,
-          value: structuredClone(sub.proposed),
+          value: { type: sub.proposed.type, command: sub.proposed.command },
           previous: sub.owner === 'ours' ? (findSubagentLineEntry(cur, file)?.previous ?? null) : sub.current,
           writtenHash: res.afterHash,
         })
