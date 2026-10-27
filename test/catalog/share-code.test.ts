@@ -194,15 +194,20 @@ describe('decodeShare on hostile input', () => {
     expect(bad(`ccib1:${bomb}`)).toBe('err.share.tooLarge');
   });
 
-  it('drops unsafe links and cleans labels', () => {
+  it.each([
+    'javascript:alert(1)',
+    'data:text/html,hi',
+    'file:///etc/passwd',
+    'ftp://h/x',
+    'vbscript:msgbox(1)',
+  ])('drops the unsafe link %s and reports it', (url) => {
     const code = pack({
       v: 1,
       content: {
         layout: {
           lines: [
             [
-              { id: 'a', type: 'link', options: { url: 'javascript:alert(1)', text: 'x' } },
-              { id: 'b', type: 'link', options: { url: 'data:text/html,hi', text: 'y' } },
+              { id: 'a', type: 'link', options: { url, text: 'x' } },
               { id: 't', type: 'text', options: { text: 'hi\u001b[31m\u0007there' } },
               { id: 'k', type: 'command', options: { command: 'rm -rf ~' } },
             ],
@@ -216,6 +221,20 @@ describe('decodeShare on hostile input', () => {
     expect(items.map((i) => i.type)).toEqual(['text', 'command']);
     expect(items[0]!.options?.text).toBe('hithere');
     expect(r.targets).toEqual([{ kind: 'command', line: 0, index: 1, target: 'rm -rf ~' }]);
+    expect(r.unsafe).toHaveLength(1);
+    expect(r.unsafe[0]).toMatchObject({ kind: 'link', target: url });
+  });
+
+  it.each(['https://example.com/x', 'http://example.com/y'])('keeps the link %s', (url) => {
+    const code = pack({
+      v: 1,
+      content: { layout: { lines: [[{ id: 'a', type: 'link', options: { url, text: 'x' } }]] } },
+    });
+    const r = decodeShare(code);
+    if (!r.ok) throw new Error(r.errorId);
+    expect(r.content.layout?.lines?.[0]?.map((i) => i.type)).toEqual(['link']);
+    expect(r.targets.map((x) => x.target)).toEqual([url]);
+    expect(r.unsafe).toEqual([]);
   });
 
   it('drops a broken embedded theme', () => {

@@ -2,7 +2,7 @@ import zlib from 'node:zlib';
 import { normalizeConfig } from '../core/config.js';
 import { type EntryContent, LAYOUT_KEYS, parseCols } from '../core/entry-keys.js';
 import type { MessageId, Params } from '../core/i18n/index.js';
-import { deepSanitize, safeConfigUrl } from '../core/sanitize.js';
+import { deepSanitize, safeUrl } from '../core/sanitize.js';
 import {
   extractCode,
   MAX_CODE_CHARS,
@@ -20,7 +20,14 @@ export type EncodeResult =
   | { ok: false; errorId: MessageId; params?: Params };
 
 export type DecodeResult =
-  | { ok: true; content: EntryContent; cols?: number; targets: ImportTarget[]; code: string }
+  | {
+      ok: true;
+      content: EntryContent;
+      cols?: number;
+      targets: ImportTarget[];
+      unsafe: ImportTarget[];
+      code: string;
+    }
   | { ok: false; errorId: MessageId };
 
 const BUILTIN_IDS = new Set(BUILTIN_THEMES.map((t) => t.id));
@@ -89,7 +96,7 @@ export function decodeShare(input: unknown): DecodeResult {
     const out: Record<string, unknown> = {};
     for (const k of LAYOUT_KEYS) if (Object.hasOwn(layout, k) && norm[k] !== undefined) out[k] = norm[k];
     content.layout = out as Partial<Config>;
-    const unsafe = importTargets(content.layout).filter((x) => x.kind === 'link' && !safeConfigUrl(x.target));
+    const unsafe = importTargets(content.layout).filter((x) => x.kind === 'link' && !safeUrl(x.target));
     if (unsafe.length) content.layout = dropTargets(content.layout, unsafe);
     const cols = parseCols(doc.cols);
     return {
@@ -97,6 +104,7 @@ export function decodeShare(input: unknown): DecodeResult {
       content,
       ...(cols === undefined ? {} : { cols }),
       targets: importTargets(content.layout),
+      unsafe,
       code: SHARE_PREFIX + ex.data,
     };
   } catch {
