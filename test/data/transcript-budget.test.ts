@@ -53,7 +53,7 @@ function readBytes<T>(fn: () => T): { out: T; bytes: number } {
   const spy = vi.spyOn(fs, 'readSync');
   try {
     const out = fn();
-    const bytes = spy.mock.calls.reduce((a, c) => a + (c[3] as number), 0);
+    const bytes = spy.mock.calls.reduce((a, c) => a + ((c as unknown as unknown[])[3] as number), 0);
     return { out, bytes };
   } finally {
     spy.mockRestore();

@@ -18,6 +18,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Resuming a session with a very long transcript no longer stalls the first refresh: ccinfobar reads about 8 MB per refresh, shows the totals so far and catches up over the next refreshes (`ccinfobar explain` still reads everything).
 - `ccinfobar install` no longer imports the previous status line's layout over an existing ccinfobar config unless you answer yes (the default is now no) or pass `--import`; `--yes` alone no longer imports in that case, and the import runs only after the settings were written
 - `jj-changes` no longer snapshots the working copy by default, so a status line refresh never writes to the jj operation log; set `snapshot: true` to get the old behaviour
 - Git widgets reuse the last `git status`/`diff` result for about 2 seconds and for as long as none of `.git/HEAD`, `index`, `packed-refs`, `config`, the branch ref or `logs/HEAD` changed, so most refreshes in a repository spawn no git process; worktrees, submodules and old git without `--show-stash` keep working. The cache lives in the cache dir as `git-*.json`
