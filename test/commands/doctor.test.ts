@@ -369,6 +369,33 @@ describe('runDoctor install report', () => {
     ).toBe(true);
   });
 
+  it('shows an owned subagentStatusLine with a check and lists the manifest kind', () => {
+    applyInstall(
+      planInstall({ file: claudeSettingsPath(), command: '/opt/bin/ccinfobar', subagents: true }),
+      { confirmed: true },
+    );
+    const out = capture(() => runDoctor(plain()));
+    expect(out).toContain(
+      t('doctor.subagentLine', { mark: '✓', command: '/opt/bin/ccinfobar subagent-line' }),
+    );
+    expect(out.some((l) => l.includes('subagentStatusLine in'))).toBe(true);
+    expect(out.some((l) => l.includes(t('doctor.subagentLineForeign', { command: '' }).trim()))).toBe(false);
+  });
+
+  it('flags a foreign subagentStatusLine and prints nothing when unset', () => {
+    const file = claudeSettingsPath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ subagentStatusLine: { type: 'command', command: 'other-tool' } }),
+    );
+    const out = capture(() => runDoctor(plain()));
+    expect(out).toContain(t('doctor.subagentLine', { mark: '✗', command: 'other-tool' }));
+    expect(out.some((l) => l.startsWith('  not managed by ccinfobar'))).toBe(true);
+    fs.writeFileSync(file, JSON.stringify({}));
+    expect(capture(() => runDoctor(plain())).some((l) => l.includes('subagentStatusLine'))).toBe(false);
+  });
+
   it('does not claim a foreign statusLine that mentions ccinfobar', () => {
     const file = claudeSettingsPath();
     fs.mkdirSync(path.dirname(file), { recursive: true });
