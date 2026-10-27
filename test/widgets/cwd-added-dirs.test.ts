@@ -4,7 +4,7 @@ import { ctxWith, renderWidget, withLang } from '../helpers.js';
 
 const CUR = '/home/dev/projects/acme-app';
 
-function cwd(dirs: unknown, options: Record<string, unknown> = {}, current: string | undefined = CUR) {
+function cwd(dirs: unknown, options: Record<string, string> = {}, current: string | undefined = CUR) {
   const workspace: Record<string, unknown> = {};
   if (current) workspace.current_dir = current;
   if (dirs !== undefined) workspace.added_dirs = dirs;
