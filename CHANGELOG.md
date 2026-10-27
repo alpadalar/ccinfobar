@@ -69,7 +69,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `env` widgets now need the same consent as command, HTTP and link widgets wherever a layout comes from outside (import, `catalog apply`, share codes, editor Open…/Import, marketplace install); without it they are dropped, so a pasted layout cannot show an environment variable.
 - Share codes keep only `http:`/`https:` links; other schemes (`file:`, `ftp:`, `vbscript:`, `javascript:`, `data:`) are dropped at decode and named at the consent step.
 - On Windows, git and jj are now run by the absolute path found in `PATH` (`.com` then `.exe`) and never from the repository folder, so a repository that ships its own `git.exe` or `jj.exe` can no longer run it during a refresh or `ccinfobar install`. When neither is on `PATH` the git and jj widgets hide instead of falling back to the bare name. Linux and macOS are unchanged
-- On Windows, ccinfobar sets `NoDefaultCurrentDirectoryInExePath=1` for itself and the programs it starts (unless you set it), and runs `where` and the `npm.cmd` fallback from a safe folder, so `where`, `npm` and the `command` widget's shell no longer look in the current folder first; a script in the current folder needs `.\script.bat`
+- On Windows, ccinfobar sets `NoDefaultCurrentDirectoryInExePath=1` for itself and the programs it starts (unless you set it), and runs `where`, the `npm.cmd` fallback and the browser launch of `ccinfobar edit` from a safe folder, so `where`, `npm` and the `command` widget's shell no longer look in the current folder first; a script in the current folder needs `.\script.bat`
 
 ## [0.8.2] - 2026-10-20
 
