@@ -87,11 +87,11 @@ function validOption(spec: OptionSpec, v: unknown): boolean {
 
 const safe = (v: unknown): string => sanitizeText(typeof v === 'string' ? v : String(JSON.stringify(v)));
 
-function subagentSetting(file: string): { command: string } | null {
+function subagentSetting(file: string): { command: string; [k: string]: unknown } | null {
   const v = readSettingsLayer('user', file).data?.subagentStatusLine;
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const command = (v as { command?: unknown }).command;
-  return typeof command === 'string' ? { command } : null;
+  return typeof command === 'string' ? { ...v, command } : null;
 }
 
 const FROM: Partial<Record<Resolved['source'], MessageId>> = {
