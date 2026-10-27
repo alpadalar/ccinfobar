@@ -154,6 +154,10 @@ describe('verifyInstall with a real node child', () => {
   };
   const ver = "if (process.argv[2] === '--version') { console.log('9.9.9'); process.exit(0); }";
   const good = script('good.js', `${ver}\nconsole.log('model | cost');`);
+  const envcheck = script(
+    'envcheck.js',
+    `${ver}\nrequire('node:fs').writeFileSync(process.env.CCIB_TEST_REPORT, JSON.stringify(process.env));\nconsole.log('model | cost');`,
+  );
   const bad = script('bad.js', `${ver}\nprocess.exit(2);`);
   const safe = script('safe.js', `${ver}\nconsole.log('ccinfobar: invalid JSON on stdin');`);
 
@@ -169,6 +173,45 @@ describe('verifyInstall with a real node child', () => {
     expect(await verifyInstall('1.0.0', process.env, undefined, good)).toMatch(/^version-mismatch:/);
     expect(await verifyInstall('9.9.9', process.env, undefined, bad)).toBe('render-failed:2');
     expect(await verifyInstall('9.9.9', process.env, undefined, safe)).toBe('render-failed:0');
+  });
+
+  it("isolates the render from the user's config env (D-01)", async () => {
+    const cfg = path.join(dir, 'user-config.json');
+    const content = '{"lines":[[{"type":"model"}]]}';
+    fs.writeFileSync(cfg, content);
+    const mtime = fs.statSync(cfg).mtimeMs;
+    const report = path.join(dir, 'env-report.json');
+    const env = {
+      ...process.env,
+      CCINFOBAR_CONFIG: cfg,
+      CLAUDE_POWERLINE_CONFIG: cfg,
+      CLAUDE_SECURESTORAGE_CONFIG_DIR: dir,
+      XDG_CONFIG_HOME: dir,
+      XDG_CACHE_HOME: dir,
+      APPDATA: dir,
+      LOCALAPPDATA: dir,
+      CCIB_TEST_REPORT: report,
+    };
+    expect(await verifyInstall('9.9.9', env, undefined, envcheck)).toBeNull();
+    const seen = JSON.parse(fs.readFileSync(report, 'utf8')) as Record<string, string>;
+    for (const k of [
+      'CCINFOBAR_CONFIG',
+      'CLAUDE_POWERLINE_CONFIG',
+      'CLAUDE_SECURESTORAGE_CONFIG_DIR',
+      'XDG_CONFIG_HOME',
+      'XDG_CACHE_HOME',
+      'APPDATA',
+      'LOCALAPPDATA',
+    ]) {
+      expect(seen[k]).toBeUndefined();
+    }
+    for (const k of ['CCINFOBAR_CONFIG_DIR', 'CCINFOBAR_CACHE_DIR', 'CLAUDE_CONFIG_DIR']) {
+      expect(seen[k]).toContain('ccinfobar-verify-');
+    }
+    expect(seen.CCIB_TEST_REPORT).toBe(report);
+    expect(seen.PATH).toBeDefined();
+    expect(fs.readFileSync(cfg, 'utf8')).toBe(content);
+    expect(fs.statSync(cfg).mtimeMs).toBe(mtime);
   });
 
   it('reports a missing entry', async () => {
