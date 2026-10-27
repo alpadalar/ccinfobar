@@ -44,6 +44,7 @@ export function pathDirs(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): str
   for (let d of raw.split(';')) {
     if (d.length >= 2 && d.startsWith('"') && d.endsWith('"')) d = d.slice(1, -1);
     if (!d || d === '.' || d.includes('%')) continue;
+    d = d.replace(/\//g, '\\');
     if (!path.win32.isAbsolute(d)) continue;
     if (!/^[A-Za-z]:\\/.test(d) && !/^\\\\/.test(d)) continue;
     out.push(d);

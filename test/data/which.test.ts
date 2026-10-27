@@ -36,6 +36,11 @@ describe('which', () => {
     expect(pathDirs(env, 'win32')).toEqual(['C:\\a', 'C:\\Program Files\\Git\\cmd', '\\\\srv\\share\\bin']);
   });
 
+  it('normalises forward slashes in drive entries and still drops relative ones', () => {
+    const env = { PATH: 'C:/Program Files/Git/cmd;rel/x;/rooted;C:\\a' };
+    expect(pathDirs(env, 'win32')).toEqual(['C:\\Program Files\\Git\\cmd', 'C:\\a']);
+  });
+
   it('uses the sorted-first PATH key on win32', () => {
     expect(pathValue({ Path: 'B', PATH: 'A' }, 'win32')).toBe('A');
     expect(pathValue({ PATH: 'x' }, 'linux')).toBe('x');
