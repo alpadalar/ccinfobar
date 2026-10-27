@@ -40,7 +40,7 @@ weekly-usage: (empty)
 weekly-reset: (empty)
 weekly-model-usage: (empty)
 weekly-model-reset: (empty)
-spend-limit: (empty)
+spend-limit: 63%
 usage-pace: (empty)
 usage-projection: (empty)
 limit-eta: (empty)
