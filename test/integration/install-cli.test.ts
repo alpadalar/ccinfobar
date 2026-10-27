@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { skipDist } from '../dist.js';
 
 const root = path.resolve(__dirname, '../..');
 const bin = path.join(root, 'dist/ccinfobar.js');
@@ -41,7 +42,7 @@ const foreignBytes = () =>
 const stamped = (dir: string) =>
   fs.existsSync(dir) ? fs.readdirSync(dir).filter((n) => /^settings-\d{8}T\d{6}Z(-\d+)?\.json$/.test(n)) : [];
 
-describe.skipIf(!fs.existsSync(bin))('install and uninstall with the built CLI', () => {
+describe.skipIf(skipDist)('install and uninstall with the built CLI', () => {
   it('replaces a foreign statusLine without a TTY and says so', () => {
     const s = sandbox();
     fs.mkdirSync(s.claude, { recursive: true });

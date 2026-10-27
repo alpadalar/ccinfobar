@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { skipDist } from '../dist.js';
 
 const root = path.resolve(__dirname, '../..');
 const bin = path.join(root, 'dist/ccinfobar.js');
@@ -68,7 +69,7 @@ function render(id: string, file: string, limits: Record<string, Win>, env: Reco
   return strip(res.stdout ?? '');
 }
 
-describe.skipIf(!fs.existsSync(bin))('shared limits', () => {
+describe.skipIf(skipDist)('shared limits', () => {
   it('shows the active session value in an idle session', () => {
     const now = Date.now();
     const a = transcript('a', 60_000);

@@ -4,6 +4,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { skipDist } from '../dist.js';
 
 const root = path.resolve(__dirname, '../..');
 const bin = path.join(root, 'dist/ccinfobar.js');
@@ -81,7 +82,7 @@ afterEach(async () => {
   fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
 });
 
-describe.skipIf(!fs.existsSync(bin))('edit --detach', () => {
+describe.skipIf(skipDist)('edit --detach', () => {
   it('prints the url, exits, reuses the live editor and stops on shutdown', async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-detach-'));
     const first = detach();

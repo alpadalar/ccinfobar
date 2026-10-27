@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { skipDist } from '../dist.js';
 
 const root = path.resolve(__dirname, '../..');
 const bin = path.join(root, 'dist/ccinfobar.js');
@@ -30,7 +31,7 @@ function run(args: string[], env: Record<string, string> = {}, input = payload) 
   return { ...res, dir, out: strip(res.stdout ?? '') };
 }
 
-describe.skipIf(!fs.existsSync(bin))('built cli', () => {
+describe.skipIf(skipDist)('built cli', () => {
   it('renders context, token and usage widgets from the payload', () => {
     const init = run(['init', 'cockpit']);
     expect(init.status).toBe(0);

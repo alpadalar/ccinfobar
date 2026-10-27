@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { skipDist } from '../dist.js';
 
 const root = path.resolve(__dirname, '../..');
 const bin = path.join(root, 'dist/ccinfobar.js');
@@ -60,7 +61,7 @@ function sandbox(extra: NodeJS.ProcessEnv = {}) {
   return { dir, cache, jobs, list, logLines, render };
 }
 
-describe.skipIf(!fs.existsSync(bin))('background jobs (built cli)', () => {
+describe.skipIf(skipDist)('background jobs (built cli)', () => {
   it('one render spawns one worker that writes both envelopes', async () => {
     const s = sandbox();
     const r = s.render();

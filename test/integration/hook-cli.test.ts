@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { skipDist } from '../dist.js';
 
 const root = path.resolve(__dirname, '../..');
 const bin = path.join(root, 'dist/ccinfobar.js');
@@ -57,7 +58,7 @@ const ups = (extra: Record<string, unknown> = {}) =>
     ...extra,
   });
 
-describe.skipIf(!fs.existsSync(bin))('ccinfobar hook (built cli)', () => {
+describe.skipIf(skipDist)('ccinfobar hook (built cli)', () => {
   it('records a valid UserPromptSubmit silently with only allowed fields', () => {
     const s = sandbox();
     quiet(s.run(['hook', 'UserPromptSubmit'], ups()));

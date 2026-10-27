@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { skipDist } from '../dist.js';
 
 const root = path.resolve(__dirname, '../..');
 const bin = path.join(root, 'dist/ccinfobar.js');
@@ -72,7 +73,7 @@ const FOREIGN = { model: 'opus', statusLine: { type: 'command', command: 'npx cc
 const commandsOf = (hooks: Record<string, unknown[]>, event: string) =>
   (hooks[event] as Array<{ hooks: Array<{ command: string }> }>).map((g) => g.hooks[0]?.command);
 
-describe.skipIf(!fs.existsSync(bin))('install --hooks with the built CLI', () => {
+describe.skipIf(skipDist)('install --hooks with the built CLI', () => {
   it('adds the seven default hooks to user settings and the manifest', () => {
     const s = sandbox();
     const res = s.run(['install', '--hooks', '--yes']);

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { skipDist } from '../dist.js';
 
 const root = path.resolve(__dirname, '../..');
 const dist = path.join(root, 'dist');
@@ -80,7 +81,7 @@ function sandbox() {
   return { dir, cache, hooks, env, checked, run, writeConfig, aged };
 }
 
-describe.skipIf(!fs.existsSync(path.join(dist, 'ccinfobar.js')))('hook SessionStart (built cli)', () => {
+describe.skipIf(skipDist)('hook SessionStart (built cli)', () => {
   it('source startup runs the update check', () => {
     const s = sandbox();
     s.run('startup');

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { skipDist } from '../dist.js';
 
 const root = path.resolve(__dirname, '../..');
 const bin = path.join(root, 'dist/ccinfobar.js');
@@ -35,7 +36,7 @@ function run(args: string[], config?: string) {
 
 const BROKEN = '{\n  "lines": [\n    [{"type":"model"}],\n  ]\n}';
 
-describe.skipIf(!fs.existsSync(bin))('safe mode', () => {
+describe.skipIf(skipDist)('safe mode', () => {
   it('prints one config error line with exit 0', () => {
     const res = run([], BROKEN);
     expect(res.out).toBe('ccinfobar: config error at line 4, run ccinfobar doctor\n');

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { skipDist } from '../dist.js';
 
 const root = path.resolve(__dirname, '../..');
 const src = path.join(root, 'src');
@@ -319,79 +320,66 @@ describe('import graph', () => {
   });
 
   const dist = path.join(root, 'dist');
-  it.skipIf(!fs.existsSync(path.join(dist, 'ccinfobar.js')))(
-    'built hook chunk loads no crypto or stdin',
-    () => {
-      const entry = fs.readFileSync(path.join(dist, 'ccinfobar.js'), 'utf8');
-      const hook = /import\("\.\/chunks\/(hook-[^"]+\.js)"\)/.exec(entry)?.[1];
-      expect(hook).toBeTruthy();
-      expect(entry).not.toMatch(/^import\s[^;]*from\s+"\.\/chunks\//m);
-      const seen = new Set<string>();
-      const stack = [hook!];
-      while (stack.length) {
-        const f = stack.pop()!;
-        if (seen.has(f)) continue;
-        seen.add(f);
-        const text = fs.readFileSync(path.join(dist, 'chunks', f), 'utf8');
-        expect(text, f).not.toMatch(/from "node:(?:crypto|fs)"|process\.stdin\b/);
-        for (const m of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(m[1]!);
-      }
-      expect(seen.size).toBeGreaterThan(1);
-    },
-  );
+  it.skipIf(skipDist)('built hook chunk loads no crypto or stdin', () => {
+    const entry = fs.readFileSync(path.join(dist, 'ccinfobar.js'), 'utf8');
+    const hook = /import\("\.\/chunks\/(hook-[^"]+\.js)"\)/.exec(entry)?.[1];
+    expect(hook).toBeTruthy();
+    expect(entry).not.toMatch(/^import\s[^;]*from\s+"\.\/chunks\//m);
+    const seen = new Set<string>();
+    const stack = [hook!];
+    while (stack.length) {
+      const f = stack.pop()!;
+      if (seen.has(f)) continue;
+      seen.add(f);
+      const text = fs.readFileSync(path.join(dist, 'chunks', f), 'utf8');
+      expect(text, f).not.toMatch(/from "node:(?:crypto|fs)"|process\.stdin\b/);
+      for (const m of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(m[1]!);
+    }
+    expect(seen.size).toBeGreaterThan(1);
+  });
 
   // D-33: the render and hook chunks never carry report or TOML code
-  it.skipIf(!fs.existsSync(path.join(dist, 'ccinfobar.js')))(
-    'built render and hook chunks carry no report or TOML code',
-    () => {
-      const entry = fs.readFileSync(path.join(dist, 'ccinfobar.js'), 'utf8');
-      const roots = [...entry.matchAll(/import\("\.\/chunks\/((?:cli|hook)-[^"]+\.js)"\)/g)].map(
-        (m) => m[1]!,
-      );
-      expect(roots).toHaveLength(2);
-      expect(entry).not.toMatch(/TomlError|report-index|Scanning transcripts|This layout runs commands/);
-      const seen = new Set<string>();
-      const stack = [...roots];
-      while (stack.length) {
-        const f = stack.pop()!;
-        if (seen.has(f)) continue;
-        seen.add(f);
-        const text = fs.readFileSync(path.join(dist, 'chunks', f), 'utf8');
-        expect(text, f).not.toMatch(/TomlError|report-index|Scanning transcripts|This layout runs commands/);
-        for (const m of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(m[1]!);
-      }
-      expect(seen.size).toBeGreaterThan(2);
-      const lazy = fs
-        .readdirSync(path.join(dist, 'chunks'))
-        .filter((f) => /TomlError|report-index/.test(fs.readFileSync(path.join(dist, 'chunks', f), 'utf8')));
-      expect(lazy.length).toBeGreaterThan(0);
-    },
-  );
+  it.skipIf(skipDist)('built render and hook chunks carry no report or TOML code', () => {
+    const entry = fs.readFileSync(path.join(dist, 'ccinfobar.js'), 'utf8');
+    const roots = [...entry.matchAll(/import\("\.\/chunks\/((?:cli|hook)-[^"]+\.js)"\)/g)].map((m) => m[1]!);
+    expect(roots).toHaveLength(2);
+    expect(entry).not.toMatch(/TomlError|report-index|Scanning transcripts|This layout runs commands/);
+    const seen = new Set<string>();
+    const stack = [...roots];
+    while (stack.length) {
+      const f = stack.pop()!;
+      if (seen.has(f)) continue;
+      seen.add(f);
+      const text = fs.readFileSync(path.join(dist, 'chunks', f), 'utf8');
+      expect(text, f).not.toMatch(/TomlError|report-index|Scanning transcripts|This layout runs commands/);
+      for (const m of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(m[1]!);
+    }
+    expect(seen.size).toBeGreaterThan(2);
+    const lazy = fs
+      .readdirSync(path.join(dist, 'chunks'))
+      .filter((f) => /TomlError|report-index/.test(fs.readFileSync(path.join(dist, 'chunks', f), 'utf8')));
+    expect(lazy.length).toBeGreaterThan(0);
+  });
 
   // D-28: catalog and marketplace code never loads on a refresh
-  it.skipIf(!fs.existsSync(path.join(dist, 'ccinfobar.js')))(
-    'built render and hook chunks carry no catalog or marketplace code',
-    () => {
-      const entry = fs.readFileSync(path.join(dist, 'ccinfobar.js'), 'utf8');
-      const roots = [...entry.matchAll(/import\("\.\/chunks\/((?:cli|hook)-[^"]+\.js)"\)/g)].map(
-        (m) => m[1]!,
-      );
-      expect(roots).toHaveLength(2);
-      const marker = /catppuccin-cockpit|ccinfobar-market|\/v1\/index\.json|Waiting to publish/;
-      expect(entry).not.toMatch(marker);
-      const seen = new Set<string>();
-      const stack = [...roots];
-      while (stack.length) {
-        const f = stack.pop()!;
-        if (seen.has(f)) continue;
-        seen.add(f);
-        const text = fs.readFileSync(path.join(dist, 'chunks', f), 'utf8');
-        expect(text, f).not.toMatch(marker);
-        for (const m of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(m[1]!);
-      }
-      expect(seen.size).toBeGreaterThan(2);
-    },
-  );
+  it.skipIf(skipDist)('built render and hook chunks carry no catalog or marketplace code', () => {
+    const entry = fs.readFileSync(path.join(dist, 'ccinfobar.js'), 'utf8');
+    const roots = [...entry.matchAll(/import\("\.\/chunks\/((?:cli|hook)-[^"]+\.js)"\)/g)].map((m) => m[1]!);
+    expect(roots).toHaveLength(2);
+    const marker = /catppuccin-cockpit|ccinfobar-market|\/v1\/index\.json|Waiting to publish/;
+    expect(entry).not.toMatch(marker);
+    const seen = new Set<string>();
+    const stack = [...roots];
+    while (stack.length) {
+      const f = stack.pop()!;
+      if (seen.has(f)) continue;
+      seen.add(f);
+      const text = fs.readFileSync(path.join(dist, 'chunks', f), 'utf8');
+      expect(text, f).not.toMatch(marker);
+      for (const m of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(m[1]!);
+    }
+    expect(seen.size).toBeGreaterThan(2);
+  });
 
   it('dispatches hook mode from bin before loading cli.js', () => {
     const text = fs.readFileSync(path.join(src, 'bin.ts'), 'utf8');

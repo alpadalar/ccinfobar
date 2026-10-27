@@ -5,6 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { writeUpdateState } from '../../src/data/update-state.js';
+import { skipDist } from '../dist.js';
 
 const repo = path.resolve(__dirname, '../..');
 const bin = path.join(repo, 'dist/ccinfobar.js');
@@ -110,7 +111,7 @@ function expectBrew(file: string, cache: string, env: NodeJS.ProcessEnv) {
   expect(line.last.slice(-NOTICE.length)).toBe(NOTICE);
 }
 
-describe.skipIf(!fs.existsSync(bin))('built cli in a Homebrew Cellar layout', () => {
+describe.skipIf(skipDist)('built cli in a Homebrew Cellar layout', () => {
   it('doctor reports Homebrew and render shows the brew notice', () => {
     const { entry, cache, env } = layout();
     expectBrew(entry, cache, env);

@@ -27,6 +27,7 @@ import { samplePayload } from '../../src/core/sample.js';
 import { getScenario, SCENARIO_NOW } from '../../src/core/scenarios.js';
 import { visibleWidth } from '../../src/core/width.js';
 import { parseTranscriptText } from '../../src/data/transcript.js';
+import { skipDist } from '../dist.js';
 import { withLang } from '../helpers.js';
 
 describe('stats', () => {
@@ -368,7 +369,7 @@ describe('runBench hook row', () => {
   });
 });
 
-describe.skipIf(!fs.existsSync(bin))('runBench with the built cli', () => {
+describe.skipIf(skipDist)('runBench with the built cli', () => {
   it('prints one JSON object with five rows and leaves no temp dirs', { timeout: 60_000 }, () => {
     const before = benchDirs();
     const cache = listFiles(cacheDir());

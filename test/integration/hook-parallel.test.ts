@@ -3,12 +3,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { skipDist } from '../dist.js';
 
 const root = path.resolve(__dirname, '../..');
 const bin = path.join(root, 'dist/ccinfobar.js');
 const SID = 'sess-parallel';
 
-describe.skipIf(!fs.existsSync(bin))('ccinfobar hook parallel appends', () => {
+describe.skipIf(skipDist)('ccinfobar hook parallel appends', () => {
   it(
     'keeps every line from 16 concurrent processes',
     async () => {

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { skipDist } from '../dist.js';
 
 const root = path.resolve(__dirname, '../..');
 const bin = path.join(root, 'dist/ccinfobar.js');
@@ -100,7 +101,7 @@ const RENDERS: [string, number][] = [
   ['sess-f', 0.4],
 ];
 
-describe.skipIf(!fs.existsSync(bin))('cost ledger', () => {
+describe.skipIf(skipDist)('cost ledger', () => {
   it('counts every session today once', { timeout: 240_000 }, async () => {
     await awayFromMidnight();
     useConfig(['cost-today']);
