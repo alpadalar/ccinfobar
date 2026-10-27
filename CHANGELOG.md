@@ -47,6 +47,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Security
 
+- The `agents` widget and its cache now mask tokens, passwords and URL credentials inside subagent tool arguments and show file names instead of full paths, with the same rules as the running-tools display; the old `agent2-*` cache files are no longer read.
 - `env` widgets now need the same consent as command, HTTP and link widgets wherever a layout comes from outside (import, `catalog apply`, share codes, editor Open…/Import, marketplace install); without it they are dropped, so a pasted layout cannot show an environment variable.
 - Share codes keep only `http:`/`https:` links; other schemes (`file:`, `ftp:`, `vbscript:`, `javascript:`, `data:`) are dropped at decode and named at the consent step.
 - On Windows, git and jj are now run by the absolute path found in `PATH` (`.com` then `.exe`) and never from the repository folder, so a repository that ships its own `git.exe` or `jj.exe` can no longer run it during a refresh or `ccinfobar install`. When neither is on `PATH` the git and jj widgets hide instead of falling back to the bare name. Linux and macOS are unchanged
