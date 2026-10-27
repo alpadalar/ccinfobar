@@ -61,7 +61,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `tokens-cached` | Cache read and write tokens | `Cache 3.2M` |  |
 | `tokens-total` | Input plus output tokens | `Tokens 450k` |  |
 | `cache-hit-rate` | Prompt cache hit ratio | `Hit 94%` |  |
-| `cache-timer` | Time left before the prompt cache expires | `Cache 41m` | `showTtl` boolean, default `false` |
+| `cache-timer` | Time left before the prompt cache expires | `Cache 41m` | `showTtl` boolean, default `false`<br>`showColdCost` select, default `"off"` (`off`, `tokens`, `usd`) |
 | `cache-miss-cause` | Reason for the last prompt cache miss | `Miss tools changed (+2/-0)` | `show` select, default `"latest"` (`latest`, `always`) |
 | `performance` | Cache hit rate and average API time per main request (~: time to first reply) | `Perf 94% · 3.2s` | `show` select, default `"both"` (`both`, `hit`, `time`)<br>`display` select, default `"text"` (`text`, `badge`)<br>`hitWarn` number, default `70` (when `display` is `badge`)<br>`timeWarn` number, default `10` (when `display` is `badge`)<br>`showMisses` boolean, default `false` |
 | `output-speed` | Recent output tokens per second | `72 t/s` |  |
