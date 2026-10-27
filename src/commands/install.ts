@@ -11,6 +11,7 @@ import {
 } from '../core/paths.js';
 import { HARDEN } from '../data/git.js';
 import type { HookEvent } from '../data/hooks.js';
+import { binary } from '../data/which.js';
 import { type BuiltCommand, buildCommand, type CommandTarget, jsForWinBin } from './command.js';
 import {
   appliedItems,
@@ -555,8 +556,10 @@ export { claudeJsonPath, projectSettingsPath };
 
 function projectRoots(dir: string): string[] {
   const roots = [path.resolve(dir)];
+  const bin = binary('git');
+  if (bin === null) return roots;
   try {
-    const top = execFileSync('git', [...HARDEN, 'rev-parse', '--show-toplevel'], {
+    const top = execFileSync(bin, [...HARDEN, 'rev-parse', '--show-toplevel'], {
       cwd: dir,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -608,8 +611,10 @@ export function projectOverride(dir: string): ProjectOverride | null {
 // keep settings.local.json out of git
 export function ignoreLocally(file: string): boolean {
   const dir = path.dirname(file);
+  const bin = binary('git');
+  if (bin === null) return false;
   const git = (args: string[]) =>
-    execFileSync('git', [...HARDEN, ...args], {
+    execFileSync(bin, [...HARDEN, ...args], {
       cwd: dir,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],

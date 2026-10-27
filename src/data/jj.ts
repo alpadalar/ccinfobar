@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { deepSanitize, sanitizeText } from '../core/sanitize.js';
 import { GIT_TIMEOUT, parseShortstat } from './git.js';
+import { binary } from './which.js';
 
 export interface JjChange {
   id: string;
@@ -51,8 +52,10 @@ export function parseJjStat(out: string): { insertions: number; deletions: numbe
 }
 
 function defaultRun(args: string[], cwd: string): string | null {
+  const bin = binary('jj');
+  if (!bin) return null;
   try {
-    return execFileSync('jj', args, {
+    return execFileSync(bin, args, {
       cwd,
       encoding: 'utf8',
       timeout: GIT_TIMEOUT,

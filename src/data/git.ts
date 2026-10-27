@@ -2,6 +2,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { deepSanitize } from '../core/sanitize.js';
+import { binary, whichDeps } from './which.js';
 
 export interface GitInfo {
   root: string;
@@ -41,8 +42,10 @@ function exec(
   env: NodeJS.ProcessEnv,
   okExit1 = false,
 ): string | null {
+  const bin = binary('git', whichDeps(env));
+  if (bin === null) return null;
   try {
-    return execFileSync('git', args, {
+    return execFileSync(bin, args, {
       cwd,
       encoding: 'utf8',
       timeout,
@@ -65,9 +68,14 @@ function execAsync(
   okExit1 = false,
 ): Promise<string | null> {
   return new Promise((resolve) => {
+    const bin = binary('git', whichDeps(env));
+    if (bin === null) {
+      resolve(null);
+      return;
+    }
     try {
       const child = execFile(
-        'git',
+        bin,
         args,
         { cwd, encoding: 'utf8', timeout, windowsHide: true, maxBuffer: 16 * 1024 * 1024, env },
         (e, stdout) => {

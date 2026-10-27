@@ -15,6 +15,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - Share codes: `ccinfobar share` prints a `ccib1:` code (compressed, base64url) with your layout and theme and none of your personal settings. Command, HTTP and link widgets are removed unless you pass `--include-commands`, and `--json` prints the code with its size and what was removed. `ccinfobar edit --open <code>` (or `ccinfobar edit <code>`) opens the editor with it loaded and unsaved, and `ccinfobar catalog apply <code>` writes it with the usual consent, `--dry-run`, `--json` and backup. A damaged, oversized or unknown-version code is refused before anything starts
 - Web editor: **Share** shows the share code for the current config with its size, copies it and lists the removed command, HTTP and link widgets, with an **Include commands and links** switch. **Open…** takes a pasted code or a link ending in `#c=<code>`, and a code pasted into **Import** works too. Opening asks about every command and link like a catalog apply, installs an embedded theme into `themes/`, and leaves the config unsaved (undo works)
 
+### Security
+
+- On Windows, git and jj are now run by the absolute path found in `PATH` (`.com` then `.exe`) and never from the repository folder, so a repository that ships its own `git.exe` or `jj.exe` can no longer run it during a refresh or `ccinfobar install`. When neither is on `PATH` the git and jj widgets hide instead of falling back to the bare name. Linux and macOS are unchanged
+
 ## [0.8.2] - 2026-10-20
 
 ### Added
