@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import type { Config } from '../../src/core/types.js';
-import { fakeFetch, json } from '../fake-fetch.js';
+import { fakeFetch, json, streamed } from '../fake-fetch.js';
 
 const mocks = vi.hoisted(() => ({ execFile: vi.fn() }));
 
@@ -142,6 +142,36 @@ describe('tarball digest verification', () => {
     expect(fs.existsSync(file)).toBe(false);
   });
 
+  it('writes the tarball into a fresh private dir and never follows a planted symlink', async () => {
+    const victim = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-victim-')), 'victim.txt');
+    fs.writeFileSync(victim, 'keep');
+    const planted = path.join(os.tmpdir(), `ccinfobar-9.9.9-${process.pid}.tgz`);
+    fs.rmSync(planted, { force: true });
+    fs.symlinkSync(victim, planted);
+    let file = '';
+    try {
+      file = await fetchTarball('9.9.9', hex, fakeFetch([tgz()]).fetch);
+      expect(fs.readFileSync(victim, 'utf8')).toBe('keep');
+      expect(path.dirname(file)).not.toBe(os.tmpdir());
+      expect(fs.readFileSync(file).equals(bytes)).toBe(true);
+      if (process.platform !== 'win32') expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+    } finally {
+      fs.rmSync(planted, { force: true });
+      if (file) fs.rmSync(path.dirname(file), { recursive: true, force: true });
+      fs.rmSync(path.dirname(victim), { recursive: true, force: true });
+    }
+  });
+
+  it('stops reading the body once the size cap is passed', async () => {
+    const chunk = new Uint8Array(8 * 1024 * 1024);
+    const probe = streamed([chunk, chunk, chunk, chunk, chunk]);
+    await expect(fetchTarball('9.9.9', hex, fakeFetch([new Response(probe.body)]).fetch)).rejects.toThrow(
+      'tarball-too-large',
+    );
+    expect(probe.cancelled()).toBe(true);
+    expect(probe.pulls()).toBeLessThanOrEqual(5);
+  });
+
   it('installs the verified local tarball after a registry failure and removes it', async () => {
     failFirst();
     const f = fakeFetch([release(`sha256:${hex}`), tgz()]);
@@ -150,6 +180,7 @@ describe('tarball digest verification', () => {
     expect(second.endsWith('.tgz')).toBe(true);
     expect(second.startsWith(os.tmpdir())).toBe(true);
     expect(fs.existsSync(second)).toBe(false);
+    expect(fs.existsSync(path.dirname(second))).toBe(false);
   });
 
   it('uses the URL without a digest', async () => {

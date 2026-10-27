@@ -155,12 +155,40 @@ export async function fetchTarball(
   });
   if (!res.ok) throw new Error(`tarball-http-${res.status}`);
   if (Number(res.headers.get('content-length') ?? 0) > TARBALL_MAX) throw new Error('tarball-too-large');
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > TARBALL_MAX) throw new Error('tarball-too-large');
+  const buf = await readCapped(res);
   if (createHash('sha256').update(buf).digest('hex') !== expectedHex) throw new Error('checksum-mismatch');
-  const file = path.join(os.tmpdir(), `ccinfobar-${version}-${process.pid}.tgz`);
-  if (!writeAtomic(file, buf, { mode: 0o600 })) throw new Error('tarball-write-failed');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccinfobar-tgz-'));
+  const file = path.join(dir, 'ccinfobar.tgz');
+  try {
+    fs.writeFileSync(file, buf, { flag: 'wx', mode: 0o600 });
+  } catch {
+    fs.rmSync(dir, { recursive: true, force: true });
+    throw new Error('tarball-write-failed');
+  }
   return file;
+}
+
+// aborts as soon as the running total passes the cap
+async function readCapped(res: Response): Promise<Buffer> {
+  const reader = res.body?.getReader();
+  if (!reader) {
+    const whole = Buffer.from(await res.arrayBuffer());
+    if (whole.length > TARBALL_MAX) throw new Error('tarball-too-large');
+    return whole;
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > TARBALL_MAX) {
+      await reader.cancel().catch(() => {});
+      throw new Error('tarball-too-large');
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
 }
 
 function npmError(err: unknown, stderr: unknown): Error {
@@ -212,7 +240,7 @@ export async function installVersionAsync(
       }
       err = await run(local ? npmInstall(version, prefix, local).runs[1]! : args);
     } finally {
-      if (local) fs.rmSync(local, { force: true });
+      if (local) fs.rmSync(path.dirname(local), { recursive: true, force: true });
     }
     if (!err) return;
     if (signal?.aborted) throw new Error('install cancelled');
