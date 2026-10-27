@@ -32,8 +32,11 @@ All notable changes to this project are documented here. The format follows [Kee
 - The `agents` widget now reads subagent transcripts incrementally (about 1 MB per agent and 4 MB in total per refresh) and caches the subagent listing, so a busy subagent no longer slows the status line.
 - `ccinfobar install` no longer imports the previous status line's layout over an existing ccinfobar config unless you answer yes (the default is now no) or pass `--import`; `--yes` alone no longer imports in that case, and the import runs only after the settings were written
 - `jj-changes` no longer snapshots the working copy by default, so a status line refresh never writes to the jj operation log; set `snapshot: true` to get the old behaviour
-- Git widgets reuse the last `git status`/`diff` result for about 2 seconds and for as long as none of `.git/HEAD`, `index`, `packed-refs`, `config`, the branch ref or `logs/HEAD` changed, so most refreshes in a repository spawn no git process; worktrees, submodules and old git without `--show-stash` keep working. The cache lives in the cache dir as `git-*.json`
+- Git widgets reuse the last `git status`/`diff` result for about 2 seconds, provided none of `.git/HEAD`, `index`, `packed-refs`, `config`, the branch ref or `logs/HEAD` changed, so most refreshes in a repository spawn no git process; worktrees, submodules and old git without `--show-stash` keep working. The cache lives in the cache dir as `git-*.json`
 - The terminal width is probed (`ps`/`stty`) only when neither the payload nor `COLUMNS` carries one and `maxWidth` is not a fixed number. A known width is reused for a minute and a failed probe for ten, and `/dev/tty` is asked first on Linux and macOS. A numeric `maxWidth` skips the probe entirely.
+- Upgrading rebuilds the per-transcript token cache once because its format changed: the first refresh after the update does one budgeted rescan, and very long transcripts show partial totals until it catches up
+- The `agents` widget's cache files are now `agent3-*.json` and `agents-dir-*.json` in the cache folder; the background worker deletes the old `agent2-*.json` files (see the worker cleanup note above)
+- When `ccinfobar install` replaces another tool's status line after you confirm, the other keys of that `statusLine` entry are carried over into ccinfobar's entry instead of being dropped (`type`, `command`, `padding` and `refreshInterval` are ccinfobar's)
 
 ### Fixed
 
