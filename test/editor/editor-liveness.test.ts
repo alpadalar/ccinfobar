@@ -227,7 +227,7 @@ describe('detached editor liveness (ROB-04)', () => {
     await boot();
     failPing = true;
     await tick(5 * MIN + 10);
-    const button = banners()[0]!.all((e) => e.tagName === 'BUTTON')[0]!;
+    const button = (banners()[0] as FakeEl).all((e) => e.tagName === 'BUTTON')[0]!;
     g.Blob = class {};
     const realUrl = g.URL;
     g.URL = Object.assign(function URLStub() {}, {
