@@ -21,9 +21,11 @@ All notable changes to this project are documented here. The format follows [Kee
 - Web editor: **Share** shows the share code for the current config with its size, copies it and lists the removed command, HTTP, link and env widgets, with an **Include commands and links** switch. **Open…** takes a pasted code or a link ending in `#c=<code>`, and a code pasted into **Import** works too. Opening asks about every command, link and env widget like a catalog apply, installs an embedded theme into `themes/`, and leaves the config unsaved (undo works)
 - Automatic updates now check the new version (`--version` and a test render) before keeping it and roll back to the previous version on failure; a rejected version is not retried. `ccinfobar doctor` and the status line say when that happened
 - `git-worktree` can show the worktree's branch, original branch, path or original directory (`show`), shortened like `cwd` (`style`, `segments`), and append the branch it was created from (`showOrigin`); without options it shows the name as before
+- `spend-limit` gains `show: amount | percent | remaining | both`, `showPeriod` (`/day`, `/wk`, `/mo`) and optional threshold colours (`thresholdColors`, off by default)
 
 ### Changed
 
+- `spend-limit` shows the used percentage (`63%`) when Claude Code or a gateway sends only `used_percentage` and no dollar amounts, instead of staying empty; with the dollar fields it still shows `$12/$50`
 - Resuming a session with a very long transcript no longer stalls the first refresh: ccinfobar reads about 8 MB per refresh, shows the totals so far and catches up over the next refreshes (`ccinfobar explain` still reads everything).
 - The `agents` widget now reads subagent transcripts incrementally (about 1 MB per agent and 4 MB in total per refresh) and caches the subagent listing, so a busy subagent no longer slows the status line.
 - `ccinfobar install` no longer imports the previous status line's layout over an existing ccinfobar config unless you answer yes (the default is now no) or pass `--import`; `--yes` alone no longer imports in that case, and the import runs only after the settings were written

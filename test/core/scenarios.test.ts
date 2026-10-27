@@ -238,7 +238,9 @@ describe('scenarios', () => {
     expect(glm.env.ANTHROPIC_BASE_URL).toBe('https://api.z.ai/api/anthropic');
     expect(glm.env.ANTHROPIC_API_KEY).toBeUndefined();
     expect(glm.payload.model).toEqual({ id: 'glm-5.3', display_name: 'glm-5.3' });
-    expect(glm.payload.rate_limits).toBeUndefined();
+    expect(glm.payload.rate_limits).toEqual({
+      spend_limit: { used_percentage: 63, resets_at: Math.floor(SCENARIO_NOW / 1000) + 6 * 3600 },
+    });
     expect(glm.data.ledger()).toBeNull();
     const env = scenarioEnv({ ANTHROPIC_API_KEY: 'real', CLAUDE_CODE_USE_VERTEX: '1' }, glm.env);
     expect(env.ANTHROPIC_API_KEY).toBeUndefined();
