@@ -161,7 +161,9 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `jj-workspace` | Current jj workspace name | `default` | `hideDefault` boolean, default `false` |
 | `jj-revision` | Short change ID of the working copy | `kkmpptxz` |  |
 | `jj-description` | First line of the working-copy description | `Wire GSD widgets into renderer` |  |
-| `jj-changes` | Inserted and deleted lines in the working-copy change | `+42 -10` | `snapshot` boolean, default `true` |
+| `jj-changes` | Inserted and deleted lines in the working-copy change | `+42 -10` | `snapshot` boolean, default `false` |
+
+- `jj-changes`: Reads the last snapshot by default, so edits since jj's last snapshot are not counted. `snapshot: true` snapshots the working copy on every refresh, which writes to the repository's operation log.
 
 ## Workspace
 
