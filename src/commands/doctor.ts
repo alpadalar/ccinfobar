@@ -62,8 +62,10 @@ import { rotationStatus } from './manage.js';
 import {
   classifyOwner,
   findHookEntries,
+  findSubagentLineEntry,
   type Manifest,
   manifestFile,
+  ownedEqual,
   owns,
   readManifest,
 } from './manifest.js';
@@ -84,6 +86,13 @@ function validOption(spec: OptionSpec, v: unknown): boolean {
 }
 
 const safe = (v: unknown): string => sanitizeText(typeof v === 'string' ? v : String(JSON.stringify(v)));
+
+function subagentSetting(file: string): { command: string } | null {
+  const v = readSettingsLayer('user', file).data?.subagentStatusLine;
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const command = (v as { command?: unknown }).command;
+  return typeof command === 'string' ? { command } : null;
+}
 
 const FROM: Partial<Record<Resolved['source'], MessageId>> = {
   config: 'doctor.languageFrom.config',
@@ -463,6 +472,13 @@ export function runDoctor(
       : t('doctor.statusLineUnset', slFile),
   );
   if (typeof sl?.command === 'string') for (const w of commandWarnings(sl.command)) console.log(w);
+  const sub = subagentSetting(settingsFile);
+  if (sub) {
+    const entry = findSubagentLineEntry(manifest, settingsFile);
+    const owned = !!entry && ownedEqual(sub, entry.value);
+    console.log(t('doctor.subagentLine', { mark: ok(owned), command: safe(sub.command) }));
+    if (!owned) console.log(t('doctor.subagentLineForeign', { command: selfCommand() }));
+  }
   if (sl?.refreshInterval === undefined) {
     const cfg = loaded.config;
     const extra = cfg.tui ? titleWidgets(cfg.tui) : [];

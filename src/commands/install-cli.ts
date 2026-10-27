@@ -43,15 +43,17 @@ import {
   projectOverride,
   projectSettingsPath,
   releaseProjects,
+  type SubagentOut,
   setupCommand,
   statusLineOwner,
   takeOverProjects,
   type UninstallResult,
   uninstall,
+  uninstallSubagentLine,
 } from './install.js';
 import { ask } from './io.js';
 import { runImport } from './manage.js';
-import { findHookEntries, readManifest } from './manifest.js';
+import { findHookEntries, findSubagentLineEntry, readManifest } from './manifest.js';
 import { readSettings } from './settings-file.js';
 import { installKind } from './update.js';
 
@@ -112,8 +114,23 @@ export async function offerImport(
   await runImport(tool.tool as ImportSource, { command: tool.command, flags, program }, cfgFile, io);
 }
 
+const slNeedsConfirm = (plan: InstallPlan) => plan.owner === 'foreign' || plan.owner === 'legacy-ask';
+
+const commandOf = (v: unknown): string =>
+  show(v && typeof v === 'object' ? (v as { command?: unknown }).command : v);
+
+function showSubagentDry(io: InstallIo, plan: InstallPlan): void {
+  const sub = plan.subagent;
+  if (!sub) return;
+  const params = { command: show(sub.proposed.command), from: commandOf(sub.current) };
+  if (!sub.changes) io.log(t('install.dry.subagentKeep'));
+  else if (sub.owner === 'none') io.log(t('install.dry.subagentAdd', params));
+  else if (sub.owner === 'ours') io.log(t('install.dry.subagentRewrite', params));
+  else io.log(t('install.dry.subagentReplace', params));
+}
+
 function showPlan(io: InstallIo, plan: InstallPlan): void {
-  if (plan.needsConfirm) io.log(t('install.foreignHeader', { file: tildify(plan.file) }));
+  if (slNeedsConfirm(plan)) io.log(t('install.foreignHeader', { file: tildify(plan.file) }));
   if (plan.current) io.log(t('install.current', { command: show(plan.current.command) }));
   io.log(t('install.proposed', { command: show(plan.proposed.command) }));
   const unset = t('install.unset');
@@ -352,7 +369,19 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   const file = project
     ? projectSettingsPath(shadowed ? path.dirname(path.dirname(shadowed.file)) : process.cwd())
     : claudeSettingsPath();
-  const plan = planInstall({ file, command, refresh: project ? (refresh ?? userRefresh()) : refresh });
+  let subagents = args.flags.subagents === true;
+  if (subagents && project) {
+    io.log(t('install.subagentsProjectIgnored'));
+    subagents = false;
+  }
+  const planWith = (withSubagents: boolean) =>
+    planInstall({
+      file,
+      command: command!,
+      refresh: project ? (refresh ?? userRefresh()) : refresh,
+      subagents: withSubagents,
+    });
+  let plan = planWith(subagents);
   // D-17: hooks live in user settings only
   if (events.length && project) {
     io.log(t('hooks.projectIgnored'));
@@ -374,11 +403,12 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   }
 
   if (dryRun) {
-    if (!plan.needsConfirm) io.log(t('install.dryRunFile', { file: tildify(file) }));
+    if (!slNeedsConfirm(plan)) io.log(t('install.dryRunFile', { file: tildify(file) }));
     showPlan(io, plan);
+    showSubagentDry(io, plan);
     const hookPlan = project ? null : previewHooks(file, command, events, claudeCode, handlers);
     if (tty) io.log(t('progress.tty'));
-    if (!plan.changes && !hooksChanged(hookPlan)) io.log(t('install.unchanged'));
+    if (!plan.changes && !hooksChanged(hookPlan) && !plan.subagent?.changes) io.log(t('install.unchanged'));
     if (hookPlan) showDryHooks(io, hookPlan, hooksAsked);
     if (!project) {
       const gsd = gsdProjects();
@@ -391,7 +421,7 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   }
 
   let adoptLegacy = false;
-  if (plan.needsConfirm && args.flags.yes !== true && io.tty) {
+  if (slNeedsConfirm(plan) && args.flags.yes !== true && io.tty) {
     showPlan(io, plan);
     const legacy = plan.owner === 'legacy-ask';
     const question = legacy
@@ -402,6 +432,13 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
       return;
     }
     adoptLegacy = legacy;
+  }
+  if (plan.subagent?.owner === 'foreign' && plan.subagent.asked && args.flags.yes !== true) {
+    const question = t('install.subagentReplacePrompt', { command: commandOf(plan.subagent.current) });
+    if (!io.tty || !(await io.ask(question, false))) {
+      io.log(t('install.subagentsKept'));
+      plan = planWith(false);
+    }
   }
 
   const found = project ? null : detectTool(plan.current?.command);
@@ -426,9 +463,21 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   const ttyRemoved =
     tty && hasProgressHandlers(file) ? uninstallHooks(file, undefined, undefined, 'progress') : null;
   if (plan.changes) io.log(t('install.wrote', { command: show(command), file: tildify(file) }));
-  else if (!hooksChanged(res.hooks)) io.log(t('install.unchanged'));
-  if (plan.needsConfirm && !adoptLegacy && plan.current)
+  else if (!hooksChanged(res.hooks) && !res.subagent) io.log(t('install.unchanged'));
+  if (slNeedsConfirm(plan) && !adoptLegacy && plan.current)
     io.log(t('install.replaced', { command: show(plan.current.command) }));
+  if (res.subagent) {
+    const params = {
+      command: show(plan.subagent?.proposed.command),
+      previous: commandOf(plan.subagent?.current),
+    };
+    const key = {
+      added: 'install.subagentsAdded',
+      rewritten: 'install.subagentsRewritten',
+      replaced: 'install.subagentsReplaced',
+    } as const;
+    io.log(t(key[res.subagent], params));
+  }
   if (res.hooks) reportHooks(io, res.hooks, hooksAsked);
   if (tty) io.log(t('progress.tty'));
   if (ttyRemoved) hooksRemoved(io, ttyRemoved);
@@ -457,7 +506,26 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   io.log(t('install.customize', { command: hint }));
 }
 
-export function uninstallMessage(res: UninstallResult): string {
+function subagentOutMessage(out: SubagentOut, previous: unknown): string | null {
+  switch (out) {
+    case 'removed':
+      return t('install.subagentsRemoved');
+    case 'restored':
+      return t('install.subagentsRestored', { command: commandOf(previous) });
+    case 'kept':
+      return t('install.subagentsKeptEdited');
+    default:
+      return null;
+  }
+}
+
+export function uninstallMessage(res: UninstallResult, previous?: unknown): string {
+  const sub = subagentOutMessage(res.subagent, previous);
+  const main = uninstallStatusMessage(res);
+  return sub ? `${main}\n${sub}` : main;
+}
+
+function uninstallStatusMessage(res: UninstallResult): string {
   const file = tildify(res.file);
   const command = show(res.restored?.command ?? res.current?.command ?? '');
   switch (res.status) {
@@ -515,14 +583,24 @@ export async function runUninstall(args: Args, cfgFile: string, io: InstallIo = 
   if (badPositional(args, io)) return;
   const hooksOnly = args.flags.hooks !== undefined && args.flags.hooks !== false;
   const progressOnly = args.flags.progress === true;
+  const subagentsOnly = args.flags.subagents === true;
   if (args.flags.project) {
+    if (subagentsOnly) io.log(t('install.subagentsUninstallProject'));
     if (hooksOnly) io.log(t('hooks.uninstallProject'));
     if (progressOnly) io.log(t('progress.uninstallProject'));
     io.log(uninstallMessage(await uninstallAsking(projectLocalFile(process.cwd()), io)));
     return;
   }
-  if (hooksOnly || progressOnly) {
+  if (hooksOnly || progressOnly || subagentsOnly) {
     const file = claudeSettingsPath();
+    if (subagentsOnly) {
+      const previous = findSubagentLineEntry(readManifest(), file)?.previous ?? null;
+      const sub = uninstallSubagentLine(file);
+      const msg = subagentOutMessage(sub.subagent, previous);
+      io.log(msg ?? t('install.subagentsNone', { file: tildify(file) }));
+      if (sub.backup) io.log(t('install.backup', { file: tildify(sub.backup) }));
+      if (!hooksOnly && !progressOnly) return;
+    }
     // the next hook event sends the clear, so the handlers wait for it once
     const held = progressOnly && progressOff(io, cfgFile, hasProgressHandlers(file)) > 0;
     const role = !progressOnly || held ? 'hooks' : hooksOnly ? 'all' : 'progress';
@@ -540,8 +618,9 @@ export async function runUninstall(args: Args, cfgFile: string, io: InstallIo = 
   }
   const released = releaseProjects();
   if (released.length) io.log(t('uninstall.releasedProjects', { count: released.length }));
+  const subPrevious = findSubagentLineEntry(readManifest(), claudeSettingsPath())?.previous ?? null;
   const res = await uninstallAsking(claudeSettingsPath(), io);
-  io.log(uninstallMessage(res));
+  io.log(uninstallMessage(res, subPrevious));
   hooksRemoved(io, res.hooks);
   progressOff(io, cfgFile, !!res.hooks.progress?.removed.length);
 }

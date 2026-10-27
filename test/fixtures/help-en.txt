@@ -14,10 +14,13 @@ Usage
   ccinfobar install --dry-run     Show what install would change and write nothing
   ccinfobar install --hooks       Also add optional Claude Code hooks (exact live state)
   ccinfobar install --progress    Also show context fill as the terminal tab's progress bar
+  ccinfobar install --subagents   Also render Claude Code's subagent panel rows (subagentStatusLine)
   ccinfobar uninstall             Remove ccinfobar and restore your previous status line
                                   Run it before `npm rm -g ccinfobar`: hooks call the ccinfobar command
   ccinfobar uninstall --hooks     Remove only ccinfobar's hooks
   ccinfobar uninstall --progress  Remove only the terminal progress handlers
+  ccinfobar uninstall --subagents
+                                  Remove only the subagentStatusLine entry
   ccinfobar subagent-line         Rows for the Claude Code subagent panel (set up by install --subagents)
   ccinfobar import <tool>         Import another status line's layout (see ccinfobar import --help)
   ccinfobar import <tool> --dry-run

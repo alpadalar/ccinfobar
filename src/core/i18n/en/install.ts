@@ -27,6 +27,23 @@ export const installMessages = {
   'install.stale':
     'The statusLine in {file} changed while installing; nothing was written. Run install again.',
   'install.unchanged': 'statusLine already runs ccinfobar; nothing to change.',
+  'install.subagentsProjectIgnored': '--subagents only applies to user settings; ignored with --project.',
+  'install.subagentsUninstallProject': '--subagents only applies to user settings; ignored with --project.',
+  'install.dry.subagentAdd': 'Would set subagentStatusLine to "{command}"',
+  'install.dry.subagentRewrite': 'Would update subagentStatusLine from "{from}" to "{command}"',
+  'install.dry.subagentReplace':
+    'Would replace the subagentStatusLine "{from}" with "{command}" (asked first)',
+  'install.dry.subagentKeep': 'subagentStatusLine already runs ccinfobar',
+  'install.subagentReplacePrompt': 'Replace the current subagentStatusLine ({command})?',
+  'install.subagentsKept': 'Kept the current subagentStatusLine.',
+  'install.subagentsAdded': '✓ subagentStatusLine set to "{command}"',
+  'install.subagentsRewritten': '✓ subagentStatusLine updated to "{command}"',
+  'install.subagentsReplaced':
+    '✓ subagentStatusLine set to "{command}" (replaced {previous}; uninstall brings it back)',
+  'install.subagentsRemoved': '✓ subagentStatusLine removed',
+  'install.subagentsRestored': '✓ subagentStatusLine restored to "{command}"',
+  'install.subagentsKeptEdited': 'subagentStatusLine was changed by hand; kept',
+  'install.subagentsNone': 'No ccinfobar subagentStatusLine in {file}',
   'install.backup': '  Backup: {file}',
   'install.legacyPrompt':
     "This statusLine mentions ccinfobar but was not recorded by it: {command}. Treat it as ccinfobar's?",

@@ -92,6 +92,9 @@ export const doctorMessages = {
   'doctor.configMissing': '{mark} Yapılandırma {file} (henüz oluşturulmadı, varsayılanlar kullanılıyor)',
   'doctor.statusLine': '{mark} {file} içindeki Claude Code statusLine: {command}',
   'doctor.statusLineUnset': '{mark} {file} içindeki Claude Code statusLine: ayarlı değil',
+  'doctor.subagentLine': '{mark} Claude Code alt ajan subagentStatusLine: {command}',
+  'doctor.subagentLineForeign':
+    '  ccinfobar tarafından yönetilmiyor; `{command} install --subagents` sorduktan sonra değiştirir',
   'doctor.projectOverride': '✗ {file} bunu şununla geçersiz kılıyor: {command}',
   'doctor.projectOverrideFix':
     "  ccinfobar'ı orada kullanmak için {dir} içinde `{command} install --project` çalıştırın.",

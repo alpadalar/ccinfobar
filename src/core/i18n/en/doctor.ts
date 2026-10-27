@@ -87,6 +87,9 @@ export const doctorMessages = {
   'doctor.configMissing': '{mark} Config {file} (not created yet, defaults in use)',
   'doctor.statusLine': '{mark} Claude Code statusLine in {file}: {command}',
   'doctor.statusLineUnset': '{mark} Claude Code statusLine in {file}: not set',
+  'doctor.subagentLine': '{mark} Claude Code subagentStatusLine: {command}',
+  'doctor.subagentLineForeign':
+    '  not managed by ccinfobar; `{command} install --subagents` replaces it after asking',
   'doctor.projectOverride': '✗ {file} overrides it with: {command}',
   'doctor.projectOverrideFix': '  Run `{command} install --project` in {dir} to use ccinfobar there.',
   'doctor.lastPayload': '{mark} Last payload {file}',

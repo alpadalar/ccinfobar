@@ -19,10 +19,13 @@ export const cliMessages = {
   'help.cmd.installDryRun': 'Kurulumun neyi değiştireceğini gösterir, hiçbir şey yazmaz',
   'help.cmd.installHooks': "İsteğe bağlı Claude Code hook'larını da ekler (kesin canlı durum için)",
   'help.cmd.installProgress': 'Bağlam doluluğunu terminal sekmesinin ilerleme çubuğunda da gösterir',
+  'help.cmd.installSubagents':
+    'Claude Code alt ajan paneli satırlarını da ccinfobar çizsin (subagentStatusLine)',
   'help.cmd.uninstall':
     "ccinfobar'ı kaldırır ve önceki durum satırınızı geri getirir\n`npm rm -g ccinfobar` öncesinde çalıştırın: hook'lar ccinfobar komutunu çağırır",
   'help.cmd.uninstallHooks': "Yalnızca ccinfobar'ın hook'larını kaldırır",
   'help.cmd.uninstallProgress': 'Yalnızca terminal ilerleme işleyicilerini kaldırır',
+  'help.cmd.uninstallSubagents': 'Yalnızca subagentStatusLine girdisini kaldır',
   'help.cmd.subagentLine': 'Claude Code alt ajan paneli satırları (install --subagents ile kurulur)',
   'help.cmd.import': 'Başka bir durum satırının düzenini içe aktarır (bkz. ccinfobar import --help)',
   'help.cmd.importDryRun': 'Eşleme raporunu ve önizlemeyi gösterir, hiçbir şey yazmaz',
