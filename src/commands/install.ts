@@ -47,7 +47,7 @@ import {
   recordStatusLine,
   refreshWrittenHash,
   type StatusLineEntry,
-  writeManifest,
+  updateManifest,
 } from './manifest.js';
 import {
   deleteSettingsFile,
@@ -377,19 +377,29 @@ export function applyInstall(
     : owner === 'legacy-ours'
       ? legacyBackup(file) !== null
       : res.existed;
-  const next = recordStatusLine(m, {
-    file: res.real,
-    value: structuredClone(proposed),
-    previous,
-    fileExisted,
-    restore,
-    writtenHash: res.afterHash,
-  });
   const claudeCode = hooks.plan?.claudeCode ?? null;
   try {
-    const all = recordHooks(next, res.real, hooks.applied, claudeCode, res.afterHash);
-    // D-19: one write, every entry of the file refreshed
-    writeManifest(refreshWrittenHash(all, res.real, res.afterHash), env);
+    updateManifest(env, (cur) =>
+      // D-19: one write, every entry of the file refreshed
+      refreshWrittenHash(
+        recordHooks(
+          recordStatusLine(cur, {
+            file: res.real,
+            value: structuredClone(proposed),
+            previous,
+            fileExisted,
+            restore,
+            writtenHash: res.afterHash,
+          }),
+          res.real,
+          hooks.applied,
+          claudeCode,
+          res.afterHash,
+        ),
+        res.real,
+        res.afterHash,
+      ),
+    );
   } catch (err) {
     if (res.changed) rollbackPatch(file, res, env);
     throw err;
@@ -518,9 +528,12 @@ export function uninstall(
     current?: StatusLineSetting | null,
     hooks: HooksOut = none,
   ): UninstallResult => {
-    let next = entry ? dropEntry(m, target, 'statusLine') : m;
-    for (const h of hookEntries) next = dropHookEntry(next, target, h.event, h.role);
-    if (next !== m) writeManifest(next, env);
+    if (entry || hookEntries.length)
+      updateManifest(env, (cur) => {
+        let next = entry ? dropEntry(cur, target, 'statusLine') : cur;
+        for (const h of hookEntries) next = dropHookEntry(next, target, h.event, h.role);
+        return next;
+      });
     const res: UninstallResult = { status, file: target, removed: REMOVED.has(status), restored, hooks };
     if (current !== undefined) res.current = current;
     return res;
@@ -647,8 +660,7 @@ export function ignoreLocally(file: string): boolean {
     const prev = fs.existsSync(exclude) ? fs.readFileSync(exclude, 'utf8') : '';
     fs.appendFileSync(exclude, `${prev && !prev.endsWith('\n') ? '\n' : ''}${rel}\n`);
     try {
-      const m = readManifest();
-      if (!m.readOnly) writeManifest(recordGitExclude(m, exclude, rel));
+      updateManifest(process.env, (cur) => recordGitExclude(cur, exclude, rel));
     } catch {}
     return true;
   } catch {

@@ -9,9 +9,9 @@ vi.mock('../../src/commands/manifest.js', async (orig) => {
   const real = await orig<typeof import('../../src/commands/manifest.js')>();
   return {
     ...real,
-    writeManifest: (...args: Parameters<typeof real.writeManifest>) => {
+    updateManifest: (...args: Parameters<typeof real.updateManifest>) => {
       if (fail.on) throw new Error('disk full');
-      return real.writeManifest(...args);
+      return real.updateManifest(...args);
     },
   };
 });

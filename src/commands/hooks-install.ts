@@ -16,7 +16,7 @@ import {
   readManifest,
   realKey,
   recordHook,
-  writeManifest,
+  updateManifest,
 } from './manifest.js';
 import { patchSettings, rollbackPatch } from './settings-file.js';
 
@@ -392,9 +392,11 @@ export function applyHooks(
     { original: false, env },
   );
   try {
-    let next = recordHooks(m, res.real, state.applied, plan.claudeCode, res.afterHash);
-    for (const e of drop) next = dropHookEntry(next, res.real, e.event, e.role);
-    writeManifest(res.changed ? noteWrite(next, res.real, res.beforeHash, res.afterHash) : next, env);
+    updateManifest(env, (cur) => {
+      let next = recordHooks(cur, res.real, state.applied, plan.claudeCode, res.afterHash);
+      for (const e of drop) next = dropHookEntry(next, res.real, e.event, e.role);
+      return res.changed ? noteWrite(next, res.real, res.beforeHash, res.afterHash) : next;
+    });
   } catch (err) {
     if (res.changed) rollbackPatch(file, res, env);
     throw err;
@@ -479,10 +481,12 @@ export function uninstallHooks(
     },
     { original: false, env },
   );
-  let next = m;
-  for (const e of entries) next = dropHookEntry(next, res.real, e.event, e.role);
   try {
-    writeManifest(res.changed ? noteWrite(next, res.real, res.beforeHash, res.afterHash) : next, env);
+    updateManifest(env, (cur) => {
+      let next = cur;
+      for (const e of entries) next = dropHookEntry(next, res.real, e.event, e.role);
+      return res.changed ? noteWrite(next, res.real, res.beforeHash, res.afterHash) : next;
+    });
   } catch (err) {
     if (res.changed) rollbackPatch(file, res, env);
     throw err;
