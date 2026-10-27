@@ -184,6 +184,8 @@ function tryCreate(file: string): boolean {
   return true;
 }
 
+const GUARD_STALE_MS = 5000;
+
 export function acquireLock(file: string, staleMs: number, now = Date.now()): boolean {
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -193,9 +195,33 @@ export function acquireLock(file: string, staleMs: number, now = Date.now()): bo
   }
   try {
     if (now - fs.statSync(file).mtimeMs < staleMs) return false;
+  } catch {
+    return false;
+  }
+  return takeOver(file, staleMs, now);
+}
+
+// one takeover at a time: a second contender cannot unlink the lock the first just created
+function takeOver(file: string, staleMs: number, now: number): boolean {
+  const guard = `${file}.takeover`;
+  try {
+    tryCreate(guard);
+  } catch {
+    try {
+      // a guard left by a crashed takeover; the next attempt retries
+      if (now - fs.statSync(guard).mtimeMs >= Math.min(staleMs, GUARD_STALE_MS)) fs.unlinkSync(guard);
+    } catch {}
+    return false;
+  }
+  try {
+    if (now - fs.statSync(file).mtimeMs < staleMs) return false;
     fs.unlinkSync(file);
     return tryCreate(file);
   } catch {
     return false;
+  } finally {
+    try {
+      fs.unlinkSync(guard);
+    } catch {}
   }
 }

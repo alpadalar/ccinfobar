@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { savePayload } from '../../src/cli/render.js';
 import { lastPayloadPath } from '../../src/core/paths.js';
 import { cacheFile, writeCache } from '../../src/data/cache.js';
@@ -228,6 +228,42 @@ describe('acquireLock', () => {
     fs.utimesSync(lock, past, past);
     expect(acquireLock(lock, 60_000)).toBe(true);
     expect(acquireLock(lock, 60_000)).toBe(false);
+  });
+
+  it('never grants a stale lock to two contenders', () => {
+    const lock = path.join(dir, 'locks', 'race.lock');
+    expect(acquireLock(lock, 60_000)).toBe(true);
+    const past = new Date(Date.now() - 120_000);
+    fs.utimesSync(lock, past, past);
+    const unlink = fs.unlinkSync;
+    let rival: boolean | null = null;
+    let entered = false;
+    // the rival contender runs while the first is mid-takeover
+    const spy = vi.spyOn(fs, 'unlinkSync').mockImplementation(((p: fs.PathLike) => {
+      if (String(p) === lock && !entered) {
+        entered = true;
+        rival = acquireLock(lock, 60_000);
+      }
+      return unlink(p);
+    }) as typeof fs.unlinkSync);
+    const first = acquireLock(lock, 60_000);
+    spy.mockRestore();
+    expect([first, rival].filter(Boolean)).toHaveLength(1);
+    expect(fs.existsSync(`${lock}.takeover`)).toBe(false);
+    expect(acquireLock(lock, 60_000)).toBe(false);
+  });
+
+  it('backs off from a fresh takeover guard and clears a crashed one', () => {
+    const lock = path.join(dir, 'locks', 'guard.lock');
+    expect(acquireLock(lock, 60_000)).toBe(true);
+    const past = new Date(Date.now() - 120_000);
+    fs.utimesSync(lock, past, past);
+    fs.writeFileSync(`${lock}.takeover`, '');
+    expect(acquireLock(lock, 60_000)).toBe(false);
+    fs.utimesSync(`${lock}.takeover`, past, past);
+    expect(acquireLock(lock, 60_000)).toBe(false);
+    expect(fs.existsSync(`${lock}.takeover`)).toBe(false);
+    expect(acquireLock(lock, 60_000)).toBe(true);
   });
 
   it('returns false when the lock cannot be created', () => {
