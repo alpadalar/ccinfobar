@@ -50,7 +50,8 @@ export function forkInfo(g: GitInfo | null | undefined): { fork: string; parent:
   if (!fork || !parent) return null;
   const id = (r: { host: string; path: string }) => `${r.host}/${r.path}`.toLowerCase();
   if (id(fork) === id(parent)) return null;
-  return { fork: fork.path, parent: parent.path };
+  const label = fork.host === parent.host ? parent.path : `${parent.host}/${parent.path}`;
+  return { fork: fork.path, parent: label };
 }
 
 export const PR_CI_GONE_MS = 3_600_000;

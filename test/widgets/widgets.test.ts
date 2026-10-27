@@ -400,6 +400,16 @@ describe('parseRemote and forkInfo', () => {
   });
 });
 
+describe('git-is-fork cross-host parent', () => {
+  it('keeps the host in the parent label when hosts differ', async () => {
+    const { forkInfo } = await import('../../src/widgets/git.js');
+    const g = { ...sampleGit(), remoteUrl: 'https://github.com/me/x', upstreamUrl: 'https://gitlab.com/me/x' };
+    expect(forkInfo(g)).toEqual({ fork: 'me/x', parent: 'gitlab.com/me/x' });
+    const ctx = ctxWith({ payload: {}, git: () => g });
+    expect(renderWidget('git-is-fork', ctx, { options: { showParent: true } })).toContain('gitlab.com/me/x');
+  });
+});
+
 describe('git real world fixes', () => {
   it('ignores local path remotes and falls back to git for worktrees', async () => {
     const ctx = ctxWith({
