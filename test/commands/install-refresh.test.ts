@@ -123,6 +123,14 @@ describe('install refresh suggestion', () => {
       await runInstall(args('--dry-run'), cfg, f.io);
       expect(count(f.lines, rot)).toBe(0);
     }
+    for (const every of ['hour', 15] as const) {
+      for (const themes of [['nord'], [], undefined]) {
+        layout(['model', 'cwd'], { themeRotation: { themes, every } });
+        const f = fake();
+        await runInstall(args('--dry-run'), cfg, f.io);
+        expect(count(f.lines, rot)).toBe(0);
+      }
+    }
     layout(['model', 'cwd'], { themeRotation: { themes: ['nord', 'dracula'], every: 'hour' } });
     const g = fake();
     await runInstall(args('--dry-run', '--refresh', '5'), cfg, g.io);

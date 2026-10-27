@@ -291,7 +291,8 @@ function refreshNotes(io: InstallIo, cfgFile: string, refresh: number | undefine
   try {
     const { config } = loadForUse(cfgFile);
     const every = config.themeRotation?.every;
-    rotates = every === 'hour' || typeof every === 'number';
+    const pool = config.themeRotation?.themes?.length ?? 0;
+    rotates = (every === 'hour' || typeof every === 'number') && pool > 1;
     const extra = config.tui ? titleWidgets(config.tui) : [];
     why = refreshReasons(config, (type) => getWidget(type)?.timeBased === true, [timeRuleFeed], extra);
   } catch {}
