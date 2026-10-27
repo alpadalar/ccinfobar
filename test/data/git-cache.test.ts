@@ -363,6 +363,33 @@ describe.skipIf(!available)('cached readGit', () => {
     expect(step(T + 16000).n).toBe(2);
   });
 
+  it('never caches config that is larger than the include scan reads', () => {
+    const cfg = path.join(gitdir, 'config');
+    const orig = fs.readFileSync(cfg, 'utf8');
+    fs.writeFileSync(cfg, `${orig}# ${'x'.repeat(5000)}\n[include]\n\tpath = extra\n`);
+    expect(step(T + 30000).n).toBe(3);
+    expect(step(T + 33000).n).toBe(3);
+    fs.writeFileSync(cfg, orig);
+    bump(cfg);
+    expect(step(T + 36000).n).toBe(3);
+    expect(step(T + 39000).n).toBe(2);
+  });
+
+  it('never caches config that cannot be read', () => {
+    const cfg = path.join(gitdir, 'config');
+    const open = fs.openSync;
+    vi.spyOn(fs, 'openSync').mockImplementation(((p: fs.PathLike, ...a: unknown[]) => {
+      if (String(p) === cfg) throw new Error('EACCES');
+      return (open as (...x: unknown[]) => number)(p, ...a);
+    }) as typeof fs.openSync);
+    bump(cfg);
+    expect(step(T + 42000).n).toBe(3);
+    expect(step(T + 45000).n).toBe(3);
+    vi.mocked(fs.openSync).mockRestore();
+    expect(step(T + 48000).n).toBe(3);
+    expect(step(T + 51000).n).toBe(2);
+  });
+
   it('honours persist false and replaces a tampered entry', () => {
     for (const f of cacheFiles()) fs.rmSync(path.join(cacheDir, f));
     readGit(dir, { cache: { now: T + 20000, persist: false }, env });

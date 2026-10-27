@@ -347,9 +347,11 @@ export function readGit(
   ) {
     return readGitSpawning(cwd, harden);
   }
+  const cfgText = reused ? '' : readSmall(cfgPath);
   const cacheable =
     reused ||
-    (!INCLUDE_RE.test(readSmall(cfgPath) ?? '') &&
+    (cfgText !== null &&
+      !INCLUDE_RE.test(cfgText) &&
       !entries.some((e) => e.key === 'extensions.worktreeconfig'));
   const url = (n: string) => entries.find((e) => e.key === `remote.${n}.url`)?.value.trim() || null;
   const safe: readonly string[] = harden ? [...HARDEN, ...localFilterOverrides(entries)] : [];
