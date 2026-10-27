@@ -4,7 +4,7 @@ import type { Message } from '../types.js';
 export const doctorMessages = {
   'doctor.configIssue': '  satır {line}, sütun {column}: {message}',
   'doctor.refreshHint':
-    '  Zamana bağlı bileşenler ({widgets}) yalnızca Claude Code durum satırını yeniden çalıştırdığında güncellenir. 5 saniyede bir yenilemek için `ccinfobar install --refresh 5` çalıştırın; Claude Code hook olaylarında veya bir izin penceresi açıkken durum satırını yeniden çalıştırmaz.',
+    '  Zamana bağlı bileşenler ({widgets}) yalnızca Claude Code durum satırını yeniden çalıştırdığında güncellenir. 5 saniyede bir yenilemek için `ccinfobar install --refresh 5` çalıştırın; Claude Code hook olaylarında yeniden çalıştırmaz; izin istemi veya yardım menüsü açıkken durum satırını gizler.',
   'doctor.refreshHintRules':
     '  {items} üzerindeki zaman kuralları yalnızca Claude Code durum satırını yeniden çalıştırdığında değişir. 5 saniyede bir yenilemek için `ccinfobar install --refresh 5` çalıştırın.',
   'doctor.lineCut':

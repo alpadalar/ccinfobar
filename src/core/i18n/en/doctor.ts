@@ -1,7 +1,7 @@
 export const doctorMessages = {
   'doctor.configIssue': '  line {line}, column {column}: {message}',
   'doctor.refreshHint':
-    '  Time-based widgets ({widgets}) only update when Claude Code re-runs the status line. Run `ccinfobar install --refresh 5` to refresh every 5 s; Claude Code does not re-run it on hook events or while a permission dialog is open.',
+    '  Time-based widgets ({widgets}) only update when Claude Code re-runs the status line. Run `ccinfobar install --refresh 5` to refresh every 5 s; Claude Code does not re-run it on hook events and hides it while a permission prompt or the help menu is open.',
   'doctor.refreshHintRules':
     '  Time rules on {items} only change when Claude Code re-runs the status line. Run `ccinfobar install --refresh 5` to refresh every 5 s.',
   'doctor.lineCut':

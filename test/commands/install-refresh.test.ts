@@ -71,7 +71,7 @@ describe('install refresh suggestion', () => {
     expect(hint('clock')).toMatch(/hook events/);
     expect(hint('clock')).toMatch(/permission dialog/);
     expect(t('doctor.refreshHint', { widgets: 'clock' })).toContain('ccinfobar install --refresh 5');
-    expect(t('doctor.refreshHint', { widgets: 'clock' })).toMatch(/permission dialog/);
+    expect(t('doctor.refreshHint', { widgets: 'clock' })).toMatch(/permission prompt or the help menu/);
   });
 
   it('prints the hint once on apply and writes no refreshInterval', async () => {

@@ -6,7 +6,7 @@ export const installMessages = {
   'install.proposed': '  proposed: {command}',
   'install.refreshDiff': '  refreshInterval: {current} -> {proposed}',
   'install.refreshHint':
-    'Time-based widgets ({widgets}) only update when Claude Code re-runs the status line. Add `--refresh 5` to refresh every 5 s; Claude Code does not re-run it on hook events or while a permission dialog is open.',
+    'Time-based widgets ({widgets}) only update when Claude Code re-runs the status line. Add `--refresh 5` to refresh every 5 s; Claude Code does not re-run it on hook events and hides it while a permission prompt or the help menu is open.',
   'install.refreshHintRules':
     'Time rules on {items} only change when Claude Code re-runs the status line. Add `--refresh 5` to refresh every 5 s.',
   'install.refreshOne': 'refreshInterval 1 starts Node every second; 5 is usually enough.',
@@ -93,7 +93,7 @@ export const installMessages = {
   'editor.planCancel': 'Keep current',
   'editor.installed': 'Installed. Backups are in {dir}',
   'editor.refreshHint':
-    'These widgets only update when Claude Code refreshes the status line: {widgets}. Claude Code does not refresh it on hook events or while a permission dialog is open.',
+    'These widgets only update when Claude Code refreshes the status line: {widgets}. Claude Code does not refresh it on hook events and hides it while a permission prompt or the help menu is open.',
   'editor.refreshUse': 'Use {n} s refresh',
   'tui.replaceQuestion': 'Replace "{current}" with "{proposed}"?',
   'tui.installed': 'Installed: statusLine runs "{command}". Backups are in {dir}',

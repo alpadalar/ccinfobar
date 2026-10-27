@@ -22,6 +22,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Docs and CLI hints now describe Claude Code's real refresh triggers (session start, assistant message, `/compact`, permission and vim mode, command change, `resets_at`, `expires_at`, `refreshInterval`) and say the line is hidden, not paused, during permission prompts and the help menu; the README names which usage-limit fields come from the payload and which from the usage-API fallback
 - `install` keeps other keys inside Claude Code's `statusLine` object (such as `hideVimModeIndicator`) when it rewrites the command
 - Minute-based theme rotation now restarts at local midnight as documented, so `every: 7` does not drift across days
 - Usage widgets no longer print `Infinity%` or `NaN%` when the payload carries a non-finite `used_percentage`; they show the loading state instead

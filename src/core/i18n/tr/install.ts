@@ -9,7 +9,7 @@ export const installMessages = {
   'install.proposed': '  önerilen: {command}',
   'install.refreshDiff': '  refreshInterval: {current} -> {proposed}',
   'install.refreshHint':
-    'Zamana bağlı bileşenler ({widgets}) yalnızca Claude Code durum satırını yeniden çalıştırdığında güncellenir. 5 saniyede bir yenilemek için `--refresh 5` ekleyin; Claude Code hook olaylarında veya bir izin penceresi açıkken durum satırını yeniden çalıştırmaz.',
+    'Zamana bağlı bileşenler ({widgets}) yalnızca Claude Code durum satırını yeniden çalıştırdığında güncellenir. 5 saniyede bir yenilemek için `--refresh 5` ekleyin; Claude Code hook olaylarında yeniden çalıştırmaz; izin istemi veya yardım menüsü açıkken durum satırını gizler.',
   'install.refreshHintRules':
     '{items} üzerindeki zaman kuralları yalnızca Claude Code durum satırını yeniden çalıştırdığında değişir. 5 saniyede bir yenilemek için `--refresh 5` ekleyin.',
   'install.refreshOne': "refreshInterval 1, Node'u her saniye başlatır; genellikle 5 yeterlidir.",
@@ -97,7 +97,7 @@ export const installMessages = {
   'editor.planCancel': 'Mevcudu koru',
   'editor.installed': 'Kuruldu. Yedekler {dir} klasöründe',
   'editor.refreshHint':
-    'Bu bileşenler yalnızca Claude Code durum satırını yenilediğinde güncellenir: {widgets}. Claude Code hook olaylarında veya bir izin penceresi açıkken durum satırını yenilemez.',
+    'Bu bileşenler yalnızca Claude Code durum satırını yenilediğinde güncellenir: {widgets}. Claude Code hook olaylarında yeniden çalıştırmaz; izin istemi veya yardım menüsü açıkken durum satırını gizler.',
   'editor.refreshUse': '{n} saniyede bir yenile',
   'tui.replaceQuestion': '"{current}", "{proposed}" ile değiştirilsin mi?',
   'tui.installed': 'Kuruldu: statusLine "{command}" komutunu çalıştırıyor. Yedekler {dir} klasöründe',
