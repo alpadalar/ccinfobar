@@ -8,6 +8,7 @@ const root = path.resolve(__dirname, '../..');
 const SWEPT: string[] = [
   'src/cli/help.ts',
   'src/widgets/subagent-row.ts',
+  'src/cli/subagent-line.ts',
   'src/cli/main.ts',
   'src/cli/render.ts',
   'src/cli/lang.ts',

@@ -154,6 +154,34 @@ describe('import graph', () => {
     expect([...files].filter((f) => !allowed.has(f))).toEqual([]);
   });
 
+  it('keeps cli/subagent-line.ts chunk-neutral', () => {
+    const files = closure('cli/subagent-line.ts');
+    const allowed = new Set([
+      ...closure('widgets/shared.ts'),
+      ...closure('cli/args.ts'),
+      ...closure('data/store.ts'),
+      ...closure('core/payload.ts'),
+      ...closure('core/paths.ts'),
+      ...closure('core/ansi.ts'),
+      ...closure('core/width.ts'),
+      'src/cli/subagent-line.ts',
+      'src/widgets/subagent-row.ts',
+    ]);
+    expect([...files].filter((f) => !allowed.has(f))).toEqual([]);
+    for (const f of [
+      'src/cli/hook.ts',
+      'src/cli/render.ts',
+      'src/cli/lang.ts',
+      'src/core/config.ts',
+      'src/widgets/agents.ts',
+      'src/widgets/index.ts',
+      'src/data/transcript.ts',
+      'src/data/agents.ts',
+      'src/data/cache.ts',
+    ])
+      expect(files.has(f)).toBe(false);
+  });
+
   it('keeps report and importer code out of cli/hook.ts', () => {
     expect(REPORT_FILES.length).toBe(5);
     const files = [...closure('cli/hook.ts')];
