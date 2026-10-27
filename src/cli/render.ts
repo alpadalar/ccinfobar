@@ -2,12 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { detectLevel, style } from '../core/ansi.js';
 import { createContext, lazy, resolveCwd } from '../core/context.js';
+import { needsWidth } from '../core/display-opts.js';
 import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { lastPayloadPath } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
 import { finalizeLine, render } from '../core/renderer.js';
-import { withActiveTheme } from '../core/themes.js';
+import { resolveTheme, withActiveTheme } from '../core/themes.js';
 import type { Config, DataSources, RenderContext, StatusPayload } from '../core/types.js';
 import { scheduleJobs } from '../data/jobs/index.js';
 import {
@@ -22,7 +23,7 @@ import { accountKey, recordLimits } from '../data/limits.js';
 import { progressFiles, progressSeq } from '../data/progress.js';
 import { readRepos } from '../data/repos.js';
 import { writeAtomic } from '../data/store.js';
-import { terminalWidth } from '../data/terminal.js';
+import { cachedTerminalWidth, terminalWidth } from '../data/terminal.js';
 import { readTranscript } from '../data/transcript.js';
 import { updateNotice } from '../data/update-state.js';
 import { effectiveUsage } from '../data/usage.js';
@@ -66,11 +67,19 @@ function statusContext(
   widthFlag?: number,
   data?: Partial<DataSources>,
 ): RenderContext {
-  const width = widthFlag ?? terminalWidth(payload.session_id, payload.terminal_width ?? payload.columns);
   const now = new Date();
+  const cfg = withActiveTheme(config, now);
+  const theme = resolveTheme(cfg.theme);
+  const hint = payload.terminal_width ?? payload.columns;
+  const width =
+    widthFlag ??
+    (needsWidth(cfg, cfg.style ?? theme.style)
+      ? terminalWidth(payload.session_id, hint)
+      : cachedTerminalWidth(payload.session_id, hint));
   return createContext({
     payload,
-    config: withActiveTheme(config, now),
+    config: cfg,
+    theme,
     now,
     terminalWidth: width,
     ...(data ? { data } : {}),

@@ -1,12 +1,23 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import tty from 'node:tty';
 import { cacheDir } from '../core/paths.js';
 import { writeAtomic } from './store.js';
 
-const TTL_MS = 10_000;
+const TTL_OK = 60_000;
+const TTL_FAIL = 600_000;
 
-function run(cmd: string, args: string[]): string | null {
+export interface TerminalDeps {
+  run?: (cmd: string, args: string[]) => string | null;
+  openTty?: () => number | null;
+  platform?: NodeJS.Platform;
+  now?: () => number;
+  env?: NodeJS.ProcessEnv;
+  stdoutColumns?: () => number | null;
+}
+
+function defaultRun(cmd: string, args: string[]): string | null {
   try {
     return execFileSync(cmd, args, {
       encoding: 'utf8',
@@ -24,15 +35,35 @@ function positive(v: string | null | undefined): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-function probe(): number | null {
-  if (process.platform === 'win32') return null;
+function ttyColumns(): number | null {
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync('/dev/tty', fs.constants.O_RDONLY | fs.constants.O_NOCTTY | fs.constants.O_NONBLOCK);
+    if (!tty.isatty(fd)) return null;
+    const stream = new tty.WriteStream(fd);
+    const cols = stream.columns;
+    stream.destroy();
+    return positive(String(cols));
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+  }
+}
+
+function probe(deps: TerminalDeps): number | null {
+  const run = deps.run ?? defaultRun;
   let pid = process.pid;
   for (let depth = 0; depth < 8; depth++) {
     const out = run('ps', ['-o', 'ppid=,tty=', '-p', String(pid)]);
     if (!out) return null;
-    const [ppid, tty] = out.split(/\s+/);
-    if (tty && tty !== '?' && tty !== '??') {
-      const dev = `/dev/${tty}`;
+    const [ppid, term] = out.split(/\s+/);
+    if (term && term !== '?' && term !== '??') {
+      const dev = `/dev/${term}`;
       for (const flag of ['-F', '-f']) {
         const size = run('stty', [flag, dev, 'size']);
         const cols = positive(size?.split(/\s+/)[1]);
@@ -46,41 +77,55 @@ function probe(): number | null {
   return null;
 }
 
-function direct(hint?: number): number | null {
+function direct(hint: number | undefined, deps: TerminalDeps): number | null {
   if (hint && hint > 0) return hint;
-  const fromEnv = positive(process.env.COLUMNS);
+  const fromEnv = positive((deps.env ?? process.env).COLUMNS);
   if (fromEnv) return fromEnv;
+  if (deps.stdoutColumns) return deps.stdoutColumns();
   if (process.stdout.isTTY && process.stdout.columns) return process.stdout.columns;
   return null;
 }
 
-function widthFile(sessionId: string | undefined): string {
+function widthFile(sessionId: string | undefined, deps: TerminalDeps): string {
   const key = (sessionId ?? 'default').replace(/[^a-zA-Z0-9_-]/g, '');
-  return path.join(cacheDir(), `width-${key || 'default'}.json`);
+  return path.join(cacheDir(deps.env), `width-${key || 'default'}.json`);
 }
 
-function readCached(file: string, maxAge: number): number | null | undefined {
+function readCached(file: string, now: number | null): number | null | undefined {
   try {
     const cached = JSON.parse(fs.readFileSync(file, 'utf8')) as { width: unknown; at: unknown };
-    if (typeof cached.at !== 'number' || Date.now() - cached.at >= maxAge) return undefined;
-    return typeof cached.width === 'number' && cached.width > 0 ? cached.width : null;
+    if (typeof cached.at !== 'number') return undefined;
+    const ok = typeof cached.width === 'number' && cached.width > 0;
+    if (now !== null && now - cached.at >= (ok ? TTL_OK : TTL_FAIL)) return undefined;
+    return ok ? (cached.width as number) : null;
   } catch {
     return undefined;
   }
 }
 
 // read-only: no probe, no cache write
-export function cachedTerminalWidth(sessionId: string | undefined, hint?: number): number | null {
-  return direct(hint) ?? readCached(widthFile(sessionId), Number.POSITIVE_INFINITY) ?? null;
+export function cachedTerminalWidth(
+  sessionId: string | undefined,
+  hint?: number,
+  deps: TerminalDeps = {},
+): number | null {
+  return direct(hint, deps) ?? readCached(widthFile(sessionId, deps), null) ?? null;
 }
 
-export function terminalWidth(sessionId: string | undefined, hint?: number): number | null {
-  const known = direct(hint);
+export function terminalWidth(
+  sessionId: string | undefined,
+  hint?: number,
+  deps: TerminalDeps = {},
+): number | null {
+  const known = direct(hint, deps);
   if (known) return known;
-  const file = widthFile(sessionId);
-  const cached = readCached(file, TTL_MS);
+  if ((deps.platform ?? process.platform) === 'win32') return null;
+  const now = (deps.now ?? Date.now)();
+  const file = widthFile(sessionId, deps);
+  const cached = readCached(file, now);
   if (cached !== undefined) return cached;
-  const width = probe();
-  writeAtomic(file, JSON.stringify({ width, at: Date.now() }));
+  const fast = deps.openTty ? deps.openTty() : ttyColumns();
+  const width = fast ?? probe(deps);
+  writeAtomic(file, JSON.stringify({ width, at: now }), { mode: 0o600 });
   return width;
 }
