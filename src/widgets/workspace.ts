@@ -42,7 +42,7 @@ export function formatPath(p: string, style: string, segments = 2): string {
   return join(short, absolute, root);
 }
 
-const styleOption: OptionSpec = {
+export const styleOption: OptionSpec = {
   key: 'style',
   label: 'Style',
   kind: 'select',
@@ -56,7 +56,7 @@ const styleOption: OptionSpec = {
   ],
 };
 
-const segmentsOption: OptionSpec = {
+export const segmentsOption: OptionSpec = {
   key: 'segments',
   label: 'Segments',
   kind: 'number',

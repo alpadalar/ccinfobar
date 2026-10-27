@@ -9,6 +9,7 @@ import { ghKey, ghParam } from '../data/jobs/keys.js';
 import { jobValue } from '../data/jobs/runner.js';
 import { pickRepos } from '../data/repos.js';
 import { opt } from './shared.js';
+import { formatPath, segmentsOption, styleOption } from './workspace.js';
 
 export function parseRemote(url: string | null | undefined): { host: string; path: string } | null {
   if (!url) return null;
@@ -100,6 +101,13 @@ const hideZero: OptionSpec = {
   kind: 'boolean',
   default: false,
 };
+
+function worktreeName(ctx: RenderContext): string | null {
+  const fromPayload = ctx.payload.worktree?.name || ctx.payload.workspace?.git_worktree;
+  if (fromPayload) return fromPayload;
+  const g = ctx.data.git();
+  return g?.isWorktree ? path.basename(g.root) : null;
+}
 
 export const widgets: WidgetDef[] = [
   {
@@ -319,11 +327,62 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰙅', emoji: '🌳' },
     color: 'green',
     sample: 'feature-x',
-    render: (ctx) => {
-      const fromPayload = ctx.payload.worktree?.name || ctx.payload.workspace?.git_worktree;
-      if (fromPayload) return fromPayload;
-      const g = ctx.data.git();
-      return g?.isWorktree ? path.basename(g.root) : null;
+    options: [
+      {
+        key: 'show',
+        label: 'Show',
+        kind: 'select',
+        default: 'name',
+        choices: [
+          { value: 'name', label: 'Name' },
+          { value: 'branch', label: 'Branch' },
+          { value: 'original-branch', label: 'Original branch' },
+          { value: 'path', label: 'Path' },
+          { value: 'original-cwd', label: 'Original directory' },
+        ],
+        help: 'Branch and path fields fall back to the name when Claude Code did not send them',
+      },
+      { ...styleOption, default: 'short', showWhen: { key: 'show', values: ['path', 'original-cwd'] } },
+      { ...segmentsOption, showWhen: { key: 'show', values: ['path', 'original-cwd'] } },
+      {
+        key: 'showOrigin',
+        label: 'Show origin branch',
+        kind: 'boolean',
+        default: false,
+        help: 'Append the branch the worktree was created from',
+      },
+    ],
+    render: (ctx, item) => {
+      const show = opt<string>(item, 'show', 'name');
+      const w = ctx.payload.worktree;
+      const raw =
+        show === 'branch'
+          ? w?.branch
+          : show === 'original-branch'
+            ? w?.original_branch
+            : show === 'path'
+              ? w?.path
+              : show === 'original-cwd'
+                ? w?.original_cwd
+                : undefined;
+      const field = typeof raw === 'string' && raw ? raw : null;
+      let text: string | null;
+      if (field && (show === 'path' || show === 'original-cwd')) {
+        text = formatPath(field, opt<string>(item, 'style', 'short'), opt(item, 'segments', 2));
+      } else {
+        text = field ?? worktreeName(ctx);
+      }
+      if (text === null) return null;
+      const origin = w?.original_branch;
+      if (
+        opt(item, 'showOrigin', false) &&
+        typeof origin === 'string' &&
+        origin &&
+        show !== 'original-branch'
+      ) {
+        text += ctx.config.charset === 'text' ? ` <- ${origin}` : ` ← ${origin}`;
+      }
+      return text;
     },
   },
   {

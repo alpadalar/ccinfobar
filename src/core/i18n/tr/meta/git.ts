@@ -134,5 +134,22 @@ export const git: MetaFile = {
     'Snapshot working copy': 'Anlık görüntü al',
     'Off reads the last snapshot and never writes to the repo':
       'Kapalıyken son anlık görüntüyü okur ve depoya hiç yazmaz',
+    Show: 'Göster',
+    Name: 'Ad',
+    Branch: 'Dal',
+    'Original branch': 'Özgün dal',
+    Path: 'Yol',
+    'Original directory': 'Özgün klasör',
+    'Show origin branch': 'Kaynak dalı göster',
+    'Append the branch the worktree was created from': 'Çalışma ağacının oluşturulduğu dalı ekler',
+    'Branch and path fields fall back to the name when Claude Code did not send them':
+      'Claude Code dal veya yol alanını göndermediğinde ad gösterilir',
+    Style: 'Stil',
+    'Folder name': 'Klasör adı',
+    'Full path': 'Tam yol',
+    '~ for home': 'Ev dizini için ~',
+    'Abbreviated (~/p/acme-app)': 'Kısaltılmış (~/p/acme-app)',
+    'Last N segments': 'Son N parça',
+    Segments: 'Parça sayısı',
   },
 };
