@@ -342,12 +342,15 @@ export function readGit(
     }
   }
   const entries = parseScopedConfig(out);
-  if (entries.some((e) => e.key === 'core.worktree' || (e.key === 'core.bare' && e.value.trim() === 'true'))) {
+  if (
+    entries.some((e) => e.key === 'core.worktree' || (e.key === 'core.bare' && e.value.trim() === 'true'))
+  ) {
     return readGitSpawning(cwd, harden);
   }
   const cacheable =
     reused ||
-    (!INCLUDE_RE.test(readSmall(cfgPath) ?? '') && !entries.some((e) => e.key === 'extensions.worktreeconfig'));
+    (!INCLUDE_RE.test(readSmall(cfgPath) ?? '') &&
+      !entries.some((e) => e.key === 'extensions.worktreeconfig'));
   const url = (n: string) => entries.find((e) => e.key === `remote.${n}.url`)?.value.trim() || null;
   const safe: readonly string[] = harden ? [...HARDEN, ...localFilterOverrides(entries)] : [];
 

@@ -264,7 +264,7 @@ describe.skipIf(!available)('cached readGit', () => {
       preview: false,
     }).data.git();
   const gitSpawns = () =>
-    spy.mock.calls.filter((c) => /(^|[\\/])git(\.exe|\.com)?$/i.test(String(c[0]))).length;
+    spy.mock.calls.filter((c: unknown[]) => /(^|[\\/])git(\.exe|\.com)?$/i.test(String(c[0]))).length;
   const bump = (f: string) => {
     future += 10;
     fs.utimesSync(f, future, future);
@@ -312,17 +312,21 @@ describe.skipIf(!available)('cached readGit', () => {
 
   it('invalidates on each key file', () => {
     let t = T + 2600;
+    const next = () => {
+      t += 50;
+      return t;
+    };
     for (const f of ['index', 'HEAD', path.join('logs', 'HEAD'), path.join('refs', 'heads', 'main')]) {
       bump(path.join(gitdir, f));
-      expect(step((t += 50)).n).toBe(2);
+      expect(step(next()).n).toBe(2);
     }
     git(dir, 'pack-refs', '--all');
-    expect(step((t += 50)).n).toBe(2);
+    expect(step(next()).n).toBe(2);
     bump(path.join(gitdir, 'packed-refs'));
-    expect(step((t += 50)).n).toBe(2);
+    expect(step(next()).n).toBe(2);
     bump(path.join(gitdir, 'config'));
-    expect(step((t += 50)).n).toBe(3);
-    expect(step((t += 50)).n).toBe(0);
+    expect(step(next()).n).toBe(3);
+    expect(step(next()).n).toBe(0);
   });
 
   it('shows a real change after the ttl', () => {
