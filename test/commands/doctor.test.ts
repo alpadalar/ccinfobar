@@ -17,7 +17,14 @@ import { manifestFile, readManifest } from '../../src/commands/manifest.js';
 import { backupsDir } from '../../src/commands/settings-file.js';
 import { defaultConfig, inspectConfigText } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
-import { cacheDir, claudeSettingsPath, configDir, lastPayloadPath, tildify } from '../../src/core/paths.js';
+import {
+  cacheDir,
+  claudeJsonPath,
+  claudeSettingsPath,
+  configDir,
+  lastPayloadPath,
+  tildify,
+} from '../../src/core/paths.js';
 import type { StatusPayload } from '../../src/core/types.js';
 import { VERSION } from '../../src/core/version.js';
 import { httpKey } from '../../src/data/jobs/keys.js';
@@ -1048,5 +1055,53 @@ describe('runDoctor http checks', () => {
   it('strips terminal escapes from config text', () => {
     const out = all({ url: 'https://a.b/x', path: '$.\u001b[31m' }).join('\n');
     expect(out).not.toContain('\u001b');
+  });
+});
+
+describe('runDoctor vim twice', () => {
+  const setup = (opts: { vim?: boolean; settings?: object; claudeJson?: object }) => {
+    const file = cfgFile(
+      'vim.json',
+      JSON.stringify({ lines: [[{ type: 'model' }, ...(opts.vim === false ? [] : [{ type: 'vim-mode' }])]] }),
+    );
+    const settings = claudeSettingsPath();
+    fs.mkdirSync(path.dirname(settings), { recursive: true });
+    fs.writeFileSync(
+      settings,
+      JSON.stringify({ statusLine: { type: 'command', command: 'ccinfobar' }, ...opts.settings }),
+    );
+    if (opts.claudeJson) fs.writeFileSync(claudeJsonPath(), JSON.stringify(opts.claudeJson));
+    return file;
+  };
+  const warn = () => t('doctor.vimTwice', { command: 'ccinfobar' });
+  const has = (out: string[]) => out.some((l) => l.includes('install --hide-vim-indicator'));
+
+  it('warns when the mode is shown twice', () => {
+    const out = capture(() => runDoctor(setup({ settings: { editorMode: 'vim' } })));
+    expect(has(out)).toBe(true);
+    expect(out.some((l) => l.startsWith('⚠ vim mode is shown twice'))).toBe(true);
+    expect(warn()).toContain('vim mode is shown twice');
+  });
+
+  it('is quiet when the indicator is hidden', () => {
+    const settings = {
+      editorMode: 'vim',
+      statusLine: { type: 'command', command: 'ccinfobar', hideVimModeIndicator: true },
+    };
+    expect(has(capture(() => runDoctor(setup({ settings }))))).toBe(false);
+  });
+
+  it('is quiet without the widget', () => {
+    expect(has(capture(() => runDoctor(setup({ vim: false, settings: { editorMode: 'vim' } }))))).toBe(false);
+  });
+
+  it('reads editorMode from .claude.json', () => {
+    expect(has(capture(() => runDoctor(setup({ claudeJson: { editorMode: 'vim' } }))))).toBe(true);
+  });
+
+  it('is translated', () => {
+    const file = setup({ settings: { editorMode: 'vim' } });
+    const out = withEnvLang('tr', () => capture(() => runDoctor(file)));
+    expect(out.some((l) => l.includes('iki kez'))).toBe(true);
   });
 });
