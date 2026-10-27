@@ -1,8 +1,35 @@
 import { latestMiss } from '../core/cache-rule.js';
 import { t } from '../core/i18n/index.js';
-import type { MissCause, RenderContext, WidgetDef } from '../core/types.js';
+import { priceFor, requestCost } from '../core/prices.js';
+import { globMatch, PROFILES } from '../core/profiles.js';
+import type { MissCause, RenderContext, StatusPayload, WidgetDef } from '../core/types.js';
 import { tok } from './context.js';
-import { formatDuration, loading, opt, toEpochMs } from './shared.js';
+import { formatDuration, formatMoney, formatTokens, loading, opt, toEpochMs } from './shared.js';
+
+function coldCost(
+  ctx: RenderContext,
+  c: NonNullable<StatusPayload['prompt_cache']>,
+  mode: string,
+): string | null {
+  const n = c.recache_tokens_if_cold;
+  if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0) return null;
+  if (mode === 'tokens') return formatTokens(n);
+  if (mode !== 'usd') return null;
+  const r = priceFor(ctx.payload.model?.id ?? '', ctx.config, { vendors: PROFILES, globMatch });
+  if (!r) return null;
+  const oneHour = c.ttl === '1h';
+  const usd = requestCost(r.price, {
+    in: 0,
+    out: 0,
+    cr: 0,
+    w5: oneHour ? 0 : n,
+    w1: oneHour ? n : 0,
+    fast: ctx.payload.fast_mode === true,
+    big: !!r.price.over && n > r.price.over.threshold,
+  });
+  if (usd === null || !Number.isFinite(usd)) return null;
+  return formatMoney(usd, r.currency, 2);
+}
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
@@ -166,6 +193,18 @@ export const widgets: WidgetDef[] = [
         default: false,
         help: 'Append the cache lifetime, for example 41m/1h',
       },
+      {
+        key: 'showColdCost',
+        label: 'Cold cost',
+        kind: 'select',
+        default: 'off',
+        choices: [
+          { value: 'off', label: 'Off' },
+          { value: 'tokens', label: 'Tokens' },
+          { value: 'usd', label: 'Cost' },
+        ],
+        help: 'What a re-cache would cost if the cache went cold, as tokens or at the cache-write price for the TTL',
+      },
     ],
     render(ctx, item) {
       const c = ctx.payload.prompt_cache;
@@ -173,14 +212,18 @@ export const widgets: WidgetDef[] = [
       if (c.caching_observed === false) {
         return { text: t('widget.cache.off'), color: ctx.theme?.colors.muted ?? 'brightBlack' };
       }
-      const cold = { text: t('widget.cache.cold'), color: 'red' };
+      const mode = opt(item, 'showColdCost', 'off');
+      const extra = mode === 'off' ? null : coldCost(ctx, c, mode);
+      const sep = ctx.config.charset === 'text' ? ' | ' : ' · ';
+      const withCost = (text: string) => (extra ? `${text}${sep}${extra}` : text);
+      const cold = { text: withCost(t('widget.cache.cold')), color: 'red' };
       if (c.warm === false) return cold;
       const exp = toEpochMs(c.expires_at);
       if (exp === null || !Number.isFinite(exp)) return null;
       const left = exp - ctx.now.getTime();
       if (left <= 0) return cold;
       const ttl = opt(item, 'showTtl', false) && typeof c.ttl === 'string' && c.ttl ? `/${c.ttl}` : '';
-      return { text: formatDuration(left) + ttl, color: left < 5 * 60_000 ? 'yellow' : 'green' };
+      return { text: withCost(formatDuration(left) + ttl), color: left < 5 * 60_000 ? 'yellow' : 'green' };
     },
   },
   {

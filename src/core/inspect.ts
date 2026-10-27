@@ -145,7 +145,15 @@ function providerName(p: Provider): string {
 
 const MIN_VERSION: [string, string][] = [
   ['prompt_cache.last_miss_cause', '2.1.260'],
+  ['prompt_cache.miss_causes', '2.1.260'],
+  ['prompt_cache.recache_tokens_if_cold', '2.1.251'],
   ['prompt_cache', '2.1.251'],
+  ['rate_limits.spend_limit.used_usd', '2.1.284'],
+  ['rate_limits.spend_limit.limit_usd', '2.1.284'],
+  ['rate_limits.spend_limit.period', '2.1.284'],
+  ['rate_limits.spend_limit', '2.1.251'],
+  ['worktree', '2.1.69'],
+  ['workspace.added_dirs', '2.1.47'],
 ];
 
 function sinceFor(path: string): string {

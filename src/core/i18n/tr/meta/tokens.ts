@@ -42,6 +42,12 @@ export const tokens: MetaFile = {
     'output-speed': { name: 'Çıktı hızı', description: 'Son çıktı hızı, saniye başına token' },
   },
   options: {
+    Off: 'Kapalı',
+    'Cold cost': 'Soğuk maliyet',
+    Tokens: 'Token',
+    Cost: 'Maliyet',
+    'What a re-cache would cost if the cache went cold, as tokens or at the cache-write price for the TTL':
+      'Önbellek soğursa yeniden önbelleklemenin bedeli; token olarak ya da TTL için önbellek yazma fiyatıyla',
     'Show TTL': 'TTL göster',
     'Append the cache lifetime, for example 41m/1h': 'Önbellek ömrünü ekler, örneğin 41m/1h',
     Show: 'Göster',
