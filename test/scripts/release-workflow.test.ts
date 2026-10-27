@@ -48,6 +48,23 @@ describe('release workflow', () => {
     }
   });
 
+  it('pins every action in the ci jj job, which runs a downloaded binary', () => {
+    const start = ci.findIndex((l) => /^ {2}jj:\s*$/.test(l));
+    expect(start).toBeGreaterThan(-1);
+    let end = ci.findIndex((l, i) => i > start && /^ {2}[a-z][\w-]*:\s*$/.test(l));
+    if (end < 0) end = ci.length;
+    const uses = ci
+      .slice(start, end)
+      .filter((l) => /\buses:/.test(l))
+      .map((l) => l.replace(/^.*uses:\s*/, '').trim());
+    expect(uses.length).toBeGreaterThan(0);
+    for (const u of uses) {
+      expect(u, `unpinned action: ${u}`).toMatch(
+        /^actions\/(?:checkout|setup-node)@[0-9a-f]{40} # v\d+\.\d+\.\d+$/,
+      );
+    }
+  });
+
   it('has no floating tags and pins npm', () => {
     expect(releaseText).not.toMatch(/@latest/);
     expect(releaseText).not.toMatch(/@v\d+(?:\s|$)/m);
