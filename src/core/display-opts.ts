@@ -1,4 +1,4 @@
-import type { Config, GlyphMode, OverflowMode, WidgetCategory } from './types.js';
+import type { Config, GlyphMode, OverflowMode, ThemeStyle, WidgetCategory } from './types.js';
 
 // one copy for renderer, config and both editors (IN-04)
 export const OVERFLOW_MODES: readonly OverflowMode[] = ['truncate', 'wrap', 'priority'];
@@ -33,4 +33,13 @@ export function overflowOf(config: Pick<Config, 'overflow' | 'autoWrap'>): Overf
 
 export function defaultPriority(category: WidgetCategory | undefined): number {
   return (category && CATEGORY_PRIORITY[category]) ?? 30;
+}
+
+export function needsWidth(config: Config, style: ThemeStyle): boolean {
+  if (typeof config.maxWidth === 'number') return false;
+  if (config.autoWrap === true || config.overflow !== undefined || style === 'tui') return true;
+  if (config.align && config.align !== 'left') return true;
+  if (config.lineAlign?.some((a) => a && a !== 'left')) return true;
+  // implicit truncate reuses the last known width
+  return config.lines.some((line) => line.some((i) => i.type === 'flex' || i.type === 'terminal-width'));
 }
