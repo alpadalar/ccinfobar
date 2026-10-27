@@ -8,14 +8,39 @@ import { failEnvelope, type Job, type JobEnvelope, okEnvelope, readEnvelope } fr
 export interface UpdateValue {
   latest: string | null;
   installed?: string;
+  rejected?: string;
+  rollback?: 'ok' | 'failed';
+  reason?: string;
 }
 
 export interface UpdateState {
   checkedAt: number;
   latest: string | null;
   installed?: string;
+  rejected?: string;
+  rollback?: 'ok' | 'failed';
+  reason?: string;
   error?: string;
   session?: string;
+}
+
+const rollbackOf = (v: unknown): 'ok' | 'failed' | undefined => (v === 'ok' || v === 'failed' ? v : undefined);
+const reasonOf = (v: unknown): string | undefined =>
+  typeof v === 'string' ? sanitizeText(v).slice(0, 200) : undefined;
+
+function rejectFields(o: {
+  rejected?: unknown;
+  rollback?: unknown;
+  reason?: unknown;
+}): Pick<UpdateState, 'rejected' | 'rollback' | 'reason'> {
+  const out: Pick<UpdateState, 'rejected' | 'rollback' | 'reason'> = {};
+  const rejected = version(o.rejected);
+  if (rejected) out.rejected = rejected;
+  const rollback = rollbackOf(o.rollback);
+  if (rollback) out.rollback = rollback;
+  const reason = reasonOf(o.reason);
+  if (reason !== undefined) out.reason = reason;
+  return out;
 }
 
 export const DAY = 86_400_000;
@@ -52,6 +77,7 @@ export function readLegacyUpdate(env: NodeJS.ProcessEnv = process.env): UpdateSt
   const state: UpdateState = { checkedAt, latest: version(o.latest) };
   const installed = version(o.installed);
   if (installed) state.installed = installed;
+  Object.assign(state, rejectFields(o));
   if (typeof o.error === 'string') state.error = sanitizeText(o.error);
   if (typeof o.session === 'string') state.session = o.session;
   return state;
@@ -61,6 +87,7 @@ export function toUpdateState(e: JobEnvelope<UpdateValue>): UpdateState {
   const state: UpdateState = { checkedAt: e.fetchedAt, latest: version((e.value ?? e.lastGood)?.latest) };
   const installed = e.ok ? version(e.value?.installed) : null;
   if (installed) state.installed = installed;
+  if (e.ok) Object.assign(state, rejectFields(e.value ?? {}));
   if (typeof e.error === 'string') state.error = e.error;
   if (typeof e.param === 'string') state.session = e.param;
   return state;
@@ -73,6 +100,7 @@ export function fromUpdateState(s: UpdateState): JobEnvelope<UpdateValue> {
     const value: UpdateValue = { latest: version(s.latest) };
     const installed = version(s.installed);
     if (installed) value.installed = installed;
+    Object.assign(value, rejectFields(s));
     return okEnvelope('update', value, s.checkedAt, param);
   }
   const latest = version(s.latest);
@@ -125,9 +153,11 @@ export const updateJob: Job<UpdateValue> = {
   async run(req, ctx) {
     const m = await import('../self-update.js');
     const p = req.param !== undefined ? { param: req.param } : {};
+    const prevValue = ctx.prev?.value ?? ctx.prev?.lastGood ?? null;
     try {
       const value = await m.checkForUpdate(ctx.config, undefined, ctx.env, {
         fetch: ctx.fetch,
+        rejected: prevValue?.rejected ?? null,
         ...(ctx.signal ? { signal: ctx.signal } : {}),
       });
       return okEnvelope('update', value, ctx.now, req.param);
