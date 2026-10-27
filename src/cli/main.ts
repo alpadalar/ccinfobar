@@ -3,6 +3,7 @@ import { loadConfig } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
 import { loadLanguages } from '../core/i18n/languages.js';
 import { configPath } from '../core/paths.js';
+import { PRICES_UPDATED, priceFor, requestCost } from '../core/prices.js';
 import { globMatch, PROFILES } from '../core/profiles.js';
 import type { ReportDeps } from '../core/report-types.js';
 import { JOBS } from '../data/jobs/index.js';
@@ -27,6 +28,7 @@ function reportDeps(): ReportDeps {
     rebuildSummary,
     accountKeysForDir,
     profiles: { vendors: PROFILES, globMatch },
+    prices: { priceFor, requestCost, updated: PRICES_UPDATED },
   };
 }
 

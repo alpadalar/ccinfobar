@@ -172,6 +172,7 @@ export function runReport(args: Args, cfgFile: string, deps: ReportDeps, io: Rep
     filter: plan.filter,
     config: loaded.config,
     profiles: deps.profiles,
+    prices: deps.prices,
   });
   if (plan.format === 'csv') io.write(formatCsv(report));
   else if (plan.format === 'json') {

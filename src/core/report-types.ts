@@ -1,5 +1,6 @@
 import type { Credited, SessionRow } from '../data/ledger.js';
 import type { LoadResult } from './config.js';
+import type { priceFor, requestCost } from './prices.js';
 import type { ProfileVendor } from './profiles.js';
 import type { Config } from './types.js';
 
@@ -180,6 +181,12 @@ export interface RangeInput {
   all?: boolean;
 }
 
+export interface PriceDeps {
+  priceFor: typeof priceFor;
+  requestCost: typeof requestCost;
+  updated: string;
+}
+
 export interface PriceBuiltins {
   vendors: readonly ProfileVendor[];
   globMatch(glob: string, text: string): boolean;
@@ -195,6 +202,7 @@ export interface ReportDeps {
   rebuildSummary(env: NodeJS.ProcessEnv, now: number): unknown;
   accountKeysForDir(env: NodeJS.ProcessEnv): Set<string>;
   profiles: PriceBuiltins;
+  prices: PriceDeps;
 }
 
 export type LedgerDeps = Pick<ReportDeps, 'ledgerDir' | 'monthFiles' | 'stepText' | 'accountKeysForDir'>;

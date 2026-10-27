@@ -15,7 +15,7 @@ import {
   writeLedger,
   writeTranscript,
 } from '../fixtures/report/build.js';
-import { BUILTINS, REPORT_DEPS } from '../report-deps.js';
+import { BUILTINS, PRICE_DEPS, REPORT_DEPS } from '../report-deps.js';
 
 const NOW = Date.parse('2026-10-14T12:00:00.000Z');
 const D1 = Date.parse('2026-10-12T10:00:00.000Z');
@@ -208,6 +208,7 @@ describe('report ledger fold', () => {
         filter: null,
         config: {},
         profiles: BUILTINS,
+        prices: PRICE_DEPS,
       }).total!.costUsd;
     const cold = run();
     expect(cost(cold)).toBeCloseTo(19.999, 6);

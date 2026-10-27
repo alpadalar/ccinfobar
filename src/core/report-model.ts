@@ -1,9 +1,9 @@
-import { PRICES_UPDATED, priceFor, requestCost } from './prices.js';
 import {
   type CostSource,
   LEDGER_ZERO_USD,
   type Period,
   type PriceBuiltins,
+  type PriceDeps,
   type ProjectFilter,
   type RangeInput,
   type Report,
@@ -103,6 +103,7 @@ export interface ReportOptions {
   filter: ProjectFilter | null;
   config: Pick<Config, 'profiles'>;
   profiles: PriceBuiltins;
+  prices: PriceDeps;
 }
 
 type Src = 'ledger' | 'transcript';
@@ -249,9 +250,9 @@ export function buildReport(data: ScanResult, opts: ReportOptions): Report {
     parseDay(d) !== null &&
     (since === null || d >= since) &&
     (until === null || d <= until);
-  const prices = new Map<string, ReturnType<typeof priceFor>>();
+  const prices = new Map<string, ReturnType<PriceDeps['priceFor']>>();
   const price = (model: string) => {
-    if (!prices.has(model)) prices.set(model, priceFor(model, opts.config, opts.profiles));
+    if (!prices.has(model)) prices.set(model, opts.prices.priceFor(model, opts.config, opts.profiles));
     return prices.get(model)!;
   };
   const periods = new Map<string, string>();
@@ -326,7 +327,7 @@ export function buildReport(data: ScanResult, opts: ReportOptions): Report {
       if (usdFlag === '1') usd = pos(b.usd);
       else {
         const r = price(model);
-        const c = r ? requestCost(r.price, { ...u, fast: fast === '1', big: big === '1' }) : null;
+        const c = r ? opts.prices.requestCost(r.price, { ...u, fast: fast === '1', big: big === '1' }) : null;
         if (r && c !== null && Number.isFinite(c)) {
           if (r.currency === 'USD') usd = c;
           else other = [r.currency, c];
@@ -468,7 +469,7 @@ export function buildReport(data: ScanResult, opts: ReportOptions): Report {
     total: rows.length > 0 ? toRow(total) : null,
     unpriced: { models, requests },
     ledgerSince,
-    pricesUpdated: PRICES_UPDATED,
+    pricesUpdated: opts.prices.updated,
     notes,
   };
 }
