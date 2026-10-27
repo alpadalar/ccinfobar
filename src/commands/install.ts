@@ -73,6 +73,8 @@ export interface StatusLineSetting {
   command: string;
   padding?: number;
   refreshInterval?: number;
+  hideVimModeIndicator?: boolean;
+  [key: string]: unknown;
 }
 
 // npx puts its cache on PATH; that is not an install
@@ -270,9 +272,10 @@ export class InstallNeedsConfirmError extends Error {
 }
 
 function proposal(command: string, owner: Owner, current: StatusLineSetting | null, refresh?: number) {
-  const statusLine: StatusLineSetting = { type: 'command', command, padding: 0 };
+  const statusLine: StatusLineSetting = { ...(current ?? {}), type: 'command', command, padding: 0 };
   const r = refresh ?? (isMine(owner) ? current?.refreshInterval : undefined);
   if (typeof r === 'number' && Number.isFinite(r) && r > 0) statusLine.refreshInterval = Math.floor(r);
+  else delete statusLine.refreshInterval;
   return statusLine;
 }
 

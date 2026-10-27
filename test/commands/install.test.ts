@@ -19,7 +19,7 @@ import {
   uninstall,
 } from '../../src/commands/install.js';
 import { ask, isYes, promptMarker } from '../../src/commands/install-cli.js';
-import { findStatusLineEntry, readManifest } from '../../src/commands/manifest.js';
+import { classifyOwner, findStatusLineEntry, readManifest } from '../../src/commands/manifest.js';
 import { backupsDir, hashBytes, readSettings } from '../../src/commands/settings-file.js';
 import { t } from '../../src/core/i18n/index.js';
 import { claudeSettingsPath } from '../../src/core/paths.js';
@@ -395,5 +395,71 @@ describe('install prompt and messages', () => {
     );
     fs.writeFileSync(file, '{"model": ');
     expect(() => withLang('tr', () => readSettings(file))).toThrow(/ayrıştırılamıyor: .*JSON/);
+  });
+
+  it('keeps other statusLine keys on reinstall', () => {
+    const file = settingsFile({
+      model: 'opus',
+      statusLine: {
+        type: 'command',
+        command: '/bin/ccinfobar',
+        hideVimModeIndicator: true,
+        padding: 0,
+        custom: 1,
+        refreshInterval: 7,
+      },
+    });
+    applyInstall(planInstall({ file, command: '/bin/ccinfobar' }), { confirmed: true });
+    const sl = read(file).statusLine;
+    expect(sl).toEqual({
+      type: 'command',
+      command: '/bin/ccinfobar',
+      hideVimModeIndicator: true,
+      padding: 0,
+      custom: 1,
+      refreshInterval: 7,
+    });
+    expect(Object.keys(sl)).toEqual([
+      'type',
+      'command',
+      'hideVimModeIndicator',
+      'padding',
+      'custom',
+      'refreshInterval',
+    ]);
+    applyInstall(planInstall({ file, command: '/bin/ccinfobar', refresh: 5 }), { confirmed: true });
+    expect(read(file).statusLine).toMatchObject({
+      hideVimModeIndicator: true,
+      custom: 1,
+      refreshInterval: 5,
+    });
+  });
+
+  it('writes owned keys in order without a current statusLine', () => {
+    const file = settingsFile({});
+    applyInstall(planInstall({ file, command: '/bin/ccinfobar', refresh: 3 }), { confirmed: true });
+    expect(Object.keys(read(file).statusLine)).toEqual(['type', 'command', 'padding', 'refreshInterval']);
+  });
+
+  it('drops a foreign refreshInterval but keeps its other keys', () => {
+    const file = settingsFile({
+      statusLine: { type: 'command', command: 'npx other', refreshInterval: 9, hideVimModeIndicator: true },
+    });
+    applyInstall(planInstall({ file, command: '/bin/ccinfobar' }), { confirmed: true });
+    const sl = read(file).statusLine;
+    expect(sl.refreshInterval).toBeUndefined();
+    expect(sl.hideVimModeIndicator).toBe(true);
+  });
+
+  it('classifies a hand-added hideVimModeIndicator as foreign once the manifest owns the line', () => {
+    const file = settingsFile({});
+    applyInstall(planInstall({ file, command: '/bin/ccinfobar' }), { confirmed: true });
+    const written = read(file).statusLine;
+    const m = readManifest();
+    expect(classifyOwner(m, file, written, '/bin/ccinfobar')).toBe('ours');
+    // D-01: revisit with FEAT-08
+    expect(classifyOwner(m, file, { ...written, hideVimModeIndicator: true }, '/bin/ccinfobar')).toBe(
+      'foreign',
+    );
   });
 });
