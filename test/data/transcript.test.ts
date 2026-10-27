@@ -551,7 +551,7 @@ describe('rewritten transcript', () => {
     fs.appendFileSync(file, add);
     const spy = vi.spyOn(fs, 'readSync');
     const t = readTranscript(file, env);
-    const read = spy.mock.calls.reduce((n, c) => n + (c[3] as number), 0);
+    const read = spy.mock.calls.reduce((n, c) => n + ((c as unknown as number[])[3] ?? 0), 0);
     expect(read).toBeLessThanOrEqual(Buffer.byteLength(add) + 256 + 64 + 1000);
     expect(totals(t)).toEqual(fresh(gen(23)));
   });

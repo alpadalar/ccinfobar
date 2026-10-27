@@ -26,6 +26,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Token and cost totals no longer stay wrong when a transcript file is replaced by one of equal or larger size (for example after `--resume` into a reused path); ccinfobar now checks the file identity and content anchors and re-reads from the start.
 - Git widgets hide instead of running `git status` without the repository's filter protections when `git config` itself fails or times out
 - Windows: the background update and the `where`/`npm` lookups run from a defined safe folder (home, temp, then Node's folder) instead of falling back to the current folder when neither home nor temp exists
 - `git-is-fork` with `showParent` keeps the host in the parent label when the two remotes live on different hosts, so it no longer prints the same name as the repo itself
