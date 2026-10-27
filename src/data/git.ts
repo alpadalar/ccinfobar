@@ -16,9 +16,9 @@ export interface GitInfo {
   unstaged: number;
   untracked: number;
   conflicts: number;
-  insertions: number;
-  deletions: number;
-  stash: number;
+  insertions: number | null;
+  deletions: number | null;
+  stash: number | null;
   operation: string | null;
   remoteUrl: string | null;
   upstreamUrl?: string | null;
@@ -265,15 +265,17 @@ export function readGit(cwd: string, opts: { harden?: boolean } = {}): GitInfo |
   const safe: readonly string[] = harden ? [...HARDEN, ...localFilterOverrides(entries)] : [];
 
   const base = ['status', '--porcelain=v2', '--branch'];
-  const status = git(cwd, [...base, '--show-stash'], safe) ?? git(cwd, base, safe);
+  const withStash = git(cwd, [...base, '--show-stash'], safe);
+  const status = withStash ?? git(cwd, base, safe);
   if (status === null) return null;
-  const s = parseStatus(status);
+  const parsed = parseStatus(status);
+  const s = { ...parsed, stash: withStash === null ? null : parsed.stash };
 
   const diffArgs = harden
     ? ['diff', 'HEAD', '--shortstat', '--no-ext-diff', '--no-textconv']
     : ['diff', 'HEAD', '--shortstat'];
   const diff = git(cwd, diffArgs, safe);
-  const stat = diff ? parseShortstat(diff) : { insertions: 0, deletions: 0 };
+  const stat = diff === null ? { insertions: null, deletions: null } : parseShortstat(diff);
 
   return finishGit({
     root: path.resolve(top),

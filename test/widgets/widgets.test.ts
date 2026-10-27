@@ -239,8 +239,24 @@ describe('git widgets', () => {
     expect(renderWidget('git-stash', g({}))).toBe('0');
     expect(renderWidget('git-conflicts', g({}))).toBe('0');
     expect(renderWidget('git-changes', g({}))).toBe('+0 -0');
-    expect(renderWidget('git-ahead-behind', g({}))).toBe('↑0 ↓0');
+    expect(renderWidget('git-ahead-behind', g({ upstream: 'origin/main' }))).toBe('↑0 ↓0');
     expect(renderWidget('git-staged', g({}), { options: { hideZero: true } })).toBeNull();
+  });
+  it('hides misleading or missing data', () => {
+    expect(renderWidget('git-ahead-behind', g({}))).toBeNull();
+    expect(renderWidget('git-changes', g({ insertions: null, deletions: null }))).toBeNull();
+    expect(renderWidget('git-changes', g({}), { options: { hideZero: true } })).toBeNull();
+    expect(
+      renderWidget('git-changes', g({ insertions: 3, deletions: 1 }), { options: { hideZero: true } }),
+    ).toBe('+3 -1');
+    expect(renderWidget('git-conflicts', g({}), { options: { hideZero: true } })).toBeNull();
+    expect(renderWidget('git-stash', g({ stash: null }))).toBeNull();
+    expect(renderWidget('git-stash', g({ stash: 0 }))).toBe('0');
+  });
+  it('model showId treats "false" as off', () => {
+    const ctx = ctxWith({ payload: { model: { id: 'claude-x', display_name: 'X' } } });
+    expect(renderWidget('model', ctx, { options: { showId: 'false' } })).toBe('X');
+    expect(renderWidget('model', ctx, { options: { showId: true } })).toBe('claude-x');
   });
   it('operation', () => expect(renderWidget('git-operation', g({ operation: 'MERGING' }))).toBe('MERGING'));
   it('repo falls back to remote url', () => {

@@ -51,7 +51,7 @@ export const widgets: WidgetDef[] = [
         const label = resolveProfile(m, detectProvider(ctx.env), ctx.config)?.label;
         if (label) return label;
       }
-      if (item.options?.showId) return m.id ?? m.display_name;
+      if (opt(item, 'showId', false)) return m.id ?? m.display_name;
       return m.display_name ?? m.id;
     },
   },

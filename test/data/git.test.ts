@@ -92,6 +92,8 @@ describe.skipIf(!available)('readGit', () => {
     expect(g.detached).toBe(false);
     expect(g.sha).toMatch(/^[0-9a-f]{7}$/);
     expect(g.staged + g.unstaged + g.untracked + g.conflicts).toBe(0);
+    expect(g.insertions).toBe(0);
+    expect(g.deletions).toBe(0);
     expect(g.remoteUrl).toBe('git@github.com:acme/demo.git');
     expect(g.operation).toBeNull();
     expect(g.isWorktree).toBe(false);

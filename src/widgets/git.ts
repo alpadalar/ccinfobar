@@ -136,9 +136,11 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰦒', emoji: '✏️' },
     color: 'yellow',
     sample: '+148 -37',
-    render(ctx) {
+    options: [hideZero],
+    render(ctx, item) {
       const g = ctx.data.git();
-      if (!g) return null;
+      if (!g || g.insertions === null || g.deletions === null) return null;
+      if (!g.insertions && !g.deletions && opt(item, 'hideZero', false)) return null;
       return `+${g.insertions} -${g.deletions}`;
     },
   },
@@ -221,7 +223,7 @@ export const widgets: WidgetDef[] = [
     sample: '↑2 ↓0',
     render(ctx) {
       const g = ctx.data.git();
-      if (!g) return null;
+      if (!g || g.upstream === null) return null;
       return `↑${g.ahead} ↓${g.behind}`;
     },
   },
@@ -234,9 +236,11 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '', emoji: '⚠️' },
     color: 'red',
     sample: '2',
-    render(ctx) {
+    options: [hideZero],
+    render(ctx, item) {
       const n = ctx.data.git()?.conflicts;
-      return n === undefined ? null : String(n);
+      if (n === undefined || (n === 0 && opt(item, 'hideZero', false))) return null;
+      return String(n);
     },
   },
   {
@@ -250,7 +254,7 @@ export const widgets: WidgetDef[] = [
     sample: '1',
     render(ctx) {
       const n = ctx.data.git()?.stash;
-      return n === undefined ? null : String(n);
+      return n == null ? null : String(n);
     },
   },
   {
