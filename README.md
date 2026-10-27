@@ -75,7 +75,7 @@ This installs the `ccinfobar` command globally, points Claude Code's status line
 
 - **In a terminal it asks first.** If another tool owns the status line, `install` shows the current and new command and asks `Replace? [y/N]`. `--yes` (`-y`) skips the question. Non-interactive runs (no terminal) replace it and print the replaced command, which uninstall can bring back. Use `--dry-run` to preview: it shows what would change and writes nothing.
 - **Backups.** Before changing `settings.json`, ccinfobar saves a copy in `backups/` inside its config folder (`~/.config/ccinfobar/backups/`, `%APPDATA%\ccinfobar\backups\` on Windows): the last 10, plus the original from before the first install and the copy `uninstall` restores from, which are never deleted. File permissions, symlinks, BOM and line endings are kept.
-- **Clean uninstall.** ccinfobar records what it replaced in `manifest.json`, so `ccinfobar uninstall` brings back the status line you had before, even after several reinstalls. Other tools' status lines are never removed.
+- **Clean uninstall.** ccinfobar records what it replaced (the status line, hooks and the subagent panel entry) in `manifest.json`, so `ccinfobar uninstall` brings back the status line you had before, even after several reinstalls. Other tools' status lines are never removed.
 - **Broken config.** If `config.json` does not parse, the status line shows `ccinfobar: config error at line N, run ccinfobar doctor` and the file is never overwritten. `ccinfobar doctor` shows the line, column and message.
 - **One setting from the terminal.** `ccinfobar config get|set|unset <path> [value]` reads or changes one value, for example `ccinfobar config set gitHardening false`.
 
@@ -650,10 +650,12 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (over an existing ccinfobar config the offer defaults to no, and `--import` is needed to import without a terminal; `--yes` to replace another tool's without asking, `--dry-run` to only show the plan, `--import`, `--no-import`, `--allow-commands` to keep imported commands, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally, or a pinned copy with `--no-global`) |
 | `ccinfobar install --hooks` | Also add the optional [hooks](#hooks) (`--hooks=permission` adds PermissionRequest) |
 | `ccinfobar install --progress` | Show context fill as the terminal tab's progress bar (OSC 9;4) through synchronous hooks; needs Claude Code 2.1.141+ and adds about 60-110 ms before each prompt |
+| `ccinfobar install --subagents` | Also set Claude Code's `subagentStatusLine` so the agent panel rows are drawn by ccinfobar ([Subagent rows](docs/CONFIGURATION.md#subagent-rows)); a foreign value is replaced only after asking (`--yes` skips the question), `--dry-run` previews |
 | `ccinfobar install --project` | Use ccinfobar in this project even if its `.claude/settings.json` sets another status line |
 | `ccinfobar uninstall` | Remove ccinfobar and its hooks from Claude Code settings and restore the status line you had before (`--project` for the project file). Run it before `npm rm -g ccinfobar` |
 | `ccinfobar uninstall --hooks` | Remove only ccinfobar's hooks and keep the status line |
 | `ccinfobar uninstall --progress` | Remove only the terminal progress handlers, turn `progress.enabled` off and clear the bar |
+| `ccinfobar uninstall --subagents` | Remove only ccinfobar's `subagentStatusLine` and keep the status line |
 | `ccinfobar themes` | Preview every theme (`--width <n>`; `--list` prints ids and names only) |
 | `ccinfobar theme <id>` | Switch theme; `ccinfobar theme new <id> --from <theme>` creates your own |
 | `ccinfobar theme rotate <id...>` | Rotate themes ([Theme rotation](docs/CONFIGURATION.md#theme-rotation); `--every hour\|day\|week\|<minutes>`, `--shuffle` or `--cycle`, `--weekdays mon=nord,...` or `--weekdays off`); `theme rotate` shows it, `theme rotate off` turns it off |

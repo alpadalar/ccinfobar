@@ -612,7 +612,7 @@ Claude Code's `subagentStatusLine` setting runs one command per refresh tick. It
 A row looks like this:
 
 ```text
-▸ Explore · Reading src/widgets · ▁▂▃█ 42.0k 21% · sonnet high · 3m
+▸ Explore · Reading src/widgets · ▁▂▃█ 42.0k 21% · sonnet high · 3m00s
 ```
 
 When the row is wider than the panel, parts drop in this order: token sparkline, effort, context share, model, elapsed time, tokens. What is left is truncated. `charset: text` switches to ASCII marks and `|` separators, and `colorLevel` or `NO_COLOR` decide the colours.
@@ -623,7 +623,7 @@ When the row is wider than the panel, parts drop in this order: token sparkline,
 { "subagentLine": { "fields": ["status", "type", "label", "tokens", "elapsed"] } }
 ```
 
-The command reads only the config file: no transcript, cache, git or network, and it never writes. Set it up with `ccinfobar install --subagents` (the install, uninstall and doctor details arrive with that release).
+The command reads only the config file: no transcript, cache, git or network, and it never writes. `ccinfobar install --subagents` writes `subagentStatusLine: { type: "command", command: "<your statusLine command> subagent-line" }` to `~/.claude/settings.json` in the same atomic write as the status line, with a backup and a manifest entry. It never replaces another tool's entry without asking (`--yes` replaces; the previous value is recorded). `ccinfobar uninstall` restores the file byte for byte or, after other edits, removes only the ccinfobar value and restores what was there; `uninstall --subagents` removes just that key. `ccinfobar doctor` shows the entry and whether ccinfobar owns it, and a reinstall updates the command path.
 
 ## Layout tips
 
