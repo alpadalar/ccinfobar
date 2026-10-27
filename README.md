@@ -140,7 +140,7 @@ ccinfobar edit
 
 #### Share codes
 
-**Share** turns the current config into a share code, one line of text starting with `ccib1:` that you can paste into a chat or an issue; the dialog shows its size and copies it. It holds your layout and theme, never personal settings such as budget, profiles or language. Command, HTTP and link widgets are removed and listed unless you tick **Include commands and links**. **Open…** (or pasting a code into **Import**) loads one: its commands, HTTP calls and links are shown first and dropped unless you keep them, and nothing is saved until you click Save. In a terminal, `ccinfobar share` prints the code and `ccinfobar edit --open <code>` opens it in the editor. More in [Share codes](docs/CATALOG.md#share-codes).
+**Share** turns the current config into a share code, one line of text starting with `ccib1:` that you can paste into a chat or an issue; the dialog shows its size and copies it. It holds your layout and theme, never personal settings such as budget, profiles or language. Command, HTTP, link and env widgets are removed and listed unless you tick **Include commands and links**. **Open…** (or pasting a code into **Import**) loads one: its commands, HTTP calls, links and environment variables are shown first and dropped unless you keep them, and nothing is saved until you click Save. In a terminal, `ccinfobar share` prints the code and `ccinfobar edit --open <code>` opens it in the editor. More in [Share codes](docs/CATALOG.md#share-codes).
 
 The editor runs only on `127.0.0.1` with a per-session token. Press **Done** or `Ctrl+C` to stop it.
 
@@ -644,8 +644,8 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar` | Render the status line from the JSON on stdin (what Claude Code runs) |
 | `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
 | `ccinfobar edit --detach` | Start the editor in the background, print its URL and exit; a running one is reused, and it stops after 30 minutes idle |
-| `ccinfobar edit --open <code>` | Open the editor with a [share code](docs/CATALOG.md#share-codes) loaded (also `ccinfobar edit <code>`; works with `--detach` and `--no-open`). Commands, HTTP calls and links in it are shown first and dropped unless you keep them, and nothing is saved until you click Save |
-| `ccinfobar share` | Print a [share code](docs/CATALOG.md#share-codes) (`ccib1:…`) for your layout and theme on stdout, its size and anything removed on stderr. Command, HTTP and link widgets are removed unless you pass `--include-commands`; `--json` prints `{schema, code, chars, max, included, dropped}` |
+| `ccinfobar edit --open <code>` | Open the editor with a [share code](docs/CATALOG.md#share-codes) loaded (also `ccinfobar edit <code>`; works with `--detach` and `--no-open`). Commands, HTTP calls, links and environment variables in it are shown first and dropped unless you keep them, and nothing is saved until you click Save |
+| `ccinfobar share` | Print a [share code](docs/CATALOG.md#share-codes) (`ccib1:…`) for your layout and theme on stdout, its size and anything removed on stderr. Command, HTTP, link and env widgets are removed unless you pass `--include-commands`; `--json` prints `{schema, code, chars, max, included, dropped}` |
 | `ccinfobar tui` | Open the terminal editor |
 | `ccinfobar install` | Set Claude Code's `statusLine`, offering to import your previous one (`--yes` to replace another tool's without asking, `--dry-run` to only show the plan, `--import`, `--no-import`, `--allow-commands` to keep imported commands, `--command <cmd>`, `--refresh <seconds>`; through npx it also installs the `ccinfobar` command globally, or a pinned copy with `--no-global`) |
 | `ccinfobar install --hooks` | Also add the optional [hooks](#hooks) (`--hooks=permission` adds PermissionRequest) |
