@@ -35,6 +35,7 @@ import {
   dropHookEntry,
   findHookEntries,
   findStatusLineEntry,
+  findSubagentLineEntry,
   type HookEntry,
   type Manifest,
   manifestFile,
@@ -45,6 +46,7 @@ import {
   realKey,
   recordGitExclude,
   recordStatusLine,
+  recordSubagentLine,
   refreshWrittenHash,
   type StatusLineEntry,
   updateManifest,
@@ -182,6 +184,28 @@ function statusLineOf(data: Record<string, unknown>): StatusLineSetting | null {
   return sl && typeof sl === 'object' && !Array.isArray(sl) ? (sl as StatusLineSetting) : null;
 }
 
+export interface SubagentSetting {
+  type: 'command';
+  command: string;
+}
+
+export const subagentCommand = (command: string) => `${command} subagent-line`;
+
+function subagentOf(data: Record<string, unknown>): unknown | null {
+  const v = data.subagentStatusLine;
+  return v && typeof v === 'object' && !Array.isArray(v) ? v : null;
+}
+
+export type SubagentOwner = 'none' | 'ours' | 'foreign';
+
+export interface SubagentPlan {
+  current: unknown | null;
+  owner: SubagentOwner;
+  proposed: SubagentSetting;
+  changes: boolean;
+  asked: boolean;
+}
+
 export function currentStatusLine(file = claudeSettingsPath()): StatusLineSetting | null {
   return statusLineOf(readSettings(file).data);
 }
@@ -248,6 +272,7 @@ export interface InstallPlan {
   changes: boolean;
   needsConfirm: boolean;
   diff: InstallDiff[];
+  subagent?: SubagentPlan;
 }
 
 export interface InstallResult {
@@ -256,6 +281,7 @@ export interface InstallResult {
   replaced: StatusLineSetting | null;
   changed: boolean;
   hooks: HookPlan | null;
+  subagent: 'added' | 'rewritten' | 'replaced' | null;
 }
 
 export interface InstallHooks {
@@ -293,19 +319,38 @@ function diffOf(current: StatusLineSetting | null, proposed: StatusLineSetting):
   return out;
 }
 
+function planSubagent(
+  m: Manifest,
+  file: string,
+  settings: Record<string, unknown>,
+  command: string,
+  asked: boolean,
+): SubagentPlan | undefined {
+  const current = subagentOf(settings);
+  const entry = findSubagentLineEntry(m, file);
+  const owner: SubagentOwner =
+    current === null ? 'none' : entry && ownedEqual(current, entry.value) ? 'ours' : 'foreign';
+  if (!asked && owner !== 'ours') return undefined;
+  const proposed: SubagentSetting = { type: 'command', command: subagentCommand(command) };
+  return { current, owner, proposed, changes: !deepEqual(current, proposed), asked };
+}
+
 // reads only
 export function planInstall(opts: {
   file?: string;
   command: string;
   refresh?: number;
+  subagents?: boolean;
   env?: NodeJS.ProcessEnv;
 }): InstallPlan {
   const env = opts.env ?? process.env;
   const file = opts.file ?? claudeSettingsPath(env);
   const m = openManifest(env);
-  const current = statusLineOf(readSettings(file).data);
+  const settings = readSettings(file).data;
+  const current = statusLineOf(settings);
   const owner = classify(m, file, current, opts.command);
   const proposed = proposal(opts.command, owner, current, opts.refresh);
+  const subagent = planSubagent(m, file, settings, opts.command, opts.subagents === true);
   return {
     file,
     real: realKey(file),
@@ -313,8 +358,10 @@ export function planInstall(opts: {
     proposed,
     owner,
     changes: !deepEqual(current, proposed),
-    needsConfirm: owner === 'foreign' || owner === 'legacy-ask',
+    needsConfirm:
+      owner === 'foreign' || owner === 'legacy-ask' || (!!subagent?.asked && subagent.owner === 'foreign'),
     diff: diffOf(current, proposed),
+    ...(subagent ? { subagent } : {}),
   };
 }
 
@@ -335,9 +382,11 @@ export function applyInstall(
     planned: [] as HookPlanItem[],
     applied: [] as HookPlanItem[],
   };
+  let subApplied = false;
   const res = patchSettings(
     file,
     (settings) => {
+      subApplied = false;
       const current = statusLineOf(settings);
       if (!deepEqual(current, plan.current) || classify(m, file, current, command) !== plan.owner)
         throw new InstallNeedsConfirmError(plan);
@@ -353,6 +402,12 @@ export function applyInstall(
       hooks.applied = mutateHooks(settings, hooks.planned);
       if (asked || rewrites.length)
         hooks.plan = { ...(asked ?? { claudeCode: null, refused: null, asyncOmitted: false }), items: [] };
+      const sub = plan.subagent;
+      if (sub?.changes) {
+        if (!deepEqual(subagentOf(settings), sub.current)) throw new InstallNeedsConfirmError(plan);
+        settings.subagentStatusLine = structuredClone(sub.proposed);
+        subApplied = true;
+      }
     },
     { original: !entry, env },
   );
@@ -378,19 +433,31 @@ export function applyInstall(
       ? legacyBackup(file) !== null
       : res.existed;
   const claudeCode = hooks.plan?.claudeCode ?? null;
+  const sub = plan.subagent;
+  const withSubagent = (cur: Manifest): Manifest =>
+    subApplied && sub
+      ? recordSubagentLine(cur, {
+          file: res.real,
+          value: structuredClone(sub.proposed),
+          previous: sub.owner === 'ours' ? (findSubagentLineEntry(cur, file)?.previous ?? null) : sub.current,
+          writtenHash: res.afterHash,
+        })
+      : cur;
   try {
     updateManifest(env, (cur) =>
       // D-19: one write, every entry of the file refreshed
       refreshWrittenHash(
         recordHooks(
-          recordStatusLine(cur, {
-            file: res.real,
-            value: structuredClone(proposed),
-            previous,
-            fileExisted,
-            restore,
-            writtenHash: res.afterHash,
-          }),
+          withSubagent(
+            recordStatusLine(cur, {
+              file: res.real,
+              value: structuredClone(proposed),
+              previous,
+              fileExisted,
+              restore,
+              writtenHash: res.afterHash,
+            }),
+          ),
           res.real,
           hooks.applied,
           claudeCode,
@@ -405,7 +472,18 @@ export function applyInstall(
     throw err;
   }
   const hookPlan = hooks.plan ? { ...hooks.plan, items: appliedItems(hooks.planned, hooks.applied) } : null;
-  return { backup: res.backup, written: proposed, replaced: current, changed: res.changed, hooks: hookPlan };
+  const subagent =
+    subApplied && sub
+      ? ({ none: 'added', ours: 'rewritten', foreign: 'replaced' } as const)[sub.owner]
+      : null;
+  return {
+    backup: res.backup,
+    written: proposed,
+    replaced: current,
+    changed: res.changed,
+    hooks: hookPlan,
+    subagent,
+  };
 }
 
 export type UninstallStatus =

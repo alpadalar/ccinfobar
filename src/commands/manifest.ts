@@ -45,10 +45,21 @@ export interface HookEntry {
   at: string;
 }
 
+export interface SubagentLineEntry {
+  kind: 'subagentStatusLine';
+  file: string;
+  value: { type: 'command'; command: string };
+  previous: unknown | null;
+  writtenHash: string | null;
+  version: string;
+  at: string;
+}
+
 export type ManifestEntry =
   | StatusLineEntry
   | GitExcludeEntry
   | HookEntry
+  | SubagentLineEntry
   | { kind: string; [k: string]: unknown };
 
 export interface Manifest {
@@ -248,6 +259,38 @@ export function recordStatusLine(
     file,
   };
   const rest = m.entries.filter((e) => !(e.kind === 'statusLine' && sameFile(String(e.file), file)));
+  return { ...m, entries: [...rest, next] };
+}
+
+const isSubagentEntry = (e: ManifestEntry): e is SubagentLineEntry =>
+  e.kind === 'subagentStatusLine' && typeof e.file === 'string' && isObj(e.value);
+
+export function findSubagentLineEntry(m: Manifest, file: string): SubagentLineEntry | null {
+  if (m.readOnly) return null;
+  const key = realKey(file);
+  return m.entries.find((e): e is SubagentLineEntry => isSubagentEntry(e) && sameFile(e.file, key)) ?? null;
+}
+
+export function recordSubagentLine(
+  m: Manifest,
+  e: {
+    file: string;
+    value: SubagentLineEntry['value'];
+    previous: unknown | null;
+    writtenHash: string | null;
+  },
+): Manifest {
+  const file = realKey(e.file);
+  const next: SubagentLineEntry = {
+    kind: 'subagentStatusLine',
+    file,
+    value: e.value,
+    previous: e.previous,
+    writtenHash: e.writtenHash,
+    version: VERSION,
+    at: stampNow(),
+  };
+  const rest = m.entries.filter((x) => !(x.kind === 'subagentStatusLine' && sameFile(String(x.file), file)));
   return { ...m, entries: [...rest, next] };
 }
 
