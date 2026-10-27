@@ -489,10 +489,12 @@ describe('terminal width probe gating', () => {
     ],
   ];
 
-  it('a plain layout spawns nothing without a known width', () => {
+  it('a plain layout probes for the implicit truncate at most once within the TTL', () => {
     inFreshCache((count) => {
       const config = { ...defaultConfig(), colorLevel: 0, autoWrap: false, lines: items() } as Config;
-      expect(count(config, true)()).toBe(0);
+      count(config, false);
+      vi.restoreAllMocks();
+      expect(count(config, false)()).toBe(0);
     });
   });
 
