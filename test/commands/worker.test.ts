@@ -3,8 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
-import { parseWorkerArgs, runWorker, sweepJobs, type WorkerDeps } from '../../src/commands/worker.js';
+import { parseWorkerArgs, runWorker, sweepCache, sweepJobs, type WorkerDeps } from '../../src/commands/worker.js';
 import { defaultConfig } from '../../src/core/config.js';
+import { cacheDir, lastPayloadPath } from '../../src/core/paths.js';
 import type { Config } from '../../src/core/types.js';
 import { ghJob } from '../../src/data/jobs/gh.js';
 import { ghKey } from '../../src/data/jobs/keys.js';
@@ -119,7 +120,12 @@ describe('runWorker', () => {
     });
     touchLock(s.env, 'fake-a');
     touchLock(s.env, 'fake-b');
+    const oldCache = path.join(cacheDir(s.env), `transcript-${'a'.repeat(20)}.json`);
+    fs.writeFileSync(oldCache, '{}');
+    const t = (Date.now() - 31 * 86_400_000) / 1000;
+    fs.utimesSync(oldCache, t, t);
     await runWorker(worker(['fake-a', 'fake-b']), s.cfgFile, s.deps([fakeA, fakeB]));
+    expect(fs.existsSync(oldCache)).toBe(false);
     expect(readEnvelope('fake-a', s.env)).toMatchObject({ ok: true, value: 'a' });
     expect(readEnvelope('fake-b', s.env)).toMatchObject({ ok: true, value: 'b' });
     expect(fs.existsSync(lockFile('fake-a', s.env))).toBe(false);
@@ -350,5 +356,95 @@ describe('sweepJobs', () => {
       }),
     );
     expect(readEnvelope(key, s.env)?.ok).toBe(true);
+  });
+});
+
+describe('sweepCache', () => {
+  const day = 86_400_000;
+  const hex = '0123456789abcdef0123';
+  const make = () => {
+    const s = setup();
+    const dir = cacheDir(s.env);
+    fs.mkdirSync(dir, { recursive: true });
+    const now = Date.now();
+    const file = (name: string, ageMs: number) => {
+      const p = path.join(dir, name);
+      fs.writeFileSync(p, '{}');
+      const t = (now - ageMs) / 1000;
+      fs.utimesSync(p, t, t);
+      return p;
+    };
+    return { s, dir, now, file };
+  };
+  const names = [
+    `transcript-${hex}.json`,
+    `git-${hex}.json`,
+    `jj-miss-${hex}.json`,
+    `agents-dir-${hex}.json`,
+    `bin-${hex}.json`,
+    'width-abc_123.json',
+  ];
+
+  it('removes known per-session files after 30 days and keeps younger ones', () => {
+    const { s, now, file } = make();
+    const old = names.map((n) => file(n, 31 * day));
+    sweepCache(s.env, now);
+    for (const p of old) expect(fs.existsSync(p)).toBe(false);
+    const young = names.map((n) => file(n, 29 * day));
+    sweepCache(s.env, now);
+    for (const p of young) expect(fs.existsSync(p)).toBe(true);
+  });
+
+  it('removes legacy agent2 files at any age', () => {
+    const { s, now, file } = make();
+    const p = file(`agent2-${hex}.json`, 0);
+    sweepCache(s.env, now);
+    expect(fs.existsSync(p)).toBe(false);
+  });
+
+  it('keeps account, update and unknown files', () => {
+    const { s, now, file } = make();
+    const kept = [
+      `usage-${hex}.json`,
+      'usage.json',
+      'update.json',
+      'editor.json',
+      path.basename(lastPayloadPath(s.env)),
+      'notes.txt',
+      'git-short.json',
+    ].map((n) => file(n, 31 * day));
+    sweepCache(s.env, now);
+    for (const p of kept) expect(fs.existsSync(p)).toBe(true);
+  });
+
+  it('never follows directories or symlinks', () => {
+    const { s, dir, now, file } = make();
+    const target = file('usage.json', 31 * day);
+    const d = path.join(dir, `transcript-${hex}.json`);
+    fs.mkdirSync(d);
+    expect(fs.existsSync(d)).toBe(true);
+    const link = path.join(dir, `git-${hex}.json`);
+    const canLink = process.platform !== 'win32';
+    if (canLink) fs.symlinkSync(target, link);
+    sweepCache(s.env, now);
+    expect(fs.statSync(d).isDirectory()).toBe(true);
+    expect(fs.existsSync(target)).toBe(true);
+    if (canLink) {
+      expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+    }
+  });
+
+  it('prunes stale tmp files', () => {
+    const { s, now, file } = make();
+    const old = file('x.json.123.deadbeef.tmp', 2 * 3_600_000);
+    const fresh = file('y.json.123.deadbeef.tmp', 60_000);
+    sweepCache(s.env, now);
+    expect(fs.existsSync(old)).toBe(false);
+    expect(fs.existsSync(fresh)).toBe(true);
+  });
+
+  it('does not throw when the cache dir is missing', () => {
+    const env = { CCINFOBAR_CACHE_DIR: path.join(tmp('ccib-sweep-'), 'nope') };
+    expect(() => sweepCache(env, Date.now())).not.toThrow();
   });
 });
