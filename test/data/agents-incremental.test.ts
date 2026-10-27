@@ -207,3 +207,23 @@ describe('incremental reads', () => {
     expect(saved.v).toBe(1);
   });
 });
+
+describe('budget exhaustion', () => {
+  it('does not stamp a grown file complete when the render budget ran out', () => {
+    const f = fixture();
+    const pad = 'p'.repeat(1000);
+    const ids = ['a1', 'a2', 'a3', 'a4', 'a5'];
+    for (const id of ids) f.add(id, line(0, pad));
+    for (let i = 0; i < 3; i++) f.read();
+    let more = '';
+    let n = 1;
+    while (more.length < 1.2 * 1024 * 1024) more += line(n++, pad);
+    for (const id of ids) fs.appendFileSync(f.jsonl(id), more);
+    // five agents want 1 MiB each, the render budget is 4 MiB
+    f.read();
+    let rows = f.read();
+    for (let i = 0; i < 10; i++) rows = f.read();
+    expect(rows).toHaveLength(5);
+    for (const r of rows) expect(r.total).toBe(n * 15);
+  });
+});

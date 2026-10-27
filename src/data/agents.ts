@@ -186,7 +186,7 @@ function cached(
     if (s.offset > 0 && headChanged(fd, s, h, size)) s = emptySummary(size);
     const budget = Math.min(AGENT_BUDGET, left.bytes);
     if (budget > 0 && s.offset < size) left.bytes -= advanceSummary(s, fd, size, budget);
-    else if (s.offset >= size) s.complete = true;
+    else s.complete = s.offset >= size;
     s.ino = st.ino;
     s.mtimeMs = st.mtimeMs;
     s.size = size;
