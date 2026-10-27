@@ -156,7 +156,7 @@ const MIN_VERSION: [string, string][] = [
   ['workspace.added_dirs', '2.1.47'],
 ];
 
-function sinceFor(path: string): string {
+export function sinceFor(path: string): string {
   const hit = MIN_VERSION.find(([p]) => path === p || path.startsWith(`${p}.`) || path.startsWith(`${p}[`));
   return hit ? t('explain.since', { version: hit[1] }) : '';
 }

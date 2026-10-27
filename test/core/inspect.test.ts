@@ -12,6 +12,7 @@ import {
   jobReason,
   lineReport,
   sessionNotes,
+  sinceFor,
 } from '../../src/core/inspect.js';
 import { normalizeResult, renderValue } from '../../src/core/renderer.js';
 import { samplePayload } from '../../src/core/sample.js';
@@ -252,6 +253,19 @@ describe('inspectRows sources', () => {
     expect(m.empty!.code).toBe('payload-field-absent');
     expect(m.empty!.text).toContain('prompt_cache.last_miss_cause');
     expect(m.empty!.text).toContain('2.1.260');
+  });
+
+  it('names the version for the newer payload fields', () => {
+    const v = (path: string) => sinceFor(path);
+    expect(v('prompt_cache.miss_causes')).toContain('2.1.260');
+    expect(v('prompt_cache.recache_tokens_if_cold')).toContain('2.1.251');
+    expect(v('prompt_cache.warm')).toContain('2.1.251');
+    expect(v('rate_limits.spend_limit.used_usd')).toContain('2.1.284');
+    expect(v('rate_limits.spend_limit.limit_usd')).toContain('2.1.284');
+    expect(v('rate_limits.spend_limit')).toContain('2.1.251');
+    expect(v('worktree.name')).toContain('2.1.69');
+    expect(v('workspace.added_dirs')).toContain('2.1.47');
+    expect(v('model.id')).toBe('');
   });
 
   it('uses hints for blind widgets', () => {
