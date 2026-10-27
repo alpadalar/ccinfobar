@@ -24,7 +24,8 @@ export interface UpdateState {
   session?: string;
 }
 
-const rollbackOf = (v: unknown): 'ok' | 'failed' | undefined => (v === 'ok' || v === 'failed' ? v : undefined);
+const rollbackOf = (v: unknown): 'ok' | 'failed' | undefined =>
+  v === 'ok' || v === 'failed' ? v : undefined;
 const reasonOf = (v: unknown): string | undefined =>
   typeof v === 'string' ? sanitizeText(v).slice(0, 200) : undefined;
 

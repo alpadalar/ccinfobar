@@ -6,6 +6,7 @@ import { defaultConfig } from '../../../src/core/config.js';
 import type { Config } from '../../../src/core/types.js';
 import { type JobCtx, type JobEnvelope, okEnvelope, writeEnvelope } from '../../../src/data/jobs/runner.js';
 import {
+  fromUpdateState,
   readLegacyUpdate,
   SESSION_GAP,
   toUpdateState,
@@ -220,5 +221,37 @@ describe('update job run', () => {
     expect(e).toMatchObject({ v: 1, key: 'update', ok: true, value: { latest: '9.9.9' }, param: 's7' });
     expect(JSON.parse(fs.readFileSync(updateFile(env), 'utf8')).latest).toBe('1.0.0');
     expect(fs.existsSync(jobsFile(env, 'update.lock'))).toBe(false);
+  });
+});
+
+describe('rejected updates', () => {
+  it('round-trips rejected, rollback and reason and drops a bad rollback', () => {
+    const e = okEnvelope<UpdateValue>(
+      'update',
+      { latest: '9.9.9', rejected: '9.9.9', rollback: 'ok', reason: 'version-mismatch:1.0.0' },
+      7,
+    );
+    const s = toUpdateState(e);
+    expect(s).toMatchObject({ rejected: '9.9.9', rollback: 'ok', reason: 'version-mismatch:1.0.0' });
+    expect(fromUpdateState(s).value).toEqual({
+      latest: '9.9.9',
+      rejected: '9.9.9',
+      rollback: 'ok',
+      reason: 'version-mismatch:1.0.0',
+    });
+    const bad = okEnvelope('update', { latest: '9.9.9', rejected: '9.9.9', rollback: 'maybe' }, 7);
+    const t = toUpdateState(bad as unknown as JobEnvelope<UpdateValue>);
+    expect(t.rollback).toBeUndefined();
+    expect(t.rejected).toBe('9.9.9');
+  });
+
+  it('run() skips the install of a version the previous envelope rejected', async () => {
+    mocks.kind.mockReturnValue('npm-global');
+    const env = sandbox();
+    writeEnvelope(okEnvelope('update', { latest: '9.9.9', rejected: '9.9.9', rollback: 'ok' }, 1), env);
+    const f = redirect('https://github.com/alpadalar/ccinfobar/releases/tag/v9.9.9');
+    const e = await updateJob.run({ key: 'update' }, ctx(env, cfg('auto'), f));
+    expect(mocks.execFile).not.toHaveBeenCalled();
+    expect(e).toMatchObject({ ok: true, value: { latest: '9.9.9', rejected: '9.9.9' } });
   });
 });

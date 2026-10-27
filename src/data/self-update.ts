@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Config } from '../core/types.js';
 import { VERSION } from '../core/version.js';
+import { writeAtomic } from './store.js';
 import {
   compareVersions,
   effectiveUpdate,
@@ -12,7 +13,6 @@ import {
   localPrefix,
   safeCwd,
 } from './update-state.js';
-import { writeAtomic } from './store.js';
 
 // the update check and npm install: the update job loads it with import()
 export const REPO = 'alpadalar/ccinfobar';
