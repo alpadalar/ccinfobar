@@ -251,9 +251,9 @@ export const editorMessages = {
     'Açmak için editörde Aç… düğmesine tıklayın veya şunu çalıştırın: npx ccinfobar@latest edit --open <kod>',
   'share.removedTitle': 'Koddan çıkarılanlar',
   'share.includedTitle': 'Kodda olanlar',
-  'share.include': 'Komutları ve bağlantıları dahil et',
+  'share.include': 'Komutları, bağlantıları ve ortam değişkenlerini dahil et',
   'share.includeWarn':
-    'Bunlar kodu açan makinede komut çalıştırır, HTTP isteği gönderir veya URL açar. ccinfobar orada herhangi birini korumadan önce sorar.',
+    'Bunlar kodu açan makinede komut çalıştırır, HTTP isteği gönderir, URL açar veya ortam değişkenlerini gösterir. ccinfobar orada herhangi birini korumadan önce sorar.',
   'share.open.title': 'Bir paylaşım kodu aç',
   'share.open.text':
     "Bir paylaşım kodu (ccib1:…) veya #c=… ile biten bir bağlantı yapıştırın. Kaydet'e tıklayana kadar hiçbir şey kaydedilmez.",

@@ -149,12 +149,13 @@ export const importMessages = {
   'import.kind.command': 'komut',
   'import.kind.http': 'http',
   'import.kind.link': 'bağlantı',
-  'import.targetsHeader': 'Bu düzen komut çalıştırıyor veya URL açıyor:',
+  'import.kind.env': 'ortam değişkeni',
+  'import.targetsHeader': 'Bu düzen komut çalıştırıyor, URL açıyor veya ortam değişkeni gösteriyor:',
   'import.target': '  {kind}: {target}',
   'import.keepPrompt': { one: 'Bu öğe korunsun mu?', other: 'Bu {count} öğe korunsun mu?' },
   'import.targetsDropped': {
-    one: '{count} komut/URL öğesi çıkarıldı.',
-    other: '{count} komut/URL öğesi çıkarıldı.',
+    one: '{count} komut, URL veya ortam değişkeni öğesi çıkarıldı.',
+    other: '{count} komut, URL veya ortam değişkeni öğesi çıkarıldı.',
   },
   'import.rerun': 'Korumak için şunu çalıştırın: {command}',
   'import.rerunAddFile':

@@ -83,8 +83,8 @@ Options
   --format table|csv|json         report: output format (default table)
   --import / --no-import          install: import the previous status line's layout without asking
   --file <path>                   import: read this settings file
-  --allow-commands                import, install: keep imported commands and URLs without asking
-  --include-commands              share: keep command, HTTP and link widgets in the code
+  --allow-commands                import, install: keep imported commands, URLs and env widgets without asking
+  --include-commands              share: keep command, HTTP, link and env widgets in the code
   --command <cmd>                 install: command to write (default: auto); import: status line command to read
   --hooks[=permission]            install: add hooks (=permission adds PermissionRequest);
                                   uninstall: remove only ccinfobar's hooks

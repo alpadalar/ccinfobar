@@ -243,9 +243,9 @@ export const editorMessages = {
     'To open it, click Open… in the editor or run: npx ccinfobar@latest edit --open <code>',
   'share.removedTitle': 'Removed from the code',
   'share.includedTitle': 'Included in the code',
-  'share.include': 'Include commands and links',
+  'share.include': 'Include commands, links and env widgets',
   'share.includeWarn':
-    'These run commands, send HTTP requests or open URLs on the machine that opens the code. ccinfobar asks there before keeping any of them.',
+    'These run commands, send HTTP requests, open URLs or show environment variables on the machine that opens the code. ccinfobar asks there before keeping any of them.',
   'share.open.title': 'Open a share code',
   'share.open.text':
     'Paste a share code (ccib1:…) or a link that ends in #c=… Nothing is saved until you click Save.',

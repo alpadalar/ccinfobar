@@ -83,8 +83,8 @@ Seçenekler
   --format table|csv|json         report: çıktı biçimi (varsayılan table)
   --import / --no-import          install: önceki durum satırının düzenini sormadan içe aktarır ya da aktarmaz
   --file <path>                   import: bu ayar dosyasını okur
-  --allow-commands                import, install: içe aktarılan komutları ve URL'leri sormadan korur
-  --include-commands              share: komut, HTTP ve bağlantı bileşenlerini kodda tutar
+  --allow-commands                import, install: içe aktarılan komutları, URL'leri ve ortam değişkeni bileşenlerini sormadan korur
+  --include-commands              share: komut, HTTP, bağlantı ve ortam değişkeni bileşenlerini kodda tutar
   --command <cmd>                 install: yazılacak komut (varsayılan: auto); import: okunacak durum satırı komutu
   --hooks[=permission]            install: hook'ları ekler (=permission, PermissionRequest de ekler);
                                   uninstall: yalnızca ccinfobar'ın hook'larını kaldırır

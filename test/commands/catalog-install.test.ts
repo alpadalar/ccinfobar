@@ -195,7 +195,7 @@ describe('catalog install', () => {
       'Bundle · v1 · by Alice (alice)',
       'Cockpit layout',
       '',
-      'This layout runs commands or opens URLs:',
+      'This layout runs commands, opens URLs or shows environment variables:',
       '  link: https://example.com/docs',
       'Installed alice/cockpit v1 as Cockpit',
       hint('Cockpit'),
@@ -389,7 +389,7 @@ describe('catalog install', () => {
     const m = await market();
     await m.send('Cockpit', LINKED);
     const no = await withLangAsync('tr', () => run(['install', 'alice/cockpit'], { env: m.env }));
-    expect(no.out).toContain('Bu düzen komut çalıştırıyor veya URL açıyor:');
+    expect(no.out).toContain('Bu düzen komut çalıştırıyor, URL açıyor veya ortam değişkeni gösteriyor:');
     expect(no.err).toEqual([
       "Hiçbir şey yüklenmedi. Bu komut ve URL'lerle yüklemek için --yes ile tekrar çalıştırın.",
     ]);

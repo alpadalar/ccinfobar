@@ -34,14 +34,14 @@ export const catalogMessages = {
   'catalog.applyText': 'Your unsaved changes stay in undo history.',
   'catalog.applied': 'Applied {name}. Save to keep it.',
   'catalog.appliedCols': 'Applied {name} at {n} cols. Save to keep it.',
-  'catalog.consent.title': 'Commands and links in {name}',
+  'catalog.consent.title': 'Commands, links and env values in {name}',
   'catalog.consent.text':
-    'These widgets run commands, send HTTP requests or open URLs from your status line. Apply without them, or keep them if you trust this entry.',
+    'These widgets run commands, send HTTP requests, open URLs or show environment variables from your status line. Apply without them, or keep them if you trust this entry.',
   'catalog.consent.drop': 'Apply without them',
   'catalog.consent.keep': 'Keep them',
   'catalog.consent.dropped': {
-    one: 'Applied {name} without 1 command or link widget. Save to keep it.',
-    other: 'Applied {name} without {count} command or link widgets. Save to keep it.',
+    one: 'Applied {name} without 1 command, link or env widget. Save to keep it.',
+    other: 'Applied {name} without {count} command, link or env widgets. Save to keep it.',
   },
   'catalog.themeRenamed': 'Theme {id} already exists with other colors; installed as {newId}',
   'catalog.empty.user': 'Nothing saved yet. Use Save current as… to add your setup.',

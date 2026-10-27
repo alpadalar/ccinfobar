@@ -463,7 +463,7 @@ describe('runImport confirmation', () => {
   it('prints the prompt and report in Turkish', async () => {
     const f = fake(true);
     await withLangAsync('tr', () => run(f.io, {}));
-    expect(f.lines[0]).toBe('Bu düzen komut çalıştırıyor veya URL açıyor:');
+    expect(f.lines[0]).toBe('Bu düzen komut çalıştırıyor, URL açıyor veya ortam değişkeni gösteriyor:');
     expect(f.asked).toEqual(['Bu öğe korunsun mu?']);
     expect(f.lines).toContain('  Atlananlar:');
   });

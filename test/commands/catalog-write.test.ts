@@ -192,7 +192,7 @@ describe('catalog apply', () => {
     const r = await run(['apply', e.id]);
     expect(r.code).toBeUndefined();
     expect(readCfg().lines[0].map((i: { type: string }) => i.type)).toEqual(['model']);
-    expect(r.out).toContain('This layout runs commands or opens URLs:');
+    expect(r.out).toContain('This layout runs commands, opens URLs or shows environment variables:');
     expect(text(r)).toMatch(new RegExp(`catalog apply "?${e.id}"? --allow-commands`));
     const prompt = await run(['apply', e.id], { tty: true, answers: [true] });
     expect(prompt.asked).toEqual(['Keep this item?']);

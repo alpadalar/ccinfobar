@@ -73,8 +73,8 @@ export const cliMessages = {
   'help.opt.format': 'report: output format (default table)',
   'help.opt.import': "install: import the previous status line's layout without asking",
   'help.opt.file': 'import: read this settings file',
-  'help.opt.allowCommands': 'import, install: keep imported commands and URLs without asking',
-  'help.opt.includeCommands': 'share: keep command, HTTP and link widgets in the code',
+  'help.opt.allowCommands': 'import, install: keep imported commands, URLs and env widgets without asking',
+  'help.opt.includeCommands': 'share: keep command, HTTP, link and env widgets in the code',
   'help.opt.command': 'install: command to write (default: auto); import: status line command to read',
   'help.opt.hooks':
     "install: add hooks (=permission adds PermissionRequest);\nuninstall: remove only ccinfobar's hooks",

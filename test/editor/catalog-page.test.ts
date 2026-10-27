@@ -514,7 +514,7 @@ describe('catalog page', () => {
     applyBtn('u-r').dispatch('click');
     await flush();
     const all = texts(body);
-    expect(all).toContain('Commands and links in Risky');
+    expect(all).toContain('Commands, links and env values in Risky');
     expect(all).toContain('echo hi');
     expect(all).toContain('https://example.com/x');
     button('Cancel').dispatch('click');
@@ -525,7 +525,7 @@ describe('catalog page', () => {
     button('Apply without them').dispatch('click');
     await flush();
     expect(store.S.config.lines.flat().map((i) => i.type)).toEqual(['model']);
-    expect(toastText()).toContain('Applied Risky without 2 command or link widgets. Save to keep it.');
+    expect(toastText()).toContain('Applied Risky without 2 command, link or env widgets. Save to keep it.');
     applyBtn('u-r').dispatch('click');
     await flush();
     // unsaved changes ask first
@@ -579,7 +579,7 @@ describe('catalog page', () => {
     const ids = store.S.config.lines.flat().map((i) => i.id);
     expect(ids).not.toContain('long');
     expect(ids).toHaveLength(45);
-    expect(toastText()).toContain('Applied Risky without 1 command or link widget. Save to keep it.');
+    expect(toastText()).toContain('Applied Risky without 1 command, link or env widget. Save to keep it.');
   });
 
   it('offers no Keep when every target is too long', async () => {
