@@ -103,6 +103,50 @@ function once<T>(fn: () => T): () => T {
 const BASE = ['--no-pager', '--color=never'];
 const READ = [...BASE, '--ignore-working-copy'];
 
+interface JjEntry {
+  v: 1;
+  sig: [number, number];
+  bookmarks?: string[];
+  workspace?: string;
+  change?: JjChange;
+  diff?: { insertions: number; deletions: number };
+}
+
+type Sig = [number, number];
+
+export function jjCacheName(root: string, bin: string): string {
+  return `jj-${cacheKey(root, bin)}.json`;
+}
+
+function opSig(root: string): Sig | null {
+  try {
+    const dir = path.join(root, '.jj', 'repo', 'op_heads', 'heads');
+    return [fs.statSync(dir).mtimeMs, fs.readdirSync(dir).length];
+  } catch {
+    return null;
+  }
+}
+
+function validEntry(e: JjEntry | null, sig: Sig): JjEntry | null {
+  if (!e || e.v !== 1 || !Array.isArray(e.sig) || e.sig[0] !== sig[0] || e.sig[1] !== sig[1]) return null;
+  return e;
+}
+
+function validValue(key: 'bookmarks' | 'workspace' | 'change' | 'diff', v: unknown): unknown {
+  if (key === 'bookmarks')
+    return Array.isArray(v) && v.every((x) => typeof x === 'string') ? deepSanitize(v) : undefined;
+  if (key === 'workspace') return typeof v === 'string' ? sanitizeText(v) : undefined;
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== 'object') return undefined;
+  if (key === 'change')
+    return typeof o.id === 'string' && typeof o.description === 'string'
+      ? deepSanitize({ id: o.id, description: o.description })
+      : undefined;
+  return Number.isFinite(o.insertions) && Number.isFinite(o.deletions)
+    ? { insertions: o.insertions, deletions: o.deletions }
+    : undefined;
+}
+
 export interface JjOptions {
   run?: JjRun;
   exec?: JjExec;
@@ -115,6 +159,7 @@ export function readJj(cwd: string, opts: JjOptions = {}): JjReader | null {
   const root = findJjRoot(cwd);
   if (!root) return null;
   let run: JjRun;
+  let cached = <T>(_key: 'bookmarks' | 'workspace' | 'change' | 'diff', fn: () => T): T => fn();
   if (opts.run) run = opts.run;
   else {
     const env = opts.env ?? process.env;
@@ -136,28 +181,49 @@ export function readJj(cwd: string, opts: JjOptions = {}): JjReader | null {
       }
       return r.out;
     };
+    const sig = opSig(root);
+    if (sig) {
+      const file = jjCacheName(root, bin);
+      cached = (key, fn) => {
+        const hit = validEntry(readCache<JjEntry>(file, env), sig);
+        const v = hit && key in hit ? validValue(key, hit[key]) : undefined;
+        if (v !== undefined) return v as ReturnType<typeof fn>;
+        const value = fn();
+        if (value !== null && persist) {
+          const base = validEntry(readCache<JjEntry>(file, env), sig) ?? { v: 1, sig };
+          writeCache(file, { ...base, [key]: value }, env);
+        }
+        return value;
+      };
+    }
   }
   const jj = (args: string[], snapshot = false) => run([...(snapshot ? BASE : READ), ...args], root);
-  const bookmarks = once(() => {
-    const out = jj(['log', '--no-graph', '-r', 'heads(::@ & bookmarks())', '-T', 'bookmarks ++ "\\n"']);
-    return out === null ? null : parseBookmarks(out);
-  });
-  const workspace = once(() => {
-    const out = jj(['workspace', 'list', '-T', 'if(target.current_working_copy(), name ++ "\\n")']);
-    const line = out?.split('\n').find((l) => l.trim());
-    return line ? sanitizeText(line.trim()) : null;
-  });
-  const change = once(() => {
-    const out = jj([
-      'log',
-      '--no-graph',
-      '-r',
-      '@',
-      '-T',
-      'change_id.shortest(8) ++ "\\t" ++ description.first_line() ++ "\\n"',
-    ]);
-    return out === null ? null : parseJjChange(out);
-  });
+  const bookmarks = once(() =>
+    cached('bookmarks', () => {
+      const out = jj(['log', '--no-graph', '-r', 'heads(::@ & bookmarks())', '-T', 'bookmarks ++ "\\n"']);
+      return out === null ? null : parseBookmarks(out);
+    }),
+  );
+  const workspace = once(() =>
+    cached('workspace', () => {
+      const out = jj(['workspace', 'list', '-T', 'if(target.current_working_copy(), name ++ "\\n")']);
+      const line = out?.split('\n').find((l) => l.trim());
+      return line ? sanitizeText(line.trim()) : null;
+    }),
+  );
+  const change = once(() =>
+    cached('change', () => {
+      const out = jj([
+        'log',
+        '--no-graph',
+        '-r',
+        '@',
+        '-T',
+        'change_id.shortest(8) ++ "\\t" ++ description.first_line() ++ "\\n"',
+      ]);
+      return out === null ? null : parseJjChange(out);
+    }),
+  );
   const diffs = new Map<boolean, () => { insertions: number; deletions: number } | null>();
   return {
     root: sanitizeText(root),
@@ -168,8 +234,11 @@ export function readJj(cwd: string, opts: JjOptions = {}): JjReader | null {
       let fn = diffs.get(snapshot);
       if (!fn) {
         fn = once(() => {
-          const out = jj(['diff', '--stat'], snapshot);
-          return out === null ? null : parseJjStat(out);
+          const read = () => {
+            const out = jj(['diff', '--stat'], snapshot);
+            return out === null ? null : parseJjStat(out);
+          };
+          return snapshot ? read() : cached('diff', read);
         });
         diffs.set(snapshot, fn);
       }
