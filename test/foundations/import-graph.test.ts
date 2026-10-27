@@ -85,6 +85,7 @@ const PURE = [
   'src/core/scenarios.ts',
   'src/core/trace.ts',
   'src/core/time.ts',
+  'src/widgets/subagent-row.ts',
   'src/core/cache-rule.ts',
   'src/core/job-values.ts',
   'src/core/profiles.ts',
