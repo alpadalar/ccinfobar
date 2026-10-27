@@ -51,8 +51,11 @@ export const tokens: MetaFile = {
     'Show TTL': 'TTL göster',
     'Append the cache lifetime, for example 41m/1h': 'Önbellek ömrünü ekler, örneğin 41m/1h',
     Show: 'Göster',
-    'Latest: only while the last request missed the cache':
-      'Yalnızca son ıska: son istek önbelleği ıskaladıysa gösterir',
+    'Latest: only while the last request missed the cache. Summary: misses/requests and the top causes':
+      'Yalnızca son ıska: son istek önbelleği ıskaladıysa gösterir. Özet: ıska/istek sayısı ve en sık nedenler',
+    Summary: 'Özet',
+    'Top causes': 'En sık nedenler',
+    'How many causes the summary lists': 'Özette listelenen neden sayısı',
     'Latest miss only': 'Yalnızca son ıska',
     Always: 'Her zaman',
     'Time is the average API time per main request; ~ marks the transcript fallback, the average time from a prompt to its first reply':

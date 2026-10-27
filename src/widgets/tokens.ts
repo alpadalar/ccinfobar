@@ -54,6 +54,23 @@ function missText(c: MissCause | string | null | undefined): string | null {
   return parts.filter(Boolean).join(', ') || null;
 }
 
+function summaryText(ctx: RenderContext, pc: StatusPayload['prompt_cache'], max: number): string | null {
+  const misses = num(pc?.misses);
+  const requests = num(pc?.requests);
+  if (misses === null || misses <= 0 || requests === null) return null;
+  const text = ctx.config.charset === 'text';
+  const times = text ? 'x' : '×';
+  const raw: unknown = pc?.miss_causes;
+  const hist = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const causes = Object.entries(hist)
+    .filter((e): e is [string, number] => typeof e[1] === 'number' && Number.isFinite(e[1]) && e[1] > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, max)
+    .map(([k, v]) => `${k.replace(/_/g, ' ').trim()} ${times}${v}`);
+  const head = `${misses}/${requests} ${t('widget.performance.miss')}`;
+  return causes.length ? `${head}${text ? ' | ' : ' · '}${causes.join(', ')}` : head;
+}
+
 export function hitRate(ctx: RenderContext): number | null {
   const r = num(ctx.payload.prompt_cache?.hit_ratio);
   if (r !== null) return r <= 1 ? r * 100 : r;
@@ -244,12 +261,24 @@ export const widgets: WidgetDef[] = [
         choices: [
           { value: 'latest', label: 'Latest miss only' },
           { value: 'always', label: 'Always' },
+          { value: 'summary', label: 'Summary' },
         ],
-        help: 'Latest: only while the last request missed the cache',
+        help: 'Latest: only while the last request missed the cache. Summary: misses/requests and the top causes',
+      },
+      {
+        key: 'maxCauses',
+        label: 'Top causes',
+        kind: 'number',
+        default: 2,
+        help: 'How many causes the summary lists',
+        showWhen: { key: 'show', values: ['summary'] },
       },
     ],
     render(ctx, item) {
       const pc = ctx.payload.prompt_cache;
+      if (opt<string>(item, 'show', 'latest') === 'summary') {
+        return summaryText(ctx, pc, Math.max(1, Math.floor(Number(opt(item, 'maxCauses', 2)) || 2)));
+      }
       const text = missText(pc?.last_miss_cause);
       if (!text) return null;
       return opt<string>(item, 'show', 'latest') === 'latest' && latestMiss(pc) === 'no' ? null : text;
