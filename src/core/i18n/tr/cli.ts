@@ -8,6 +8,7 @@ export const cliMessages = {
   'help.options': 'Seçenekler',
   'help.cmd.render': "Durum satırını görüntüler (Claude Code JSON'unu stdin'den okur)",
   'help.cmd.edit': 'Sürükle-bırak editörü tarayıcınızda açar',
+  'help.cmd.editorAlias': 'edit ile aynı',
   'help.cmd.editDetach': "Editörü arka planda başlatır, URL'sini yazar ve çıkar",
   'help.cmd.editOpen':
     "Editörü bir paylaşım kodu yüklü olarak açar (Kaydet'e basana kadar hiçbir şey kaydedilmez)",
@@ -45,6 +46,7 @@ export const cliMessages = {
   'help.cmd.previewScenario': 'Adı verilen bir durumu önizler (liste için --scenario)',
   'help.cmd.previewGlyphMode': "Bir glif moduyla önizler, örn. GitHub issue'ları için paste-safe",
   'help.cmd.update': 'Son sürüme günceller (yalnızca bakmak için --check)',
+  'help.cmd.updateCheck': 'yalnızca yeni sürüm var mı diye bakar, hiçbir şeyi değiştirmez',
   'help.cmd.usage': "Plan kullanımınızı şimdi Claude'dan çeker",
   'help.cmd.widgets': 'Tüm bileşenleri listeler',
   'help.cmd.doctor': 'Kurulumu denetler',
@@ -59,6 +61,7 @@ export const cliMessages = {
   'help.cmd.configGet': 'Bir yapılandırma değerini yazdırır (örn. theme, lines.0.2.type)',
   'help.cmd.configSet': 'Bir değer atar (JSON, değilse dize); geçersiz değerler reddedilir',
   'help.cmd.configUnset': 'Bir değeri kaldırır (varsayılan geri gelir)',
+  'help.cmd.repos': 'workspace-repos bileşeni kullanır: bir klasörü arka planda tarar',
   'help.cmd.hook': "Claude Code hook'ları kullanır (çıktı vermez)",
   'help.opt.config': 'Belirli bir yapılandırma dosyası kullanır',
   'help.opt.payload': 'Bir JSON payload dosyasıyla görüntüler',

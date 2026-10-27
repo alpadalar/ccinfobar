@@ -8,6 +8,7 @@ type Row = [usage: string, text: MessageId];
 export const USAGE: Row[] = [
   ['ccinfobar', 'help.cmd.render'],
   ['ccinfobar edit', 'help.cmd.edit'],
+  ['ccinfobar editor', 'help.cmd.editorAlias'],
   ['ccinfobar edit --detach', 'help.cmd.editDetach'],
   ['ccinfobar edit --open <code>', 'help.cmd.editOpen'],
   ['ccinfobar tui', 'help.cmd.tui'],
@@ -40,6 +41,7 @@ export const USAGE: Row[] = [
   ['ccinfobar preview --scenario <name>', 'help.cmd.previewScenario'],
   ['ccinfobar preview --glyph-mode <mode>', 'help.cmd.previewGlyphMode'],
   ['ccinfobar update', 'help.cmd.update'],
+  ['ccinfobar update --check', 'help.cmd.updateCheck'],
   ['ccinfobar usage', 'help.cmd.usage'],
   ['ccinfobar widgets', 'help.cmd.widgets'],
   ['ccinfobar doctor', 'help.cmd.doctor'],
@@ -53,6 +55,7 @@ export const USAGE: Row[] = [
   ['ccinfobar config get <path>', 'help.cmd.configGet'],
   ['ccinfobar config set <path> <value>', 'help.cmd.configSet'],
   ['ccinfobar config unset <path>', 'help.cmd.configUnset'],
+  ['ccinfobar repos --background <dir>', 'help.cmd.repos'],
   ['ccinfobar hook <Event>', 'help.cmd.hook'],
 ];
 

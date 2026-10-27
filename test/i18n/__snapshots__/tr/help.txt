@@ -4,6 +4,7 @@ Claude Code için özelleştirilebilir, GSD uyumlu durum satırı
 Kullanım
   ccinfobar                       Durum satırını görüntüler (Claude Code JSON'unu stdin'den okur)
   ccinfobar edit                  Sürükle-bırak editörü tarayıcınızda açar
+  ccinfobar editor                edit ile aynı
   ccinfobar edit --detach         Editörü arka planda başlatır, URL'sini yazar ve çıkar
   ccinfobar edit --open <code>    Editörü bir paylaşım kodu yüklü olarak açar (Kaydet'e basana kadar hiçbir şey kaydedilmez)
   ccinfobar tui                   Terminal editörünü açar
@@ -45,6 +46,7 @@ Kullanım
   ccinfobar preview --glyph-mode <mode>
                                   Bir glif moduyla önizler, örn. GitHub issue'ları için paste-safe
   ccinfobar update                Son sürüme günceller (yalnızca bakmak için --check)
+  ccinfobar update --check        yalnızca yeni sürüm var mı diye bakar, hiçbir şeyi değiştirmez
   ccinfobar usage                 Plan kullanımınızı şimdi Claude'dan çeker
   ccinfobar widgets               Tüm bileşenleri listeler
   ccinfobar doctor                Kurulumu denetler
@@ -62,6 +64,8 @@ Kullanım
   ccinfobar config set <path> <value>
                                   Bir değer atar (JSON, değilse dize); geçersiz değerler reddedilir
   ccinfobar config unset <path>   Bir değeri kaldırır (varsayılan geri gelir)
+  ccinfobar repos --background <dir>
+                                  workspace-repos bileşeni kullanır: bir klasörü arka planda tarar
   ccinfobar hook <Event>          Claude Code hook'ları kullanır (çıktı vermez)
 
 Seçenekler

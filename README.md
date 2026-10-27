@@ -642,7 +642,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | Command | Description |
 | --- | --- |
 | `ccinfobar` | Render the status line from the JSON on stdin (what Claude Code runs) |
-| `ccinfobar edit` | Open the web editor (`--port <n>`, `--no-open`, `--no-detect`) |
+| `ccinfobar edit` | Open the web editor; `ccinfobar editor` is an alias (`--port <n>`, `--no-open`, `--no-detect`) |
 | `ccinfobar edit --detach` | Start the editor in the background, print its URL and exit; a running one is reused, and it stops after 30 minutes idle |
 | `ccinfobar edit --open <code>` | Open the editor with a [share code](docs/CATALOG.md#share-codes) loaded (also `ccinfobar edit <code>`; works with `--detach` and `--no-open`). Commands, HTTP calls, links and environment variables in it are shown first and dropped unless you keep them, and nothing is saved until you click Save |
 | `ccinfobar share` | Print a [share code](docs/CATALOG.md#share-codes) (`ccib1:…`) for your layout and theme on stdout, its size and anything removed on stderr. Command, HTTP, link and env widgets are removed unless you pass `--include-commands`; `--json` prints `{schema, code, chars, max, included, dropped}` |
@@ -661,7 +661,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar report` | Tokens, estimated cost and active time per project ([Reports](#reports); `--period day\|week\|month`, `--since`/`--until <date>`, `--all`, `--project <text>`, `--csv`, `--json` or `--format table\|csv\|json`, `--rebuild`) |
 | `ccinfobar init [preset]` | Write a [preset](#presets): `default`, `cockpit`, `dashboard`, `minimal`, `gsd`, `powerline`, `full`, `cost`, `limits`, `git`, `workspace`, `compact`, `two-line`, `agents`, `charts`, `session` (`--force` to overwrite) |
 | `ccinfobar preview` | Print the status line with sample data (`--last` for your last session, `--width <n>`, `--glyph-mode <mode>` to try a glyph mode without saving it, for example `paste-safe` for text that stays aligned in a GitHub issue, `--scenario <name>` for a named situation: `fresh-session`, `context-full`, `near-5h-limit`, `many-subagents`, `gsd-project`, `no-git`, `api-key-user`, `bedrock-user`, `gateway-glm`, `near-7d-limit`, `over-budget`, `workspace-folder`, `waiting-permission`, `service-incident`, `pr-ci-failing`; a bare `--scenario` lists them) |
-| `ccinfobar update` | Update to the latest release now (`--check` to only look) |
+| `ccinfobar update` | Update to the latest release now; `ccinfobar update --check` only looks for a newer release and changes nothing |
 | `ccinfobar usage` | Fetch your 5-hour and weekly usage from Claude now |
 | `ccinfobar widgets` | List all widgets |
 | `ccinfobar doctor` | Check the setup and explain, widget by widget, why something is hidden or cut off; points to `ccinfobar explain` for details |
@@ -669,6 +669,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar bench` | Measure render time: a `node -e 0` control, then cold and warm median and p95 (`--runs <n>`, `--scenario <name>`, `--json`) |
 | `ccinfobar config get\|set\|unset <path> [value]` | Read or change one config value by dotted path, e.g. `ccinfobar config set gitHardening false` or `ccinfobar config get lines.0.2.type`. Values are parsed as JSON, else taken as a string; a value that would not pass validation is refused and nothing is written |
 | `ccinfobar catalog <command>` | Browse, apply and save presets, themes and bundles ([Catalog](#catalog)): `list`, `show`, `history`, `apply` (a ref or a share code), `save`, `restore`, `share`, `unshare`, `delete`, `author`, `endpoint`, `publisher`, `publish`, `install`, `login`, `logout`, `report` (`--json`, `--dry-run` on the write commands, `--remote` to browse the marketplace, `save --cols <n>` for the preview width) |
+| `ccinfobar repos --background <dir>` | Internal: used by the `workspace-repos` widget to scan one folder in the background |
 | `ccinfobar hook <Event>` | Used by Claude Code hooks: records one event and prints nothing |
 
 All commands accept `--config <file>`.

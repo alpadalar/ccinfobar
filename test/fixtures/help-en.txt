@@ -4,6 +4,7 @@ A customizable, GSD-aware status line for Claude Code
 Usage
   ccinfobar                       Render the status line (reads Claude Code JSON from stdin)
   ccinfobar edit                  Open the drag-and-drop editor in your browser
+  ccinfobar editor                same as edit
   ccinfobar edit --detach         Start the editor in the background, print its URL and exit
   ccinfobar edit --open <code>    Open the editor with a share code loaded (nothing is saved until you click Save)
   ccinfobar tui                   Open the terminal editor
@@ -45,6 +46,7 @@ Usage
   ccinfobar preview --glyph-mode <mode>
                                   Preview with a glyph mode, e.g. paste-safe for GitHub issues
   ccinfobar update                Update to the latest release (--check to only look)
+  ccinfobar update --check        only look for a newer release, change nothing
   ccinfobar usage                 Fetch your plan usage from Claude now
   ccinfobar widgets               List all widgets
   ccinfobar doctor                Check the setup
@@ -62,6 +64,8 @@ Usage
   ccinfobar config set <path> <value>
                                   Set a value (JSON, else a string); invalid values are refused
   ccinfobar config unset <path>   Remove a value (defaults come back)
+  ccinfobar repos --background <dir>
+                                  used by the workspace-repos widget: scans one folder in the background
   ccinfobar hook <Event>          Used by Claude Code hooks (prints nothing)
 
 Options
