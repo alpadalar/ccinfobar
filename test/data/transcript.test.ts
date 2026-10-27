@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseTranscriptText, readTranscript } from '../../src/data/transcript.js';
 
 const fixture = path.resolve(__dirname, '../fixtures/transcript.jsonl');
@@ -493,5 +493,108 @@ describe('transcript tool activity', () => {
     const again = readTranscript(file, env);
     expect(again?.sessionToolCounts).toEqual([['Edit', 2]]);
     expect(again?.turnToolCounts).toEqual([]);
+  });
+});
+
+describe('rewritten transcript', () => {
+  const BASE = Date.parse('2026-01-01T00:00:00Z');
+  const gen = (n: number, o: { id?: string; out?: number; from?: number } = {}) => {
+    let t = '';
+    for (let i = o.from ?? 0; i < (o.from ?? 0) + n; i++) {
+      const ts = new Date(BASE + i * 1000).toISOString();
+      t += `{"type":"assistant","timestamp":"${ts}","requestId":"r${i}","message":{"id":"${o.id ?? 'm'}${i}","model":"claude-sonnet-4-5","usage":{"input_tokens":10,"output_tokens":${o.out ?? 20},"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"note":"${o.id ?? 'm'}${i}"}\n`;
+    }
+    return t;
+  };
+  const totals = (t: ReturnType<typeof readTranscript>) =>
+    t && [t.inputTokens, t.outputTokens, t.messageCount];
+  const fresh = (text: string) => totals(parseTranscriptText(text));
+  const bump = (file: string) => {
+    const t = new Date(fs.statSync(file).mtimeMs + 1000);
+    fs.utimesSync(file, t, t);
+  };
+  let file: string;
+
+  beforeEach(() => {
+    file = path.join(dir, 't.jsonl');
+    fs.writeFileSync(file, gen(20));
+    expect(totals(readTranscript(file, env))).toEqual(fresh(gen(20)));
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('detects an equal-size rewrite with different content', () => {
+    const b = gen(20, { id: 'x', out: 21 });
+    expect(b.length).toBe(fs.statSync(file).size);
+    fs.writeFileSync(file, b);
+    bump(file);
+    expect(totals(readTranscript(file, env))).toEqual(fresh(b));
+  });
+
+  it('detects a larger replacement with a new inode', () => {
+    const c = gen(30, { id: 'c', out: 33 });
+    const tmp = path.join(dir, 'c.jsonl');
+    fs.writeFileSync(tmp, c);
+    fs.renameSync(tmp, file);
+    expect(totals(readTranscript(file, env))).toEqual(fresh(c));
+  });
+
+  it('detects an in-place rewrite that keeps the head', () => {
+    const first = gen(20).split('\n')[0];
+    const d = `${first}\n${gen(24, { id: 'd', out: 25, from: 1 })}`;
+    fs.writeFileSync(file, d);
+    bump(file);
+    expect(totals(readTranscript(file, env))).toEqual(fresh(d));
+  });
+
+  it('reads only the appended bytes', () => {
+    const add = gen(3, { from: 20 });
+    fs.appendFileSync(file, add);
+    const spy = vi.spyOn(fs, 'readSync');
+    const t = readTranscript(file, env);
+    const read = spy.mock.calls.reduce((n, c) => n + (c[3] as number), 0);
+    expect(read).toBeLessThanOrEqual(Buffer.byteLength(add) + 256 + 64 + 1000);
+    expect(totals(t)).toEqual(fresh(gen(23)));
+  });
+
+  it('does not open the file when nothing changed', () => {
+    const spy = vi.spyOn(fs, 'openSync');
+    expect(totals(readTranscript(file, env))).toEqual(fresh(gen(20)));
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('re-reads after truncation', () => {
+    const e = gen(5, { id: 'e' });
+    fs.writeFileSync(file, e);
+    bump(file);
+    expect(totals(readTranscript(file, env))).toEqual(fresh(e));
+  });
+
+  it('converges an idle partial transcript, then hits without opening', () => {
+    const big = path.join(dir, 'big.jsonl');
+    const text = gen(5000);
+    fs.writeFileSync(big, text);
+    const opts = { budget: 64 * 1024 };
+    const first = readTranscript(big, env, opts);
+    expect(first?.partial).toBe(true);
+    const spy = vi.spyOn(fs, 'openSync');
+    let t = first;
+    for (let i = 0; i < 100 && t?.partial; i++) t = readTranscript(big, env, opts);
+    expect(spy).toHaveBeenCalled();
+    expect(t?.partial).toBeFalsy();
+    expect(totals(t)).toEqual(fresh(text));
+    spy.mockClear();
+    readTranscript(big, env, opts);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('reaches the zero-IO hit when the last line has no trailing newline', () => {
+    const text = gen(10).slice(0, -1);
+    fs.writeFileSync(file, text);
+    bump(file);
+    // the unterminated last line is not parsed until its newline arrives
+    expect(totals(readTranscript(file, env))).toEqual(fresh(gen(9)));
+    const spy = vi.spyOn(fs, 'openSync');
+    readTranscript(file, env);
+    expect(spy).not.toHaveBeenCalled();
   });
 });
