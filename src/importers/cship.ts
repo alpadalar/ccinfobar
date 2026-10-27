@@ -206,6 +206,7 @@ export const THRESHOLD_TARGETS: readonly string[] = [
   'five-hour-usage',
   'weekly-usage',
   'weekly-model-usage',
+  'spend-limit',
 ];
 
 export const TARGETS: readonly string[] = [
