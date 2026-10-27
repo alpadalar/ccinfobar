@@ -128,7 +128,7 @@ function opSig(root: string): Sig | null {
 }
 
 function validEntry(e: JjEntry | null, sig: Sig): JjEntry | null {
-  if (!e || e.v !== 1 || !Array.isArray(e.sig) || e.sig[0] !== sig[0] || e.sig[1] !== sig[1]) return null;
+  if (e?.v !== 1 || !Array.isArray(e.sig) || e.sig[0] !== sig[0] || e.sig[1] !== sig[1]) return null;
   return e;
 }
 
