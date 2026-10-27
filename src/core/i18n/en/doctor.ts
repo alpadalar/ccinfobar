@@ -104,6 +104,10 @@ export const doctorMessages = {
   'doctor.brewMode.notify': 'notify mode',
   'doctor.brewMode.auto': 'notify mode, auto acts as notify',
   'doctor.update.failed': '  Last update check failed: {error}',
+  'doctor.update.rolledBack':
+    '  ccinfobar {version} failed its post-install check ({reason}); rolled back to {current}',
+  'doctor.update.rollbackFailed':
+    '  ccinfobar {version} failed its post-install check and the rollback to {current} failed too; run `{command}`',
   'doctor.updateMode.auto': 'auto',
   'doctor.updateMode.notify': 'notify',
   'doctor.updateMode.off': 'off',

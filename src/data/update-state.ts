@@ -81,6 +81,16 @@ export function availableUpdate(current: string, env: NodeJS.ProcessEnv = proces
   return s?.latest && compareVersions(s.latest, current) > 0 ? s.latest : null;
 }
 
+export function rejectedUpdate(
+  current: string,
+  env: NodeJS.ProcessEnv = process.env,
+): { rejected: string } | null {
+  const s = readUpdateState(env);
+  return s?.rejected && s.latest === s.rejected && compareVersions(s.rejected, current) > 0
+    ? { rejected: s.rejected }
+    : null;
+}
+
 export function updateNotice(
   config: Config,
   current: string,

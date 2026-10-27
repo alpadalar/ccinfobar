@@ -25,7 +25,7 @@ import { readRepos } from '../data/repos.js';
 import { writeAtomic } from '../data/store.js';
 import { cachedTerminalWidth, terminalWidth } from '../data/terminal.js';
 import { readTranscript } from '../data/transcript.js';
-import { updateNotice } from '../data/update-state.js';
+import { rejectedUpdate, updateNotice, updatesDisabled } from '../data/update-state.js';
 import { effectiveUsage } from '../data/usage.js';
 import type { Args } from './args.js';
 import { prepareLanguage } from './lang.js';
@@ -151,6 +151,10 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
   let notice: string | null = null;
   try {
     notice = updateNotice(config, VERSION);
+    if (!updatesDisabled(config)) {
+      const rej = rejectedUpdate(VERSION);
+      if (rej) notice = t('update.rejected', { version: rej.rejected, current: VERSION });
+    }
   } catch {}
   if (notice && lines.length) {
     const level = detectLevel(config.colorLevel);

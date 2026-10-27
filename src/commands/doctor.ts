@@ -37,6 +37,7 @@ import {
   BREW_UPGRADE,
   type InstallKind,
   installKind,
+  localPrefix,
   nonessentialTrafficOff,
   readUpdateState,
   selfCommand,
@@ -543,6 +544,18 @@ export function runDoctor(
     );
   }
   if (upd?.error) console.log(t('doctor.update.failed', { error: safe(upd.error) }));
+  if (upd?.rejected)
+    console.log(
+      t(upd.rollback === 'failed' ? 'doctor.update.rollbackFailed' : 'doctor.update.rolledBack', {
+        version: upd.rejected,
+        current: VERSION,
+        reason: safe(upd.reason ?? ''),
+        command:
+          kind === 'local'
+            ? `npm install --prefix ${localPrefix()} ccinfobar@${VERSION}`
+            : `npm install -g ccinfobar@${VERSION}`,
+      }),
+    );
   printJobs(loaded.config, process.env, Date.now());
   printWidgetReport(cfgFile, loaded);
   if (!usesUs) console.log(t('doctor.enableHint', { command: selfCommand(kind) }));

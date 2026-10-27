@@ -111,6 +111,10 @@ export const doctorMessages = {
   'doctor.brewMode.notify': 'yalnızca bildir',
   'doctor.brewMode.auto': 'yalnızca bildir, auto burada notify gibi çalışır',
   'doctor.update.failed': '  Son güncelleme denetimi başarısız oldu: {error}',
+  'doctor.update.rolledBack':
+    '  ccinfobar {version} kurulum sonrası denetimi geçemedi ({reason}); {current} sürümüne geri dönüldü',
+  'doctor.update.rollbackFailed':
+    '  ccinfobar {version} kurulum sonrası denetimi geçemedi ve {current} sürümüne geri dönüş de başarısız oldu; `{command}` çalıştırın',
   'doctor.updateMode.auto': 'otomatik',
   'doctor.updateMode.notify': 'yalnızca bildir',
   'doctor.updateMode.off': 'kapalı',
