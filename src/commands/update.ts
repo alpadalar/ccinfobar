@@ -13,6 +13,7 @@ import {
   type InstallKind,
   installKind,
   localPrefix,
+  safeCwd,
   writeUpdateState,
 } from '../data/update-state.js';
 import { currentStatusLine, takeOverProjects } from './install.js';
@@ -141,7 +142,7 @@ export async function runUpdate(args: Args, cfgFile: string): Promise<void> {
     const ctx = {
       env,
       config: loaded.config,
-      cwd: process.cwd(),
+      cwd: safeCwd() ?? process.cwd(),
       prev,
       fetch: globalThis.fetch,
       now: Date.now(),

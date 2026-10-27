@@ -14,6 +14,7 @@ import {
 } from '../../src/commands/update.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { setLanguage } from '../../src/core/i18n/index.js';
+import { safeCwd } from '../../src/data/update-state.js';
 import { useIdleEntry } from '../helpers.js';
 
 const envWith = () =>
@@ -76,6 +77,8 @@ describe('update', () => {
     expect(win.runs[1]?.[4]).toBe(
       'https://github.com/alpadalar/ccinfobar/releases/download/v0.5.1/ccinfobar.tgz',
     );
+    expect(win.opts.cwd).toBe(safeCwd());
+    expect(plain.opts).not.toHaveProperty('cwd');
     expect(shellArg('-g')).toBe('-g');
     const none = () => false;
     expect(npmCommand({ platform: 'win32', env: {}, exists: none })).toEqual({

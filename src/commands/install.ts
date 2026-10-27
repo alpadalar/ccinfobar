@@ -11,6 +11,7 @@ import {
 } from '../core/paths.js';
 import { HARDEN } from '../data/git.js';
 import type { HookEvent } from '../data/hooks.js';
+import { safeCwd } from '../data/update-state.js';
 import { binary } from '../data/which.js';
 import { type BuiltCommand, buildCommand, type CommandTarget, jsForWinBin } from './command.js';
 import {
@@ -86,6 +87,8 @@ export function globalBinary(): string | null {
       encoding: 'utf8',
       windowsHide: true,
       timeout: 10_000,
+      // Windows looks up where in the cwd first
+      ...(win ? { cwd: safeCwd() } : {}),
     });
     const hit = out
       .split(/\r?\n/)
@@ -733,6 +736,7 @@ export function npmGlobalBin(): string | null {
       windowsHide: true,
       timeout: 60_000,
       shell: npm.shell,
+      ...(npm.shell ? { cwd: safeCwd() } : {}),
     }).trim();
     const bin =
       process.platform === 'win32'

@@ -9,6 +9,7 @@ import {
   type InstallKind,
   installKind,
   localPrefix,
+  safeCwd,
 } from './update-state.js';
 
 // the update check and npm install: the update job loads it with import()
@@ -92,7 +93,12 @@ export function npmInstallRuns(version: string, prefix?: string, npm: NpmCommand
     ];
     return [...npm.args, ...(npm.shell ? args.map(shellArg) : args)];
   });
-  const opts = { timeout: 120_000, windowsHide: true, shell: npm.shell };
+  const opts = {
+    timeout: 120_000,
+    windowsHide: true,
+    shell: npm.shell,
+    ...(npm.shell ? { cwd: safeCwd() } : {}),
+  };
   return { file: npm.file, runs, opts };
 }
 
