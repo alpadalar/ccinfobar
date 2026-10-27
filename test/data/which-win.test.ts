@@ -79,7 +79,7 @@ describe.runIf(process.platform === 'win32')('planted git.exe and jj.exe in a re
   it('never runs the planted jj.exe', () => {
     expect(binary('jj')).toBeNull();
     files.length = 0;
-    expect(readJj(repo)!.change()).toBeNull();
+    expect(readJj(repo)?.change() ?? null).toBeNull();
     expect(files.some((f) => f.toLowerCase().endsWith('jj.exe'))).toBe(false);
     expect(fs.existsSync(path.join(repo, 'ran.txt'))).toBe(false);
   });

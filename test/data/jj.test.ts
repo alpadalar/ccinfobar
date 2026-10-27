@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { findJjRoot, type JjExec, parseBookmarks, parseJjChange, readJj } from '../../src/data/jj.js';
+import { resetWhich } from '../../src/data/which.js';
 
 process.env.JJ_USER ??= 'ci';
 process.env.JJ_EMAIL ??= 'ci@example.com';
@@ -208,7 +209,15 @@ describe('jj caches (injected exec)', () => {
     if (heads) fs.mkdirSync(path.join(root, '.jj', 'repo', 'op_heads', 'heads'), { recursive: true });
     if (heads) fs.writeFileSync(path.join(root, '.jj', 'repo', 'op_heads', 'heads', 'a'), '');
     const cache = fs.mkdtempSync(path.join(tmp, 'cache-'));
-    const env = { ...process.env, CCINFOBAR_CACHE_DIR: cache };
+    const env: NodeJS.ProcessEnv = { ...process.env, CCINFOBAR_CACHE_DIR: cache };
+    if (process.platform === 'win32') {
+      // binary() resolves jj.exe on PATH there; the exec is injected, so any file works
+      const bin = fs.mkdtempSync(path.join(tmp, 'bin-'));
+      fs.writeFileSync(path.join(bin, 'jj.exe'), '');
+      for (const k of Object.keys(env)) if (k.toUpperCase() === 'PATH') delete env[k];
+      env.PATH = bin;
+      resetWhich();
+    }
     return { root, cache, env };
   }
 
