@@ -30,6 +30,7 @@ const TARGET: Record<string, MessageId> = {
   command: 'import.kind.command',
   http: 'import.kind.http',
   link: 'import.kind.link',
+  env: 'import.kind.env',
 };
 
 const unicodeEscape = (c: string) =>

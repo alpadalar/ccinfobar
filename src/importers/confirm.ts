@@ -7,7 +7,7 @@ import { charWidth, truncate, visibleWidth } from '../core/width.js';
 import type { ImportResult } from './index.js';
 
 export interface ImportTarget {
-  kind: 'command' | 'http' | 'link';
+  kind: 'command' | 'http' | 'link' | 'env';
   line: number;
   index: number;
   target: string;
@@ -21,6 +21,12 @@ const linkUrl = (item: unknown): string | null => {
   return typeof url === 'string' && url ? url : null;
 };
 
+const envName = (item: unknown): string | null => {
+  const it = item as WidgetItem | null;
+  const name = it?.type === 'env' ? it.options?.name : undefined;
+  return typeof name === 'string' && name.trim() ? name : null;
+};
+
 export function importTargets(config: Partial<Config>): ImportTarget[] {
   const out: ImportTarget[] = externalTargets({ lines: linesOf(config) as Config['lines'] });
   linesOf(config).forEach((items, line) => {
@@ -28,6 +34,8 @@ export function importTargets(config: Partial<Config>): ImportTarget[] {
     items.forEach((item, index) => {
       const url = linkUrl(item);
       if (url) out.push({ kind: 'link', line, index, target: url });
+      const env = envName(item);
+      if (env) out.push({ kind: 'env', line, index, target: env });
     });
   });
   return out.sort((a, b) => a.line - b.line || a.index - b.index);
@@ -80,6 +88,7 @@ const KINDS: Record<ImportTarget['kind'], MessageId> = {
   command: 'import.kind.command',
   http: 'import.kind.http',
   link: 'import.kind.link',
+  env: 'import.kind.env',
 };
 
 export const kindText = (kind: ImportTarget['kind']): string => t(KINDS[kind]);

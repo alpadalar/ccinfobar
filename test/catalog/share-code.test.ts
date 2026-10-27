@@ -47,6 +47,7 @@ const risky = (): Config =>
         { id: 'k', type: 'command', options: { command: 'echo hi' } },
         { id: 'h', type: 'http', options: { url: 'https://example.com/api' } },
         { id: 'l', type: 'link', options: { url: 'https://example.com/', text: 'x' } },
+        { id: 'e', type: 'env', options: { name: 'ANTHROPIC_API_KEY' } },
       ],
     ],
   });
@@ -113,7 +114,7 @@ describe('encodeShare / decodeShare', () => {
   it('removes commands, HTTP calls and links unless asked', () => {
     const enc = encodeShare(risky());
     if (!enc.ok) throw new Error('encode');
-    expect(enc.dropped.map((x) => x.kind)).toEqual(['command', 'http', 'link']);
+    expect(enc.dropped.map((x) => x.kind)).toEqual(['command', 'http', 'link', 'env']);
     expect(enc.dropped[0]!.target).toBe('echo hi');
     const dec = decodeShare(enc.code);
     if (!dec.ok) throw new Error('decode');
@@ -123,10 +124,11 @@ describe('encodeShare / decodeShare', () => {
     const all = encodeShare(risky(), { includeCommands: true });
     if (!all.ok) throw new Error('encode');
     expect(all.dropped).toEqual([]);
-    expect(all.targets).toHaveLength(3);
+    expect(all.targets).toHaveLength(4);
     const kept = decodeShare(all.code);
     if (!kept.ok) throw new Error('decode');
-    expect(kept.targets.map((x) => x.kind)).toEqual(['command', 'http', 'link']);
+    expect(kept.targets.map((x) => x.kind)).toEqual(['command', 'http', 'link', 'env']);
+    expect(kept.content.layout?.lines?.[0]?.some((i) => i.type === 'env')).toBe(true);
   });
 
   it('reads every pasted form', () => {

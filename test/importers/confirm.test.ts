@@ -62,6 +62,20 @@ describe('importTargets, dropTargets, sanitizeImport', () => {
     expect(importTargets(config([[{ id: 'e', type: 'link', options: { url: '' } }]]))).toEqual([]);
   });
 
+  it('lists env widgets with a name and drops them on request', () => {
+    const cfg = config([
+      [
+        { id: 'e', type: 'env', options: { name: 'ANTHROPIC_API_KEY' } },
+        { id: 'b', type: 'env', options: { name: '   ' } },
+        { id: 'c', type: 'env', options: { name: '' } },
+        { id: 'd', type: 'env' },
+      ],
+    ]);
+    const targets = importTargets(cfg);
+    expect(targets).toEqual([{ kind: 'env', line: 0, index: 0, target: 'ANTHROPIC_API_KEY' }]);
+    expect(dropTargets(cfg, targets).lines![0]!.map((i) => i.id)).toEqual(['b', 'c', 'd']);
+  });
+
   it('always drops a javascript: or data: link with a note', () => {
     const data = [{ id: 'd', type: 'link', options: { url: 'data:text/html,x' } }];
     const res = sanitizeImport({ config: config([...lines, data]), notes: [], source: 'ccstatusline' });
