@@ -93,6 +93,21 @@ describe('subagent-line', () => {
     expect(typeof rows[0]!.content).toBe('string');
   });
 
+  it('emits no line for a task whose row is empty', async () => {
+    fs.writeFileSync(configPath(env), JSON.stringify({ subagentLine: { fields: ['label'] } }));
+    const out = await run(
+      JSON.stringify({
+        columns: 60,
+        tasks: [
+          { id: 'empty', status: 'running' },
+          { id: 'full', label: 'Reading' },
+        ],
+      }),
+    );
+    expect(lines(out).map((r) => r.id)).toEqual(['full']);
+    expect(await run(JSON.stringify({ columns: 60, tasks: [{ id: 'empty' }] }))).toBe('');
+  });
+
   it('strips escape sequences from task text', async () => {
     const out = await run(
       JSON.stringify({

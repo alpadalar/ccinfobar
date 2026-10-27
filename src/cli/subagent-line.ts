@@ -80,6 +80,7 @@ export async function subagentMain(argv: string[], deps: SubagentDeps = {}): Pro
       try {
         if (!isObject(task) || typeof task.id !== 'string') continue;
         const content = subagentRow(task, { columns, now, fields, text, level });
+        if (content === '') continue; // keep Claude Code's default row
         out.push(`${JSON.stringify({ id: task.id, content })}\n`);
       } catch {
         // skip this task
