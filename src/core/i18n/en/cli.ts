@@ -19,6 +19,7 @@ export const cliMessages = {
     'Remove ccinfobar and restore your previous status line\nRun it before `npm rm -g ccinfobar`: hooks call the ccinfobar command',
   'help.cmd.uninstallHooks': "Remove only ccinfobar's hooks",
   'help.cmd.uninstallProgress': 'Remove only the terminal progress handlers',
+  'help.cmd.subagentLine': 'Rows for the Claude Code subagent panel (set up by install --subagents)',
   'help.cmd.import': "Import another status line's layout (see ccinfobar import --help)",
   'help.cmd.importDryRun': 'Show the mapping report and a preview, write nothing',
   'help.cmd.themes': 'Preview every theme',

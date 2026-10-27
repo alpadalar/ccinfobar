@@ -1,0 +1,49 @@
+{
+  "hook_event_name": "SubagentStatusLine",
+  "session_id": "sess-0001",
+  "cwd": "/home/dev/projects/acme-app",
+  "columns": 80,
+  "tasks": [
+    {
+      "id": "task-run",
+      "type": "local_agent",
+      "status": "running",
+      "agentType": "Explore",
+      "name": "scout",
+      "label": "Reading src/widgets",
+      "model": "claude-sonnet-4-5",
+      "effort": "high",
+      "contextWindowSize": 200000,
+      "tokenCount": 42000,
+      "tokenSamples": [1000, 5000, 12000, 20000, 42000],
+      "startTime": 1700000000000
+    },
+    {
+      "id": "task-done",
+      "type": "local_agent",
+      "status": "completed",
+      "agentType": "Plan",
+      "label": "Drafted the migration plan",
+      "tokenCount": 8000,
+      "startTime": 1700000000000
+    },
+    {
+      "id": "task-fail",
+      "type": "local_agent",
+      "status": "failed",
+      "agentType": "general-purpose",
+      "label": "Run the test suite",
+      "tokenCount": 1500,
+      "startTime": 1700000000000
+    },
+    {
+      "id": "task-old",
+      "type": "local_agent",
+      "status": "running",
+      "name": "reviewer",
+      "description": "Reviewing the diff",
+      "startTime": 1700000000000
+    },
+    { "type": "local_agent" }
+  ]
+}

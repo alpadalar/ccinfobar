@@ -23,6 +23,7 @@ export const cliMessages = {
     "ccinfobar'ı kaldırır ve önceki durum satırınızı geri getirir\n`npm rm -g ccinfobar` öncesinde çalıştırın: hook'lar ccinfobar komutunu çağırır",
   'help.cmd.uninstallHooks': "Yalnızca ccinfobar'ın hook'larını kaldırır",
   'help.cmd.uninstallProgress': 'Yalnızca terminal ilerleme işleyicilerini kaldırır',
+  'help.cmd.subagentLine': 'Claude Code alt ajan paneli satırları (install --subagents ile kurulur)',
   'help.cmd.import': 'Başka bir durum satırının düzenini içe aktarır (bkz. ccinfobar import --help)',
   'help.cmd.importDryRun': 'Eşleme raporunu ve önizlemeyi gösterir, hiçbir şey yazmaz',
   'help.cmd.themes': 'Tüm temaları önizler',

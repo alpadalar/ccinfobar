@@ -18,6 +18,7 @@ Kullanım
                                   `npm rm -g ccinfobar` öncesinde çalıştırın: hook'lar ccinfobar komutunu çağırır
   ccinfobar uninstall --hooks     Yalnızca ccinfobar'ın hook'larını kaldırır
   ccinfobar uninstall --progress  Yalnızca terminal ilerleme işleyicilerini kaldırır
+  ccinfobar subagent-line         Claude Code alt ajan paneli satırları (install --subagents ile kurulur)
   ccinfobar import <tool>         Başka bir durum satırının düzenini içe aktarır (bkz. ccinfobar import --help)
   ccinfobar import <tool> --dry-run
                                   Eşleme raporunu ve önizlemeyi gösterir, hiçbir şey yazmaz

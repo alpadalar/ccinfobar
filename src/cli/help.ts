@@ -21,6 +21,7 @@ export const USAGE: Row[] = [
   ['ccinfobar uninstall', 'help.cmd.uninstall'],
   ['ccinfobar uninstall --hooks', 'help.cmd.uninstallHooks'],
   ['ccinfobar uninstall --progress', 'help.cmd.uninstallProgress'],
+  ['ccinfobar subagent-line', 'help.cmd.subagentLine'],
   ['ccinfobar import <tool>', 'help.cmd.import'],
   ['ccinfobar import <tool> --dry-run', 'help.cmd.importDryRun'],
   ['ccinfobar themes', 'help.cmd.themes'],

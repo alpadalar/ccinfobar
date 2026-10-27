@@ -35,7 +35,11 @@ function reportDeps(): ReportDeps {
 export async function main(argv = process.argv.slice(2)): Promise<void> {
   const args = parseArgs(argv);
   // the render, hooks and the worker load only what they show
-  const command = args.command !== null && args.command !== 'hook' && args.command !== 'worker';
+  const command =
+    args.command !== null &&
+    args.command !== 'hook' &&
+    args.command !== 'subagent-line' &&
+    args.command !== 'worker';
   if (command) await loadLanguages();
   else if (args.flags.help) await prepareLanguage();
   const cfgFile = typeof args.flags.config === 'string' ? path.resolve(args.flags.config) : configPath();
@@ -192,6 +196,10 @@ async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
     case 'hook': {
       const { hookMain } = await import('./hook.js');
       await hookMain(argv);
+      return;
+    }
+    case 'subagent-line': {
+      await (await import('./subagent-line.js')).subagentMain(argv);
       return;
     }
     case 'report': {
