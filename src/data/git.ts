@@ -517,7 +517,7 @@ export function readGitCache(name: string, env: NodeJS.ProcessEnv): GitCacheEntr
   if (o.cfg !== undefined) {
     const c = o.cfg as Record<string, unknown> | null;
     if (!c || typeof c !== 'object' || typeof c.out !== 'string' || !isSig(c.sig)) return null;
-    entry.cfg = { sig: c.sig, out: deepSanitize(c.out) };
+    entry.cfg = { sig: c.sig, out: c.out };
   }
   return entry;
 }
