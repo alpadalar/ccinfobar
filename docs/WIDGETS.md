@@ -169,7 +169,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 
 | Type | Description | Example | Options |
 | --- | --- | --- | --- |
-| `cwd` | Current working directory | `acme-app` | `style` select, default `"basename"` (`basename`, `full`, `tilde`, `short`, `segments`)<br>`segments` number, default `2` |
+| `cwd` | Current working directory | `acme-app` | `style` select, default `"basename"` (`basename`, `full`, `tilde`, `short`, `segments`)<br>`segments` number, default `2`<br>`addedDirs` select, default `"off"` (`off`, `count`, `names`) |
 | `project-dir` | Directory Claude Code was started in | `acme-app` | `style` select, default `"basename"` (`basename`, `full`, `tilde`, `short`, `segments`)<br>`segments` number, default `2` |
 
 ## System
