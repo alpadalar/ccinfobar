@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { classify, type Outcome, type Req } from '../core/cache-rule.js';
 import { deepSanitize, sanitizeText } from '../core/sanitize.js';
@@ -83,6 +84,13 @@ interface ReqBase {
 interface State {
   v: number;
   offset: number;
+  ino: number;
+  mtimeMs: number;
+  size: number;
+  head: string;
+  headLen: number;
+  tail: string;
+  complete: boolean;
   recent: Recent[];
   inputTokens: number;
   outputTokens: number;
@@ -126,7 +134,9 @@ interface State {
   lastStop: { ts: number | null; final: boolean } | null;
 }
 
-const VERSION = 9;
+const VERSION = 10;
+const HEAD_BYTES = 256;
+const TAIL_BYTES = 64;
 const RESPONSES = 20;
 const MAX_RESPONSE_MS = 300_000;
 const RECENT = 64;
@@ -147,6 +157,13 @@ export function emptyState(): State {
   return {
     v: VERSION,
     offset: 0,
+    ino: 0,
+    mtimeMs: 0,
+    size: 0,
+    head: '',
+    headLen: 0,
+    tail: '',
+    complete: false,
     recent: [],
     inputTokens: 0,
     outputTokens: 0,
@@ -634,6 +651,36 @@ export function transcriptCacheName(file: string): string {
   return `transcript-${cacheKey(file)}.json`;
 }
 
+function sha1(buf: Buffer): string {
+  return createHash('sha1').update(buf).digest('hex');
+}
+
+export function headHash(fd: number, size: number): { head: string; headLen: number } {
+  const len = Math.min(HEAD_BYTES, size);
+  if (len <= 0) return { head: '', headLen: 0 };
+  const buf = Buffer.alloc(len);
+  const n = fs.readSync(fd, buf, 0, len, 0);
+  return { head: sha1(buf.subarray(0, n)), headLen: n };
+}
+
+function tailHash(fd: number, offset: number): string {
+  if (offset <= 0) return '';
+  const len = Math.min(TAIL_BYTES, offset);
+  const buf = Buffer.alloc(len);
+  const n = fs.readSync(fd, buf, 0, len, offset - len);
+  return sha1(buf.subarray(0, n));
+}
+
+function headChanged(fd: number, state: State, h: { head: string; headLen: number }, size: number): boolean {
+  if (state.headLen <= 0) return false;
+  if (h.headLen === state.headLen) return h.head !== state.head;
+  // small file grew past its old head length
+  if (state.headLen < HEAD_BYTES && size > state.size && h.headLen > state.headLen) {
+    return headHash(fd, state.headLen).head !== state.head;
+  }
+  return true;
+}
+
 export function readTranscript(
   file: string | undefined,
   env: NodeJS.ProcessEnv = process.env,
@@ -642,18 +689,31 @@ export function readTranscript(
   if (!file) return null;
   let fd: number | null = null;
   try {
-    const size = fs.statSync(file).size;
+    const st = fs.statSync(file);
     const name = transcriptCacheName(file);
     let state = readCache<State>(name, env);
-    if (!state || state.v !== VERSION || state.offset > size) state = emptyState();
-    let cut = false;
-    if (state.offset < size) {
-      fd = fs.openSync(file, 'r');
-      const before = state.offset;
-      const budget = opts.budget ?? (opts.persist === false ? Number.POSITIVE_INFINITY : TRANSCRIPT_BUDGET);
-      cut = advance(state, fd, size, budget);
-      if (state.offset !== before && opts.persist !== false) writeCache(name, state, env);
+    if (!state || state.v !== VERSION || state.offset > st.size) state = emptyState();
+    else if (state.ino !== 0 && st.ino !== 0 && state.ino !== st.ino) state = emptyState();
+    // mtime moves on every append; only the anchors decide a reset
+    else if (state.complete && st.mtimeMs === state.mtimeMs && st.size === state.size) return toInfo(state);
+    fd = fs.openSync(file, 'r');
+    const h = headHash(fd, st.size);
+    if (
+      state.offset > 0 &&
+      (headChanged(fd, state, h, st.size) || tailHash(fd, state.offset) !== state.tail)
+    ) {
+      state = emptyState();
     }
+    const budget = opts.budget ?? (opts.persist === false ? Number.POSITIVE_INFINITY : TRANSCRIPT_BUDGET);
+    const cut = advance(state, fd, st.size, budget);
+    state.ino = st.ino;
+    state.mtimeMs = st.mtimeMs;
+    state.size = st.size;
+    state.head = h.head;
+    state.headLen = h.headLen;
+    state.tail = tailHash(fd, state.offset);
+    state.complete = !cut;
+    if (opts.persist !== false) writeCache(name, state, env);
     const info = toInfo(state);
     if (cut) info.partial = true;
     return info;
