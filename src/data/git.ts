@@ -2,7 +2,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { deepSanitize } from '../core/sanitize.js';
-import { cacheKey, readCache } from './cache.js';
+import { cacheKey, readCache, writeCache } from './cache.js';
 import { findUp, gitdirOf, parseHead, readSmall } from './repos.js';
 import { binary, whichDeps } from './which.js';
 
@@ -92,13 +92,19 @@ function execAsync(
   });
 }
 
-function git(cwd: string, args: string[], pre: readonly string[] = []): string | null {
-  return exec(cwd, [...pre, ...args], GIT_TIMEOUT, {
-    ...process.env,
-    GIT_OPTIONAL_LOCKS: '0',
-    LC_ALL: 'C',
-    [EMPTY_VAR]: '',
-  });
+function git(cwd: string, args: string[], pre: readonly string[] = [], okExit1 = false): string | null {
+  return exec(
+    cwd,
+    [...pre, ...args],
+    GIT_TIMEOUT,
+    {
+      ...process.env,
+      GIT_OPTIONAL_LOCKS: '0',
+      LC_ALL: 'C',
+      [EMPTY_VAR]: '',
+    },
+    okExit1,
+  );
 }
 
 const SCRUB = new Set([
@@ -249,8 +255,12 @@ export async function hardenedGit(
   return execAsync(cwd, [...pre, ...args], left, env);
 }
 
-export function readGit(cwd: string, opts: { harden?: boolean } = {}): GitInfo | null {
-  const harden = opts.harden !== false;
+const READ_RE =
+  '^(remote\\.(origin|upstream|fork)\\.url|filter\\..+\\.(clean|smudge|process)|core\\.(worktree|bare)|extensions\\.worktreeconfig)$';
+
+const INCLUDE_RE = /^\s*\[\s*include(if)?\b/im;
+
+function readGitSpawning(cwd: string, harden: boolean): GitInfo | null {
   const pre: readonly string[] = harden ? HARDEN : [];
   const revs = git(cwd, ['rev-parse', '--show-toplevel', '--git-dir', '--git-common-dir'], pre);
   if (revs === null) return null;
@@ -260,9 +270,9 @@ export function readGit(cwd: string, opts: { harden?: boolean } = {}): GitInfo |
   const common = commonRaw ? path.resolve(cwd, commonRaw) : gitDir;
 
   // exits 1 when nothing matches
-  const entries = parseScopedConfig(
-    git(cwd, ['config', '--show-scope', '--get-regexp', SCOPED_RE], pre) ?? '',
-  );
+  const cfgOut = git(cwd, ['config', '--show-scope', '--get-regexp', SCOPED_RE], pre, true);
+  if (cfgOut === null && harden) return null;
+  const entries = parseScopedConfig(cfgOut ?? '');
   const url = (name: string) => entries.find((e) => e.key === `remote.${name}.url`)?.value.trim() || null;
   const safe: readonly string[] = harden ? [...HARDEN, ...localFilterOverrides(entries)] : [];
 
@@ -289,6 +299,92 @@ export function readGit(cwd: string, opts: { harden?: boolean } = {}): GitInfo |
     forkUrl: url('fork'),
     isWorktree: gitDir !== common,
   });
+}
+
+export function readGit(
+  cwd: string,
+  opts: {
+    harden?: boolean;
+    cache?: { now: number; persist: boolean };
+    env?: NodeJS.ProcessEnv;
+  } = {},
+): GitInfo | null {
+  const harden = opts.harden !== false;
+  const cache = opts.cache;
+  if (!cache) return readGitSpawning(cwd, harden);
+  const env = opts.env ?? process.env;
+  const layout = discoverGit(cwd, env);
+  if (!layout) return readGitSpawning(cwd, harden);
+  const gitBin = binary('git', whichDeps(env));
+  if (gitBin === null) return null;
+  const name = gitCacheName(layout.root, layout.gitdir, harden, gitBin);
+  const sig = gitSig(layout);
+  const hit = readGitCache(name, env);
+  if (hit && hit.at <= cache.now && cache.now - hit.at < GIT_TTL && sameSig(hit.sig, sig)) {
+    return finishGit({ ...hit.info, operation: detectOperation(layout.gitdir) });
+  }
+
+  const pre: readonly string[] = harden ? HARDEN : [];
+  const cfgPath = path.join(layout.common, 'config');
+  const cfgSig = statSig(cfgPath);
+  let out: string;
+  let reused = false;
+  if (hit?.cfg && sameSig([hit.cfg.sig], [cfgSig])) {
+    out = hit.cfg.out;
+    reused = true;
+  } else {
+    const got = git(cwd, ['config', '--show-scope', '--get-regexp', READ_RE], pre, true);
+    if (got === null) {
+      if (harden) return null;
+      out = '';
+    } else {
+      out = got;
+    }
+  }
+  const entries = parseScopedConfig(out);
+  if (entries.some((e) => e.key === 'core.worktree' || (e.key === 'core.bare' && e.value.trim() === 'true'))) {
+    return readGitSpawning(cwd, harden);
+  }
+  const cacheable =
+    reused ||
+    (!INCLUDE_RE.test(readSmall(cfgPath) ?? '') && !entries.some((e) => e.key === 'extensions.worktreeconfig'));
+  const url = (n: string) => entries.find((e) => e.key === `remote.${n}.url`)?.value.trim() || null;
+  const safe: readonly string[] = harden ? [...HARDEN, ...localFilterOverrides(entries)] : [];
+
+  const base = ['status', '--porcelain=v2', '--branch'];
+  const withStash = git(cwd, [...base, '--show-stash'], safe);
+  const status = withStash ?? git(cwd, base, safe);
+  if (status === null) return null;
+  const parsed = parseStatus(status);
+  const s = { ...parsed, stash: withStash === null ? null : parsed.stash };
+
+  const diffArgs = harden
+    ? ['diff', 'HEAD', '--shortstat', '--no-ext-diff', '--no-textconv']
+    : ['diff', 'HEAD', '--shortstat'];
+  const diff = git(cwd, diffArgs, safe);
+  const stat = diff === null ? { insertions: null, deletions: null } : parseShortstat(diff);
+
+  const info = finishGit({
+    root: layout.root,
+    ...s,
+    ...stat,
+    operation: detectOperation(layout.gitdir),
+    remoteUrl: url('origin'),
+    upstreamUrl: url('upstream'),
+    forkUrl: url('fork'),
+    isWorktree: layout.gitdir !== layout.common,
+  });
+  if (cache.persist) {
+    const entry: GitCacheEntry = {
+      v: GIT_CACHE_VERSION,
+      at: cache.now,
+      sig: gitSig(layout),
+      info: { ...info, operation: null },
+      ...(cacheable ? { cfg: { sig: cfgSig, out } } : {}),
+    };
+    writeCache(name, entry, env);
+  }
+  return info;
 }
 
 export interface GitLayout {
