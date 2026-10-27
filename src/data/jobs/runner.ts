@@ -272,7 +272,7 @@ export function safeCwd(): string {
   return exeDir;
 }
 
-const PATH_VARS = [
+export const PATH_VARS = [
   'CCINFOBAR_CONFIG',
   'CCINFOBAR_CONFIG_DIR',
   'CCINFOBAR_CACHE_DIR',

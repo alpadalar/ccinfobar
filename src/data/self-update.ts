@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Config } from '../core/types.js';
 import { VERSION } from '../core/version.js';
+import { PATH_VARS } from './jobs/runner.js';
 import { writeAtomic } from './store.js';
 import {
   compareVersions,
@@ -14,6 +15,8 @@ import {
   localPrefix,
   safeCwd,
 } from './update-state.js';
+
+const ISOLATED_VARS = [...PATH_VARS, 'CLAUDE_POWERLINE_CONFIG', 'CLAUDE_SECURESTORAGE_CONFIG_DIR'];
 
 // the update check and npm install: the update job loads it with import()
 export const REPO = 'alpadalar/ccinfobar';
@@ -297,8 +300,10 @@ export async function verifyInstall(
         cwd: tmp,
       }),
     );
-    const childEnv: NodeJS.ProcessEnv = {
-      ...env,
+    // the user's config must not decide the verdict (D-01)
+    const childEnv: NodeJS.ProcessEnv = { ...env };
+    for (const k of ISOLATED_VARS) delete childEnv[k];
+    Object.assign(childEnv, {
       CCINFOBAR_CONFIG_DIR: path.join(tmp, 'config'),
       CCINFOBAR_CACHE_DIR: path.join(tmp, 'cache'),
       CLAUDE_CONFIG_DIR: path.join(tmp, 'claude'),
@@ -307,7 +312,7 @@ export async function verifyInstall(
       CCINFOBAR_NO_USAGE_API: '1',
       CCINFOBAR_LANG: 'en',
       NO_COLOR: '1',
-    };
+    });
     const run = (args: string[]) =>
       new Promise<RunResult>((resolve) => {
         const child = execFile(
