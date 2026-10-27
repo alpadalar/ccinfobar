@@ -14,7 +14,13 @@ import {
   updateDue,
   updateJob,
 } from '../../../src/data/jobs/update.js';
-import { readUpdateState, scheduleCheck, updateFile, updateNotice } from '../../../src/data/update-state.js';
+import {
+  readUpdateState,
+  rejectedUpdate,
+  scheduleCheck,
+  updateFile,
+  updateNotice,
+} from '../../../src/data/update-state.js';
 import { useIdleEntry } from '../../helpers.js';
 
 const mocks = vi.hoisted(() => ({
@@ -129,6 +135,17 @@ describe('legacy update.json fallback', () => {
     writeEnvelope(okEnvelope<UpdateValue>('update', { latest: '9.9.9' }, Date.now(), 's1'), env);
     expect(readUpdateState(env)).toMatchObject({ latest: '9.9.9', session: 's1' });
     expect(updateNotice(cfg('notify'), '0.0.1', env)).toBe('⬆ ccinfobar 9.9.9 · ccinfobar update');
+  });
+
+  it('rejectedUpdate reports only a still-current rejection newer than the running version', () => {
+    const env = sandbox();
+    const put = (v: UpdateValue) => writeEnvelope(okEnvelope<UpdateValue>('update', v, Date.now(), 's1'), env);
+    expect(rejectedUpdate('0.1.0', env)).toBeNull();
+    put({ latest: '9.9.9', rejected: '9.9.9' });
+    expect(rejectedUpdate('0.1.0', env)).toEqual({ rejected: '9.9.9' });
+    expect(rejectedUpdate('9.9.9', env)).toBeNull();
+    put({ latest: '9.9.10', rejected: '9.9.9' });
+    expect(rejectedUpdate('0.1.0', env)).toBeNull();
   });
 
   it('maps a failed envelope to the previous latest', () => {

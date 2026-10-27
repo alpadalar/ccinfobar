@@ -17,6 +17,7 @@ import { manifestFile, readManifest } from '../../src/commands/manifest.js';
 import { backupsDir } from '../../src/commands/settings-file.js';
 import { defaultConfig, inspectConfigText } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
+import { VERSION } from '../../src/core/version.js';
 import { cacheDir, claudeSettingsPath, configDir, lastPayloadPath, tildify } from '../../src/core/paths.js';
 import type { StatusPayload } from '../../src/core/types.js';
 import { httpKey } from '../../src/data/jobs/keys.js';
@@ -404,6 +405,35 @@ describe('runDoctor install report', () => {
       expect(out.join('\n')).not.toMatch(/[\u0007\u001b]/);
       expect(out.some((l) => l.endsWith(': evilcmd'))).toBe(true);
       expect(out).toContain('  Last update check failed: bad');
+    } finally {
+      fs.rmSync(upd, { force: true });
+    }
+  });
+
+  it('shows a rolled back and a failed-rollback update in both languages', () => {
+    fs.mkdirSync(cacheDir(), { recursive: true });
+    const upd = path.join(cacheDir(), 'update.json');
+    const write = (rollback: string) =>
+      fs.writeFileSync(
+        upd,
+        JSON.stringify({
+          checkedAt: Date.now(),
+          latest: '9.9.9',
+          rejected: '9.9.9',
+          rollback,
+          reason: 'version-mismatch:9.9.8',
+        }),
+      );
+    const params = { version: '9.9.9', current: VERSION, reason: 'version-mismatch:9.9.8' };
+    try {
+      write('ok');
+      const en = capture(() => runDoctor(plain()));
+      expect(en).toContain(t('doctor.update.rolledBack', params));
+      const tr = withEnvLang('tr', () => capture(() => runDoctor(plain())));
+      expect(tr).toContain(withLang('tr', () => t('doctor.update.rolledBack', params)));
+      write('failed');
+      const bad = capture(() => runDoctor(plain())).find((l) => l.includes('rollback to'));
+      expect(bad).toContain('npm install -g ccinfobar@');
     } finally {
       fs.rmSync(upd, { force: true });
     }
