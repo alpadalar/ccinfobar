@@ -75,6 +75,10 @@ import { usageErrorText } from './usage-error.js';
 
 export { hasReplies } from '../core/payload.js';
 
+const ROLLBACK_KEYS: Record<string, MessageId> = {
+  failed: 'doctor.update.rollbackFailed',
+  unverified: 'doctor.update.rollbackUnverified',
+};
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === 'object' && !Array.isArray(v);
 
@@ -575,7 +579,7 @@ export function runDoctor(
   if (upd?.error) console.log(t('doctor.update.failed', { error: safe(upd.error) }));
   if (upd?.rejected)
     console.log(
-      t(upd.rollback === 'failed' ? 'doctor.update.rollbackFailed' : 'doctor.update.rolledBack', {
+      t((upd.rollback && ROLLBACK_KEYS[upd.rollback]) || 'doctor.update.rolledBack', {
         version: upd.rejected,
         current: VERSION,
         reason: safe(upd.reason ?? ''),

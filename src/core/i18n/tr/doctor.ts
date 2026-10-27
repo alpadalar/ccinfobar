@@ -120,6 +120,8 @@ export const doctorMessages = {
     '  ccinfobar {version} kurulum sonrası denetimi geçemedi ({reason}); {current} sürümüne geri dönüldü',
   'doctor.update.rollbackFailed':
     '  ccinfobar {version} kurulum sonrası denetimi geçemedi ve {current} sürümüne geri dönüş de başarısız oldu; `{command}` çalıştırın',
+  'doctor.update.rollbackUnverified':
+    '  ccinfobar {version} kurulum sonrası denetimi geçemedi ({reason}); {current} sürümüne geri dönüldü ama geri dönülen sürümün denetimi bu makinede tamamlanamadı; durum satırı görünmüyorsa `{command}` çalıştırın',
   'doctor.updateMode.auto': 'otomatik',
   'doctor.updateMode.notify': 'yalnızca bildir',
   'doctor.updateMode.off': 'kapalı',

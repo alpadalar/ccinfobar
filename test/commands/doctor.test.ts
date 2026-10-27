@@ -468,6 +468,14 @@ describe('runDoctor install report', () => {
       write('failed');
       const bad = capture(() => runDoctor(plain())).find((l) => l.includes('rollback to'));
       expect(bad).toContain('npm install -g ccinfobar@');
+      write('unverified');
+      const unv = capture(() => runDoctor(plain())).find((l) => l.includes('did not finish on this machine'));
+      expect(unv).toContain('npm install -g ccinfobar@');
+      expect(unv).toContain('9.9.9');
+      const unvTr = withEnvLang('tr', () => capture(() => runDoctor(plain()))).find((l) =>
+        l.includes('bu makinede tamamlanamadı'),
+      );
+      expect(unvTr).toContain('npm install -g ccinfobar@');
     } finally {
       fs.rmSync(upd, { force: true });
     }

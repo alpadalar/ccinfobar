@@ -57,5 +57,14 @@ describe('render with a rejected update', () => {
     const on = await render('auto');
     expect(on).toContain(`failed its check, still on ${VERSION}`);
     expect(await render('off')).not.toContain('failed its check');
+    writeEnvelope(
+      okEnvelope<UpdateValue>(
+        'update',
+        { latest: '999.0.0', rejected: '999.0.0', rollback: 'unverified' },
+        Date.now(),
+        's',
+      ),
+    );
+    expect(await render('auto')).toContain(`failed its check, still on ${VERSION}`);
   });
 });

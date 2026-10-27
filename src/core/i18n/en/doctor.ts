@@ -113,6 +113,8 @@ export const doctorMessages = {
     '  ccinfobar {version} failed its post-install check ({reason}); rolled back to {current}',
   'doctor.update.rollbackFailed':
     '  ccinfobar {version} failed its post-install check and the rollback to {current} failed too; run `{command}`',
+  'doctor.update.rollbackUnverified':
+    '  ccinfobar {version} failed its post-install check ({reason}); rolled back to {current}, but the check of the restored version did not finish on this machine; if the status line is missing, run `{command}`',
   'doctor.updateMode.auto': 'auto',
   'doctor.updateMode.notify': 'notify',
   'doctor.updateMode.off': 'off',
