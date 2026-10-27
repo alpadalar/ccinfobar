@@ -358,12 +358,34 @@ describe('custom', () => {
   });
 });
 
+describe('parseRemote and forkInfo', () => {
+  it.each([
+    ['ssh://git@host:2222/a/b.git', { host: 'host', path: 'a/b' }],
+    ['git@github.com:acme/app.git', { host: 'github.com', path: 'acme/app' }],
+    ['https://user:tok@gitlab.com/a/b/c.git/', { host: 'gitlab.com', path: 'a/b/c' }],
+    ['HTTPS://GitHub.com/Me/X', { host: 'github.com', path: 'Me/X' }],
+    ['file:///a/b', { host: '', path: 'a/b' }],
+    ['/srv/git/x.git', null],
+    ['C:\\repos\\app.git', null],
+  ])('parses %s', async (url, want) => {
+    const { parseRemote } = await import('../../src/widgets/git.js');
+    expect(parseRemote(url)).toEqual(want);
+  });
+
+  it.each([
+    ['https://github.com/me/x', 'https://gitlab.com/me/x', true],
+    ['https://GitHub.com/Me/Demo', 'https://github.com/me/demo', false],
+    ['https://gitlab.com/grp/sub/demo', 'https://gitlab.com/acme/sub/demo', true],
+  ])('fork of %s vs %s', async (origin, upstream, fork) => {
+    const { forkInfo } = await import('../../src/widgets/git.js');
+    const f = forkInfo({ ...sampleGit(), remoteUrl: origin, upstreamUrl: upstream });
+    expect(f !== null).toBe(fork);
+    if (origin.includes('grp')) expect(f).toEqual({ fork: 'grp/sub/demo', parent: 'acme/sub/demo' });
+  });
+});
+
 describe('git real world fixes', () => {
   it('ignores local path remotes and falls back to git for worktrees', async () => {
-    const { parseRemote } = await import('../../src/widgets/git.js');
-    expect(parseRemote('/srv/git/origin.git')).toBeNull();
-    expect(parseRemote('C:\\repos\\app.git')).toBeNull();
-    expect(parseRemote('git@github.com:acme/app.git')).toBe('acme/app');
     const ctx = ctxWith({
       payload: {},
       git: () => ({ ...sampleGit(), isWorktree: true, root: '/x/feature-wt' }),

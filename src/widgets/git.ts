@@ -10,11 +10,35 @@ import { jobValue } from '../data/jobs/runner.js';
 import { pickRepos } from '../data/repos.js';
 import { opt } from './shared.js';
 
-export function parseRemote(url: string | null | undefined): string | null {
+export function parseRemote(url: string | null | undefined): { host: string; path: string } | null {
   if (!url) return null;
-  if (!/^[\w.+-]+:\/\/|^[^/\\:]+@[^:]+:|^[\w.-]+:[^\\/]/.test(url.trim())) return null;
-  const m = /[:/]([^/:]+)\/([^/]+?)(?:\.git)?\/?$/.exec(url.trim());
-  return m ? `${m[1]}/${m[2]}` : null;
+  const raw = url.trim();
+  if (!/^[\w.+-]+:\/\/|^[^/\\:]+@[^:]+:|^[\w.-]+:[^\\/]/.test(raw)) return null;
+  let host: string;
+  let rest: string;
+  if (/^[\w.+-]+:\/\//.test(raw)) {
+    try {
+      const u = new URL(raw);
+      host = u.hostname;
+      rest = u.pathname;
+    } catch {
+      return null;
+    }
+  } else {
+    const i = raw.indexOf(':');
+    host = raw.slice(0, i).replace(/^.*@/, '').toLowerCase();
+    rest = raw.slice(i + 1);
+  }
+  const p = rest
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '')
+    .replace(/\.git$/, '');
+  return p ? { host, path: p } : null;
+}
+
+export function repoSlug(url: string | null | undefined): string | null {
+  const p = parseRemote(url)?.path.split('/');
+  return p && p.length >= 2 ? p.slice(-2).join('/') : null;
 }
 
 // upstream remote: origin is the fork; fork remote: origin is the parent
@@ -23,8 +47,10 @@ export function forkInfo(g: GitInfo | null | undefined): { fork: string; parent:
   const origin = parseRemote(g.remoteUrl);
   const upstream = parseRemote(g.upstreamUrl);
   const [fork, parent] = upstream ? [origin, upstream] : [parseRemote(g.forkUrl), origin];
-  if (!fork || !parent || fork.toLowerCase() === parent.toLowerCase()) return null;
-  return { fork, parent };
+  if (!fork || !parent) return null;
+  const id = (r: { host: string; path: string }) => `${r.host}/${r.path}`.toLowerCase();
+  if (id(fork) === id(parent)) return null;
+  return { fork: fork.path, parent: parent.path };
 }
 
 export const PR_CI_GONE_MS = 3_600_000;
@@ -251,7 +277,7 @@ export const widgets: WidgetDef[] = [
     ],
     render(ctx, item) {
       const r = ctx.payload.workspace?.repo;
-      const full = r?.owner && r.name ? `${r.owner}/${r.name}` : parseRemote(ctx.data.git()?.remoteUrl);
+      const full = r?.owner && r.name ? `${r.owner}/${r.name}` : repoSlug(ctx.data.git()?.remoteUrl);
       if (!full) return null;
       const slash = full.indexOf('/');
       if (opt(item, 'ownerOnlyWhenFork', false) && forkInfo(ctx.data.git())) return full.slice(0, slash);
