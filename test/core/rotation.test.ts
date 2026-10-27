@@ -16,6 +16,7 @@ import {
 } from '../../src/core/rotation.js';
 import { activeThemeId, BUILTIN_THEMES, themeExists, withActiveTheme } from '../../src/core/themes.js';
 import type { ThemeRotation } from '../../src/core/types.js';
+import { withTz } from '../helpers.js';
 
 const all = () => true;
 const at = (d: number, h = 12, min = 0) => new Date(2026, 9, d, h, min);
@@ -67,6 +68,25 @@ describe('pickRotationTheme', () => {
     expect(pickRotationTheme(rot, at(12, 10, 29), all)).toBe(x);
     expect(pickRotationTheme(rot, at(12, 10, 30), all)).not.toBe(x);
     expect(pickRotationTheme(rot, at(12, 11, 0), all)).toBe(x);
+  });
+
+  it('restarts minute periods at local midnight', () => {
+    for (const tz of ['America/New_York', 'Europe/Istanbul']) {
+      withTz(tz, () => {
+        const last = periodIndex(7, at(12, 23, 59));
+        const first = periodIndex(7, new Date(2026, 9, 13, 0, 0));
+        expect(first - last).toBe(1);
+        expect(periodIndex(7, new Date(2026, 9, 13, 0, 0)) % Math.ceil(1440 / 7)).toBe(0);
+        expect(periodIndex(30, at(12, 12, 10))).toBe(periodIndex(30, at(12, 12, 29)));
+        expect(periodIndex(30, at(12, 12, 10))).not.toBe(periodIndex(30, at(12, 12, 30)));
+      });
+    }
+  });
+
+  it('keeps the epoch formula above 1440 minutes', () => {
+    const d = at(12, 13, 5);
+    const day = Math.floor(Date.UTC(2026, 9, 12) / 86_400_000);
+    expect(periodIndex(2880, d)).toBe(Math.floor((day * 1440 + 13 * 60 + 5) / 2880));
   });
 
   it('shuffles deterministically, once per round, without repeats', () => {
@@ -146,6 +166,14 @@ describe('nextRotationChange', () => {
     expect(nextRotationChange({ every: 'week' }, at(18, 23))).toEqual(at(19, 0, 0));
     expect(nextRotationChange({ every: 30 }, at(12, 10, 20))).toEqual(at(12, 10, 30));
     expect(nextRotationChange({ every: 30 }, at(12, 23, 45))).toEqual(at(13, 0, 0));
+    expect(nextRotationChange({ every: 30 }, at(12, 12, 10))).toEqual(at(12, 12, 30));
+    expect(nextRotationChange({ every: 7 }, at(12, 23, 58))).toEqual(at(13, 0, 0));
+    const day = Math.floor(Date.UTC(2026, 9, 12) / 86_400_000);
+    const total = (Math.floor((day * 1440 + 13 * 60 + 5) / 2880) + 1) * 2880;
+    const d2 = Math.floor(total / 1440);
+    const u = new Date(d2 * 86_400_000);
+    const old = new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate(), 0, total - d2 * 1440);
+    expect(nextRotationChange({ every: 2880 }, at(12, 13, 5))).toEqual(old);
   });
 
   it('changes at midnight with a weekday map', () => {

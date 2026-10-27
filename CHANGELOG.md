@@ -21,6 +21,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Minute-based theme rotation now restarts at local midnight as documented, so `every: 7` does not drift across days
 - Usage widgets no longer print `Infinity%` or `NaN%` when the payload carries a non-finite `used_percentage`; they show the loading state instead
 - `git-is-fork` compares the remote host and the full path, so GitLab subgroups and same-path repos on different hosts are detected correctly (`git-repo` output is unchanged).
 - `git-changes` hides when `git diff` times out or there is no commit yet instead of showing `+0 -0`, and has a new `hideZero` option.

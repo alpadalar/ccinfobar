@@ -68,7 +68,10 @@ export function periodIndex(every: RotationEvery, now: Date): number {
   if (every === 'day') return day;
   // 1970-01-05 was a Monday
   if (every === 'week') return Math.floor((day + 3) / 7);
-  return Math.floor((day * 1440 + now.getHours() * 60 + now.getMinutes()) / every);
+  const minute = now.getHours() * 60 + now.getMinutes();
+  // per-day slots restart at local midnight
+  if (every <= 1440) return day * Math.ceil(1440 / every) + Math.floor(minute / every);
+  return Math.floor((day * 1440 + minute) / every);
 }
 
 export const todayKey = (now: Date): RotationDay => BY_GETDAY[now.getDay()]!;
@@ -140,7 +143,11 @@ export function nextRotationChange(rot: ThemeRotation, now: Date): Date {
   if (every === 'hour') next = new Date(y, m, d, now.getHours() + 1);
   else if (every === 'day') next = nextMidnight(now);
   else if (every === 'week') next = new Date(y, m, d + 7 - mod(now.getDay() - 1, 7));
-  else {
+  else if (every <= 1440) {
+    const minute = now.getHours() * 60 + now.getMinutes();
+    const at = Math.min((Math.floor(minute / every) + 1) * every, 1440);
+    next = new Date(y, m, d, 0, at);
+  } else {
     const total = (periodIndex(every, now) + 1) * every;
     const day = Math.floor(total / 1440);
     const at = new Date(day * 86_400_000);
