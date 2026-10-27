@@ -58,10 +58,9 @@ const EXCLUDED_FILES = [
   'src/commands/report.ts',
   'src/commands/catalog.ts',
   'src/core/report-model.ts',
-  'src/core/prices.ts',
   'src/core/report-types.ts',
 ];
-const REPORT_FILES = EXCLUDED_FILES.filter((f) => /\/(report|prices)/.test(f));
+const REPORT_FILES = EXCLUDED_FILES.filter((f) => /\/report/.test(f));
 // report, import and TOML text load with the commands that print it (D-33)
 const LAZY_TABLES = [
   'src/core/i18n/lazy.ts',
@@ -155,7 +154,7 @@ describe('import graph', () => {
   });
 
   it('keeps report and importer code out of cli/hook.ts', () => {
-    expect(REPORT_FILES.length).toBe(6);
+    expect(REPORT_FILES.length).toBe(5);
     const files = [...closure('cli/hook.ts')];
     expect(files.filter((f) => REPORT_FILES.includes(f) || f.startsWith('src/importers/'))).toEqual([]);
   });
@@ -172,7 +171,7 @@ describe('import graph', () => {
   });
 
   // a lazy entry that reaches part of a render chunk makes esbuild split it (D-33)
-  it('hands report code its config, language, ledger, limits and profile helpers from main', () => {
+  it('hands report code its config, language, ledger, limits, profile and price helpers from main', () => {
     const files = closure('commands/report.ts');
     expect(files.has('src/data/report-index.ts')).toBe(true);
     const handed = [
@@ -181,6 +180,7 @@ describe('import graph', () => {
       'src/data/ledger.ts',
       'src/data/limits.ts',
       'src/core/profiles.ts',
+      'src/core/prices.ts',
     ];
     expect([...files].filter((f) => handed.includes(f))).toEqual([]);
     expect(fs.readFileSync(path.join(src, 'cli/main.ts'), 'utf8')).toContain(
