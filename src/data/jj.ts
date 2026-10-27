@@ -2,8 +2,16 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { deepSanitize, sanitizeText } from '../core/sanitize.js';
-import { GIT_TIMEOUT, parseShortstat } from './git.js';
-import { binary } from './which.js';
+import { cacheKey, readCache, writeCache } from './cache.js';
+import { parseShortstat } from './git.js';
+import { binary, pathValue, whichDeps } from './which.js';
+
+// jj starts slower than git
+export const JJ_TIMEOUT =
+  Number(process.env.CCINFOBAR_JJ_TIMEOUT) || (process.platform === 'win32' ? 2000 : 1000);
+
+const MISS_TTL = 300_000;
+const BACKOFF_TTL = 60_000;
 
 export interface JjChange {
   id: string;
@@ -19,6 +27,7 @@ export interface JjReader {
 }
 
 export type JjRun = (args: string[], cwd: string) => string | null;
+export type JjExec = (bin: string, args: string[], cwd: string) => { out: string | null; code?: string };
 
 export function findJjRoot(dir: string): string | null {
   let d = path.resolve(dir);
@@ -51,21 +60,28 @@ export function parseJjStat(out: string): { insertions: number; deletions: numbe
   return parseShortstat(lines[lines.length - 1] ?? '');
 }
 
-function defaultRun(args: string[], cwd: string): string | null {
-  const bin = binary('jj');
-  if (!bin) return null;
+const defaultExec: JjExec = (bin, args, cwd) => {
   try {
-    return execFileSync(bin, args, {
+    const out = execFileSync(bin, args, {
       cwd,
       encoding: 'utf8',
-      timeout: GIT_TIMEOUT,
+      timeout: JJ_TIMEOUT,
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'ignore'],
       maxBuffer: 1024 * 1024,
     });
-  } catch {
-    return null;
+    return { out };
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    return code ? { out: null, code } : { out: null };
   }
+};
+
+function fresh(file: string, ttl: number, now: number, env: NodeJS.ProcessEnv): boolean {
+  const hit = readCache<{ at: number }>(file, env);
+  if (!hit || typeof hit.at !== 'number' || !Number.isFinite(hit.at)) return false;
+  const age = now - hit.at;
+  return age >= 0 && age < ttl;
 }
 
 function once<T>(fn: () => T): () => T {
@@ -87,10 +103,40 @@ function once<T>(fn: () => T): () => T {
 const BASE = ['--no-pager', '--color=never'];
 const READ = [...BASE, '--ignore-working-copy'];
 
-export function readJj(cwd: string, opts: { run?: JjRun } = {}): JjReader | null {
+export interface JjOptions {
+  run?: JjRun;
+  exec?: JjExec;
+  env?: NodeJS.ProcessEnv;
+  now?: number;
+  persist?: boolean;
+}
+
+export function readJj(cwd: string, opts: JjOptions = {}): JjReader | null {
   const root = findJjRoot(cwd);
   if (!root) return null;
-  const run = opts.run ?? defaultRun;
+  let run: JjRun;
+  if (opts.run) run = opts.run;
+  else {
+    const env = opts.env ?? process.env;
+    const now = opts.now ?? Date.now();
+    const persist = opts.persist !== false;
+    const missFile = `jj-miss-${cacheKey(pathValue(env, process.platform))}.json`;
+    if (fresh(missFile, MISS_TTL, now, env)) return null;
+    const bin = binary('jj', whichDeps(env));
+    if (!bin) return null;
+    const backFile = `jj-backoff-${cacheKey(root)}.json`;
+    let blocked = fresh(backFile, BACKOFF_TTL, now, env);
+    const exec = opts.exec ?? defaultExec;
+    run = (args, dir) => {
+      if (blocked) return null;
+      const r = exec(bin, args, dir);
+      if (r.out === null && (r.code === 'ENOENT' || r.code === 'ETIMEDOUT')) {
+        blocked = true;
+        if (persist) writeCache(r.code === 'ENOENT' ? missFile : backFile, { at: now }, env);
+      }
+      return r.out;
+    };
+  }
   const jj = (args: string[], snapshot = false) => run([...(snapshot ? BASE : READ), ...args], root);
   const bookmarks = once(() => {
     const out = jj(['log', '--no-graph', '-r', 'heads(::@ & bookmarks())', '-T', 'bookmarks ++ "\\n"']);

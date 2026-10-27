@@ -75,7 +75,9 @@ export function createContext(opts: ContextOptions): RenderContext {
         ),
       transcript,
       gsd: opts.data?.gsd ?? lazy(() => readGsd(cwd)),
-      jj: opts.data?.jj ?? lazy(() => readJj(cwd)),
+      jj:
+        opts.data?.jj ??
+        lazy(() => readJj(cwd, { env, now: now.getTime(), persist: !(opts.preview ?? false) })),
       ...(opts.data?.history ? { history: opts.data.history } : {}),
       ...(opts.data?.limits ? { limits: opts.data.limits } : {}),
       ...(opts.data?.ledger ? { ledger: opts.data.ledger } : {}),
