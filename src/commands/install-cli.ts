@@ -450,7 +450,13 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     }
   }
 
-  if (io.tty && hideVimFlag === undefined && !project && plan.proposed.hideVimModeIndicator !== true) {
+  if (
+    io.tty &&
+    args.flags.yes !== true &&
+    hideVimFlag === undefined &&
+    !project &&
+    plan.proposed.hideVimModeIndicator !== true
+  ) {
     const cfg = loadConfig(cfgFile).config;
     if (hasVimWidget(cfg)) {
       const layers = settingsLayers(

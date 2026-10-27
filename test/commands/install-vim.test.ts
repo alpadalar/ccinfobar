@@ -96,6 +96,18 @@ describe('install hide-vim offer', () => {
     expect(read().statusLine.hideVimModeIndicator).toBeUndefined();
   });
 
+  it('never offers with --yes, but --hide-vim-indicator still applies', async () => {
+    config(true);
+    writeJson(settings, { editorMode: 'vim' });
+    const f = fake(true, true);
+    await runInstall(inst('--yes'), cfg, f.io);
+    expect(f.asked).toEqual([]);
+    expect(read().statusLine.command).toBe('/bin/ccinfobar');
+    expect(read().statusLine.hideVimModeIndicator).toBeUndefined();
+    await runInstall(inst('--yes', '--hide-vim-indicator'), cfg, fake(true, true).io);
+    expect(read().statusLine.hideVimModeIndicator).toBe(true);
+  });
+
   it('does not offer without a vim-mode widget', async () => {
     config(false);
     writeJson(settings, { editorMode: 'vim' });
