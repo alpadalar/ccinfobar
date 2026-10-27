@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { managedSettingsFiles as coreManagedFiles } from '../core/paths.js';
+import { managedSettingsFiles as coreManagedFiles, projectSettingsPath } from '../core/paths.js';
 import type { ProgressConfig } from '../core/types.js';
 import { terminalAllowed } from '../data/progress.js';
 import { compareVersions } from '../data/update-state.js';
@@ -180,4 +180,31 @@ export function entryCommand(entry: HookEntry): string | null {
   const h = isObj(v) && Array.isArray(v.hooks) ? v.hooks[0] : null;
   if (!isObj(h) || typeof h.command !== 'string') return null;
   return h.command.replace(/\s+(--progress\s+)?hook\s+[A-Za-z]+\s*$/, '');
+}
+
+export function settingsLayers(
+  settingsFile: string,
+  dirs: Iterable<string>,
+  managedFiles: string[],
+): SettingsLayer[] {
+  const layers: SettingsLayer[] = [readSettingsLayer('user', settingsFile)];
+  for (const dir of dirs) {
+    layers.push(readSettingsLayer('project', projectSettingsPath(dir, false)));
+    layers.push(readSettingsLayer('local', projectSettingsPath(dir, true)));
+  }
+  for (const f of managedFiles) layers.push(readSettingsLayer('managed', f));
+  return layers;
+}
+
+// pure
+export function editorModeOf(
+  layers: SettingsLayer[],
+  claudeJson: Record<string, unknown> | null,
+): string | null {
+  for (const name of BAR_ORDER) {
+    for (const l of layers) {
+      if (l.name === name && typeof l.data?.editorMode === 'string') return l.data.editorMode;
+    }
+  }
+  return typeof claudeJson?.editorMode === 'string' ? claudeJson.editorMode : null;
 }

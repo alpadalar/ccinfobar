@@ -54,10 +54,10 @@ import {
   managedSettingsFiles,
   progressWarnings,
   readSettingsLayer,
-  type SettingsLayer,
+  settingsLayers,
 } from './hooks-doctor.js';
 import { parseClaudeVersion } from './hooks-install.js';
-import { currentStatusLine, projectOverride, projectSettingsPath } from './install.js';
+import { currentStatusLine, projectOverride } from './install.js';
 import { rotationStatus } from './manage.js';
 import {
   classifyOwner,
@@ -335,12 +335,7 @@ function printHooks(
     for (const [command, count] of missing)
       console.log(t('doctor.hooks.missingBinary', { command: safe(command), count }));
   }
-  const layers: SettingsLayer[] = [readSettingsLayer('user', settingsFile)];
-  for (const dir of dirs) {
-    layers.push(readSettingsLayer('project', projectSettingsPath(dir, false)));
-    layers.push(readSettingsLayer('local', projectSettingsPath(dir, true)));
-  }
-  for (const f of managedFiles) layers.push(readSettingsLayer('managed', f));
+  const layers = settingsLayers(settingsFile, dirs, managedFiles);
   const progressOut = progressWarnings({
     layers,
     progress,
