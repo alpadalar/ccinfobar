@@ -227,3 +227,22 @@ describe('budget exhaustion', () => {
     for (const r of rows) expect(r.total).toBe(n * 15);
   });
 });
+
+describe('long lines', () => {
+  it('reads a line far past the remaining budget in a few large chunks', () => {
+    const f = fixture();
+    const MIB = 1024 * 1024;
+    const blob = (bytes: number) => `{"x":"${'x'.repeat(bytes - 9)}"}\n`;
+    const lines = (bytes: number) => blob(1000).repeat(Math.ceil(bytes / 1000));
+    for (const id of ['a1', 'a2', 'a3']) f.add(id, lines(MIB + 4096));
+    // leaves 200 bytes of the render budget for the last agent
+    f.add('a4', blob(MIB - 200));
+    f.add('a5', blob(2 * MIB));
+    const orig = fs.readdirSync;
+    vi.spyOn(fs, 'readdirSync').mockImplementation(((...a: unknown[]) =>
+      (orig as (...x: unknown[]) => string[])(...a).sort()) as typeof fs.readdirSync);
+    const rs = vi.spyOn(fs, 'readSync');
+    expect(f.read()).toHaveLength(5);
+    expect(rs.mock.calls.length).toBeLessThan(200);
+  });
+});

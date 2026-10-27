@@ -42,6 +42,7 @@ interface Summary {
 
 const SUMMARY_VERSION = 1;
 const AGENT_CHUNK = 1024 * 1024;
+const AGENT_MIN_CHUNK = 64 * 1024;
 const HEAD_BYTES = 256;
 const SEEN_KEPT = 32;
 export const AGENT_BUDGET = 1024 * 1024;
@@ -118,29 +119,33 @@ function applyLine(s: Summary, line: string): void {
 function advanceSummary(s: Summary, fd: number, size: number, budget: number): number {
   const from = s.offset;
   const end = Math.min(size, from + Math.max(0, budget));
-  const buf = Buffer.allocUnsafe(Math.min(AGENT_CHUNK, Math.max(end - from, 1)));
-  let carry = Buffer.alloc(0);
+  const buf = Buffer.allocUnsafe(Math.min(AGENT_CHUNK, Math.max(end - from, AGENT_MIN_CHUNK)));
+  let parts: Buffer[] = [];
+  let carryLen = 0;
   let pos = from;
   // a line longer than the budget is read through to its newline
-  while (pos < end || (s.offset === from && carry.length > 0 && pos < size)) {
+  while (pos < end || (s.offset === from && carryLen > 0 && pos < size)) {
     const limit = pos < end ? end - pos : size - pos;
     const n = fs.readSync(fd, buf, 0, Math.min(buf.length, limit), pos);
     if (n <= 0) break;
     pos += n;
-    const data = carry.length ? Buffer.concat([carry, buf.subarray(0, n)]) : buf.subarray(0, n);
+    const chunk = buf.subarray(0, n);
     let start = 0;
-    let nl = data.indexOf(10, start);
+    let nl = chunk.indexOf(10, start);
     while (nl !== -1) {
-      if (nl > start) applyLine(s, data.toString('utf8', start, nl));
+      const seg = parts.length ? Buffer.concat([...parts, chunk.subarray(start, nl)]) : chunk.subarray(start, nl);
+      parts = [];
+      if (seg.length > 0) applyLine(s, seg.toString('utf8'));
       start = nl + 1;
-      nl = data.indexOf(10, start);
+      nl = chunk.indexOf(10, start);
     }
-    carry = Buffer.from(data.subarray(start));
-    s.offset = pos - carry.length;
+    carryLen = n - start + (start === 0 ? carryLen : 0);
+    if (start < n) parts.push(Buffer.from(chunk.subarray(start)));
+    s.offset = pos - carryLen;
   }
   s.complete = pos >= size;
   // an unterminated last line counts if it parses; seen dedupes the re-read
-  if (s.complete && carry.length > 0) applyLine(s, carry.toString('utf8'));
+  if (s.complete && carryLen > 0) applyLine(s, Buffer.concat(parts).toString('utf8'));
   return pos - from;
 }
 
