@@ -173,6 +173,25 @@ describe('install --subagents', () => {
 });
 
 describe('uninstall --subagents', () => {
+  it('does nothing else with --project', async () => {
+    const proj = path.join(dir, 'proj');
+    fs.mkdirSync(proj);
+    const cwd = process.cwd();
+    process.chdir(proj);
+    try {
+      await runInstall(inst('--project'), cfg, fake().io);
+      const file = path.join(proj, '.claude', 'settings.local.json');
+      const before = fs.readFileSync(file, 'utf8');
+      expect(before).toContain('statusLine');
+      const f = fake();
+      await runUninstall(uninst('--subagents', '--project'), cfg, f.io);
+      expect(f.text()).toContain(t('install.subagentsUninstallProject'));
+      expect(fs.readFileSync(file, 'utf8')).toBe(before);
+    } finally {
+      process.chdir(cwd);
+    }
+  });
+
   it('removes only the subagent key, then reports nothing to remove', async () => {
     await runInstall(inst('--subagents'), cfg, fake().io);
     const f = fake();

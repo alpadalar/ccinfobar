@@ -623,7 +623,10 @@ export async function runUninstall(args: Args, cfgFile: string, io: InstallIo = 
   const progressOnly = args.flags.progress === true;
   const subagentsOnly = args.flags.subagents === true;
   if (args.flags.project) {
-    if (subagentsOnly) io.log(t('install.subagentsUninstallProject'));
+    if (subagentsOnly) {
+      io.log(t('install.subagentsUninstallProject'));
+      return;
+    }
     if (hooksOnly) io.log(t('hooks.uninstallProject'));
     if (progressOnly) io.log(t('progress.uninstallProject'));
     io.log(uninstallMessage(await uninstallAsking(projectLocalFile(process.cwd()), io)));
