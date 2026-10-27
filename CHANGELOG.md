@@ -37,6 +37,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- The subagent panel line no longer hides a running agent whose row would be empty (Claude Code keeps its default row), fits very narrow panes instead of assuming 120 columns, and honours `glyphMode` and `ambiguousWidth` when measuring.
+- `install --subagents` keeps extra keys on an existing ccinfobar `subagentStatusLine`, `install --yes` never waits on the vim-indicator offer, `uninstall --subagents --project` no longer removes the project status line, and `--hide-vim-indicator` is ignored with `--project` with a notice.
 - A detached web editor (`ccinfobar edit --detach`) no longer shuts down while its tab is open: the page pings it every five minutes while visible, and if the editor has stopped, saving shows an "editor stopped" notice with an Export button instead of a bare fetch error. Only requests with the right token count as activity.
 - In the web editor, Delete or Backspace while a slider, switch, button or inspector field has focus no longer removes the selected widget, and Tab no longer leaves an open dialog (the page behind a dialog is inert)
 - `install`, `uninstall`, the hooks commands and the background update takeover now update ccinfobar's manifest under a lock and re-read it first, so two of them running at once no longer lose each other's entries; a command that cannot get the lock within five seconds reports it instead of overwriting.
