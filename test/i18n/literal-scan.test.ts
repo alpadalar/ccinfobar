@@ -224,7 +224,7 @@ const NOT_SWEPT: Record<string, string> = {
   'src/cli/args.ts': 'argv parsing, no user-facing prose',
   'src/cli/win-env.ts': 'env setup leaf, no user-facing prose',
   'src/data/which.ts': 'binary lookup, no user-facing prose',
-  'src/core/sample.ts':'simulated payload data for previews (D-36)',
+  'src/core/sample.ts': 'simulated payload data for previews (D-36)',
   'src/core/profiles.ts': 'vendor and model names, price notes translated in the editor by vendor id (08-19)',
   'src/core/scenarios.ts': 'simulated payload data; labels and descriptions go through catalog-text (08-12)',
   'src/core/eaw-table.ts': 'generated Unicode width table',
