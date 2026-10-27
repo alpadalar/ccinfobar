@@ -11,9 +11,9 @@ ccinfobar import <tool> [--file <path>] [--command <cmd>] [--force] [--dry-run] 
 - `--dry-run` prints the report and a preview with sample data, and writes nothing.
 - `--force` replaces an existing ccinfobar config. The old one is backed up first.
 - Every import prints a report: what was imported, what was approximated and what was dropped, with the reason.
-- Commands, HTTP widgets and links in an imported layout are listed first. On a terminal you are asked whether to keep them (default No). `--allow-commands` keeps them. `--yes` or a non-interactive run drops them.
+- Commands, HTTP widgets and links in an imported layout are listed first. On a terminal you are asked whether to keep them (default No). `--allow-commands` keeps them. `--yes` or a non-interactive run drops them and prints the command to re-run with `--allow-commands`. That command passes the status line command it read with `--command`, because `install` replaces it before you run the hint.
 - Importers only read files. They never run, source or execute anything from a config. API keys, tokens, auth headers and similar secrets are never copied into the ccinfobar config.
-- Imported labels and text are cleaned of terminal escape sequences.
+- Imported labels and text are cleaned of terminal escape sequences, and `javascript:` and `data:` links are dropped.
 
 ## Reviewed projects
 
@@ -273,9 +273,23 @@ Some tools install with a command that does not name them, for example `node ${C
 
 These 18 reviewed projects have no layout to import, or importing it would take far more work than it saves:
 
-- No config file, the layout is in the script: nilbuild/claude-statusline, daniel3303/ClaudeCodeStatusLine, Astro-Han/claude-pace, AwesomeZun/CC-statusline, ilia-pluzhnikov/claude-code-statusline, danielmackay/claude-code-statusline, xleddyl/claude-watch, shanraisshan/claude-code-status-line, loadbalance-sudachi-kun/claude-code-statusline.
-- A config without a layout: vfmatzkin/claude-statusline (budget numbers), kcchien/claude-code-statusline (glyph tier env vars), tmck-code/yet-another-statusline (width, theme, glyphs and budgets; the box layout is built in code).
-- Not a Claude Code status line: m1ckc3s/claude-status-bar (macOS menu bar), rithkott/claude-thing (Spotify Car Thing HUD), anhannin/codex-hud (Codex), Autumn1337/better-statusline (an early-access plugin UI, not a stdin status line).
-- Little overlap: sorosora/arcade-statusline (game-style renderings), ersinkoc/claude-statusline (generated themes, code templates and its own daemon).
+- [nilbuild/claude-statusline](https://github.com/nilbuild/claude-statusline): no config file, the layout is in the script
+- [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar): a macOS menu bar app, not a status line
+- [daniel3303/ClaudeCodeStatusLine](https://github.com/daniel3303/ClaudeCodeStatusLine): no layout config, the layout is in the script
+- [tmck-code/yet-another-statusline](https://github.com/tmck-code/yet-another-statusline): its config (width, theme, glyphs and budgets) has no layout; the box layout is built in code
+- [Astro-Han/claude-pace](https://github.com/Astro-Han/claude-pace): no config file, the layout is in the script
+- [Autumn1337/better-statusline](https://github.com/Autumn1337/better-statusline): an early-access plugin UI, not a stdin status line
+- [kcchien/claude-code-statusline](https://github.com/kcchien/claude-code-statusline): env vars only pick the glyph set; the layout is fixed
+- [AwesomeZun/CC-statusline](https://github.com/AwesomeZun/CC-statusline): no config; the preset is the script that was copied
+- [ilia-pluzhnikov/claude-code-statusline](https://github.com/ilia-pluzhnikov/claude-code-statusline): no config file, the layout is in the script
+- [danielmackay/claude-code-statusline](https://github.com/danielmackay/claude-code-statusline): no config file, the layout is in the script
+- [rithkott/claude-thing](https://github.com/rithkott/claude-thing): a Spotify Car Thing HUD, not a status line
+- [sorosora/arcade-statusline](https://github.com/sorosora/arcade-statusline): game-style renderings with little overlap with the widgets
+- [ersinkoc/claude-statusline](https://github.com/ersinkoc/claude-statusline): generated themes, layouts in code templates and its own daemon; little overlap
+- [xleddyl/claude-watch](https://github.com/xleddyl/claude-watch): no config file, the layout is in the script
+- [shanraisshan/claude-code-status-line](https://github.com/shanraisshan/claude-code-status-line): no config file, the layout is in the script
+- [loadbalance-sudachi-kun/claude-code-statusline](https://github.com/loadbalance-sudachi-kun/claude-code-statusline): no config file, the layout is in the script
+- [vfmatzkin/claude-statusline](https://github.com/vfmatzkin/claude-statusline): its config holds budget numbers only
+- [anhannin/codex-hud](https://github.com/anhannin/codex-hud): for Codex, not Claude Code
 
 ccinfobar presets and themes cover most of what these show. Start with `ccinfobar init <preset>` or the editor.
