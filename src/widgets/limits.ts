@@ -195,6 +195,57 @@ function usageOf(ctx: RenderContext, item: WidgetItem, w: RateWindow | null, len
   return opt(item, 'thresholdColors', true) ? { text, color: thresholdColor(clamped) } : text;
 }
 
+const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+const PERIOD_ID = {
+  daily: 'widget.spend.period.daily',
+  weekly: 'widget.spend.period.weekly',
+  monthly: 'widget.spend.period.monthly',
+} as const;
+
+function spendLimit(ctx: RenderContext, item: WidgetItem): WidgetResult {
+  const s = ctx.payload.rate_limits?.spend_limit;
+  if (!s) return limitsLoading(ctx, item);
+  const used = s.used_usd;
+  const limit = s.limit_usd;
+  const dollars = fin(used) && fin(limit);
+  let pct: number | null = null;
+  if (fin(s.used_percentage)) pct = s.used_percentage;
+  else if (dollars && limit > 0) pct = (used / limit) * 100;
+  const f = (n: number) => formatCurrency(n, Number.isInteger(n) ? 0 : 2);
+  const amount = dollars ? `${f(used)}/${f(limit)}` : null;
+  const percent = pct === null ? null : `${Math.round(pct)}%`;
+  let text: string | null;
+  switch (opt<string>(item, 'show', 'amount')) {
+    case 'percent':
+      text = percent;
+      break;
+    case 'remaining':
+      if (dollars) text = t('widget.spend.left', { amount: f(Math.max(0, limit - used)) });
+      else if (pct !== null)
+        text = t('widget.spend.left', { amount: `${Math.max(0, Math.round(100 - pct))}%` });
+      else text = null;
+      break;
+    case 'both':
+      text =
+        amount !== null && percent !== null
+          ? `${amount}${ctx.config.charset === 'text' ? ' | ' : ' · '}${percent}`
+          : (amount ?? percent);
+      break;
+    default:
+      text = amount ?? percent;
+  }
+  if (text === null) return limitsLoading(ctx, item);
+  const period = s.period;
+  if (opt(item, 'showPeriod', false) && (period === 'daily' || period === 'weekly' || period === 'monthly')) {
+    text += t(PERIOD_ID[period]);
+  }
+  if (opt(item, 'thresholdColors', false) && pct !== null) {
+    return { text, color: thresholdColor(Math.max(0, Math.min(100, pct))) };
+  }
+  return text;
+}
+
 function reset(ctx: RenderContext, item: WidgetItem, key: Key): WidgetResult {
   return resetOf(ctx, item, win(ctx, key));
 }
@@ -331,12 +382,30 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰇁', emoji: '💳' },
     color: 'yellow',
     sample: '$12/$50',
-    render(ctx, item) {
-      const s = ctx.payload.rate_limits?.spend_limit;
-      if (typeof s?.used_usd !== 'number' || typeof s.limit_usd !== 'number') return limitsLoading(ctx, item);
-      const f = (n: number) => formatCurrency(n, Number.isInteger(n) ? 0 : 2);
-      return `${f(s.used_usd)}/${f(s.limit_usd)}`;
-    },
+    options: [
+      {
+        key: 'show',
+        label: 'Show',
+        kind: 'select',
+        default: 'amount',
+        choices: [
+          { value: 'amount', label: 'Amount' },
+          { value: 'percent', label: 'Percent' },
+          { value: 'remaining', label: 'Remaining' },
+          { value: 'both', label: 'Both' },
+        ],
+        help: 'Amount shows $used/$limit and falls back to the percentage when the gateway sends only that',
+      },
+      {
+        key: 'showPeriod',
+        label: 'Show period',
+        kind: 'boolean',
+        default: false,
+        help: 'Append /day, /wk or /mo',
+      },
+      { ...thresholdOption, default: false },
+    ],
+    render: (ctx, item) => spendLimit(ctx, item),
   },
   {
     type: 'usage-pace',

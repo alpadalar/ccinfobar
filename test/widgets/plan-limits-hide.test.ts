@@ -36,6 +36,11 @@ function ctxOf(b: ScenarioBundle, config: Partial<Config> = {}): RenderContext {
   });
 }
 
+const noLimits = (id: string) =>
+  bundle(id, (x) => {
+    delete x.payload.rate_limits;
+  });
+
 const render = (b: ScenarioBundle, type: string) => withoutSideEffects(() => renderWidget(type, ctxOf(b)));
 
 // a session before the first reply, where first-party sessions show the loading text
@@ -55,7 +60,7 @@ describe('plan-limit widgets for providers without plan limits (EXT-05)', () => 
   });
 
   it.each(NO_PLAN)('%s: every widget is null without rate_limits', (id) => {
-    const b = bundle(id);
+    const b = noLimits(id);
     expect(b.payload.rate_limits).toBeUndefined();
     for (const type of TYPES) expect(render(b, type), `${id} ${type}`).toBeNull();
   });
@@ -74,7 +79,7 @@ describe('plan-limit widgets for providers without plan limits (EXT-05)', () => 
   });
 
   it.each(NO_PLAN)('%s: explain says the provider has no plan limits', (id) => {
-    const b = bundle(id);
+    const b = noLimits(id);
     const lines = TYPES.map((type) => [{ id: type, type }]);
     const rows = withoutSideEffects(() => inspectRows(ctxOf(b, { lines })));
     expect(rows).toHaveLength(TYPES.length);

@@ -216,7 +216,9 @@ function bedrockUser(now: number): ScenarioBundle {
 
 function gatewayGlm(now: number): ScenarioBundle {
   const b = base(now);
-  delete b.payload.rate_limits;
+  b.payload.rate_limits = {
+    spend_limit: { used_percentage: 63, resets_at: Math.floor(now / 1000) + 6 * 3600 },
+  };
   b.payload.model = { id: 'glm-5.3', display_name: 'glm-5.3' };
   b.env = { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic', ANTHROPIC_AUTH_TOKEN: 'scenario-token' };
   b.data.ledger = () => null;

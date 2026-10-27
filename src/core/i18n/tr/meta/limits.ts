@@ -68,6 +68,14 @@ export const limits: MetaFile = {
   },
   options: {
     Display: 'Görünüm',
+    Show: 'Göster',
+    Amount: 'Tutar',
+    Remaining: 'Kalan',
+    Both: 'İkisi',
+    'Show period': 'Dönemi göster',
+    'Append /day, /wk or /mo': '/gün, /hf ya da /ay ekler',
+    'Amount shows $used/$limit and falls back to the percentage when the gateway sends only that':
+      'Tutar $kullanılan/$limit gösterir; gateway yalnızca yüzde gönderirse yüzdeye düşer',
     Percent: 'Yüzde',
     Bar: 'Çubuk',
     'Show even pace': 'Eşit tempoyu göster',
