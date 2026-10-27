@@ -244,7 +244,7 @@ describe('market deploy workflow', () => {
     expect(bookmark + 1).toBe(migrate);
     for (const n of [dry, bookmark, migrate, deploy]) expect(all[n]!.workdir).toBe('worker');
     expect(text).not.toMatch(/backs up|takes a backup/);
-    expect(text).toMatch(/node-version: 22\s*$/m);
+    expect(text).toMatch(/node-version: 22\.\d+\.\d+\s*$/m);
     const cfg = readLines('worker/wrangler.jsonc')
       .filter((l) => !l.trim().startsWith('//'))
       .join('\n');

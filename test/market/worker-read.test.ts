@@ -23,7 +23,7 @@ import {
   summaryText,
 } from '../../src/market/worker/store.js';
 import { START } from './conformance.js';
-import { hasSqlite } from './d1-sqlite.js';
+import { skipSqlite } from './d1-sqlite.js';
 import { makeRefTarget } from './ref-target.js';
 import { makeEnv } from './worker-env.js';
 import { ISO, seedEntry, seedPublisher, seedToken, storedEntry } from './worker-seed.js';
@@ -66,7 +66,7 @@ async function setup() {
   return { db: env.DB, sql: c.sql, get };
 }
 
-describe.skipIf(!hasSqlite)('worker store', () => {
+describe.skipIf(skipSqlite)('worker store', () => {
   it('serves an empty index before any rebuild', async () => {
     const { env } = await makeEnv();
     const page = await readIndexPage(env.DB, 1);
@@ -283,7 +283,7 @@ describe.skipIf(!hasSqlite)('worker store', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker public reads', () => {
+describe.skipIf(skipSqlite)('worker public reads', () => {
   async function seeded() {
     const s = await setup();
     await seedPublisher(s.db, { handle: 'alp', githubId: 1, trusted: true });

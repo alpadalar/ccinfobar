@@ -3,7 +3,7 @@ import type { EntryContent } from '../../src/core/edit.js';
 import { createMarketClient, MarketError } from '../../src/market/client.js';
 import type { Env } from '../../src/market/worker/env.js';
 import { createHandler } from '../../src/market/worker/handler.js';
-import { hasSqlite } from './d1-sqlite.js';
+import { skipSqlite } from './d1-sqlite.js';
 import { type FakeUser, fakeGitHub } from './fake-github.js';
 import { makeEnv } from './worker-env.js';
 
@@ -49,7 +49,7 @@ async function worker(vars: Partial<Env>) {
   return { db, gh, seen, client };
 }
 
-describe.skipIf(!hasSqlite)('market client against the Worker', () => {
+describe.skipIf(skipSqlite)('market client against the Worker', () => {
   it('signs in, publishes for review, approves, reports, resolves and withdraws', async () => {
     const w = await worker({ GITHUB_CLIENT_SECRET: SECRET });
     const anon = w.client();

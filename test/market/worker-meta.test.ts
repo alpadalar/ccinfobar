@@ -6,7 +6,7 @@ import { fail, MESSAGES } from '../../src/market/rules.js';
 import { createHandler } from '../../src/market/worker/handler.js';
 import { errorResponse, readJsonBody } from '../../src/market/worker/http.js';
 import worker from '../../src/market/worker/index.js';
-import { hasSqlite, statements } from './d1-sqlite.js';
+import { skipSqlite, statements } from './d1-sqlite.js';
 import { MIGRATIONS, makeEnv, migrations, stubEnv } from './worker-env.js';
 
 const BASE = 'http://w.test';
@@ -288,7 +288,7 @@ describe('worker migrations', () => {
     }
   });
 
-  describe.skipIf(!hasSqlite)('on the D1 adapter', () => {
+  describe.skipIf(skipSqlite)('on the D1 adapter', () => {
     it('create every table and seed the counters', async () => {
       const { db, env, clock } = await makeEnv();
       try {

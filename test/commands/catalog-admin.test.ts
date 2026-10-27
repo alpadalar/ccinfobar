@@ -11,7 +11,7 @@ import type { EntryContent } from '../../src/core/edit.js';
 import { createMarketClient } from '../../src/market/client.js';
 import { createHandler } from '../../src/market/worker/handler.js';
 import { withLang, withLangAsync } from '../helpers.js';
-import { hasSqlite } from '../market/d1-sqlite.js';
+import { skipSqlite } from '../market/d1-sqlite.js';
 import { type FakeUser, fakeGitHub } from '../market/fake-github.js';
 import { makeEnv } from '../market/worker-env.js';
 
@@ -212,7 +212,7 @@ describe('catalog report', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('catalog report and admin against the Worker', () => {
+describe.skipIf(skipSqlite)('catalog report and admin against the Worker', () => {
   it('reports an entry once', async () => {
     const m = await seeded();
     await live(m, 'pub/mini');
@@ -381,7 +381,7 @@ async function remoteIds(m: Market): Promise<string[]> {
 
 const writes = (m: Market) => m.seen.filter((s) => s.method !== 'GET').length;
 
-describe.skipIf(!hasSqlite)('catalog admin moderation against the Worker', () => {
+describe.skipIf(skipSqlite)('catalog admin moderation against the Worker', () => {
   it('approves the reviewed version so it shows in the remote list', async () => {
     const m = await seeded();
     expect(await remoteIds(m)).toEqual([]);

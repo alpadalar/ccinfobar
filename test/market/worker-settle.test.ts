@@ -6,7 +6,7 @@ import { createHandler } from '../../src/market/worker/handler.js';
 import worker from '../../src/market/worker/index.js';
 import { REBUILD_GAP_MS, REBUILD_LEASE_MS, scheduled } from '../../src/market/worker/settle.js';
 import { claimHandle, indexState, readIndexPage } from '../../src/market/worker/store.js';
-import { d1, hasSqlite } from './d1-sqlite.js';
+import { d1, skipSqlite } from './d1-sqlite.js';
 import { makeEnv, migrationFiles } from './worker-env.js';
 import { seedPublisher, seedToken } from './worker-seed.js';
 
@@ -79,7 +79,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe.skipIf(!hasSqlite)('worker index rebuilds (WR-03)', () => {
+describe.skipIf(skipSqlite)('worker index rebuilds (WR-03)', () => {
   it('a write whose rebuild fails still answers success, and the next read rebuilds the index', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const t = await setup();
@@ -152,7 +152,7 @@ describe.skipIf(!hasSqlite)('worker index rebuilds (WR-03)', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker cron (WR-03, WR-05)', () => {
+describe.skipIf(skipSqlite)('worker cron (WR-03, WR-05)', () => {
   it('deletes old salts and rate rows and rebuilds a stale index, even past the budget', async () => {
     const t = await setup({ INDEX_REBUILD_ROWS: '1' });
     const alp = await t.account('alp', 7);
@@ -197,7 +197,7 @@ describe.skipIf(!hasSqlite)('worker cron (WR-03, WR-05)', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker takedowns past the budget (moderation audit)', () => {
+describe.skipIf(skipSqlite)('worker takedowns past the budget (moderation audit)', () => {
   const ADMIN = 65018489;
 
   async function spent() {
@@ -273,7 +273,7 @@ describe.skipIf(!hasSqlite)('worker takedowns past the budget (moderation audit)
   });
 });
 
-describe.skipIf(!hasSqlite)('worker hidden pending ids (IN-01)', () => {
+describe.skipIf(skipSqlite)('worker hidden pending ids (IN-01)', () => {
   it('answers 403 for any id of another publisher, existing, pending or missing', async () => {
     const t = await setup({ ALLOW_OVERWRITE: 'true' });
     const alp = await t.account('alp', 7);
@@ -290,7 +290,7 @@ describe.skipIf(!hasSqlite)('worker hidden pending ids (IN-01)', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker caps under concurrency (cap audit)', () => {
+describe.skipIf(skipSqlite)('worker caps under concurrency (cap audit)', () => {
   const lease = (db: D1Database) => db.prepare("SELECT n FROM counters WHERE k = 'rebuilding'").first('n');
 
   async function stale() {
@@ -344,7 +344,7 @@ describe.skipIf(!hasSqlite)('worker caps under concurrency (cap audit)', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker moderation log (IN-02)', () => {
+describe.skipIf(skipSqlite)('worker moderation log (IN-02)', () => {
   it('0008 marks the pending withdraws already logged as publisher actions', async () => {
     const db = d1();
     for (const m of migrationFiles()) if (m.name < '0008') await db.exec(m.sql);
@@ -362,7 +362,7 @@ describe.skipIf(!hasSqlite)('worker moderation log (IN-02)', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker entry cols', () => {
+describe.skipIf(skipSqlite)('worker entry cols', () => {
   it('0009 adds a null cols to existing rows and leaves summary and doc alone', async () => {
     const db = d1();
     for (const m of migrationFiles()) if (m.name < '0009') await db.exec(m.sql);
@@ -384,7 +384,7 @@ describe.skipIf(!hasSqlite)('worker entry cols', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker dropped versions (IN-07)', () => {
+describe.skipIf(skipSqlite)('worker dropped versions (IN-07)', () => {
   it('an unreviewed older version of an approved entry answers 410 version-dropped, a withdrawn one 410 withdrawn', async () => {
     const t = await setup();
     const bob = await t.account('bob', 8, false);

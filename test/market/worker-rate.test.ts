@@ -18,7 +18,7 @@ import type {
 import { createHandler } from '../../src/market/worker/handler.js';
 import { buckets, cleanup, hit, ipHash, readAllowed } from '../../src/market/worker/rate.js';
 import { START } from './conformance.js';
-import { hasSqlite } from './d1-sqlite.js';
+import { skipSqlite } from './d1-sqlite.js';
 import { makeEnv } from './worker-env.js';
 import { seedPublisher, seedToken } from './worker-seed.js';
 
@@ -147,7 +147,7 @@ describe('worker rate buckets', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker rate limits', () => {
+describe.skipIf(skipSqlite)('worker rate limits', () => {
   it('hit counts in fixed windows and returns the reference retry-after', async () => {
     const { db } = await setup();
     const t = START + 20_000;
@@ -332,7 +332,7 @@ describe.skipIf(!hasSqlite)('worker rate limits', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker storage guard', () => {
+describe.skipIf(skipSqlite)('worker storage guard', () => {
   const big = () => ({ layout: { lines: [Array.from({ length: 150 }, () => ({ type: 'model' }))] } });
 
   it('MAX_DB_BYTES refuses new content once passed; withdraw and reads still work', async () => {

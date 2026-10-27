@@ -19,6 +19,8 @@ function usable(m: Sqlite | undefined): boolean {
 }
 
 export const hasSqlite = usable(sqlite);
+export const requireSqlite = !!process.env.CI && Number(process.versions.node.split('.')[0]) >= 22;
+export const skipSqlite = !hasSqlite && !requireSqlite;
 
 export type Row = Record<string, unknown>;
 

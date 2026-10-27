@@ -7,7 +7,7 @@ import type { D1Database, D1PreparedStatement, Env, WorkerDeps } from '../../src
 import { createHandler } from '../../src/market/worker/handler.js';
 import { authPublisher, randomToken, sha256Hex } from '../../src/market/worker/tokens.js';
 import { START } from './conformance.js';
-import { hasSqlite } from './d1-sqlite.js';
+import { skipSqlite } from './d1-sqlite.js';
 import { makeRefTarget } from './ref-target.js';
 import { makeEnv } from './worker-env.js';
 import { seedEntry, seedPublisher, seedToken } from './worker-seed.js';
@@ -104,7 +104,7 @@ async function error(r: Response): Promise<{ status: number; code: string; messa
   return { status: r.status, code: b.error.code, message: b.error.message };
 }
 
-describe.skipIf(!hasSqlite)('worker writes', () => {
+describe.skipIf(skipSqlite)('worker writes', () => {
   it('writes the same bytes as the reference server for the same calls', async () => {
     const ref = await makeRefTarget();
     const w = await setup();

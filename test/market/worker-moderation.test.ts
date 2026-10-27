@@ -17,7 +17,7 @@ import {
 } from '../../src/market/protocol.js';
 import type { D1Database, D1PreparedStatement, Env } from '../../src/market/worker/env.js';
 import { createHandler } from '../../src/market/worker/handler.js';
-import { hasSqlite } from './d1-sqlite.js';
+import { skipSqlite } from './d1-sqlite.js';
 import { type FakeUser, fakeGitHub } from './fake-github.js';
 import { makeEnv } from './worker-env.js';
 
@@ -195,7 +195,7 @@ async function error(r: Response): Promise<{ status: number; code: string }> {
 
 const action = (id: string, a: 'approve' | 'reject' | 'remove') => adminActionPath(id, a);
 
-describe.skipIf(!hasSqlite)('worker review of new publishers', () => {
+describe.skipIf(skipSqlite)('worker review of new publishers', () => {
   it('holds a first publish as pending until an admin approves it', async () => {
     const s = await setup();
     const pub = await s.signIn('pub');
@@ -453,7 +453,7 @@ describe.skipIf(!hasSqlite)('worker review of new publishers', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker moderation', () => {
+describe.skipIf(skipSqlite)('worker moderation', () => {
   // a trusted publisher with live entries
   async function live(vars: Partial<Env> = {}, slugs = ['one', 'two']) {
     const s = await setup(vars);
@@ -754,7 +754,7 @@ describe.skipIf(!hasSqlite)('worker moderation', () => {
 });
 
 // findings of the 12-14 security review: moderation bypass and check-then-act races
-describe.skipIf(!hasSqlite)('worker moderation guards', () => {
+describe.skipIf(skipSqlite)('worker moderation guards', () => {
   async function three(vars: Partial<Env> = {}) {
     const s = await setup(vars);
     const pub = await s.signIn('pub');

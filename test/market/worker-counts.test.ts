@@ -4,7 +4,7 @@ import type { D1Database, D1PreparedStatement, Env } from '../../src/market/work
 import { createHandler } from '../../src/market/worker/handler.js';
 import { cleanup } from '../../src/market/worker/rate.js';
 import { CLEANUP_BATCH, cleanupStatements, rebuildIndex } from '../../src/market/worker/store.js';
-import { d1, hasSqlite, type TestD1 } from './d1-sqlite.js';
+import { d1, skipSqlite, type TestD1 } from './d1-sqlite.js';
 import { makeEnv, migrationFiles } from './worker-env.js';
 import { counts, ISO, seedEntry, seedPublisher, seedToken } from './worker-seed.js';
 
@@ -135,7 +135,7 @@ async function setup(crowded: number) {
   return { db: env.DB, list: rec.list, call, account, clock };
 }
 
-describe.skipIf(!hasSqlite)('worker write-side reads (CR-01)', () => {
+describe.skipIf(skipSqlite)('worker write-side reads (CR-01)', () => {
   it('a trusted publish and a new version only look rows up by key, besides the covering index read', async () => {
     const t = await setup(40);
     const token = await t.account('alp', 7, true);
@@ -245,7 +245,7 @@ async function after(db: TestD1, last: string): Promise<void> {
   for (const m of migrationFiles()) if (m.name > last) await db.exec(m.sql);
 }
 
-describe.skipIf(!hasSqlite)('worker counts', () => {
+describe.skipIf(skipSqlite)('worker counts', () => {
   it('backfills the counts of a database that already holds 0001 data', async () => {
     const db = d1();
     await upTo(db, '0001_init.sql');
@@ -328,7 +328,7 @@ describe.skipIf(!hasSqlite)('worker counts', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker pending caps (WR-02)', () => {
+describe.skipIf(skipSqlite)('worker pending caps (WR-02)', () => {
   async function world(vars: Partial<Env> = {}, caps: { entries?: number } = {}) {
     const { env, clock } = await makeEnv(vars);
     const handler = createHandler(env, {

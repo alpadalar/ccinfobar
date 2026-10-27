@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { d1, hasSqlite } from './d1-sqlite.js';
+import { d1, hasSqlite, requireSqlite, skipSqlite } from './d1-sqlite.js';
 
 const SCHEMA = `
 CREATE TABLE t (id TEXT PRIMARY KEY, n INTEGER, b BLOB) STRICT;
@@ -27,13 +27,17 @@ async function message(p: Promise<unknown>): Promise<string> {
   throw new Error('expected a rejection');
 }
 
+it.skipIf(!requireSqlite)('node:sqlite is usable in CI on Node 22+', () => {
+  expect(hasSqlite, 'node:sqlite with ?NNN params and columns() is required in CI on Node 22+').toBe(true);
+});
+
 it('hasSqlite is false where node:sqlite is missing', () => {
   const m = process.getBuiltinModule?.('node:sqlite') as typeof import('node:sqlite') | undefined;
   if (m === undefined) expect(hasSqlite).toBe(false);
   else if (hasSqlite) expect(typeof m.StatementSync.prototype.columns).toBe('function');
 });
 
-describe.skipIf(!hasSqlite)('d1 adapter over node:sqlite', () => {
+describe.skipIf(skipSqlite)('d1 adapter over node:sqlite', () => {
   it('exec runs a multi-statement script and counts statements', async () => {
     const { db, ready } = fresh();
     expect((await ready).count).toBe(4);

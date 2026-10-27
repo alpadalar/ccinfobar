@@ -3,7 +3,7 @@ import { parseMe, parseSignIn } from '../../src/market/protocol.js';
 import type { Env } from '../../src/market/worker/env.js';
 import { createHandler } from '../../src/market/worker/handler.js';
 import { START } from './conformance.js';
-import { hasSqlite } from './d1-sqlite.js';
+import { skipSqlite } from './d1-sqlite.js';
 import { type FakeGitHubOpts, type FakeUser, fakeGitHub } from './fake-github.js';
 import { makeEnv } from './worker-env.js';
 import { seedEntry, seedPublisher, seedToken } from './worker-seed.js';
@@ -72,7 +72,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe.skipIf(!hasSqlite)('worker GitHub sign-in', () => {
+describe.skipIf(skipSqlite)('worker GitHub sign-in', () => {
   it('maps a new GitHub id to its lowercase login and calls GitHub once with the required headers', async () => {
     const s = await setup({ users: { [T1]: user(1, 'Octo-Cat') } });
     const r = await s.signIn(T1);
@@ -390,7 +390,7 @@ describe.skipIf(!hasSqlite)('worker GitHub sign-in', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker check-token hardening', () => {
+describe.skipIf(skipSqlite)('worker check-token hardening', () => {
   const secret = 's3cret';
   const checked = (o: Partial<NonNullable<FakeGitHubOpts['checkToken']>> = {}) => ({
     users: { [T1]: user(1, 'Octo') },
@@ -530,7 +530,7 @@ describe.skipIf(!hasSqlite)('worker check-token hardening', () => {
   });
 });
 
-describe.skipIf(!hasSqlite)('worker logout and /v1/me', () => {
+describe.skipIf(skipSqlite)('worker logout and /v1/me', () => {
   it('logout revokes only the presented token', async () => {
     const s = await setup({ users: { [T1]: user(1, 'octo') } });
     const a = await ok(await s.signIn(T1));
