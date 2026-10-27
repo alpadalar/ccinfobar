@@ -64,7 +64,7 @@ function summaryText(ctx: RenderContext, pc: StatusPayload['prompt_cache'], max:
   const hist = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   const causes = Object.entries(hist)
     .filter((e): e is [string, number] => typeof e[1] === 'number' && Number.isFinite(e[1]) && e[1] > 0)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'en'))
     .slice(0, max)
     .map(([k, v]) => `${k.replace(/_/g, ' ').trim()} ${times}${v}`);
   const head = `${misses}/${requests} ${t('widget.performance.miss')}`;

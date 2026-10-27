@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- `cache-miss-cause` gains `show: summary`, which shows misses/requests and the most frequent miss causes from Claude Code's histogram (`3/48 miss · tools changed ×2, ttl expired 5m ×1`; `maxCauses` picks how many); `latest` and `always` are unchanged
 - `cache-timer` can append what a re-cache would cost if the prompt cache went cold (`showColdCost: tokens | usd`); the price uses the cache-write rate for the cache TTL (5m or 1h), your model profiles and fast mode, and the part is hidden when Claude Code sends no estimate or caching is off. `ccinfobar explain` now names the Claude Code version that added `miss_causes`, `recache_tokens_if_cold`, the spend-limit dollar fields, `worktree` and `added_dirs`
 - `cwd` can show the folders added with `/add-dir` as a count (`+2 dirs`) or as names (`+shared-lib +docs`, at most five) with the new `addedDirs` option; off by default
 - The background worker now removes per-session cache files (transcript, subagent, git, jj, width and similar entries) that have not been used for 30 days, and deletes the old `agent2-*` subagent cache files right away because they could hold unmasked tool arguments. Account usage and update state are never removed
