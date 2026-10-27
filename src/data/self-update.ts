@@ -424,13 +424,8 @@ export async function checkForUpdate(
     const bad = await verify(latest, env, deps.signal);
     if (bad === null) return { latest, installed: latest };
     const reason = bad.slice(0, 200);
-    // the machine, not the version, failed: keep the install, retry later
+    // only machine-health reasons keep the install; a timeout rejects (D-02)
     if (KEEP_REASONS.has(bad)) return { latest, installed: latest, error: `verify-inconclusive:${bad}` };
-    // a render that hangs is not safe to keep, but says nothing certain about the version
-    if (bad === 'verify-timeout') {
-      const ok = await rollBack(install, verify, current, prefix, env, deps.rollbackMs);
-      return { latest, error: `verify-timeout:${ok ? 'rolled-back' : 'rollback-failed'}` };
-    }
     // recorded first so a killed rollback still blacklists the version
     try {
       deps.recordRejected?.({ latest, rejected: latest, rollback: 'failed', reason });

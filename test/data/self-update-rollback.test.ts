@@ -115,19 +115,43 @@ describe('checkForUpdate verify and rollback', () => {
     }
   });
 
-  it('rolls back a verify timeout without rejecting the version', async () => {
+  it('rejects a version whose verify hangs after rolling back (D-02)', async () => {
     const install = vi.fn();
+    const recordRejected = vi.fn();
     const verify = async (v: string) => (v === '9.9.9' ? 'verify-timeout' : null);
-    const out = await checkForUpdate(cfg, '0.1.0', {}, { ...base, install, verify });
+    const out = await checkForUpdate(cfg, '0.1.0', {}, { ...base, install, verify, recordRejected });
     expect(install.mock.calls.map((c) => c[0])).toEqual(['9.9.9', '0.1.0']);
-    expect(out).toEqual({ latest: '9.9.9', error: 'verify-timeout:rolled-back' });
+    expect(recordRejected).toHaveBeenCalledTimes(1);
+    expect(recordRejected).toHaveBeenCalledWith({
+      latest: '9.9.9',
+      rejected: '9.9.9',
+      rollback: 'failed',
+      reason: 'verify-timeout',
+    });
+    expect(recordRejected.mock.invocationCallOrder[0]!).toBeLessThan(install.mock.invocationCallOrder[1]!);
+    expect(out).toEqual({ latest: '9.9.9', rejected: '9.9.9', rollback: 'ok', reason: 'verify-timeout' });
     const bad = await checkForUpdate(
       cfg,
       '0.1.0',
       {},
       { ...base, install, verify: async () => 'verify-timeout' },
     );
-    expect(bad).toEqual({ latest: '9.9.9', error: 'verify-timeout:rollback-failed' });
+    expect(bad).toEqual({ latest: '9.9.9', rejected: '9.9.9', rollback: 'failed', reason: 'verify-timeout' });
+  });
+
+  it('installs a hanging version only once across two daily runs', async () => {
+    const install = vi.fn();
+    const verify = async (v: string) => (v === '9.9.9' ? 'verify-timeout' : null);
+    const run1 = await checkForUpdate(cfg, '0.1.0', {}, { ...base, install, verify });
+    install.mockClear();
+    const run2 = await checkForUpdate(
+      cfg,
+      '0.1.0',
+      {},
+      { ...base, install, verify, rejected: run1.rejected },
+    );
+    expect(install).not.toHaveBeenCalled();
+    expect(run2).toEqual({ latest: '9.9.9', rejected: '9.9.9' });
   });
 
   it('keeps the install when verify passes', async () => {
