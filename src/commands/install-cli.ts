@@ -267,13 +267,17 @@ function refreshNotes(io: InstallIo, cfgFile: string, refresh: number | undefine
   if (refresh === 1) io.log(t('install.refreshOne'));
   if (refresh !== undefined || plan.proposed.refreshInterval !== undefined) return;
   let why = { widgets: [] as string[], rules: [] as string[] };
+  let rotates = false;
   try {
     const { config } = loadForUse(cfgFile);
+    const every = config.themeRotation?.every;
+    rotates = every === 'hour' || typeof every === 'number';
     const extra = config.tui ? titleWidgets(config.tui) : [];
     why = refreshReasons(config, (type) => getWidget(type)?.timeBased === true, [timeRuleFeed], extra);
   } catch {}
   if (why.widgets.length) io.log(t('install.refreshHint', { widgets: why.widgets.join(', ') }));
   if (why.rules.length) io.log(t('install.refreshHintRules', { items: sanitizeText(why.rules.join(', ')) }));
+  if (rotates) io.log(t('install.refreshHintRotation'));
 }
 
 function userRefresh(): number | undefined {

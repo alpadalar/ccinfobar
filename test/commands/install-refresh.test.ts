@@ -109,6 +109,26 @@ describe('install refresh suggestion', () => {
     expect(f.lines.some((l) => l.includes('--refresh 5'))).toBe(false);
   });
 
+  it('hints at --refresh for hourly or minute theme rotation only', async () => {
+    const rot = t('install.refreshHintRotation');
+    for (const every of ['hour', 15] as const) {
+      layout(['model', 'cwd'], { themeRotation: { themes: ['nord', 'dracula'], every } });
+      const f = fake();
+      await runInstall(args('--dry-run'), cfg, f.io);
+      expect(count(f.lines, rot)).toBe(1);
+    }
+    for (const every of ['day', 'week'] as const) {
+      layout(['model', 'cwd'], { themeRotation: { themes: ['nord', 'dracula'], every } });
+      const f = fake();
+      await runInstall(args('--dry-run'), cfg, f.io);
+      expect(count(f.lines, rot)).toBe(0);
+    }
+    layout(['model', 'cwd'], { themeRotation: { themes: ['nord', 'dracula'], every: 'hour' } });
+    const g = fake();
+    await runInstall(args('--dry-run', '--refresh', '5'), cfg, g.io);
+    expect(count(g.lines, rot)).toBe(0);
+  });
+
   it('prints nothing for a layout without time-based widgets', async () => {
     layout(['model', 'cwd']);
     const f = fake();

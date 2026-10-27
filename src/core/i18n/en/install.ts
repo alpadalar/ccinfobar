@@ -9,6 +9,8 @@ export const installMessages = {
     'Time-based widgets ({widgets}) only update when Claude Code re-runs the status line. Add `--refresh 5` to refresh every 5 s; Claude Code does not re-run it on hook events and hides it while a permission prompt or the help menu is open.',
   'install.refreshHintRules':
     'Time rules on {items} only change when Claude Code re-runs the status line. Add `--refresh 5` to refresh every 5 s.',
+  'install.refreshHintRotation':
+    'Theme rotation by the hour or by minutes switches themes only when Claude Code re-runs the status line; `ccinfobar install --refresh 5` keeps it on time while idle.',
   'install.refreshOne': 'refreshInterval 1 starts Node every second; 5 is usually enough.',
   'install.paddingDiff': '  padding: {current} -> {proposed}',
   'install.replacePrompt': 'Replace?',

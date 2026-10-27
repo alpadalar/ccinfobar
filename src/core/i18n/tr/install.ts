@@ -12,6 +12,8 @@ export const installMessages = {
     'Zamana bağlı bileşenler ({widgets}) yalnızca Claude Code durum satırını yeniden çalıştırdığında güncellenir. 5 saniyede bir yenilemek için `--refresh 5` ekleyin; Claude Code hook olaylarında yeniden çalıştırmaz; izin istemi veya yardım menüsü açıkken durum satırını gizler.',
   'install.refreshHintRules':
     '{items} üzerindeki zaman kuralları yalnızca Claude Code durum satırını yeniden çalıştırdığında değişir. 5 saniyede bir yenilemek için `--refresh 5` ekleyin.',
+  'install.refreshHintRotation':
+    'Saatlik veya dakikalık tema döngüsü temayı yalnızca Claude Code durum satırını yeniden çalıştırdığında değiştirir; `ccinfobar install --refresh 5` boşta da zamanında değiştirir.',
   'install.refreshOne': "refreshInterval 1, Node'u her saniye başlatır; genellikle 5 yeterlidir.",
   'install.paddingDiff': '  padding: {current} -> {proposed}',
   'install.replacePrompt': 'Değiştirilsin mi?',
