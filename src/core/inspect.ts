@@ -389,7 +389,6 @@ function sourceOff(ctx: RenderContext, metric: string): boolean {
   const need = METRIC_SPECS.get(metric)?.needs;
   if (need === 'ledger') return !ctx.data.ledger?.();
   if (need === 'limits') return !detectProvider(ctx.env).planLimits;
-  if (need === 'hooks') return !ctx.data.hooks?.();
   return false;
 }
 
@@ -571,7 +570,13 @@ function inspectItem(
     warning = ruleWarning(d);
     if (!d.visible) {
       const sources = uniq(toSources(item, ruleReads, opts.meta ?? {}));
-      return { ...row, status: 'hidden', sources, empty: ruleHidden(wctx, d), ...(warning ? { warning } : {}) };
+      return {
+        ...row,
+        status: 'hidden',
+        sources,
+        empty: ruleHidden(wctx, d),
+        ...(warning ? { warning } : {}),
+      };
     }
   }
   const warned = (r: InspectRow): InspectRow => (warning ? { ...r, warning } : r);

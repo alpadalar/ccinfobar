@@ -307,7 +307,9 @@ describe('runExplain table', () => {
     }
     vi.stubEnv('ANTHROPIC_API_KEY', '');
     try {
-      savedPayload({ rate_limits: { five_hour: { used_percentage: 3, resets_at: Date.now() / 1000 + 3600 } } });
+      savedPayload({
+        rate_limits: { five_hour: { used_percentage: 3, resets_at: Date.now() / 1000 + 3600 } },
+      });
       const line = run([], rule('usage.5h > 10')).out.find((l) => l.includes('m (model)'))!;
       expect(line).not.toContain('has no source');
       expect(line).toContain('usage.5h = 3');
