@@ -3,7 +3,7 @@ import path from 'node:path';
 import { sanitizeText } from '../core/sanitize.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
 import type { HookAgent, HookState } from './hooks.js';
-import { shortArg, type TranscriptInfo } from './transcript.js';
+import { headHash, shortArg, type TranscriptInfo } from './transcript.js';
 
 export interface AgentInfo {
   id: string;
@@ -21,7 +21,15 @@ export interface AgentInfo {
 }
 
 interface Summary {
+  v: number;
   size: number;
+  offset: number;
+  ino: number;
+  mtimeMs: number;
+  head: string;
+  headLen: number;
+  complete: boolean;
+  seen: string[];
   model: string | null;
   input: number;
   output: number;
@@ -32,6 +40,12 @@ interface Summary {
   tool: string | null;
 }
 
+const SUMMARY_VERSION = 1;
+const AGENT_CHUNK = 1024 * 1024;
+const HEAD_BYTES = 256;
+const SEEN_KEPT = 32;
+export const AGENT_BUDGET = 1024 * 1024;
+export const AGENTS_BUDGET = 4 * 1024 * 1024;
 const LIVE_MS = 30_000;
 const LOST_MS = 15 * 60_000;
 const MAX = 8;
@@ -47,9 +61,17 @@ function short(name: string, input: Json): string {
   return arg ? `${name}[${arg}]` : name;
 }
 
-function summarize(file: string, size: number): Summary {
-  const s: Summary = {
+function emptySummary(size: number): Summary {
+  return {
+    v: SUMMARY_VERSION,
     size,
+    offset: 0,
+    ino: 0,
+    mtimeMs: 0,
+    head: '',
+    headLen: 0,
+    complete: false,
+    seen: [],
     model: null,
     input: 0,
     output: 0,
@@ -59,57 +81,127 @@ function summarize(file: string, size: number): Summary {
     last: null,
     tool: null,
   };
-  let text = '';
+}
+
+function applyLine(s: Summary, line: string): void {
+  let e: Json;
   try {
-    text = fs.readFileSync(file, 'utf8');
+    e = JSON.parse(line) as Json;
   } catch {
-    return s;
+    return;
   }
-  const seen = new Set<string>();
-  for (const line of text.split('\n')) {
-    if (!line) continue;
-    let e: Json;
-    try {
-      e = JSON.parse(line) as Json;
-    } catch {
-      continue;
-    }
-    const ts = typeof e.timestamp === 'string' ? Date.parse(e.timestamp) : Number.NaN;
-    if (!Number.isNaN(ts)) {
-      s.first ??= ts;
-      s.last = ts;
-    }
-    if (e.type !== 'assistant') continue;
-    const msg = (e.message ?? {}) as Json;
-    if (typeof msg.model === 'string' && msg.model !== '<synthetic>') s.model = msg.model;
-    for (const b of Array.isArray(msg.content) ? (msg.content as Json[]) : []) {
-      if (b?.type === 'tool_use' && typeof b.name === 'string')
-        s.tool = short(b.name, (b.input ?? {}) as Json);
-    }
-    const key = `${msg.id ?? ''}:${e.requestId ?? ''}`;
-    const u = msg.usage as Json | undefined;
-    if (!u || seen.has(key)) continue;
-    seen.add(key);
-    const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-    s.input += n(u.input_tokens);
-    s.output += n(u.output_tokens);
-    const fresh = n(u.input_tokens) + n(u.output_tokens) + n(u.cache_creation_input_tokens);
-    s.fresh += fresh;
-    s.total += fresh + n(u.cache_read_input_tokens);
+  const ts = typeof e.timestamp === 'string' ? Date.parse(e.timestamp) : Number.NaN;
+  if (!Number.isNaN(ts)) {
+    s.first ??= ts;
+    s.last = ts;
   }
-  return s;
+  if (e.type !== 'assistant') return;
+  const msg = (e.message ?? {}) as Json;
+  if (typeof msg.model === 'string' && msg.model !== '<synthetic>') s.model = msg.model;
+  for (const b of Array.isArray(msg.content) ? (msg.content as Json[]) : []) {
+    if (b?.type === 'tool_use' && typeof b.name === 'string') s.tool = short(b.name, (b.input ?? {}) as Json);
+  }
+  const key = `${msg.id ?? ''}:${e.requestId ?? ''}`;
+  const u = msg.usage as Json | undefined;
+  if (!u || s.seen.includes(key)) return;
+  s.seen.push(key);
+  if (s.seen.length > SEEN_KEPT) s.seen.splice(0, s.seen.length - SEEN_KEPT);
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  s.input += n(u.input_tokens);
+  s.output += n(u.output_tokens);
+  const fresh = n(u.input_tokens) + n(u.output_tokens) + n(u.cache_creation_input_tokens);
+  s.fresh += fresh;
+  s.total += fresh + n(u.cache_read_input_tokens);
+}
+
+// returns bytes read; sets s.complete when the scan reached the end of the file
+function advanceSummary(s: Summary, fd: number, size: number, budget: number): number {
+  const from = s.offset;
+  const end = Math.min(size, from + Math.max(0, budget));
+  const buf = Buffer.allocUnsafe(Math.min(AGENT_CHUNK, Math.max(end - from, 1)));
+  let carry = Buffer.alloc(0);
+  let pos = from;
+  // a line longer than the budget is read through to its newline
+  while (pos < end || (s.offset === from && carry.length > 0 && pos < size)) {
+    const limit = pos < end ? end - pos : size - pos;
+    const n = fs.readSync(fd, buf, 0, Math.min(buf.length, limit), pos);
+    if (n <= 0) break;
+    pos += n;
+    const data = carry.length ? Buffer.concat([carry, buf.subarray(0, n)]) : buf.subarray(0, n);
+    let start = 0;
+    let nl = data.indexOf(10, start);
+    while (nl !== -1) {
+      if (nl > start) applyLine(s, data.toString('utf8', start, nl));
+      start = nl + 1;
+      nl = data.indexOf(10, start);
+    }
+    carry = Buffer.from(data.subarray(start));
+    s.offset = pos - carry.length;
+  }
+  s.complete = pos >= size;
+  // an unterminated last line counts if it parses; seen dedupes the re-read
+  if (s.complete && carry.length > 0) applyLine(s, carry.toString('utf8'));
+  return pos - from;
 }
 
 export function agentsCacheName(file: string): string {
   return `agent3-${cacheKey(file)}.json`;
 }
 
-function cached(file: string, size: number, env: NodeJS.ProcessEnv, persist: boolean): Summary {
+function headChanged(fd: number, s: Summary, h: { head: string; headLen: number }, size: number): boolean {
+  if (s.headLen <= 0) return false;
+  if (h.headLen === s.headLen) return h.head !== s.head;
+  // small file grew past its old head length
+  if (s.headLen < HEAD_BYTES && size > s.size && h.headLen > s.headLen) {
+    return headHash(fd, s.headLen).head !== s.head;
+  }
+  return true;
+}
+
+function cached(
+  file: string,
+  st: fs.Stats,
+  env: NodeJS.ProcessEnv,
+  persist: boolean,
+  left: { bytes: number },
+): Summary {
+  const size = st.size;
   const name = agentsCacheName(file);
-  const hit = readCache<Summary>(name, env);
-  if (hit && hit.size === size) return hit;
-  const s = summarize(file, size);
-  if (persist) writeCache(name, s, env);
+  let s = readCache<Summary>(name, env);
+  if (
+    !s ||
+    s.v !== SUMMARY_VERSION ||
+    !Array.isArray(s.seen) ||
+    s.offset > size ||
+    (s.ino !== 0 && st.ino !== 0 && s.ino !== st.ino)
+  ) {
+    s = emptySummary(size);
+  } else if (s.complete && s.mtimeMs === st.mtimeMs && s.size === size) {
+    return s;
+  }
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(file, 'r');
+    const h = headHash(fd, size);
+    if (s.offset > 0 && headChanged(fd, s, h, size)) s = emptySummary(size);
+    const budget = Math.min(AGENT_BUDGET, left.bytes);
+    if (budget > 0 && s.offset < size) left.bytes -= advanceSummary(s, fd, size, budget);
+    else if (s.offset >= size) s.complete = true;
+    s.ino = st.ino;
+    s.mtimeMs = st.mtimeMs;
+    s.size = size;
+    s.head = h.head;
+    s.headLen = h.headLen;
+    if (persist) writeCache(name, s, env);
+  } catch {
+    return s;
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+  }
   return s;
 }
 
@@ -162,6 +254,7 @@ export function readAgents(
   } catch {
     return [];
   }
+  const left = { bytes: AGENTS_BUDGET };
   const calls = new Map((info?.agentCalls ?? []).map((c) => [c.id, c]));
   const out: AgentInfo[] = [];
   for (const f of files) {
@@ -182,7 +275,7 @@ export function readAgents(
     const turn = info?.turnStart ?? null;
     const recent = turn !== null ? stat.mtimeMs >= turn : now - stat.mtimeMs < RECENT_MS;
     if (!running && !recent) continue;
-    const s = cached(jsonl, stat.size, env, opts.persist !== false);
+    const s = cached(jsonl, stat, env, opts.persist !== false, left);
     out.push(row(id, meta, s, { running, start: s.first, last: running ? now : s.last }));
   }
   return sorted(out);
@@ -213,6 +306,7 @@ function hookAgents(
   opts: { persist?: boolean; turnStart?: number | null },
 ): AgentInfo[] {
   const persist = opts.persist !== false;
+  const left = { bytes: AGENTS_BUDGET };
   const metas: MetaFile[] = [];
   if (transcriptPath) {
     const dir = path.join(transcriptPath.replace(/\.jsonl$/, ''), 'subagents');
@@ -257,7 +351,7 @@ function hookAgents(
       (x) => !used.has(x) && hooks.agents[x]!.type === type && hooks.agents[x]!.start !== null,
     );
     if (!open.length) continue;
-    m.s = cached(m.jsonl, m.stat.size, env, persist);
+    m.s = cached(m.jsonl, m.stat, env, persist, left);
     const first = m.s.first;
     if (first === null) continue;
     let best: string | undefined;
@@ -289,7 +383,7 @@ function hookAgents(
     }
     const recent = turn !== null ? ref >= turn : now - ref < RECENT_MS;
     if (!running && !recent) continue;
-    const s = m.s ?? cached(m.jsonl, m.stat.size, env, persist);
+    const s = m.s ?? cached(m.jsonl, m.stat, env, persist, left);
     if (!h) {
       out.push(row(m.id, m.meta, s, { running, start: s.first, last: running ? now : s.last }));
       continue;
