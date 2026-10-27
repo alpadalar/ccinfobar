@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StatusPayload } from '../../src/core/types.js';
 import { getWidget } from '../../src/widgets/index.js';
-import { ctxWith, NOW, renderWidget } from '../helpers.js';
+import { ctxWith, NOW, renderWidget, withLang } from '../helpers.js';
 
 const miss = (cause: unknown) =>
   renderWidget(
@@ -77,6 +77,63 @@ describe('cache-miss-cause show', () => {
   });
   it('treats an unknown ttl like always', () => {
     expect(renderWidget('cache-miss-cause', pc({ ...older, ttl: '7m' }))).toBe('tools changed (+2/-0)');
+  });
+});
+
+describe('cache-miss-cause summary', () => {
+  const base = { requests: 48, misses: 3, miss_causes: { tools_changed: 2, ttl_expired_5m: 1 } };
+  const sum = (p: unknown, options: Record<string, unknown> = {}, config = {}) =>
+    renderWidget(
+      'cache-miss-cause',
+      ctxWith({ payload: { prompt_cache: p } as unknown as StatusPayload, config }),
+      { options: { show: 'summary', ...options } },
+    );
+
+  it('lists the top causes', () => {
+    expect(sum(base)).toBe('3/48 miss · tools changed ×2, ttl expired 5m ×1');
+  });
+  it('caps with maxCauses', () => {
+    expect(sum(base, { maxCauses: 1 })).toBe('3/48 miss · tools changed ×2');
+  });
+  it('clamps and falls back', () => {
+    expect(sum(base, { maxCauses: 0 })).toBe('3/48 miss · tools changed ×2');
+    expect(sum(base, { maxCauses: 'x' })).toBe('3/48 miss · tools changed ×2, ttl expired 5m ×1');
+  });
+  it('sorts ties by name', () => {
+    expect(sum({ ...base, miss_causes: { b_cause: 1, a_cause: 1 } })).toBe(
+      '3/48 miss · a cause ×1, b cause ×1',
+    );
+  });
+  it('uses ascii in text charset', () => {
+    expect(sum(base, {}, { charset: 'text' })).toBe('3/48 miss | tools changed x2, ttl expired 5m x1');
+  });
+  it('returns null without data', () => {
+    expect(sum({ ...base, misses: 0 })).toBeNull();
+    expect(sum({ requests: 48, miss_causes: base.miss_causes })).toBeNull();
+    expect(sum({ misses: 3, miss_causes: base.miss_causes })).toBeNull();
+    expect(sum(undefined)).toBeNull();
+  });
+  it.each([[undefined], [{}], [{ a: 'two' }], [[]]])('counts only for miss_causes %j', (m) => {
+    expect(sum({ requests: 48, misses: 3, miss_causes: m })).toBe('3/48 miss');
+  });
+  it('keeps cause names untranslated in tr', () => {
+    withLang('tr', () => {
+      expect(sum(base)).toBe('3/48 ıska · tools changed ×2, ttl expired 5m ×1');
+    });
+  });
+  it('ignores the latest-miss rule', () => {
+    const old = {
+      ...base,
+      last_miss_cause: cause,
+      ttl: '5m',
+      expires_at: SEC + 300,
+      last_miss_at: SEC - 600,
+    };
+    expect(sum(old)).toBe('3/48 miss · tools changed ×2, ttl expired 5m ×1');
+    expect(renderWidget('cache-miss-cause', pc(old))).toBeNull();
+    expect(renderWidget('cache-miss-cause', pc(old), { options: { show: 'always' } })).toBe(
+      'tools changed (+2/-0)',
+    );
   });
 });
 
