@@ -39,6 +39,7 @@ import {
   type HookEntry,
   type Manifest,
   manifestFile,
+  noteWrite,
   type Owner,
   ownedEqual,
   type Restore,
@@ -49,6 +50,7 @@ import {
   recordSubagentLine,
   refreshWrittenHash,
   type StatusLineEntry,
+  type SubagentLineEntry,
   updateManifest,
 } from './manifest.js';
 import {
@@ -496,6 +498,8 @@ export type UninstallStatus =
   | 'gone-nothing'
   | 'not-installed';
 
+export type SubagentOut = 'removed' | 'restored' | 'kept' | null;
+
 export interface UninstallResult {
   status: UninstallStatus;
   file: string;
@@ -503,6 +507,7 @@ export interface UninstallResult {
   restored: StatusLineSetting | null;
   current?: StatusLineSetting | null;
   hooks: RemovedHooks;
+  subagent: SubagentOut;
 }
 
 type HooksOut = UninstallResult['hooks'];
@@ -522,6 +527,18 @@ function backupBytes(restore: { backup: string; hash: string }, env: NodeJS.Proc
   } catch {
     return null;
   }
+}
+
+function removeOwnedSubagent(d: Record<string, unknown>, entry: SubagentLineEntry | null): SubagentOut {
+  if (!entry) return null;
+  if (!ownedEqual(d.subagentStatusLine, entry.value)) return 'kept';
+  const prev = entry.previous;
+  if (prev && typeof prev === 'object' && !Array.isArray(prev)) {
+    d.subagentStatusLine = prev;
+    return 'restored';
+  }
+  delete d.subagentStatusLine;
+  return 'removed';
 }
 
 // only while the file is byte-identical to our last write
@@ -550,19 +567,22 @@ function restoreKey(
   fileExisted: boolean,
   hash: string | null,
   hookEntries: HookEntry[],
+  subEntry: SubagentLineEntry | null,
   env: NodeJS.ProcessEnv,
-): [UninstallStatus, StatusLineSetting | null, undefined, HooksOut] {
+): [UninstallStatus, StatusLineSetting | null, undefined, HooksOut, SubagentOut] {
   const opts = noOriginal(env);
   const { statusLine: _, ...rest } = structuredClone(data);
   const left = removeOwnedHooks(rest, hookEntries);
+  const subLeft = removeOwnedSubagent(rest, subEntry);
   const empty = !previous && !fileExisted && Object.keys(rest).length === 0;
   if (empty && deleteSettingsFile(file, { ...opts, ifHash: hash }))
-    return ['deleted-file', null, undefined, left];
-  const state = { raced: false, hooks: left };
+    return ['deleted-file', null, undefined, left, subLeft];
+  const state = { raced: false, hooks: left, sub: subLeft };
   patchSettings(
     file,
     (d) => {
       state.hooks = removeOwnedHooks(d, hookEntries);
+      state.sub = removeOwnedSubagent(d, subEntry);
       state.raced = !deepEqual(d.statusLine, ours);
       if (state.raced) return;
       if (previous) d.statusLine = previous;
@@ -570,8 +590,8 @@ function restoreKey(
     },
     opts,
   );
-  if (state.raced) return ['foreign', null, undefined, state.hooks];
-  return [previous ? 'restored-previous' : 'removed', previous, undefined, state.hooks];
+  if (state.raced) return ['foreign', null, undefined, state.hooks, state.sub];
+  return [previous ? 'restored-previous' : 'removed', previous, undefined, state.hooks, state.sub];
 }
 
 export function uninstall(
@@ -585,16 +605,19 @@ export function uninstall(
   const sl = statusLineOf(cur.data);
   const entry = findStatusLineEntry(m, target);
   const hookEntries = findHookEntries(m, target);
+  const subEntry = findSubagentLineEntry(m, target);
   const none: HooksOut = { removed: [], kept: [] };
   const patchOpts = noOriginal(env);
   // D-41: owned hooks go on every branch
+  let subOut: SubagentOut = null;
   const hooksOnly = (): HooksOut => {
-    if (!hookEntries.length) return none;
+    if (!hookEntries.length && !subEntry) return none;
     let out = none;
     patchSettings(
       target,
       (d) => {
         out = removeOwnedHooks(d, hookEntries);
+        subOut = removeOwnedSubagent(d, subEntry);
       },
       patchOpts,
     );
@@ -605,14 +628,23 @@ export function uninstall(
     restored: StatusLineSetting | null = null,
     current?: StatusLineSetting | null,
     hooks: HooksOut = none,
+    subagent: SubagentOut = subOut,
   ): UninstallResult => {
-    if (entry || hookEntries.length)
+    if (entry || hookEntries.length || subEntry)
       updateManifest(env, (cur) => {
         let next = entry ? dropEntry(cur, target, 'statusLine') : cur;
+        if (subEntry) next = dropEntry(next, target, 'subagentStatusLine');
         for (const h of hookEntries) next = dropHookEntry(next, target, h.event, h.role);
         return next;
       });
-    const res: UninstallResult = { status, file: target, removed: REMOVED.has(status), restored, hooks };
+    const res: UninstallResult = {
+      status,
+      file: target,
+      removed: REMOVED.has(status),
+      restored,
+      hooks,
+      subagent,
+    };
     if (current !== undefined) res.current = current;
     return res;
   };
@@ -625,6 +657,7 @@ export function uninstall(
         target,
         (d) => {
           out = removeOwnedHooks(d, hookEntries);
+          subOut = removeOwnedSubagent(d, subEntry);
           if (!statusLineOf(d)) d.statusLine = prev;
         },
         patchOpts,
@@ -635,9 +668,21 @@ export function uninstall(
     const exact = restoreExact(target, entry, cur.hash, env);
     // the restore point predates every owned hook
     const all = removedLists(hookEntries);
-    if (exact) return done(exact, exact === 'restored-exact' ? entry.previous : null, undefined, all);
+    const subExact: SubagentOut = subEntry ? (subEntry.previous ? 'restored' : 'removed') : null;
+    if (exact)
+      return done(exact, exact === 'restored-exact' ? entry.previous : null, undefined, all, subExact);
     return done(
-      ...restoreKey(target, cur.data, sl, entry.previous, entry.fileExisted, cur.hash, hookEntries, env),
+      ...restoreKey(
+        target,
+        cur.data,
+        sl,
+        entry.previous,
+        entry.fileExisted,
+        cur.hash,
+        hookEntries,
+        subEntry,
+        env,
+      ),
     );
   }
   if (!sl) return done('not-installed', null, null, hooksOnly());
@@ -645,9 +690,30 @@ export function uninstall(
   if (owner === 'legacy-ours' || (owner === 'legacy-ask' && opts.adoptLegacy)) {
     const previous = legacyPrevious(target, null);
     const existed = legacyBackup(target) !== null;
-    return done(...restoreKey(target, cur.data, sl, previous, existed, cur.hash, hookEntries, env));
+    return done(...restoreKey(target, cur.data, sl, previous, existed, cur.hash, hookEntries, subEntry, env));
   }
   return done('foreign', null, sl, hooksOnly());
+}
+
+export function uninstallSubagentLine(
+  file = claudeSettingsPath(),
+  env: NodeJS.ProcessEnv = process.env,
+): { subagent: SubagentOut; backup: string | null; changed: boolean } {
+  const entry = findSubagentLineEntry(openManifest(env), file);
+  if (!entry) return { subagent: null, backup: null, changed: false };
+  let out: SubagentOut = null;
+  const res = patchSettings(
+    file,
+    (d) => {
+      out = removeOwnedSubagent(d, entry);
+    },
+    noOriginal(env),
+  );
+  updateManifest(env, (cur) => {
+    const next = dropEntry(cur, file, 'subagentStatusLine');
+    return res.changed ? noteWrite(next, file, res.beforeHash, res.afterHash) : next;
+  });
+  return { subagent: out, backup: res.backup, changed: res.changed };
 }
 
 export { claudeJsonPath, projectSettingsPath };

@@ -529,7 +529,9 @@ describe('runInstall and runUninstall', () => {
       ['not-installed', t('uninstall.notInstalled', { file: tildify(file) }), null],
     ] as const;
     for (const [status, text, restored] of cases) {
-      expect(uninstallMessage({ status, file, removed: false, restored, hooks: NO_HOOKS })).toBe(text);
+      expect(
+        uninstallMessage({ status, file, removed: false, restored, hooks: NO_HOOKS, subagent: null }),
+      ).toBe(text);
     }
     expect(
       uninstallMessage({
@@ -539,6 +541,7 @@ describe('runInstall and runUninstall', () => {
         restored: null,
         current: s('other'),
         hooks: NO_HOOKS,
+        subagent: null,
       }),
     ).toBe(t('uninstall.foreign', { file: tildify(file), command: 'other' }));
   });
