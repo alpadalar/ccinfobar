@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   commandResolves,
+  editorModeOf,
   entryCommand,
   hookEntryState,
   hookGateWarnings,
@@ -10,8 +11,10 @@ import {
   progressWarnings,
   readSettingsLayer,
   type SettingsLayer,
+  settingsLayers,
 } from '../../src/commands/hooks-doctor.js';
 import type { HookEntry } from '../../src/commands/manifest.js';
+import { projectSettingsPath } from '../../src/core/paths.js';
 
 const none = () => [];
 
@@ -313,5 +316,45 @@ describe('progressWarnings', () => {
       keys({ progress: { enabled: true, channel: 'tty', tmuxPassthrough: true }, env: tmux, entries: [] }),
     ).toEqual([]);
     expect(keys({ env: tmux })).toEqual([]);
+  });
+});
+
+describe('editorModeOf', () => {
+  const L = (name: SettingsLayer['name'], data: Record<string, unknown> | null): SettingsLayer => ({
+    name,
+    file: `/${name}`,
+    data,
+  });
+  it('prefers managed > local > project > user', () => {
+    const layers = [
+      L('user', { editorMode: 'normal' }),
+      L('project', { editorMode: 'vim' }),
+      L('local', { editorMode: 'emacs' }),
+      L('managed', { editorMode: 'vim' }),
+    ];
+    expect(editorModeOf(layers, { editorMode: 'x' })).toBe('vim');
+    expect(editorModeOf(layers.slice(0, 3), null)).toBe('emacs');
+    expect(editorModeOf(layers.slice(0, 2), null)).toBe('vim');
+  });
+  it('skips non-strings and falls back to claude json', () => {
+    const layers = [L('user', { editorMode: 3 }), L('local', null)];
+    expect(editorModeOf(layers, { editorMode: 'vim' })).toBe('vim');
+    expect(editorModeOf(layers, { editorMode: 3 })).toBeNull();
+    expect(editorModeOf(layers, null)).toBeNull();
+  });
+});
+
+describe('settingsLayers', () => {
+  it('orders user, project, local per dir, then managed', () => {
+    const layers = settingsLayers('/u.json', ['/p1', '/p2'], ['/m']);
+    expect(layers.map((l) => l.name)).toEqual(['user', 'project', 'local', 'project', 'local', 'managed']);
+    expect(layers.map((l) => l.file)).toEqual([
+      '/u.json',
+      projectSettingsPath('/p1', false),
+      projectSettingsPath('/p1', true),
+      projectSettingsPath('/p2', false),
+      projectSettingsPath('/p2', true),
+      '/m',
+    ]);
   });
 });

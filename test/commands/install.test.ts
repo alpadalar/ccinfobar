@@ -8,6 +8,7 @@ import {
   acceptCommand,
   applyInstall,
   defaultCommand,
+  hasVimWidget,
   ignoreLocally,
   isTransientBin,
   planInstall,
@@ -21,6 +22,7 @@ import {
 import { ask, isYes, promptMarker } from '../../src/commands/install-cli.js';
 import { classifyOwner, findStatusLineEntry, readManifest } from '../../src/commands/manifest.js';
 import { backupsDir, hashBytes, readSettings } from '../../src/commands/settings-file.js';
+import { defaultConfig } from '../../src/core/config.js';
 import { t } from '../../src/core/i18n/index.js';
 import { claudeSettingsPath } from '../../src/core/paths.js';
 import { restoreEnv, withLang } from '../helpers.js';
@@ -483,5 +485,47 @@ describe('install prompt and messages', () => {
     fs.writeFileSync(file, `${JSON.stringify(d)}\n`);
     expect(uninstall(file)).toMatchObject({ status: 'foreign', removed: false });
     expect(read(file).statusLine.command).toBe('npx other');
+  });
+});
+
+describe('hideVim tri-state', () => {
+  const install = (file: string, hideVim?: boolean) =>
+    applyInstall(planInstall({ file, command: '/bin/ccinfobar', hideVim }), { confirmed: true });
+
+  it('sets, keeps, removes and restores around the original statusLine', () => {
+    const original = { type: 'command', command: 'npx other' };
+    const file = settingsFile({ statusLine: original, keep: 1 });
+    install(file, true);
+    expect(read(file).statusLine.hideVimModeIndicator).toBe(true);
+    expect(read(file).hideVimModeIndicator).toBeUndefined();
+    expect(read(file).keep).toBe(1);
+    install(file);
+    expect(read(file).statusLine.hideVimModeIndicator).toBe(true);
+    expect(classifyOwner(readManifest(), file, read(file).statusLine, '/bin/ccinfobar')).toBe('ours');
+    install(file, false);
+    expect(read(file).statusLine.hideVimModeIndicator).toBeUndefined();
+    install(file, true);
+    expect(uninstall(file)).toMatchObject({ removed: true });
+    expect(read(file).statusLine).toEqual(original);
+  });
+
+  it('undefined keeps a hand-set value and plan.changes notices a toggle', () => {
+    const file = settingsFile({});
+    install(file);
+    const d = read(file);
+    d.statusLine.hideVimModeIndicator = true;
+    fs.writeFileSync(file, JSON.stringify(d));
+    expect(planInstall({ file, command: '/bin/ccinfobar', hideVim: undefined }).proposed).toMatchObject({
+      hideVimModeIndicator: true,
+    });
+    expect(planInstall({ file, command: '/bin/ccinfobar', hideVim: false }).changes).toBe(true);
+  });
+
+  it('hasVimWidget checks lines and tui titles', () => {
+    const w = { id: 'a', type: 'vim-mode' } as never;
+    expect(hasVimWidget({ ...defaultConfig(), lines: [[w]] })).toBe(true);
+    expect(hasVimWidget({ ...defaultConfig(), lines: [[{ id: 'b', type: 'model' } as never]] })).toBe(false);
+    const tui = { ...defaultConfig(), lines: [[]], tui: { title: { left: '{vim-mode}' } } };
+    expect(hasVimWidget(tui)).toBe(true);
   });
 });
