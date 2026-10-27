@@ -16,6 +16,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Web editor: a rotating tips line under the lines shows shortcuts. It pauses on hover or focus, does not rotate when the system asks for reduced motion, and can be hidden for good
 - Share codes: `ccinfobar share` prints a `ccib1:` code (compressed, base64url) with your layout and theme and none of your personal settings. Command, HTTP, link and env widgets are removed unless you pass `--include-commands`, and `--json` prints the code with its size and what was removed. `ccinfobar edit --open <code>` (or `ccinfobar edit <code>`) opens the editor with it loaded and unsaved, and `ccinfobar catalog apply <code>` writes it with the usual consent, `--dry-run`, `--json` and backup. A damaged, oversized or unknown-version code is refused before anything starts
 - Web editor: **Share** shows the share code for the current config with its size, copies it and lists the removed command, HTTP, link and env widgets, with an **Include commands and links** switch. **Open…** takes a pasted code or a link ending in `#c=<code>`, and a code pasted into **Import** works too. Opening asks about every command, link and env widget like a catalog apply, installs an embedded theme into `themes/`, and leaves the config unsaved (undo works)
+- Automatic updates now check the new version (`--version` and a test render) before keeping it and roll back to the previous version on failure; a rejected version is not retried. `ccinfobar doctor` and the status line say when that happened
 
 ### Changed
 
@@ -53,6 +54,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Security
 
+- The GitHub tarball fallback of the updater checks the release's published sha256 digest when GitHub provides one, and stops before npm runs on a mismatch.
 - The `agents` widget and its cache now mask tokens, passwords and URL credentials inside subagent tool arguments and show file names instead of full paths, with the same rules as the running-tools display; the old `agent2-*` cache files are no longer read.
 - `env` widgets now need the same consent as command, HTTP and link widgets wherever a layout comes from outside (import, `catalog apply`, share codes, editor Open…/Import, marketplace install); without it they are dropped, so a pasted layout cannot show an environment variable.
 - Share codes keep only `http:`/`https:` links; other schemes (`file:`, `ftp:`, `vbscript:`, `javascript:`, `data:`) are dropped at decode and named at the consent step.
