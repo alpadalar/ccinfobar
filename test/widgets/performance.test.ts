@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { syncProgress } from '../../src/cli/progress.js';
+import { renderStatus } from '../../src/cli/render.js';
 import { stripAnsi, visibleWidth } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { createContext } from '../../src/core/context.js';
@@ -17,7 +18,7 @@ import { envelopeFile, okEnvelope } from '../../src/data/jobs/runner.js';
 import { reposKey } from '../../src/data/repos.js';
 import type { TranscriptInfo } from '../../src/data/transcript.js';
 import { getWidget } from '../../src/widgets/index.js';
-import { ctxWith, NOW, renderWidget, withoutSideEffects } from '../helpers.js';
+import { ctxWith, NOW, renderWidget, restoreEnv, withoutSideEffects } from '../helpers.js';
 
 const fx = vi.hoisted(() => ({ managedDir: '', stopAt: '' }));
 
@@ -446,5 +447,69 @@ describe.skipIf(fs.existsSync(path.join(os.tmpdir(), '.git')))('phase 7 render t
     expect(r.spawns).toEqual(SPAWNS.map(() => 0));
     expect(r.fetches).toBe(0);
     expect(r.progress).toEqual([]);
+  });
+});
+
+describe('terminal width probe gating', () => {
+  function renderCounting(config: Config, guard: boolean) {
+    const spies = SPAWNS.map((name) => vi.spyOn(cp, name));
+    module.syncBuiltinESMExports();
+    try {
+      const payload = { ...base(), session_id: 'width-gate' };
+      delete payload.terminal_width;
+      delete payload.columns;
+      const go = () => renderStatus(config, payload);
+      if (guard) withoutSideEffects(go);
+      else go();
+      return () => spies.map((s) => s.mock.calls.length).reduce((a, b) => a + b, 0);
+    } finally {
+      module.syncBuiltinESMExports();
+    }
+  }
+
+  function inFreshCache(fn: (count: (c: Config, guard: boolean) => () => number) => void) {
+    const saved = { ...process.env };
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-width-gate-'));
+    process.env.CCINFOBAR_CACHE_DIR = dir;
+    delete process.env.COLUMNS;
+    try {
+      fn(renderCounting);
+    } finally {
+      vi.restoreAllMocks();
+      module.syncBuiltinESMExports();
+      restoreEnv(saved);
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  const items = (): WidgetItem[][] => [
+    [
+      { id: 'm', type: 'model' },
+      { id: 'c', type: 'cost' },
+    ],
+  ];
+
+  it('a plain layout spawns nothing without a known width', () => {
+    inFreshCache((count) => {
+      const config = { ...defaultConfig(), colorLevel: 0, autoWrap: false, lines: items() } as Config;
+      expect(count(config, true)()).toBe(0);
+    });
+  });
+
+  it('a numeric maxWidth never probes', () => {
+    inFreshCache((count) => {
+      const config = { ...defaultConfig(), colorLevel: 0, autoWrap: true, maxWidth: 80, lines: items() };
+      expect(count(config as Config, true)()).toBe(0);
+    });
+  });
+
+  it('autoWrap probes at most once within the TTL', () => {
+    inFreshCache((count) => {
+      const config = { ...defaultConfig(), colorLevel: 0, autoWrap: true, lines: items() } as Config;
+      count(config, false);
+      vi.restoreAllMocks();
+      const second = count(config, false);
+      expect(second()).toBe(0);
+    });
   });
 });
