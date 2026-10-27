@@ -44,4 +44,8 @@ export const staticMessages = {
   'web.static.bootTitle': 'Cannot reach the editor',
   'web.static.bootHelp': '{error}. Reopen the URL printed by {command}.',
   'web.static.resizeTitle': 'Drag to resize the preview. Double-click to reset the width.',
+  'web.static.share': 'Share',
+  'web.static.shareTitle': 'Share this config as a code',
+  'web.static.openCode': 'Open…',
+  'web.static.openCodeTitle': 'Open a share code',
 } as const;

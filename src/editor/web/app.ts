@@ -22,6 +22,7 @@ import { type LanguageId, language, type MessageId, setLanguage, t } from '../..
 import { pickUiLanguage } from '../../core/i18n/resolve.js';
 import { categoryText, widgetText } from '../../core/i18n/widget-text.js';
 import { titleWidgets } from '../../core/panel.js';
+import { extractCode } from '../../core/share-code.js';
 import type { Config } from '../../core/types.js';
 import { ansiToHtml } from './ansi-html.js';
 import { ApiError, api, previewSource, setToken } from './api.js';
@@ -35,6 +36,7 @@ import { installDialog } from './install-dialog.js';
 import { openPresets } from './presets.js';
 import { paletteMatches } from './search.js';
 import { openSettings } from './settings.js';
+import { openCodeDialog, openShareCode, shareDialog } from './share.js';
 import {
   commit,
   currentTheme,
@@ -563,6 +565,12 @@ async function importJson(): Promise<void> {
           class: 'btn primary',
           type: 'button',
           onClick: async () => {
+            if (!('errorId' in extractCode(area.value))) {
+              const code = area.value;
+              close();
+              await openShareCode(code);
+              return;
+            }
             try {
               const parsed = JSON.parse(area.value) as unknown;
               if (
@@ -762,6 +770,8 @@ function setupStatic(): void {
     ['settings-btn', 'gear'],
     ['import', 'upload'],
     ['export', 'download'],
+    ['share', 'share'],
+    ['open-code', 'link'],
     ['trash', 'trash'],
     ['add-line', 'plus'],
     ['search-icon', 'search'],
@@ -779,6 +789,8 @@ function setupStatic(): void {
   $('save').addEventListener('click', () => void save());
   $('import').addEventListener('click', () => void importJson());
   $('export').addEventListener('click', exportJson);
+  $('share').addEventListener('click', () => void shareDialog());
+  $('open-code').addEventListener('click', () => void openCodeDialog());
   $('install').addEventListener('click', () => void installDialog());
   $('done').addEventListener('click', () => void done());
   $('add-line').addEventListener('click', () => {
@@ -831,10 +843,11 @@ function setupStatic(): void {
 async function boot(): Promise<void> {
   const params = new URLSearchParams(location.search);
   const token = params.get('t') ?? sessionStorage.getItem('ccinfobar-token') ?? '';
-  if (params.has('t')) {
-    sessionStorage.setItem('ccinfobar-token', token);
-    history.replaceState(null, '', location.pathname);
-  }
+  // read before the url is cleaned
+  const hash = location.hash || '';
+  const shared = hash.startsWith('#c=') ? hash.slice(3) : null;
+  if (params.has('t')) sessionStorage.setItem('ccinfobar-token', token);
+  if (params.has('t') || hash) history.replaceState(null, '', location.pathname);
   setToken(token);
   try {
     init(await api.state());
@@ -870,6 +883,7 @@ async function boot(): Promise<void> {
   renderChrome();
   schedulePreview();
   emit('ui');
+  if (shared) void openShareCode(shared);
 }
 
 void boot();

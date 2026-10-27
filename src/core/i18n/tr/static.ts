@@ -50,4 +50,8 @@ export const staticMessages = {
   'web.static.bootHelp': '{error}. {command} komutunun yazdırdığı adresi yeniden açın.',
   'web.static.resizeTitle':
     'Önizlemeyi boyutlandırmak için sürükleyin. Genişliği sıfırlamak için çift tıklayın.',
+  'web.static.share': 'Paylaş',
+  'web.static.shareTitle': 'Bu yapılandırmayı kod olarak paylaş',
+  'web.static.openCode': 'Aç…',
+  'web.static.openCodeTitle': 'Bir paylaşım kodu aç',
 } satisfies Record<keyof typeof enStatic, Message>;

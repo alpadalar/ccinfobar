@@ -4,6 +4,7 @@ import { en } from '../../core/i18n/en/index.js';
 import { lazyMessages } from '../../core/i18n/en/lazy.js';
 import { language, languageLocale, type MessageId, type Params, t } from '../../core/i18n/index.js';
 import type { Config, ProgressConfig } from '../../core/types.js';
+import type { ImportTarget } from '../../importers/confirm.js';
 import type {
   ApiState,
   CatalogEntryInfo,
@@ -102,6 +103,22 @@ export interface CatalogSaveBody {
   rev?: number;
   cols?: number;
   config: Config;
+}
+
+export interface ShareInfo {
+  code: string;
+  chars: number;
+  max: number;
+  included: boolean;
+  targets: MarketTarget[];
+  dropped: MarketTarget[];
+}
+
+export interface ShareOpenInfo {
+  code: string;
+  content: EntryContent;
+  cols: number | null;
+  targets: ImportTarget[];
 }
 
 let token = '';
@@ -243,6 +260,15 @@ export const api = {
       theme: { id: string; written: boolean; renamed: boolean } | null;
       themes: ThemeInfo[];
     }>('POST', '/api/catalog/install-theme', { ref, version }),
+  share: (config: Config, includeCommands: boolean, cols?: number) =>
+    call<ShareInfo>('POST', '/api/share', { config, includeCommands, cols }),
+  shareOpen: (code: string) => call<ShareOpenInfo>('POST', '/api/share/open', { code }),
+  shareInstallTheme: (code: string) =>
+    call<{
+      ok: boolean;
+      theme: { id: string; written: boolean; renamed: boolean } | null;
+      themes: ThemeInfo[];
+    }>('POST', '/api/share/install-theme', { code }),
   catalogPublishPlan: (refs?: string[]) =>
     call<PublishPlanInfo>('POST', '/api/catalog/publish/plan', { refs }),
   catalogPublisher: (handle: string, refs?: string[]) =>

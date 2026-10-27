@@ -175,7 +175,7 @@ export const editorMessages = {
   'web.app.saved': 'Saved. Claude Code shows it on its next refresh.',
   'web.app.savedInstall': 'Saved. Install in Claude Code to see it there.',
   'web.app.saveFailed': 'Save failed: {error}',
-  'web.app.importPlaceholder': 'Paste a ccinfobar config JSON here',
+  'web.app.importPlaceholder': 'Paste a ccinfobar config JSON or a share code here',
   'web.app.importTitle': 'Import config',
   'web.app.fromFile': 'From file',
   'web.app.import': 'Import',
@@ -232,4 +232,30 @@ export const editorMessages = {
     'Drag the right edge of the preview to change its width. Double-click the edge to reset it.',
   'web.tips.undo': '{mod}+Z undoes and {mod}+Shift+Z redoes any edit.',
   'web.tips.save': '{mod}+S saves. Claude Code shows the change on its next refresh.',
+  'share.dialog.title': 'Share this config',
+  'share.dialog.text':
+    'This code holds your layout and theme, never your personal settings such as budget, profiles or language. Paste it anywhere; it needs no server.',
+  'share.dialog.size': '{chars} of {max} characters',
+  'share.dialog.copy': 'Copy code',
+  'share.copied': 'Share code copied',
+  'share.copyFailed': 'Could not copy; the code is selected, so copy it yourself',
+  'share.recipientHint':
+    'To open it, click Open… in the editor or run: npx ccinfobar@latest edit --open <code>',
+  'share.removedTitle': 'Removed from the code',
+  'share.includedTitle': 'Included in the code',
+  'share.include': 'Include commands and links',
+  'share.includeWarn':
+    'These run commands, send HTTP requests or open URLs on the machine that opens the code. ccinfobar asks there before keeping any of them.',
+  'share.open.title': 'Open a share code',
+  'share.open.text':
+    'Paste a share code (ccib1:…) or a link that ends in #c=… Nothing is saved until you click Save.',
+  'share.open.placeholder': 'ccib1:…',
+  'share.open.open': 'Open',
+  'share.open.replaceTitle': 'Open the share code?',
+  'share.open.replaceText': 'Your unsaved changes stay in undo history.',
+  'share.open.done': 'Opened the share code. Save to keep it.',
+  'share.open.dropped': {
+    one: 'Opened the share code without 1 command or link widget. Save to keep it.',
+    other: 'Opened the share code without {count} command or link widgets. Save to keep it.',
+  },
 } as const;

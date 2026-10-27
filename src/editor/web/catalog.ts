@@ -137,11 +137,11 @@ function localize(e: CatalogEntryInfo, config: Config): Config {
   return e.source === 'system' && e.kind !== 'theme' ? presetLabels(config) : config;
 }
 
-const reviewable = (x: ImportTarget) => [...x.target].length <= MAX_TARGET_CHARS;
+export const reviewable = (x: ImportTarget) => [...x.target].length <= MAX_TARGET_CHARS;
 
 // as catalog apply in a terminal: every target in full, invisible characters
 // named, overlong ones dropped unseen; dropping is the focused default
-async function consent(e: CatalogEntryInfo, targets: ImportTarget[]): Promise<'keep' | 'drop' | null> {
+export async function targetConsent(name: string, targets: ImportTarget[]): Promise<'keep' | 'drop' | null> {
   const short = targets.filter(reviewable);
   let drop: HTMLElement | null = null;
   const row = (x: ImportTarget) =>
@@ -158,7 +158,7 @@ async function consent(e: CatalogEntryInfo, targets: ImportTarget[]): Promise<'k
           t('import.targetLong', { kind: kindText(x.kind), count: [...x.target].length }).trim(),
         );
   const shown = modal<'keep' | 'drop'>({
-    title: t('catalog.consent.title', { name: e.name }),
+    title: t('catalog.consent.title', { name }),
     wide: true,
     body: [
       h('p', { class: 'modal-text' }, t('catalog.consent.text')),
@@ -204,7 +204,7 @@ export async function applyEntry(e: CatalogEntryInfo, close: (v?: unknown) => vo
   if (e.source !== 'system' && e.kind !== 'theme' && content.layout) {
     const targets = importTargets(content.layout);
     if (targets.length) {
-      const choice = await consent(e, targets);
+      const choice = await targetConsent(e.name, targets);
       if (!choice) return;
       // overlong targets are never kept
       const gone = choice === 'drop' ? targets : targets.filter((x) => !reviewable(x));

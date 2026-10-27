@@ -3541,3 +3541,35 @@ body.painting .chip:hover {
   overflow: visible;
   text-align: center;
 }
+
+.share-code {
+  min-height: 0;
+  max-height: 12rem;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.share-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.share-size,
+.share-warn {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.share-subtitle {
+  font-size: 0.8125rem;
+  margin: 0.25rem 0 0;
+}
+
+.share-include {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

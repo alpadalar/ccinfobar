@@ -136,7 +136,11 @@ ccinfobar edit
 | Theme gallery | Every theme rendered live with your own widgets. Apply with one click, filter by style, or open **New theme** to build your own: pick a starting theme, a style, and text and background colors per category or in a cycle, with a live preview. |
 | Presets | Built-in and your own layouts with live previews. **Save current as preset** keeps your layout for later. |
 | Marketplace | Built-in and saved presets, themes and bundles with live previews, one-click apply, save with version history, and a marketplace to browse, install and publish, in **Bundles**, **Presets**, **Themes**, **User** and **Built in** tabs ([Catalog](#catalog)). |
-| Top bar | Presets, Marketplace, themes, undo/redo, import/export JSON, save (`Ctrl+S`), one-click install into Claude Code, and Settings. |
+| Top bar | Presets, Marketplace, themes, undo/redo, import/export JSON, **Share** and **Open…** for share codes, save (`Ctrl+S`), one-click install into Claude Code, and Settings. |
+
+#### Share codes
+
+**Share** turns the current config into a share code, one line of text starting with `ccib1:` that you can paste into a chat or an issue; the dialog shows its size and copies it. It holds your layout and theme, never personal settings such as budget, profiles or language. Command, HTTP and link widgets are removed and listed unless you tick **Include commands and links**. **Open…** (or pasting a code into **Import**) loads one: its commands, HTTP calls and links are shown first and dropped unless you keep them, and nothing is saved until you click Save. In a terminal, `ccinfobar share` prints the code and `ccinfobar edit --open <code>` opens it in the editor. More in [Share codes](docs/CATALOG.md#share-codes).
 
 The editor runs only on `127.0.0.1` with a per-session token. Press **Done** or `Ctrl+C` to stop it.
 

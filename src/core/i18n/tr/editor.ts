@@ -181,7 +181,8 @@ export const editorMessages = {
   'web.app.saved': 'Kaydedildi. Claude Code bir sonraki yenilemede gösterir.',
   'web.app.savedInstall': "Kaydedildi. Orada görmek için Claude Code'a kurun.",
   'web.app.saveFailed': 'Kaydetme başarısız oldu: {error}',
-  'web.app.importPlaceholder': 'Bir ccinfobar yapılandırma JSON metnini buraya yapıştırın',
+  'web.app.importPlaceholder':
+    'Bir ccinfobar yapılandırma JSON metnini veya paylaşım kodunu buraya yapıştırın',
   'web.app.importTitle': 'Yapılandırmayı içe aktar',
   'web.app.fromFile': 'Dosyadan',
   'web.app.import': 'İçe aktar',
@@ -239,4 +240,30 @@ export const editorMessages = {
     'Önizlemenin sağ kenarını sürükleyerek genişliğini değiştirin. Sıfırlamak için kenara çift tıklayın.',
   'web.tips.undo': '{mod}+Z geri alır, {mod}+Shift+Z yineler.',
   'web.tips.save': '{mod}+S kaydeder. Claude Code değişikliği bir sonraki yenilemede gösterir.',
+  'share.dialog.title': 'Bu yapılandırmayı paylaş',
+  'share.dialog.text':
+    'Bu kod düzeninizi ve temanızı taşır; bütçe, profiller veya dil gibi kişisel ayarlarınızı asla taşımaz. İstediğiniz yere yapıştırın; sunucu gerekmez.',
+  'share.dialog.size': '{chars} / {max} karakter',
+  'share.dialog.copy': 'Kodu kopyala',
+  'share.copied': 'Paylaşım kodu kopyalandı',
+  'share.copyFailed': 'Kopyalanamadı; kod seçili, kendiniz kopyalayın',
+  'share.recipientHint':
+    'Açmak için editörde Aç… düğmesine tıklayın veya şunu çalıştırın: npx ccinfobar@latest edit --open <kod>',
+  'share.removedTitle': 'Koddan çıkarılanlar',
+  'share.includedTitle': 'Kodda olanlar',
+  'share.include': 'Komutları ve bağlantıları dahil et',
+  'share.includeWarn':
+    'Bunlar kodu açan makinede komut çalıştırır, HTTP isteği gönderir veya URL açar. ccinfobar orada herhangi birini korumadan önce sorar.',
+  'share.open.title': 'Bir paylaşım kodu aç',
+  'share.open.text':
+    "Bir paylaşım kodu (ccib1:…) veya #c=… ile biten bir bağlantı yapıştırın. Kaydet'e tıklayana kadar hiçbir şey kaydedilmez.",
+  'share.open.placeholder': 'ccib1:…',
+  'share.open.open': 'Aç',
+  'share.open.replaceTitle': 'Paylaşım kodu açılsın mı?',
+  'share.open.replaceText': 'Kaydedilmemiş değişiklikleriniz geri alma geçmişinde kalır.',
+  'share.open.done': 'Paylaşım kodu açıldı. Kalıcı olması için kaydedin.',
+  'share.open.dropped': {
+    one: 'Paylaşım kodu 1 komut veya bağlantı bileşeni olmadan açıldı. Kalıcı olması için kaydedin.',
+    other: 'Paylaşım kodu {count} komut veya bağlantı bileşeni olmadan açıldı. Kalıcı olması için kaydedin.',
+  },
 } satisfies Record<keyof typeof enEditor, Message>;
