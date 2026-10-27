@@ -4,7 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const files = vi.hoisted(() => [] as string[]);
+const files = vi.hoisted(() => {
+  // slow runners time git out at the 1.5 s default, which fails closed
+  process.env.CCINFOBAR_GIT_TIMEOUT ??= '20000';
+  return [] as string[];
+});
 
 vi.mock('node:child_process', async (orig) => {
   const real = await orig<typeof import('node:child_process')>();
