@@ -77,11 +77,12 @@ export interface StatusPayload {
     last_miss_at?: number | string | null;
     last_miss_cause?: MissCause | string | null;
     miss_causes?: Record<string, number>;
-    recache_tokens_if_cold?: number;
+    recache_tokens_if_cold?: number | null;
   };
   rate_limits?: {
     five_hour?: RateWindow;
     seven_day?: RateWindow;
+    // usage api only
     seven_day_sonnet?: RateWindow;
     seven_day_opus?: RateWindow;
     seven_day_models?: ModelWindow[];
