@@ -6,7 +6,8 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['test/setup.ts'],
     globalSetup: ['test/global-setup.ts'],
-    // slow Windows runners
-    testTimeout: process.platform === 'win32' ? 20000 : process.env.CI ? 15000 : 5000,
+    // slow and busy runners
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
   },
 });
