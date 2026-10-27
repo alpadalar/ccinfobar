@@ -671,6 +671,7 @@ Each event is one line with a timestamp in `<cache dir>/hooks/<session id>.jsonl
 | `ccinfobar catalog <command>` | Browse, apply and save presets, themes and bundles ([Catalog](#catalog)): `list`, `show`, `history`, `apply` (a ref or a share code), `save`, `restore`, `share`, `unshare`, `delete`, `author`, `endpoint`, `publisher`, `publish`, `install`, `login`, `logout`, `report` (`--json`, `--dry-run` on the write commands, `--remote` to browse the marketplace, `save --cols <n>` for the preview width) |
 | `ccinfobar repos --background <dir>` | Internal: used by the `workspace-repos` widget to scan one folder in the background |
 | `ccinfobar hook <Event>` | Used by Claude Code hooks: records one event and prints nothing |
+| `ccinfobar subagent-line` | Used by Claude Code's `subagentStatusLine`: prints one row per subagent for the agent panel ([Subagent rows](docs/CONFIGURATION.md#subagent-rows)); set up with `ccinfobar install --subagents` |
 
 All commands accept `--config <file>`.
 

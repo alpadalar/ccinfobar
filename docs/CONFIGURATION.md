@@ -604,6 +604,27 @@ ccinfobar config set progress.enabled true
 
 **Turning it off.** `uninstall --progress` sets `progress.enabled` to `false` (the key stays, as `{ "enabled": false }`) and asks every open session to clear its bar. Only these handlers can clear a bar, at the next prompt or turn end, so while a bar is still showing the first `uninstall --progress` keeps them and says so; run it again after that prompt to remove them. Otherwise it removes only these handlers. Run in a terminal, it also clears that terminal's bar at once. `ccinfobar uninstall` removes the handlers right away and clears only the terminal it runs in. The web editor's switch works the same way: while a bar is showing it keeps the handlers and shows a Remove handlers button for afterwards. Turning progress off in the TUI, or setting `enabled: false` by hand, keeps the handlers, so the next prompt clears the bar; `ccinfobar doctor` then reports the leftover handlers. `ccinfobar doctor` checks Claude Code's own bar, missing or leftover handlers (also on the tty channel), unsupported terminals, the Claude Code version, and the tty channel on Windows or in tmux.
 
+
+## Subagent rows
+
+Claude Code's `subagentStatusLine` setting runs one command per refresh tick. It sends every visible subagent as one JSON object on stdin (`columns` and a `tasks` array) and shows each `{"id","content"}` line the command prints as that subagent's row. `ccinfobar subagent-line` is that command: it prints one single-line JSON object per task, fitted to `columns`, and nothing at all when the input is empty, oversized or not JSON.
+
+A row looks like this:
+
+```text
+▸ Explore · Reading src/widgets · ▁▂▃█ 42.0k 21% · sonnet high · 3m
+```
+
+When the row is wider than the panel, parts drop in this order: token sparkline, effort, context share, model, elapsed time, tokens. What is left is truncated. `charset: text` switches to ASCII marks and `|` separators, and `colorLevel` or `NO_COLOR` decide the colours.
+
+`subagentLine.fields` is both the include list and the row order. The ids are `status`, `type`, `label`, `spark`, `tokens`, `context`, `model`, `effort` and `elapsed`; unknown ids are ignored and an empty list means all nine.
+
+```json
+{ "subagentLine": { "fields": ["status", "type", "label", "tokens", "elapsed"] } }
+```
+
+The command reads only the config file: no transcript, cache, git or network, and it never writes. Set it up with `ccinfobar install --subagents` (the install, uninstall and doctor details arrive with that release).
+
 ## Layout tips
 
 - Put a `flex` widget between two groups to push the second group to the right edge.

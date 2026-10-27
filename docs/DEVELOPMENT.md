@@ -170,6 +170,8 @@ The transcript reader keeps an incremental cache in the cache directory, so only
 
 `cli/main.ts` parses arguments and loads each command with `await import()`. The status line path (`cli/render.ts`) never pulls in install, update, doctor, report, the importers, the editors or the TUI. `test/foundations/import-graph.test.ts` checks this, and that the pure modules (`core/edit.ts` and others) have no `node:` imports.
 
+`bin.ts` dispatches `hook` and `subagent-line` before loading `cli.js`. `cli/subagent-line.ts` reaches whole chunks only: `cli/args.ts`, `core/paths.ts`, `data/store.ts`, `core/payload.ts`, `core/ansi.ts`, `widgets/shared.ts`, `widgets/subagent-row.ts` and the built-in `fs`. `import-graph.test.ts` and the dist chunk count guard it.
+
 ### Install and uninstall
 
 - `commands/settings-file.ts` reads and writes `settings.json`. It keeps BOM, line endings, indent, trailing newline, mode, owner and symlinks, refuses to write a file that does not parse, merges again if the file changed during the write, and stores a 0600 copy in `<configDir>/backups/` before every change (newest 10 per file plus a never-rotated `-original.json`).
