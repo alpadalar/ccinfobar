@@ -160,7 +160,12 @@ export async function fetchTarball(
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccinfobar-tgz-'));
   const file = path.join(dir, 'ccinfobar.tgz');
   try {
-    fs.writeFileSync(file, buf, { flag: 'wx', mode: 0o600 });
+    const fd = fs.openSync(file, 'wx', 0o600);
+    try {
+      for (let at = 0; at < buf.length; ) at += fs.writeSync(fd, buf, at);
+    } finally {
+      fs.closeSync(fd);
+    }
   } catch {
     fs.rmSync(dir, { recursive: true, force: true });
     throw new Error('tarball-write-failed');
