@@ -205,6 +205,87 @@ function cached(
   return s;
 }
 
+interface AgentListing {
+  id: string;
+  agentType: string | null;
+  description: string | null;
+  toolUseId: string | null;
+}
+
+const LISTING_VERSION = 1;
+const AGENT_ID = /^[A-Za-z0-9_-]+$/;
+
+export function agentsDirCacheName(dir: string): string {
+  return `agents-dir-${cacheKey(dir)}.json`;
+}
+
+const strOrNull = (v: unknown): string | null => (typeof v === 'string' ? sanitizeText(v) : null);
+
+function validListing(files: unknown): files is AgentListing[] {
+  return (
+    Array.isArray(files) &&
+    files.every(
+      (f) =>
+        f &&
+        typeof f === 'object' &&
+        typeof f.id === 'string' &&
+        AGENT_ID.test(f.id) &&
+        [f.agentType, f.description, f.toolUseId].every((v) => v === null || typeof v === 'string'),
+    )
+  );
+}
+
+// the directory mtime moves on create/delete, not on append
+function listAgents(dir: string, env: NodeJS.ProcessEnv, persist: boolean): AgentListing[] {
+  let dirMtime: number;
+  try {
+    dirMtime = fs.statSync(dir).mtimeMs;
+  } catch {
+    return [];
+  }
+  const name = agentsDirCacheName(dir);
+  const hit = readCache<{ v: number; dirMtime: number; files: unknown }>(name, env);
+  if (hit && hit.v === LISTING_VERSION && hit.dirMtime === dirMtime && validListing(hit.files)) {
+    return hit.files.map((f) => ({
+      id: f.id,
+      agentType: strOrNull(f.agentType),
+      description: strOrNull(f.description),
+      toolUseId: strOrNull(f.toolUseId),
+    }));
+  }
+  const files: AgentListing[] = [];
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir).filter((f) => f.endsWith('.meta.json'));
+  } catch {
+    return [];
+  }
+  for (const f of names) {
+    const id = f.slice(0, -'.meta.json'.length);
+    if (!AGENT_ID.test(id)) continue;
+    try {
+      const parsed: unknown = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      const m = (parsed && typeof parsed === 'object' ? parsed : {}) as Json;
+      files.push({
+        id,
+        agentType: strOrNull(m.agentType),
+        description: strOrNull(m.description),
+        toolUseId: strOrNull(m.toolUseId),
+      });
+    } catch {}
+  }
+  if (persist) writeCache(name, { v: LISTING_VERSION, dirMtime, files }, env);
+  return files;
+}
+
+function metaOf(e: AgentListing): Json {
+  const meta: Json = {};
+  if (e.agentType !== null) meta.agentType = e.agentType;
+  if (e.description !== null) meta.description = e.description;
+  if (e.toolUseId !== null) meta.toolUseId = e.toolUseId;
+  return meta;
+}
+
 function metaType(meta: Json): string {
   return typeof meta.agentType === 'string' ? sanitizeText(meta.agentType) || 'agent' : 'agent';
 }
@@ -248,23 +329,16 @@ export function readAgents(
   if (opts.hooks) return hookAgents(transcriptPath, info, now, env, opts.hooks, opts);
   if (!transcriptPath) return [];
   const dir = path.join(transcriptPath.replace(/\.jsonl$/, ''), 'subagents');
-  let files: string[];
-  try {
-    files = fs.readdirSync(dir).filter((f) => f.endsWith('.meta.json'));
-  } catch {
-    return [];
-  }
+  const persistCache = opts.persist !== false;
   const left = { bytes: AGENTS_BUDGET };
   const calls = new Map((info?.agentCalls ?? []).map((c) => [c.id, c]));
   const out: AgentInfo[] = [];
-  for (const f of files) {
-    const id = f.slice(0, -'.meta.json'.length);
+  for (const entry of listAgents(dir, env, persistCache)) {
+    const id = entry.id;
     const jsonl = path.join(dir, `${id}.jsonl`);
-    let meta: Json = {};
+    const meta = metaOf(entry);
     let stat: fs.Stats;
     try {
-      const parsed: unknown = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-      if (parsed && typeof parsed === 'object') meta = parsed as Json;
       stat = fs.statSync(jsonl);
     } catch {
       continue;
@@ -275,7 +349,7 @@ export function readAgents(
     const turn = info?.turnStart ?? null;
     const recent = turn !== null ? stat.mtimeMs >= turn : now - stat.mtimeMs < RECENT_MS;
     if (!running && !recent) continue;
-    const s = cached(jsonl, stat, env, opts.persist !== false, left);
+    const s = cached(jsonl, stat, env, persistCache, left);
     out.push(row(id, meta, s, { running, start: s.first, last: running ? now : s.last }));
   }
   return sorted(out);
@@ -310,21 +384,10 @@ function hookAgents(
   const metas: MetaFile[] = [];
   if (transcriptPath) {
     const dir = path.join(transcriptPath.replace(/\.jsonl$/, ''), 'subagents');
-    let files: string[] = [];
-    try {
-      files = fs.readdirSync(dir).filter((f) => f.endsWith('.meta.json'));
-    } catch {}
-    for (const f of files) {
-      const id = f.slice(0, -'.meta.json'.length);
-      const jsonl = path.join(dir, `${id}.jsonl`);
+    for (const entry of listAgents(dir, env, persist)) {
+      const jsonl = path.join(dir, `${entry.id}.jsonl`);
       try {
-        const meta = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) as Json;
-        metas.push({
-          id,
-          jsonl,
-          meta: meta && typeof meta === 'object' ? meta : {},
-          stat: fs.statSync(jsonl),
-        });
+        metas.push({ id: entry.id, jsonl, meta: metaOf(entry), stat: fs.statSync(jsonl) });
       } catch {}
     }
   }
