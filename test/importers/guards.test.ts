@@ -116,6 +116,8 @@ const TOOLS: Tool[] = [
     hostile: JSON.stringify({
       display: { lines: [{ segments: { env: { variable: HOSTILE }, [HOSTILE]: {}, model: {} } }] },
     }),
+
+    hostileIn: 'notes',
   },
   {
     source: 'ccometixline',
