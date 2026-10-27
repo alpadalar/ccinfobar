@@ -308,25 +308,33 @@ function baseName(p: string): string {
 }
 
 const SECRET_VAR =
-  /\b(\w*(?:token|secret|passw(?:or)?d|pwd|api_?key|access_?key|private_?key|auth(?!or)|credential)\w*)=("[^"]*"|'[^']*'|\S+)/gi;
+  /\b(?=\w*(?:token|secret|passw(?:or)?d|pwd|api_?key|access_?key|private_?key|auth(?!or)|credential))(\w+)=("[^"]*"|'[^']*'|\S+)/gi;
 const CRED_FLAG = /(\s(?:-u|--user|--proxy-user)[\s=]+[^\s:@"']+:)[^\s"']+/g;
 const PASS_FLAG = /(\s--?(?:password|passwd|pass|token|api-key|secret)\s+)("[^"]*"|'[^']*'|[^\s-]\S*)/gi;
 const HEADER =
-  /\b((?:x-api-key|api-key|authorization|proxy-authorization|x-auth-token|x-access-token)\s*:\s*)[^"'\n]+?(?=["']|\s*$|\s-{1,2}[a-z])/gi;
+  /\b((?:x-api-key|api-key|authorization|proxy-authorization|x-auth-token|x-access-token)\s*:\s*)[^"'\n]+?(?=["']|\s{0,16}$|\s-{1,2}[a-z])/gi;
 const SECRET_SCHEME = /\b(bearer|basic|token)\s+[\w.~+/=-]{6,}/gi;
-const URL_USER = /(\w+:\/\/[^\s/:@]+):[^\s/@]+@/g;
+const URL_USER = /\b(\w+:\/\/[^\s/:@]+):[^\s/@]+@/g;
 const BARE_TOKEN =
   /\b(?:sk-(?:ant-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g;
 
+// per 16.2-D-01: descriptions are display-truncated anyway
+export const MASK_MAX = 1024;
+
+export const MASK_RULES: readonly (readonly [RegExp, string])[] = [
+  [SECRET_VAR, '$1=…'],
+  [CRED_FLAG, '$1…'],
+  [PASS_FLAG, '$1…'],
+  [HEADER, '$1…'],
+  [SECRET_SCHEME, '$1 …'],
+  [URL_USER, '$1:…@'],
+  [BARE_TOKEN, '…'],
+];
+
 export function maskSecrets(s: string): string {
-  return s
-    .replace(SECRET_VAR, '$1=…')
-    .replace(CRED_FLAG, '$1…')
-    .replace(PASS_FLAG, '$1…')
-    .replace(HEADER, '$1…')
-    .replace(SECRET_SCHEME, '$1 …')
-    .replace(URL_USER, '$1:…@')
-    .replace(BARE_TOKEN, '…');
+  let out = s.length > MASK_MAX ? Array.from(s).slice(0, MASK_MAX).join('') : s;
+  for (const [re, rep] of MASK_RULES) out = out.replace(re, rep);
+  return out;
 }
 
 export function shortArg(input: unknown, max = ARG_MAX): string {

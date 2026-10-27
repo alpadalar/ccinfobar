@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { maskSecrets } from '../../src/data/transcript.js';
+import { MASK_MAX, MASK_RULES, maskSecrets } from '../../src/data/transcript.js';
 
 const positives: [string, string][] = [
   ['curl -u me:hunter2 https://h', 'curl -u me:… https://h'],
@@ -40,7 +40,15 @@ describe('maskSecrets table', () => {
     expect(maskSecrets(input)).toBe(input);
   });
 
-  it('never grows the input and stays linear', () => {
+  it('caps the input before masking (REL-01)', () => {
+    expect(Array.from(maskSecrets('a'.repeat(5000))).length).toBe(MASK_MAX);
+    expect(maskSecrets('a'.repeat(MASK_MAX))).toBe('a'.repeat(MASK_MAX));
+    const smile = '\u{1F600}';
+    expect(maskSecrets(smile.repeat(MASK_MAX + 5))).toBe(smile.repeat(MASK_MAX));
+    const before = maskSecrets(`${'x '.repeat(5)}token=hunter2 ${'b'.repeat(2000)}`);
+    expect(before.startsWith(`${'x '.repeat(5)}token=…`)).toBe(true);
+    expect(before.length).toBeLessThanOrEqual(MASK_MAX);
+    expect(maskSecrets(`${'y'.repeat(MASK_MAX)} token=hunter2`)).toBe('y'.repeat(MASK_MAX));
     for (const s of [
       'a'.repeat(1024),
       ' -u '.repeat(256),
@@ -49,5 +57,33 @@ describe('maskSecrets table', () => {
     ]) {
       expect(maskSecrets(s).length).toBeLessThanOrEqual(s.length + 8);
     }
+  });
+
+  it('every rule is linear on adversarial shapes (REL-01)', () => {
+    const N = 100_000;
+    const shapes = [
+      'a'.repeat(N),
+      'token'.repeat(N / 5),
+      `x://${'y'.repeat(N)}`,
+      `authorization: ${' '.repeat(N)}z`,
+      ` -u ${'z'.repeat(N)}`,
+      ` --password "${'z'.repeat(N)}`,
+      `bearer ${'a'.repeat(N)}`,
+      'sk-'.repeat(N / 3),
+      `ghp_${'A'.repeat(N)}`,
+      `${`${'a'.repeat(50)} `.repeat(Math.floor(N / 51))}`,
+    ];
+    const t0 = performance.now();
+    for (const shape of shapes) {
+      for (const [re, rep] of MASK_RULES) shape.replace(re, rep);
+      expect(maskSecrets(shape).length).toBeLessThanOrEqual(MASK_MAX + 8);
+    }
+    expect(performance.now() - t0).toBeLessThan(5000);
+  });
+
+  it('keeps the rule order 16.1-D-04 fixed', () => {
+    expect(MASK_RULES.length).toBe(7);
+    expect(MASK_RULES[5]![0].source.startsWith('\\b(\\w+:')).toBe(true);
+    expect(MASK_RULES[6]![0].source.includes('github_pat_')).toBe(true);
   });
 });
