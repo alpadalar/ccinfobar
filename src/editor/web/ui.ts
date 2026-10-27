@@ -35,6 +35,7 @@ export function modal<T = unknown>(opts: ModalOpts): Promise<T | undefined> {
     const close = (value?: unknown) => {
       document.removeEventListener('keydown', onKey, true);
       if (stack.includes(overlay)) stack.splice(stack.indexOf(overlay), 1);
+      if (stack.length === 0) document.getElementById('app')?.removeAttribute('inert');
       overlay.classList.add('leaving');
       setTimeout(() => overlay.remove(), 140);
       previous?.focus?.();
@@ -44,6 +45,21 @@ export function modal<T = unknown>(opts: ModalOpts): Promise<T | undefined> {
       if (e.key === 'Escape' && stack.at(-1) === overlay) {
         e.stopPropagation();
         close();
+      } else if (e.key === 'Tab' && stack.at(-1) === overlay) {
+        const nodes = Array.from(
+          dialog.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]'),
+        ).filter((n) => !n.hasAttribute('disabled') && n.getAttribute('tabindex') !== '-1');
+        if (!nodes.length) return;
+        const first = nodes[0]!;
+        const last = nodes[nodes.length - 1]!;
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || !dialog.contains(active))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (active === last || !dialog.contains(active))) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     const dialog = h(
@@ -80,6 +96,7 @@ export function modal<T = unknown>(opts: ModalOpts): Promise<T | undefined> {
     });
     document.addEventListener('keydown', onKey, true);
     stack.push(overlay);
+    document.getElementById('app')?.setAttribute('inert', '');
     document.body.append(overlay);
     const first =
       dialog.querySelector<HTMLElement>('textarea, input, select') ??

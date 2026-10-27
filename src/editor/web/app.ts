@@ -675,6 +675,19 @@ function inTextField(t: EventTarget | null): boolean {
   return !['checkbox', 'radio', 'button', 'range', 'color', 'file'].includes((el as HTMLInputElement).type);
 }
 
+const KEEP_KEYS =
+  'input, button, select, textarea, [contenteditable], [role=switch], [role=slider], [role=dialog], .inspector, .modal';
+
+// sliders, switches and the inspector keep Delete for themselves
+function keepsKey(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  if (!el) return false;
+  if (inTextField(el)) return true;
+  if (typeof el.closest === 'function') return el.closest(KEEP_KEYS) !== null;
+  for (let n: HTMLElement | null = el; n; n = n.parentElement) if (n.matches?.(KEEP_KEYS)) return true;
+  return false;
+}
+
 function pasteCopy(snap: NonNullable<typeof S.itemClip>): void {
   const { config, id } = pasteItem(S.config, snap, pasteTarget(S.config, S.selectedId, S.selectedLine));
   commit(config);
@@ -736,7 +749,7 @@ function onKeydown(e: KeyboardEvent): void {
   } else if (mod && e.key.toLowerCase() === 'y' && !inTextField(e.target)) {
     e.preventDefault();
     redo();
-  } else if ((e.key === 'Delete' || e.key === 'Backspace') && !mod && !inTextField(e.target)) {
+  } else if ((e.key === 'Delete' || e.key === 'Backspace') && !mod && !keepsKey(e.target)) {
     if (S.selectedId) {
       e.preventDefault();
       removeSelected();
