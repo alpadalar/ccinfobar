@@ -76,12 +76,12 @@ export const widgets: WidgetDef[] = [
         key: 'snapshot',
         label: 'Snapshot working copy',
         kind: 'boolean',
-        default: true,
+        default: false,
         help: 'Off reads the last snapshot and never writes to the repo',
       },
     ],
     render(ctx, item) {
-      const d = ctx.data.jj?.()?.diff(opt(item, 'snapshot', true));
+      const d = ctx.data.jj?.()?.diff(opt(item, 'snapshot', false));
       return d ? `+${d.insertions} -${d.deletions}` : null;
     },
   },

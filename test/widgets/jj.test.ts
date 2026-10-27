@@ -43,7 +43,7 @@ describe('jj widgets', () => {
     expect(withLang('tr', () => renderWidget('jj-description', empty))).toBe('(açıklama yok)');
   });
 
-  it('render line changes, snapshotting by default', () => {
+  it('render line changes, reads without snapshot by default', () => {
     const seen: boolean[] = [];
     const ctx = ctxWith({
       jj: jj({
@@ -54,8 +54,8 @@ describe('jj widgets', () => {
       }),
     });
     expect(renderWidget('jj-changes', ctx)).toBe('+42 -10');
-    expect(renderWidget('jj-changes', ctx, { options: { snapshot: false } })).toBe('+42 -10');
-    expect(seen).toEqual([true, false]);
+    expect(renderWidget('jj-changes', ctx, { options: { snapshot: true } })).toBe('+42 -10');
+    expect(seen).toEqual([false, true]);
   });
 
   it('return null without a jj repo', () => {
