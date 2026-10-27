@@ -3,7 +3,7 @@ import path from 'node:path';
 import { sanitizeText } from '../core/sanitize.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
 import type { HookAgent, HookState } from './hooks.js';
-import type { TranscriptInfo } from './transcript.js';
+import { shortArg, type TranscriptInfo } from './transcript.js';
 
 export interface AgentInfo {
   id: string;
@@ -43,17 +43,8 @@ const RECENT_MS = 10 * 60_000;
 type Json = Record<string, any>;
 
 function short(name: string, input: Json): string {
-  const arg =
-    input.command ??
-    input.pattern ??
-    input.file_path ??
-    input.path ??
-    input.url ??
-    input.query ??
-    input.description;
-  if (typeof arg !== 'string' || !arg) return name;
-  const one = arg.replace(/\s+/g, ' ').trim();
-  return `${name}[${one.length > 48 ? `${one.slice(0, 47)}…` : one}]`;
+  const arg = shortArg(input, 48);
+  return arg ? `${name}[${arg}]` : name;
 }
 
 function summarize(file: string, size: number): Summary {
@@ -110,7 +101,7 @@ function summarize(file: string, size: number): Summary {
 }
 
 export function agentsCacheName(file: string): string {
-  return `agent2-${cacheKey(file)}.json`;
+  return `agent3-${cacheKey(file)}.json`;
 }
 
 function cached(file: string, size: number, env: NodeJS.ProcessEnv, persist: boolean): Summary {

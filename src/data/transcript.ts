@@ -311,11 +311,11 @@ const SECRET_VAR =
 const SECRET_SCHEME = /\b(bearer|basic|token)\s+[\w.~+/=-]{6,}/gi;
 const URL_USER = /(\w+:\/\/[^\s/:@]+):[^\s/@]+@/g;
 
-function maskSecrets(s: string): string {
+export function maskSecrets(s: string): string {
   return s.replace(SECRET_VAR, '$1=…').replace(SECRET_SCHEME, '$1 …').replace(URL_USER, '$1:…@');
 }
 
-function shortArg(input: unknown): string {
+export function shortArg(input: unknown, max = ARG_MAX): string {
   if (!input || typeof input !== 'object') return '';
   for (const key of ARG_KEYS) {
     const v = (input as Json)[key];
@@ -325,7 +325,7 @@ function shortArg(input: unknown): string {
     if (!flat) continue;
     const one = maskSecrets(Array.from(flat).slice(0, 256).join(''));
     const chars = Array.from(one);
-    return chars.length > ARG_MAX ? `${chars.slice(0, ARG_MAX - 1).join('')}…` : one;
+    return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : one;
   }
   return '';
 }
