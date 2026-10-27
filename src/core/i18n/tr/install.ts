@@ -41,6 +41,7 @@ export const installMessages = {
   },
   'install.manifestReadOnly':
     '{file} daha yeni bir ccinfobar tarafından yazılmış ya da bozuk; hiçbir ayar değiştirilmiyor. Devam etmek için dosyayı başka bir yere taşıyın.',
+  'install.manifestBusy': 'Başka bir ccinfobar komutu {file} dosyasını güncelliyor; biraz sonra yeniden deneyin.',
   'install.needsConfirm': "Önce mevcut statusLine'ın değiştirilmesini onaylayın.",
   'install.confirmNeedsCurrent': "Onaylı bir kurulum, kendisine gösterilen statusLine'ı göndermelidir.",
   'install.prompt.yes': '[E/h]',

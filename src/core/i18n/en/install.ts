@@ -38,6 +38,7 @@ export const installMessages = {
   },
   'install.manifestReadOnly':
     '{file} was written by a newer ccinfobar or is damaged; not changing any settings. Move it aside to continue.',
+  'install.manifestBusy': 'Another ccinfobar command is updating {file}; try again in a moment.',
   'install.needsConfirm': 'Confirm replacing the current statusLine first.',
   'install.confirmNeedsCurrent': 'A confirmed install must send the statusLine it was shown.',
   'install.prompt.yes': '[Y/n]',

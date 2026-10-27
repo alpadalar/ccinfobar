@@ -3,7 +3,7 @@ import path from 'node:path';
 import { t } from '../core/i18n/index.js';
 import { configDir } from '../core/paths.js';
 import { VERSION } from '../core/version.js';
-import { writeAtomic } from '../data/store.js';
+import { acquireLock, sleepSync, writeAtomic } from '../data/store.js';
 import type { StatusLineSetting } from './install.js';
 import { resolveReal } from './settings-file.js';
 
@@ -88,6 +88,34 @@ export function writeManifest(m: Manifest, env: NodeJS.ProcessEnv = process.env)
   if (m.readOnly) throw new Error(t('install.manifestReadOnly', { file: manifestFile(env) }));
   const out = { version: 1, entries: m.entries };
   writeAtomic(manifestFile(env), `${JSON.stringify(out, null, 2)}\n`, { mode: 0o600, class: 'settings' });
+}
+
+const LOCK_STALE_MS = 10_000;
+const LOCK_WAIT_MS = 5_000;
+const LOCK_STEP_MS = 25;
+
+export function updateManifest(
+  env: NodeJS.ProcessEnv,
+  mutate: (fresh: Manifest) => Manifest,
+  now: () => number = Date.now,
+): Manifest {
+  const lock = `${manifestFile(env)}.lock`;
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  const start = now();
+  while (!acquireLock(lock, LOCK_STALE_MS, now())) {
+    if (now() - start >= LOCK_WAIT_MS) throw new Error(t('install.manifestBusy', { file: manifestFile(env) }));
+    sleepSync(LOCK_STEP_MS);
+  }
+  // lock only around read-merge-write; never across settings patches
+  try {
+    const fresh = readManifest(env);
+    if (fresh.readOnly) throw new Error(t('install.manifestReadOnly', { file: manifestFile(env) }));
+    const next = mutate(fresh);
+    if (next !== fresh) writeManifest(next, env);
+    return next;
+  } finally {
+    fs.rmSync(lock, { force: true });
+  }
 }
 
 export function realKey(file: string): string {
