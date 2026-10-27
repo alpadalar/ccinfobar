@@ -56,6 +56,7 @@ export class FakeEl {
     for (const fn of this.listeners.get(type) ?? []) fn(e);
   }
   focus() {}
+  click() {}
   getBoundingClientRect() {
     return { left: 0, top: 0, width: 0, height: 0 };
   }
