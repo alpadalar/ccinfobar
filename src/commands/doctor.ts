@@ -12,7 +12,7 @@ import { type InspectRow, inspectRows, lineReport, sessionNotes } from '../core/
 import { parsePath } from '../core/jsonpath.js';
 import { loadForUse } from '../core/load.js';
 import { titleWidgets } from '../core/panel.js';
-import { cacheDir, claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
+import { cacheDir, claudeJsonPath, claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { readLastPayload } from '../core/preview.js';
 import { overflowOf, resolveAppearance } from '../core/renderer.js';
 import { rotationIds } from '../core/rotation.js';
@@ -30,7 +30,7 @@ import {
   readEnvelope,
   SAFE_KEY,
 } from '../data/jobs/runner.js';
-import { pruneTmp } from '../data/store.js';
+import { pruneTmp, readJsonSafe } from '../data/store.js';
 import { cachedTerminalWidth } from '../data/terminal.js';
 import {
   availableUpdate,
@@ -48,6 +48,7 @@ import { getWidget } from '../widgets/index.js';
 import { loadInspectInput, redactValue, shortAge } from './explain.js';
 import {
   commandResolves,
+  editorModeOf,
   entryCommand,
   hookEntryState,
   hookGateWarnings,
@@ -57,7 +58,7 @@ import {
   settingsLayers,
 } from './hooks-doctor.js';
 import { parseClaudeVersion } from './hooks-install.js';
-import { currentStatusLine, projectOverride } from './install.js';
+import { currentStatusLine, hasVimWidget, projectOverride } from './install.js';
 import { rotationStatus } from './manage.js';
 import {
   classifyOwner,
@@ -504,6 +505,23 @@ export function runDoctor(
   const last = readLastPayload();
   const lastDir = last?.workspace?.project_dir ?? last?.workspace?.current_dir ?? last?.cwd;
   if (lastDir && fs.existsSync(lastDir)) dirs.add(lastDir);
+  const claudeJson = readJsonSafe<Record<string, unknown>>(
+    claudeJsonPath(),
+    (v): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v),
+  );
+  if (
+    hasVimWidget(loaded.config) &&
+    editorModeOf(
+      settingsLayers(
+        settingsFile,
+        dirs,
+        opts.managedFiles ?? managedSettingsFiles(process.platform, process.env),
+      ),
+      claudeJson,
+    ) === 'vim' &&
+    sl?.hideVimModeIndicator !== true
+  )
+    console.log(t('doctor.vimTwice', { command: selfCommand(kind) }));
   printHooks(
     manifest,
     settingsFile,

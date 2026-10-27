@@ -95,6 +95,8 @@ export const doctorMessages = {
   'doctor.subagentLine': '{mark} Claude Code alt ajan subagentStatusLine: {command}',
   'doctor.subagentLineForeign':
     '  ccinfobar tarafından yönetilmiyor; `{command} install --subagents` sorduktan sonra değiştirir',
+  'doctor.vimTwice':
+    '⚠ vim modu iki kez gösteriliyor (durum satırı ve Claude Code); `{command} install --hide-vim-indicator` çalıştırın',
   'doctor.projectOverride': '✗ {file} bunu şununla geçersiz kılıyor: {command}',
   'doctor.projectOverrideFix':
     "  ccinfobar'ı orada kullanmak için {dir} içinde `{command} install --project` çalıştırın.",

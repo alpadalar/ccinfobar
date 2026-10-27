@@ -33,6 +33,13 @@ export const installMessages = {
   'install.dry.subagentRewrite': 'Would update subagentStatusLine from "{from}" to "{command}"',
   'install.dry.subagentReplace':
     'Would replace the subagentStatusLine "{from}" with "{command}" (asked first)',
+  'install.dry.hideVim': 'Would set statusLine.hideVimModeIndicator',
+  'install.dry.hideVimOff': 'Would remove statusLine.hideVimModeIndicator',
+  'install.hideVimPrompt':
+    "Your status line shows the vim mode and Claude Code shows it too. Hide Claude Code's indicator?",
+  'install.hideVimSet':
+    '✓ statusLine.hideVimModeIndicator set; Claude Code no longer shows the vim mode itself',
+  'install.hideVimUnset': '✓ statusLine.hideVimModeIndicator removed',
   'install.dry.subagentKeep': 'subagentStatusLine already runs ccinfobar',
   'install.subagentReplacePrompt': 'Replace the current subagentStatusLine ({command})?',
   'install.subagentsKept': 'Kept the current subagentStatusLine.',

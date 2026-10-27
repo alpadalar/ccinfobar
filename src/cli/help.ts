@@ -19,6 +19,7 @@ export const USAGE: Row[] = [
   ['ccinfobar install --hooks', 'help.cmd.installHooks'],
   ['ccinfobar install --progress', 'help.cmd.installProgress'],
   ['ccinfobar install --subagents', 'help.cmd.installSubagents'],
+  ['ccinfobar install --hide-vim-indicator', 'help.cmd.installHideVim'],
   ['ccinfobar uninstall', 'help.cmd.uninstall'],
   ['ccinfobar uninstall --hooks', 'help.cmd.uninstallHooks'],
   ['ccinfobar uninstall --progress', 'help.cmd.uninstallProgress'],

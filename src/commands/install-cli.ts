@@ -6,15 +6,17 @@ import { refreshReasons, timeRuleFeed } from '../core/edit.js';
 import { type MessageId, t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { titleWidgets } from '../core/panel.js';
-import { claudeSettingsPath, tildify } from '../core/paths.js';
+import { claudeJsonPath, claudeSettingsPath, tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
 import { VERSION } from '../core/version.js';
 import type { HookEvent } from '../data/hooks.js';
 import { progressChannel, progressSeq } from '../data/progress.js';
 import { requestClear } from '../data/progress-clear.js';
+import { readJsonSafe } from '../data/store.js';
 import { selfCommand } from '../data/update-state.js';
 import { type DetectedTool, detectTool, type ImportSource, sniffTool } from '../importers/index.js';
 import { getWidget } from '../widgets/index.js';
+import { editorModeOf, managedSettingsFiles, settingsLayers } from './hooks-doctor.js';
 import {
   detectClaudeCode,
   eventFloor,
@@ -34,6 +36,7 @@ import {
   currentStatusLine,
   defaultCommand,
   gsdProjects,
+  hasVimWidget,
   InstallNeedsConfirmError,
   type InstallPlan,
   type InstallResult,
@@ -374,12 +377,16 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     io.log(t('install.subagentsProjectIgnored'));
     subagents = false;
   }
+  const hideVimFlag =
+    typeof args.flags['hide-vim-indicator'] === 'boolean' ? args.flags['hide-vim-indicator'] : undefined;
+  let hideVim = hideVimFlag;
   const planWith = (withSubagents: boolean) =>
     planInstall({
       file,
       command: command!,
       refresh: project ? (refresh ?? userRefresh()) : refresh,
       subagents: withSubagents,
+      hideVim,
     });
   let plan = planWith(subagents);
   // D-17: hooks live in user settings only
@@ -406,6 +413,8 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     if (!slNeedsConfirm(plan)) io.log(t('install.dryRunFile', { file: tildify(file) }));
     showPlan(io, plan);
     showSubagentDry(io, plan);
+    if (hideVimFlag === true) io.log(t('install.dry.hideVim'));
+    else if (hideVimFlag === false) io.log(t('install.dry.hideVimOff'));
     const hookPlan = project ? null : previewHooks(file, command, events, claudeCode, handlers);
     if (tty) io.log(t('progress.tty'));
     if (!plan.changes && !hooksChanged(hookPlan) && !plan.subagent?.changes) io.log(t('install.unchanged'));
@@ -438,6 +447,25 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     if (!io.tty || !(await io.ask(question, false))) {
       io.log(t('install.subagentsKept'));
       plan = planWith(false);
+    }
+  }
+
+  if (io.tty && hideVimFlag === undefined && !project && plan.proposed.hideVimModeIndicator !== true) {
+    const cfg = loadConfig(cfgFile).config;
+    if (hasVimWidget(cfg)) {
+      const layers = settingsLayers(
+        file,
+        [process.cwd()],
+        managedSettingsFiles(process.platform, process.env),
+      );
+      const claudeJson = readJsonSafe<Record<string, unknown>>(
+        claudeJsonPath(),
+        (v): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v),
+      );
+      if (editorModeOf(layers, claudeJson) === 'vim' && (await io.ask(t('install.hideVimPrompt'), false))) {
+        hideVim = true;
+        plan = planWith(plan.subagent !== undefined);
+      }
     }
   }
 
@@ -478,6 +506,10 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     } as const;
     io.log(t(key[res.subagent], params));
   }
+  if (hideVim === true && plan.current?.hideVimModeIndicator !== true && !project)
+    io.log(t('install.hideVimSet'));
+  else if (hideVimFlag === false && plan.current?.hideVimModeIndicator !== undefined)
+    io.log(t('install.hideVimUnset'));
   if (res.hooks) reportHooks(io, res.hooks, hooksAsked);
   if (tty) io.log(t('progress.tty'));
   if (ttyRemoved) hooksRemoved(io, ttyRemoved);

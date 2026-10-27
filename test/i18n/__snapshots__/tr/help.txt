@@ -15,6 +15,8 @@ Kullanım
   ccinfobar install --hooks       İsteğe bağlı Claude Code hook'larını da ekler (kesin canlı durum için)
   ccinfobar install --progress    Bağlam doluluğunu terminal sekmesinin ilerleme çubuğunda da gösterir
   ccinfobar install --subagents   Claude Code alt ajan paneli satırlarını da ccinfobar çizsin (subagentStatusLine)
+  ccinfobar install --hide-vim-indicator
+                                  vim-mode bileşeni modu gösterirken Claude Code'un kendi -- INSERT -- satırını gizle
   ccinfobar uninstall             ccinfobar'ı kaldırır ve önceki durum satırınızı geri getirir
                                   `npm rm -g ccinfobar` öncesinde çalıştırın: hook'lar ccinfobar komutunu çağırır
   ccinfobar uninstall --hooks     Yalnızca ccinfobar'ın hook'larını kaldırır

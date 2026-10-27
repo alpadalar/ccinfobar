@@ -42,6 +42,8 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `turn-timer` | How long the current turn has run, or the last one took; exact with hooks, from the transcript otherwise | `Turn 2m14s` | `afterStop` select, default `"last"` (`last`, `hide`) |
 | `permission-wait` | How long the last permission prompt in this turn waited (needs hooks; Claude Code hides the status line while the dialog is open) | `Wait Bash 42s` | `showTool` boolean, default `true`<br>`maxAgeMin` number, default `30` |
 
+- `vim-mode`: Claude Code also prints `-- INSERT --` under the prompt; run `ccinfobar install --hide-vim-indicator` to turn that off when this widget shows the mode.
+
 ## Context window
 
 | Type | Description | Example | Options |

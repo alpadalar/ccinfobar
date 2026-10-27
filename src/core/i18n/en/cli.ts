@@ -16,6 +16,8 @@ export const cliMessages = {
   'help.cmd.installHooks': 'Also add optional Claude Code hooks (exact live state)',
   'help.cmd.installProgress': "Also show context fill as the terminal tab's progress bar",
   'help.cmd.installSubagents': "Also render Claude Code's subagent panel rows (subagentStatusLine)",
+  'help.cmd.installHideVim':
+    "Hide Claude Code's own -- INSERT -- line when the vim-mode widget shows the mode",
   'help.cmd.uninstall':
     'Remove ccinfobar and restore your previous status line\nRun it before `npm rm -g ccinfobar`: hooks call the ccinfobar command',
   'help.cmd.uninstallHooks': "Remove only ccinfobar's hooks",

@@ -20,6 +20,8 @@ const root = process.argv[2] ?? process.cwd();
 const NOTES: Readonly<Record<string, string>> = {
   command:
     'On Windows ccinfobar starts with `NoDefaultCurrentDirectoryInExePath=1`, so a script in the current folder needs an explicit path such as `.\\script.bat`; programs on `PATH` work as before.',
+  'vim-mode':
+    'Claude Code also prints `-- INSERT --` under the prompt; run `ccinfobar install --hide-vim-indicator` to turn that off when this widget shows the mode.',
   'jj-changes':
     "Reads the last snapshot by default, so edits since jj's last snapshot are not counted. `snapshot: true` snapshots the working copy on every refresh, which writes to the repository's operation log.",
 };

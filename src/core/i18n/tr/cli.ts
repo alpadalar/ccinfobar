@@ -21,6 +21,8 @@ export const cliMessages = {
   'help.cmd.installProgress': 'Bağlam doluluğunu terminal sekmesinin ilerleme çubuğunda da gösterir',
   'help.cmd.installSubagents':
     'Claude Code alt ajan paneli satırlarını da ccinfobar çizsin (subagentStatusLine)',
+  'help.cmd.installHideVim':
+    "vim-mode bileşeni modu gösterirken Claude Code'un kendi -- INSERT -- satırını gizle",
   'help.cmd.uninstall':
     "ccinfobar'ı kaldırır ve önceki durum satırınızı geri getirir\n`npm rm -g ccinfobar` öncesinde çalıştırın: hook'lar ccinfobar komutunu çağırır",
   'help.cmd.uninstallHooks': "Yalnızca ccinfobar'ın hook'larını kaldırır",

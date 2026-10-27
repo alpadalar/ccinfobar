@@ -15,6 +15,8 @@ Usage
   ccinfobar install --hooks       Also add optional Claude Code hooks (exact live state)
   ccinfobar install --progress    Also show context fill as the terminal tab's progress bar
   ccinfobar install --subagents   Also render Claude Code's subagent panel rows (subagentStatusLine)
+  ccinfobar install --hide-vim-indicator
+                                  Hide Claude Code's own -- INSERT -- line when the vim-mode widget shows the mode
   ccinfobar uninstall             Remove ccinfobar and restore your previous status line
                                   Run it before `npm rm -g ccinfobar`: hooks call the ccinfobar command
   ccinfobar uninstall --hooks     Remove only ccinfobar's hooks

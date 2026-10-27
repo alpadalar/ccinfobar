@@ -25,6 +25,13 @@ export const installMessages = {
   'install.dry.subagentAdd': 'alt ajan subagentStatusLine "{command}" olarak ayarlanacak',
   'install.dry.subagentRewrite': 'subagentStatusLine "{from}" değerinden "{command}" değerine güncellenecek',
   'install.dry.subagentReplace': 'subagentStatusLine "{from}" yerine "{command}" yazılacak (önce sorulur)',
+  'install.dry.hideVim': 'statusLine.hideVimModeIndicator ayarlanacak',
+  'install.dry.hideVimOff': 'statusLine.hideVimModeIndicator kaldırılacak',
+  'install.hideVimPrompt':
+    "Durum satırınız vim modunu gösteriyor ve Claude Code da gösteriyor. Claude Code'un göstergesi gizlensin mi?",
+  'install.hideVimSet':
+    '✓ statusLine.hideVimModeIndicator ayarlandı; Claude Code artık vim modunu kendisi göstermiyor',
+  'install.hideVimUnset': '✓ statusLine.hideVimModeIndicator kaldırıldı',
   'install.dry.subagentKeep': 'subagentStatusLine zaten ccinfobar çalıştırıyor',
   'install.subagentReplacePrompt': 'Mevcut alt ajan subagentStatusLine ({command}) değiştirilsin mi?',
   'install.subagentsKept': 'Mevcut alt ajan subagentStatusLine korundu.',
