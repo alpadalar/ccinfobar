@@ -380,7 +380,7 @@ Resuming or forking a session, `/clear`, compaction, `/login` and two terminals 
 
 ### Refresh interval
 
-Claude Code runs the status line on a new assistant message, on token, permission mode, model, effort or vim changes, and on its `refreshInterval` timer (`statusLine.refreshInterval` in Claude Code's settings, not in this config). It does not run it on hook events or tool results, and not while a permission dialog is open, so time-based widgets only move on those triggers.
+Claude Code runs the status line when a session starts or resumes, on each new assistant message, when `/compact` finishes, when the permission mode or vim mode changes, when the `statusLine` command changes (no debounce), when a rate-limit window reaches its `resets_at`, when a warm prompt cache reaches its `expires_at`, and on the optional `refreshInterval` timer (`statusLine.refreshInterval` in Claude Code's settings, not in this config; seconds, minimum 1). Other updates are debounced by 300 ms, and a newer trigger cancels a run still in progress. Output is shown only when the command exits 0. The line is hidden, not paused, while a permission prompt or the help menu is open. Token, model and effort changes are not triggers, and neither are hook events or tool results. Between triggers nothing moves, so countdowns and timers tick only with `refreshInterval`; `cache-timer` still turns cold, and reset widgets roll over, on time without it.
 
 The time-based widgets are `turn-timer`, `permission-wait`, `tool-activity`, `usage-projection`, `limit-eta`, `limit-risk`, `cache-timer`, `clock`, `service-status`, `http`, `activity-strip`, `pet` and `kaomoji`. When one of them is on your layout and no interval is set:
 
