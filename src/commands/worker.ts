@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { Args } from '../cli/args.js';
 import { defaultConfig } from '../core/config.js';
 import { loadForUse } from '../core/load.js';
+import { cacheDir } from '../core/paths.js';
 import type { Config, StatusPayload } from '../core/types.js';
 import { gsdInstalled } from '../data/gsd.js';
 import {
@@ -36,6 +37,11 @@ export const WORKER_DEADLINE_MS = 330_000;
 const MAX_REQUESTS = 32;
 const MAX_ARG = 4200;
 const SWEEP_AGE = 7 * 86_400_000;
+const CACHE_AGE = 30 * 86_400_000;
+const CACHE_RE =
+  /^(transcript|agent3|cmd|repos|repos-dirty|env|bin|git|jj|jj-miss|jj-backoff|agents-dir)-[0-9a-f]{20}\.json$/;
+const WIDTH_RE = /^width-[A-Za-z0-9_-]{1,128}\.json$/;
+const LEGACY_RE = /^agent2-[0-9a-f]{20}\.json$/;
 const SWEEP_RE = /^((?:http|gh)-[0-9a-f]{16})\.json$/;
 
 // own copy: importing cli/silence.ts would split it out of bin.ts
@@ -80,6 +86,27 @@ export function sweepJobs(env: NodeJS.ProcessEnv, keep: Set<string>, now: number
     try {
       const st = fs.lstatSync(p);
       if (st.isFile() && now - st.mtimeMs > SWEEP_AGE) fs.unlinkSync(p);
+    } catch {}
+  }
+}
+
+// per-session files only; account and update state stay
+export function sweepCache(env: NodeJS.ProcessEnv, now: number): void {
+  const dir = cacheDir(env);
+  pruneTmp(dir, 3_600_000, now);
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    const legacy = LEGACY_RE.test(name);
+    if (!legacy && !CACHE_RE.test(name) && !WIDTH_RE.test(name)) continue;
+    const p = path.join(dir, name);
+    try {
+      const st = fs.lstatSync(p);
+      if (st.isFile() && (legacy || now - st.mtimeMs > CACHE_AGE)) fs.unlinkSync(p);
     } catch {}
   }
 }
@@ -179,6 +206,7 @@ export async function runWorker(args: Args, cfgFile: string, deps: WorkerDeps): 
     // a broken config would look like every http key is gone
     if (broken) pruneTmp(jobsDir(env), 3_600_000, end);
     else sweepJobs(env, liveKeys(jobs, config, env, cwd, end, ran), end);
+    sweepCache(env, end);
   } catch {}
   exit(0);
 }
