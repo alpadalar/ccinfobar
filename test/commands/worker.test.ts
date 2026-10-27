@@ -3,7 +3,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
-import { parseWorkerArgs, runWorker, sweepCache, sweepJobs, type WorkerDeps } from '../../src/commands/worker.js';
+import {
+  parseWorkerArgs,
+  runWorker,
+  sweepCache,
+  sweepJobs,
+  type WorkerDeps,
+} from '../../src/commands/worker.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { cacheDir, lastPayloadPath } from '../../src/core/paths.js';
 import type { Config } from '../../src/core/types.js';
