@@ -27,6 +27,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The terminal width is probed (`ps`/`stty`) only when the layout needs one (auto-wrap, an explicit `overflow`, flex, alignment, the `tui` style or the `terminal-width` widget) and neither the payload nor `COLUMNS` carries one. A known width is reused for a minute and a failed probe for ten, and `/dev/tty` is asked first on Linux and macOS. Layouts with `autoWrap: false` and none of these features now truncate to the last known width instead of probing; set `overflow: 'truncate'` to keep probing or a numeric `maxWidth` for a fixed width.
 
 ### Fixed
+- When Claude Code rewrites `settings.json` at the same moment as `ccinfobar install` or `uninstall`, the backup is now taken from the bytes that were read before the change check, the check runs right before the file is swapped, and a retried attempt leaves no extra backup behind.
 
 - Token and cost totals no longer stay wrong when a transcript file is replaced by one of equal or larger size (for example after `--resume` into a reused path); ccinfobar now checks the file identity and content anchors and re-reads from the start.
 - Git widgets hide instead of running `git status` without the repository's filter protections when `git config` itself fails or times out
