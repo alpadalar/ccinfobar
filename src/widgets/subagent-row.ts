@@ -103,7 +103,7 @@ export function subagentRow(task: unknown, o: RowOpts): string {
     const k = task as Obj;
     const fields = Array.isArray(o.fields) && o.fields.length ? o.fields : SUBAGENT_FIELDS;
     const cols =
-      typeof o.columns === 'number' && Number.isFinite(o.columns) && o.columns >= 10
+      typeof o.columns === 'number' && Number.isFinite(o.columns) && o.columns >= 1
         ? Math.floor(o.columns)
         : 120;
     const skip = new Set<SubagentField>();

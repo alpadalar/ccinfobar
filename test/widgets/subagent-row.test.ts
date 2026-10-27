@@ -90,7 +90,7 @@ describe('subagentRow', () => {
   });
 
   it('falls back to 120 for bad columns', () => {
-    for (const columns of [Number.NaN, 5, '80' as unknown as number]) {
+    for (const columns of [Number.NaN, 0, -3, '80' as unknown as number]) {
       expect(subagentRow(task(), opts({ columns }))).toBe(FULL);
     }
   });
@@ -112,6 +112,15 @@ describe('subagentRow', () => {
       subagentRow({ tokenSamples: 'x', tokenCount: 'y', startTime: {}, effort: {} }, opts()).length,
     ).toBeLessThan(10);
     expect(subagentRow(task(), opts({ fields: null as unknown as [] }))).toBe(FULL);
+  });
+
+  it('fits to a very narrow pane instead of falling back to 120', () => {
+    for (const columns of [1, 5, 9]) {
+      const row = subagentRow(task(), opts({ columns }));
+      expect(row).not.toBe('');
+      expect(visibleWidth(row)).toBeLessThanOrEqual(columns);
+    }
+    expect(visibleWidth(subagentRow(task(), opts({ columns: 0 })))).toBeGreaterThan(9);
   });
 
   it('truncates a long label to the columns', () => {
