@@ -580,7 +580,7 @@ The build, `npm pack` and every case run with HOME, USERPROFILE, APPDATA, LOCALA
 
 A process still running from the temp root after 30 s fails the case and is killed before the root is removed, and a root that cannot be removed fails the case instead of stopping the run.
 
-CI runs it in the `clean-install` job on Linux, macOS and Windows with Node 20 and 26, with a 20-minute job timeout.
+CI runs it in the `clean-install` job on Linux, macOS and Windows with Node 20 and 26, with a high job timeout (see `timeout-minutes` in ci.yml).
 
 ## Benchmark
 

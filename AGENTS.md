@@ -6,6 +6,8 @@ Guidance for AI coding agents working in this repository.
 
 ccinfobar is a Claude Code status line written in TypeScript with zero runtime dependencies. Claude Code pipes a JSON payload on stdin; `src/cli/main.ts` dispatches commands and `src/cli/render.ts` renders the configured widgets as ANSI lines.
 
+CI runs on Linux, macOS and Windows across the Node versions in `.github/workflows/ci.yml` (currently 20, 22, 24 and 26).
+
 ## Commands
 
 - `npm run check`: typecheck, lint and test. Run it before finishing.
