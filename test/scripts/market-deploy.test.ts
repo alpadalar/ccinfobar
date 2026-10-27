@@ -141,9 +141,9 @@ describe('market deploy workflow', () => {
   it('runs the locked wrangler devDependency and no wrangler action', () => {
     const pkg = JSON.parse(readLines('package.json').join('\n'));
     const lock = JSON.parse(readLines('package-lock.json').join('\n'));
-    expect(pkg.devDependencies.wrangler).toBe('4.149.0');
+    expect(pkg.devDependencies.wrangler).toBe('4.154.0');
     expect(pkg.dependencies?.wrangler).toBeUndefined();
-    expect(lock.packages['node_modules/wrangler'].version).toBe('4.149.0');
+    expect(lock.packages['node_modules/wrangler'].version).toBe('4.154.0');
     expect(text).not.toMatch(/wrangler@/);
     expect(text).not.toMatch(/npx --yes/);
     expect(text).not.toMatch(/wrangler-action/);
