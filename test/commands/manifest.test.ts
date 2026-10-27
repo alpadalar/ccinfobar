@@ -9,6 +9,7 @@ import {
   dropHookEntry,
   findHookEntries,
   findStatusLineEntry,
+  findSubagentLineEntry,
   isLegacyCcinfobarCommand,
   type Manifest,
   manifestFile,
@@ -17,6 +18,7 @@ import {
   recordGitExclude,
   recordHook,
   recordStatusLine,
+  recordSubagentLine,
   refreshWrittenHash,
   writeManifest,
 } from '../../src/commands/manifest.js';
@@ -395,5 +397,51 @@ describe('hook entries', () => {
     const back = readManifest(env);
     expect(back.readOnly).toBeUndefined();
     expect(findHookEntries(back, file)).toEqual(findHookEntries(m, file));
+  });
+});
+
+describe('subagent line entries', () => {
+  const sub = (file: string, command = 'c subagent-line') =>
+    recordSubagentLine(
+      { version: 1, entries: [] },
+      {
+        file,
+        value: { type: 'command', command },
+        previous: null,
+        writtenHash: 'sha256:a',
+      },
+    );
+
+  it('replaces an existing entry for the same file', () => {
+    const { dir } = tmpEnv();
+    const file = path.join(dir, 'settings.json');
+    const m = recordSubagentLine(sub(file, 'a'), {
+      file,
+      value: { type: 'command', command: 'b' },
+      previous: null,
+      writtenHash: null,
+    });
+    expect(m.entries.filter((e) => e.kind === 'subagentStatusLine')).toHaveLength(1);
+    expect(findSubagentLineEntry(m, file)?.value.command).toBe('b');
+  });
+
+  it('finds nothing on a read-only manifest or a value-less entry', () => {
+    const { dir } = tmpEnv();
+    const file = path.join(dir, 'settings.json');
+    expect(findSubagentLineEntry({ ...sub(file), readOnly: true }, file)).toBeNull();
+    const bad: Manifest = { version: 1, entries: [{ kind: 'subagentStatusLine', file }] };
+    expect(findSubagentLineEntry(bad, file)).toBeNull();
+  });
+
+  it('drops only its own kind and refreshes its hash', () => {
+    const { dir } = tmpEnv();
+    const file = path.join(dir, 'settings.json');
+    const m = recordStatusLine(sub(file), entryFor(file));
+    const dropped = dropEntry(m, file, 'subagentStatusLine');
+    expect(findSubagentLineEntry(dropped, file)).toBeNull();
+    expect(findStatusLineEntry(dropped, file)).not.toBeNull();
+    expect(findSubagentLineEntry(refreshWrittenHash(m, file, 'sha256:new'), file)?.writtenHash).toBe(
+      'sha256:new',
+    );
   });
 });
