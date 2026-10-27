@@ -61,13 +61,20 @@ describe('importer docs', () => {
     expect(rows).toHaveLength(importerList().length + 1);
   });
 
-  it('list the 18 projects left out with a reason each', () => {
-    const start = coming.indexOf('<summary>Reviewed but not importable (18)</summary>');
-    expect(start).toBeGreaterThan(-1);
-    const block = coming.slice(start, coming.indexOf('</details>', start));
+  it('list the 18 projects left out with a reason each in docs/IMPORTERS.md', () => {
+    const block = section(docs, 'Not importable');
     const items = block.split('\n').filter((l) => l.startsWith('- '));
     expect(items).toHaveLength(18);
     for (const item of items) expect(item, item).toMatch(/^- \[[^\]]+\]\(https:\/\/github\.com\/[^)]+\): \S/);
+    expect(coming).not.toContain('<details>');
+  });
+
+  it('keeps what-is-imported detail in IMPORTERS.md', () => {
+    for (const info of importerList()) {
+      expect(docs, info.repo).toContain(`https://github.com/${info.repo})`);
+      const sections = docs.slice(docs.indexOf('\n## Supported tools\n'));
+      expect(sections, info.source).toMatch(command(info.source));
+    }
   });
 
   it('point to the import help and docs/IMPORTERS.md', () => {
