@@ -142,6 +142,7 @@ const MAX_RESPONSE_MS = 300_000;
 const RECENT = 64;
 const SPEED_WINDOW = 10;
 const CHUNK = 8 * 1024 * 1024;
+const MIN_CHUNK = 64 * 1024;
 // first scan of a long transcript spreads over renders
 export const TRANSCRIPT_BUDGET = 8 * 1024 * 1024;
 const TRANSCRIPT_DEADLINE_MS = 250;
@@ -618,23 +619,32 @@ function advance(
   const st = { prevTs: s.lastTimestamp };
   const started = now();
   const end = Math.min(size, s.offset + Math.max(0, budget));
-  const buf = Buffer.allocUnsafe(Math.min(CHUNK, Math.max(end - s.offset, 1)));
-  let carry = Buffer.alloc(0);
-  let pos = s.offset;
-  while (pos < end) {
-    const n = fs.readSync(fd, buf, 0, Math.min(buf.length, end - pos), pos);
+  const from = s.offset;
+  const buf = Buffer.allocUnsafe(Math.min(CHUNK, Math.max(end - from, MIN_CHUNK)));
+  let parts: Buffer[] = [];
+  let carryLen = 0;
+  let pos = from;
+  // a line longer than the budget is read through to its newline
+  while (pos < end || (s.offset === from && carryLen > 0 && pos < size)) {
+    const limit = pos < end ? end - pos : size - pos;
+    const n = fs.readSync(fd, buf, 0, Math.min(buf.length, limit), pos);
     if (n <= 0) break;
     pos += n;
-    const data = carry.length ? Buffer.concat([carry, buf.subarray(0, n)]) : buf.subarray(0, n);
+    const chunk = buf.subarray(0, n);
     let start = 0;
-    let nl = data.indexOf(10, start);
+    let nl = chunk.indexOf(10, start);
     while (nl !== -1) {
-      if (nl > start) applyLine(s, data.toString('utf8', start, nl), st);
+      const seg = parts.length
+        ? Buffer.concat([...parts, chunk.subarray(start, nl)])
+        : chunk.subarray(start, nl);
+      parts = [];
+      if (seg.length > 0) applyLine(s, seg.toString('utf8'), st);
       start = nl + 1;
-      nl = data.indexOf(10, start);
+      nl = chunk.indexOf(10, start);
     }
-    carry = Buffer.from(data.subarray(start));
-    s.offset = pos - carry.length;
+    carryLen = n - start + (start === 0 ? carryLen : 0);
+    if (start < n) parts.push(Buffer.from(chunk.subarray(start)));
+    s.offset = pos - carryLen;
     if (pos < end && now() - started > TRANSCRIPT_DEADLINE_MS) break;
   }
   return pos < size;

@@ -122,4 +122,16 @@ describe('transcript budget', () => {
     }
     expect(done).toBe(true);
   });
+
+  it('reads a line longer than the budget through to its newline', () => {
+    const file = path.join(dir, 'longline.jsonl');
+    const budget = 64 * 1024;
+    const filler = `{"type":"user","x":"${'x'.repeat(budget * 3)}"}\n`;
+    fs.writeFileSync(file, line(1) + filler + line(2) + line(3));
+    const env = { CCINFOBAR_CACHE_DIR: path.join(dir, 'cache-long') };
+    let out = readTranscript(file, env, { budget });
+    for (let i = 0; i < 6 && out?.partial; i++) out = readTranscript(file, env, { budget });
+    expect(out!.partial).toBeFalsy();
+    expect(out!.outputTokens).toBe(60);
+  });
 });
