@@ -25,6 +25,7 @@ export interface RunningTool {
 }
 
 export interface TranscriptInfo {
+  partial?: boolean;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -131,6 +132,9 @@ const MAX_RESPONSE_MS = 300_000;
 const RECENT = 64;
 const SPEED_WINDOW = 10;
 const CHUNK = 8 * 1024 * 1024;
+// first scan of a long transcript spreads over renders
+export const TRANSCRIPT_BUDGET = 8 * 1024 * 1024;
+const TRANSCRIPT_DEADLINE_MS = 250;
 const RUNNING = 8;
 const TOOL_NAMES = 50;
 const TOOL_NAMES_KEPT = 200;
@@ -587,13 +591,21 @@ function toInfo(s: State): TranscriptInfo {
   };
 }
 
-function advance(s: State, fd: number, size: number) {
+function advance(
+  s: State,
+  fd: number,
+  size: number,
+  budget = Number.POSITIVE_INFINITY,
+  now: () => number = Date.now,
+): boolean {
   const st = { prevTs: s.lastTimestamp };
-  const buf = Buffer.allocUnsafe(Math.min(CHUNK, Math.max(size - s.offset, 1)));
+  const started = now();
+  const end = Math.min(size, s.offset + Math.max(0, budget));
+  const buf = Buffer.allocUnsafe(Math.min(CHUNK, Math.max(end - s.offset, 1)));
   let carry = Buffer.alloc(0);
   let pos = s.offset;
-  while (pos < size) {
-    const n = fs.readSync(fd, buf, 0, Math.min(buf.length, size - pos), pos);
+  while (pos < end) {
+    const n = fs.readSync(fd, buf, 0, Math.min(buf.length, end - pos), pos);
     if (n <= 0) break;
     pos += n;
     const data = carry.length ? Buffer.concat([carry, buf.subarray(0, n)]) : buf.subarray(0, n);
@@ -606,7 +618,9 @@ function advance(s: State, fd: number, size: number) {
     }
     carry = Buffer.from(data.subarray(start));
     s.offset = pos - carry.length;
+    if (pos < end && now() - started > TRANSCRIPT_DEADLINE_MS) break;
   }
+  return pos < size;
 }
 
 export function parseTranscriptText(text: string): TranscriptInfo {
@@ -623,7 +637,7 @@ export function transcriptCacheName(file: string): string {
 export function readTranscript(
   file: string | undefined,
   env: NodeJS.ProcessEnv = process.env,
-  opts: { persist?: boolean } = {},
+  opts: { persist?: boolean; budget?: number } = {},
 ): TranscriptInfo | null {
   if (!file) return null;
   let fd: number | null = null;
@@ -632,13 +646,17 @@ export function readTranscript(
     const name = transcriptCacheName(file);
     let state = readCache<State>(name, env);
     if (!state || state.v !== VERSION || state.offset > size) state = emptyState();
+    let cut = false;
     if (state.offset < size) {
       fd = fs.openSync(file, 'r');
       const before = state.offset;
-      advance(state, fd, size);
+      const budget = opts.budget ?? (opts.persist === false ? Number.POSITIVE_INFINITY : TRANSCRIPT_BUDGET);
+      cut = advance(state, fd, size, budget);
       if (state.offset !== before && opts.persist !== false) writeCache(name, state, env);
     }
-    return toInfo(state);
+    const info = toInfo(state);
+    if (cut) info.partial = true;
+    return info;
   } catch {
     return null;
   } finally {
