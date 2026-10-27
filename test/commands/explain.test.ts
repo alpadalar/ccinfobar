@@ -292,6 +292,37 @@ describe('runExplain table', () => {
     expect(detail.some((l) => l.startsWith('  warning: showWhen is ignored: '))).toBe(true);
   });
 
+  it('says when a rule metric has no source', () => {
+    savedPayload();
+    const rule = (showWhen: string) => ({ lines: [[{ id: 'm', type: 'model', showWhen }]] });
+    const noSource = (metric: string) =>
+      t('explain.reason.ruleNoSource', { key: 'showWhen', rule: `${metric} > 10`, metric });
+    vi.stubEnv('ANTHROPIC_API_KEY', 'sk-test');
+    try {
+      const line = run([], rule('usage.5h > 10')).out.find((l) => l.includes('m (model)'))!;
+      expect(line).toContain('has no source');
+      expect(line).toContain(noSource('usage.5h'));
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    vi.stubEnv('ANTHROPIC_API_KEY', '');
+    try {
+      savedPayload({ rate_limits: { five_hour: { used_percentage: 3, resets_at: Date.now() / 1000 + 3600 } } });
+      const line = run([], rule('usage.5h > 10')).out.find((l) => l.includes('m (model)'))!;
+      expect(line).not.toContain('has no source');
+      expect(line).toContain('usage.5h = 3');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('says a cost rule has no source without a ledger', () => {
+    savedPayload();
+    const cfg = { lines: [[{ id: 'm', type: 'model', showWhen: 'cost.today > 10' }]] };
+    const line = run([], cfg).out.find((l) => l.includes('m (model)'))!;
+    expect(line).toContain('has no source');
+  });
+
   it('notes a cut line', () => {
     const { out } = run(['--scenario', 'context-full', '--width', '20'], { ...LAYOUT, autoWrap: false });
     expect(out.some((l) => l.startsWith('  ⚠ Line 1 needs'))).toBe(true);

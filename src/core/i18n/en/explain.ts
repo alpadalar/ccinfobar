@@ -60,6 +60,7 @@ export const explainMessages = {
   'explain.reason.error': 'the widget failed',
   'explain.reason.no-data': 'no data for this widget in the current session',
   'explain.reason.hidden-by-rule': '{key} "{rule}" ({metric} = {value})',
+  'explain.reason.ruleNoSource': '{key} "{rule}" ({metric} has no source)',
   'explain.reason.invalid-rule': '{key} is ignored: {problem}',
   'explain.reason.dropped-by-priority': 'dropped by priority at width {width}',
   'explain.value.noData': 'no data',

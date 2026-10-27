@@ -63,6 +63,7 @@ export const explainMessages = {
   'explain.reason.error': 'bileşen hata verdi',
   'explain.reason.no-data': 'geçerli oturumda bu bileşen için veri yok',
   'explain.reason.hidden-by-rule': '{key} "{rule}" ({metric} = {value})',
+  'explain.reason.ruleNoSource': '{key} "{rule}" ({metric} için kaynak yok)',
   'explain.reason.invalid-rule': '{key} yok sayıldı: {problem}',
   'explain.reason.dropped-by-priority': 'öncelik nedeniyle atıldı (genişlik {width})',
   'explain.value.noData': 'veri yok',

@@ -10,7 +10,7 @@ import { projectionState } from '../widgets/projection.js';
 import { isLoadingOutput } from '../widgets/shared.js';
 import { STATUS_STALE_MS, serviceState } from '../widgets/status.js';
 import { stripAnsi } from './ansi.js';
-import { describeRuleError, type MetricValue, type Visibility } from './conditions.js';
+import { describeRuleError, METRIC_SPECS, type MetricValue, type Visibility } from './conditions.js';
 import { resolveGlyphMode, widthModeFor } from './glyphs.js';
 import { compareIds } from './i18n/format.js';
 import { setLanguage, t } from './i18n/index.js';
@@ -385,9 +385,25 @@ function ruleValue(v: MetricValue): string {
   return sanitizeText(String(v));
 }
 
-function ruleHidden(d: Visibility): EmptyReason {
+function sourceOff(ctx: RenderContext, metric: string): boolean {
+  const need = METRIC_SPECS.get(metric)?.needs;
+  if (need === 'ledger') return !ctx.data.ledger?.();
+  if (need === 'limits') return !detectProvider(ctx.env).planLimits;
+  if (need === 'hooks') return !ctx.data.hooks?.();
+  return false;
+}
+
+function ruleHidden(ctx: RenderContext, d: Visibility): EmptyReason {
   const k = d.decided;
   if (!k) return reason('hidden-by-rule', t('doctor.hiddenByRule'));
+  if (k.value === null && sourceOff(ctx, k.metric)) {
+    const text = t('explain.reason.ruleNoSource', {
+      key: k.key,
+      rule: sanitizeText(k.clause),
+      metric: sanitizeText(k.metric),
+    });
+    return reason('hidden-by-rule', text);
+  }
   return reason('hidden-by-rule', undefined, {
     key: k.key,
     rule: sanitizeText(k.clause),
@@ -555,7 +571,7 @@ function inspectItem(
     warning = ruleWarning(d);
     if (!d.visible) {
       const sources = uniq(toSources(item, ruleReads, opts.meta ?? {}));
-      return { ...row, status: 'hidden', sources, empty: ruleHidden(d), ...(warning ? { warning } : {}) };
+      return { ...row, status: 'hidden', sources, empty: ruleHidden(wctx, d), ...(warning ? { warning } : {}) };
     }
   }
   const warned = (r: InspectRow): InspectRow => (warning ? { ...r, warning } : r);

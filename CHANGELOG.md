@@ -27,6 +27,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `git-stash` hides when git does not support `--show-stash`.
 - `git-conflicts` has a `hideZero` option.
 - `model`'s `showId` option treats the string `"false"` as off.
+- `showWhen`/`hideWhen` rules on `cost.*` and `usage.*` metrics now work on every widget type (the ledger or limits store is turned on by the rule itself), and `ccinfobar explain` says when a rule's metric has no data source.
 
 ### Security
 
