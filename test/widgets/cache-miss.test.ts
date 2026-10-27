@@ -96,7 +96,8 @@ describe('cache-miss-cause summary', () => {
     expect(sum(base, { maxCauses: 1 })).toBe('3/48 miss · tools changed ×2');
   });
   it('clamps and falls back', () => {
-    expect(sum(base, { maxCauses: 0 })).toBe('3/48 miss · tools changed ×2');
+    expect(sum(base, { maxCauses: 0 })).toBe('3/48 miss · tools changed ×2, ttl expired 5m ×1');
+    expect(sum(base, { maxCauses: -3 })).toBe('3/48 miss · tools changed ×2');
     expect(sum(base, { maxCauses: 'x' })).toBe('3/48 miss · tools changed ×2, ttl expired 5m ×1');
   });
   it('sorts ties by name', () => {
