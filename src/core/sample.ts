@@ -31,7 +31,7 @@ export function samplePayload(now = Date.now()): StatusPayload {
     workspace: {
       current_dir: '/home/dev/projects/acme-app',
       project_dir: '/home/dev/projects/acme-app',
-      added_dirs: [],
+      added_dirs: ['/home/dev/projects/shared-lib', '/home/dev/docs'],
       repo: { host: 'github.com', owner: 'acme', name: 'acme-app' },
     },
     cost: {

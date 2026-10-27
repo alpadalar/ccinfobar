@@ -24,6 +24,8 @@ export const widgetMessages = {
   'widget.gitIsFork.text': 'fork',
   'widget.jjDescription.none': '(açıklama yok)',
   'widget.gsd.concerns': { one: '⚠ {count} sorun', other: '⚠ {count} sorun' },
+  'widget.cwd.addedDirs': { one: '+{count} klasör', other: '+{count} klasör' },
+  'widget.cwd.moreDirs': '+{count} daha',
   'widget.gsd.todos': { one: '{count} yapılacak', other: '{count} yapılacak' },
   'widget.gsd.staleHooks': "⚠ hook'lar eski",
   'widget.gsd.milestoneComplete': 'kilometre taşı tamamlandı',

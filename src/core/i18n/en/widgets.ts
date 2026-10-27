@@ -21,6 +21,8 @@ export const widgetMessages = {
   'widget.gitIsFork.text': 'fork',
   'widget.jjDescription.none': '(no description)',
   'widget.gsd.concerns': { one: '⚠ {count} concern', other: '⚠ {count} concerns' },
+  'widget.cwd.addedDirs': { one: '+{count} dir', other: '+{count} dirs' },
+  'widget.cwd.moreDirs': '+{count} more',
   'widget.gsd.todos': { one: '{count} todo', other: '{count} todos' },
   'widget.gsd.staleHooks': '⚠ stale hooks',
   'widget.gsd.milestoneComplete': 'milestone complete',

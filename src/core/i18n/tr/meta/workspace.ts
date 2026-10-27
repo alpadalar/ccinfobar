@@ -19,5 +19,11 @@ export const workspace: MetaFile = {
     'Abbreviated (~/p/acme-app)': 'Kısaltılmış (~/p/acme-app)',
     'Last N segments': 'Son N parça',
     Segments: 'Parça sayısı',
+    'Added folders': 'Eklenen klasörler',
+    Off: 'Kapalı',
+    Count: 'Sayı',
+    Names: 'Adlar',
+    'Folders added with /add-dir, as a count or as names':
+      '/add-dir ile eklenen klasörler, sayı ya da ad olarak',
   },
 };
