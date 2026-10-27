@@ -194,6 +194,8 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `env` | Value of an environment variable | `production` | `name` text, default `""` |
 | `http` | One value from a JSON endpoint, fetched in the background; the line never waits on it | `$12.50` | `url` text, default `""`<br>`path` text, default `"$"`<br>`format` text, default `"{value}"`<br>`interval` number, default `300`<br>`timeout` number, default `5000`<br>`headers` text, default `""`<br>`decimals` number, default `-1`<br>`maxLength` number, default `40` |
 
+- `command`: On Windows ccinfobar starts with `NoDefaultCurrentDirectoryInExePath=1`, so a script in the current folder needs an explicit path such as `.\script.bat`; programs on `PATH` work as before.
+
 ## Fun
 
 | Type | Description | Example | Options |

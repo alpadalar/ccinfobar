@@ -16,6 +16,11 @@ const ALL_WIDGETS = EVERY_WIDGET.filter((w) => !w.hidden);
 
 const root = process.argv[2] ?? process.cwd();
 
+const NOTES: Readonly<Record<string, string>> = {
+  command:
+    'On Windows ccinfobar starts with `NoDefaultCurrentDirectoryInExePath=1`, so a script in the current folder needs an explicit path such as `.\\script.bat`; programs on `PATH` work as before.',
+};
+
 function optionText(o: OptionSpec): string {
   const def = typeof o.default === 'string' ? `\`"${o.default}"\`` : `\`${o.default}\``;
   const choices = o.choices ? ` (${o.choices.map((c) => `\`${c.value}\``).join(', ')})` : '';
@@ -73,6 +78,8 @@ function widgetsMarkdown(): string {
         `| \`${w.type}\` | ${w.description.replace(/\|/g, '\\|')} | ${sample.replace(/\|/g, '\\|')} | ${opts.replace(/\|/g, '\\|')} |`,
       );
     }
+    const notes = list.filter((w) => NOTES[w.type]);
+    if (notes.length) out.push('', ...notes.map((w) => `- \`${w.type}\`: ${NOTES[w.type]}`));
   }
   return `${out.join('\n')}\n`;
 }
