@@ -44,6 +44,8 @@ export const installMessages = {
   'install.prompt.yes': '[E/h]',
   'install.prompt.no': '[e/H]',
   'install.importManual': 'Mevcut durum satırınız: {tool}. Ayarları otomatik olarak içe aktarılamıyor.',
+  'install.importSkipped':
+    "ccinfobar'ın zaten bir yapılandırması var, bu yüzden önceki durum satırı içe aktarılmadı; içe aktarmak için `ccinfobar install --import` çalıştırın.",
   'install.importPrompt': "Mevcut durum satırınız: {tool}. Düzeni ccinfobar'a aktarılsın mı?",
   'install.noCommand':
     "✗ Claude Code'un çalıştıracağı bir ccinfobar kurulumu yok. Şununla kurun: npm install -g ccinfobar",

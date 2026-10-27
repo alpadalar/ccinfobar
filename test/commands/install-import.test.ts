@@ -337,4 +337,85 @@ describe('install import offer', () => {
       expect(f.lines.some((l) => l.startsWith('To keep them, run: '))).toBe(false);
     });
   });
+
+  describe('over an existing config', () => {
+    const settings = () => path.join(dir, 'claude', 'settings.json');
+    const original = { version: 1, lines: [[{ id: 'x', type: 'cwd' }]] };
+    beforeEach(() => {
+      writeJson(cfg, original);
+      writeJson(settings(), { statusLine: { type: 'command', command: 'npx ccstatusline' } });
+    });
+    const bytes = () => fs.readFileSync(cfg, 'utf8');
+    const backups = () => fs.readdirSync(path.dirname(cfg)).filter((f) => f.endsWith('.bak'));
+    const importAsk = (f: ReturnType<typeof fake>) =>
+      f.asked.find((a) => a.q === t('install.importPrompt', { tool: 'ccstatusline' }));
+    const install = (f: ReturnType<typeof fake>, ...argv: string[]) =>
+      runInstall(parseArgs(['install', '--command', '/bin/ccinfobar', ...argv]), cfg, f.io);
+
+    it('does not import with --yes alone and without a terminal', async () => {
+      const before = bytes();
+      const f = fake(false);
+      await install(f, '--yes');
+      expect(bytes()).toBe(before);
+      expect(f.lines).toContain(t('install.importSkipped'));
+      expect(read(settings()).statusLine.command).toBe('/bin/ccinfobar');
+    });
+
+    it('imports with --import and keeps a backup', async () => {
+      const f = fake(false);
+      await install(f, '--import');
+      expect(types()).toEqual(['model']);
+      expect(backups().length).toBeGreaterThan(0);
+    });
+
+    it('asks with default no on a terminal', async () => {
+      const before = bytes();
+      const f = fake(true, [true, false]);
+      await install(f);
+      expect(importAsk(f)?.fallback).toBe(false);
+      expect(bytes()).toBe(before);
+      writeJson(settings(), { statusLine: { type: 'command', command: 'npx ccstatusline' } });
+      const g = fake(true, [true, true]);
+      await install(g);
+      expect(importAsk(g)?.fallback).toBe(false);
+      expect(types()).toEqual(['model']);
+    });
+
+    it('asks with default yes when there is no config yet', async () => {
+      fs.rmSync(cfg);
+      const f = fake(true, [true]);
+      await install(f);
+      expect(importAsk(f)?.fallback).toBe(true);
+      expect(types()).toEqual(['model']);
+    });
+
+    it('imports with --yes when there is no config yet', async () => {
+      fs.rmSync(cfg);
+      await install(fake(false), '--yes');
+      expect(types()).toEqual(['model']);
+    });
+
+    it('never imports with --no-import', async () => {
+      const before = bytes();
+      const f = fake(false);
+      await install(f, '--import', '--no-import');
+      expect(bytes()).toBe(before);
+    });
+
+    it('imports nothing when the plan went stale', async () => {
+      const before = bytes();
+      const f = fake(false);
+      const mod = await import('../../src/commands/install.js');
+      const spy = vi.spyOn(mod, 'applyInstall').mockImplementation(() => {
+        throw new mod.InstallNeedsConfirmError({} as never);
+      });
+      try {
+        await install(f, '--import');
+      } finally {
+        spy.mockRestore();
+      }
+      expect(bytes()).toBe(before);
+      expect(process.exitCode).toBe(1);
+    });
+  });
 });

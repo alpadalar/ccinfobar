@@ -94,10 +94,15 @@ export async function offerImport(
     return;
   }
   if (args.flags.import === false) return;
+  const exists = loadConfig(cfgFile).exists;
+  const prompt = t('install.importPrompt', { tool: tool.name });
+  if (exists && !io.tty && args.flags.import !== true) {
+    io.log(t('install.importSkipped'));
+    return;
+  }
   const yes =
     args.flags.import === true ||
-    args.flags.yes === true ||
-    (await io.ask(t('install.importPrompt', { tool: tool.name }), true));
+    (exists ? await io.ask(prompt, false) : args.flags.yes === true || (await io.ask(prompt, true)));
   if (!yes) return;
   const flags = {
     allowCommands: args.flags['allow-commands'] === true,
@@ -400,7 +405,6 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     found?.tool === 'unknown'
       ? (sniffTool(found.command, { env: process.env, cwd: process.cwd() }) ?? found)
       : found;
-  if (tool) await offerImport(tool, args, cfgFile, io, hint);
   let res: InstallResult;
   try {
     const hooks = hooksAsked || handlers ? { events, claudeCode, progress: handlers } : undefined;
@@ -412,6 +416,7 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     return;
   }
   if (project) ignoreLocally(file);
+  if (tool) await offerImport(tool, args, cfgFile, io, hint);
   persistConfig(cfgFile);
   if (tty || (handlers && res.hooks?.progressRefused === null)) setProgress(io, cfgFile, true);
   const ttyRemoved =

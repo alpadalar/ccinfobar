@@ -42,6 +42,8 @@ export const installMessages = {
   'install.prompt.no': '[y/N]',
   'install.importManual':
     'Found {tool} as your current status line. Its settings cannot be imported automatically.',
+  'install.importSkipped':
+    'ccinfobar already has a config, so the previous status line was not imported; run `ccinfobar install --import` to import it.',
   'install.importPrompt': 'Found {tool} as your current status line. Import its layout into ccinfobar?',
   'install.noCommand':
     '✗ No ccinfobar install to point Claude Code at. Install it with: npm install -g ccinfobar',
