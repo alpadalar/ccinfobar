@@ -10,7 +10,7 @@ export interface MetricSpec {
   choices?: readonly string[];
   ordered?: boolean;
   label: MessageId;
-  needs?: 'hooks';
+  needs?: 'hooks' | 'ledger' | 'limits';
 }
 
 // keep in sync with ProviderKind
@@ -29,10 +29,10 @@ const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 const SPECS: MetricSpec[] = [
   { name: 'context.pct', kind: 'number', min: 0, max: 100, label: 'metric.context.pct' },
   { name: 'context.usable', kind: 'number', min: 0, max: 100, label: 'metric.context.usable' },
-  { name: 'usage.5h', kind: 'number', min: 0, max: 100, label: 'metric.usage.5h' },
-  { name: 'usage.7d', kind: 'number', min: 0, max: 100, label: 'metric.usage.7d' },
+  { name: 'usage.5h', kind: 'number', min: 0, max: 100, needs: 'limits', label: 'metric.usage.5h' },
+  { name: 'usage.7d', kind: 'number', min: 0, max: 100, needs: 'limits', label: 'metric.usage.7d' },
   { name: 'cost.session', kind: 'number', label: 'metric.cost.session' },
-  { name: 'cost.today', kind: 'number', label: 'metric.cost.today' },
+  { name: 'cost.today', kind: 'number', needs: 'ledger', label: 'metric.cost.today' },
   { name: 'tokens.total', kind: 'number', label: 'metric.tokens.total' },
   { name: 'agents.running', kind: 'number', label: 'metric.agents.running' },
   { name: 'time.hour', kind: 'number', min: 0, max: 23, ordered: true, label: 'metric.time.hour' },
@@ -41,7 +41,7 @@ const SPECS: MetricSpec[] = [
   { name: 'git', kind: 'flag', label: 'metric.git' },
   { name: 'gsd', kind: 'flag', label: 'metric.gsd' },
   { name: 'agents', kind: 'flag', label: 'metric.agents' },
-  { name: 'limit-risk', kind: 'flag', label: 'metric.limit-risk' },
+  { name: 'limit-risk', kind: 'flag', needs: 'limits', label: 'metric.limit-risk' },
   { name: 'permission.waiting', kind: 'flag', needs: 'hooks', label: 'metric.permission.waiting' },
 ];
 
@@ -439,6 +439,17 @@ export function ruleMetrics(item: RuleSource): Set<string> {
     for (const c of r.rule) for (const x of c) out.add(x.metric);
   }
   return out;
+}
+
+export type MetricNeed = NonNullable<MetricSpec['needs']>;
+
+export function ruleNeeds(config: { lines: RuleSource[][] }, need: MetricNeed): boolean {
+  for (const line of config.lines) {
+    for (const it of line) {
+      for (const m of ruleMetrics(it)) if (METRIC_SPECS.get(m)?.needs === need) return true;
+    }
+  }
+  return false;
 }
 
 export function describeRuleError(e: RuleError): string {
