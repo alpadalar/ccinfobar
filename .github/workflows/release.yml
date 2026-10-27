@@ -11,13 +11,18 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
           cache: npm
+      - name: Tag matches package.json
+        run: |
+          want="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$want" ]; then echo "::error::tag $GITHUB_REF_NAME is not $want"; exit 1; fi
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npm run check
@@ -42,5 +47,6 @@ jobs:
             echo "ccinfobar@$version is already on npm"
             exit 0
           fi
-          npm install -g npm@latest
+          # trusted publishing needs npm 11.5.1+
+          npm install -g npm@11.21.1
           npm publish --access public
