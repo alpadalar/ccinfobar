@@ -352,21 +352,21 @@ This is not legal advice.
 
 ## Runbook
 
-All commands run from `worker/`, so wrangler reads `worker/wrangler.jsonc` with the pinned account id. They need Node 22 or later and a signed-in wrangler (`npx --yes wrangler@4.149.0 login`) or `CLOUDFLARE_API_TOKEN` in the environment. The account is the owner's own ("Alp.adalar@gmail.com's Account"); never run them against another account. The database is `ccinfobar-market`.
+All commands run from `worker/`, so wrangler reads `worker/wrangler.jsonc` with the pinned account id. They need Node 22 or later and a signed-in wrangler (a devDependency: run `npm ci` in the repo root first) (`npx wrangler login`) or `CLOUDFLARE_API_TOKEN` in the environment. The account is the owner's own ("Alp.adalar@gmail.com's Account"); never run them against another account. The database is `ccinfobar-market`.
 
 ### Deploy
 
 - GitHub Actions → **Marketplace deploy** → Run workflow, or `gh workflow run market-deploy.yml --ref main`. A push to `main` that touches the Worker files (`src/market/**`, `src/core/entry-keys.ts`, `src/core/sanitize.ts`, `worker/**`, the build scripts or the workflow) deploys too.
 - The job runs only on `alpadalar/ccinfobar` and only once the repository variable `MARKET_URL` is set (the Worker URL, https://ccinfobar-market.alp-adalar.workers.dev). It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, which only the wrangler steps that reach Cloudflare get. The checkout and setup-node actions are pinned by commit SHA (the tag in a comment); to update one, look up the new tag's commit and change both.
-- Steps: `npm ci --ignore-scripts`, `npx vitest run test/market`, `node scripts/build.mjs --worker` (writes the gitignored `worker/dist/index.js`), `wrangler deploy --dry-run`, record the D1 Time Travel bookmark, apply migrations, deploy, then a smoke check of `$MARKET_URL/v1/meta.json` and `$MARKET_URL/`.
+- Steps: `npm ci --ignore-scripts`, `npx vitest run test/market`, `node scripts/build.mjs --worker` (writes the gitignored `worker/dist/index.js`), `../node_modules/.bin/wrangler deploy --dry-run` (wrangler 4.149.0 is an exact devDependency, so the locked copy runs and nothing is downloaded while the token is set), record the D1 Time Travel bookmark, apply migrations, deploy, then a smoke check of `$MARKET_URL/v1/meta.json` and `$MARKET_URL/`.
 - `wrangler deploy` also sets the cron trigger from `worker/wrangler.jsonc` (`triggers.crons`). Workers Free allows 5 cron triggers per account, and this Worker uses one; check the Worker's **Settings → Triggers** page after the first deploy with it.
 - Sign-in answers `503` until the `GITHUB_CLIENT_SECRET` secret is set (see [Tokens and secrets](#tokens-and-secrets)).
 
 ### Migrations
 
 - Add `worker/migrations/NNNN_name.sql` with the next number. Migrations are additive only: new tables, columns with defaults, new indexes. Never drop or rename what a deployed Worker reads.
-- The workflow applies them with `npx --yes wrangler@4.149.0 d1 migrations apply ccinfobar-market --remote`. Wrangler takes no backup of a production D1 database (that was only the old alpha backend), so the step before it prints the current Time Travel bookmark (`d1 time-travel info ccinfobar-market --json`) into the job log. To undo a migration, restore to that bookmark (see [Backups](#backups)); every write after it is lost. Deploy the Worker code that needs a new column only after its migration.
-- `npx --yes wrangler@4.149.0 d1 migrations list ccinfobar-market --remote` shows what is applied.
+- The workflow applies them with `npx wrangler d1 migrations apply ccinfobar-market --remote`. Wrangler takes no backup of a production D1 database (that was only the old alpha backend), so the step before it prints the current Time Travel bookmark (`d1 time-travel info ccinfobar-market --json`) into the job log. To undo a migration, restore to that bookmark (see [Backups](#backups)); every write after it is lost. Deploy the Worker code that needs a new column only after its migration.
+- `npx wrangler d1 migrations list ccinfobar-market --remote` shows what is applied.
 
 ### Moderation
 
@@ -376,17 +376,17 @@ Sign in as an admin (`ccinfobar catalog login` with the GitHub account whose id 
 
 Take a backup before any manual change to the database.
 
-- D1 Time Travel keeps a point-in-time history for 7 days on Free. `npx --yes wrangler@4.149.0 d1 time-travel info ccinfobar-market` prints the current bookmark; keep it, so you can go back to the state before a restore.
-- Restore: `npx --yes wrangler@4.149.0 d1 time-travel restore ccinfobar-market --timestamp <ISO time>` (or `--bookmark <bookmark>`). It replaces the whole database, so every write after that time is lost.
-- Export a full copy: `npx --yes wrangler@4.149.0 d1 export ccinfobar-market --remote --output backup.sql`. Keep exports private: they hold GitHub ids, logins, display names and token hashes.
+- D1 Time Travel keeps a point-in-time history for 7 days on Free. `npx wrangler d1 time-travel info ccinfobar-market` prints the current bookmark; keep it, so you can go back to the state before a restore.
+- Restore: `npx wrangler d1 time-travel restore ccinfobar-market --timestamp <ISO time>` (or `--bookmark <bookmark>`). It replaces the whole database, so every write after that time is lost.
+- Export a full copy: `npx wrangler d1 export ccinfobar-market --remote --output backup.sql`. Keep exports private: they hold GitHub ids, logins, display names and token hashes.
 
 ### Tokens and secrets
 
 Only names of secrets appear in this repository; their values never do. The OAuth client id `Ov23liVCN9Nf6VlLv3St` and the admin id are public.
 
 - **Cloudflare API token** (used by the workflow): create a new token in the dashboard (My Profile → API Tokens → Create Custom Token, account resources limited to the one account; permissions Account · Workers Scripts · Edit, Account · D1 · Edit, Account · Account Settings · Read, User · User Details · Read, User · Memberships · Read), then `gh secret set CLOUDFLARE_API_TOKEN` and delete the old token in the dashboard.
-- **GitHub client secret** (required for sign-in): on GitHub, open the OAuth app with client id `Ov23liVCN9Nf6VlLv3St` (Settings → Developer settings → OAuth Apps), generate a client secret, then run `npx --yes wrangler@4.149.0 secret put GITHUB_CLIENT_SECRET` and paste it. To rotate, generate a new secret, put it, then delete the old one on GitHub. It is never stored in the repository or the workflow.
-- **Marketplace tokens of a publisher**: to sign out a publisher everywhere, take a backup, then `npx --yes wrangler@4.149.0 d1 execute ccinfobar-market --remote --command "DELETE FROM tokens WHERE handle = '<handle>'"`. They can sign in again unless banned; ban them to keep them out.
+- **GitHub client secret** (required for sign-in): on GitHub, open the OAuth app with client id `Ov23liVCN9Nf6VlLv3St` (Settings → Developer settings → OAuth Apps), generate a client secret, then run `npx wrangler secret put GITHUB_CLIENT_SECRET` and paste it. To rotate, generate a new secret, put it, then delete the old one on GitHub. It is never stored in the repository or the workflow.
+- **Marketplace tokens of a publisher**: to sign out a publisher everywhere, take a backup, then `npx wrangler d1 execute ccinfobar-market --remote --command "DELETE FROM tokens WHERE handle = '<handle>'"`. They can sign in again unless banned; ban them to keep them out.
 
 ### Free limits
 

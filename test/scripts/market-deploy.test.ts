@@ -6,7 +6,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 const root = path.resolve(__dirname, '../..');
 const WF = '.github/workflows/market-deploy.yml';
-const WRANGLER = 'npx --yes wrangler@4.149.0';
+const WRANGLER = '../node_modules/.bin/wrangler';
 
 const readLines = (rel: string): string[] => {
   const file = path.join(root, rel);
@@ -138,12 +138,15 @@ describe('market deploy workflow', () => {
     expect(text).toMatch(/^name: \S/m);
   });
 
-  it('pins wrangler to 4.149.0 and uses no wrangler action', () => {
-    const pins = text.match(/wrangler@[^\s'"]*/g) ?? [];
-    expect(pins.length).toBeGreaterThan(0);
-    expect(new Set(pins)).toEqual(new Set(['wrangler@4.149.0']));
+  it('runs the locked wrangler devDependency and no wrangler action', () => {
+    const pkg = JSON.parse(readLines('package.json').join('\n'));
+    const lock = JSON.parse(readLines('package-lock.json').join('\n'));
+    expect(pkg.devDependencies.wrangler).toBe('4.149.0');
+    expect(pkg.dependencies?.wrangler).toBeUndefined();
+    expect(lock.packages['node_modules/wrangler'].version).toBe('4.149.0');
+    expect(text).not.toMatch(/wrangler@/);
+    expect(text).not.toMatch(/npx --yes/);
     expect(text).not.toMatch(/wrangler-action/);
-    expect(text).not.toMatch(/(?<!--yes )wrangler@/);
     for (const st of steps()) {
       if (st.run.includes('wrangler')) expect(st.run.startsWith(`${WRANGLER} `)).toBe(true);
     }
@@ -195,7 +198,7 @@ describe('market deploy workflow', () => {
     }
     expect(text).not.toMatch(/secrets\s*\[|toJSON\(secrets|secrets: inherit/);
     // R-14: the client secret is a Worker secret, not a workflow one
-    expect(text).not.toMatch(/GITHUB_CLIENT_SECRET|wrangler@\S+ secret/);
+    expect(text).not.toMatch(/GITHUB_CLIENT_SECRET|wrangler secret/);
     const jobEnv = find(/^ {4}env:\s*$/);
     const jobEnvBody = jobEnv < 0 ? [] : body(lines, jobEnv).map((i) => lines[i]!.trim());
     expect(jobEnvBody).toEqual(["WRANGLER_SEND_METRICS: 'false'"]);

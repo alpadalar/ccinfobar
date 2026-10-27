@@ -42,26 +42,26 @@ jobs:
       - run: node scripts/build.mjs --worker
       - name: Check config
         working-directory: worker
-        run: npx --yes wrangler@4.149.0 deploy --dry-run
+        run: ../node_modules/.bin/wrangler deploy --dry-run
       # wrangler takes no backup of a production D1; this bookmark is the point to restore to
       - name: Record a Time Travel bookmark
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx --yes wrangler@4.149.0 d1 time-travel info ccinfobar-market --json
+        run: ../node_modules/.bin/wrangler d1 time-travel info ccinfobar-market --json
       - name: Apply D1 migrations
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx --yes wrangler@4.149.0 d1 migrations apply ccinfobar-market --remote
+        run: ../node_modules/.bin/wrangler d1 migrations apply ccinfobar-market --remote
       - name: Deploy
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx --yes wrangler@4.149.0 deploy
+        run: ../node_modules/.bin/wrangler deploy
       - name: Smoke check
         env:
           MARKET_URL: ${{ vars.MARKET_URL }}
