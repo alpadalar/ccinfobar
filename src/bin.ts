@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import module from 'node:module';
 import { silence } from './cli/silence.js';
+import { noCwdLookup } from './cli/win-env.js';
 
 module.enableCompileCache?.();
+noCwdLookup(process.env, process.platform);
 const argv = process.argv;
 // `hook ...` or `[--flags] [--config <f>] hook <Event>`
 const pre = argv.slice(2, -2);
