@@ -451,15 +451,37 @@ describe('install prompt and messages', () => {
     expect(sl.hideVimModeIndicator).toBe(true);
   });
 
-  it('classifies a hand-added hideVimModeIndicator as foreign once the manifest owns the line', () => {
+  it('keeps a hand-added hideVimModeIndicator ours; a changed owned key is foreign', () => {
     const file = settingsFile({});
     applyInstall(planInstall({ file, command: '/bin/ccinfobar' }), { confirmed: true });
     const written = read(file).statusLine;
     const m = readManifest();
     expect(classifyOwner(m, file, written, '/bin/ccinfobar')).toBe('ours');
-    // D-01: revisit with FEAT-08
-    expect(classifyOwner(m, file, { ...written, hideVimModeIndicator: true }, '/bin/ccinfobar')).toBe(
-      'foreign',
-    );
+    expect(classifyOwner(m, file, { ...written, hideVimModeIndicator: true }, '/bin/ccinfobar')).toBe('ours');
+    expect(classifyOwner(m, file, { ...written, padding: 7 }, '/bin/ccinfobar')).toBe('foreign');
+  });
+
+  it('restores the original statusLine after reinstall and uninstall with a hand-added sub-key', () => {
+    const original = { type: 'command', command: 'npx other' };
+    const file = settingsFile({ statusLine: original, keep: 1 });
+    applyInstall(planInstall({ file, command: '/bin/ccinfobar' }), { confirmed: true });
+    const d = read(file);
+    d.statusLine.hideVimModeIndicator = true;
+    fs.writeFileSync(file, `${JSON.stringify(d, null, 2)}\n`);
+    applyInstall(planInstall({ file, command: '/bin/ccinfobar' }), { confirmed: true });
+    expect(read(file).statusLine.hideVimModeIndicator).toBe(true);
+    expect(uninstall(file)).toMatchObject({ removed: true });
+    expect(read(file).statusLine).toEqual(original);
+    expect(read(file).keep).toBe(1);
+  });
+
+  it('uninstall never removes another tool statusLine', () => {
+    const file = settingsFile({});
+    applyInstall(planInstall({ file, command: '/bin/ccinfobar' }), { confirmed: true });
+    const d = read(file);
+    d.statusLine = { type: 'command', command: 'npx other', hideVimModeIndicator: true };
+    fs.writeFileSync(file, `${JSON.stringify(d)}\n`);
+    expect(uninstall(file)).toMatchObject({ status: 'foreign', removed: false });
+    expect(read(file).statusLine.command).toBe('npx other');
   });
 });

@@ -23,6 +23,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- `install` and `uninstall` decide whether the status line is ccinfobar's by comparing only the keys ccinfobar owns (`type`, `command`, `padding`, `refreshInterval`), so a hand-added key such as `hideVimModeIndicator` no longer makes the next install lose your original line. Uninstall still restores it and still never removes another tool's status line
 - `--help` and the README now list `ccinfobar editor`, `ccinfobar update --check` and the internal `ccinfobar repos` command
 - Docs and CLI hints now describe Claude Code's real refresh triggers (session start, assistant message, `/compact`, permission and vim mode, command change, `resets_at`, `expires_at`, `refreshInterval`) and say the line is hidden, not paused, during permission prompts and the help menu; the README names which usage-limit fields come from the payload and which from the usage-API fallback
 - `install` keeps other keys inside Claude Code's `statusLine` object (such as `hideVimModeIndicator`) when it rewrites the command

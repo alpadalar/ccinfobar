@@ -113,6 +113,16 @@ export function deepEqual(a: unknown, b: unknown): boolean {
   return ka.every((k) => Object.hasOwn(b, k) && deepEqual(a[k], b[k]));
 }
 
+const OWNED_KEYS = ['type', 'command', 'padding', 'refreshInterval'] as const;
+
+// hand-added sub-keys (hideVimModeIndicator) do not change who owns the line
+export function ownedEqual(a: unknown, b: unknown): boolean {
+  if (!isObj(a) || !isObj(b)) return deepEqual(a, b);
+  const pick = (o: Record<string, unknown>) =>
+    Object.fromEntries(OWNED_KEYS.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
+  return deepEqual(pick(a), pick(b));
+}
+
 function isStatusLineEntry(e: ManifestEntry): e is StatusLineEntry {
   return e.kind === 'statusLine' && typeof e.file === 'string' && isObj(e.value);
 }
@@ -125,7 +135,7 @@ export function findStatusLineEntry(m: Manifest, file: string): StatusLineEntry 
 
 export function owns(m: Manifest, file: string, value: unknown): boolean {
   const entry = findStatusLineEntry(m, file);
-  return !!entry && value != null && deepEqual(value, entry.value);
+  return !!entry && value != null && ownedEqual(value, entry.value);
 }
 
 // unquote; null when the command uses shell operators
@@ -186,7 +196,7 @@ export function classifyOwner(
   if (!current) return 'none';
   if (m.readOnly) return 'foreign';
   const entry = findStatusLineEntry(m, file);
-  if (entry) return deepEqual(current, entry.value) ? 'ours' : 'foreign';
+  if (entry) return ownedEqual(current, entry.value) ? 'ours' : 'foreign';
   const cmd = current.command;
   if (typeof cmd !== 'string') return 'foreign';
   if ((expected && cmd === expected) || isLegacyCcinfobarCommand(cmd)) return 'legacy-ours';

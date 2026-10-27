@@ -38,6 +38,7 @@ import {
   type HookEntry,
   type Manifest,
   manifestFile,
+  ownedEqual,
   type Owner,
   type Restore,
   readManifest,
@@ -539,7 +540,7 @@ export function uninstall(
       );
       return done('gone-restored', prev, null, out);
     }
-    if (!deepEqual(sl, entry.value)) return done('foreign', null, sl, hooksOnly());
+    if (!ownedEqual(sl, entry.value)) return done('foreign', null, sl, hooksOnly());
     const exact = restoreExact(target, entry, cur.hash, env);
     // the restore point predates every owned hook
     const all = removedLists(hookEntries);
