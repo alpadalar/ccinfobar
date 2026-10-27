@@ -25,7 +25,7 @@ import { titleWidgets } from '../../core/panel.js';
 import { extractCode } from '../../core/share-code.js';
 import type { Config } from '../../core/types.js';
 import { ansiToHtml } from './ansi-html.js';
-import { ApiError, api, previewSource, setToken } from './api.js';
+import { ApiError, api, onServerGone, previewSource, setToken } from './api.js';
 import { openCatalog } from './catalog.js';
 import { colorToCss } from './colors.js';
 import { type DragSpec, type DropTarget, press } from './dnd.js';
@@ -492,6 +492,43 @@ function renderConfigBanner(): void {
   );
 }
 
+const HEARTBEAT_MS = 5 * 60_000;
+let heartbeat: ReturnType<typeof setInterval> | null = null;
+
+function renderStoppedBanner(): void {
+  const app = $('app');
+  document.getElementById('stopped-banner')?.remove();
+  app.classList.add('has-banner');
+  app.prepend(
+    h(
+      'div',
+      { id: 'stopped-banner', class: 'config-banner stopped-banner', role: 'alert' },
+      icon('alert', 16),
+      h('span', { 'data-i18n': 'web.app.stopped' }, t('web.app.stopped')),
+      h(
+        'button',
+        { class: 'btn', type: 'button', 'data-i18n': 'web.app.stoppedExport', onClick: exportJson },
+        t('web.app.stoppedExport'),
+      ),
+    ),
+  );
+}
+
+function serverGone(): void {
+  if (S.stopped) return;
+  S.stopped = true;
+  if (heartbeat) clearInterval(heartbeat);
+  renderStoppedBanner();
+}
+
+function startHeartbeat(): void {
+  const beat = () => {
+    if (document.visibilityState === 'visible' && !S.stopped) void api.ping().catch(() => {});
+  };
+  heartbeat = setInterval(beat, HEARTBEAT_MS);
+  document.addEventListener('visibilitychange', beat);
+}
+
 function issueFrom(err: unknown): { line: number; column: number; message: string } | null {
   if (!(err instanceof ApiError) || err.status !== 409 || !err.data) return null;
   const { line, column, message } = err.data;
@@ -519,6 +556,7 @@ async function save(): Promise<void> {
       toast(configBrokenText() ?? '', 'error');
       return;
     }
+    if (err instanceof ApiError && err.status === 0) return;
     toast(t('web.app.saveFailed', { error: (err as Error).message }), 'error');
   }
 }
@@ -851,6 +889,7 @@ async function boot(): Promise<void> {
   setToken(token);
   try {
     init(await api.state());
+    onServerGone(serverGone);
   } catch (err) {
     setLanguage(pickUiLanguage(undefined, undefined, browserLanguages()));
     applyStatic(document);
@@ -861,6 +900,7 @@ async function boot(): Promise<void> {
   applyStatic(document);
   $('boot').remove();
   renderConfigBanner();
+  startHeartbeat();
   if (S.api.configError && !S.api.configIssue)
     toast(t('web.app.configProblem', { error: S.api.configError }), 'error');
   setupStatic();

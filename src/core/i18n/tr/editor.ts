@@ -180,6 +180,9 @@ export const editorMessages = {
     'Claude Code şunu çalıştırıyor: {command}\nKaydedilen değişiklikler bir sonraki yenilemede görünür. Ayarlar: Genel sekmesi.',
   'web.app.saved': 'Kaydedildi. Claude Code bir sonraki yenilemede gösterir.',
   'web.app.savedInstall': "Kaydedildi. Orada görmek için Claude Code'a kurun.",
+  'web.app.stopped':
+    'Düzenleyici durdu. Yapılandırmanızı dışa aktarın, sonra `ccinfobar edit` komutunu yeniden çalıştırın.',
+  'web.app.stoppedExport': 'Yapılandırmayı dışa aktar',
   'web.app.saveFailed': 'Kaydetme başarısız oldu: {error}',
   'web.app.importPlaceholder':
     'Bir ccinfobar yapılandırma JSON metnini veya paylaşım kodunu buraya yapıştırın',

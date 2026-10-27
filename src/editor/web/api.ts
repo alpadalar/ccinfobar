@@ -157,12 +157,26 @@ export function apiErrorText(body: Record<string, unknown> | null, status: numbe
   return idText(body?.errorId, body?.errorParams, error);
 }
 
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method,
-    headers: { 'x-ccinfobar-token': token, 'content-type': 'application/json' },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
+const goneHandlers: Array<() => void> = [];
+
+export function onServerGone(fn: () => void): void {
+  goneHandlers.push(fn);
+}
+
+async function call<T>(method: string, path: string, body?: unknown, boot = false): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method,
+      headers: { 'x-ccinfobar-token': token, 'content-type': 'application/json' },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  } catch (err) {
+    // the first load shows the raw network error
+    if (boot) throw err;
+    for (const fn of goneHandlers) fn();
+    throw new ApiError(0, t('web.app.stopped'), null);
+  }
   let data: unknown = null;
   try {
     data = await res.json();
@@ -178,7 +192,8 @@ const lang = () => encodeURIComponent(language());
 const entryPath = (ref: string) => `/api/catalog/entries/${encodeURIComponent(ref)}?lang=${lang()}`;
 
 export const api = {
-  state: () => call<ApiState>('GET', '/api/state'),
+  ping: () => call<{ ok: boolean }>('GET', '/api/ping'),
+  state: () => call<ApiState>('GET', '/api/state', undefined, true),
   preview: (config: Config, src: PreviewSrc, width: number, theme?: Record<string, unknown>) =>
     call<{ lines: string[]; hidden: string[]; dropped?: string[] }>('POST', '/api/preview', {
       config,

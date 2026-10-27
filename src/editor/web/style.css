@@ -185,6 +185,10 @@ button:disabled {
   z-index: 6;
 }
 
+.stopped-banner .btn {
+  margin-left: 0.625rem;
+}
+
 .config-banner .icon {
   flex: none;
   color: var(--danger);

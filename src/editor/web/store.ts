@@ -214,6 +214,7 @@ export interface Store {
   groups: StyleGroup[];
   painting: boolean;
   hidden: ReadonlyMap<string, HiddenWhy>;
+  stopped: boolean;
 }
 
 export interface CommitOpts {
@@ -257,6 +258,7 @@ export function init(api: ApiState): void {
     groups: ['colors', 'text'],
     painting: false,
     hidden: new Map(),
+    stopped: false,
   };
 }
 
