@@ -16,7 +16,7 @@ export interface UpdateValue {
   latest: string | null;
   installed?: string;
   rejected?: string;
-  rollback?: 'ok' | 'failed';
+  rollback?: 'ok' | 'failed' | 'unverified';
   reason?: string;
 }
 
@@ -25,14 +25,14 @@ export interface UpdateState {
   latest: string | null;
   installed?: string;
   rejected?: string;
-  rollback?: 'ok' | 'failed';
+  rollback?: 'ok' | 'failed' | 'unverified';
   reason?: string;
   error?: string;
   session?: string;
 }
 
-const rollbackOf = (v: unknown): 'ok' | 'failed' | undefined =>
-  v === 'ok' || v === 'failed' ? v : undefined;
+const rollbackOf = (v: unknown): 'ok' | 'failed' | 'unverified' | undefined =>
+  v === 'ok' || v === 'failed' || v === 'unverified' ? v : undefined;
 const reasonOf = (v: unknown): string | undefined =>
   typeof v === 'string' ? sanitizeText(v).slice(0, 200) : undefined;
 

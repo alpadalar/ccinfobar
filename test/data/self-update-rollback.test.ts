@@ -136,7 +136,59 @@ describe('checkForUpdate verify and rollback', () => {
       {},
       { ...base, install, verify: async () => 'verify-timeout' },
     );
-    expect(bad).toEqual({ latest: '9.9.9', rejected: '9.9.9', rollback: 'failed', reason: 'verify-timeout' });
+    expect(bad).toEqual({
+      latest: '9.9.9',
+      rejected: '9.9.9',
+      rollback: 'unverified',
+      reason: 'verify-timeout',
+    });
+  });
+
+  it("reports an unverified rollback when the restored version's check times out (16.2-D-02)", async () => {
+    const install = vi.fn();
+    const recordRejected = vi.fn();
+    const verify = async (v: string) => (v === '9.9.9' ? 'render-failed:1' : 'verify-timeout');
+    const out = await checkForUpdate(cfg, '0.1.0', {}, { ...base, install, verify, recordRejected });
+    expect(out).toEqual({
+      latest: '9.9.9',
+      rejected: '9.9.9',
+      rollback: 'unverified',
+      reason: 'render-failed:1',
+    });
+    expect(install.mock.calls.map((c) => c[0])).toEqual(['9.9.9', '0.1.0']);
+    expect(recordRejected).toHaveBeenCalledTimes(1);
+    expect(recordRejected.mock.calls[0]![0].rollback).toBe('failed');
+    expect(recordRejected.mock.invocationCallOrder[0]!).toBeLessThan(install.mock.invocationCallOrder[1]!);
+    for (const why of ['verify-timeout', 'verify-failed', 'entry-missing']) {
+      const r = await checkForUpdate(
+        cfg,
+        '0.1.0',
+        {},
+        { ...base, install: vi.fn(), verify: async (v: string) => (v === '9.9.9' ? 'render-failed:1' : why) },
+      );
+      expect(r.rollback).toBe('unverified');
+    }
+  });
+
+  it('keeps a failed rollback for a real failure of the restored version (16.2-D-02)', async () => {
+    const mismatch = await checkForUpdate(
+      cfg,
+      '0.1.0',
+      {},
+      {
+        ...base,
+        install: vi.fn(),
+        verify: async (v: string) => (v === '9.9.9' ? 'render-failed:1' : 'version-mismatch:0.0.9'),
+      },
+    );
+    expect(mismatch.rollback).toBe('failed');
+    const verify = vi.fn(async (v: string) => (v === '9.9.9' ? 'render-failed:1' : null));
+    const install = vi.fn(async (v: string) => {
+      if (v === '0.1.0') throw new Error('npm down');
+    });
+    const threw = await checkForUpdate(cfg, '0.1.0', {}, { ...base, install, verify });
+    expect(threw.rollback).toBe('failed');
+    expect(verify.mock.calls.map((c) => c[0])).toEqual(['9.9.9']);
   });
 
   it('installs a hanging version only once across two daily runs', async () => {

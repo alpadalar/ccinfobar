@@ -377,6 +377,8 @@ function within(ms: number, parent?: AbortSignal): AbortSignal {
 }
 
 const KEEP_REASONS = new Set(['entry-missing', 'verify-failed']);
+// the check, not the binary, failed (16.2-D-02)
+const UNVERIFIED_REASONS = new Set(['verify-timeout', ...KEEP_REASONS]);
 
 // own budget: the install budget must not abort the rollback
 async function rollBack(
@@ -386,14 +388,21 @@ async function rollBack(
   prefix: string | undefined,
   env: NodeJS.ProcessEnv,
   ms = ROLLBACK_BUDGET_MS,
-): Promise<boolean> {
+): Promise<'ok' | 'failed' | 'unverified'> {
   const own = AbortSignal.timeout(ms);
   try {
     await install(current, prefix, own);
-    return (await verify(current, env, own)) === null;
   } catch {
-    return false;
+    return 'failed';
   }
+  let bad: string | null;
+  try {
+    bad = await verify(current, env, own);
+  } catch {
+    return 'failed';
+  }
+  if (bad === null) return 'ok';
+  return UNVERIFIED_REASONS.has(bad) ? 'unverified' : 'failed';
 }
 
 export async function checkForUpdate(
@@ -405,7 +414,7 @@ export async function checkForUpdate(
   latest: string;
   installed?: string;
   rejected?: string;
-  rollback?: 'ok' | 'failed';
+  rollback?: 'ok' | 'failed' | 'unverified';
   reason?: string;
   error?: string;
 }> {
@@ -430,9 +439,7 @@ export async function checkForUpdate(
     try {
       deps.recordRejected?.({ latest, rejected: latest, rollback: 'failed', reason });
     } catch {}
-    const rollback = (await rollBack(install, verify, current, prefix, env, deps.rollbackMs))
-      ? 'ok'
-      : 'failed';
+    const rollback = await rollBack(install, verify, current, prefix, env, deps.rollbackMs);
     return { latest, rejected: latest, rollback, reason };
   }
   return { latest };

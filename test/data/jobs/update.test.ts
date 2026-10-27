@@ -257,6 +257,19 @@ describe('rejected updates', () => {
       rollback: 'ok',
       reason: 'version-mismatch:1.0.0',
     });
+    const unv = okEnvelope<UpdateValue>(
+      'update',
+      { latest: '9.9.9', rejected: '9.9.9', rollback: 'unverified', reason: 'verify-timeout' },
+      7,
+    );
+    const u = toUpdateState(unv);
+    expect(u.rollback).toBe('unverified');
+    expect(fromUpdateState(u).value).toEqual({
+      latest: '9.9.9',
+      rejected: '9.9.9',
+      rollback: 'unverified',
+      reason: 'verify-timeout',
+    });
     const bad = okEnvelope('update', { latest: '9.9.9', rejected: '9.9.9', rollback: 'maybe' }, 7);
     const t = toUpdateState(bad as unknown as JobEnvelope<UpdateValue>);
     expect(t.rollback).toBeUndefined();
