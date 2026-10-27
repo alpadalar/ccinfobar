@@ -1,8 +1,12 @@
-import { execFileSync } from 'node:child_process';
+import cp, { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import module from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { defaultConfig } from '../../src/core/config.js';
+import { createContext } from '../../src/core/context.js';
+import type { StatusPayload } from '../../src/core/types.js';
 import { writeCache } from '../../src/data/cache.js';
 import {
   discoverGit,
@@ -10,9 +14,11 @@ import {
   type GitLayout,
   gitCacheName,
   gitSig,
+  readGit,
   readGitCache,
   sameSig,
 } from '../../src/data/git.js';
+import { binary, whichDeps } from '../../src/data/which.js';
 import { restoreEnv } from '../helpers.js';
 
 function hasGit(): boolean {
@@ -236,5 +242,152 @@ describe('gitCacheName and readGitCache', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe.skipIf(!available)('cached readGit', () => {
+  const T = 1_700_000_000_000;
+  let root: string;
+  let dir: string;
+  let gitdir: string;
+  let cacheDir: string;
+  let env: NodeJS.ProcessEnv;
+  let spy: ReturnType<typeof vi.spyOn>;
+  let future = Math.floor(Date.now() / 1000) + 1000;
+
+  const render = (t: number, e: NodeJS.ProcessEnv = env) =>
+    createContext({
+      payload: { cwd: dir, workspace: { current_dir: dir } } as StatusPayload,
+      config: defaultConfig(),
+      env: e,
+      now: new Date(t),
+      preview: false,
+    }).data.git();
+  const gitSpawns = () =>
+    spy.mock.calls.filter((c) => /(^|[\\/])git(\.exe|\.com)?$/i.test(String(c[0]))).length;
+  const bump = (f: string) => {
+    future += 10;
+    fs.utimesSync(f, future, future);
+  };
+  const cacheFiles = () => fs.readdirSync(cacheDir).filter((f) => /^git-.*\.json$/.test(f));
+  const step = (t: number, e?: NodeJS.ProcessEnv) => {
+    spy.mockClear();
+    const r = render(t, e);
+    return { r, n: gitSpawns() };
+  };
+
+  beforeAll(() => {
+    root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-gcr-')));
+    dir = path.join(root, 'repo');
+    fs.mkdirSync(dir);
+    git(dir, 'init', '-q', '-b', 'main');
+    git(dir, 'commit', '-q', '--allow-empty', '-m', 'i');
+    git(dir, 'remote', 'add', 'origin', 'https://example.com/o/r.git');
+    gitdir = path.join(dir, '.git');
+    cacheDir = path.join(root, 'cache');
+    fs.mkdirSync(cacheDir);
+    env = { ...process.env, CCINFOBAR_CACHE_DIR: cacheDir };
+    spy = vi.spyOn(cp, 'execFileSync');
+    module.syncBuiltinESMExports();
+  });
+  afterEach(() => spy.mockClear());
+  afterAll(() => {
+    vi.restoreAllMocks();
+    module.syncBuiltinESMExports();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('follows the spawn table', () => {
+    const first = step(T);
+    expect(first.n).toBe(3);
+    expect(cacheFiles()).toHaveLength(1);
+    spy.mockClear();
+    expect(first.r).toEqual(readGit(dir));
+    const hit = step(T + 100);
+    expect(hit.n).toBe(0);
+    expect(hit.r).toEqual(first.r);
+    expect(step(T + 2500).n).toBe(2);
+    expect(hit.r?.stash).toBe(readGit(dir)?.stash);
+  });
+
+  it('invalidates on each key file', () => {
+    let t = T + 2600;
+    for (const f of ['index', 'HEAD', path.join('logs', 'HEAD'), path.join('refs', 'heads', 'main')]) {
+      bump(path.join(gitdir, f));
+      expect(step((t += 50)).n).toBe(2);
+    }
+    git(dir, 'pack-refs', '--all');
+    expect(step((t += 50)).n).toBe(2);
+    bump(path.join(gitdir, 'packed-refs'));
+    expect(step((t += 50)).n).toBe(2);
+    bump(path.join(gitdir, 'config'));
+    expect(step((t += 50)).n).toBe(3);
+    expect(step((t += 50)).n).toBe(0);
+  });
+
+  it('shows a real change after the ttl', () => {
+    fs.writeFileSync(path.join(dir, 'new.txt'), 'x');
+    const r = step(T + 5000);
+    expect(r.n).toBe(2);
+    expect(r.r?.untracked).toBe(1);
+  });
+
+  it('falls back to the spawning path with GIT_DIR', () => {
+    const saved = { ...process.env };
+    process.env.GIT_DIR = gitdir;
+    try {
+      const before = cacheFiles().join();
+      const r = step(T + 6000, { ...env, GIT_DIR: gitdir });
+      expect(r.n).toBe(4);
+      expect(cacheFiles().join()).toBe(before);
+      spy.mockClear();
+      expect(r.r).toEqual(readGit(dir));
+    } finally {
+      restoreEnv(saved);
+    }
+  });
+
+  it('never caches config with an include', () => {
+    const cfg = path.join(gitdir, 'config');
+    const orig = fs.readFileSync(cfg, 'utf8');
+    fs.writeFileSync(cfg, `${orig}[include]\n\tpath = extra\n`);
+    expect(step(T + 7000).n).toBe(3);
+    expect(step(T + 10000).n).toBe(3);
+    fs.writeFileSync(cfg, orig);
+    bump(cfg);
+    expect(step(T + 13000).n).toBe(3);
+    expect(step(T + 16000).n).toBe(2);
+  });
+
+  it('honours persist false and replaces a tampered entry', () => {
+    for (const f of cacheFiles()) fs.rmSync(path.join(cacheDir, f));
+    readGit(dir, { cache: { now: T + 20000, persist: false }, env });
+    expect(cacheFiles()).toHaveLength(0);
+    const l = discoverGit(dir, env)!;
+    const bin = binary('git', whichDeps(env))!;
+    const name = gitCacheName(l.root, l.gitdir, true, bin);
+    writeCache(name, { v: 1, at: T + 20000, sig: [], info: {} }, env);
+    const r = step(T + 20100);
+    expect(r.n).toBe(3);
+    expect(readGitCache(name, env)).not.toBeNull();
+  });
+
+  it('matches uncached reads for worktrees and submodules', () => {
+    const w = path.join(root, 'wtree');
+    git(dir, 'worktree', 'add', '-q', w, '-b', 'wt2');
+    const cached = readGit(w, { cache: { now: T + 30000, persist: true }, env });
+    expect(cached?.isWorktree).toBe(true);
+    expect(cached).toEqual(readGit(w));
+    const par = path.join(root, 'par');
+    fs.mkdirSync(par);
+    git(par, 'init', '-q', '-b', 'main');
+    git(par, 'commit', '-q', '--allow-empty', '-m', 'i');
+    try {
+      git(par, 'submodule', 'add', '-q', dir, 'sub');
+    } catch {
+      return;
+    }
+    const sub = path.join(par, 'sub');
+    expect(readGit(sub, { cache: { now: T + 30000, persist: true }, env })).toEqual(readGit(sub));
   });
 });

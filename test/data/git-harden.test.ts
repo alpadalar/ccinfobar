@@ -156,6 +156,21 @@ describe.skipIf(!available || !posix)('hostile repos', () => {
     expect(fs.existsSync(marker)).toBe(true);
   });
 
+  it('blocks a repo-local clean filter through the cache', () => {
+    const marker = path.join(base, 'cached-filter-marker');
+    const dir = filterRepo('cached-filter', 'evil', marker);
+    const cacheDir = path.join(base, 'cached-filter-cache');
+    fs.mkdirSync(cacheDir);
+    const env = { ...process.env, CCINFOBAR_CACHE_DIR: cacheDir };
+    const T = 1_700_000_000_000;
+    for (const now of [T, T + 100, T + 5000]) {
+      const g = readGit(dir, { cache: { now, persist: true }, env });
+      expect(g?.unstaged).toBe(1);
+      expect(g?.remoteUrl).toBe('git@github.com:acme/demo.git');
+      expect(fs.existsSync(marker)).toBe(false);
+    }
+  });
+
   it('blocks a filter whose name contains =', () => {
     const marker = path.join(base, 'eq-marker');
     const dir = filterRepo('eq', 'a=b', marker);
