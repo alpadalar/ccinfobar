@@ -148,13 +148,13 @@ export async function fetchTarball(
     headers: { 'user-agent': 'ccinfobar' },
     signal: signal ?? AbortSignal.timeout(60_000),
   });
-  if (!res.ok) throw new Error(`tarball download failed: ${res.status}`);
-  if (Number(res.headers.get('content-length') ?? 0) > TARBALL_MAX) throw new Error('tarball too large');
+  if (!res.ok) throw new Error(`tarball-http-${res.status}`);
+  if (Number(res.headers.get('content-length') ?? 0) > TARBALL_MAX) throw new Error('tarball-too-large');
   const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > TARBALL_MAX) throw new Error('tarball too large');
+  if (buf.length > TARBALL_MAX) throw new Error('tarball-too-large');
   if (createHash('sha256').update(buf).digest('hex') !== expectedHex) throw new Error('checksum-mismatch');
   const file = path.join(os.tmpdir(), `ccinfobar-${version}-${process.pid}.tgz`);
-  if (!writeAtomic(file, buf, { mode: 0o600 })) throw new Error('tarball write failed');
+  if (!writeAtomic(file, buf, { mode: 0o600 })) throw new Error('tarball-write-failed');
   return file;
 }
 
