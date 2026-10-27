@@ -123,6 +123,34 @@ describe('loading placeholder for plan-limit widgets', () => {
     for (const type of LIMITS) expect(render(type, { env })).toBeNull();
   });
 
+  it.each([Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NaN])(
+    'treats used_percentage %s as missing',
+    (v) => {
+      const payload: StatusPayload = { ...FRESH, rate_limits: { five_hour: { used_percentage: v } } };
+      const out = render('five-hour-usage', { payload });
+      const missing: StatusPayload = { ...FRESH, rate_limits: { five_hour: {} } };
+      expect(out).toBe(render('five-hour-usage', { payload: missing }));
+      expect(String(out)).not.toMatch(/Infinity|NaN/);
+    },
+  );
+
+  it('parses 1e999 to Infinity and shows loading', () => {
+    const rate = JSON.parse('{"used_percentage":1e999}');
+    expect(rate.used_percentage).toBe(Number.POSITIVE_INFINITY);
+    const payload: StatusPayload = { ...FRESH, rate_limits: { five_hour: rate } };
+    const missing: StatusPayload = { ...FRESH, rate_limits: { five_hour: {} } };
+    expect(render('five-hour-usage', { payload })).toBe(render('five-hour-usage', { payload: missing }));
+  });
+
+  it('keeps negative and over-100 values', () => {
+    const at = (v: number): StatusPayload => ({
+      ...FRESH,
+      rate_limits: { five_hour: { used_percentage: v } },
+    });
+    expect(render('five-hour-usage', { payload: at(-5) })).toBe('-5%');
+    expect(render('five-hour-usage', { payload: at(130) })).toBe('130%');
+  });
+
   it('lets payload rate_limits win over the env', () => {
     const payload: StatusPayload = { ...FRESH, rate_limits: { five_hour: { used_percentage: 42 } } };
     expect(render('five-hour-usage', { payload, env: { ANTHROPIC_API_KEY: 'x' } })).toBe('42%');

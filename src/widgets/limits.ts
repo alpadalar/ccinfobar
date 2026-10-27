@@ -184,7 +184,7 @@ function usage(ctx: RenderContext, item: WidgetItem, key: Key): WidgetResult {
 
 function usageOf(ctx: RenderContext, item: WidgetItem, w: RateWindow | null, len: number): WidgetResult {
   const pct = w?.used_percentage;
-  if (typeof pct !== 'number') return limitsLoading(ctx, item);
+  if (typeof pct !== 'number' || !Number.isFinite(pct)) return limitsLoading(ctx, item);
   const clamped = Math.max(0, Math.min(100, pct));
   const pace = opt(item, 'showPace', false) ? paceOf(ctx, w, len) : null;
   let text = pace === null ? `${Math.round(pct)}%` : `${Math.round(pct)}%/${pace}%`;
