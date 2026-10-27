@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import type { Config } from '../../src/core/types.js';
+import { fakeFetch, json } from '../fake-fetch.js';
 
 const mocks = vi.hoisted(() => ({ execFile: vi.fn() }));
 
@@ -12,7 +14,7 @@ vi.mock('node:child_process', async (orig) => {
   return { ...real, execFile: (...a: unknown[]) => mocks.execFile(...a) };
 });
 
-const { checkForUpdate, verifyInstall } = await import('../../src/data/self-update.js');
+const { checkForUpdate, fetchTarball, installVersionAsync, releaseDigest, verifyInstall } = await import('../../src/data/self-update.js');
 const realExecFile = (await vi.importActual<typeof import('node:child_process')>('node:child_process'))
   .execFile;
 
@@ -103,5 +105,62 @@ describe('verifyInstall with a real node child', () => {
     expect(await verifyInstall('9.9.9', process.env, undefined, path.join(dir, 'nope.js'))).toBe(
       'entry-missing',
     );
+  });
+});
+
+describe('tarball digest verification', () => {
+  const bytes = Buffer.from('tarball-bytes');
+  const hex = createHash('sha256').update(bytes).digest('hex');
+  const release = (digest?: unknown) => json({ assets: [{ name: 'ccinfobar.tgz', digest }] });
+  const tgz = () => new Response(bytes);
+  const failFirst = () => {
+    let n = 0;
+    mocks.execFile.mockImplementation((...a: unknown[]) => {
+      const cb = a[a.length - 1] as (e: Error | null, o: string, s: string) => void;
+      cb(++n === 1 ? new Error('npm down') : null, '', '');
+      return { stdin: { end() {} } };
+    });
+  };
+  const specs = () => mocks.execFile.mock.calls.map((c) => (c[1] as string[]).find((x) => /ccinfobar/.test(x)));
+
+  it('releaseDigest returns the hex or null', async () => {
+    expect(await releaseDigest('9.9.9', fakeFetch([release(`sha256:${hex}`)]).fetch)).toBe(hex);
+    expect(await releaseDigest('9.9.9', fakeFetch([release('md5:abc')]).fetch)).toBeNull();
+    expect(await releaseDigest('9.9.9', fakeFetch([json({ assets: [] })]).fetch)).toBeNull();
+    expect(await releaseDigest('9.9.9', fakeFetch([json({}, 404)]).fetch)).toBeNull();
+  });
+
+  it('fetchTarball rejects a mismatch without writing', async () => {
+    const file = path.join(os.tmpdir(), `ccinfobar-9.9.9-${process.pid}.tgz`);
+    fs.rmSync(file, { force: true });
+    await expect(fetchTarball('9.9.9', 'a'.repeat(64), fakeFetch([tgz()]).fetch)).rejects.toThrow(
+      'checksum-mismatch',
+    );
+    expect(fs.existsSync(file)).toBe(false);
+  });
+
+  it('installs the verified local tarball after a registry failure and removes it', async () => {
+    failFirst();
+    const f = fakeFetch([release(`sha256:${hex}`), tgz()]);
+    await installVersionAsync('9.9.9', undefined, undefined, f.fetch);
+    const second = specs()[1] as string;
+    expect(second.endsWith('.tgz')).toBe(true);
+    expect(second.startsWith(os.tmpdir())).toBe(true);
+    expect(fs.existsSync(second)).toBe(false);
+  });
+
+  it('uses the URL without a digest', async () => {
+    failFirst();
+    await installVersionAsync('9.9.9', undefined, undefined, fakeFetch([release()]).fetch);
+    expect(specs()[1]).toMatch(/^https:\/\/github\.com\//);
+  });
+
+  it('aborts on a mismatch before npm runs the fallback', async () => {
+    failFirst();
+    const f = fakeFetch([release(`sha256:${'b'.repeat(64)}`), tgz()]);
+    await expect(installVersionAsync('9.9.9', undefined, undefined, f.fetch)).rejects.toThrow(
+      'checksum-mismatch',
+    );
+    expect(mocks.execFile).toHaveBeenCalledTimes(1);
   });
 });

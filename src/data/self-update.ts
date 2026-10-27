@@ -1,4 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -81,9 +82,16 @@ export function installSources(version: string): string[] {
   return [`ccinfobar@${assertVersion(version)}`, tarballUrl(version)];
 }
 
-export function npmInstallRuns(version: string, prefix?: string, npm: NpmCommand = npmCommand()) {
+export function npmInstallRuns(
+  version: string,
+  prefix?: string,
+  npm: NpmCommand = npmCommand(),
+  localTarball?: string,
+) {
   const where = prefix ? ['--prefix', prefix, '--save-exact'] : ['-g'];
-  const runs = installSources(version).map((spec) => {
+  const sources = installSources(version);
+  if (localTarball) sources[1] = localTarball;
+  const runs = sources.map((spec) => {
     const args = [
       'install',
       ...where,
@@ -104,9 +112,50 @@ export function npmInstallRuns(version: string, prefix?: string, npm: NpmCommand
   return { file: npm.file, runs, opts };
 }
 
-function npmInstall(version: string, prefix?: string) {
+function npmInstall(version: string, prefix?: string, localTarball?: string) {
   if (prefix) fs.mkdirSync(prefix, { recursive: true });
-  return npmInstallRuns(version, prefix);
+  return npmInstallRuns(version, prefix, undefined, localTarball);
+}
+
+const TARBALL_MAX = 20 * 1024 * 1024;
+
+export async function releaseDigest(
+  version: string,
+  fetcher: typeof fetch = fetch,
+  timeoutMs = 8000,
+): Promise<string | null> {
+  try {
+    const res = await fetcher(`https://api.github.com/repos/${REPO}/releases/tags/v${assertVersion(version)}`, {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'ccinfobar' },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { assets?: { name?: unknown; digest?: unknown }[] };
+    const asset = body.assets?.find((a) => a.name === 'ccinfobar.tgz');
+    return typeof asset?.digest === 'string' ? (/^sha256:([0-9a-f]{64})$/.exec(asset.digest)?.[1] ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchTarball(
+  version: string,
+  expectedHex: string,
+  fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<string> {
+  const res = await fetcher(tarballUrl(version), {
+    headers: { 'user-agent': 'ccinfobar' },
+    signal: signal ?? AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) throw new Error(`tarball download failed: ${res.status}`);
+  if (Number(res.headers.get('content-length') ?? 0) > TARBALL_MAX) throw new Error('tarball too large');
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length > TARBALL_MAX) throw new Error('tarball too large');
+  if (createHash('sha256').update(buf).digest('hex') !== expectedHex) throw new Error('checksum-mismatch');
+  const file = path.join(os.tmpdir(), `ccinfobar-${version}-${process.pid}.tgz`);
+  if (!writeAtomic(file, buf, { mode: 0o600 })) throw new Error('tarball write failed');
+  return file;
 }
 
 function npmError(err: unknown, stderr: unknown): Error {
@@ -136,17 +185,30 @@ export async function installVersionAsync(
   version: string,
   prefix?: string,
   signal?: AbortSignal,
+  fetcher: typeof fetch = fetch,
 ): Promise<void> {
   const { file, runs, opts } = npmInstall(version, prefix);
-  let last: unknown;
-  for (const args of runs) {
-    if (signal?.aborted) throw new Error('install cancelled');
-    const err = await new Promise<Error | null>((resolve) => {
+  const run = (args: string[]) =>
+    new Promise<Error | null>((resolve) => {
       const child = execFile(file, args, { ...opts, ...(signal ? { signal } : {}) }, (e, _out, stderr) =>
         resolve(e ? npmError(e, stderr) : null),
       );
       child.stdin?.end();
     });
+  let last: unknown;
+  for (const [i, args] of runs.entries()) {
+    if (signal?.aborted) throw new Error('install cancelled');
+    let err: Error | null;
+    let local: string | undefined;
+    try {
+      if (i === 1) {
+        const hex = await releaseDigest(version, fetcher);
+        if (hex) local = await fetchTarball(version, hex, fetcher, signal);
+      }
+      err = await run(local ? npmInstall(version, prefix, local).runs[1]! : args);
+    } finally {
+      if (local) fs.rmSync(local, { force: true });
+    }
     if (!err) return;
     if (signal?.aborted) throw new Error('install cancelled');
     last = err;
@@ -276,7 +338,7 @@ export async function checkForUpdate(
   ) {
     if (deps.rejected && deps.rejected === latest) return { latest, rejected: latest };
     const prefix = kind === 'local' ? localPrefix(env) : undefined;
-    const install = deps.install ?? installVersionAsync;
+    const install = deps.install ?? ((v, p, s) => installVersionAsync(v, p, s, deps.fetch));
     await install(latest, prefix, deps.signal);
     const verify: Verify = deps.verify ?? (deps.install ? async () => null : verifyInstall);
     const bad = await verify(latest, env, deps.signal);
