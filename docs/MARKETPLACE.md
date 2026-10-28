@@ -228,11 +228,11 @@ Reads never build JSON. Each entry row keeps its summary and its entry document 
 | Bucket | Default | Key |
 | --- | --- | --- |
 | Reads | 60 a minute (the `READS` binding; without the binding, or when it fails, reads are not limited). A client reads about a dozen documents at once (meta, up to 10 index pages, an entry and a version), plus one version per entry the first time its card preview is shown; the index is cached for a day and versions for good | sha256 of the day and the address, in memory only |
-| Writes (publish, new version, overwrite, withdraw) | 30 a minute per address and 30 a minute per publisher (`WRITE_LIMIT`) | salted address hash, handle |
-| Sign-in | 5 a minute per address (`SIGNIN_LIMIT`) | salted address hash |
+| Writes (publish, new version, overwrite, withdraw) | 30 a minute per address through the `WRITES` binding (per Cloudflare location, approximate; nothing is written for a refused or unauthenticated request) and 30 a minute per publisher in D1 (`WRITE_LIMIT`) | sha256 of the day and the address, in memory only; handle |
+| Sign-in | 20 a minute per address through the `SIGNIN` binding (a flood ceiling), then the D1 bucket (`SIGNIN_LIMIT`). Failed attempts and successful sign-ins have their own D1 buckets (see Sign-in). | sha256 of the day and the address, in memory only; salted address hash |
 | Reports | 5 an hour per reporter (`REPORT_LIMIT`) | handle |
 
-Write counters live in D1 fixed windows. Only routes that reach the database count, so junk requests cost no row writes.
+The bindings answer before the body is read or the token is looked up, so a junk request writes no D1 row at all; without a binding (self-hosted, tests) or when it fails, the request goes on to the D1 buckets. The per-publisher counters live in D1 fixed windows.
 
 ### Storage guards
 
@@ -344,7 +344,7 @@ This is not legal advice.
 
 - Published entries are public: anyone can read, download and install them. The landing page at `/` says so.
 - The public server stores only the GitHub id, login and display name of a publisher, plus what the protocol already stores: entries, versions, their notes, reports (reporter handle and reason) and the moderation log (admin handle and note). No email, no GitHub token, no machine ids, paths, personal settings or telemetry.
-- IP addresses are never stored. Write, sign-in and report limits use a hash of the address with a random salt that changes every day; a salt is deleted once it is two days old (a cron job runs the cleanup every six hours, and each sign-in runs it too), which makes the old hashes unlinkable, and counters older than two hours are deleted too. The read limiter keeps its key in memory only. Worker invocation logs are off, and errors log only `market: internal`.
+- IP addresses are never stored. Write, sign-in and report limits use a hash of the address with a random salt that changes every day; a salt is deleted once it is two days old (a cron job runs the cleanup every six hours), which makes the old hashes unlinkable, and counters older than two hours are deleted too. The read, write and sign-in bindings keep their keys in memory only. Worker invocation logs are off, and errors log only `market: internal`.
 - The author field is optional free text: prefilled from the last save, editable, and it can be blank. The publisher handle is separate from the author and comes from the GitHub login, which is already public.
 - ccinfobar sends only the payload it shows: the name, description, author, note and content.
 - Withdrawing or removing an entry blanks its name, description, author and version notes in the tombstone and deletes the version content; the index does not list it. The id, the publisher handle, the times and the hashes stay so the id stays reserved.
@@ -395,7 +395,7 @@ Only names of secrets appear in this repository; their values never do. The OAut
 | Worker requests | 100,000 a day, shared by all users | the requests budget above; a `304` counts. The read limiter keeps one address under 86,400 a day, but refused requests (`429`) count too, so the budget is not protected against many addresses or a determined client; Cloudflare then answers error 1027 until the UTC day ends |
 | CPU | 10 ms per request | canonical JSON once per write; `MAX_ENTRY_BYTES` |
 | D1 rows read | 5 million a day | materialized documents, one row per read; caps read counters, never count rows (see below) |
-| D1 rows written | 100,000 a day | write rate limits; only database routes count |
+| D1 rows written | 100,000 a day | write rate limits; a refused or unauthenticated request writes nothing; a distributed flood that stays under the per-address bindings can still spend the quota |
 | D1 storage | 500 MB per database | `MAX_DB_BYTES` (400 MiB), `PUBLISHER_BYTES` (20 MiB) and the pending caps (at most about 50 MiB waiting for review) |
 
 Rows read per request:
