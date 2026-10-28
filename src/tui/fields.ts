@@ -67,6 +67,7 @@ export interface Field {
   editValue?(config: Config): string;
   range?: [number, number];
   locked?(config: Config): boolean;
+  disabled?(config: Config): string | undefined;
   resettable: boolean;
   get(config: Config): OptionValue | undefined;
   set(config: Config, value: OptionValue | undefined): Config;
@@ -671,6 +672,7 @@ function rotationFields(): Field[] {
       kind: 'text',
       resettable: true,
       help: t('tui.field.rotationEveryHelp'),
+      disabled: (c) => (c.themeRotation ? undefined : t('tui.field.rotationAddFirst')),
       get: (c) => c.themeRotation?.every,
       effective: (c) => (c.themeRotation ? (c.themeRotation.every ?? 'day') : undefined),
       set: (c, v) => setRotationEvery(c, v === undefined ? undefined : (parseEvery(String(v)) ?? undefined)),
@@ -688,6 +690,7 @@ function rotationFields(): Field[] {
       kind: 'select',
       resettable: true,
       defaultEntry: t('tui.field.rotationCycle'),
+      disabled: (c) => (c.themeRotation ? undefined : t('tui.field.rotationAddFirst')),
       choices: [{ value: 'shuffle', label: t('tui.field.rotationShuffle') }],
       get: (c) => c.themeRotation?.order,
       set: (c, v) => setRotationOrder(c, v === 'shuffle' ? 'shuffle' : undefined),

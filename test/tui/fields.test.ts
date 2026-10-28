@@ -618,6 +618,17 @@ describe('theme rotation fields', () => {
     expect('themeRotation' in c).toBe(false);
   });
 
+  it('disables every and order until a theme is added', () => {
+    const hint = 'Add themes first';
+    const empty = defaultConfig();
+    expect(field('rotation.every').disabled?.(empty)).toBe(hint);
+    expect(field('rotation.order').disabled?.(empty)).toBe(hint);
+    expect(field('rotation.themes').disabled).toBeUndefined();
+    const c = setThemeRotation(empty, { themes: ['nord'], every: 'hour' });
+    expect(field('rotation.every').disabled?.(c)).toBeUndefined();
+    expect(field('rotation.order').disabled?.(c)).toBeUndefined();
+  });
+
   it('rejects bad text', () => {
     expect(field('rotation.every').parse('0x').ok).toBe(false);
     expect(field('rotation.weekdays').parse('xyz=nord').ok).toBe(false);

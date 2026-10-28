@@ -527,6 +527,49 @@ describe('Turkish status messages', () => {
   });
 });
 
+describe('disabled rotation fields', () => {
+  const at = (s: State, id: string) => settingsFields(s).findIndex((f) => f.id === id);
+
+  it('answers enter, click, cycle and delete with the hint only', () => {
+    const g = run(start(), { type: 'openGlobal' });
+    for (const id of ['rotation.every', 'rotation.order']) {
+      const index = at(g, id);
+      let s: State = {
+        ...g,
+        mode: { ...(g.mode as Extract<State['mode'], { kind: 'settings' }>), cursor: index },
+      };
+      for (const a of [
+        { type: 'enter' },
+        { type: 'cycle', delta: 1 },
+        { type: 'delete' },
+        { type: 'backspace' },
+      ] as Action[]) {
+        const r = run(s, a);
+        expect(r.message).toBe('Add themes first');
+        expect(r.config).toBe(s.config);
+        expect(r.mode).toMatchObject({ kind: 'settings', sub: null });
+        expect(r.dirty).toBe(g.dirty);
+        s = { ...s, message: '' };
+      }
+      const c = run(g, { type: 'clickItem', area: 'main', index });
+      expect(c.message).toBe('Add themes first');
+      expect(c.config.themeRotation).toBeUndefined();
+      expect(c.mode).toMatchObject({ sub: null });
+    }
+  });
+
+  it('persists the change once a theme is in the pool', () => {
+    const g = run(start(), { type: 'openGlobal' });
+    const themes = at(g, 'rotation.themes');
+    let s = run(g, { type: 'clickItem', area: 'main', index: themes });
+    s = run(s, { type: 'text', text: 'nord' }, { type: 'enter' });
+    expect(s.config.themeRotation?.themes).toEqual(['nord']);
+    s = run(s, { type: 'clickItem', area: 'main', index: at(s, 'rotation.every') });
+    s = run(s, { type: 'clear' }, { type: 'text', text: '30m' }, { type: 'enter' });
+    expect(s.config.themeRotation?.every).toBe(30);
+  });
+});
+
 describe('Turkish effect messages', () => {
   it('reports save, save failure and a missing install command', () => {
     const dir = fs.mkdtempSync(path.join(process.env.CCIB_TEST_ROOT!, 'tui-'));

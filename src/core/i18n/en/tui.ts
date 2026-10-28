@@ -41,6 +41,7 @@ export const tuiMessages = {
   'tui.field.rotationThemesHelp': 'Theme ids separated by commas; empty turns rotation off',
   'tui.field.rotationEvery': 'Rotation change',
   'tui.field.rotationEveryHelp': 'hour, day, week or minutes such as 30m; empty means day',
+  'tui.field.rotationAddFirst': 'Add themes first',
   'tui.field.rotationOrder': 'Rotation order',
   'tui.field.rotationCycle': 'In order',
   'tui.field.rotationShuffle': 'Shuffle',

@@ -613,10 +613,15 @@ function reduceSettings(state: State, action: Action, mode: Extract<Mode, { kind
   switch (action.type) {
     case 'nav':
       return { ...state, mode: { ...mode, cursor: step(mode.cursor, action.dir, fields.length) } };
-    case 'enter':
+    case 'enter': {
+      const hint = field?.disabled?.(state.config);
+      if (hint) return { ...state, message: hint };
       return field ? activateField(state, mode, field) : state;
-    case 'clickItem':
+    }
+    case 'clickItem': {
       if (action.area !== 'main') return state;
+      const hint = fields[action.index]?.disabled?.(state.config);
+      if (hint) return { ...state, message: hint };
       return fields[action.index]
         ? activateField(
             { ...state, mode: { ...mode, cursor: action.index } },
@@ -624,14 +629,20 @@ function reduceSettings(state: State, action: Action, mode: Extract<Mode, { kind
             fields[action.index]!,
           )
         : state;
+    }
     case 'cycle': {
+      const hint = field?.disabled?.(state.config);
+      if (hint) return { ...state, message: hint };
       if (!field || (field.kind !== 'select' && field.kind !== 'bool' && field.kind !== 'number'))
         return state;
       return applyField(state, field, cycled(field, state.config, action.delta));
     }
     case 'delete':
-    case 'backspace':
+    case 'backspace': {
+      const hint = field?.disabled?.(state.config);
+      if (hint) return { ...state, message: hint };
       return field?.resettable ? applyField(state, field, undefined) : state;
+    }
     case 'cancel':
       return { ...state, mode: { kind: 'normal' } };
     default:

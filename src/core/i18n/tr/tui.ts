@@ -46,6 +46,7 @@ export const tuiMessages = {
   'tui.field.rotationThemesHelp': "Virgülle ayrılmış tema id'leri; boş bırakmak döngüyü kapatır",
   'tui.field.rotationEvery': 'Döngü değişimi',
   'tui.field.rotationEveryHelp': 'hour, day, week ya da 30m gibi dakika; boşsa day',
+  'tui.field.rotationAddFirst': 'Önce tema ekleyin',
   'tui.field.rotationOrder': 'Döngü sırası',
   'tui.field.rotationCycle': 'Sırayla',
   'tui.field.rotationShuffle': 'Karışık',
