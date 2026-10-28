@@ -389,7 +389,7 @@
                 }
               ]
             },
-            "fun": {
+            "layout": {
               "anyOf": [
                 {
                   "type": "string",
@@ -411,7 +411,7 @@
                 }
               ]
             },
-            "layout": {
+            "fun": {
               "anyOf": [
                 {
                   "type": "string",

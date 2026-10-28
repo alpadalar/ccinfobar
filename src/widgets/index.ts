@@ -32,8 +32,8 @@ export const CATEGORIES: { id: WidgetCategory; name: string }[] = [
   { id: 'workspace', name: 'Workspace' },
   { id: 'system', name: 'System' },
   { id: 'custom', name: 'Custom' },
-  { id: 'fun', name: 'Fun' },
   { id: 'layout', name: 'Layout' },
+  { id: 'fun', name: 'Fun' },
 ];
 
 export const ALL_WIDGETS: WidgetDef[] = [
@@ -54,8 +54,8 @@ export const ALL_WIDGETS: WidgetDef[] = [
   ...status,
   ...custom,
   ...http,
-  ...fun,
   ...layout,
+  ...fun,
 ];
 
 const registry = new Map(ALL_WIDGETS.map((w) => [w.type, w]));

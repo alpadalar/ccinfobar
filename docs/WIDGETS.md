@@ -20,8 +20,8 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 - [Workspace](#workspace) (2)
 - [System](#system) (10)
 - [Custom](#custom) (4)
-- [Fun](#fun) (3)
 - [Layout](#layout) (3)
+- [Fun](#fun) (3)
 
 ## Session & model
 
@@ -202,14 +202,6 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 
 - `command`: Runs your command through the shell (`sh` on Linux and macOS, `cmd.exe` on Windows) with the status line's full environment, secrets included: it is your own command, so only add commands you trust. All `command` widgets of one refresh share `commandBudgetMs` (default 3000 ms); each keeps its own `timeout`, and once the budget is spent the remaining ones show their cached output (any age) or nothing. With `cacheSeconds > 0`, `background: true` runs the command in the background worker instead, every `cacheSeconds`, and the widget shows the last result; a background command receives the last saved payload (`savePayload`), which can be a refresh or a session behind, and its result is one plain line, so `preserveColors` has no effect there. On Windows ccinfobar starts with `NoDefaultCurrentDirectoryInExePath=1`, so a script in the current folder needs an explicit path such as `.\script.bat`; programs on `PATH` work as before.
 
-## Fun
-
-| Type | Description | Example | Options |
-| --- | --- | --- | --- |
-| `pet` | A small creature that reacts to context, 5h usage and idle time | `=(°·°)=` | `species` select, default `"cat"` (`cat`, `blob`, `ghost`) |
-| `kaomoji` | A face for the mood: happy, busy, tired, full or asleep | `(°o°)!` | `personality` select, default `"cheerful"` (`cheerful`, `grumpy`, `stoic`) |
-| `quip` | A short line for the context or 5h usage level, new every 30 minutes | `Plenty of room to think` | `basis` select, default `"context"` (`context`, `usage`)<br>`maxLength` number, default `32` |
-
 ## Layout
 
 | Type | Description | Example | Options |
@@ -217,3 +209,11 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `text` | Static custom text |  | `text` text, default `"text"` |
 | `separator` | Manual separator; use with an empty global separator |  | `char` text, default `"\|"` |
 | `flex` | Pushes the following widgets to the right edge |  |  |
+
+## Fun
+
+| Type | Description | Example | Options |
+| --- | --- | --- | --- |
+| `pet` | A small creature that reacts to context, 5h usage and idle time | `=(°·°)=` | `species` select, default `"cat"` (`cat`, `blob`, `ghost`) |
+| `kaomoji` | A face for the mood: happy, busy, tired, full or asleep | `(°o°)!` | `personality` select, default `"cheerful"` (`cheerful`, `grumpy`, `stoic`) |
+| `quip` | A short line for the context or 5h usage level, new every 30 minutes | `Plenty of room to think` | `basis` select, default `"context"` (`context`, `usage`)<br>`maxLength` number, default `32` |

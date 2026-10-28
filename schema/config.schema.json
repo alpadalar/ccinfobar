@@ -138,12 +138,12 @@
                 "link",
                 "env",
                 "http",
-                "pet",
-                "kaomoji",
-                "quip",
                 "text",
                 "separator",
-                "flex"
+                "flex",
+                "pet",
+                "kaomoji",
+                "quip"
               ]
             },
             "color": {

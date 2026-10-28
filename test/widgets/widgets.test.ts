@@ -5,7 +5,7 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { sampleGit, samplePayload } from '../../src/core/sample.js';
 import type { Config, StatusPayload } from '../../src/core/types.js';
-import { ALL_WIDGETS } from '../../src/widgets/index.js';
+import { ALL_WIDGETS, CATEGORIES, getWidget } from '../../src/widgets/index.js';
 import { ctxWith, NOW, renderWidget } from '../helpers.js';
 
 const r = (type: string, opts: Record<string, string | number | boolean> = {}, payload?: StatusPayload) =>
@@ -458,5 +458,37 @@ describe('timeBased flag', () => {
       'turn-timer',
       'usage-projection',
     ]);
+  });
+});
+
+describe('category order', () => {
+  it('lists fun last without changing the category set', () => {
+    expect(CATEGORIES.at(-1)?.id).toBe('fun');
+    expect(CATEGORIES.at(-2)?.id).toBe('layout');
+    expect(CATEGORIES.map((c) => c.id).sort()).toEqual(
+      [
+        'agents',
+        'charts',
+        'context',
+        'cost',
+        'custom',
+        'fun',
+        'git',
+        'gsd',
+        'layout',
+        'limits',
+        'session',
+        'system',
+        'tokens',
+        'workspace',
+      ].sort(),
+    );
+  });
+
+  it('registers the fun widgets after the layout widgets', () => {
+    const cats = ALL_WIDGETS.map((w) => w.category);
+    expect(cats.indexOf('fun')).toBeGreaterThan(cats.lastIndexOf('layout'));
+    expect(ALL_WIDGETS.length).toBeGreaterThanOrEqual(117);
+    for (const t of ['pet', 'quip', 'kaomoji']) expect(getWidget(t)).toBeDefined();
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { stripAnsi } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
 import type { LanguageDef, MetaTable } from '../../src/core/i18n/index.js';
-import { categoryName, pickerItems, widgetScore } from '../../src/tui/catalog.js';
+import { categoryName, categoryOrder, pickerItems, widgetScore } from '../../src/tui/catalog.js';
 import { displayValue, widgetFields } from '../../src/tui/fields.js';
 import { initialState, reduce } from '../../src/tui/state.js';
 import { renderScreen } from '../../src/tui/view.js';
@@ -99,5 +99,11 @@ describe('TUI widget metadata', () => {
     const en = widgetFields(def, 'c', config).find((f) => f.id === 'option:mode')!;
     expect(en.label).toBe('Mode');
     expect(en.choices).toEqual(def.options!.find((o) => o.key === 'mode')!.choices);
+  });
+});
+
+describe('categoryOrder', () => {
+  it('lists fun last', () => {
+    expect(categoryOrder().at(-1)).toBe('fun');
   });
 });
