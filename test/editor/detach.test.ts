@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setLanguage } from '../../src/core/i18n/index.js';
 import { editorStateFile, pingEditor, readEditorState, runDetach } from '../../src/editor/detach.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
@@ -13,7 +13,8 @@ let stateFile: string;
 let handle: EditorHandle | null;
 let prevDir: string | undefined;
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const WAIT = { timeout: 10_000 };
+let clock: number;
 
 function ping(url: string): Promise<number> {
   const u = new URL(url);
@@ -39,6 +40,9 @@ function closed(server: EditorHandle): Promise<boolean> {
   return pingEditor(server.url, 300).then((ok) => !ok);
 }
 
+const isClosed = (server: EditorHandle) =>
+  vi.waitFor(async () => expect(await closed(server)).toBe(true), WAIT);
+
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-detach-unit-'));
   env = { ...process.env, CCINFOBAR_CACHE_DIR: path.join(dir, 'cache') };
@@ -46,9 +50,12 @@ beforeEach(() => {
   prevDir = process.env.CCINFOBAR_CONFIG_DIR;
   process.env.CCINFOBAR_CONFIG_DIR = dir;
   handle = null;
+  clock = 0;
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   await handle?.close();
   if (prevDir === undefined) delete process.env.CCINFOBAR_CONFIG_DIR;
   else process.env.CCINFOBAR_CONFIG_DIR = prevDir;
@@ -60,7 +67,7 @@ function start(idleMs = 200) {
     configPath: path.join(dir, 'c.json'),
     open: false,
     port: 0,
-    detached: { idleMs, checkMs: 50, stateFile },
+    detached: { idleMs, checkMs: 50, stateFile, now: () => clock },
   });
 }
 
@@ -70,23 +77,26 @@ describe('detached editor server', () => {
     const state = readEditorState(env);
     expect(state).toMatchObject({ url: handle.url, pid: process.pid });
     if (process.platform !== 'win32') expect(fs.statSync(stateFile).mode & 0o777).toBe(0o600);
-    await sleep(450);
-    expect(fs.existsSync(stateFile)).toBe(false);
-    expect(await closed(handle)).toBe(true);
+    clock = 201;
+    vi.advanceTimersByTime(50);
+    await isClosed(handle);
+    await vi.waitFor(() => expect(fs.existsSync(stateFile)).toBe(false), WAIT);
   });
 
   it('a request postpones the idle shutdown', async () => {
-    // wide margins: Windows runners can stall a request for a second
     handle = await start(4000);
-    await sleep(2500);
+    clock = 3999;
     expect(await ping(handle.url)).toBe(200);
-    await sleep(2500);
+    clock = 7000;
+    vi.advanceTimersByTime(50);
     expect(fs.existsSync(stateFile)).toBe(true);
     expect(await pingEditor(handle.url)).toBe(true);
-  }, 15_000);
+    clock = 11_001;
+    vi.advanceTimersByTime(50);
+    await isClosed(handle);
+  });
 
   it('counts only token-checked requests as activity (injected clock)', async () => {
-    let clock = 0;
     const startClock = () =>
       startEditor({
         configPath: path.join(dir, 'c.json'),
@@ -97,14 +107,15 @@ describe('detached editor server', () => {
     handle = await startClock();
     clock = 900;
     expect(await ping(handle.url)).toBe(200);
-    await sleep(60);
+    vi.advanceTimersByTime(10);
     expect(fs.existsSync(stateFile)).toBe(true);
     clock = 1800;
-    await sleep(60);
+    vi.advanceTimersByTime(10);
+    expect(await pingEditor(handle.url)).toBe(true);
     expect(fs.existsSync(stateFile)).toBe(true);
-    clock = 2000;
-    await sleep(100);
-    expect(await closed(handle)).toBe(true);
+    clock = 2801;
+    vi.advanceTimersByTime(10);
+    await isClosed(handle);
 
     clock = 0;
     handle = await startClock();
@@ -133,8 +144,8 @@ describe('detached editor server', () => {
     });
     expect(equalLen).toBe(401);
     clock = 1500;
-    await sleep(100);
-    expect(await closed(handle)).toBe(true);
+    vi.advanceTimersByTime(10);
+    await isClosed(handle);
   });
 
   it('keeps a state file that holds another pid', async () => {
