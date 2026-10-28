@@ -149,5 +149,5 @@ jobs:
           "$CC" plugin validate --strict .
           "$CC" plugin validate --strict ./plugin
           "$CC" --plugin-dir ./plugin plugin details ccinfobar | tee "$RUNNER_TEMP/details.txt"
-          grep -F 'Skills (5)' "$RUNNER_TEMP/details.txt"
+          grep -F 'Skills (6)' "$RUNNER_TEMP/details.txt"
           grep -F 'Hooks (0)' "$RUNNER_TEMP/details.txt"

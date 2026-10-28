@@ -564,13 +564,14 @@ ccinfobar also ships a small Claude Code plugin, so you can install and control 
 | --- | --- | --- |
 | Install | `npx ccinfobar@latest install` | `claude plugin marketplace add alpadalar/ccinfobar`, then `claude plugin install ccinfobar@ccinfobar` and `/ccinfobar:install` |
 | Status line | Rendered by the `ccinfobar` command | The same `ccinfobar` command; the plugin has no renderer |
-| Controls | `ccinfobar edit`, `doctor`, `theme` in a terminal | `/ccinfobar:edit`, `/ccinfobar:doctor`, `/ccinfobar:theme` inside Claude Code |
+| Controls | `ccinfobar edit`, `doctor`, `theme` in a terminal | `/ccinfobar:configure`, `/ccinfobar:edit`, `/ccinfobar:doctor`, `/ccinfobar:theme` inside Claude Code |
 | Updates | Updates itself in the background | The plugin does not auto-update; the `ccinfobar` command still does |
 | Remove | `ccinfobar uninstall`, then `npm rm -g ccinfobar` | `/ccinfobar:uninstall`, then `claude plugin uninstall ccinfobar@ccinfobar` |
 
 Skills (you run them; Claude never starts them on its own):
 
 - `/ccinfobar:install`: shows `ccinfobar install --hooks --dry-run`, asks (by name if another tool's status line would be replaced), then installs the status line and the optional [hooks](#hooks). Pass `--no-hooks` to skip them.
+- `/ccinfobar:configure`: walks through a preset, the refresh interval, hooks, subagent rows and the vim indicator; shows a dry run and asks before every change.
 - `/ccinfobar:edit`: starts the web editor in the background with `ccinfobar edit --detach` and gives you the URL.
 - `/ccinfobar:doctor`: runs `ccinfobar doctor` and lists the problems first. It suggests fixes and runs none on its own.
 - `/ccinfobar:theme [id]`: switches theme, or lists them with `ccinfobar themes --list` and asks.
