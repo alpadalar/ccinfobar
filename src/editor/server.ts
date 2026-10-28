@@ -89,6 +89,7 @@ import { parseCols } from '../core/entry-keys.js';
 import { bundleText, presetLabels, presetText, themeDescription } from '../core/i18n/catalog-text.js';
 import { type MessageId, type Params, setLanguage, t, withLanguage } from '../core/i18n/index.js';
 import { isLanguageId, type LanguageId } from '../core/i18n/languages.js';
+import { ID_RE } from '../core/ids.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { deleteUserPreset, listPresets, presetsDir, saveUserPreset } from '../core/presets.js';
@@ -123,7 +124,6 @@ declare const __EDITOR_SCRIPT_HASH__: string;
 
 const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
 const MAX_BODY = 1024 * 1024;
-const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 const DEMO_TYPES = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gsd-plans', 'session-cost'];
 
 export interface EditorOptions {

@@ -51,6 +51,8 @@ export const errorMessages = {
   'err.cfgpath.notIndex': '"{name}" is not an array index',
   'err.cfgpath.pastEnd': 'index {index} is past the end',
   'err.cfgpath.notObject': 'cannot set "{name}" inside a non-object',
+  'err.id.reserved':
+    '"{id}" is a reserved Windows device name (CON, PRN, AUX, NUL, COM1-9, LPT1-9); pick another id',
   'err.theme.badId': 'Theme id must be letters, numbers, dot, dash or underscore',
   'err.preview.unknownScenario': 'unknown scenario',
   'err.server.badJson': 'Invalid JSON',

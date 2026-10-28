@@ -3,6 +3,7 @@ import path from 'node:path';
 import { writeAtomic } from '../data/store.js';
 import { parseColor } from './ansi.js';
 import { t } from './i18n/index.js';
+import { ID_RE } from './ids.js';
 import { configDir } from './paths.js';
 import { pickRotationTheme } from './rotation.js';
 import { BASE, BUILTIN } from './themes/builtin.js';
@@ -24,7 +25,6 @@ export { STYLE_GLYPHS, STYLE_SEPARATOR, STYLES };
 
 const STYLE_IDS = new Set<string>(STYLES.map((s) => s.id));
 const MODES = new Set(['widget', 'category', 'cycle']);
-const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 const MAX_STOPS = 8;
 
 function isObject(v: unknown): v is Record<string, unknown> {

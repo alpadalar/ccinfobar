@@ -4,6 +4,7 @@ import { writeAtomic } from '../data/store.js';
 import { defaultConfig, normalizeConfig } from './config.js';
 import { uniqueId } from './edit.js';
 import { t } from './i18n/index.js';
+import { ID_RE } from './ids.js';
 import { configDir } from './paths.js';
 import type { Config, WidgetItem } from './types.js';
 
@@ -394,7 +395,7 @@ export const PRESETS: Preset[] = [
   },
 ];
 
-export const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+export { ID_RE } from './ids.js';
 
 export function presetsDir(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(configDir(env), 'presets');

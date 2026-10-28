@@ -1,3 +1,4 @@
+import { isFileId } from './ids.js';
 import type { RotationDay, RotationEvery, ThemeRotation } from './types.js';
 
 export const ROTATION_DAYS = [
@@ -12,7 +13,6 @@ export const ROTATION_DAYS = [
 export const ROTATION_MAX = 32;
 export const ROTATION_MINUTES_MAX = 10080;
 
-const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 const BY_GETDAY: readonly RotationDay[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const DAY_NAMES: Record<string, RotationDay> = {
   monday: 'mon',
@@ -24,7 +24,7 @@ const DAY_NAMES: Record<string, RotationDay> = {
   sunday: 'sun',
 };
 
-const isId = (v: unknown): v is string => typeof v === 'string' && ID_RE.test(v);
+const isId = (v: unknown): v is string => isFileId(v);
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 const mod = (a: number, n: number): number => ((a % n) + n) % n;

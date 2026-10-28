@@ -148,6 +148,11 @@ describe('normalizeThemeRotation', () => {
     expect(normalizeThemeRotation({ themes: ['a'], order: 'shuffle' })?.order).toBe('shuffle');
   });
 
+  it('drops reserved device names from the pool', () => {
+    expect(normalizeThemeRotation({ themes: ['nord', 'con'] })).toEqual({ themes: ['nord'] });
+    expect(normalizeThemeRotation({ themes: ['con', 'Nul.json'] })).toBeUndefined();
+  });
+
   it('drops an empty block', () => {
     expect(normalizeThemeRotation(undefined)).toBeUndefined();
     expect(normalizeThemeRotation([])).toBeUndefined();

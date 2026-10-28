@@ -76,6 +76,7 @@ const LANG_TABLES = /^src\/core\/i18n\/(?!en\/)[a-z]{2,3}\//;
 
 // later plans extend this
 const PURE = [
+  'src/core/ids.ts',
   'src/core/sanitize.ts',
   'src/core/share-code.ts',
   'src/core/payload.ts',

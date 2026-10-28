@@ -1,6 +1,7 @@
 import { styleText, themeDescription } from '../../core/i18n/catalog-text.js';
 import { t } from '../../core/i18n/index.js';
 import { categoryText } from '../../core/i18n/widget-text.js';
+import { ID_RE } from '../../core/ids.js';
 import { ansiToHtml } from './ansi-html.js';
 import { api, previewSource } from './api.js';
 import { colorToCss, isValidColor } from './colors.js';
@@ -23,7 +24,6 @@ interface Colors {
   cycle: Swatch[];
 }
 
-const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 const SLOTS = [
   'session',
   'context',
