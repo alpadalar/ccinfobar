@@ -111,11 +111,22 @@ function fail(code: StoreCode, data: Record<string, unknown> = {}): never {
   throw new CatalogStoreError(code, data);
 }
 
+// MK-14: new dirs private, wider ones only tightened when a secret is written
+function ensurePrivateDir(dir: string, tighten = false): void {
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    if (tighten && process.platform !== 'win32' && (fs.statSync(dir).mode & 0o077) !== 0) {
+      fs.chmodSync(dir, 0o700);
+    }
+  } catch {}
+}
+
 export const STORE_LOCK = { waitMs: 3000, staleMs: 10_000 };
 const held = new Set<string>();
 
 // one writer at a time across processes; read, compare and rename happen inside
 export function withStoreLock<T>(dir: string, fn: () => T): T {
+  ensurePrivateDir(dir);
   const file = path.join(dir, '.lock');
   if (held.has(file)) return fn();
   const start = Date.now();
@@ -820,6 +831,7 @@ export function readCredential(endpoint: string, dir = catalogDir()): string | n
 export function writeCredential(endpoint: string, token: string, dir = catalogDir()): void {
   const key = endpointKey(endpoint);
   if (!key) fail('bad-endpoint');
+  ensurePrivateDir(dir, true);
   withStoreLock(dir, () => {
     const data = plain(readObject(credentialsFile(dir)) ?? {});
     const cur = data[key];

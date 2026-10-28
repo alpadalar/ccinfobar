@@ -13,12 +13,14 @@ import {
   deleteEntry,
   findByName,
   listEntries,
+  readCredential,
   readEntry,
   restoreEntry,
   type SaveInput,
   STORE_LOCK,
   saveEntry,
   updateShare,
+  writeCredential,
   writeProfile,
 } from '../../src/catalog/store.js';
 
@@ -619,5 +621,33 @@ describe('invisible characters in labels', () => {
     const raw = JSON.stringify(rawOf(e.id).versions[0].content);
     expect(raw).toContain('a\u200bb');
     expect(entryHash(e.versions[0]!.content)).toBe(before);
+  });
+});
+
+describe('private catalog dir (MK-14)', () => {
+  const win = process.platform === 'win32';
+  const mode = (p: string) => fs.statSync(p).mode & 0o777;
+
+  it.skipIf(win)('creates a new catalog dir 0700', () => {
+    const d = path.join(dir, 'catalog');
+    saveEntry(input(), d);
+    expect(mode(d)).toBe(0o700);
+  });
+
+  it.skipIf(win)('leaves a wider dir alone on ordinary writes and tightens it for credentials', () => {
+    const d = path.join(dir, 'catalog');
+    fs.mkdirSync(d, { mode: 0o755 });
+    fs.chmodSync(d, 0o755);
+    saveEntry(input(), d);
+    expect(mode(d)).toBe(0o755);
+    writeCredential('https://m.example', 'tok-1', d);
+    expect(mode(d)).toBe(0o700);
+    expect(mode(path.join(d, 'credentials.json'))).toBe(0o600);
+  });
+
+  it('writes and reads a credential in a fresh dir', () => {
+    const d = path.join(dir, 'catalog');
+    writeCredential('https://m.example', 'tok-1', d);
+    expect(readCredential('https://m.example', d)).toBe('tok-1');
   });
 });
