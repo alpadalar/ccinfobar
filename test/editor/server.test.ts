@@ -125,6 +125,20 @@ describe('editor server', () => {
     expect(ok.status).toBe(200);
   });
 
+  it('answers 401 when the token is only in the query', async () => {
+    const r = await request('GET', `/api/state?t=${handle.token}`, { token: false });
+    expect(r.status).toBe(401);
+  });
+
+  it('checks the Host header on /', async () => {
+    const bad = await request('GET', '/', { token: false, headers: { host: 'evil.example:80' } });
+    expect(bad.status).toBe(403);
+    for (const host of [`localhost:${port}`, `127.0.0.1:${port}`]) {
+      const ok = await request('GET', '/', { token: false, headers: { host } });
+      expect(ok.status).toBe(200);
+    }
+  });
+
   it('rejects mismatching Origin on mutating requests', async () => {
     const body = JSON.stringify({ config: defaultConfig() });
     const bad = await request('PUT', '/api/config', { body, headers: { origin: 'http://evil.example' } });

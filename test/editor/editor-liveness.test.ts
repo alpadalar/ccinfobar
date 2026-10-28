@@ -56,8 +56,9 @@ const state = {
   language: { id: 'en', source: 'LANG' },
 };
 
-type Call = { method: string; url: string };
+type Call = { method: string; url: string; token?: string };
 let calls: Call[];
+let replaced: unknown[][];
 let byId: Map<string, FakeEl>;
 let body: FakeEl;
 let visibility: 'visible' | 'hidden';
@@ -101,14 +102,18 @@ beforeAll(() => {
   g.localStorage = { getItem: () => null, setItem() {} };
   g.sessionStorage = { getItem: () => null, setItem() {} };
   g.location = { search: '?t=abc', pathname: '/', origin: 'http://127.0.0.1:4000' };
-  g.history = { replaceState() {} };
+  g.history = {
+    replaceState(...a: unknown[]) {
+      replaced.push(a);
+    },
+  };
   g.requestAnimationFrame = (fn: () => void) => setTimeout(fn, 0);
   g.getComputedStyle = () => ({ paddingLeft: '0', paddingRight: '0', fontSize: '16px' });
   vi.stubGlobal('navigator', { languages: [] });
-  g.fetch = async (url: string, init: { method?: string } = {}) => {
+  g.fetch = async (url: string, init: { method?: string; headers?: Record<string, string> } = {}) => {
     const u = String(url);
     const method = init.method ?? 'GET';
-    calls.push({ method, url: u });
+    calls.push({ method, url: u, token: init.headers?.['x-ccinfobar-token'] });
     const res = (data: unknown) => ({ ok: true, status: 200, json: async () => clone(data) });
     const p = u.split('?')[0]!;
     if (p === '/api/ping' && failPing) throw new TypeError('Failed to fetch');
@@ -135,6 +140,7 @@ const banners = () => el('app').children.filter((c) => typeof c !== 'string' && 
 
 async function boot() {
   calls = [];
+  replaced = [];
   byId = new Map();
   visHandlers = [];
   visibility = 'visible';
@@ -270,5 +276,19 @@ describe('detached editor liveness (ROB-04)', () => {
     expect(click).toHaveBeenCalled();
     click.mockRestore();
     g.URL = realUrl;
+  });
+});
+
+describe('token hygiene (REL2-03)', () => {
+  it('cleans the url on boot and sends the token only in the header', async () => {
+    await boot();
+    save();
+    await tick(1000);
+    expect(replaced).toEqual([[null, '', '/']]);
+    expect(calls.length).toBeGreaterThan(1);
+    for (const c of calls) {
+      expect(c.url).not.toMatch(/[?&]t=/);
+      expect(c.token).toBe('abc');
+    }
   });
 });

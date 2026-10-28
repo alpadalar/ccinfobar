@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
-import { setLanguage } from '../../src/core/i18n/index.js';
+import { setLanguage, t } from '../../src/core/i18n/index.js';
 import { FakeEl } from '../i18n/fake-dom.js';
 
 const g = globalThis as any;
@@ -19,6 +19,7 @@ let body: FakeEl;
 let pending: Pending[];
 let stored: string[];
 let openCols: number | null;
+let opened: string[];
 
 const info = (code: string, included: boolean) => ({
   code,
@@ -43,7 +44,8 @@ beforeAll(() => {
   g.fetch = (url: string, init: { body?: string }) => {
     const b = init.body ? JSON.parse(init.body) : {};
     const json = (data: unknown) => ({ ok: true, status: 200, json: async () => data });
-    if (url === '/api/share/open')
+    if (url === '/api/share/open') {
+      opened.push(b.code);
       return Promise.resolve(
         json({
           code: b.code,
@@ -53,6 +55,7 @@ beforeAll(() => {
           unsafe: [],
         }),
       );
+    }
     return new Promise((resolve, reject) => {
       pending.push({
         include: b.includeCommands,
@@ -68,6 +71,7 @@ beforeEach(() => {
   pending = [];
   stored = [];
   openCols = null;
+  opened = [];
   g.localStorage = { getItem: () => null, setItem: (_k: string, v: string) => stored.push(v) };
   body = new FakeEl('BODY');
   const toasts = new FakeEl('DIV');
@@ -172,5 +176,51 @@ describe('opening a share code (COR2-04)', () => {
     await openShareCode('code');
     expect(store.S.width).toBe(90);
     expect(stored).toEqual([]);
+  });
+});
+
+describe('openCodeDialog (REL2-03)', () => {
+  const overlays = () => body.all((e) => e.classList.contains('overlay'));
+  const button = (label: string) => body.all((e) => e.tagName === 'BUTTON' && e.textContent === label)[0]!;
+  const click = (label: string) => button(label).dispatch('click');
+
+  async function open() {
+    await init();
+    const { openCodeDialog } = await import('../../src/editor/web/share.js');
+    const done = openCodeDialog();
+    await flush();
+    return done;
+  }
+
+  it('keeps the dialog open and shows the error for an invalid code', async () => {
+    const done = open();
+    await flush();
+    area().value = 'not a code';
+    click(t('share.open.open'));
+    await flush();
+    const err = body.all((e) => e.classList.contains('form-error'))[0]!;
+    expect(err.textContent).toBe(t('err.share.notCode'));
+    expect(overlays()).toHaveLength(1);
+    expect(opened).toEqual([]);
+    click(t('web.ui.cancel'));
+    await done;
+  });
+
+  it('closes and opens a valid code', async () => {
+    const done = open();
+    await flush();
+    area().value = 'ccib1:abc_-123';
+    click(t('share.open.open'));
+    await done;
+    expect(opened).toEqual(['ccib1:abc_-123']);
+  });
+
+  it('does nothing on cancel', async () => {
+    const done = open();
+    await flush();
+    area().value = 'ccib1:abc';
+    click(t('web.ui.cancel'));
+    await done;
+    expect(opened).toEqual([]);
   });
 });
