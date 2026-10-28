@@ -10,6 +10,7 @@ ccinfobar X.Y.Z
 ✗ Son payload <tmp>/cache/last-payload.json
   Önbellek dizini <tmp>/cache
   Algılanan genişlik bilinmiyor
+Kullanım API sorgusu kapalı (usageApi: false veya CCINFOBAR_NO_USAGE_API); plan limitleri yalnızca Claude Code gönderdiğinde gelir.
   Güncelleme denetimleri kapalı
 
 Arka plan işleri

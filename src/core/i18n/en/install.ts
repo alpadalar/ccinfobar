@@ -126,4 +126,8 @@ export const installMessages = {
   'editor.refreshUse': 'Use {n} s refresh',
   'tui.replaceQuestion': 'Replace "{current}" with "{proposed}"?',
   'tui.installed': 'Installed: statusLine runs "{command}". Backups are in {dir}',
+  'usage.apiNote':
+    'With usageApi on (the default), ccinfobar asks api.anthropic.com/api/oauth/usage for your plan limits with your local Claude login, only when Claude Code sends no rate_limits; set "usageApi": false to turn it off.',
+  'usage.apiOff':
+    'Usage API fetch is off (usageApi: false or CCINFOBAR_NO_USAGE_API); plan limits come only from what Claude Code sends.',
 } as const;

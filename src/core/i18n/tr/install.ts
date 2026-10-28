@@ -132,4 +132,8 @@ export const installMessages = {
   'editor.refreshUse': '{n} saniyede bir yenile',
   'tui.replaceQuestion': '"{current}", "{proposed}" ile değiştirilsin mi?',
   'tui.installed': 'Kuruldu: statusLine "{command}" komutunu çalıştırıyor. Yedekler {dir} klasöründe',
+  'usage.apiNote':
+    'usageApi açıkken (varsayılan) ccinfobar, Claude Code rate_limits göndermediğinde plan limitlerinizi yerel Claude oturumunuzla api.anthropic.com/api/oauth/usage adresinden sorar; kapatmak için "usageApi": false ayarlayın.',
+  'usage.apiOff':
+    'Kullanım API sorgusu kapalı (usageApi: false veya CCINFOBAR_NO_USAGE_API); plan limitleri yalnızca Claude Code gönderdiğinde gelir.',
 } satisfies Record<keyof typeof enInstall, Message>;

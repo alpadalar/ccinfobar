@@ -172,6 +172,35 @@ describe('install --subagents', () => {
   });
 });
 
+describe('install usage API note', () => {
+  it('prints only while the fetch is on', async () => {
+    delete process.env.CCINFOBAR_NO_USAGE_API;
+    const on = fake();
+    await runInstall(inst(), cfg, on.io);
+    expect(on.text()).toContain(t('usage.apiNote'));
+    fs.writeFileSync(cfg, JSON.stringify({ usageApi: false, lines: [] }));
+    const off = fake();
+    await runInstall(inst(), cfg, off.io);
+    expect(off.text()).not.toContain(t('usage.apiNote'));
+    fs.writeFileSync(cfg, JSON.stringify({ lines: [] }));
+    process.env.CCINFOBAR_NO_USAGE_API = '1';
+    const env = fake();
+    await runInstall(inst(), cfg, env.io);
+    expect(env.text()).not.toContain(t('usage.apiNote'));
+  });
+
+  it('names the endpoint and opt-out in Turkish', async () => {
+    delete process.env.CCINFOBAR_NO_USAGE_API;
+    fs.mkdirSync(path.dirname(cfg), { recursive: true });
+    fs.writeFileSync(cfg, JSON.stringify({ language: 'tr', lines: [] }));
+    const f = fake();
+    await runInstall(inst(), cfg, f.io);
+    expect(f.text()).toContain('api.anthropic.com/api/oauth/usage');
+    expect(f.text()).toContain('"usageApi": false');
+    expect(f.text()).toContain('adresinden sorar');
+  });
+});
+
 describe('uninstall --subagents', () => {
   it('does nothing else with --project', async () => {
     const proj = path.join(dir, 'proj');

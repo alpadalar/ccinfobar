@@ -354,6 +354,19 @@ describe('runDoctor in Turkish', () => {
 describe('runDoctor install report', () => {
   const plain = () => cfgFile('plain.json', JSON.stringify({ lines: [[{ type: 'model' }]] }));
 
+  it('prints the usage API statement with its state', () => {
+    delete process.env.CCINFOBAR_NO_USAGE_API;
+    const off = cfgFile('uoff.json', JSON.stringify({ usageApi: false, lines: [] }));
+    expect(capture(() => runDoctor(plain()))).toContain(t('usage.apiNote'));
+    const out = capture(() => runDoctor(off));
+    expect(out).toContain(t('usage.apiOff'));
+    expect(out).not.toContain(t('usage.apiNote'));
+    process.env.CCINFOBAR_NO_USAGE_API = '1';
+    expect(capture(() => runDoctor(plain()))).toContain(t('usage.apiOff'));
+    const tr = withEnvLang('tr', () => capture(() => runDoctor(plain())));
+    expect(tr).toContain(withLang('tr', () => t('usage.apiOff')));
+  });
+
   it('prints git hardening off', () => {
     const file = cfgFile('hard.json', JSON.stringify({ gitHardening: false, lines: [] }));
     expect(capture(() => runDoctor(file))).toContain(t('doctor.gitHardeningOff'));

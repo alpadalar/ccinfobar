@@ -570,6 +570,7 @@ export function runDoctor(
   console.log(width == null ? t('doctor.detectedWidthUnknown') : t('doctor.detectedWidth', { width }));
   const upd = readUpdateState();
   const newer = availableUpdate(VERSION);
+  console.log(usageApiDisabled(loaded.config) ? t('usage.apiOff') : t('usage.apiNote'));
   if (loaded.config.gitHardening === false) console.log(t('doctor.gitHardeningOff'));
   if (updatesDisabled(loaded.config)) console.log(t('doctor.update.off'));
   else if (newer)

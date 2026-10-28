@@ -14,6 +14,7 @@ import { progressChannel, progressSeq } from '../data/progress.js';
 import { requestClear } from '../data/progress-clear.js';
 import { readJsonSafe } from '../data/store.js';
 import { selfCommand } from '../data/update-state.js';
+import { usageApiDisabled } from '../data/usage.js';
 import { type DetectedTool, detectTool, type ImportSource, sniffTool } from '../importers/index.js';
 import { getWidget } from '../widgets/index.js';
 import { editorModeOf, managedSettingsFiles, settingsLayers } from './hooks-doctor.js';
@@ -501,6 +502,7 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
     tty && hasProgressHandlers(file) ? uninstallHooks(file, undefined, undefined, 'progress') : null;
   if (plan.changes) io.log(t('install.wrote', { command: show(command), file: tildify(file) }));
   else if (!hooksChanged(res.hooks) && !res.subagent) io.log(t('install.unchanged'));
+  if (!usageApiDisabled(loadForUse(cfgFile).config)) io.log(t('usage.apiNote'));
   if (slNeedsConfirm(plan) && !adoptLegacy && plan.current)
     io.log(t('install.replaced', { command: show(plan.current.command) }));
   if (res.subagent) {
