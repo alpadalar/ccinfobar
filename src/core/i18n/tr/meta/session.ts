@@ -15,6 +15,11 @@ export const session: MetaFile = {
       sample: 'açık',
     },
     'fast-mode': { name: 'Hızlı mod', description: 'Hızlı mod etkinken görünür', sample: 'hızlı' },
+    sandbox: {
+      name: 'Sandbox',
+      description: 'Etkin ayar katmanında Claude Code sandbox açıkken bir çip gösterir',
+      sample: 'sandbox',
+    },
     'output-style': { name: 'Çıktı stili', description: 'Etkin çıktı stili', label: 'Stil ' },
     'session-name': {
       name: 'Oturum adı',
@@ -53,6 +58,7 @@ export const session: MetaFile = {
     'Append +think when thinking is on': 'Düşünme açıkken +düşünme ekle',
     'Hide when off': 'Kapalıyken gizle',
     'Show when off': 'Kapalıyken göster',
+    'Mark strict mode': 'Katı modu işaretle',
     'Show default style': 'Varsayılan stili göster',
     'Short (8 chars)': 'Kısa (8 karakter)',
     Show: 'Göster',

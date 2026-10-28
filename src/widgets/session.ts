@@ -128,6 +128,33 @@ export const widgets: WidgetDef[] = [
     },
   },
   {
+    type: 'sandbox',
+    name: 'Sandbox',
+    category: 'session',
+    description: "Shows a chip when Claude Code's sandbox is enabled in the effective settings layer",
+    icon: { nerd: '󰒃', emoji: '🛡️' },
+    color: 'green',
+    sample: 'sandbox',
+    hideWhenEmpty: true,
+    options: [
+      { key: 'showOff', label: 'Show when off', kind: 'boolean', default: false },
+      { key: 'showStrict', label: 'Mark strict mode', kind: 'boolean', default: false },
+    ],
+    render(ctx, item) {
+      let s: ReturnType<NonNullable<typeof ctx.data.sandbox>> | undefined;
+      try {
+        s = ctx.data.sandbox?.();
+      } catch {
+        return null;
+      }
+      if (!s) return null;
+      if (!s.enabled) return opt(item, 'showOff', false) ? t('widget.sandbox.off') : null;
+      return s.strict && opt(item, 'showStrict', false)
+        ? `${t('widget.sandbox.on')} ${t('widget.sandbox.strict')}`
+        : t('widget.sandbox.on');
+    },
+  },
+  {
     type: 'output-style',
     name: 'Output style',
     category: 'session',

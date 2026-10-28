@@ -138,6 +138,18 @@ describe('built-in presets', () => {
     }
   });
 
+  it('keeps sandbox out of every preset', () => {
+    for (const p of listPresets().filter((x) => x.source !== 'user')) {
+      expect(
+        p
+          .build()
+          .lines.flat()
+          .map((i) => i.type),
+        p.id,
+      ).not.toContain('sandbox');
+    }
+  });
+
   it('lists the new presets after the existing ones', () => {
     expect(PRESETS.map((p) => p.id)).toEqual([...Object.keys(OLD), ...NEW]);
   });

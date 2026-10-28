@@ -24,6 +24,7 @@ import {
   sampleLedger,
   sampleLimits,
   samplePayload,
+  sampleSandbox,
   sampleTranscript,
 } from '../src/core/sample.js';
 import type { Config, RenderContext, StatusPayload, WidgetItem } from '../src/core/types.js';
@@ -86,6 +87,7 @@ export function ctxWith(
     environment?: RenderContext['data']['environment'];
     jobs?: RenderContext['data']['jobs'];
     jj?: RenderContext['data']['jj'];
+    sandbox?: RenderContext['data']['sandbox'];
     width?: number | null;
     env?: NodeJS.ProcessEnv;
     exec?: RenderContext['data']['exec'];
@@ -113,6 +115,7 @@ export function ctxWith(
       environment: overrides.environment ?? sampleEnvironment,
       jobs: overrides.jobs ?? (() => sampleJobs(NOW.getTime())),
       jj: overrides.jj ?? sampleJj,
+      sandbox: overrides.sandbox ?? sampleSandbox,
     },
   });
 }
