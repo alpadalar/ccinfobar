@@ -26,16 +26,17 @@ describe('retryOnce', () => {
   });
 
   it('waits 200 ms by default', async () => {
-    const spy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void) => {
-      fn();
-      return 0;
-    }) as never);
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
     try {
       const load = vi.fn().mockRejectedValueOnce(new Error('x')).mockResolvedValueOnce(2);
-      await expect(retryOnce(load)).resolves.toBe(2);
-      expect(spy).toHaveBeenCalledWith(expect.any(Function), 200);
+      const p = retryOnce(load);
+      await vi.advanceTimersByTimeAsync(199);
+      expect(load).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(p).resolves.toBe(2);
+      expect(load).toHaveBeenCalledTimes(2);
     } finally {
-      spy.mockRestore();
+      vi.useRealTimers();
     }
   });
 });
