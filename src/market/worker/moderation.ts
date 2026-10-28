@@ -16,6 +16,7 @@ import {
   noteSize,
   openReports,
   pendingEntries,
+  publishCounts,
   publisherRow,
   readEntryRow,
   removeStatements,
@@ -26,6 +27,7 @@ import {
   writeConflict,
 } from './store.js';
 import { authPublisher, type Publisher } from './tokens.js';
+import { capsOf } from './write.js';
 
 const NOTE_BODY_CAP = 4096;
 
@@ -139,9 +141,15 @@ export const approve: AdminRoute = async (env, deps, req, who, p, s) => {
   const pin = pinOf(req);
   if (reviewTag(pin.hash, pin.gen) !== tag) throw fail(412, 'stale', CHANGED);
   try {
-    await env.DB.batch(approveStatements(env.DB, gateOf(env, who), p, s, pin, log));
+    await env.DB.batch(approveStatements(env.DB, gateOf(env, who), p, s, pin, log, capsOf(env, deps)));
   } catch (err) {
     if (writeConflict(err) !== 'guard') throw err;
+    const caps = capsOf(env, deps);
+    const counts = await publishCounts(env.DB, p, s);
+    if (counts.live >= caps.entries) throw fail(413, 'over-quota', 'too many entries');
+    if (counts.mine >= caps.entriesPerPublisher) {
+      throw fail(413, 'over-quota', 'too many entries for this publisher');
+    }
     await whyNot(env, req, p, s, tag);
   }
   await settleIndex(env.DB, env, deps.now());

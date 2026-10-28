@@ -15,7 +15,7 @@ import {
   parseReview,
   reportPath,
 } from '../../src/market/protocol.js';
-import type { D1Database, D1PreparedStatement, Env } from '../../src/market/worker/env.js';
+import type { D1Database, D1PreparedStatement, Env, WorkerDeps } from '../../src/market/worker/env.js';
 import { createHandler } from '../../src/market/worker/handler.js';
 import { skipSqlite } from './d1-sqlite.js';
 import { type FakeUser, fakeGitHub } from './fake-github.js';
@@ -115,7 +115,7 @@ function counted(db: D1Database): {
   };
 }
 
-async function setup(vars: Partial<Env> = {}) {
+async function setup(vars: Partial<Env> = {}, caps?: WorkerDeps['caps']) {
   const { env, clock } = await makeEnv({
     ALLOW_UNVERIFIED_GITHUB_TOKENS: 'true',
     SIGNIN_LIMIT: '50',
@@ -124,7 +124,11 @@ async function setup(vars: Partial<Env> = {}) {
   const db = env.DB;
   const c = counted(db);
   const fake = fakeGitHub({ users: USERS });
-  const handler = createHandler({ ...env, DB: c.db } as Env, { now: clock.now, fetch: fake.fetch });
+  const handler = createHandler({ ...env, DB: c.db } as Env, {
+    now: clock.now,
+    fetch: fake.fetch,
+    ...(caps ? { caps } : {}),
+  });
   const call = async (
     method: string,
     p: string,
@@ -755,8 +759,8 @@ describe.skipIf(skipSqlite)('worker moderation', () => {
 
 // findings of the 12-14 security review: moderation bypass and check-then-act races
 describe.skipIf(skipSqlite)('worker moderation guards', () => {
-  async function three(vars: Partial<Env> = {}) {
-    const s = await setup(vars);
+  async function three(vars: Partial<Env> = {}, caps?: WorkerDeps['caps']) {
+    const s = await setup(vars, caps);
     const pub = await s.signIn('pub');
     const admin = await s.signIn('admin');
     const other = await s.signIn('other');
@@ -777,6 +781,38 @@ describe.skipIf(skipSqlite)('worker moderation guards', () => {
   }
   const ban = (s: Awaited<ReturnType<typeof three>>, h = 'pub') =>
     s.call('POST', adminPublisherPath(h, 'ban'), { token: s.admin });
+
+  it('approve answers 413 when the live entries cap is full and keeps the entry pending', async () => {
+    const s = await three({}, { entries: 1 });
+    await s.publish('one');
+    expect((await s.approve('pub/one')).status).toBe(200);
+    const o = await s.call('POST', '/v1/entries', { token: s.other, body: publishBody('o1') });
+    expect(o.status).toBe(201);
+    const ids = await s.indexIds();
+    const etag = (await s.get('/v1/index.json')).headers.get('etag');
+    const r = await s.approve('other/o1');
+    expect(await error(r)).toEqual({ status: 413, code: 'over-quota' });
+    expect(s.statements.v).toBeGreaterThan(0);
+    expect(await s.state('other', 'o1')).toBe('pending');
+    expect(await s.indexIds()).toEqual(ids);
+    expect((await s.get('/v1/index.json')).headers.get('etag')).toBe(etag);
+    expect(await s.publisher('other')).toMatchObject({ trusted: 0 });
+  });
+
+  it('approve answers 413 when the publisher cap is full', async () => {
+    const s = await three({}, { entriesPerPublisher: 1 });
+    for (const slug of ['o1', 'o2']) {
+      const r = await s.call('POST', '/v1/entries', { token: s.other, body: publishBody(slug) });
+      expect(r.status).toBe(201);
+    }
+    expect((await s.approve('other/o1')).status).toBe(200);
+    const r = await s.approve('other/o2');
+    expect(r.status).toBe(413);
+    const j = (await r.json()) as { error?: { code?: string; message?: string }; message?: string };
+    expect(JSON.stringify(j)).toContain('too many entries for this publisher');
+    expect(await s.state('other', 'o2')).toBe('pending');
+    expect(await s.indexIds()).not.toContain('other/o2');
+  });
 
   it('approve needs the review tag and refuses an entry that changed after review', async () => {
     const s = await three();

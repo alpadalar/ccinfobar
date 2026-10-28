@@ -749,15 +749,17 @@ export function approveStatements(
   s: string,
   pin: { hash: string; gen: number },
   log: LogRow,
+  caps: { entries: number; entriesPerPublisher: number },
 ): D1PreparedStatement[] {
   return [
     gate,
     db
       .prepare(
         `UPDATE entries SET state = 'live', gen = ${NEXT_GEN}
-         WHERE publisher = ?1 AND slug = ?2 AND state = 'pending' AND hash = ?3 AND gen = ?4`,
+         WHERE publisher = ?1 AND slug = ?2 AND state = 'pending' AND hash = ?3 AND gen = ?4
+           AND ${COUNTER('live')} < ?5 AND ${MINE('live')} < ?6`,
       )
-      .bind(p, s, pin.hash, pin.gen),
+      .bind(p, s, pin.hash, pin.gen, caps.entries, caps.entriesPerPublisher),
     db.prepare(GUARD),
     db.prepare('UPDATE publishers SET trusted = 1 WHERE handle = ?1').bind(p),
     db.prepare(`UPDATE versions SET body = NULL WHERE publisher = ?1 AND slug = ?2 AND ${OLDER}`).bind(p, s),

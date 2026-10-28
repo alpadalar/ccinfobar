@@ -102,7 +102,7 @@ async function checkedHash(env: Env, kind: MarketEntry['kind'], content: unknown
   return sha256Hex(canonical);
 }
 
-const capsOf = (env: Env, deps: WorkerDeps): PublishCaps => {
+export const capsOf = (env: Env, deps: WorkerDeps): PublishCaps => {
   const p = pendingCaps(env);
   return { ...CAPS, pending: p.total, pendingPerPublisher: p.perPublisher, ...deps.caps };
 };
