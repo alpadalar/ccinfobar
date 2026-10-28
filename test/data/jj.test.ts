@@ -223,12 +223,25 @@ describe('jj caches (injected exec)', () => {
 
   it('remembers a missing binary for five minutes', () => {
     const { root, env } = setup('enoent', false);
+    const dir = fs.mkdtempSync(path.join(tmp, 'stub-'));
+    const stub = path.join(dir, process.platform === 'win32' ? 'jj.exe' : 'jj');
+    fs.writeFileSync(stub, '');
+    for (const k of Object.keys(env)) if (k.toUpperCase() === 'PATH') delete env[k];
+    env.PATH = dir;
+    resetWhich();
     const f = fakeExec({ bookmarks: 'ENOENT' });
-    expect(readJj(root, { exec: f.exec, env, now: T })?.bookmarks()).toBeNull();
+    // the binary vanishes between lookup and spawn
+    const exec: JjExec = (b, a, d) => {
+      fs.rmSync(stub, { force: true });
+      return f.exec(b, a, d);
+    };
+    expect(readJj(root, { exec, env, now: T })?.bookmarks()).toBeNull();
     expect(f.calls.length).toBe(1);
-    expect(readJj(root, { exec: f.exec, env, now: T + 1000 })).toBeNull();
+    expect(readJj(root, { exec, env, now: T + 1000 })).toBeNull();
     expect(f.calls.length).toBe(1);
-    readJj(root, { exec: f.exec, env, now: T + 300_001 })?.bookmarks();
+    fs.writeFileSync(stub, '');
+    resetWhich();
+    readJj(root, { exec, env, now: T + 300_001 })?.bookmarks();
     expect(f.calls.length).toBe(2);
   });
 
