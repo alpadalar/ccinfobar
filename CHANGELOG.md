@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- `ccinfobar doctor` warns when the status line command pins a Node binary that no longer exists, for example after a Node upgrade; `ccinfobar install` pins the current one
 - `ccinfobar update` falls back to the digest-checked GitHub tarball when npm cannot fetch the version, as the automatic update already did
 - `updateMinAgeHours` (config, web editor Settings, TUI): with `update: "auto"`, wait until a release is at least that many hours old (1-720; the GitHub release date, or npm's publish time as fallback) before installing it; a too-new release is skipped with `reason: too-new` and installed on a later check, and `ccinfobar doctor` says so. Default `0` keeps today's behaviour; update notices and `ccinfobar update` ignore the setting
 - `command` widgets can run in the background worker with `background: true` (needs `cacheSeconds > 0`): the status line shows the last result and never waits for the command; a background result is one plain line, so `preserveColors` has no effect there. The `commandBudgetMs` setting is in the web editor's Settings and the TUI. `docs/WIDGETS.md` now says plainly that a `command` runs through the shell with the status line's full environment.
@@ -46,6 +47,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - The automatic update no longer falls back to installing the GitHub release tarball when GitHub publishes no checksum for it: nothing is installed, `ccinfobar doctor` says so and the update is retried at the next check; a rollback whose reinstall has no checksum is recorded as failed instead of installing unverified bytes (reason: never install unverified bytes). Manual `ccinfobar update` likewise installs from the npm registry only.
 
 ### Fixed
+- `ccinfobar install` and `uninstall` on a `settings.json` with a comment or a trailing comma now say it must be strict JSON and name the line and column; nothing is written and no backup is made
+- A status-line refresh that starts while `npm` is replacing ccinfobar's files retries loading itself once instead of failing immediately; a refresh caught mid-swap can still print nothing once, the next one runs the new version
 - `ccinfobar update` now verifies the new install the same way the automatic update does and rolls back to the running version when the check fails; it prints the outcome and exits with status 1 in that case, `ccinfobar doctor` and the status line show the rejected version, and the web editor's update button reports a rejected version instead of claiming success
 - Each refresh now writes the last-payload file only when the payload changed (at most once per 5 s), reads the usage-limits store once and reads each background-job result once, instead of repeating the same file operations; the saved payload the editor preview and `explain` use can therefore be up to 5 s old. The limits store is still read once more right before a write, so concurrent sessions keep merging
 - The status line reads at most 4 MiB from stdin and treats a larger payload like invalid JSON (short message, exit 0) instead of buffering it, and it releases stdin after the read or the 3 s timeout, so a refresh whose pipe is never closed no longer lingers

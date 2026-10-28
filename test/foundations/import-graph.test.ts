@@ -338,7 +338,12 @@ describe('import graph', () => {
 
   // node:crypto, a static node:fs ESM import and the stdin stream each cost ms per event
   it('keeps crypto, static node:fs and process.stdin out of the hook path', () => {
-    for (const f of [...closure('cli/hook.ts'), 'src/cli/silence.ts', 'src/cli/win-env.ts']) {
+    for (const f of [
+      ...closure('cli/hook.ts'),
+      'src/cli/silence.ts',
+      'src/cli/win-env.ts',
+      'src/cli/retry.ts',
+    ]) {
       const text = fs.readFileSync(path.join(root, f), 'utf8');
       expect(text, f).not.toMatch(/^import\s+(?!type\b)[^;]*from\s+'node:crypto'|process\.stdin\b/m);
       expect(text, f).not.toMatch(/^import\s+(?!type\b)[^;]*from\s+'node:fs'/m);
@@ -348,6 +353,8 @@ describe('import graph', () => {
     expect(bin).toMatch(/import \{ noCwdLookup \} from '\.\/cli\/win-env\.js'/);
     expect(fs.readFileSync(path.join(src, 'cli/silence.ts'), 'utf8')).not.toMatch(/^import /m);
     expect(fs.readFileSync(path.join(src, 'cli/win-env.ts'), 'utf8')).not.toMatch(/^import /m);
+    expect(fs.readFileSync(path.join(src, 'cli/retry.ts'), 'utf8')).not.toMatch(/^import /m);
+    expect(bin).toContain("retryOnce(() => import('./cli.js'))");
     expect(bin.indexOf('noCwdLookup(process.env, process.platform)')).toBeLessThan(
       bin.indexOf('const isHook'),
     );

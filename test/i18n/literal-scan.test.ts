@@ -227,6 +227,7 @@ const NOT_SWEPT: Record<string, string> = {
   'src/cli/progress-tty.ts': 'tty lookup, no user-facing prose',
   'src/data/exec.ts': 'child process wrapper, no user-facing prose',
   'src/cli/silence.ts': 'stream plumbing, no user-facing prose',
+  'src/cli/retry.ts': 'no user-facing text; import retry for bin.ts',
   'src/cli/args.ts': 'argv parsing, no user-facing prose',
   'src/cli/win-env.ts': 'env setup leaf, no user-facing prose',
   'src/data/which.ts': 'binary lookup, no user-facing prose',

@@ -174,7 +174,7 @@ describe('command errors', () => {
       try {
         await main(argv);
         expect(process.exitCode).toBe(1);
-        expect(err.join('\n')).toMatch(/^✗ Cannot parse .*settings\.json/);
+        expect(err.join('\n')).toMatch(/^✗ .*settings\.json must be strict JSON.*line 3, column 1: /);
       } finally {
         fs.rmSync(file, { force: true });
       }

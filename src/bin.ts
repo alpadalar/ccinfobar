@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import module from 'node:module';
+import { retryOnce } from './cli/retry.js';
 import { silence } from './cli/silence.js';
 import { noCwdLookup } from './cli/win-env.js';
 
@@ -32,7 +33,7 @@ if (isHook) {
   process.on('unhandledRejection', bye);
   import('./cli/subagent-line.js').then((m) => m.subagentMain(argv.slice(2)), bye).catch(bye);
 } else {
-  const { main } = await import('./cli.js');
+  const { main } = await retryOnce(() => import('./cli.js'));
 
   main().catch((err: unknown) => {
     if (process.stdin.isTTY) console.error(err instanceof Error ? err.message : err);
