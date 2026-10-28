@@ -370,10 +370,42 @@ describe('tarball digest verification', () => {
     expect(fs.existsSync(path.dirname(second))).toBe(false);
   });
 
-  it('uses the URL without a digest', async () => {
-    failFirst();
-    await installVersionAsync('9.9.9', undefined, undefined, fakeFetch([release()]).fetch);
-    expect(specs()[1]).toMatch(/^https:\/\/github\.com\//);
+  it('skips the tarball when GitHub gives no digest (SEC2-11)', async () => {
+    for (const responses of [[json({ assets: [] })], [json({}, 403)], [new Error('offline')]]) {
+      mocks.execFile.mockReset();
+      failFirst();
+      const f = fakeFetch(responses as never);
+      await expect(installVersionAsync('9.9.9', undefined, undefined, f.fetch)).rejects.toThrow(
+        'digest-unavailable',
+      );
+      expect(specs()).toEqual(['ccinfobar@9.9.9']);
+    }
+  });
+
+  it('records a rollback whose reinstall has no digest as failed, installing nothing', async () => {
+    const f = fakeFetch([json({}, 403)]);
+    mocks.execFile.mockImplementation((...a: unknown[]) => {
+      const cb = a[a.length - 1] as (e: Error | null, o: string, s: string) => void;
+      cb(new Error('npm down'), '', '');
+      return { stdin: { end() {} } };
+    });
+    const seen: string[] = [];
+    let calls = 0;
+    const install = async (v: string) => {
+      if (++calls === 2) {
+        try {
+          await installVersionAsync(v, undefined, undefined, f.fetch);
+        } catch (err) {
+          seen.push((err as Error).message);
+          throw err;
+        }
+      }
+    };
+    const verify = async (v: string) => (v === '9.9.9' ? 'render-failed:1' : null);
+    const out = await checkForUpdate(cfg, '0.1.0', {}, { ...base, install, verify });
+    expect(out).toMatchObject({ rejected: '9.9.9', rollback: 'failed', reason: 'render-failed:1' });
+    expect(seen).toEqual(['digest-unavailable']);
+    expect(specs()).toEqual(['ccinfobar@0.1.0']);
   });
 
   it('aborts on a mismatch before npm runs the fallback', async () => {

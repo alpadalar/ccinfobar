@@ -209,7 +209,8 @@ function npmError(err: unknown, stderr: unknown): Error {
 export function installVersion(version: string, prefix?: string): void {
   const { file, runs, opts } = npmInstall(version, prefix);
   let last: unknown;
-  for (const args of runs) {
+  // registry only; the verified manual path is REL2-02
+  for (const args of runs.slice(0, 1)) {
     try {
       execFileSync(file, args, { ...opts, stdio: ['ignore', 'ignore', 'pipe'] });
       return;
@@ -243,8 +244,13 @@ export async function installVersionAsync(
     let local: string | undefined;
     try {
       if (i === 1) {
+        // never unverified bytes (17-D-03)
         const hex = await releaseDigest(version, fetcher);
-        if (hex) local = await fetchTarball(version, hex, fetcher, signal);
+        if (!hex) {
+          last = new Error('digest-unavailable');
+          continue;
+        }
+        local = await fetchTarball(version, hex, fetcher, signal);
       }
       err = await run(local ? npmInstall(version, prefix, local).runs[1]! : args);
     } finally {

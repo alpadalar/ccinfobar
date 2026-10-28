@@ -207,6 +207,43 @@ describe('update job run', () => {
     expect(e).toMatchObject({ ok: true, value: { latest: '9.9.9', installed: '9.9.9' } });
   });
 
+  it('writes digest-unavailable and retries at the next check', async () => {
+    mocks.kind.mockReturnValue('npm-global');
+    mocks.execFile.mockImplementation((...a: unknown[]) => {
+      const cb = a[a.length - 1] as (e: Error) => void;
+      cb(new Error('npm down'));
+      return { stdin: { end() {} } };
+    });
+    const env = sandbox();
+    let n = 0;
+    const f = vi.fn(async () =>
+      ++n === 1
+        ? new Response(null, {
+            status: 302,
+            headers: { location: 'https://github.com/a/b/releases/tag/v9.9.9' },
+          })
+        : new Response('{}', { status: 403 }),
+    ) as unknown as typeof fetch;
+    const e = await updateJob.run({ key: 'update' }, ctx(env, cfg('auto'), f, 100));
+    expect(e.ok).toBe(false);
+    expect(e.error).toBe('digest-unavailable');
+    expect(toUpdateState(e).rejected).toBeUndefined();
+    expect(updateJob.due(e, 100 + 24 * HOUR, { key: 'update' })).toBe(true);
+    expect(mocks.execFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('installVersion never runs the tarball url', async () => {
+    const { installVersion } = await import('../../../src/data/self-update.js');
+    mocks.execFileSync.mockImplementation(() => {
+      throw new Error('npm down');
+    });
+    expect(() => installVersion('9.9.9')).toThrow();
+    expect(mocks.execFileSync).toHaveBeenCalledTimes(1);
+    const args = mocks.execFileSync.mock.calls[0]?.[1] as string[];
+    expect(args).toContain('ccinfobar@9.9.9');
+    expect(args.some((x) => x.includes('://'))).toBe(false);
+  });
+
   it('kills npm and tries no other source once the signal aborts', async () => {
     const { installVersionAsync } = await import('../../../src/data/self-update.js');
     const ac = new AbortController();
