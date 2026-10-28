@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { detectProvider } from '../data/provider.js';
 import { findUp, insideRepo } from '../data/repos.js';
 import { contextPercent, windowSize } from '../widgets/context.js';
@@ -67,7 +68,7 @@ const GETTERS: ReadonlyMap<string, Getter> = new Map<string, Getter>([
   ['time.hour', (ctx) => ctx.now.getHours()],
   ['time.weekday', (ctx) => DAYS[ctx.now.getDay()] ?? null],
   ['provider', (ctx) => detectProvider(ctx.env).kind],
-  ['git', (ctx) => insideRepo(ctx.cwd) !== null],
+  ['git', (ctx) => insideRepo(ctx.cwd, path, { env: ctx.env }) !== null],
   ['gsd', (ctx) => findUp(ctx.cwd, '.planning', 'dir') !== null],
   ['limit-risk', limitRisk],
   [

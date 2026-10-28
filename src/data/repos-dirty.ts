@@ -54,7 +54,7 @@ export async function checkRepos(
   config: Config,
   env: NodeJS.ProcessEnv,
 ): Promise<Record<string, boolean>> {
-  if (insideRepo(root)) return Object.create(null) as Record<string, boolean>;
+  if (insideRepo(root, path, { env })) return Object.create(null) as Record<string, boolean>;
   const repos = dirtyOrder(scanRepos(root, { exact: true }).repos, config);
   return computeDirty(root, repos, { harden: config.gitHardening !== false, env });
 }

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type { ReposDirtyValue } from '../core/job-values.js';
 import { deepSanitize, sanitizeText, tooDeep } from '../core/sanitize.js';
@@ -65,9 +66,66 @@ export function findUp(
   return null;
 }
 
+const isWin = (p: path.PlatformPath): boolean => p === path.win32 || process.platform === 'win32';
+
+export function isHome(d: string, home: string, p: path.PlatformPath = path): boolean {
+  const a = p.resolve(d);
+  const b = p.resolve(home);
+  return isWin(p) ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+function atOrAbove(d: string, stop: string, p: path.PlatformPath): boolean {
+  const norm = (x: string) => (isWin(p) ? p.resolve(x).toLowerCase() : p.resolve(x));
+  const a = norm(d);
+  const b = norm(stop);
+  return a === b || b.startsWith(a.endsWith(p.sep) ? a : a + p.sep);
+}
+
+// longest ceiling at or above start; the start dir itself is always checked
+export function ceilingStop(
+  start: string,
+  env: NodeJS.ProcessEnv | undefined,
+  p: path.PlatformPath = path,
+): string | null {
+  if (!env) return null;
+  const win = isWin(p);
+  let raw: string | undefined;
+  for (const k of Object.keys(env)) {
+    if ((win ? k.toUpperCase() : k) === 'GIT_CEILING_DIRECTORIES' && env[k] !== undefined) raw = env[k];
+  }
+  if (!raw) return null;
+  const norm = (x: string) => (win ? x.toLowerCase() : x);
+  const s = norm(p.resolve(start));
+  let best: string | null = null;
+  for (const c of raw.split(p.delimiter)) {
+    if (!c || !p.isAbsolute(c)) continue;
+    const r = p.resolve(c);
+    const n = norm(r);
+    const prefix = n.endsWith(p.sep) ? n : n + p.sep;
+    if (n !== s && !s.startsWith(prefix)) continue;
+    if (best === null || r.length > best.length) best = r;
+  }
+  return best;
+}
+
 // ignores GIT_DIR and GIT_WORK_TREE on purpose; follows a symlinked .git like readHead
-export function insideRepo(start: string, p: path.PlatformPath = path): string | null {
-  return findUp(start, '.git', 'any', p);
+export function insideRepo(
+  start: string,
+  p: path.PlatformPath = path,
+  opts: { env?: NodeJS.ProcessEnv; home?: string } = {},
+): string | null {
+  const win = isWin(p);
+  const e = opts.env;
+  const home = opts.home ?? (win ? (e?.USERPROFILE ?? e?.HOME) : e?.HOME) ?? os.homedir();
+  const stop = ceilingStop(start, opts.env, p);
+  for (const [i, d] of ancestors(start, p).entries()) {
+    if (stop !== null && i > 0 && atOrAbove(d, stop, p)) break;
+    if (isHome(d, home, p)) continue;
+    try {
+      if (fs.statSync(p.join(d, '.git'), { throwIfNoEntry: false })) return d;
+    } catch {}
+  }
+  return null;
 }
 
 // nonblocking open, so a FIFO never hangs the render
@@ -230,7 +288,7 @@ export function readRepos(
   opts: { persist?: boolean; now?: number } = {},
 ): WorkspaceRepos | null {
   try {
-    if (insideRepo(cwd)) return null;
+    if (insideRepo(cwd, path, { env })) return null;
   } catch {}
   const root = path.resolve(cwd);
   try {

@@ -173,6 +173,22 @@ describe.skipIf(tmpRepo || tmpGsd)('presence', () => {
     expect(git).not.toHaveBeenCalled();
   });
 
+  it('treats a folder under a home with .git as not a repo', () => {
+    const home = path.join(dir, 'home');
+    fs.mkdirSync(path.join(home, '.git'), { recursive: true });
+    const plain = path.join(home, 'projects', 'plain');
+    const real = path.join(home, 'projects', 'real');
+    fs.mkdirSync(plain, { recursive: true });
+    fs.mkdirSync(path.join(real, '.git'), { recursive: true });
+    const env = { HOME: home, USERPROFILE: home };
+    withoutSideEffects(() => {
+      expect(metricGetter({ ...withCwd(ctxWith({ git: vi.fn(() => null) }), plain), env })('git')).toBe(
+        false,
+      );
+      expect(metricGetter({ ...withCwd(ctxWith({ git: vi.fn(() => null) }), real), env })('git')).toBe(true);
+    });
+  });
+
   it('wants a .planning directory, not a file', () => {
     const a = path.join(dir, 'a');
     const b = path.join(dir, 'b');

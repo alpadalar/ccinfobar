@@ -8,8 +8,10 @@ import type { Config, WidgetItem } from '../../src/core/types.js';
 import { okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
 import {
   ancestors,
+  ceilingStop,
   gitdirOf,
   insideRepo,
+  isHome,
   legacyDirtyFile,
   parseHead,
   readDirty,
@@ -348,5 +350,82 @@ describe.skipIf(tmpRepo)('readRepos dirty merge', () => {
     fs.writeFileSync(legacyDirtyFile(w, env), JSON.stringify({ v: 1, at: 1, dirty: { api: true } }));
     expect(readRepos(w, env)?.dirty?.api).toBe(true);
     expect(readRepos(w, env)?.dirty?.api).toBe(true);
+  });
+});
+
+describe.skipIf(tmpRepo)('insideRepo home skip and ceilings', () => {
+  const mk = (...parts: string[]) => {
+    const d = path.join(dir, ...parts);
+    fs.mkdirSync(d, { recursive: true });
+    return d;
+  };
+
+  it('ignores a .git directly in home but finds a nested repo', () => {
+    const home = mk('home');
+    fs.mkdirSync(path.join(home, '.git'));
+    const plain = mk('home', 'projects', 'plain');
+    const real = mk('home', 'projects', 'real');
+    fs.mkdirSync(path.join(real, '.git'));
+    expect(insideRepo(plain, path, { home })).toBeNull();
+    expect(insideRepo(path.join(real, 'src'), path, { home })).toBe(real);
+    expect(insideRepo(home, path, { home })).toBeNull();
+  });
+
+  it('skips a .git file in home the same way', () => {
+    const home = mk('home');
+    fs.writeFileSync(path.join(home, '.git'), 'gitdir: /nowhere\n');
+    expect(insideRepo(mk('home', 'p'), path, { home })).toBeNull();
+  });
+
+  it('takes home from env HOME when no home option is given', () => {
+    const home = mk('home');
+    fs.mkdirSync(path.join(home, '.git'));
+    const plain = mk('home', 'p');
+    expect(insideRepo(plain, path, { env: { HOME: home, USERPROFILE: home } })).toBeNull();
+  });
+
+  it('stops at GIT_CEILING_DIRECTORIES but always checks the start dir', () => {
+    const home = mk('elsewhere');
+    const x = mk('home', 'x');
+    fs.mkdirSync(path.join(x, '.git'));
+    const z = mk('home', 'x', 'y', 'z');
+    const ceil = (v: string) => ({ GIT_CEILING_DIRECTORIES: v });
+    expect(insideRepo(z, path, { home })).toBe(x);
+    expect(insideRepo(z, path, { home, env: ceil(x) })).toBeNull();
+    expect(insideRepo(z, path, { home, env: ceil(path.join(x, 'y')) })).toBeNull();
+    expect(insideRepo(z, path, { home, env: ceil(z) })).toBeNull();
+    fs.mkdirSync(path.join(z, '.git'));
+    expect(insideRepo(z, path, { home, env: ceil(z) })).toBe(z);
+    fs.rmSync(path.join(z, '.git'), { recursive: true });
+    expect(insideRepo(z, path, { home, env: ceil(['', 'rel/x'].join(path.delimiter)) })).toBe(x);
+    expect(
+      insideRepo(z, path, { home, env: ceil(['rel', mk('home', 'q'), x].join(path.delimiter)) }),
+    ).toBeNull();
+  });
+
+  it('readRepos lists repos under a home that holds .git', () => {
+    const home = mk('home');
+    fs.mkdirSync(path.join(home, '.git'));
+    const projects = mk('home', 'projects');
+    repo(projects, 'real');
+    const r = readRepos(projects, { ...env, HOME: home, USERPROFILE: home });
+    expect(r?.repos.map((e) => e.name)).toEqual(['real']);
+  });
+});
+
+describe('win32 insideRepo helpers', () => {
+  const w = path.win32;
+  it('isHome compares case-insensitively', () => {
+    expect(isHome('c:\\users\\me', 'C:\\Users\\Me', w)).toBe(true);
+    expect(isHome('C:\\Users\\Me\\proj', 'C:\\Users\\Me', w)).toBe(false);
+  });
+
+  it('ceilingStop picks the longest ceiling at or above start, case-insensitive, split on ;', () => {
+    const env = { git_ceiling_directories: 'C:\\Users;c:\\users\\me;D:\\other;rel\\x' };
+    expect(ceilingStop('C:\\Users\\Me\\proj', env, w)).toBe('c:\\users\\me');
+    expect(ceilingStop('C:\\Users\\Me', env, w)).toBe('c:\\users\\me');
+    expect(ceilingStop('C:\\Users', env, w)).toBe('C:\\Users');
+    expect(ceilingStop('C:\\Users\\Me\\proj', {}, w)).toBeNull();
+    expect(ceilingStop('C:\\Users\\Mex\\p', { GIT_CEILING_DIRECTORIES: 'C:\\Users\\Me' }, w)).toBeNull();
   });
 });
