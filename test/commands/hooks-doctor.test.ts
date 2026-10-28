@@ -262,6 +262,12 @@ describe('progressWarnings', () => {
         layer('managed', { terminalProgressBarEnabled: true }),
       ]),
     ).toEqual([{ key: 'doctor.progress.ccBar', params: { file: '/x/managed.json' } }]);
+    expect(
+      run([
+        layer('managed', { terminalProgressBarEnabled: true }),
+        layer('managed', { terminalProgressBarEnabled: false }),
+      ]),
+    ).toEqual([]);
     expect(run([layer('user', { terminalProgressBarEnabled: 'false' })])).toEqual([
       { key: 'doctor.progress.ccBar', params: { file: '/x/user.json' } },
     ]);
@@ -335,6 +341,11 @@ describe('editorModeOf', () => {
     expect(editorModeOf(layers, { editorMode: 'x' })).toBe('vim');
     expect(editorModeOf(layers.slice(0, 3), null)).toBe('emacs');
     expect(editorModeOf(layers.slice(0, 2), null)).toBe('vim');
+  });
+  it('the last managed file wins', () => {
+    const layers = [L('managed', { editorMode: 'vim' }), L('managed', { editorMode: 'emacs' })];
+    expect(editorModeOf(layers, null)).toBe('emacs');
+    expect(editorModeOf([...layers, L('managed', {})], null)).toBe('emacs');
   });
   it('skips non-strings and falls back to claude json', () => {
     const layers = [L('user', { editorMode: 3 }), L('local', null)];

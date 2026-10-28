@@ -220,6 +220,7 @@ const SWEPT: string[] = [
 // left out on purpose, with the reason; SWEPT + NOT_SWEPT cover src/ outside src/core/i18n/
 const NOT_SWEPT: Record<string, string> = {
   'src/core/ids.ts': 'id predicates, no user-facing prose',
+  'src/core/settings-layers.ts': 'pure precedence helper, no user-facing prose',
   'src/data/jobs/command.ts': 'background command job, codes only',
   'src/cli/hook.ts': 'hook closure, must not import i18n (D-04)',
   'src/cli/hook-stream.ts': 'hook closure, reads stdin only',

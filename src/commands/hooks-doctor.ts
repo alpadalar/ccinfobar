@@ -1,17 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { managedSettingsFiles as coreManagedFiles, projectSettingsPath } from '../core/paths.js';
+import { priorityOrder, type SettingsLayer } from '../core/settings-layers.js';
 import type { ProgressConfig } from '../core/types.js';
 import { terminalAllowed } from '../data/progress.js';
 import { compareVersions } from '../data/update-state.js';
 import { HOOK_FLOOR } from './hooks-install.js';
 import { deepEqual, type HookEntry } from './manifest.js';
 
-export interface SettingsLayer {
-  name: 'user' | 'project' | 'local' | 'managed';
-  file: string;
-  data: Record<string, unknown> | null;
-}
+export type { SettingsLayer };
 
 export interface HookWarning {
   key:
@@ -76,14 +73,10 @@ export function hookGateWarnings(layers: SettingsLayer[]): HookWarning[] {
   return out;
 }
 
-const BAR_ORDER: readonly SettingsLayer['name'][] = ['managed', 'local', 'project', 'user'];
-
 // claude code's own bar; default on
 export function ccProgressBar(layers: SettingsLayer[]): { on: boolean; file: string | null } {
-  for (const name of BAR_ORDER) {
-    const l = layers.find((x) => x.name === name && typeof x.data?.terminalProgressBarEnabled === 'boolean');
-    if (l) return { on: l.data!.terminalProgressBarEnabled === true, file: l.file };
-  }
+  const l = priorityOrder(layers).find((x) => typeof x.data?.terminalProgressBarEnabled === 'boolean');
+  if (l) return { on: l.data!.terminalProgressBarEnabled === true, file: l.file };
   return { on: true, file: layers.find((l) => l.name === 'user')?.file ?? null };
 }
 
@@ -201,10 +194,8 @@ export function editorModeOf(
   layers: SettingsLayer[],
   claudeJson: Record<string, unknown> | null,
 ): string | null {
-  for (const name of BAR_ORDER) {
-    for (const l of layers) {
-      if (l.name === name && typeof l.data?.editorMode === 'string') return l.data.editorMode;
-    }
+  for (const l of priorityOrder(layers)) {
+    if (typeof l.data?.editorMode === 'string') return l.data.editorMode;
   }
   return typeof claudeJson?.editorMode === 'string' ? claudeJson.editorMode : null;
 }

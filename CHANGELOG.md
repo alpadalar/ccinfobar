@@ -50,6 +50,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The automatic update no longer falls back to installing the GitHub release tarball when GitHub publishes no checksum for it: nothing is installed, `ccinfobar doctor` says so and the update is retried at the next check; a rollback whose reinstall has no checksum is recorded as failed instead of installing unverified bytes (reason: never install unverified bytes). Manual `ccinfobar update` uses the same digest-checked fallback and never installs a tarball without a checksum.
 
 ### Fixed
+- `doctor`: with several managed settings files, the later file (`managed-settings.d/*.json` after `managed-settings.json`, alphabetical) now wins for the progress-bar and editor-mode checks, as in Claude Code
 - The web editor no longer shows the "editor stopped" banner after a single failed request; it waits a second, pings the server once and shows the banner only when that ping fails too (a transient failure shows a short toast instead)
 - The per-session hook log (`install --hooks`) is capped at 2 MiB: when it is full the current file becomes `<session>.old.jsonl` and a new one starts, so a long session no longer grows the cache without bound; turn and agent counts stay exact across the switch
 - `ccinfobar install` and `uninstall` on a `settings.json` with a comment or a trailing comma now say it must be strict JSON and name the line and column; nothing is written and no backup is made
