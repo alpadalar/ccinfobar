@@ -923,6 +923,63 @@ describe('GitHub-backed marketplace (D-07, D-09)', () => {
     expect(m.calls.at(-1)).toMatchObject({ method: 'POST', url: `${GH_ENDPOINT}/v1/entries` });
   });
 
+  it('a held version keeps its review state until approved, and a rejected one restores the live version', async () => {
+    const m = githubMarket({ trusted: true });
+    writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+    const e = save();
+    await send(null, { dir, env, fetch: m.fetch });
+    expect(readEntry(e.id, dir)!.entry.share.remote?.review).toBeUndefined();
+    m.entries.get('octo/mine')!.holdNext = ['example.com/x'];
+    save({ mode: 'update', content: preset('cost'), now: at(2) });
+    const out = await send(null, { dir, env, fetch: m.fetch });
+    expect(out.results[0]).toMatchObject({
+      ok: true,
+      version: 2,
+      pending: true,
+      reason: 'new-link',
+      links: ['example.com/x'],
+    });
+    const ref = readEntry(e.id, dir)!.entry.share.remote!;
+    expect(ref).toMatchObject({
+      review: 'pending',
+      version: 2,
+      reason: 'new-link',
+      links: ['example.com/x'],
+    });
+    // live at version 1 with a held 2: still waiting
+    expect(await refreshReview({ dir, env, fetch: m.fetch })).toMatchObject({
+      checked: 1,
+      cleared: 0,
+      rejected: 0,
+      waiting: 1,
+    });
+    expect(readEntry(e.id, dir)!.entry.share.remote?.review).toBe('pending');
+    // approved
+    const st = m.entries.get('octo/mine')!;
+    st.version = 2;
+    st.held = undefined;
+    expect(await refreshReview({ dir, env, fetch: m.fetch })).toMatchObject({ cleared: 1, waiting: 0 });
+    const after = readEntry(e.id, dir)!.entry.share.remote!;
+    expect(after.review).toBeUndefined();
+    expect('links' in after).toBe(false);
+  });
+
+  it('a rejected held version drops the review and returns to the live version', async () => {
+    const m = githubMarket({ trusted: true });
+    writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+    const e = save();
+    await send(null, { dir, env, fetch: m.fetch });
+    m.entries.get('octo/mine')!.holdNext = ['example.com/x'];
+    save({ mode: 'update', content: preset('cost'), now: at(2) });
+    await send(null, { dir, env, fetch: m.fetch });
+    m.entries.get('octo/mine')!.held = undefined;
+    expect(await refreshReview({ dir, env, fetch: m.fetch })).toMatchObject({ rejected: 1, cleared: 0 });
+    const s = readEntry(e.id, dir)!.entry.share;
+    expect(s.state).toBe('published');
+    expect(s.remote).toMatchObject({ version: 1 });
+    expect(s.remote?.review).toBeUndefined();
+  });
+
   it('refreshReview leaves a missing entry waiting when the account list is full', async () => {
     const m = githubMarket();
     writeCredential(GH_ENDPOINT, GH_TOKEN, dir);

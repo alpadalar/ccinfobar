@@ -32,6 +32,7 @@ import {
   markPublished,
   markWithdrawn,
   type RemoteRef,
+  restoreLive,
   setShare,
   shareView,
 } from './model.js';
@@ -75,6 +76,8 @@ export interface PublishResult {
   status?: number;
   // held for review by a marketplace admin
   pending?: true;
+  reason?: 'new-link';
+  links?: string[];
 }
 
 export interface PublishDeps {
@@ -407,6 +410,7 @@ export async function runPublish(
         hash: sent.hash,
         publishedAt: now().toISOString(),
         ...(sent.pending ? { review: 'pending' as const } : {}),
+        ...(sent.pending && sent.reason && sent.links ? { reason: sent.reason, links: sent.links } : {}),
       };
       const r = record(item.id, item.rev, ref ? published(ref) : withdrawn, dir, now());
       res = {
@@ -416,6 +420,7 @@ export async function runPublish(
         remoteId: sent?.id ?? item.remoteId,
         version: sent?.version ?? null,
         ...(sent?.pending ? { pending: true as const } : {}),
+        ...(sent?.pending && sent.reason && sent.links ? { reason: sent.reason, links: sent.links } : {}),
       };
     } catch (err) {
       let code = codeOf(err);
@@ -470,7 +475,7 @@ export async function refreshReview(deps: PublishDeps = {}): Promise<ReviewCheck
     return { code: codeOf(err), ...statusOf(err), ...none };
   }
   const key = endpointKey(endpoint);
-  const live = new Set(me.entries.filter((x) => x.state === 'live').map((x) => x.id));
+  const byId = new Map(me.entries.map((x) => [x.id, x]));
   const listed = new Set(me.entries.map((x) => x.id));
   // a full list may leave entries out, so a missing id proves nothing then
   const complete = me.entries.length < LIST_CAP;
@@ -482,13 +487,20 @@ export async function refreshReview(deps: PublishDeps = {}): Promise<ReviewCheck
     const r = e.share.remote;
     if (r?.review !== 'pending' || endpointKey(r.endpoint) !== key) continue;
     checked++;
-    if (live.has(r.id) && record(e.id, e.rev, clearReview, dir, now()).saved) cleared++;
+    const m = byId.get(r.id);
+    const isLive = m?.state === 'live';
+    if (isLive && m.held === undefined && m.version >= r.version) {
+      if (record(e.id, e.rev, clearReview, dir, now()).saved) cleared++;
+    } else if (isLive && m.held === undefined && complete) {
+      // held version gone: rejected, the older live version stays
+      if (record(e.id, e.rev, (x) => restoreLive(x, m.version), dir, now()).saved) rejected++;
+    }
     // no longer waiting and not live: an admin rejected it (WR-04)
     else if (complete && !listed.has(r.id)) {
       if (record(e.id, e.rev, (x) => markDropped(x, 'rejected'), dir, now()).saved) rejected++;
     }
   }
-  const waiting = me.entries.filter((x) => x.state === 'pending').length;
+  const waiting = me.entries.filter((x) => x.state === 'pending' || x.held !== undefined).length;
   return { code: null, me, checked, cleared, rejected, waiting };
 }
 

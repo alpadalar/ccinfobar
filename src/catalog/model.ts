@@ -54,6 +54,8 @@ export interface RemoteRef {
   publishedAt: string;
   // the marketplace holds it until an admin approves
   review?: 'pending';
+  reason?: 'new-link';
+  links?: string[];
 }
 
 // where an installed entry came from
@@ -281,6 +283,12 @@ export function clearReview(e: CatalogEntry): CatalogEntry {
   return r?.review ? withShare(e, { remote: withoutReview(r) }) : e;
 }
 
+// an admin rejected the held version: the older one stays live, its hash is not known here
+export function restoreLive(e: CatalogEntry, version: number): CatalogEntry {
+  const r = e.share.remote;
+  return r ? withShare(e, { remote: { ...withoutReview(r), version, hash: '' } }) : e;
+}
+
 export function markError(e: CatalogEntry, code: string): CatalogEntry {
   return withShare(e, { lastError: code });
 }
@@ -309,7 +317,9 @@ export function canon(v: unknown): string {
 }
 
 const withoutReview = <T extends object>(r: T): T =>
-  Object.fromEntries(Object.entries(r).filter(([k]) => k !== 'review')) as T;
+  Object.fromEntries(
+    Object.entries(r).filter(([k]) => k !== 'review' && k !== 'reason' && k !== 'links'),
+  ) as T;
 
 const merged = <T extends object>(r: unknown, n: T): T => (isObject(r) ? { ...own(r), ...n } : n);
 
@@ -364,6 +374,8 @@ function parseVersion(v: unknown): EntryVersion | null {
   return out;
 }
 
+const isStrList = (v: unknown): v is string[] => Array.isArray(v) && v.every(isStr);
+
 function parseRemote(v: unknown): RemoteRef | null {
   if (!isObject(v)) return null;
   const { endpoint, id, version, hash, publishedAt } = v;
@@ -376,6 +388,9 @@ function parseRemote(v: unknown): RemoteRef | null {
     hash,
     publishedAt,
     ...(v.review === 'pending' ? { review: v.review } : {}),
+    ...(v.review === 'pending' && v.reason === 'new-link' && isStrList(v.links)
+      ? { reason: v.reason, links: v.links.slice(0, 20).map((x) => x.slice(0, 200)) }
+      : {}),
   };
 }
 

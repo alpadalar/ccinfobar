@@ -595,6 +595,32 @@ describe('market client accounts, admin and conditional reads', () => {
     expect((await c.overwrite('alp/mini', 2, { content: preset(), note: '' })).pending).toBe(true);
   });
 
+  it('a 202 held answer keeps reason and links, validated', async () => {
+    const { c } = client(
+      [
+        json({ version: 2, hash: H, pending: true, reason: 'new-link', links: ['example.com/x'] }, 202),
+        json({ version: 2, hash: H, pending: true, reason: 'other', links: ['a'] }, 202),
+        json({ version: 2, hash: H, pending: true, reason: 'new-link', links: [1] }, 202),
+        json({ version: 2, hash: H, pending: true, reason: 'new-link', links: ['x'.repeat(201)] }, 202),
+        json({ version: 2, hash: H, pending: true, reason: 'new-link', links: Array(21).fill('a') }, 202),
+      ],
+      { token: 'tok-1' },
+    );
+    const p = { content: preset(), note: '' };
+    expect(await c.addVersion('alp/mini', 1, p)).toEqual({
+      version: 2,
+      hash: H,
+      pending: true,
+      reason: 'new-link',
+      links: ['example.com/x'],
+    });
+    for (let i = 0; i < 4; i++) {
+      const w = await c.addVersion('alp/mini', 1, p);
+      expect(Object.hasOwn(w, 'reason')).toBe(false);
+      expect(Object.hasOwn(w, 'links')).toBe(false);
+    }
+  });
+
   it('indexIfChanged sends one conditional request and stops on 304', async () => {
     const { c, calls } = client([new Response(null, { status: 304, headers: { etag: '"g4"' } })]);
     expect(await c.indexIfChanged('"g4"')).toEqual({ changed: false });

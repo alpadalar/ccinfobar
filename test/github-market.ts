@@ -15,6 +15,9 @@ interface Stored {
   id: string;
   version: number;
   state: 'pending' | 'live';
+  held?: number;
+  // links the next version adds: it is held instead of live
+  holdNext?: string[];
 }
 
 // a GitHub-backed marketplace: no registration, the first entries wait for review
@@ -61,7 +64,12 @@ export function githubMarket(opts: { trusted?: boolean; auth?: string[]; handle?
         login: 'octo',
         admin: state.admin,
         trusted: state.trusted,
-        entries: [...entries.values()].map(({ id, state: s, version }) => ({ id, state: s, version })),
+        entries: [...entries.values()].map(({ id, state: s, version, held }) => ({
+          id,
+          state: s,
+          version,
+          ...(held ? { held } : {}),
+        })),
       });
     if (p === '/v1/entries' && method === 'POST') {
       const b = JSON.parse(body);
@@ -73,8 +81,25 @@ export function githubMarket(opts: { trusted?: boolean; auth?: string[]; handle?
     if (m && method === 'POST') {
       const e = entries.get(m[1]!);
       if (!e) return json({ error: { code: 'not-found', message: 'no entry' } }, 404);
+      const content = JSON.parse(body).content;
+      if (e.state === 'live' && e.holdNext) {
+        e.held = e.version + 1;
+        const links = e.holdNext;
+        e.holdNext = undefined;
+        return json(
+          {
+            id: e.id,
+            version: e.held,
+            hash: contentHash(content as never),
+            pending: true,
+            reason: 'new-link',
+            links,
+          },
+          202,
+        );
+      }
       e.version++;
-      return written(e, JSON.parse(body).content);
+      return written(e, content);
     }
     const w = /^\/v1\/entries\/([^/]+\/[^/]+)$/.exec(p);
     if (w && method === 'DELETE') {

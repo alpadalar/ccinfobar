@@ -185,6 +185,13 @@ export interface Written {
   version: number;
   hash: string;
   pending?: true;
+  reason?: 'new-link';
+  links?: string[];
+}
+
+function heldLinks(v: unknown): string[] | null {
+  if (!Array.isArray(v) || v.length > 20) return null;
+  return v.every((x) => typeof x === 'string' && x.length <= 200) ? (v as string[]) : null;
 }
 
 function written(body: unknown): Written {
@@ -192,7 +199,13 @@ function written(body: unknown): Written {
   if (!isVersionNo(b.version) || typeof b.hash !== 'string' || !HASH_RE.test(b.hash)) {
     throw new MarketError('bad-json');
   }
-  return { version: b.version, hash: b.hash, ...(b.pending === true ? { pending: true as const } : {}) };
+  const links = b.pending === true && b.reason === 'new-link' ? heldLinks(b.links) : null;
+  return {
+    version: b.version,
+    hash: b.hash,
+    ...(b.pending === true ? { pending: true as const } : {}),
+    ...(links ? { reason: 'new-link' as const, links } : {}),
+  };
 }
 
 const etagOf = (h: Headers): string | null => {
