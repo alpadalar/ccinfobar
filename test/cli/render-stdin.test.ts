@@ -28,9 +28,29 @@ describe('readStdin', () => {
     expect(await p).toBeNull();
     expect(s.listenerCount('data')).toBe(0);
     expect(s.listenerCount('end')).toBe(0);
-    expect(s.listenerCount('error')).toBe(0);
+    expect(s.listenerCount('error')).toBe(1);
     expect(s.isPaused()).toBe(true);
     expect(s.unref).toHaveBeenCalledTimes(1);
+  });
+
+  it('swallows a late error after the cap', async () => {
+    const s = stream();
+    const p = readStdin(3000, 1024, s);
+    for (let i = 0; i < 8; i++) s.write(Buffer.alloc(256, 'a'));
+    expect(await p).toBeNull();
+    expect(() => s.emit('error', new Error('late'))).not.toThrow();
+    expect(s.listenerCount('error')).toBe(1);
+  });
+
+  it('swallows a late error after the timeout', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const s = stream();
+    const p = readStdin(3000, 1024, s);
+    s.write('par');
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(await p).toBe('par');
+    expect(() => s.emit('error', new Error('late'))).not.toThrow();
+    expect(s.listenerCount('error')).toBe(1);
   });
 
   it('returns the text at end', async () => {

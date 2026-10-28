@@ -49,6 +49,7 @@ export function readStdin(
     const chunks: Buffer[] = [];
     let size = 0;
     let done = false;
+    const noop = (): void => {};
     const finish = (text: string | null): void => {
       if (done) return;
       done = true;
@@ -56,6 +57,8 @@ export function readStdin(
       stream.off('data', onData);
       stream.off('end', onEnd);
       stream.off('error', onEnd);
+      // a late stdin error must not throw
+      stream.on('error', noop);
       stream.pause();
       stream.unref?.();
       resolve(text);
