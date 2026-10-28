@@ -134,6 +134,7 @@ export async function manualUpdate(
     out = await installChecked(latest, current, prefix, process.env, {
       install: d.install,
       verify: d.verify,
+      recordRejected: (r) => d.writeState({ checkedAt: Date.now(), ...r }),
     });
   } catch (err) {
     d.error(t('cmd.update.npmFailed', { message: (err as Error).message }));

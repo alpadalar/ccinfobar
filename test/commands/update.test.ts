@@ -355,21 +355,24 @@ describe('manual update verification', () => {
     const out: string[] = [];
     state.length = 0;
     const installs: string[] = [];
+    const order: string[] = [];
     const code = await manualUpdate('0.8.2', false, {
       fetchLatest: async () => '0.9.0',
       installKind: () => 'npm-global',
       install: async (v) => {
         installs.push(v);
+        if (v === '0.8.2') order.push('reinstall');
         if (opts.reinstallFails && v === '0.8.2') throw new Error('EACCES');
       },
       verify: verifyFn,
       writeState: ((s: Record<string, unknown>) => {
         state.push(s);
+        order.push(`state:${s.rollback ?? 'none'}`);
       }) as never,
       log: (l) => out.push(l),
       error: (l) => out.push(`E ${l}`),
     });
-    return { code, out, installs };
+    return { code, out, installs, order };
   }
   const bad = async (v: string) => (v === '0.9.0' ? 'render-failed:1' : null);
 
@@ -378,6 +381,13 @@ describe('manual update verification', () => {
     expect(r.code).toBe(0);
     expect(r.out.at(-1)).toBe('✓ Updated to 0.9.0');
     expect(state.at(-1)).toMatchObject({ latest: '0.9.0', installed: '0.9.0' });
+  });
+
+  it('records the rejection before the rollback reinstall starts', async () => {
+    const r = await verified(bad);
+    expect(r.order.indexOf('state:failed')).toBeGreaterThanOrEqual(0);
+    expect(r.order.indexOf('state:failed')).toBeLessThan(r.order.indexOf('reinstall'));
+    expect(state.at(-1)).toMatchObject({ rejected: '0.9.0', rollback: 'ok' });
   });
 
   it('rolls back a failed check, prints it in en and tr, exits 1 and records the rejection', async () => {
