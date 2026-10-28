@@ -171,6 +171,10 @@ function readText(file: string): string | null {
   }
 }
 
+export function readLimitsStoreText(env: NodeJS.ProcessEnv = process.env): string | null {
+  return readText(limitsFile(env));
+}
+
 export function readLimitsStore(env: NodeJS.ProcessEnv = process.env): LimitsStore | null {
   try {
     return parseLimitsStore(readText(limitsFile(env)));
@@ -385,9 +389,15 @@ export function captureTime(payload: StatusPayload, transcript?: () => Transcrip
 }
 
 // no lock: a writer that got in first is re-read and merged into
-function writeStore(env: NodeJS.ProcessEnv, seen: Seen[], now: number, clear: boolean): void {
+function writeStore(
+  env: NodeJS.ProcessEnv,
+  seen: Seen[],
+  now: number,
+  clear: boolean,
+  first?: string | null,
+): void {
   const file = limitsFile(env);
-  let text = readText(file);
+  let text = first !== undefined ? first : readText(file);
   for (let i = 0; i < 3; i++) {
     let store: LimitsStore | null = clear ? { v: 1, windows: Object.create(null) } : parseLimitsStore(text);
     for (const o of seen) store = mergeObservation(store, o.key, o.obs, now);
@@ -408,10 +418,11 @@ export function recordLimits(
   payload: StatusPayload,
   captureAt: number | null,
   now: number,
+  text?: string | null,
 ): void {
   try {
     if (!hasWindows(payload) || !detectProvider(env).planLimits) return;
-    writeStore(env, observations(payload.rate_limits, captureAt, 'payload'), now, false);
+    writeStore(env, observations(payload.rate_limits, captureAt, 'payload'), now, false, text);
   } catch {}
 }
 

@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import { scheduleJobs } from '../../src/data/jobs/index.js';
 import { envelopeFile, lockFile } from '../../src/data/jobs/runner.js';
-import { limitsOn, readLimitsStore, recordLimits, resolveLimits } from '../../src/data/limits.js';
+import { limitsFile, limitsOn, readLimitsStore, recordLimits, resolveLimits } from '../../src/data/limits.js';
 import {
   effectiveUsage,
   fetchUsage,
@@ -308,6 +308,8 @@ describe('usage api', () => {
 });
 
 describe('effectiveUsage', () => {
+  afterEach(() => vi.restoreAllMocks());
+
   const both = {
     rate_limits: {
       five_hour: { used_percentage: 1, resets_at: null },
@@ -336,7 +338,34 @@ describe('effectiveUsage', () => {
       limitsOn: false,
       limits: null,
       captureAt: null,
+      storeText: null,
     });
+  });
+
+  it('reads the limits store text once and returns it', () => {
+    const env = { CCINFOBAR_CACHE_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-eff-')) };
+    try {
+      const now = Date.now();
+      const p = {
+        rate_limits: { five_hour: { used_percentage: 30, resets_at: Math.floor(now / 1000) + 3600 } },
+      };
+      recordLimits(env, p, now - 1000, now);
+      const file = limitsFile(env);
+      const text = fs.readFileSync(file, 'utf8');
+      const read = vi.spyOn(fs, 'readFileSync');
+      const r = effectiveUsage(defaultConfig(), p, env, { now });
+      expect(r.storeText).toBe(text);
+      expect(read.mock.calls.filter(([f]) => f === file)).toHaveLength(1);
+    } finally {
+      fs.rmSync(env.CCINFOBAR_CACHE_DIR, { recursive: true, force: true });
+    }
+  });
+
+  it('reads no store when limits are off', () => {
+    const read = vi.spyOn(fs, 'readFileSync');
+    const r = effectiveUsage(defaultConfig(), {}, { ANTHROPIC_API_KEY: 'x' });
+    expect(r.storeText).toBeNull();
+    expect(read).not.toHaveBeenCalled();
   });
 
   it('gates the limits store on a limits widget and plan limits only', () => {

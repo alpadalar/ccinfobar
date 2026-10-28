@@ -12,7 +12,8 @@ import {
   captureTime,
   type LimitsView,
   limitsOn,
-  readLimitsStore,
+  parseLimitsStore,
+  readLimitsStoreText,
   recordUsageApi,
   resolveLimits,
 } from './limits.js';
@@ -160,6 +161,7 @@ export interface EffectiveUsage {
   limitsOn: boolean;
   limits: LimitsView | null;
   captureAt: number | null;
+  storeText: string | null;
 }
 
 // render, explain and doctor share this rule
@@ -170,13 +172,22 @@ export function effectiveUsage(
   opts: { transcript?: () => TranscriptInfo | null; now?: number } = {},
 ): EffectiveUsage {
   if (!limitsOn(config, env)) {
-    return { usageOn: false, usage: null, payload, limitsOn: false, limits: null, captureAt: null };
+    return {
+      usageOn: false,
+      usage: null,
+      payload,
+      limitsOn: false,
+      limits: null,
+      captureAt: null,
+      storeText: null,
+    };
   }
   const usageOn = !usageApiDisabled(config, env) && needsUsage(config, payload, env);
   const usage = usageOn ? readUsageCache(env) : null;
   const captureAt = captureTime(payload, opts.transcript);
-  const r = resolveLimits(payload, readLimitsStore(env), usage, opts.now ?? Date.now(), captureAt);
-  return { usageOn, usage, payload: r.payload, limitsOn: true, limits: r.view, captureAt };
+  const storeText = readLimitsStoreText(env);
+  const r = resolveLimits(payload, parseLimitsStore(storeText), usage, opts.now ?? Date.now(), captureAt);
+  return { usageOn, usage, payload: r.payload, limitsOn: true, limits: r.view, captureAt, storeText };
 }
 
 type Bucket = { utilization?: number | null; resets_at?: string | null } | null | undefined;

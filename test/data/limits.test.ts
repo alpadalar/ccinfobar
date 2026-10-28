@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   accountKey,
   accountKeyFor,
@@ -376,7 +376,10 @@ describe('limits file', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-lim-'));
     env = { CCINFOBAR_CACHE_DIR: path.join(dir, 'cache'), CLAUDE_CONFIG_DIR: path.join(dir, 'a') };
   });
-  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
 
   const p = { rate_limits: { five_hour: { used_percentage: 70, resets_at: sec(Date.now() + 2 * H) } } };
 
@@ -405,6 +408,43 @@ describe('limits file', () => {
     const w = readLimitsStore(env)?.windows;
     expect(w?.five_hour?.pct).toBe(70);
     expect(w?.seven_day?.pct).toBe(20);
+  });
+
+  it('takes the store text it was given: 0 reads and 0 writes when unchanged', () => {
+    const now = Date.now();
+    recordLimits(env, p, now - MIN, now);
+    const file = limitsFile(env);
+    const text = fs.readFileSync(file, 'utf8');
+    const read = vi.spyOn(fs, 'readFileSync');
+    const write = vi.spyOn(fs, 'writeFileSync');
+    recordLimits(env, p, now - MIN, now, text);
+    expect(read.mock.calls.filter(([f]) => f === file)).toHaveLength(0);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('re-reads once before the write when the store changed', () => {
+    const now = Date.now();
+    recordLimits(env, p, now - MIN, now);
+    const file = limitsFile(env);
+    const text = fs.readFileSync(file, 'utf8');
+    const read = vi.spyOn(fs, 'readFileSync');
+    const write = vi.spyOn(fs, 'writeFileSync');
+    const more = {
+      rate_limits: { five_hour: { used_percentage: 90, resets_at: p.rate_limits.five_hour.resets_at } },
+    };
+    recordLimits(env, more, now, now, text);
+    expect(read.mock.calls.filter(([f]) => f === file)).toHaveLength(1);
+    expect(write.mock.calls.filter(([f]) => String(f).startsWith(file))).toHaveLength(1);
+    expect(readLimitsStore(env)?.windows.five_hour?.pct).toBe(90);
+  });
+
+  it('still reads the store itself without a text', () => {
+    const now = Date.now();
+    recordLimits(env, p, now - MIN, now);
+    const file = limitsFile(env);
+    const read = vi.spyOn(fs, 'readFileSync');
+    recordLimits(env, p, now - MIN, now);
+    expect(read.mock.calls.filter(([f]) => f === file)).toHaveLength(1);
   });
 
   it('writes only when the merged result changes', () => {

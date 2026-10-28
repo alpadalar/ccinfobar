@@ -76,9 +76,30 @@ export function readStdin(
   });
 }
 
-export function savePayload(payload: StatusPayload): void {
+let lastSaved: string | null = null;
+
+export function resetSavePayloadMemo(): void {
+  lastSaved = null;
+}
+
+export function savePayload(
+  payload: StatusPayload,
+  deps: {
+    now?: () => number;
+    stat?: (file: string) => { mtimeMs: number } | undefined;
+    write?: (file: string, text: string) => void;
+  } = {},
+): void {
   try {
-    writeAtomic(lastPayloadPath(), JSON.stringify(payload), { mode: 0o600 });
+    const text = JSON.stringify(payload);
+    if (text === lastSaved) return;
+    const file = lastPayloadPath();
+    const st = (deps.stat ?? ((f) => fs.statSync(f, { throwIfNoEntry: false })))(file);
+    // a future mtime from a clock change never blocks
+    const age = (deps.now ?? Date.now)() - (st?.mtimeMs ?? 0);
+    if (st && age >= 0 && age < 5000) return;
+    (deps.write ?? ((f, t) => void writeAtomic(f, t, { mode: 0o600 })))(file, text);
+    lastSaved = text;
   } catch {}
 }
 
@@ -191,7 +212,7 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
   // NBSP in every mode: Claude Code trims and collapses plain spaces (WR-05)
   process.stdout.write(lines.map((l) => finalizeLine(l)).join('\n') + (lines.length ? '\n' : ''));
   try {
-    if (eff.limitsOn) recordLimits(process.env, payload, eff.captureAt, Date.now());
+    if (eff.limitsOn) recordLimits(process.env, payload, eff.captureAt, Date.now(), eff.storeText);
     if (ledgerUsed) {
       const read = ledger();
       if (read) recordLedger(process.env, payload, read, Date.now());
