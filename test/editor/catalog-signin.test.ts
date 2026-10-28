@@ -4,6 +4,7 @@ import { defaultConfig } from '../../src/core/config.js';
 import { setLanguage } from '../../src/core/i18n/index.js';
 import { STYLES } from '../../src/core/themes/style.js';
 import { listThemes } from '../../src/core/themes.js';
+import { GONE_RETRY_MS } from '../../src/editor/web/api.js';
 import type { CatalogEntryInfo, CatalogState, PublishPlanInfo } from '../../src/editor/web/store.js';
 import { CATEGORIES } from '../../src/widgets/index.js';
 import { FakeEl, texts } from '../i18n/fake-dom.js';
@@ -341,10 +342,15 @@ describe('sign-in dialog', () => {
     reply(`GET /api/catalog/login/${FLOW}`, 'network', 'network', 'network');
     await signIn();
     const t0 = Date.now();
-    await tick(5000);
+    await tick(5000 + GONE_RETRY_MS);
     expect(statusLine().textContent).toBe('The editor server did not answer; trying again…');
     await tick(HOUR);
-    expect(statusCalls().map((c) => c.at - t0)).toEqual([5000, 15000, 35000]);
+    // each failed poll waits one confirm ping before the retry is scheduled
+    expect(statusCalls().map((c) => c.at - t0)).toEqual([
+      5000,
+      15000 + GONE_RETRY_MS,
+      35000 + 2 * GONE_RETRY_MS,
+    ]);
     expect(statusLine().textContent).toBe('Signing in with GitHub failed. Try again later.');
     expect(statusLine().getAttribute('role')).toBe('alert');
     expect(cancels()).toHaveLength(1);
@@ -362,7 +368,7 @@ describe('sign-in dialog', () => {
   it('a good answer resets the error count', async () => {
     reply(`GET /api/catalog/login/${FLOW}`, 'network', 'network', pending, 'network', 'network', pending);
     await signIn();
-    await tick(5000 + 10000 + 20000 + 5000 + 10000 + 20000);
+    await tick(5000 + 10000 + 20000 + 5000 + 10000 + 20000 + 4 * GONE_RETRY_MS);
     expect(statusCalls()).toHaveLength(6);
     expect(statusLine().textContent).toBe('Waiting for you to enter the code on GitHub…');
   });
