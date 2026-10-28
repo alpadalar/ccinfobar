@@ -1,5 +1,6 @@
 // all SQL of the Worker; bound parameters only
 import {
+  type HeldInfo,
   INDEX_PAGE,
   indexFile,
   MAX_INDEX,
@@ -210,6 +211,7 @@ export async function readVersionDoc(
          v.body AS body, json_extract(v.body, '$.hash') AS hash
        FROM entries e LEFT JOIN publishers p ON p.handle = e.publisher
          LEFT JOIN versions v ON v.publisher = e.publisher AND v.slug = e.slug AND v.version = ?3
+           AND v.version <= e.version
        WHERE e.publisher = ?1 AND e.slug = ?2`,
     )
     .bind(p, s, n)
@@ -245,19 +247,52 @@ export async function tokenPublisher(
   };
 }
 
+// a trusted publisher's next version waiting for link review (17-D-02)
+export interface Held {
+  version: number;
+  hash: string;
+  at: string;
+  reason: 'new-link';
+  links: string[];
+  summary: string;
+  doc: string;
+}
+
+const heldOf = (v: unknown): Held | null => {
+  if (typeof v !== 'string') return null;
+  try {
+    const h = JSON.parse(v) as Record<string, unknown>;
+    if (h === null || typeof h !== 'object') return null;
+    const { version, hash, at, reason, links, summary, doc } = h;
+    if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 1) return null;
+    if (typeof hash !== 'string' || typeof at !== 'string' || reason !== 'new-link') return null;
+    if (!Array.isArray(links) || !links.every((l) => typeof l === 'string')) return null;
+    if (typeof summary !== 'string' || typeof doc !== 'string') return null;
+    return { version, hash, at, reason, links: links as string[], summary, doc };
+  } catch {
+    return null;
+  }
+};
+
 export interface EntryRow {
   state: EntryState;
   version: number;
   entry: StoredEntry;
+  held: Held | null;
 }
 
 export async function readEntryRow(db: D1Database, p: string, s: string): Promise<EntryRow | null> {
   const row = await db
-    .prepare('SELECT state, version, doc FROM entries WHERE publisher = ?1 AND slug = ?2')
+    .prepare('SELECT state, version, doc, held FROM entries WHERE publisher = ?1 AND slug = ?2')
     .bind(p, s)
-    .first<{ state: EntryState; version: number; doc: string }>();
+    .first<{ state: EntryState; version: number; doc: string; held: string | null }>();
   if (!row) return null;
-  return { state: row.state, version: Number(row.version), entry: JSON.parse(row.doc) as StoredEntry };
+  return {
+    state: row.state,
+    version: Number(row.version),
+    entry: JSON.parse(row.doc) as StoredEntry,
+    held: heldOf(row.held),
+  };
 }
 
 const LIVE = "state IN ('live', 'pending')";
@@ -431,6 +466,33 @@ export function versionStatements(db: D1Database, n: NextVersion): D1PreparedSta
   ];
 }
 
+export interface NewHeld {
+  entry: StoredEntry;
+  expected: number;
+  expectedHash: string;
+  body: string;
+  room: Room;
+  held: Held;
+}
+
+// the public entry and the index stay as they are; only the versions row and the held column are written
+export function heldStatements(db: D1Database, n: NewHeld): D1PreparedStatement[] {
+  const [p, s] = idOf(n.entry);
+  return [
+    db
+      .prepare('INSERT INTO versions (publisher, slug, version, body) VALUES (?1, ?2, ?3, ?4)')
+      .bind(p, s, n.entry.version, n.body),
+    db
+      .prepare(
+        `UPDATE entries SET held = ?3
+         WHERE publisher = ?1 AND slug = ?2 AND version = ?4 AND hash = ?5 AND state = 'live' AND held IS NULL`,
+      )
+      .bind(p, s, JSON.stringify(n.held), n.expected, n.expectedHash),
+    db.prepare(GUARD),
+    requireRoom(db, p, s, n.room),
+  ];
+}
+
 export interface Overwrite {
   entry: StoredEntry;
   expectedHash: string;
@@ -469,6 +531,10 @@ export function overwriteStatements(db: D1Database, n: Overwrite): D1PreparedSta
   ];
 }
 
+const NEWER_OF =
+  'version > (SELECT e.version FROM entries e WHERE e.publisher = versions.publisher AND e.slug = versions.slug)';
+const NEWER = 'version > (SELECT version FROM entries WHERE publisher = ?1 AND slug = ?2)';
+
 // tombstone, freed bytes and NULL bodies commit together
 export function withdrawStatements(
   db: D1Database,
@@ -480,11 +546,13 @@ export function withdrawStatements(
   return [
     db
       .prepare(
-        `UPDATE entries SET state = ?7, updated_at = ?3, summary = ?4, doc = ?5, gen = ${NEXT_GEN}, cols = NULL
+        `UPDATE entries SET state = ?7, updated_at = ?3, summary = ?4, doc = ?5, gen = ${NEXT_GEN}, cols = NULL,
+           held = NULL
          WHERE publisher = ?1 AND slug = ?2 AND version = ?6 AND ${LIVE}`,
       )
       .bind(p, s, tomb.updatedAt, entrySummaryText(tomb), entryDocText(tomb), expected, state),
     db.prepare(GUARD),
+    db.prepare(`DELETE FROM versions WHERE publisher = ?1 AND slug = ?2 AND ${NEWER}`).bind(p, s),
     db.prepare('UPDATE versions SET body = NULL WHERE publisher = ?1 AND slug = ?2').bind(p, s),
     bumpGen(db),
     markTakedown(db),
@@ -678,14 +746,22 @@ export async function deleteToken(db: D1Database, digest: string): Promise<boole
 export async function myEntries(db: D1Database, handle: string, cap: number): Promise<MeEntry[]> {
   const rows = await db
     .prepare(
-      `SELECT slug, state, version, cols FROM entries INDEXED BY entries_by_state
+      `SELECT slug, state, version, cols, json_extract(held, '$.version') AS held
+       FROM entries INDEXED BY entries_by_state
        WHERE publisher = ?1 AND ${LIVE} ORDER BY slug LIMIT ?2`,
     )
     .bind(handle, cap)
-    .all<{ slug: string; state: 'pending' | 'live'; version: number; cols: number | null }>();
+    .all<{
+      slug: string;
+      state: 'pending' | 'live';
+      version: number;
+      cols: number | null;
+      held: number | null;
+    }>();
   return rows.results.map((r) => {
     const e: MeEntry = { id: `${handle}/${r.slug}`, state: r.state, version: Number(r.version) };
     if (typeof r.cols === 'number') e.cols = r.cols;
+    if (r.state === 'live' && typeof r.held === 'number') e.held = r.held;
     return e;
   });
 }
@@ -708,15 +784,34 @@ export const logStatement = (db: D1Database, l: LogRow): D1PreparedStatement =>
     )
     .bind(l.at, l.admin, l.action, l.target, l.note, l.actor ?? 'admin');
 
-const PENDING_LIST = `SELECT summary, created_at FROM entries WHERE state = 'pending'
+const PENDING_LIST = `SELECT publisher, slug, summary, created_at FROM entries WHERE state = 'pending'
   ORDER BY created_at, publisher, slug LIMIT ?1`;
+// live entries with a held version, through the partial index (0010)
+const HELD_LIST = `SELECT publisher, slug, summary, created_at, held FROM entries INDEXED BY entries_held
+  WHERE held IS NOT NULL ORDER BY created_at, publisher, slug LIMIT ?1`;
 
 export async function pendingEntries(
   db: D1Database,
   cap: number,
-): Promise<{ summary: string; at: string }[]> {
-  const rows = await db.prepare(PENDING_LIST).bind(cap).all<{ summary: string; created_at: string }>();
-  return rows.results.map((r) => ({ summary: String(r.summary), at: String(r.created_at) }));
+): Promise<{ summary: string; at: string; held?: HeldInfo }[]> {
+  type Row = { publisher: string; slug: string; summary: string; created_at: string; held?: string };
+  const [pending, held] = await Promise.all([
+    db.prepare(PENDING_LIST).bind(cap).all<Row>(),
+    db.prepare(HELD_LIST).bind(cap).all<Row>(),
+  ]);
+  const key = (r: Row) => `${r.created_at}\u0000${r.publisher}\u0000${r.slug}`;
+  return [...pending.results, ...held.results]
+    .sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0))
+    .slice(0, cap)
+    .map((r) => {
+      const out: { summary: string; at: string; held?: HeldInfo } = {
+        summary: String(r.summary),
+        at: String(r.created_at),
+      };
+      const h = heldOf(r.held);
+      if (h) out.held = { version: h.version, reason: h.reason, links: h.links };
+      return out;
+    });
 }
 
 export interface ReviewRow {
@@ -725,6 +820,8 @@ export interface ReviewRow {
   body: string | null;
   // the entry revision the admin reviewed
   tag: string;
+  // the version number under review when it is a held one
+  held?: number;
 }
 
 export const reviewTag = (hash: string, gen: number): string => `"${hash}-${gen}"`;
@@ -732,19 +829,34 @@ export const reviewTag = (hash: string, gen: number): string => `"${hash}-${gen}
 export async function reviewRow(db: D1Database, p: string, s: string): Promise<ReviewRow | null> {
   const row = await db
     .prepare(
-      `SELECT e.state AS state, e.doc AS doc, e.hash AS hash, e.gen AS gen, v.body AS body FROM entries e
+      `SELECT e.state AS state, e.doc AS doc, e.hash AS hash, e.gen AS gen, e.held AS held, v.body AS body,
+         hv.body AS held_body
+       FROM entries e
        LEFT JOIN versions v ON v.publisher = e.publisher AND v.slug = e.slug AND v.version = e.version
+       LEFT JOIN versions hv ON hv.publisher = e.publisher AND hv.slug = e.slug
+         AND hv.version = json_extract(e.held, '$.version')
        WHERE e.publisher = ?1 AND e.slug = ?2`,
     )
     .bind(p, s)
-    .first<{ state: EntryState; doc: string; hash: string; gen: number; body: string | null }>();
+    .first<{
+      state: EntryState;
+      doc: string;
+      hash: string;
+      gen: number;
+      held: string | null;
+      body: string | null;
+      held_body: string | null;
+    }>();
   if (!row) return null;
-  return {
+  const held = heldOf(row.held);
+  const out: ReviewRow = {
     state: row.state,
     doc: String(row.doc),
-    body: row.body ?? null,
-    tag: reviewTag(String(row.hash), Number(row.gen)),
+    body: (held ? row.held_body : row.body) ?? null,
+    tag: reviewTag(held ? held.hash : String(row.hash), Number(row.gen)),
   };
+  if (held) out.held = held.version;
+  return out;
 }
 
 const OLDER = 'version < (SELECT version FROM entries WHERE publisher = ?1 AND slug = ?2)';
@@ -774,6 +886,63 @@ export function approveStatements(
     logStatement(db, log),
     bumpGen(db),
     markDirty(db),
+  ];
+}
+
+// the held version becomes the entry; older bodies stay, a live entry keeps its history
+export function approveHeldStatements(
+  db: D1Database,
+  gate: D1PreparedStatement,
+  p: string,
+  s: string,
+  pin: { hash: string; gen: number },
+  held: Held,
+  log: LogRow,
+): D1PreparedStatement[] {
+  let cols: number | null = null;
+  try {
+    const c = (JSON.parse(held.doc) as { cols?: unknown }).cols;
+    if (typeof c === 'number') cols = c;
+  } catch {}
+  return [
+    gate,
+    db
+      .prepare(
+        `UPDATE entries SET version = ?3, hash = ?4, updated_at = ?5, summary = ?6, doc = ?7, held = NULL,
+           gen = ${NEXT_GEN}, cols = ?10
+         WHERE publisher = ?1 AND slug = ?2 AND state = 'live' AND held IS NOT NULL
+           AND json_extract(held, '$.hash') = ?8 AND gen = ?9`,
+      )
+      .bind(p, s, held.version, held.hash, held.at, held.summary, held.doc, pin.hash, pin.gen, cols),
+    db.prepare(GUARD),
+    logStatement(db, log),
+    bumpGen(db),
+    markDirty(db),
+  ];
+}
+
+// the held body goes; the live entry is untouched
+export function rejectHeldStatements(
+  db: D1Database,
+  gate: D1PreparedStatement,
+  p: string,
+  s: string,
+  heldVersion: number,
+  log: LogRow,
+): D1PreparedStatement[] {
+  return [
+    gate,
+    db
+      .prepare('DELETE FROM versions WHERE publisher = ?1 AND slug = ?2 AND version = ?3')
+      .bind(p, s, heldVersion),
+    db
+      .prepare(
+        `UPDATE entries SET held = NULL
+         WHERE publisher = ?1 AND slug = ?2 AND held IS NOT NULL AND json_extract(held, '$.version') = ?3`,
+      )
+      .bind(p, s, heldVersion),
+    db.prepare(GUARD),
+    logStatement(db, log),
   ];
 }
 
@@ -876,6 +1045,14 @@ export function banStatements(
              AND slug IN (SELECT slug FROM entries WHERE publisher = ?1 AND state = 'pending')`,
           )
           .bind(handle),
+        db
+          .prepare(
+            `DELETE FROM versions WHERE publisher = ?1
+             AND slug IN (SELECT slug FROM entries WHERE publisher = ?1 AND held IS NOT NULL)
+             AND ${NEWER_OF}`,
+          )
+          .bind(handle),
+        db.prepare('UPDATE entries SET held = NULL WHERE publisher = ?1 AND held IS NOT NULL').bind(handle),
         db.prepare("DELETE FROM entries WHERE publisher = ?1 AND state = 'pending'").bind(handle),
       ]
     : [];

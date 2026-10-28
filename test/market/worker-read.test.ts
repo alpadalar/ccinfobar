@@ -425,6 +425,20 @@ describe.skipIf(skipSqlite)('worker public reads', () => {
     }
   });
 
+  it('never serves a version above the entry version (17-D-02)', async () => {
+    const { get, db } = await seeded();
+    const before = await indexEtag(db);
+    await db
+      .prepare('INSERT INTO versions (publisher, slug, version, body) VALUES (?1, ?2, ?3, ?4)')
+      .bind('alp', 'mine', 3, JSON.stringify({ version: 3, content: preset('cwd'), hash: 'x'.repeat(64) }))
+      .run();
+    expect((await get('/v1/entries/alp/mine/3.json')).status).toBe(404);
+    expect((await get('/v1/entries/alp/mine/2.json')).status).toBe(200);
+    const entry = (await (await get('/v1/entries/alp/mine.json')).json()) as { version: number };
+    expect(entry.version).toBe(2);
+    expect(await indexEtag(db)).toBe(before);
+  });
+
   it('runs at most two statements per GET', async () => {
     const { get, sql, mine } = await seeded();
     for (const [p, inm] of [

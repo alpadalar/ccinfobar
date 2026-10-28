@@ -1,12 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import type { EntryContent } from '../../src/core/edit.js';
+import { tombOf } from '../../src/market/rules.js';
 import type { D1Database, D1PreparedStatement, Env } from '../../src/market/worker/env.js';
 import { createHandler } from '../../src/market/worker/handler.js';
 import { cleanup } from '../../src/market/worker/rate.js';
-import { CLEANUP_BATCH, cleanupStatements, rebuildIndex } from '../../src/market/worker/store.js';
+import {
+  approveHeldStatements,
+  banStatements,
+  CLEANUP_BATCH,
+  cleanupStatements,
+  entryDocText,
+  entrySummaryText,
+  type Held,
+  heldStatements,
+  indexEtag,
+  myEntries,
+  pendingEntries,
+  readEntryRow,
+  readVersionDoc,
+  rebuildIndex,
+  rejectHeldStatements,
+  removeStatements,
+  reviewRow,
+  versionText,
+} from '../../src/market/worker/store.js';
 import { d1, skipSqlite, type TestD1 } from './d1-sqlite.js';
 import { makeEnv, migrationFiles } from './worker-env.js';
-import { counts, ISO, seedEntry, seedPublisher, seedToken } from './worker-seed.js';
+import { counts, ISO, seedEntry, seedPublisher, seedToken, storedEntry } from './worker-seed.js';
 
 const BASE = 'http://w.test';
 const preset = (type = 'model') => ({ layout: { lines: [[{ type }]] } }) as unknown as EntryContent;
@@ -80,6 +100,7 @@ const BOUNDED = [
   /^SCAN index_pages\b/,
   /^SCAN entries USING COVERING INDEX entries_live$/,
   /^SCAN publishers USING (?:COVERING )?INDEX publishers_banned$/,
+  /^SCAN entries USING (?:COVERING )?INDEX entries_held$/,
   /^SCAN CONSTANT ROW$/,
   /^SCAN json_each VIRTUAL TABLE/,
 ];
@@ -476,5 +497,140 @@ describe.skipIf(skipSqlite)('worker pending caps (WR-02)', () => {
     expect(kept.publishers.bob!.bytes).toBeGreaterThan(0);
     expect((await w.call('POST', '/v1/admin/entries/bob/a/remove', boss, {})).status).toBe(200);
     expect((await w.check()).publishers.bob).toMatchObject({ live: 0, tombs: 1, bytes: 0, pendingBytes: 0 });
+  });
+});
+
+describe.skipIf(skipSqlite)('worker held versions (17-D-02)', () => {
+  const ROOM = { live: 1e9, pending: 1e9, db: 1e12 };
+  const LOG = { at: ISO, admin: 'boss', action: 'x', target: 'alp/one', note: '' };
+
+  async function world() {
+    const { env } = await makeEnv();
+    const db = env.DB;
+    await seedPublisher(db, { handle: 'alp', githubId: 1, trusted: true });
+    await seedEntry(db, { id: 'alp/one', versions: [{ content: preset() }] });
+    const spec = { id: 'alp/one', versions: [{ content: preset() }, { content: preset('cwd') }] };
+    const next = storedEntry(spec);
+    const held: Held = {
+      version: 2,
+      hash: next.hash,
+      at: next.updatedAt,
+      reason: 'new-link',
+      links: ['example.com/x'],
+      summary: entrySummaryText(next),
+      doc: entryDocText(next),
+    };
+    const body = versionText({ version: 2, content: preset('cwd'), hash: next.hash });
+    const gate = () => db.prepare("SELECT 'ok'");
+    const hold = () =>
+      db.batch(
+        heldStatements(db, {
+          entry: next,
+          expected: 1,
+          expectedHash: next.versions[0]!.hash,
+          body,
+          room: ROOM,
+          held,
+        }),
+      );
+    const check = async () => {
+      const c = await counts(db);
+      expect(c.kept).toEqual(c.rows);
+    };
+    return { db, next, held, gate, hold, check };
+  }
+
+  it('holds a version without touching the public entry or the index', async () => {
+    const w = await world();
+    const etag = await indexEtag(w.db);
+    await w.hold();
+    const row = await readEntryRow(w.db, 'alp', 'one');
+    expect(row?.version).toBe(1);
+    expect(row?.held?.version).toBe(2);
+    expect((await readVersionDoc(w.db, 'alp', 'one', 2))?.found).toBe(false);
+    expect(await indexEtag(w.db)).toBe(etag);
+    await w.check();
+    await expect(w.hold()).rejects.toThrow();
+  });
+
+  it('lists the held version for the owner and the admin', async () => {
+    const w = await world();
+    await w.hold();
+    expect(await myEntries(w.db, 'alp', 10)).toEqual([{ id: 'alp/one', state: 'live', version: 1, held: 2 }]);
+    const list = await pendingEntries(w.db, 10);
+    expect(list).toHaveLength(1);
+    expect(list[0]?.held).toEqual({ version: 2, reason: 'new-link', links: ['example.com/x'] });
+    const review = await reviewRow(w.db, 'alp', 'one');
+    expect(review?.held).toBe(2);
+    expect(JSON.parse(review!.body!).version).toBe(2);
+    expect(review?.tag).toContain(w.held.hash);
+  });
+
+  it('approve moves the entry to the held version and keeps the history', async () => {
+    const w = await world();
+    await w.hold();
+    const review = await reviewRow(w.db, 'alp', 'one');
+    const gen = Number(review!.tag.slice(review!.tag.lastIndexOf('-') + 1, -1));
+    const dirty = async () =>
+      Number(await w.db.prepare("SELECT n FROM counters WHERE k = 'dirty'").first<number>('n'));
+    const before = await dirty();
+    await w.db.batch(
+      approveHeldStatements(w.db, w.gate(), 'alp', 'one', { hash: w.held.hash, gen }, w.held, LOG),
+    );
+    const row = await readEntryRow(w.db, 'alp', 'one');
+    expect(row?.version).toBe(2);
+    expect(row?.held).toBeNull();
+    expect((await readVersionDoc(w.db, 'alp', 'one', 1))?.body).not.toBeNull();
+    expect((await readVersionDoc(w.db, 'alp', 'one', 2))?.found).toBe(true);
+    expect(await dirty()).toBeGreaterThan(before);
+    await w.check();
+  });
+
+  it('reject drops the held body and keeps the live entry', async () => {
+    const w = await world();
+    await w.hold();
+    await w.db.batch(rejectHeldStatements(w.db, w.gate(), 'alp', 'one', 2, LOG));
+    const row = await readEntryRow(w.db, 'alp', 'one');
+    expect(row?.version).toBe(1);
+    expect(row?.held).toBeNull();
+    expect((await pendingEntries(w.db, 10)).length).toBe(0);
+    await w.check();
+    await expect(w.db.batch(rejectHeldStatements(w.db, w.gate(), 'alp', 'one', 2, LOG))).rejects.toThrow();
+  });
+
+  it('remove and ban clear a held version', async () => {
+    const w = await world();
+    await w.hold();
+    const tomb = tombOf(w.next, ISO);
+    await w.db.batch(removeStatements(w.db, w.gate(), tomb, 1, LOG));
+    const row = await readEntryRow(w.db, 'alp', 'one');
+    expect(row?.held).toBeNull();
+    expect(await w.db.prepare('SELECT COUNT(*) AS n FROM versions').first<number>('n')).toBe(1);
+    await w.check();
+
+    const b = await world();
+    await b.hold();
+    await b.db.batch(banStatements(b.db, b.gate(), 'alp', true, [], LOG));
+    expect((await readEntryRow(b.db, 'alp', 'one'))?.held).toBeNull();
+    expect(await b.db.prepare('SELECT COUNT(*) AS n FROM versions').first<number>('n')).toBe(1);
+    await b.check();
+  });
+
+  it('the held reads use keys or the partial index', async () => {
+    const w = await world();
+    await w.hold();
+    const list: Rec[] = [];
+    const rec = recorded(w.db);
+    await myEntries(rec.db, 'alp', 10);
+    await pendingEntries(rec.db, 10);
+    await reviewRow(rec.db, 'alp', 'one');
+    await readEntryRow(rec.db, 'alp', 'one');
+    list.push(...rec.list);
+    // the pending list reads its state key, bounded by the pending cap
+    expect(
+      (await scans(w.db, list)).filter(
+        (d) => !d.startsWith('SEARCH entries USING INDEX entries_by_state (state=?)'),
+      ),
+    ).toEqual([]);
   });
 });
