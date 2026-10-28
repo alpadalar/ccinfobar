@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { PRICES_UPDATED } from '../../src/core/prices.js';
 import { formatCsv } from '../../src/core/report-format.js';
-import { buildReport, decodeProjectDir, parseRange, periodOf } from '../../src/core/report-model.js';
+import {
+  buildReport,
+  decodeProjectDir,
+  parseRange,
+  periodOf,
+  UNKNOWN_PROJECT,
+} from '../../src/core/report-model.js';
 import {
   type Bucket,
   LEDGER_ZERO_USD,
@@ -684,5 +690,38 @@ describe('buildReport notes', () => {
 
   it('uses the ledger epsilon of the ledger module', () => {
     expect(LEDGER_ZERO_USD).toBe(LEDGER_ZERO);
+  });
+});
+
+describe('buildReport hashed ledger owners', () => {
+  const H = '0123456789abcdef';
+  const days = { '2026-10-10': 1 };
+
+  it('resolves a hashed ledger project through projectNames', () => {
+    const data = scan({ ledger: { s1: led(H, 0.001, days) } });
+    data.projectNames = new Map([[H, '/work/repo']]);
+    expect(report(data).rows.map((r) => r.project)).toEqual(['/work/repo']);
+  });
+
+  it('prefers the transcript cwd, then the map, then the decoded folder, then unknown', () => {
+    const cwd = report(
+      scan({ sessions: [sess('s1', { cwd: '/from/cwd' })], ledger: { s1: led(H, 1, days) } }),
+    );
+    expect(cwd.rows.map((r) => r.project)).toEqual(['/from/cwd']);
+    const enc = report(
+      scan({ sessions: [sess('s1', { cwd: null, enc: '-a-b' })], ledger: { s1: led(H, 1, days) } }),
+    );
+    expect(enc.rows[0]).toMatchObject({ project: decodeProjectDir('-a-b'), approx: true });
+    const none = report(scan({ ledger: { s1: led(H, 1, days) } }));
+    expect(none.rows.map((r) => r.project)).toEqual(['unknown project']);
+    expect(none.rows[0]!.approx).toBe(false);
+    expect(UNKNOWN_PROJECT).toContain('\u0000');
+  });
+
+  it('keeps a legacy path ahead of the transcript cwd', () => {
+    const r = report(
+      scan({ sessions: [sess('s1', { cwd: '/other' })], ledger: { s1: led('/work/repo', 1, days) } }),
+    );
+    expect(r.rows.map((x) => x.project)).toEqual(['/work/repo']);
   });
 });

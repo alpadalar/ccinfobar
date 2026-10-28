@@ -7,7 +7,7 @@ import { PRICES_UPDATED, priceFor, requestCost } from '../core/prices.js';
 import { globMatch, PROFILES } from '../core/profiles.js';
 import type { ReportDeps } from '../core/report-types.js';
 import { JOBS } from '../data/jobs/index.js';
-import { ledgerDir, monthFiles, rebuildSummary, stepText } from '../data/ledger.js';
+import { ledgerDir, monthFiles, projectHash, rebuildSummary, stepText } from '../data/ledger.js';
 import { accountKeysForDir } from '../data/limits.js';
 import { type Args, parseArgs } from './args.js';
 import { applyLanguage, configLanguage, prepareLanguage } from './lang.js';
@@ -24,6 +24,7 @@ function reportDeps(): ReportDeps {
     applyLanguage,
     ledgerDir,
     monthFiles,
+    projectHash,
     stepText,
     rebuildSummary,
     accountKeysForDir,

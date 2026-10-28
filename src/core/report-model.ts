@@ -1,3 +1,6 @@
+import './i18n/lazy.js';
+import { t } from './i18n/index.js';
+import { isProjectHash } from './project-hash.js';
 import {
   type CostSource,
   LEDGER_ZERO_USD,
@@ -243,6 +246,8 @@ function compareRows(a: ReportRow, b: ReportRow): number {
   return byText(a.project, b.project) || Number(a.approx) - Number(b.approx);
 }
 
+export const UNKNOWN_PROJECT = '\u0000unknown';
+
 export function buildReport(data: ScanResult, opts: ReportOptions): Report {
   const { since, until } = opts;
   const inRange = (d: string) =>
@@ -276,15 +281,19 @@ export function buildReport(data: ScanResult, opts: ReportOptions): Report {
   for (const sid of sids) {
     const s = Object.hasOwn(data.sessions, sid) ? data.sessions[sid] : undefined;
     const l = Object.hasOwn(data.ledger, sid) ? data.ledger[sid] : undefined;
-    if (l && typeof l.p === 'string' && l.p) owner.set(sid, { project: l.p, approx: false });
+    const lp = l && typeof l.p === 'string' ? l.p : '';
+    if (lp && !isProjectHash(lp)) owner.set(sid, { project: lp, approx: false });
     else if (s?.cwd) owner.set(sid, { project: s.cwd, approx: false });
+    else if (lp && data.projectNames?.has(lp))
+      owner.set(sid, { project: data.projectNames.get(lp)!, approx: false });
     else if (s) owner.set(sid, { project: decodeProjectDir(s.enc), approx: true });
+    else owner.set(sid, { project: UNKNOWN_PROJECT, approx: false });
   }
   const f = opts.filter;
   let here: string | null = null;
   if (f?.kind === 'cwd') {
     const known = new Set<string>();
-    for (const o of owner.values()) if (!o.approx) known.add(o.project);
+    for (const o of owner.values()) if (!o.approx && o.project !== UNKNOWN_PROJECT) known.add(o.project);
     here = currentProject(f.cwd, known);
   }
   // a key folded on Windows shows the transcript's own case
@@ -293,8 +302,11 @@ export function buildReport(data: ScanResult, opts: ReportOptions): Report {
     const s = data.sessions[sid]!;
     if (s.cwd && s.shown && !shown.has(s.cwd)) shown.set(s.cwd, s.shown);
   }
+  shown.set(UNKNOWN_PROJECT, t('report.project.unknown'));
   const matches = (project: string) =>
-    !f || (f.kind === 'substring' ? fold(project).includes(fold(f.text)) : project === here);
+    !f ||
+    (project !== UNKNOWN_PROJECT &&
+      (f.kind === 'substring' ? fold(project).includes(fold(f.text)) : project === here));
 
   for (const [sid, { project, approx }] of owner) {
     const s = Object.hasOwn(data.sessions, sid) ? data.sessions[sid] : undefined;

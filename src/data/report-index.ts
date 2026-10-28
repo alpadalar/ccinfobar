@@ -1156,10 +1156,14 @@ export function readReportData(env: NodeJS.ProcessEnv, deps: LedgerDeps, opts: R
   const notes = [...scan.notes];
   const gone = notes.find((n) => n.code === 'deleted-transcripts');
   if (opts.rebuild && gone) notes.push({ code: 'rebuild-kept', count: gone.count });
+  const sessions = sessionsOf(scan.state);
+  const projectNames = new Map<string, string>();
+  for (const s of Object.values(sessions)) if (s.cwd) projectNames.set(deps.projectHash(s.cwd), s.cwd);
   return {
     claudeDir: root,
-    sessions: sessionsOf(scan.state),
+    sessions,
     ledger: lg.ledger.sessions,
+    projectNames,
     ledgerSince,
     notes,
     files: scan.files,

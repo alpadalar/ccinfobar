@@ -6,6 +6,7 @@ export const reportMessages = {
   'report.col.week': 'Hafta',
   'report.col.month': 'Ay',
   'report.col.project': 'Proje',
+  'report.project.unknown': 'bilinmeyen proje',
   'report.col.sessions': 'Oturum',
   'report.col.input': 'Girdi',
   'report.col.output': 'Çıktı',

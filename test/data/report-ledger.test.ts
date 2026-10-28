@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { withLanguage } from '../../src/core/i18n/index.js';
 import { buildReport } from '../../src/core/report-model.js';
 import { dayKey } from '../../src/core/time.js';
+import { projectHash } from '../../src/data/ledger.js';
 import { accountKeyFor } from '../../src/data/limits.js';
 import { readReportData } from '../../src/data/report-index.js';
 import {
@@ -216,5 +218,59 @@ describe('report ledger fold', () => {
     const rebuilt = run({ rebuild: true });
     expect(cost(rebuilt)).toBeCloseTo(19.999, 6);
     expect(rebuilt.sessions).toEqual(cold.sessions);
+  });
+});
+
+describe('report project names for hashed ledger lines', () => {
+  const OPTS = {
+    period: 'day',
+    since: null,
+    until: null,
+    config: {},
+    profiles: BUILTINS,
+    prices: PRICE_DEPS,
+  } as const;
+
+  it('names a hashed session from its transcript and keeps the cwd filter working', () => {
+    const { root, cache, line, run } = setup('hash-named');
+    writeLedger(
+      '2026-10',
+      [
+        line({ c: 0.001, t: D1, p: projectHash('/w/a') }),
+        line({ c: 2, t: D1 + 60_000, p: projectHash('/w/a') }),
+      ],
+      cache,
+    );
+    writeTranscript('projects/-w-a/A.jsonl', [userLine({ ts: D1, cwd: '/w/a' })], root);
+    const data = run();
+    const all = buildReport(data, { ...OPTS, filter: null });
+    expect(all.rows.map((r) => r.project)).toEqual(['/w/a']);
+    const here = buildReport(data, { ...OPTS, filter: { kind: 'cwd', cwd: '/w/a' } });
+    expect(here.rows.map((r) => r.project)).toEqual(['/w/a']);
+  });
+
+  it('keeps a legacy path line under its path without a transcript', () => {
+    const { cache, line, run } = setup('legacy-path');
+    writeLedger('2026-10', [line({ c: 0.001, t: D1 }), line({ c: 2, t: D1 + 60_000 })], cache);
+    const r = buildReport(run(), { ...OPTS, filter: null });
+    expect(r.rows.map((x) => x.project)).toEqual(['/w/a']);
+  });
+
+  it('buckets a hashed session without a transcript as unknown project, never hex', () => {
+    const { cache, line, run } = setup('hash-unknown');
+    const p = projectHash('/w/gone');
+    writeLedger('2026-10', [line({ c: 0.001, t: D1, p }), line({ c: 2, t: D1 + 60_000, p })], cache);
+    const data = run();
+    for (const [lang, label] of [
+      ['en', 'unknown project'],
+      ['tr', 'bilinmeyen proje'],
+    ] as const) {
+      const r = withLanguage(lang, () => buildReport(data, { ...OPTS, filter: null }));
+      expect(r.rows.map((x) => x.project)).toEqual([label]);
+      expect(r.notes.map((n) => n.code)).toContain('ledger-only');
+      expect(JSON.stringify(r)).not.toContain(p);
+    }
+    const here = buildReport(data, { ...OPTS, filter: { kind: 'cwd', cwd: '/w/gone' } });
+    expect(here.rows).toEqual([]);
   });
 });

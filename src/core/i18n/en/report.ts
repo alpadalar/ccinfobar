@@ -3,6 +3,7 @@ export const reportMessages = {
   'report.col.week': 'Week',
   'report.col.month': 'Month',
   'report.col.project': 'Project',
+  'report.project.unknown': 'unknown project',
   'report.col.sessions': 'Sessions',
   'report.col.input': 'Input',
   'report.col.output': 'Output',

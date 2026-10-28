@@ -105,6 +105,7 @@ export interface ScanResult {
   claudeDir: string;
   sessions: Record<string, SessionData>;
   ledger: Record<string, LedgerSession>;
+  projectNames?: Map<string, string>;
   ledgerSince: number | null;
   notes: ScanNote[];
   files: number;
@@ -198,6 +199,7 @@ export interface ReportDeps {
   applyLanguage(config: Config): unknown;
   ledgerDir(env: NodeJS.ProcessEnv): string;
   monthFiles(dir: string): string[];
+  projectHash(root: string): string;
   stepText(rows: Record<string, SessionRow>, text: string, on: (c: Credited) => void): void;
   rebuildSummary(env: NodeJS.ProcessEnv, now: number): unknown;
   accountKeysForDir(env: NodeJS.ProcessEnv): Set<string>;
@@ -205,4 +207,7 @@ export interface ReportDeps {
   prices: PriceDeps;
 }
 
-export type LedgerDeps = Pick<ReportDeps, 'ledgerDir' | 'monthFiles' | 'stepText' | 'accountKeysForDir'>;
+export type LedgerDeps = Pick<
+  ReportDeps,
+  'ledgerDir' | 'monthFiles' | 'stepText' | 'accountKeysForDir' | 'projectHash'
+>;
