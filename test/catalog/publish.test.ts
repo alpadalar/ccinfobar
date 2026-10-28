@@ -1513,6 +1513,56 @@ describe('publish: slug vs remote ids (COR2-10)', () => {
       return m;
     };
 
+    // a live own entry, then the entry file reset to unpublished
+    const liveOwn = async (m: ReturnType<typeof githubMarket>, content?: EntryContent) => {
+      writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+      writePublisher(GH_ENDPOINT, 'octo', dir);
+      const e = save();
+      const share0 = JSON.parse(fs.readFileSync(fileOf(e.id), 'utf8')).share;
+      const first = await send(null, { dir, env, fetch: m.fetch, now: () => at(5) });
+      expect(first.results).toMatchObject([{ ok: true, remoteId: 'octo/mine' }]);
+      if (content) save({ mode: 'update', content, now: at(2) });
+      const raw = JSON.parse(fs.readFileSync(fileOf(e.id), 'utf8'));
+      raw.share = { ...share0, wanted: true };
+      fs.writeFileSync(fileOf(e.id), JSON.stringify(raw));
+      return e;
+    };
+
+    it('adopts a live claim with no index hash once the public entry matches', async () => {
+      const m = githubMarket({ trusted: true, public: true });
+      const e = await liveOwn(m);
+      const deps = { dir, env, fetch: m.fetch, now: () => at(6) };
+      const review = await reviewPublish(null, deps);
+      expect(slugOf(review, e.id)).toBe('mine');
+      expect(review.renamed).toEqual([]);
+      expect(review.taken).not.toContain('mine');
+      const out = await runPublish(review, deps);
+      expect(out.results).toMatchObject([{ ok: true, remoteId: 'octo/mine', adopted: true }]);
+      expect(m.entries.size).toBe(1);
+    });
+
+    it('suffixes the slug when the public entry has other content', async () => {
+      const m = githubMarket({ trusted: true, public: true });
+      const e = await liveOwn(m, preset('cost'));
+      const review = await reviewPublish(null, { dir, env, fetch: m.fetch });
+      expect(slugOf(review, e.id)).toBe('mine-2');
+      expect(review.renamed).toEqual([{ id: e.id, from: 'mine', to: 'mine-2' }]);
+      expect(review.taken).toContain('mine');
+    });
+
+    it('lets the 409 decide when the public entry cannot be read', async () => {
+      const m = githubMarket({ trusted: true });
+      const e = await liveOwn(m);
+      const deps = { dir, env, fetch: m.fetch, now: () => at(6) };
+      const review = await reviewPublish(null, deps);
+      expect(slugOf(review, e.id)).toBe('mine');
+      expect(review.taken).not.toContain('mine');
+      const out = await runPublish(review, deps);
+      expect(out.results).toMatchObject([
+        { ok: true, remoteId: 'octo/mine-2', retried: { from: 'mine', to: 'mine-2' } },
+      ]);
+    });
+
     it('keeps the slug of a pending entry the attempt marker matches', async () => {
       const m = setup();
       const e = save();

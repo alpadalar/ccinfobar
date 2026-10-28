@@ -18,11 +18,12 @@ interface Stored {
   held?: number;
   // links the next version adds: it is held instead of live
   holdNext?: string[];
+  doc?: Record<string, unknown>;
 }
 
 // a GitHub-backed marketplace: no registration, the first entries wait for review
 export function githubMarket(
-  opts: { trusted?: boolean; auth?: string[]; handle?: string; taken?: string[] } = {},
+  opts: { trusted?: boolean; auth?: string[]; handle?: string; taken?: string[]; public?: boolean } = {},
 ) {
   const calls: GhCall[] = [];
   const entries = new Map<string, Stored>();
@@ -60,8 +61,18 @@ export function githubMarket(
     if (p === '/v1/publishers')
       return json({ error: { code: 'forbidden', message: 'sign in with GitHub to publish' } }, 403);
     // the public file only exists once an admin approved
-    if (/^\/v1\/entries\/[^/]+\/[^/]+\.json$/.test(p) && method === 'GET')
+    if (/^\/v1\/entries\/[^/]+\/[^/]+\.json$/.test(p) && method === 'GET') {
+      const e = entries.get(p.slice('/v1/entries/'.length, -'.json'.length));
+      if (e?.state === 'live' && e.doc) {
+        const at = String(e.doc.updatedAt);
+        return json({
+          ...e.doc,
+          version: e.version,
+          versions: [{ version: e.version, at, note: '', hash: e.doc.hash }],
+        });
+      }
       return json({ error: { code: 'not-found', message: 'no entry' } }, 404);
+    }
     if (auth !== `Bearer ${GH_TOKEN}`)
       return json({ error: { code: 'unauthorized', message: 'sign in' } }, 401);
     if (p === '/v1/me' && method === 'GET')
@@ -83,6 +94,17 @@ export function githubMarket(
       if (taken.has(b.slug) || entries.has(`${handle}/${b.slug}`))
         return json({ error: { code: 'conflict', message: 'slug taken' } }, 409);
       const e: Stored = { id: `${handle}/${b.slug}`, version: 1, state: state.trusted ? 'live' : 'pending' };
+      if (opts.public)
+        e.doc = {
+          id: e.id,
+          kind: b.kind,
+          name: b.name,
+          description: b.description,
+          author: b.author,
+          publisher: handle,
+          updatedAt: '2026-10-16T10:00:00.000Z',
+          hash: contentHash(b.content),
+        };
       entries.set(e.id, e);
       return written(e, b.content);
     }
@@ -108,6 +130,7 @@ export function githubMarket(
         );
       }
       e.version++;
+      if (e.doc) e.doc.hash = contentHash(content as never);
       return written(e, content);
     }
     const w = /^\/v1\/entries\/([^/]+\/[^/]+)$/.exec(p);

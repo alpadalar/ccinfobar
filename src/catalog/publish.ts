@@ -376,15 +376,30 @@ async function remoteTaken(
       // an unreadable index claims nothing
     }
   }
-  for (const [slug, hash] of claims) {
-    const mine = waiting.some((it) => {
-      const p = it.payload as PublishPayload;
-      const h = entryHash(p.content);
-      const a = every.find((x) => x.id === it.id)?.share.attempt;
-      const marked = !!a && a.endpoint === anon.endpoint && a.slug === slug && a.hash === h;
-      if (hash !== null) return hash === h && (p.slug === slug || marked);
-      return pending.has(slug) && marked;
-    });
+  const markedFor = (it: PublishItem, slug: string) => {
+    const a = every.find((x) => x.id === it.id)?.share.attempt;
+    const h = entryHash((it.payload as PublishPayload).content);
+    return !!a && a.endpoint === anon.endpoint && a.slug === slug && a.hash === h;
+  };
+  for (const [slug, known] of claims) {
+    const cands = waiting.filter((it) => (it.payload as PublishPayload).slug === slug || markedFor(it, slug));
+    if (!cands.length) {
+      out.add(slug);
+      continue;
+    }
+    let hash = known;
+    if (hash === null && !pending.has(slug) && handle) {
+      try {
+        const live = await anon.entry(`${handle}/${slug}`);
+        if (!live.withdrawn) hash = live.hash;
+      } catch {
+        // unknown: the server's 409 decides
+      }
+    }
+    if (hash === null && !pending.has(slug)) continue;
+    const mine = cands.some((it) =>
+      hash !== null ? hash === entryHash((it.payload as PublishPayload).content) : markedFor(it, slug),
+    );
     if (!mine) out.add(slug);
   }
   return out;
