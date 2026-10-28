@@ -13,6 +13,7 @@ const RETRY_WIN = new Set(['EPERM', 'EACCES', 'EBUSY']);
 const sleeper = new Int32Array(new SharedArrayBuffer(4));
 const TMP_RE = /\.\d+\.[0-9a-f]{8}\.tmp$/;
 const LEGACY_TMP_RE = /\.\d+\.tmp$/;
+const STALE_RE = /\.\d+\.[0-9a-f]{8}\.stale$/;
 
 export function sleepSync(ms: number): void {
   Atomics.wait(sleeper, 0, 0, ms);
@@ -167,7 +168,7 @@ export function pruneTmp(dir: string, olderThanMs: number, now = Date.now()): nu
     return 0;
   }
   for (const name of names) {
-    if (!TMP_RE.test(name) && !LEGACY_TMP_RE.test(name)) continue;
+    if (!TMP_RE.test(name) && !LEGACY_TMP_RE.test(name) && !STALE_RE.test(name)) continue;
     const p = path.join(dir, name);
     try {
       const st = fs.statSync(p);

@@ -214,6 +214,19 @@ describe('pruneTmp', () => {
     expect(fs.existsSync(normal)).toBe(true);
   });
 
+  it('removes old stale lock graves only', () => {
+    const old = path.join(dir, 'job.lock.4242.0badf00d.stale');
+    const fresh = path.join(dir, 'job.lock.4243.deadbeef.stale');
+    const lock = path.join(dir, 'job.lock');
+    for (const f of [old, fresh, lock]) fs.writeFileSync(f, '');
+    const past = new Date(Date.now() - 2 * 3_600_000);
+    for (const f of [old, lock]) fs.utimesSync(f, past, past);
+    expect(pruneTmp(dir, 3_600_000)).toBe(1);
+    expect(fs.existsSync(old)).toBe(false);
+    expect(fs.existsSync(fresh)).toBe(true);
+    expect(fs.existsSync(lock)).toBe(true);
+  });
+
   it('returns 0 for a missing dir', () => {
     expect(pruneTmp(path.join(dir, 'nope'), 1000)).toBe(0);
   });
