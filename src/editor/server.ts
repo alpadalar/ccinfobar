@@ -119,6 +119,7 @@ import type { TerminalColors } from './terminal-colors.js';
 
 declare const __VERSION__: string;
 declare const __EDITOR_HTML__: string;
+declare const __EDITOR_SCRIPT_HASH__: string;
 
 const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
 const MAX_BODY = 1024 * 1024;
@@ -190,6 +191,12 @@ function httpError(
   return new HttpError(status, english({ id, ...(params ? { params } : {}) }), extra, id, params);
 }
 
+const SCRIPT_SRC =
+  typeof __EDITOR_SCRIPT_HASH__ === 'string' && __EDITOR_SCRIPT_HASH__
+    ? `'sha256-${__EDITOR_SCRIPT_HASH__}'`
+    : "'none'";
+// style-src: innerHTML style attributes
+const CSP = `default-src 'none'; script-src ${SCRIPT_SRC}; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`;
 const FALLBACK_HTML = `<!doctype html><meta charset="utf-8"><title>ccinfobar editor</title>
 <body style="font:16px system-ui;background:#111;color:#eee;padding:3rem">
 <h1>Editor bundle not built</h1><p>Run <code>npm run build</code> and start the editor again.</p></body>`;
@@ -925,6 +932,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         'cache-control': 'no-store',
         'x-content-type-options': 'nosniff',
         'referrer-policy': 'no-referrer',
+        'content-security-policy': CSP,
       });
       res.end(html);
       return;

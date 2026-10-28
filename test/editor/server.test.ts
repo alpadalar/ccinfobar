@@ -69,6 +69,26 @@ describe('editor server', () => {
     expect(res.body).toContain('<');
   });
 
+  it('serves the content security policy with no inline script allowance', async () => {
+    const headers = await new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port, path: '/' }, (res) => {
+        res.resume();
+        resolve(res.headers);
+      });
+      req.on('error', reject);
+      req.end();
+    });
+    expect(headers['content-security-policy']).toBe(
+      "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+    );
+    expect(String(headers['content-security-policy']).match(/script-src [^;]*/)?.[0]).not.toContain(
+      'unsafe-inline',
+    );
+    expect(headers['cache-control']).toBe('no-store');
+    expect(headers['x-content-type-options']).toBe('nosniff');
+    expect(headers['referrer-policy']).toBe('no-referrer');
+  });
+
   it('compares the token in constant time and never answers 500 (SEC2-09)', async () => {
     const t = handle.token;
     const last = t.endsWith('0') ? '1' : '0';

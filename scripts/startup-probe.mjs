@@ -1,5 +1,6 @@
 // Dev-only F2 startup breakdown: `nice -n -10 node scripts/startup-probe.mjs [--node <path>] [--onefile] [--json]`.
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -139,13 +140,12 @@ async function buildOnefile(out) {
     platform: 'browser',
   });
   const css = fs.readFileSync(path.join(web, 'style.css'), 'utf8');
+  const script = js.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
+  const hash = createHash('sha256').update(script, 'utf8').digest('base64');
   const html = fs
     .readFileSync(path.join(web, 'index.html'), 'utf8')
     .replace('<!--STYLE-->', () => `<style>${css}</style>`)
-    .replace(
-      '<!--SCRIPT-->',
-      () => `<script>${js.outputFiles[0].text.replace(/<\/script/gi, '<\\/script')}</script>`,
-    );
+    .replace('<!--SCRIPT-->', () => `<script>${script}</script>`);
   await esbuild.build({
     entryPoints: [path.join(repo, 'src/bin.ts')],
     outfile: out,
@@ -157,7 +157,11 @@ async function buildOnefile(out) {
     minify: false,
     legalComments: 'none',
     logLevel: 'error',
-    define: { __VERSION__: JSON.stringify(pkg.version), __EDITOR_HTML__: JSON.stringify(html) },
+    define: {
+      __VERSION__: JSON.stringify(pkg.version),
+      __EDITOR_HTML__: JSON.stringify(html),
+      __EDITOR_SCRIPT_HASH__: JSON.stringify(hash),
+    },
   });
 }
 

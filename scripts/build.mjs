@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +12,7 @@ const webDir = path.join(root, 'src/editor/web');
 
 async function buildEditorHtml() {
   const entry = path.join(webDir, 'app.ts');
-  if (!fs.existsSync(entry)) return '';
+  if (!fs.existsSync(entry)) return { html: '', hash: '' };
   const js = await esbuild.build({
     entryPoints: [entry],
     bundle: true,
@@ -26,14 +27,18 @@ async function buildEditorHtml() {
     : '';
   const html = fs.readFileSync(path.join(webDir, 'index.html'), 'utf8');
   const script = js.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
-  return html
-    .replace('<!--STYLE-->', () => `<style>${css}</style>`)
-    .replace('<!--SCRIPT-->', () => `<script>${script}</script>`);
+  const hash = crypto.createHash('sha256').update(script, 'utf8').digest('base64');
+  return {
+    html: html
+      .replace('<!--STYLE-->', () => `<style>${css}</style>`)
+      .replace('<!--SCRIPT-->', () => `<script>${script}</script>`),
+    hash,
+  };
 }
 
 async function build() {
   fs.rmSync(path.join(root, 'dist'), { recursive: true, force: true });
-  const editorHtml = await buildEditorHtml();
+  const { html: editorHtml, hash: editorHash } = await buildEditorHtml();
   await esbuild.build({
     entryPoints: [path.join(root, 'src/bin.ts')],
     outdir: path.join(root, 'dist'),
@@ -49,6 +54,7 @@ async function build() {
     define: {
       __VERSION__: JSON.stringify(pkg.version),
       __EDITOR_HTML__: JSON.stringify(editorHtml),
+      __EDITOR_SCRIPT_HASH__: JSON.stringify(editorHash),
     },
   });
   fs.chmodSync(path.join(root, 'dist/ccinfobar.js'), 0o755);
