@@ -396,7 +396,17 @@ describe('parseRemote and forkInfo', () => {
     const { forkInfo } = await import('../../src/widgets/git.js');
     const f = forkInfo({ ...sampleGit(), remoteUrl: origin, upstreamUrl: upstream });
     expect(f !== null).toBe(fork);
-    if (origin.includes('grp')) expect(f).toEqual({ fork: 'grp/sub/demo', parent: 'acme/sub/demo' });
+    if (origin.includes('grp')) expect(f).toEqual({ fork: 'grp/sub/demo', parent: 'sub/demo' });
+  });
+});
+
+describe('git-is-fork parent depth', () => {
+  it('matches git-repo for a nested group', async () => {
+    const { forkInfo, repoSlug } = await import('../../src/widgets/git.js');
+    const up = 'https://gitlab.com/acme/sub/demo.git';
+    const g = { ...sampleGit(), remoteUrl: 'git@gitlab.com:me/demo.git', upstreamUrl: up };
+    expect(forkInfo(g)).toEqual({ fork: 'me/demo', parent: 'sub/demo' });
+    expect(forkInfo(g)?.parent).toBe(repoSlug(up));
   });
 });
 
@@ -409,6 +419,8 @@ describe('git-is-fork cross-host parent', () => {
       upstreamUrl: 'https://gitlab.com/me/x',
     };
     expect(forkInfo(g)).toEqual({ fork: 'me/x', parent: 'gitlab.com/me/x' });
+    const deep = { ...g, upstreamUrl: 'https://gitlab.com/acme/sub/demo' };
+    expect(forkInfo(deep)?.parent).toBe('gitlab.com/sub/demo');
     const ctx = ctxWith({ payload: {}, git: () => g });
     expect(renderWidget('git-is-fork', ctx, { options: { showParent: true } })).toContain('gitlab.com/me/x');
   });

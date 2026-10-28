@@ -37,9 +37,11 @@ export function parseRemote(url: string | null | undefined): { host: string; pat
   return p ? { host, path: p } : null;
 }
 
+const tail = (p: string) => p.split('/').slice(-2).join('/');
+
 export function repoSlug(url: string | null | undefined): string | null {
   const p = parseRemote(url)?.path.split('/');
-  return p && p.length >= 2 ? p.slice(-2).join('/') : null;
+  return p && p.length >= 2 ? tail(p.join('/')) : null;
 }
 
 // upstream remote: origin is the fork; fork remote: origin is the parent
@@ -51,7 +53,7 @@ export function forkInfo(g: GitInfo | null | undefined): { fork: string; parent:
   if (!fork || !parent) return null;
   const id = (r: { host: string; path: string }) => `${r.host}/${r.path}`.toLowerCase();
   if (id(fork) === id(parent)) return null;
-  const label = fork.host === parent.host ? parent.path : `${parent.host}/${parent.path}`;
+  const label = fork.host === parent.host ? tail(parent.path) : `${parent.host}/${tail(parent.path)}`;
   return { fork: fork.path, parent: label };
 }
 
