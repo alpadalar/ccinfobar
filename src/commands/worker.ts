@@ -39,7 +39,7 @@ const MAX_ARG = 4200;
 const SWEEP_AGE = 7 * 86_400_000;
 const CACHE_AGE = 30 * 86_400_000;
 const CACHE_RE =
-  /^(transcript|agent3|cmd|repos|repos-dirty|env|bin|git|jj|jj-miss|jj-backoff|agents-dir)-[0-9a-f]{20}\.json$/;
+  /^(?:(?:transcript|agent3|cmd|repos|repos-dirty|env|bin|git|jj|jj-miss|jj-backoff|agents-dir)-[0-9a-f]{20}|bin-(?:git|jj))\.json$/;
 const WIDTH_RE = /^width-[A-Za-z0-9_-]{1,128}\.json$/;
 const LEGACY_RE = /^agent2-[0-9a-f]{20}\.json$/;
 const SWEEP_RE = /^((?:http|gh)-[0-9a-f]{16}|cmd-[0-9a-f]{20})\.json$/;

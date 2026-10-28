@@ -408,6 +408,8 @@ describe('sweepCache', () => {
     `jj-miss-${hex}.json`,
     `agents-dir-${hex}.json`,
     `bin-${hex}.json`,
+    'bin-git.json',
+    'bin-jj.json',
     'width-abc_123.json',
   ];
 
