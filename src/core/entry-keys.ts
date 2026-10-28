@@ -39,6 +39,7 @@ export const PERSONAL_KEYS = [
   'usageApi',
   'savePayload',
   'gitHardening',
+  'commandBudgetMs',
   'gsdAutoLine',
   'loadingText',
   'budget',

@@ -12,9 +12,46 @@ import {
   normalizeSubagentLine,
   saveConfig,
 } from '../../src/core/config.js';
+import { createContext } from '../../src/core/context.js';
+import { SCENARIO_NOW } from '../../src/core/scenarios.js';
 import { withLang } from '../helpers.js';
 
 describe('config', () => {
+  it('normalizes commandBudgetMs with a clamp and keeps it out of the defaults', () => {
+    expect(normalizeConfig({ commandBudgetMs: 1500 }).commandBudgetMs).toBe(1500);
+    expect(normalizeConfig({ commandBudgetMs: 50 }).commandBudgetMs).toBe(100);
+    expect(normalizeConfig({ commandBudgetMs: 99999 }).commandBudgetMs).toBe(60000);
+    for (const bad of ['abc', Number.NaN, null, Number.POSITIVE_INFINITY])
+      expect('commandBudgetMs' in normalizeConfig({ commandBudgetMs: bad })).toBe(false);
+    expect('commandBudgetMs' in normalizeConfig({})).toBe(false);
+    expect(JSON.stringify(defaultConfig())).not.toContain('commandBudgetMs');
+  });
+
+  it('createContext derives the command deadline from the injected clock', () => {
+    const exec = () => 'x';
+    const a = createContext({
+      payload: {},
+      config: { ...defaultConfig(), commandBudgetMs: 1500 },
+      clock: () => 1000,
+      data: { exec },
+    });
+    expect(a.budget.deadline).toBe(2500);
+    expect(a.clock()).toBe(1000);
+    expect(a.data.exec).toBe(exec);
+    expect(createContext({ payload: {}, config: defaultConfig(), clock: () => 10 }).budget.deadline).toBe(
+      3010,
+    );
+    const before = Date.now();
+    const b = createContext({
+      payload: {},
+      config: defaultConfig(),
+      now: new Date(SCENARIO_NOW),
+      preview: true,
+    });
+    expect(b.budget.deadline).toBeGreaterThanOrEqual(before + 3000);
+    expect(b.budget.deadline).toBeLessThanOrEqual(Date.now() + 3000);
+  });
+
   it('falls back to defaults for garbage', () => {
     expect(normalizeConfig(null)).toEqual(defaultConfig());
     expect(normalizeConfig({ lines: 'x', padding: -1 }).padding).toBe(defaultConfig().padding);

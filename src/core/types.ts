@@ -248,6 +248,7 @@ export interface Config {
   usageApi: boolean;
   gsdAutoLine?: boolean;
   gitHardening?: boolean;
+  commandBudgetMs?: number;
   loadingText?: string;
   budget?: BudgetConfig;
   profiles?: ProfilesConfig;
@@ -341,6 +342,8 @@ export interface RenderContext {
   sink?: { hidden: string[]; dropped: string[] };
   // one preview context renders each item once
   values?: Map<WidgetItem, WidgetOutput | null>;
+  budget: { deadline: number };
+  clock: () => number;
 }
 
 export interface DataSources {
@@ -356,4 +359,8 @@ export interface DataSources {
   jobs?(): import('../data/jobs/runner.js').JobReader;
   jj?(): import('../data/jj.js').JjReader | null;
   agents(): import('../data/agents.js').AgentInfo[];
+  exec?(
+    command: string,
+    opts: { input: string; cwd: string; env: NodeJS.ProcessEnv; timeout: number },
+  ): string | null;
 }

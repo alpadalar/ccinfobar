@@ -223,6 +223,7 @@ const NOT_SWEPT: Record<string, string> = {
   'src/cli/hook-stream.ts': 'hook closure, reads stdin only',
   'src/cli/progress.ts': 'terminal sequences and debug reasons, no user-facing prose',
   'src/cli/progress-tty.ts': 'tty lookup, no user-facing prose',
+  'src/data/exec.ts': 'child process wrapper, no user-facing prose',
   'src/cli/silence.ts': 'stream plumbing, no user-facing prose',
   'src/cli/args.ts': 'argv parsing, no user-facing prose',
   'src/cli/win-env.ts': 'env setup leaf, no user-facing prose',

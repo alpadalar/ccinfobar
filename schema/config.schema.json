@@ -422,6 +422,13 @@
       "default": true,
       "description": "Ignore repo-local core.fsmonitor and filter drivers when ccinfobar runs git"
     },
+    "commandBudgetMs": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 60000,
+      "default": 3000,
+      "description": "Time all command widgets of one render share; once spent they show cached output"
+    },
     "loadingText": {
       "type": "string",
       "maxLength": 40,

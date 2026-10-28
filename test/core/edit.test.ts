@@ -770,6 +770,7 @@ describe('applyCatalogContent', () => {
       usageApi: 'personal',
       gsdAutoLine: 'personal',
       gitHardening: 'personal',
+      commandBudgetMs: 'personal',
       loadingText: 'personal',
       budget: 'personal',
       profiles: 'personal',

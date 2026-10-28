@@ -22,7 +22,7 @@ export const SCENARIO_NOW = Date.UTC(2026, 9, 12, 12, 0, 0);
 
 export interface ScenarioBundle {
   payload: StatusPayload;
-  data: Required<DataSources>;
+  data: Required<Omit<DataSources, 'exec'>>;
   env: Record<string, string>;
   config?: Partial<Config>;
 }

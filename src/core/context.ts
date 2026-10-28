@@ -1,5 +1,6 @@
 import { readAgents } from '../data/agents.js';
 import { readEnvironment } from '../data/environment.js';
+import { COMMAND_BUDGET_DEFAULT, execCommand } from '../data/exec.js';
 import { readGit } from '../data/git.js';
 import { readGsd } from '../data/gsd.js';
 import { readHookState } from '../data/hooks.js';
@@ -35,6 +36,7 @@ export interface ContextOptions {
   terminalWidth?: number | null;
   data?: Partial<DataSources>;
   theme?: import('./themes.js').Theme;
+  clock?: () => number;
 }
 
 export function resolveCwd(payload: StatusPayload): string {
@@ -45,6 +47,8 @@ export function createContext(opts: ContextOptions): RenderContext {
   const cwd = resolveCwd(opts.payload);
   const env = opts.env ?? process.env;
   const now = opts.now ?? new Date();
+  const clock = opts.clock ?? Date.now;
+  const deadline = clock() + (opts.config.commandBudgetMs ?? COMMAND_BUDGET_DEFAULT);
   const transcript = opts.data?.transcript ?? lazy(() => readTranscript(opts.payload.transcript_path));
   const hooks =
     opts.data?.hooks ??
@@ -62,6 +66,8 @@ export function createContext(opts: ContextOptions): RenderContext {
     now,
     preview: opts.preview ?? false,
     terminalWidth: opts.terminalWidth ?? null,
+    clock,
+    budget: { deadline },
     ...(opts.theme ? { theme: opts.theme } : {}),
     data: {
       git:
@@ -74,6 +80,7 @@ export function createContext(opts: ContextOptions): RenderContext {
           }),
         ),
       transcript,
+      exec: opts.data?.exec ?? execCommand,
       gsd: opts.data?.gsd ?? lazy(() => readGsd(cwd)),
       jj:
         opts.data?.jj ??

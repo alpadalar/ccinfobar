@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { COMMAND_BUDGET_DEFAULT } from '../data/exec.js';
 import { writeAtomic } from '../data/store.js';
 import { SUBAGENT_FIELDS, type SubagentField } from '../widgets/shared.js';
 import { GLYPH_MODES, OVERFLOW_MODES } from './display-opts.js';
@@ -23,6 +24,8 @@ import type {
   TuiTemplate,
   WidgetItem,
 } from './types.js';
+
+export { COMMAND_BUDGET_DEFAULT };
 
 export const SCHEMA_URL =
   'https://raw.githubusercontent.com/alpadalar/ccinfobar/main/schema/config.schema.json';
@@ -359,6 +362,8 @@ export function normalizeConfig(raw: unknown): Config {
   if (typeof raw.usageApi === 'boolean') cfg.usageApi = raw.usageApi;
   if (raw.gsdAutoLine === true) cfg.gsdAutoLine = true;
   if (raw.gitHardening === false) cfg.gitHardening = false;
+  if (typeof raw.commandBudgetMs === 'number' && Number.isFinite(raw.commandBudgetMs))
+    cfg.commandBudgetMs = Math.min(60_000, Math.max(100, Math.floor(raw.commandBudgetMs)));
   if (typeof raw.loadingText === 'string') cfg.loadingText = sanitizeText(raw.loadingText).slice(0, 40);
   const budget = normalizeBudget(raw.budget);
   if (budget) cfg.budget = budget;
