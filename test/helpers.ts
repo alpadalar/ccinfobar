@@ -88,6 +88,8 @@ export function ctxWith(
     jj?: RenderContext['data']['jj'];
     width?: number | null;
     env?: NodeJS.ProcessEnv;
+    exec?: RenderContext['data']['exec'];
+    clock?: () => number;
   } = {},
 ): RenderContext {
   return createContext({
@@ -96,7 +98,9 @@ export function ctxWith(
     env: overrides.env ?? {},
     now: NOW,
     terminalWidth: overrides.width ?? null,
+    ...(overrides.clock ? { clock: overrides.clock } : {}),
     data: {
+      ...(overrides.exec ? { exec: overrides.exec } : {}),
       git: overrides.git ?? sampleGit,
       gsd: overrides.gsd ?? sampleGsd,
       transcript: overrides.transcript ?? (() => sampleTranscript(NOW.getTime())),

@@ -1,8 +1,8 @@
-import { execSync } from 'node:child_process';
 import { hyperlink, stripAnsi } from '../core/ansi.js';
 import { keepSgrAndLinks, safeConfigUrl, sanitizeText } from '../core/sanitize.js';
 import type { WidgetDef } from '../core/types.js';
 import { cacheKey, readCache, writeCache } from '../data/cache.js';
+import { execCommand } from '../data/exec.js';
 import { opt } from './shared.js';
 
 interface Cached {
@@ -35,35 +35,25 @@ export const widgets: WidgetDef[] = [
       if (!command) return null;
       const ttl = opt(item, 'cacheSeconds', 0) * 1000;
       const name = `cmd-${cacheKey(command, ctx.cwd)}.json`;
-      const now = Date.now();
+      const hit = ttl > 0 ? readCache<Cached>(name, ctx.env) : null;
+      const left = ctx.budget.deadline - ctx.clock();
       let out: string | null = null;
-      if (ttl > 0) {
-        const hit = readCache<Cached>(name, ctx.env);
-        if (hit && now - hit.at < ttl) out = hit.out;
+      if (hit && ctx.clock() - hit.at < ttl) out = hit.out;
+      else if (left < 50) out = hit?.out ?? null;
+      else {
+        const input = JSON.stringify({
+          ...ctx.payload,
+          terminal_width: ctx.terminalWidth ?? ctx.payload.terminal_width,
+        });
+        out = (ctx.data.exec ?? execCommand)(command, {
+          input,
+          cwd: ctx.cwd,
+          env: ctx.env,
+          timeout: Math.min(Math.max(50, opt(item, 'timeout', 1000)), left),
+        });
+        if (out !== null && ttl > 0) writeCache(name, { at: ctx.clock(), out } satisfies Cached, ctx.env);
       }
-      if (out === null) {
-        try {
-          const input = JSON.stringify({
-            ...ctx.payload,
-            terminal_width: ctx.terminalWidth ?? ctx.payload.terminal_width,
-          });
-          out = execSync(command, {
-            input,
-            cwd: ctx.cwd,
-            env: ctx.env,
-            encoding: 'utf8',
-            timeout: Math.max(50, opt(item, 'timeout', 1000)),
-            windowsHide: true,
-            stdio: ['pipe', 'pipe', 'ignore'],
-          });
-        } catch (e) {
-          // the command exited without reading stdin
-          const r = e as { code?: string; status?: number | null; stdout?: unknown };
-          if (r.code !== 'EPIPE' || r.status !== 0 || typeof r.stdout !== 'string') return null;
-          out = r.stdout;
-        }
-        if (ttl > 0) writeCache(name, { at: now, out } satisfies Cached, ctx.env);
-      }
+      if (out === null) return null;
       const line = out
         .split(/\r?\n/)
         .find((l) => l.trim() !== '')
