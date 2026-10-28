@@ -71,4 +71,17 @@ describe('parseArgs', () => {
     expect(b.flags).toEqual({ name: 'n', note: 'v2', description: 'd' });
     expect(b.positional).toEqual(['save']);
   });
+
+  it('coerces inline true/false/1/0 on switch flags only', () => {
+    expect(parseArgs(['--yes=false']).flags.yes).toBe(false);
+    expect(parseArgs(['--detach=1']).flags.detach).toBe(true);
+    expect(parseArgs(['--open=0']).flags.open).toBe(false);
+    expect(parseArgs(['--json=true']).flags.json).toBe(true);
+    expect(parseArgs(['--name=true']).flags.name).toBe('true');
+    expect(parseArgs(['--cwd=/x']).flags.cwd).toBe('/x');
+    expect(parseArgs(['--hooks=permission']).flags.hooks).toBe('permission');
+    expect(parseArgs(['--yes=TRUE']).flags.yes).toBe('TRUE');
+    expect(parseArgs(['--yes=']).flags.yes).toBe('');
+    expect(parseArgs(['--no-open']).flags.open).toBe(false);
+  });
 });

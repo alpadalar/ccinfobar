@@ -33,6 +33,8 @@ const VALUE_FLAGS = [
   'tag',
 ];
 
+const BOOL: Record<string, boolean> = { true: true, '1': true, false: false, '0': false };
+
 export function parseArgs(argv: string[]): Args {
   const args: Args = { command: null, positional: [], flags: {} };
   for (let i = 0; i < argv.length; i++) {
@@ -51,8 +53,9 @@ export function parseArgs(argv: string[]): Args {
       const k = eq < 0 ? body : body.slice(0, eq);
       const inline = eq < 0 ? undefined : body.slice(eq + 1);
       const next = argv[i + 1];
-      if (inline !== undefined) args.flags[k] = inline;
-      else if (next !== undefined && !next.startsWith('-') && VALUE_FLAGS.includes(k)) {
+      if (inline !== undefined) {
+        args.flags[k] = !VALUE_FLAGS.includes(k) && Object.hasOwn(BOOL, inline) ? BOOL[inline]! : inline;
+      } else if (next !== undefined && !next.startsWith('-') && VALUE_FLAGS.includes(k)) {
         args.flags[k] = next;
         i++;
       } else args.flags[k] = true;
