@@ -27,6 +27,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- The cost ledger (`ledger/YYYY-MM.jsonl`) now stores a short hash of the project folder instead of the folder path (reason: privacy); existing ledger lines keep counting toward `cost-project`, and `ccinfobar report` names projects from your transcripts, showing 'unknown project' only for sessions whose transcript is gone and whose ledger lines are new.
 - `spend-limit` shows the used percentage (`63%`) when Claude Code or a gateway sends only `used_percentage` and no dollar amounts, instead of staying empty; with the dollar fields it still shows `$12/$50`
 - Resuming a session with a very long transcript no longer stalls the first refresh: ccinfobar reads about 8 MB per refresh, shows the totals so far and catches up over the next refreshes (`ccinfobar explain` still reads everything).
 - The `agents` widget now reads subagent transcripts incrementally (about 1 MB per agent and 4 MB in total per refresh) and caches the subagent listing, so a busy subagent no longer slows the status line.
