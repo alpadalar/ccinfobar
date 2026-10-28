@@ -17,7 +17,7 @@ The rest of this file is written for Claude.
 
 ## Steps
 
-1. Run `node --version`. It must be 20 or newer. If it is older or missing, stop and tell the user to install Node.js 20 or newer first.
+1. Run `node --version`. It must be 20 or newer. Node.js 20 reached end of life on 30 April 2026; it still works, but use 22 or newer. If it is older or missing, stop and tell the user to install Node.js 20 or newer first.
 
 2. Run `npx ccinfobar@0.8.2 --version`. If it prints 0.6.2 or lower, or fails, stop and tell the user: "This runbook needs a ccinfobar release newer than 0.6.2." Run nothing else. Releases up to 0.6.2 have no dry run and replace the status line without asking.
 

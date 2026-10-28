@@ -65,7 +65,7 @@ ccinfobar is a status line for Claude Code: it renders the JSON that Claude Code
 
 ## Quick start
 
-Requirements: [Claude Code](https://code.claude.com) and Node.js 20 or newer.
+Requirements: [Claude Code](https://code.claude.com) and Node.js 20 or newer. Node.js 20 reached end of life on 30 April 2026; it still works, but use 22 or newer.
 
 ```sh
 npx ccinfobar@latest install
