@@ -91,8 +91,8 @@ describe('install and uninstall', () => {
     fs.writeFileSync(file, '{"model": ');
     expect(
       () => applyInstall(planInstall({ file, command: 'ccinfobar' }), { confirmed: true }).backup,
-    ).toThrow(/Cannot parse/);
-    expect(() => uninstall(file)).toThrow(/Cannot parse/);
+    ).toThrow(/strict JSON/);
+    expect(() => uninstall(file)).toThrow(/strict JSON/);
     expect(fs.readFileSync(file, 'utf8')).toBe('{"model": ');
   });
 
@@ -396,7 +396,7 @@ describe('install prompt and messages', () => {
       `${file} ayrıştırılamıyor: bir JSON nesnesi değil`,
     );
     fs.writeFileSync(file, '{"model": ');
-    expect(() => withLang('tr', () => readSettings(file))).toThrow(/ayrıştırılamıyor: .*JSON/);
+    expect(() => withLang('tr', () => readSettings(file))).toThrow(/katı JSON olmalı.*satır 1, sütun/);
   });
 
   it('keeps other statusLine keys on reinstall', () => {

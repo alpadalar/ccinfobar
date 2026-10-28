@@ -76,9 +76,27 @@ describe('settings file format', () => {
       const fx = settingsFixture({ text });
       const before = fs.readFileSync(fx.file);
       expect(() => patchSettings(fx.file, setLine, { env: fx.env })).toThrow(SettingsParseError);
-      expect(() => readSettings(fx.file)).toThrow(/Cannot parse/);
+      expect(() => readSettings(fx.file)).toThrow(/Cannot parse|strict JSON/);
       expect(fs.readFileSync(fx.file).equals(before)).toBe(true);
     }
+  });
+
+  it('names the line and column of a non-strict file', () => {
+    const msg = (text: string) => {
+      const fx = settingsFixture({ text });
+      try {
+        readSettings(fx.file);
+      } catch (e) {
+        expect(e).toBeInstanceOf(SettingsParseError);
+        return (e as Error).message;
+      }
+      return '';
+    };
+    expect(msg('{\n  // comment\n  "a": 1\n}')).toMatch(/strict JSON.*line 2, column 3/);
+    expect(msg('{"a":1,}')).toMatch(/strict JSON.*line 1, column 8/);
+    expect(msg('{\r\n  "a": 1,\r\n  // c\r\n}')).toMatch(/line 3, column 3/);
+    expect(msg('\ufeff{"a":1,}')).toMatch(/line 1, column 8/);
+    expect(msg('{"a":1,}')).not.toMatch(/Cannot parse/);
   });
 
   it('writes nothing when the bytes would not change', () => {

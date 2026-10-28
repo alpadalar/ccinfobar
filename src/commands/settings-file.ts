@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { t } from '../core/i18n/index.js';
+import { locateJsonError } from '../core/json-locate.js';
 import { claudeSettingsPath, configDir } from '../core/paths.js';
 import { renameWithRetry, resolveReal, writeAtomic, writeTmp } from '../data/store.js';
 
@@ -55,8 +56,9 @@ export class SettingsParseError extends Error {
   constructor(
     readonly file: string,
     reason: string,
+    message = t('install.settings.cannotParse', { file, reason }),
   ) {
-    super(t('install.settings.cannotParse', { file, reason }));
+    super(message);
     this.name = 'SettingsParseError';
   }
 }
@@ -139,7 +141,15 @@ export function readSettings(file: string): SettingsRead {
   try {
     data = JSON.parse(format.bom ? text.slice(1) : text);
   } catch (e) {
-    throw new SettingsParseError(file, (e as Error).message);
+    const reason = (e as Error).message;
+    const at = locateJsonError(format.bom ? text.slice(1) : text);
+    throw new SettingsParseError(
+      file,
+      reason,
+      at
+        ? t('install.settings.strictJson', { file, line: at.line, column: at.column, reason: at.message })
+        : undefined,
+    );
   }
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw new SettingsParseError(file, t('install.settings.notObject'));

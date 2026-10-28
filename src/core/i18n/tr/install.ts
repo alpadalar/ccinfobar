@@ -106,6 +106,8 @@ export const installMessages = {
   'install.setup.noPermission': "npm'in global klasörüne yazma izni yok (EACCES)",
   'install.setup.npmFailed': 'npm install başarısız oldu',
   'install.settings.cannotParse': '{file} ayrıştırılamıyor: {reason}',
+  'install.settings.strictJson':
+    '{file} katı JSON olmalı (yorum ve sondaki virgül yok); satır {line}, sütun {column}: {reason}',
   'install.settings.notObject': 'bir JSON nesnesi değil',
   'install.settings.changed': '{file} yazılırken değişti; yeniden deneyin',
   'uninstall.restoredExact': "✓ {file} dosyası ccinfobar'dan önceki haline birebir döndürüldü",

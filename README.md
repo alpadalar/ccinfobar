@@ -711,6 +711,7 @@ All sessions of one account share the same limits: the newest value wins, so an 
 | --- | --- |
 | Nothing shows up | Run `ccinfobar doctor`. Claude Code also hides the status line in untrusted folders and while dialogs are open. |
 | Another status line shows in one project | That project's `.claude/settings.json` sets its own `statusLine`, and project settings beat `~/.claude/settings.json`. GSD's is replaced automatically by `install` and the daily check; for any other, run `ccinfobar install --project` there. |
+| `install` says settings.json must be strict JSON | Claude Code's `settings.json` cannot contain comments or trailing commas. The message names the line and column; fix the file (or remove the comment), then run `ccinfobar install` again. Nothing was written. |
 | A widget I added is missing | Run `ccinfobar doctor`: it lists every widget with its value or the reason it is hidden (for example "Claude Code sent no rate_limits") and warns when a line is cut to fit the terminal. Save in the editor before checking. |
 | `?` instead of arrows on macOS | Apple Terminal's default fonts have no powerline glyphs. Keep `charset: "auto"` or `"unicode"`, or install a Nerd Font and set `charset: "nerd"`. |
 | Odd boxes instead of arrows or icons | Install a Nerd Font, or set `charset` to `unicode` or `text`. |

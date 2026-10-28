@@ -100,6 +100,8 @@ export const installMessages = {
   'install.setup.noPermission': "no permission to write to npm's global folder (EACCES)",
   'install.setup.npmFailed': 'npm install failed',
   'install.settings.cannotParse': 'Cannot parse {file}: {reason}',
+  'install.settings.strictJson':
+    '{file} must be strict JSON (no comments or trailing commas); line {line}, column {column}: {reason}',
   'install.settings.notObject': 'not a JSON object',
   'install.settings.changed': '{file} changed while writing; try again',
   'uninstall.restoredExact': '✓ Restored {file} exactly as it was before ccinfobar',

@@ -273,6 +273,23 @@ describe('runInstall and runUninstall', () => {
   const args = (...a: string[]) => parseArgs(['install', '--command', '/bin/ccinfobar', ...a]);
   const proposed = t('install.proposed', { command: '/bin/ccinfobar' });
 
+  it.each([
+    ['a comment', '{\n  // comment\n  "a": 1\n}', 'line 2, column 3'],
+    ['a trailing comma', '{"a":1,}', 'line 1, column 8'],
+    ['CRLF line endings', '{\r\n  "a": 1,\r\n  // c\r\n}', 'line 3, column 3'],
+  ])('install and uninstall name the line of %s and write nothing', async (_n, text, where) => {
+    fs.mkdirSync(path.dirname(settings), { recursive: true });
+    fs.writeFileSync(settings, text);
+    const before = snapshot(dir);
+    const bytes = fs.readFileSync(settings);
+    const strict = new RegExp(`strict JSON.*${where}`);
+    await expect(runInstall(args(), cfg, fake(false).io)).rejects.toThrow(strict);
+    await expect(runUninstall(parseArgs(['uninstall']), cfg, fake(false).io)).rejects.toThrow(strict);
+    expect(fs.readFileSync(settings).equals(bytes)).toBe(true);
+    expect(snapshot(dir)).toEqual(before);
+    expect(fs.existsSync(path.join(dir, 'config', 'backups'))).toBe(false);
+  });
+
   it('keeps a foreign statusLine when the TTY user says no', async () => {
     writeJson(settings, { statusLine: foreign });
     const before = snapshot(dir);
