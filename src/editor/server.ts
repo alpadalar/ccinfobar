@@ -1671,6 +1671,9 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           try {
             await installVersionAsync(latest, kind === 'local' ? localPrefix() : undefined);
           } catch (err) {
+            if ((err as Error).message === 'digest-unavailable') {
+              throw httpError(500, 'err.server.digestUnavailable');
+            }
             throw httpError(500, 'err.server.npmFailed', { error: (err as Error).message });
           }
           writeUpdateState({ checkedAt: Date.now(), latest, installed: latest });

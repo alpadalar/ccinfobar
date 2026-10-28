@@ -69,5 +69,7 @@ export const errorMessages = {
   'err.server.setupFailed': 'ccinfobar kurulamadı; npm install -g ccinfobar çalıştırın',
   'err.server.github': "GitHub'a ulaşılamadı: {error}",
   'err.server.cannotUpdate': 'Bu kopya ({kind}) kendini güncelleyemez; npm install -g ccinfobar çalıştırın',
+  'err.server.digestUnavailable':
+    'npm güncellemeyi kuramadı ve GitHub sürüm için sağlama toplamı yayımlamadı; hiçbir şey kurulmadı',
   'err.server.npmFailed': 'npm install başarısız oldu: {error}',
 } satisfies Record<keyof typeof enErrors, Message>;

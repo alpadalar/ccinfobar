@@ -37,6 +37,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Upgrading rebuilds the per-transcript token cache once because its format changed: the first refresh after the update does one budgeted rescan, and very long transcripts show partial totals until it catches up
 - The `agents` widget's cache files are now `agent3-*.json` and `agents-dir-*.json` in the cache folder; the background worker deletes the old `agent2-*.json` files (see the worker cleanup note above)
 - When `ccinfobar install` replaces another tool's status line after you confirm, the other keys of that `statusLine` entry are carried over into ccinfobar's entry instead of being dropped (`type`, `command`, `padding` and `refreshInterval` are ccinfobar's)
+- The automatic update no longer falls back to installing the GitHub release tarball when GitHub publishes no checksum for it: nothing is installed, `ccinfobar doctor` says so and the update is retried at the next check; a rollback whose reinstall has no checksum is recorded as failed instead of installing unverified bytes (reason: never install unverified bytes). Manual `ccinfobar update` likewise installs from the npm registry only.
 
 ### Fixed
 

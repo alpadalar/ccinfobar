@@ -4,7 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InstallKind } from '../../src/commands/update.js';
+import { t } from '../../src/core/i18n/index.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
+import { withLang } from '../helpers.js';
 
 const install = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock('../../src/commands/update.js', async (orig) => ({
@@ -84,6 +86,16 @@ describe('editor update api on a Homebrew copy', () => {
     expect(res.json().errorId).toBe('update.brewRefused');
     expect(res.json().errorParams).toEqual({ command: 'brew upgrade ccinfobar' });
     expect(install).not.toHaveBeenCalled();
+  });
+
+  it('names the missing release checksum when the install fails closed', async () => {
+    await start('npm-global', latest);
+    install.mockRejectedValueOnce(new Error('digest-unavailable'));
+    const res = await request('POST', '/api/update', '{"install":true}');
+    expect(res.status).toBe(500);
+    expect(res.json().errorId).toBe('err.server.digestUnavailable');
+    expect(res.json().error).toBe(t('err.server.digestUnavailable'));
+    expect(withLang('tr', () => t('err.server.digestUnavailable'))).toContain('sağlama toplamı');
   });
 
   it('checks without installing', async () => {

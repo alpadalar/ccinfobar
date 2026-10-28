@@ -65,5 +65,7 @@ export const errorMessages = {
   'err.server.setupFailed': 'Could not install ccinfobar; run npm install -g ccinfobar',
   'err.server.github': 'Could not reach GitHub: {error}',
   'err.server.cannotUpdate': 'This {kind} copy cannot update itself; run npm install -g ccinfobar',
+  'err.server.digestUnavailable':
+    'npm could not install the update and GitHub published no checksum for the release; nothing was installed',
   'err.server.npmFailed': 'npm install failed: {error}',
 } as const;
