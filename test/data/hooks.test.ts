@@ -362,3 +362,64 @@ describe('readHookState', () => {
     expect(readHookState(SID, env)).toBeNull();
   });
 });
+
+describe('readHookState across a log rotation', () => {
+  const oldLog = () => log().replace(/\.jsonl$/, '.old.jsonl');
+  const nl = (lines: string[]) => `${lines.join('\n')}\n`;
+  const turns = (from: number, n: number) =>
+    Array.from({ length: n }, (_, i) => [
+      ups(from + i * 10, `p${from + i}`),
+      stop(from + i * 10 + 5, `p${from + i}`),
+    ]).flat();
+  const cache = () => JSON.parse(fs.readFileSync(foldFile(), 'utf8'));
+
+  function rotate(first: string[], inOld: string[], inNew: string[]) {
+    writeLog(nl(first));
+    readHookState(SID, env);
+    fs.renameSync(log(), oldLog());
+    fs.appendFileSync(oldLog(), nl(inOld));
+    fs.writeFileSync(log(), nl(inNew));
+  }
+
+  it('follows the old inode and equals the unrotated fold', () => {
+    const a = [...turns(1000, 5), sStart(1500, 'ag1', 'Explore')];
+    const b = [...turns(2000, 3), sStart(2500, 'ag2', 'Plan'), sStop(2600, 'ag2')];
+    const c = turns(3000, 2);
+    rotate(a, b, c);
+    const got = readHookState(SID, env);
+    expect(Object.keys(got!.agents).sort()).toEqual(['ag1', 'ag2']);
+    const sid2 = 'sess-2';
+    const plain = path.join(dir, 'cache', 'hooks', `${sid2}.jsonl`);
+    fs.writeFileSync(plain, nl([...a, ...b, ...c]));
+    expect(got).toEqual(readHookState(sid2, env));
+    expect(cache().offset).toBe(fs.statSync(log()).size);
+    expect(cache().ino).toBe(fs.statSync(log()).ino);
+  });
+
+  it('refolds the new file only when the cache matches neither', () => {
+    writeLog(nl(turns(1000, 4)));
+    readHookState(SID, env);
+    fs.rmSync(log());
+    fs.writeFileSync(log(), nl(turns(2000, 2)));
+    const sid2 = 'sess-2';
+    fs.writeFileSync(path.join(dir, 'cache', 'hooks', `${sid2}.jsonl`), nl(turns(2000, 2)));
+    expect(readHookState(SID, env)).toEqual(readHookState(sid2, env));
+  });
+
+  it('ignores .old.jsonl without a cache', () => {
+    fs.mkdirSync(path.dirname(log()), { recursive: true });
+    fs.writeFileSync(oldLog(), nl(turns(1000, 4)));
+    writeLog(nl(turns(2000, 2)));
+    const sid2 = 'sess-2';
+    fs.writeFileSync(path.join(dir, 'cache', 'hooks', `${sid2}.jsonl`), nl(turns(2000, 2)));
+    expect(readHookState(SID, env)).toEqual(readHookState(sid2, env));
+  });
+
+  it('writes no cache with persist false', () => {
+    rotate(turns(1000, 3), turns(2000, 1), turns(3000, 1));
+    const before = fs.readFileSync(foldFile(), 'utf8');
+    const got = readHookState(SID, env, { persist: false });
+    expect(got).not.toBeNull();
+    expect(fs.readFileSync(foldFile(), 'utf8')).toBe(before);
+  });
+});

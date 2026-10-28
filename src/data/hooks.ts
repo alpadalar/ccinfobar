@@ -406,14 +406,38 @@ export function readHookState(
     const size = st.size;
     const cacheFile = path.join(hooksDir(env), `${sessionId}.fold.json`);
     const cached = readJsonSafe(cacheFile, isCache);
-    const fresh = !cached || cached.offset > size || (cached.ino !== undefined && cached.ino !== st.ino);
-    const f = fresh ? emptyFold() : load(cached.state);
-    let offset = fresh ? 0 : cached.offset;
-    if (offset < size) {
-      fd = fs.openSync(file, 'r');
+    const moved = !!cached && cached.ino !== undefined && cached.ino !== st.ino;
+    let fresh = !cached || (!moved && cached.offset > size);
+    let f = fresh ? emptyFold() : load(cached!.state);
+    let offset = fresh ? 0 : cached!.offset;
+    let followed = false;
+    if (cached && moved) {
+      // one rotation: finish the old generation, then fold the new file from 0
+      fresh = true;
+      f = emptyFold();
+      offset = 0;
+      const old = file.replace(/\.jsonl$/, '.old.jsonl');
+      const ost = cached.ino ? fs.statSync(old, { throwIfNoEntry: false }) : undefined;
+      if (ost?.isFile() && ost.ino === cached.ino && cached.offset <= ost.size) {
+        const ofd = fs.openSync(old, 'r');
+        try {
+          f = load(cached.state);
+          advance(f, ofd, cached.offset, ost.size);
+          followed = true;
+        } finally {
+          try {
+            fs.closeSync(ofd);
+          } catch {}
+        }
+      }
+    }
+    if (offset < size || followed) {
+      if (offset < size) {
+        fd = fs.openSync(file, 'r');
+      }
       const before = offset;
-      offset = advance(f, fd, offset, size);
-      if ((offset !== before || fresh) && opts.persist !== false)
+      if (fd !== null) offset = advance(f, fd, offset, size);
+      if ((offset !== before || fresh || followed) && opts.persist !== false)
         writeAtomic(cacheFile, JSON.stringify({ v: FOLD_VERSION, offset, ino: st.ino, state: save(f) }), {
           mode: 0o600,
           class: 'cache',
