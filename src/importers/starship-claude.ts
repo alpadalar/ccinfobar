@@ -98,7 +98,7 @@ export const starshipClaudeImporter: ImporterDef = {
   repo: 'martinemde/starship-claude',
   shown: '~/.claude/starship.toml',
   hasDefault: false,
-  detect: [/starship-claude/i],
+  names: ['starship-claude'],
   tool: isBin('starship-claude'),
   named,
   discover,

@@ -281,6 +281,45 @@ describe('legacy importers home', () => {
   });
 });
 
+describe('detectTool registry names', () => {
+  const tools = [
+    ['starship-claude', 'starship-claude'],
+    ['claude-ultimate-hud', 'claude-ultimate-hud'],
+    ['claude-usage-monitor', 'claude-usage-monitor'],
+    ['best-claude-hud', 'best-claude-hud'],
+    ['byebyecode', 'byebyecode'],
+    ['pyccsl', 'pyccsl'],
+    ['claudeline', 'claudeline'],
+    ['ccpet', 'ccpet'],
+    ['claudebar', 'claudebar'],
+    ['claude-statusbar', 'claude-statusbar'],
+    ['ccsp', 'statusline-pro'],
+  ] as const;
+
+  it.each(tools)('%s matches as a basename, a package or an install folder', (name, tool) => {
+    for (const cmd of [
+      name,
+      `/opt/bin/${name}`,
+      `npx -y ${name}@latest`,
+      `node ~/.claude/plugins/${name}/x.js`,
+    ]) {
+      expect(detectTool(cmd), cmd).toMatchObject({ tool, importable: true });
+    }
+  });
+
+  it.each(tools)('%s is not a substring match', (name) => {
+    for (const cmd of [
+      `/home/x/${name}-tools/run.sh`,
+      `my-${name}-wrapper`,
+      `bash ~/${name}x/line.sh`,
+      `sh -c "echo ${name}s"`,
+      `echo ${name}-notes`,
+    ]) {
+      expect(detectTool(cmd), cmd).toMatchObject({ tool: 'unknown' });
+    }
+  });
+});
+
 describe('detectTool', () => {
   it('recognises known status lines', () => {
     expect(detectTool('/home/u/.npm-global/bin/ccstatusline')).toMatchObject({

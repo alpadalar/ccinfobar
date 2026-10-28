@@ -263,7 +263,7 @@ export function importStatuslinePro(raw: unknown, opts: StatuslineProOptions = {
   return { config, notes, source: 'statusline-pro' };
 }
 
-const TOOL_TOKEN = /claude-code-statusline-pro|\bccsp\b/i;
+const TOOL_NAMES = ['claude-code-statusline-pro', 'ccsp'];
 const VALUE_FLAGS = new Set(['-c', '--config', '-p', '--preset', '-t', '--theme', '--mock']);
 
 // positional PRESET after the binary, as in `ccsp PMBT`
@@ -313,7 +313,7 @@ export const statuslineProImporter: ImporterDef = {
   aliases: ['ccsp', 'claude-code-statusline-pro'],
   shown: '~/.claude/statusline-pro/config.toml',
   hasDefault: true,
-  detect: [TOOL_TOKEN],
+  names: TOOL_NAMES,
   tool: isBin('ccsp', 'claude-code-statusline-pro'),
   named,
   discover,

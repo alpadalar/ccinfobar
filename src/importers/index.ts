@@ -5,7 +5,7 @@ import { defaultConfig, normalizeConfig } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
 import { claudeDir, claudeSettingsPath } from '../core/paths.js';
 import type { Config } from '../core/types.js';
-import { binName, commandArgs, flagValue, isBin, isScript, scriptName, toolArgs } from './args.js';
+import { binName, commandArgs, flagValue, isBin, isScript, scriptName, tokenRe, toolArgs } from './args.js';
 import { commandScript } from './cc-statusline.js';
 import { CCOMETIXLINE, importCclineFamily } from './ccline-load.js';
 import { isCcline } from './ccometixline.js';
@@ -161,9 +161,14 @@ const TAIL_KNOWN: readonly Known[] = [
 
 // first match wins, so the most specific names go first
 function knownList(defs: readonly ImporterDef[]): Known[] {
-  const own = defs.flatMap((d) =>
-    (d.detect ?? []).map((re) => ({ re, tool: d.source, name: d.name, importable: true })),
-  );
+  const own = defs.flatMap((d): Known[] => {
+    const names = d.names?.length ? tokenRe(...d.names) : null;
+    const base = { tool: d.source, name: d.name, importable: true };
+    return [
+      ...(d.detect ?? []).map((re) => ({ re, ...base })),
+      ...(names ? [{ runs: runsTool((tok) => names.test(tok)), ...base }] : []),
+    ];
+  });
   return [...own, ...LEGACY_KNOWN, ...OTHER_KNOWN, ...TAIL_KNOWN];
 }
 

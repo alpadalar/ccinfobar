@@ -31,6 +31,13 @@ export function binName(token: string): string {
     .toLowerCase();
 }
 
+// an argv token naming the tool: a path segment, with an optional @version or script/exe suffix
+export const tokenRe = (...names: string[]): RegExp =>
+  new RegExp(
+    `(?:^|[\\\\/])(?:${names.join('|')})(?:@[^\\\\/]*)?(?:\\.(?:exe|cmd|m?js|cjs|py|sh|ps1))?(?:[\\\\/]|["']?$)`,
+    'i',
+  );
+
 export const isBin =
   (...names: string[]) =>
   (token: string) =>

@@ -211,7 +211,7 @@ export const ccpetImporter: ImporterDef = {
   repo: 'terryso/ccpet',
   shown: SHOWN,
   hasDefault: true,
-  detect: [/\bccpet\b/i],
+  names: ['ccpet'],
   // os.homedir() on every OS
   discover: (ctx) => path.join(ctx.home, '.claude-pet', 'config.json'),
   load: (file, ctx) =>

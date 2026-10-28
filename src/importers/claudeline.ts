@@ -110,7 +110,7 @@ export const claudelineImporter: ImporterDef = {
   repo: 'fredrikaverpil/claudeline',
   shown: null,
   hasDefault: true,
-  detect: [/\bclaudeline\b/i],
+  names: ['claudeline'],
   tool: isClaudeline,
   discover: () => null,
   load: (file, ctx) => {

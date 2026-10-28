@@ -19,7 +19,7 @@ export const bestClaudeHudImporter: ImporterDef = {
   repo: 'GaoSSR/best-claude-hud',
   shown: '~/.claude/best-claude-hud/config.toml',
   hasDefault: true,
-  detect: [/best-claude-hud/i],
+  names: ['best-claude-hud'],
   tool: isBin('best-claude-hud'),
   ...family({
     tool: 'best-claude-hud',
@@ -35,7 +35,7 @@ export const byebyecodeImporter: ImporterDef = {
   repo: 'byebye-code/byebyecode',
   shown: '~/.claude/byebyecode/config.toml',
   hasDefault: true,
-  detect: [/byebyecode/i],
+  names: ['byebyecode'],
   tool: isBin('byebyecode'),
   ...family({
     tool: 'byebyecode',

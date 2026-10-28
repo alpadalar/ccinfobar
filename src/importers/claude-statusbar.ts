@@ -259,7 +259,8 @@ export const claudeStatusbarImporter: ImporterDef = {
   repo: 'leeguooooo/claude-code-usage-bar',
   shown: SHOWN,
   hasDefault: true,
-  detect: [/(?:^|[\\/\s"'])(?:cs|cstatus|claude-statusbar)(?:\.exe)?["']?\s+render\b/i, /claude-statusbar/i],
+  detect: [/(?:^|[\\/\s"'])(?:cs|cstatus|claude-statusbar)(?:\.exe)?["']?\s+render\b/i],
+  names: ['claude-statusbar'],
   tool: isBin('cs', 'cstatus', 'claude-statusbar'),
   // Path.home() on every OS, never CLAUDE_CONFIG_DIR
   discover: (ctx) => path.join(ctx.home, '.claude', 'claude-statusbar.json'),

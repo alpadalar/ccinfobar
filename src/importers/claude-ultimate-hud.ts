@@ -153,7 +153,7 @@ export const claudeUltimateHudImporter: ImporterDef = {
   repo: 'ai-younggle-man/claude-ultimate-hud',
   shown: SHOWN,
   hasDefault: true,
-  detect: [/claude-ultimate-hud/i],
+  names: ['claude-ultimate-hud'],
   // os.homedir() on every OS
   discover: (ctx) => path.join(ctx.home, '.claude', 'claude-ultimate-hud.local.json'),
   load: (file, ctx) =>

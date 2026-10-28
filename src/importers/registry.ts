@@ -40,7 +40,10 @@ export interface ImporterInfo {
 }
 
 export interface ImporterDef extends ImporterInfo {
+  // whole-command patterns
   detect?: readonly RegExp[];
+  // names an argv token must carry (path segment, package name), never a substring
+  names?: readonly string[];
   // the tool's own command token; its flags are read only after it
   tool?: (token: string) => boolean;
   // file header check for commands that do not name the tool

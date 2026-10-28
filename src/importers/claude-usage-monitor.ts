@@ -153,7 +153,7 @@ export const claudeUsageMonitorImporter: ImporterDef = {
   repo: 'aiedwardyi/claude-usage-monitor',
   shown: '~/.claude/settings.json (env)',
   hasDefault: true,
-  detect: [/claude-usage-monitor/i],
+  names: ['claude-usage-monitor'],
   discover: settingsPath,
   load: (file, ctx) =>
     file

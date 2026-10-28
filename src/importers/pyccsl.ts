@@ -261,7 +261,7 @@ export const pyccslImporter: ImporterDef = {
   repo: 'wolfdenpublishing/pyccsl',
   shown: null,
   hasDefault: true,
-  detect: [/pyccsl(\.py)?\b/i],
+  names: ['pyccsl'],
   tool: isPyccsl,
   named: (ctx) => {
     const env = flagValue(ctx.argv.slice(1), ['--env']);

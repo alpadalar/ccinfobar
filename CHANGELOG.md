@@ -43,6 +43,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The automatic update no longer falls back to installing the GitHub release tarball when GitHub publishes no checksum for it: nothing is installed, `ccinfobar doctor` says so and the update is retried at the next check; a rollback whose reinstall has no checksum is recorded as failed instead of installing unverified bytes (reason: never install unverified bytes). Manual `ccinfobar update` likewise installs from the npm registry only.
 
 ### Fixed
+- `ccinfobar import` no longer offers an import for a command that only contains a tool's name inside a longer word or folder (for example `starship-claude-tools/run.sh` or `my-byebyecode-wrapper`); the tool must be one of the command's own words, as a program name, package name or install folder.
 - A `command` widget with `background` set as the string `"true"` (a hand-edited or imported config) now runs in the background worker; it used to show nothing because the widget and the worker disagreed on the value.
 - Admin review of a held marketplace version now shows that version's own name, description and columns (not the live entry's) and lists the links it adds, so an admin approves what they saw.
 - The marketplace Worker refuses an overwrite (`409`) while a held version of the entry waits for review, like a new version does, so approving later cannot publish a document whose hash no longer matches the live body.

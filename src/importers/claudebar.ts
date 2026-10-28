@@ -256,7 +256,7 @@ export const claudebarImporter: ImporterDef = {
   repo: 'micschr0/claudebar',
   shown: '~/.config/claudebar/config.toml',
   hasDefault: true,
-  detect: [/\bclaudebar\b/i],
+  names: ['claudebar'],
   tool: isBin('claudebar'),
   // claudebar reads HOME and XDG_CONFIG_HOME on every OS
   named: (ctx) => {
