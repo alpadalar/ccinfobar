@@ -448,6 +448,37 @@ async function rollBack(
   return UNVERIFIED_REASONS.has(bad) ? 'unverified' : 'failed';
 }
 
+export type InstallOutcome =
+  | { installed: string; inconclusive?: string }
+  | { rejected: string; rollback: 'ok' | 'failed' | 'unverified'; reason: string };
+
+// install, verify, then keep, or record and roll back
+export async function installChecked(
+  latest: string,
+  current: string,
+  prefix: string | undefined,
+  env: NodeJS.ProcessEnv,
+  deps: Pick<
+    CheckDeps,
+    'install' | 'verify' | 'installMs' | 'rollbackMs' | 'signal' | 'recordRejected' | 'fetch'
+  >,
+): Promise<InstallOutcome> {
+  const install = deps.install ?? ((v, p, s) => installVersionAsync(v, p, s, deps.fetch));
+  await install(latest, prefix, within(deps.installMs ?? INSTALL_BUDGET_MS, deps.signal));
+  const verify: Verify = deps.verify ?? (deps.install ? async () => null : verifyInstall);
+  const bad = await verify(latest, env, deps.signal);
+  if (bad === null) return { installed: latest };
+  const reason = bad.slice(0, 200);
+  // only machine-health reasons keep the install; a timeout rejects (D-02)
+  if (KEEP_REASONS.has(bad)) return { installed: latest, inconclusive: bad };
+  // recorded first so a killed rollback still blacklists the version
+  try {
+    deps.recordRejected?.({ latest, rejected: latest, rollback: 'failed', reason });
+  } catch {}
+  const rollback = await rollBack(install, verify, current, prefix, env, deps.rollbackMs);
+  return { rejected: latest, rollback, reason };
+}
+
 export async function checkForUpdate(
   config: Config,
   current: string = VERSION,
@@ -479,20 +510,11 @@ export async function checkForUpdate(
       }
     }
     const prefix = kind === 'local' ? localPrefix(env) : undefined;
-    const install = deps.install ?? ((v, p, s) => installVersionAsync(v, p, s, deps.fetch));
-    await install(latest, prefix, within(deps.installMs ?? INSTALL_BUDGET_MS, deps.signal));
-    const verify: Verify = deps.verify ?? (deps.install ? async () => null : verifyInstall);
-    const bad = await verify(latest, env, deps.signal);
-    if (bad === null) return { latest, installed: latest };
-    const reason = bad.slice(0, 200);
-    // only machine-health reasons keep the install; a timeout rejects (D-02)
-    if (KEEP_REASONS.has(bad)) return { latest, installed: latest, error: `verify-inconclusive:${bad}` };
-    // recorded first so a killed rollback still blacklists the version
-    try {
-      deps.recordRejected?.({ latest, rejected: latest, rollback: 'failed', reason });
-    } catch {}
-    const rollback = await rollBack(install, verify, current, prefix, env, deps.rollbackMs);
-    return { latest, rejected: latest, rollback, reason };
+    const out = await installChecked(latest, current, prefix, env, deps);
+    if ('rejected' in out) return { latest, ...out };
+    if (out.inconclusive)
+      return { latest, installed: latest, error: `verify-inconclusive:${out.inconclusive}` };
+    return { latest, installed: latest };
   }
   return { latest };
 }

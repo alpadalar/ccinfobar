@@ -153,17 +153,17 @@ describe('background update job on a Homebrew Cellar copy', () => {
 describe('manual update on a brew copy', () => {
   async function run(current: string, check: boolean) {
     const out: string[] = [];
-    const installVersion = vi.fn();
+    const install = vi.fn();
     const writeState = vi.fn();
     const code = await manualUpdate(current, check, {
       installKind: () => 'brew',
       fetchLatest: latest,
-      installVersion,
+      install,
       writeState,
       log: (l) => out.push(l),
       error: (l) => out.push(`E ${l}`),
     });
-    return { code, out, installVersion, writeState };
+    return { code, out, install, writeState };
   }
 
   it('prints the new version and the brew hint, and never runs npm', async () => {
@@ -174,7 +174,7 @@ describe('manual update on a brew copy', () => {
       '  Installed with Homebrew: run `brew upgrade ccinfobar`',
     ]);
     expect(r.out[1]).toBe(t('update.brewManual', { command: BREW_UPGRADE }));
-    expect(r.installVersion).not.toHaveBeenCalled();
+    expect(r.install).not.toHaveBeenCalled();
     expect(r.writeState).toHaveBeenCalledTimes(1);
     expect(r.writeState.mock.calls[0]?.[0]).not.toHaveProperty('installed');
     expect(mocks.execFileSync).not.toHaveBeenCalled();
@@ -194,7 +194,7 @@ describe('manual update on a brew copy', () => {
     const r = await run('0.1.0', true);
     expect(r.code).toBe(0);
     expect(r.out).toEqual(['New version available: 0.1.0 → 9.9.9']);
-    expect(r.installVersion).not.toHaveBeenCalled();
+    expect(r.install).not.toHaveBeenCalled();
   });
 
   it('says the copy is current when it is', async () => {

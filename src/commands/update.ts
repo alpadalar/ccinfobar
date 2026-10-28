@@ -6,7 +6,13 @@ import { claudeSettingsPath } from '../core/paths.js';
 import { VERSION } from '../core/version.js';
 import { executeJob, type JobEnvelope, jobOff } from '../data/jobs/runner.js';
 import { type UpdateValue, updateJob } from '../data/jobs/update.js';
-import { fetchLatest, installVersion } from '../data/self-update.js';
+import {
+  type CheckDeps,
+  fetchLatest,
+  installChecked,
+  installVersionAsync,
+  type Verify,
+} from '../data/self-update.js';
 import {
   BREW_UPGRADE,
   compareVersions,
@@ -69,7 +75,8 @@ export function takeOverAfterUpdate(env: NodeJS.ProcessEnv = process.env): void 
 
 export interface UpdateDeps {
   fetchLatest: (timeoutMs: number) => Promise<string>;
-  installVersion: (version: string, prefix?: string) => void;
+  install: NonNullable<CheckDeps['install']>;
+  verify?: Verify;
   installKind: () => InstallKind;
   writeState: typeof writeUpdateState;
   log: (line: string) => void;
@@ -78,7 +85,7 @@ export interface UpdateDeps {
 
 const DEPS: UpdateDeps = {
   fetchLatest,
-  installVersion,
+  install: (v, p, sig) => installVersionAsync(v, p, sig),
   installKind,
   writeState: writeUpdateState,
   log: (line) => console.log(line),
@@ -118,17 +125,40 @@ export async function manualUpdate(
     d.log(t('cmd.update.npx'));
     return 0;
   }
+  const prefix = kind === 'local' ? localPrefix() : undefined;
+  d.log(t('cmd.update.installing', { version: latest }));
+  let out: Awaited<ReturnType<typeof installChecked>>;
   try {
-    d.log(t('cmd.update.installing', { version: latest }));
-    d.installVersion(latest, kind === 'local' ? localPrefix() : undefined);
-    d.writeState({ checkedAt: Date.now(), latest, installed: latest });
-    d.log(t('cmd.update.updated', { version: latest }));
-    return 0;
+    out = await installChecked(latest, current, prefix, process.env, {
+      install: d.install,
+      verify: d.verify ?? (deps.install ? async () => null : undefined),
+    });
   } catch (err) {
     d.error(t('cmd.update.npmFailed', { message: (err as Error).message }));
     d.error(t('cmd.update.manual', { version: latest }));
     return 1;
   }
+  if (!('rejected' in out)) {
+    d.writeState({ checkedAt: Date.now(), latest, installed: latest });
+    if (out.inconclusive) d.log(t('cmd.update.unverified', { version: latest, reason: out.inconclusive }));
+    else d.log(t('cmd.update.updated', { version: latest }));
+    return 0;
+  }
+  d.writeState({
+    checkedAt: Date.now(),
+    latest,
+    rejected: latest,
+    rollback: out.rollback,
+    reason: out.reason,
+  });
+  const p = { latest, current, reason: out.reason };
+  if (out.rollback === 'ok') d.error(t('cmd.update.rolledBack', p));
+  else if (out.rollback === 'unverified') d.error(t('cmd.update.rollbackUnverified', p));
+  else {
+    d.error(t('cmd.update.rollbackFailed', p));
+    d.error(t('cmd.update.manual', { version: current }));
+  }
+  return 1;
 }
 
 export async function runUpdate(args: Args, cfgFile: string): Promise<void> {

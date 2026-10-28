@@ -227,7 +227,7 @@ describe('manual update output', () => {
         if (opts.offline) throw new Error(opts.offline);
         return opts.latest ?? '1.0.0';
       },
-      installVersion: (v, prefix) => {
+      install: (v, prefix) => {
         installs.push([v, prefix]);
         if (opts.fail) throw new Error(opts.fail);
       },
@@ -342,5 +342,103 @@ describe('manual update output', () => {
     const local = await run({ latest: '1.1.0', kind: 'local' });
     expect(local.installs[0]?.[1]).toBeTruthy();
     expect(local.code).toBe(0);
+  });
+});
+
+describe('manual update verification', () => {
+  const state: Array<Record<string, unknown>> = [];
+  async function verified(
+    verifyFn: (v: string) => Promise<string | null>,
+    opts: { reinstallFails?: boolean } = {},
+  ) {
+    const out: string[] = [];
+    state.length = 0;
+    const installs: string[] = [];
+    const code = await manualUpdate('0.8.2', false, {
+      fetchLatest: async () => '0.9.0',
+      installKind: () => 'npm-global',
+      install: async (v) => {
+        installs.push(v);
+        if (opts.reinstallFails && v === '0.8.2') throw new Error('EACCES');
+      },
+      verify: verifyFn,
+      writeState: ((s: Record<string, unknown>) => {
+        state.push(s);
+      }) as never,
+      log: (l) => out.push(l),
+      error: (l) => out.push(`E ${l}`),
+    });
+    return { code, out, installs };
+  }
+  const bad = async (v: string) => (v === '0.9.0' ? 'render-failed:1' : null);
+
+  it('a verified install is reported and exits 0', async () => {
+    const r = await verified(async () => null);
+    expect(r.code).toBe(0);
+    expect(r.out.at(-1)).toBe('✓ Updated to 0.9.0');
+    expect(state.at(-1)).toMatchObject({ latest: '0.9.0', installed: '0.9.0' });
+  });
+
+  it('rolls back a failed check, prints it in en and tr, exits 1 and records the rejection', async () => {
+    const r = await verified(bad);
+    expect(r.code).toBe(1);
+    expect(r.installs).toEqual(['0.9.0', '0.8.2']);
+    expect(r.out.at(-1)).toBe('E ✗ 0.9.0 failed its check (render-failed:1); back on 0.8.2');
+    expect(state.at(-1)).toMatchObject({
+      latest: '0.9.0',
+      rejected: '0.9.0',
+      rollback: 'ok',
+      reason: 'render-failed:1',
+    });
+    const prev = setLanguage('tr');
+    try {
+      const tr = await verified(bad);
+      expect(tr.out.at(-1)).toBe('E ✗ 0.9.0 denetimi geçemedi (render-failed:1); 0.8.2 sürümüne dönüldü');
+    } finally {
+      setLanguage(prev);
+    }
+  });
+
+  it('keeps the install when the check could not run, with a warning and exit 0', async () => {
+    const r = await verified(async () => 'verify-failed');
+    expect(r.code).toBe(0);
+    expect(r.installs).toEqual(['0.9.0']);
+    expect(r.out.at(-1)).toBe(
+      '  0.9.0 is installed; the check could not run on this machine (verify-failed)',
+    );
+    expect(state.at(-1)).toMatchObject({ installed: '0.9.0' });
+    expect(state.at(-1)?.rejected).toBeUndefined();
+  });
+
+  it('says so when the rollback failed, and gives the manual command', async () => {
+    const r = await verified(bad, { reinstallFails: true });
+    expect(r.code).toBe(1);
+    expect(r.out.slice(-2)).toEqual([
+      'E ✗ 0.9.0 failed its check (render-failed:1) and the rollback to 0.8.2 failed',
+      'E   Run it yourself: npm install -g ccinfobar@0.8.2',
+    ]);
+    expect(state.at(-1)).toMatchObject({ rejected: '0.9.0', rollback: 'failed' });
+  });
+
+  it('says so when the restored version could not be verified', async () => {
+    const r = await verified(async (v) => (v === '0.9.0' ? 'render-failed:1' : 'verify-timeout'));
+    expect(r.code).toBe(1);
+    expect(r.out.at(-1)).toBe(
+      'E ✗ 0.9.0 failed its check (render-failed:1); 0.8.2 was restored but could not be verified',
+    );
+    expect(state.at(-1)).toMatchObject({ rollback: 'unverified' });
+    const prev = setLanguage('tr');
+    try {
+      expect(
+        (await verified(async (v) => (v === '0.9.0' ? 'render-failed:1' : 'verify-timeout'))).out.at(-1),
+      ).toBe('E ✗ 0.9.0 denetimi geçemedi (render-failed:1); 0.8.2 geri yüklendi ama doğrulanamadı');
+    } finally {
+      setLanguage(prev);
+    }
+  });
+
+  it('ignores a previously rejected version on an explicit update', async () => {
+    const r = await verified(async () => null);
+    expect(r.installs).toEqual(['0.9.0']);
   });
 });

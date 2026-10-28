@@ -61,6 +61,11 @@ export const commandsMessages = {
   'cmd.update.updated': '✓ Updated to {version}',
   'cmd.update.npmFailed': '✗ npm install failed: {message}',
   'cmd.update.manual': '  Run it yourself: npm install -g ccinfobar@{version}',
+  'cmd.update.rolledBack': '✗ {latest} failed its check ({reason}); back on {current}',
+  'cmd.update.rollbackFailed': '✗ {latest} failed its check ({reason}) and the rollback to {current} failed',
+  'cmd.update.rollbackUnverified':
+    '✗ {latest} failed its check ({reason}); {current} was restored but could not be verified',
+  'cmd.update.unverified': '  {version} is installed; the check could not run on this machine ({reason})',
   'share.size': '{chars} characters',
   'share.dropped': '  removed {kind}: {target}',
   'share.includeHint': '  --include-commands keeps them',

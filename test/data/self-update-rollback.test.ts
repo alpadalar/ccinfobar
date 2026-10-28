@@ -16,6 +16,7 @@ vi.mock('node:child_process', async (orig) => {
 
 const {
   checkForUpdate,
+  installChecked,
   fetchTarball,
   installVersionAsync,
   releaseDigest,
@@ -501,5 +502,53 @@ describe('releasePublishedAt', () => {
     expect(
       await releasePublishedAt('0.9.0', fakeFetch([json({}, 404), json({ time: { '0.9.0': 'bad' } })]).fetch),
     ).toBeNull();
+  });
+});
+
+describe('installChecked', () => {
+  const env = {} as NodeJS.ProcessEnv;
+  it('returns installed for a clean verify and the inconclusive reason when the check could not run', async () => {
+    const install = vi.fn();
+    expect(
+      await installChecked('0.9.0', '0.8.2', undefined, env, { install, verify: async () => null }),
+    ).toEqual({
+      installed: '0.9.0',
+    });
+    expect(
+      await installChecked('0.9.0', '0.8.2', undefined, env, {
+        install,
+        verify: async () => 'entry-missing',
+      }),
+    ).toEqual({ installed: '0.9.0', inconclusive: 'entry-missing' });
+  });
+
+  it('records the rejection before the rollback and reports the rollback result', async () => {
+    const order: string[] = [];
+    const install = vi.fn(async (v: string) => {
+      order.push(`install ${v}`);
+    });
+    const verify = vi.fn(async (v: string) => (v === '0.9.0' ? 'render-failed:1' : null));
+    const out = await installChecked('0.9.0', '0.8.2', undefined, env, {
+      install,
+      verify,
+      recordRejected: (r) => order.push(`record ${r.rejected} ${r.rollback}`),
+    });
+    expect(out).toEqual({ rejected: '0.9.0', rollback: 'ok', reason: 'render-failed:1' });
+    expect(order).toEqual(['install 0.9.0', 'record 0.9.0 failed', 'install 0.8.2']);
+  });
+
+  it('maps a throwing reinstall to failed and an unverifiable one to unverified', async () => {
+    const verify = async (v: string) => (v === '0.9.0' ? 'render-failed:1' : 'verify-timeout');
+    const failing = vi.fn(async (v: string) => {
+      if (v === '0.8.2') throw new Error('EACCES');
+    });
+    expect(
+      await installChecked('0.9.0', '0.8.2', undefined, env, { install: failing, verify }),
+    ).toMatchObject({
+      rollback: 'failed',
+    });
+    expect(
+      await installChecked('0.9.0', '0.8.2', undefined, env, { install: vi.fn(), verify }),
+    ).toMatchObject({ rollback: 'unverified' });
   });
 });

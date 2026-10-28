@@ -67,6 +67,12 @@ export const commandsMessages = {
   'cmd.update.updated': '✓ {version} sürümüne güncellendi',
   'cmd.update.npmFailed': '✗ npm install başarısız oldu: {message}',
   'cmd.update.manual': '  Kendiniz çalıştırın: npm install -g ccinfobar@{version}',
+  'cmd.update.rolledBack': '✗ {latest} denetimi geçemedi ({reason}); {current} sürümüne dönüldü',
+  'cmd.update.rollbackFailed':
+    '✗ {latest} denetimi geçemedi ({reason}) ve {current} sürümüne geri dönüş başarısız oldu',
+  'cmd.update.rollbackUnverified':
+    '✗ {latest} denetimi geçemedi ({reason}); {current} geri yüklendi ama doğrulanamadı',
+  'cmd.update.unverified': '  {version} kuruldu; denetim bu makinede çalıştırılamadı ({reason})',
   'share.size': '{chars} karakter',
   'share.dropped': '  çıkarıldı, {kind}: {target}',
   'share.includeHint': '  --include-commands bunları korur',
