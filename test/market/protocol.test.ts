@@ -838,3 +838,14 @@ describe('market protocol: cols', () => {
     for (const v of [false, 'true', 1, undefined]) expect(meta(v).capabilities).not.toHaveProperty('cols');
   });
 });
+
+describe('market protocol: depth guard', () => {
+  const nest = (n: number) => JSON.parse('['.repeat(n) + ']'.repeat(n));
+  const version = (content: unknown) => ({ version: 1, content, hash: 'a'.repeat(64) });
+
+  it('refuses content deeper than 64 levels before any walk', () => {
+    expect(contentProblems('preset', { layout: nest(65) })).toEqual(['too-deep']);
+    expect(parseRemoteVersion(version({ layout: nest(65) }))).toBeNull();
+    expect(parseRemoteVersion(version({ layout: { lines: [[{ type: 'model' }]] } }))).not.toBeNull();
+  });
+});

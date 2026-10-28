@@ -797,3 +797,11 @@ describe('market client accounts, admin and conditional reads', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe('market client depth guard', () => {
+  it('a version nested past 64 levels is a MarketError', async () => {
+    const deep = { layout: JSON.parse('['.repeat(65) + ']'.repeat(65)) };
+    const { c } = client([json({ version: 1, content: deep, hash: H })]);
+    expect((await failure(c.version('alp/mini', 1, 'preset', H))).code).toBe('bad-json');
+  });
+});

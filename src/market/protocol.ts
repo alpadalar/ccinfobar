@@ -7,7 +7,7 @@ import {
   PERSONAL_KEYS,
   parseCols,
 } from '../core/entry-keys.js';
-import { deepSanitize, safeUrl, sanitizeText } from '../core/sanitize.js';
+import { deepSanitize, safeUrl, sanitizeText, tooDeep } from '../core/sanitize.js';
 
 export const PROTOCOL_VERSION = 1;
 export const ID_PART_RE = /^[a-z0-9][a-z0-9-]{0,38}$/;
@@ -448,7 +448,7 @@ export function parseRemoteEntry(raw: unknown): MarketEntry | null {
 }
 
 function parseContent(raw: unknown): EntryContent | null {
-  if (!isObject(raw)) return null;
+  if (!isObject(raw) || tooDeep(raw)) return null;
   const out: EntryContent = {};
   for (const k of ['layout', 'appearance', 'theme'] as const) {
     const v = own(raw, k);
@@ -655,6 +655,7 @@ function widgetProblems(lines: unknown, out: string[]): void {
 
 export function contentProblems(kind: EntryKind, content: unknown, canonical?: string): string[] {
   if (!isObject(content)) return ['not-object'];
+  if (tooDeep(content)) return ['too-deep'];
   const out: string[] = [];
   const allowed = new Set<string>(
     kind === 'preset'

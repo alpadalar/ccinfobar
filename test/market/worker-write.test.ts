@@ -283,6 +283,22 @@ describe.skipIf(skipSqlite)('worker writes', () => {
       expect(await t.gen()).toBe(0);
     });
 
+    it('answers 400 invalid for deeply nested content, never 500', async () => {
+      const t = await setup();
+      const token = await t.account('alp', 7);
+      const raw = (n: number, slug: string) =>
+        `{"kind":"preset","slug":"${slug}","name":"Deep","description":"d","author":"A","note":"n","content":{"layout":${'['.repeat(n)}${']'.repeat(n)}}}`;
+      for (const n of [1000, 20000]) {
+        const r = await t.call('POST', '/v1/entries', { token, body: raw(n, 'deep') });
+        expect(r.status).toBe(400);
+        expect((await error(r)).code).toBe('invalid');
+      }
+      await t.call('POST', '/v1/entries', { token, body: publishBody('mine') });
+      const v = `{"content":{"layout":${'['.repeat(20000)}${']'.repeat(20000)}},"note":"n"}`;
+      const r = await t.call('POST', '/v1/entries/alp/mine/versions', { token, body: v, headers: match(1) });
+      expect(r.status).toBe(400);
+    });
+
     it('honours a lower MAX_ENTRY_BYTES', async () => {
       const t = await setup({ vars: { MAX_ENTRY_BYTES: '200' } });
       const token = await t.account('alp', 7);
