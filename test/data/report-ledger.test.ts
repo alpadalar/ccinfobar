@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { withLanguage } from '../../src/core/i18n/index.js';
 import { buildReport } from '../../src/core/report-model.js';
 import { dayKey } from '../../src/core/time.js';
-import { projectHash } from '../../src/data/ledger.js';
+import { displayRoot, normalizeRoot, projectHash } from '../../src/data/ledger.js';
 import { accountKeyFor } from '../../src/data/limits.js';
 import { readReportData } from '../../src/data/report-index.js';
 import {
@@ -236,17 +236,17 @@ describe('report project names for hashed ledger lines', () => {
     writeLedger(
       '2026-10',
       [
-        line({ c: 0.001, t: D1, p: projectHash('/w/a') }),
-        line({ c: 2, t: D1 + 60_000, p: projectHash('/w/a') }),
+        line({ c: 0.001, t: D1, p: projectHash(normalizeRoot('/w/a')) }),
+        line({ c: 2, t: D1 + 60_000, p: projectHash(normalizeRoot('/w/a')) }),
       ],
       cache,
     );
     writeTranscript('projects/-w-a/A.jsonl', [userLine({ ts: D1, cwd: '/w/a' })], root);
     const data = run();
     const all = buildReport(data, { ...OPTS, filter: null });
-    expect(all.rows.map((r) => r.project)).toEqual(['/w/a']);
-    const here = buildReport(data, { ...OPTS, filter: { kind: 'cwd', cwd: '/w/a' } });
-    expect(here.rows.map((r) => r.project)).toEqual(['/w/a']);
+    expect(all.rows.map((r) => r.project)).toEqual([displayRoot('/w/a')]);
+    const here = buildReport(data, { ...OPTS, filter: { kind: 'cwd', cwd: displayRoot('/w/a') } });
+    expect(here.rows.map((r) => r.project)).toEqual([displayRoot('/w/a')]);
   });
 
   it('keeps a legacy path line under its path without a transcript', () => {
