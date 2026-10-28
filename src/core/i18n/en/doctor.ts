@@ -41,6 +41,8 @@ export const doctorMessages = {
   'doctor.backups': '  Backups {dir}',
   'doctor.winCommand':
     '⚠ The statusLine command has a backslash or a quoted first token; Git Bash may not run it. Run ccinfobar install again.',
+  'doctor.nodeGone':
+    '⚠ statusLine runs {node}, which no longer exists; run ccinfobar install to pin the current Node',
   'doctor.tmpPruned': '  Removed {count} stale temp file(s)',
   'doctor.noPayload':
     '  No payload yet. Use Claude Code once with ccinfobar installed, or try `ccinfobar explain --scenario <name>`.',

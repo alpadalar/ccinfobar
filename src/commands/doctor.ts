@@ -53,6 +53,7 @@ import {
 } from '../data/update-state.js';
 import { readUsageCache, type UsageCache, usageApiDisabled } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
+import { pinnedNode } from './command.js';
 import { loadInspectInput, redactValue, shortAge } from './explain.js';
 import {
   commandResolves,
@@ -479,7 +480,11 @@ export function runDoctor(
       ? t('doctor.statusLine', { ...slFile, command: safe(sl.command) })
       : t('doctor.statusLineUnset', slFile),
   );
-  if (typeof sl?.command === 'string') for (const w of commandWarnings(sl.command)) console.log(w);
+  if (typeof sl?.command === 'string') {
+    for (const w of commandWarnings(sl.command)) console.log(w);
+    const node = pinnedNode(sl.command);
+    if (node && !fs.existsSync(node)) console.log(t('doctor.nodeGone', { node: safe(node) }));
+  }
   const sub = subagentSetting(settingsFile);
   if (sub) {
     const entry = findSubagentLineEntry(manifest, settingsFile);

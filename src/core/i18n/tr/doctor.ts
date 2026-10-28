@@ -44,6 +44,8 @@ export const doctorMessages = {
   'doctor.backups': '  Yedekler {dir}',
   'doctor.winCommand':
     '⚠ statusLine komutunda ters eğik çizgi ya da tırnaklı bir ilk parça var; Git Bash onu çalıştıramayabilir. ccinfobar install komutunu yeniden çalıştırın.',
+  'doctor.nodeGone':
+    '⚠ statusLine {node} ile çalışıyor ama bu dosya artık yok; geçerli Node sürümünü sabitlemek için ccinfobar install çalıştırın',
   'doctor.tmpPruned': '  {count} eski geçici dosya kaldırıldı',
   'doctor.noPayload':
     "  Henüz payload yok. ccinfobar kuruluyken Claude Code'u bir kez kullanın ya da `ccinfobar explain --scenario <name>` deneyin.",

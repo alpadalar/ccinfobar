@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import { resetLanguageCache } from '../../src/cli/lang.js';
+import { buildCommand } from '../../src/commands/command.js';
 import {
   applyInstall,
   InstallNeedsConfirmError,
@@ -132,6 +133,22 @@ describe('planInstall', () => {
     const before = snapshot(dir);
     planInstall({ file, command: '/bin/ccinfobar', env });
     expect(snapshot(dir)).toEqual(before);
+  });
+});
+
+describe('install re-pins a vanished node', () => {
+  it('rewrites an owned command that pins a missing node to the current one', () => {
+    const { env, file } = tmpEnv();
+    const gone = "'/gone/node' '/x/dist/ccinfobar.js'";
+    applyInstall(planInstall({ file, command: gone, env }), { confirmed: true, env });
+    expect(read(file).statusLine.command).toBe(gone);
+    const built = buildCommand({ kind: 'script', script: '/x/dist/ccinfobar.js' }, 'linux');
+    const current = built.ok ? built.command : '';
+    expect(current).toContain(process.execPath.replace(/'/g, ''));
+    const plan = planInstall({ file, command: current, env });
+    expect(plan.needsConfirm).toBe(false);
+    applyInstall(plan, { confirmed: false, env });
+    expect(read(file).statusLine.command).toBe(current);
   });
 });
 

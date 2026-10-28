@@ -60,3 +60,14 @@ export function buildCommand(
   if (target.kind === 'bin') return { ok: true, command: shQuote(target.bin) };
   return { ok: true, command: `${shQuote(target.node ?? process.execPath)} ${shQuote(target.script)}` };
 }
+
+const SH_TOKEN = String.raw`(?:'(?:[^']|'\\'')*'|[A-Za-z0-9_/.:@%+=,-]+)`;
+const SCRIPT_SHAPE = new RegExp(`^(${SH_TOKEN}) ${SH_TOKEN}$`);
+
+// the absolute node of a buildCommand script command, else null
+export function pinnedNode(command: string): string | null {
+  const first = SCRIPT_SHAPE.exec(command)?.[1];
+  if (!first) return null;
+  const node = first.startsWith("'") ? first.slice(1, -1).replace(/'\\''/g, "'") : first;
+  return path.isAbsolute(node) ? node : null;
+}

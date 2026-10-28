@@ -4,6 +4,7 @@ import module from 'node:module';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { envLanguage } from '../../src/cli/lang.js';
+import { pinnedNode } from '../../src/commands/command.js';
 import {
   commandWarnings,
   configWarnings,
@@ -220,6 +221,47 @@ describe('runDoctor glyph and overflow hints', () => {
     expect(doctor('tui-p.json', { style: 'tui', overflow: 'priority' })).toContain(t('doctor.priorityTui'));
     expect(doctor('tui.json', { style: 'tui' })).not.toContain(t('doctor.priorityTui'));
     expect(doctor('line-p.json', { overflow: 'priority' })).not.toContain(t('doctor.priorityTui'));
+  });
+});
+
+describe('pinnedNode', () => {
+  it('reads the first quoted token of a script command', () => {
+    expect(pinnedNode("'/usr/bin/node' '/x/dist/ccinfobar.js'")).toBe('/usr/bin/node');
+    expect(pinnedNode("'/opt/my node/node' '/x/ccinfobar.js'")).toBe('/opt/my node/node');
+    expect(pinnedNode("'/o'\\''k/node' '/x/ccinfobar.js'")).toBe("/o'k/node");
+    expect(pinnedNode('/usr/bin/node /x/dist/ccinfobar.js')).toBe('/usr/bin/node');
+  });
+
+  it('is null for bin, windows and malformed commands', () => {
+    expect(pinnedNode('ccinfobar')).toBeNull();
+    expect(pinnedNode("'/usr/local/bin/ccinfobar'")).toBeNull();
+    expect(pinnedNode('node C:\\x\\ccinfobar.js')).toBeNull();
+    expect(pinnedNode('node "C:/x y/ccinfobar.js"')).toBeNull();
+    expect(pinnedNode("'node' '/x/ccinfobar.js'")).toBeNull();
+    expect(pinnedNode('')).toBeNull();
+  });
+});
+
+describe('runDoctor pinned node', () => {
+  const plain = () => cfgFile('pin.json', JSON.stringify({ lines: [[{ type: 'model' }]] }));
+  const install = (command: string) =>
+    applyInstall(planInstall({ file: claudeSettingsPath(), command }), { confirmed: true });
+
+  it.each(['en', 'tr'] as const)('warns in %s when the pinned node is gone', (lang) => {
+    install("'/gone/node' '/x/ccinfobar.js'");
+    const out = withEnvLang(lang, () => capture(() => runDoctor(plain())));
+    expect(out).toContain(withLang(lang, () => t('doctor.nodeGone', { node: '/gone/node' })));
+  });
+
+  it('stays quiet for a live node and for a bin command', () => {
+    const warn = (n: string) => out.some((l) => l.includes(n));
+    let out: string[] = [];
+    install(`'${process.execPath.replace(/'/g, "'\\''")}' '/x/ccinfobar.js'`);
+    out = capture(() => runDoctor(plain()));
+    expect(warn('no longer exists') || warn('artık yok')).toBe(false);
+    install('ccinfobar');
+    out = capture(() => runDoctor(plain()));
+    expect(warn('no longer exists') || warn('artık yok')).toBe(false);
   });
 });
 
