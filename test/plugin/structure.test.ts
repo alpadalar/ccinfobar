@@ -5,8 +5,10 @@ import { describe, expect, it } from 'vitest';
 const root = path.resolve(__dirname, '../..');
 const pluginDir = path.join(root, 'plugin');
 const marketDir = path.join(root, '.claude-plugin');
-const SKILLS = ['doctor', 'edit', 'install', 'theme', 'uninstall'];
+const SKILLS = ['configure', 'doctor', 'edit', 'install', 'theme', 'uninstall'];
 const ALLOWED: Record<string, string> = {
+  configure:
+    'Bash(ccinfobar --version), Bash(ccinfobar catalog list), Bash(ccinfobar catalog show *), Bash(ccinfobar install --dry-run), Bash(ccinfobar install --dry-run *)',
   doctor: 'Bash(ccinfobar --version), Bash(ccinfobar doctor)',
   edit: 'Bash(ccinfobar --version), Bash(ccinfobar edit --detach)',
   install:
@@ -96,7 +98,7 @@ describe('plugin.json', () => {
 });
 
 describe('plugin layout', () => {
-  it('has exactly the five skills', () => {
+  it('has exactly the six skills', () => {
     const dirs = fs
       .readdirSync(path.join(pluginDir, 'skills'), { withFileTypes: true })
       .filter((e) => e.isDirectory())
@@ -165,6 +167,19 @@ describe('skills', () => {
     const plainDry = body.indexOf('`ccinfobar install --dry-run`');
     expect(plainDry).toBeGreaterThan(-1);
     expect(body.indexOf('`ccinfobar install --yes`')).toBeGreaterThan(plainDry);
+  });
+
+  it('configure dry-runs every write first and never uses --project', () => {
+    const { body } = skill('configure');
+    const dry = body.indexOf('catalog apply <id> --dry-run');
+    expect(dry).toBeGreaterThan(-1);
+    expect(body.indexOf('`ccinfobar catalog apply <id>`')).toBeGreaterThan(dry);
+    const idry = body.indexOf('ccinfobar install --dry-run');
+    expect(idry).toBeGreaterThan(-1);
+    expect(body.indexOf('ccinfobar install --yes')).toBeGreaterThan(idry);
+    for (const f of ['--subagents', '--hide-vim-indicator', '--hooks', '--refresh', '/ccinfobar:doctor'])
+      expect(body, f).toContain(f);
+    expect(body).not.toContain('--project');
   });
 
   it('uninstall, edit, theme and doctor call the binary', () => {
