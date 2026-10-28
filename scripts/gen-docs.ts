@@ -18,6 +18,8 @@ const ALL_WIDGETS = EVERY_WIDGET.filter((w) => !w.hidden);
 const root = process.argv[2] ?? process.cwd();
 
 const NOTES: Readonly<Record<string, string>> = {
+  'workspace-repos':
+    'Hides itself inside a repo. A `.git` directly in the home directory (a dotfiles repo) does not count, and `GIT_CEILING_DIRECTORIES` stops the lookup, so folders under `~` are still scanned. The git widgets themselves still show whatever git finds.',
   command:
     "Runs your command through the shell (`sh` on Linux and macOS, `cmd.exe` on Windows) with the status line's full environment, secrets included: it is your own command, so only add commands you trust. All `command` widgets of one refresh share `commandBudgetMs` (default 3000 ms); each keeps its own `timeout`, and once the budget is spent the remaining ones show their cached output (any age) or nothing. With `cacheSeconds > 0`, `background: true` runs the command in the background worker instead, every `cacheSeconds`, and the widget shows the last result; a background command receives the last saved payload (`savePayload`), which can be a refresh or a session behind, and its result is one plain line, so `preserveColors` has no effect there. On Windows ccinfobar starts with `NoDefaultCurrentDirectoryInExePath=1`, so a script in the current folder needs an explicit path such as `.\\script.bat`; programs on `PATH` work as before.",
   'vim-mode':

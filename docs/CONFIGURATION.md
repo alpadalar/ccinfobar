@@ -153,7 +153,7 @@ Every entry in `lines` is a widget instance:
 | `time.hour` | number 0..23 | Local hour |
 | `time.weekday` | `mon`..`sun` | Local weekday |
 | `provider` | word | `firstParty`, `apiKey`, `bedrock`, `mantle`, `anthropicAws`, `vertex`, `foundry` or `gateway` |
-| `git` | flag | Inside a git repo (found by looking for `.git`; git is never run for this) |
+| `git` | flag | Inside a git repo (found by looking for `.git` up to `GIT_CEILING_DIRECTORIES`, ignoring a `.git` directly in your home directory; git is never run for this) |
 | `gsd` | flag | Inside a GSD project (a `.planning/` folder) |
 | `agents` | flag | A subagent is running |
 | `limit-risk` | flag | A limit is projected to run out before it resets, like the `limit-risk` chip |
@@ -420,7 +420,7 @@ Not covered:
 
 ### workspace-repos
 
-Lists git repos directly inside the current folder when that folder is not inside a repo. Elsewhere it hides itself instead of showing `repos: —`; set `hideEmpty: false` on it to keep the placeholder. It reads `.git/HEAD` files, never runs git while rendering, and rescans at most every 10 seconds. Inside-repo detection walks up to the filesystem root looking for `.git`, so a dotfiles repo at `~/.git` makes every folder under your home count as inside a repo and the widget stays hidden there. `GIT_DIR` and `GIT_WORK_TREE` are ignored. With `dirty: true` a background job runs a hardened `git status` in up to 50 repos, the ones on screen first, about once a minute; the status line only reads its cache.
+Lists git repos directly inside the current folder when that folder is not inside a repo. Elsewhere it hides itself instead of showing `repos: —`; set `hideEmpty: false` on it to keep the placeholder. It reads `.git/HEAD` files, never runs git while rendering, and rescans at most every 10 seconds. Inside-repo detection walks up looking for `.git`. A `.git` directly in your home directory (a dotfiles repo) is ignored and `GIT_CEILING_DIRECTORIES` is honoured, so folders under `~` still count as outside a repo. `GIT_DIR` and `GIT_WORK_TREE` are ignored. With `dirty: true` a background job runs a hardened `git status` in up to 50 repos, the ones on screen first, about once a minute; the status line only reads its cache.
 
 ## External data
 

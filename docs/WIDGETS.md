@@ -165,6 +165,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `jj-description` | First line of the working-copy description | `Wire GSD widgets into renderer` |  |
 | `jj-changes` | Inserted and deleted lines in the working-copy change | `+42 -10` | `snapshot` boolean, default `false` |
 
+- `workspace-repos`: Hides itself inside a repo. A `.git` directly in the home directory (a dotfiles repo) does not count, and `GIT_CEILING_DIRECTORIES` stops the lookup, so folders under `~` are still scanned. The git widgets themselves still show whatever git finds.
 - `jj-changes`: Reads the last snapshot by default, so edits since jj's last snapshot are not counted. `snapshot: true` snapshots the working copy on every refresh, which writes to the repository's operation log.
 
 ## Workspace
