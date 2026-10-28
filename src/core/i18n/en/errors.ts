@@ -70,5 +70,9 @@ export const errorMessages = {
   'err.server.digestUnavailable':
     'npm could not install the update and GitHub published no checksum for the release; nothing was installed',
   'err.server.npmFailed': 'npm install failed: {error}',
-  'err.server.updateRejected': '{version} failed its check ({reason}); rollback {rollback}',
+  'err.server.updateRejected.ok': '{version} failed its check ({reason}); back on {current}',
+  'err.server.updateRejected.failed':
+    '{version} failed its check ({reason}) and the rollback to {current} failed; run npm install -g ccinfobar@{current}',
+  'err.server.updateRejected.unverified':
+    '{version} failed its check ({reason}); {current} was restored but could not be verified',
 } as const;

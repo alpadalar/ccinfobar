@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InstallKind } from '../../src/commands/update.js';
 import { t } from '../../src/core/i18n/index.js';
+import { VERSION } from '../../src/core/version.js';
 import { readUpdateState } from '../../src/data/update-state.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
 import { withLang } from '../helpers.js';
@@ -66,7 +67,8 @@ beforeEach(() => {
   process.env.CCINFOBAR_CONFIG_DIR = path.join(dir, 'config');
   process.env.CCINFOBAR_CACHE_DIR = path.join(dir, 'cache');
   fs.mkdirSync(process.env.CCINFOBAR_CONFIG_DIR, { recursive: true });
-  install.mockClear();
+  install.mockReset();
+  install.mockResolvedValue(undefined);
 });
 
 afterEach(async () => {
@@ -146,17 +148,33 @@ describe('editor update api verification', () => {
     await start('npm-global', latest, { verify: async (v) => (v === '99.0.0' ? 'render-failed:1' : null) });
     const res = await request('POST', '/api/update', '{"install":true}');
     expect(res.status).toBe(500);
-    expect(res.json().errorId).toBe('err.server.updateRejected');
-    expect(res.json().errorParams).toEqual({ version: '99.0.0', reason: 'render-failed:1', rollback: 'ok' });
-    expect(res.json().error).toBe('99.0.0 failed its check (render-failed:1); rollback ok');
+    expect(res.json().errorId).toBe('err.server.updateRejected.ok');
+    expect(res.json().errorParams).toEqual({
+      version: '99.0.0',
+      reason: 'render-failed:1',
+      current: VERSION,
+    });
+    expect(res.json().error).toBe(`99.0.0 failed its check (render-failed:1); back on ${VERSION}`);
     expect(install.mock.calls.map((c) => (c as unknown as string[])[0])).toEqual([
       '99.0.0',
       expect.any(String),
     ]);
     expect(stateOf()).toMatchObject({ rejected: '99.0.0', rollback: 'ok', reason: 'render-failed:1' });
-    expect(withLang('tr', () => t('err.server.updateRejected', res.json().errorParams))).toBe(
-      '99.0.0 denetimi geçemedi (render-failed:1); geri dönüş: ok',
-    );
+    const trText = withLang('tr', () => t('err.server.updateRejected.ok', res.json().errorParams));
+    expect(trText).toBe(`99.0.0 denetimi geçemedi (render-failed:1); ${VERSION} sürümüne dönüldü`);
+    expect(trText.replace('render-failed:1', '')).not.toMatch(/\b(ok|failed|unverified)\b/);
+  });
+
+  it('names a failed rollback with the manual command', async () => {
+    install.mockImplementation(async (...args: unknown[]) => {
+      if (args[0] !== '99.0.0') throw new Error('EACCES');
+    });
+    await start('npm-global', latest, { verify: async (v) => (v === '99.0.0' ? 'render-failed:1' : null) });
+    const res = await request('POST', '/api/update', '{"install":true}');
+    expect(res.status).toBe(500);
+    expect(res.json().errorId).toBe('err.server.updateRejected.failed');
+    expect(res.json().error).toContain(`npm install -g ccinfobar@${VERSION}`);
+    expect(stateOf()).toMatchObject({ rejected: '99.0.0', rollback: 'failed' });
   });
 
   it('installs when the check passes', async () => {

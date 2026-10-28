@@ -1706,11 +1706,13 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
               rollback: out.rollback,
               reason: out.reason,
             });
-            throw httpError(500, 'err.server.updateRejected', {
-              version: latest,
-              reason: out.reason,
-              rollback: out.rollback,
-            });
+            const id =
+              out.rollback === 'ok'
+                ? 'err.server.updateRejected.ok'
+                : out.rollback === 'failed'
+                  ? 'err.server.updateRejected.failed'
+                  : 'err.server.updateRejected.unverified';
+            throw httpError(500, id, { version: latest, reason: out.reason, current: VERSION });
           }
           writeUpdateState({ checkedAt: Date.now(), latest, installed: latest });
           send(res, 200, {
