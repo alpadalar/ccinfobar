@@ -13,7 +13,7 @@ import {
   readWant,
   terminalAllowed,
 } from '../data/progress.js';
-import { appendLine } from '../data/store.js';
+import { acquireLock, appendLine, renameWithRetry } from '../data/store.js';
 import { parseArgs } from './args.js';
 
 // tail: the last 64 KB after an overflow
@@ -30,6 +30,8 @@ export interface HookDeps {
   now: () => number;
   append: (file: string, line: string) => boolean;
   schedule?: (sessionId: string, configFile: string) => void | Promise<void>;
+  cap?: number;
+  rename?: (from: string, to: string) => void;
   prune?: (dir: string, keep: string[], now: number) => number;
   debug?: (reason: string) => void;
   writeOut?: (s: string) => void;
@@ -37,6 +39,7 @@ export interface HookDeps {
 
 const DEBUG_CAP = 262_144;
 const PRUNE_AGE = 7 * 86_400_000;
+const HOOK_LOG_CAP = 2 * 1024 * 1024;
 
 const SCAN_BYTES = 65_536;
 const SCAN_RE =
@@ -164,7 +167,7 @@ export async function scheduleUpdate(
 }
 
 const PRUNE_RE =
-  /^([A-Za-z0-9_-]{1,128})(\.jsonl|\.fold\.json|\.progress\.json|\.progress-sent\.json|\.progress-tty\.json)$/;
+  /^([A-Za-z0-9_-]{1,128})(\.jsonl|\.old\.jsonl|\.fold\.json|\.progress\.json|\.progress-sent\.json|\.progress-tty\.json)$/;
 
 // bounded by deletions and time, not entries; regular files only
 export function pruneHookLogs(
@@ -198,6 +201,29 @@ export function pruneHookLogs(
     handle?.closeSync();
   } catch {}
   return removed;
+}
+
+// a lock miss or a failed rename only skips this rotation
+function rotateIfFull(d: HookDeps, file: string): void {
+  try {
+    const cap = d.cap ?? HOOK_LOG_CAP;
+    const st = fs.statSync(file, { throwIfNoEntry: false });
+    if (!st || st.size < cap) return;
+    const lock = `${file}.rotate`;
+    if (!acquireLock(lock, 10_000, d.now())) return;
+    try {
+      const again = fs.statSync(file, { throwIfNoEntry: false });
+      if (again && again.size >= cap) {
+        const old = file.replace(/\.jsonl$/, '.old.jsonl');
+        (d.rename ?? ((a, b) => renameWithRetry(a, b, 2000)))(file, old);
+      }
+    } catch {
+    } finally {
+      try {
+        fs.unlinkSync(lock);
+      } catch {}
+    }
+  } catch {}
 }
 
 export function debugLog(env: NodeJS.ProcessEnv, now: () => number): (reason: string) => void {
@@ -265,6 +291,7 @@ export async function runHook(d: HookDeps): Promise<void> {
     if (!file) return debug('bad-session');
     const line = hookLine(event, input, d.now());
     let ok = false;
+    rotateIfFull(d, file);
     try {
       ok = d.append(file, JSON.stringify(line));
     } catch {}
@@ -282,6 +309,7 @@ export async function runHook(d: HookDeps): Promise<void> {
     try {
       const keep = [
         `${sid}.jsonl`,
+        `${sid}.old.jsonl`,
         `${sid}.fold.json`,
         `${sid}.progress.json`,
         `${sid}.progress-sent.json`,

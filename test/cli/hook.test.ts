@@ -361,6 +361,7 @@ describe('SessionStart trigger', () => {
         hooksDir(env),
         [
           `${SID}.jsonl`,
+          `${SID}.old.jsonl`,
           `${SID}.fold.json`,
           `${SID}.progress.json`,
           `${SID}.progress-sent.json`,
@@ -577,5 +578,105 @@ describe('pruneHookLogs', () => {
     for (let i = 0; i < 10; i++) make(dir, `s${i}.jsonl`, 9);
     let c = 0;
     expect(pruneHookLogs(dir, [], now, 7 * DAY, 200, 15, () => (c += 10))).toBe(1);
+  });
+});
+
+describe('hook log rotation', () => {
+  const CAP = 1024;
+  function setup(cap = CAP) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-hk-rot-'));
+    const renv = { CCINFOBAR_CACHE_DIR: root } as NodeJS.ProcessEnv;
+    const file = hookLogPath(SID, renv)!;
+    const old = file.replace(/\.jsonl$/, '.old.jsonl');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const d: HookDeps = {
+      argv: ['hook', 'Stop'],
+      readStdin: async () => ({ text: body({ hook_event_name: 'Stop' }), overflow: false }),
+      env: renv,
+      now: () => Date.now(),
+      append: appendLine,
+      cap,
+    };
+    return { root, d, file, old };
+  }
+  const fill = (file: string, ch: string) => fs.writeFileSync(file, `${ch.repeat(CAP + 10)}\n`);
+
+  it('moves a full log to .old.jsonl and starts a fresh one', async () => {
+    const { root, d, file, old } = setup();
+    fill(file, 'a');
+    await runHook(d);
+    expect(fs.readFileSync(old, 'utf8').startsWith('aaa')).toBe(true);
+    const live = fs.readFileSync(file, 'utf8').trim().split('\n');
+    expect(live).toHaveLength(1);
+    expect(JSON.parse(live[0]!).e).toBe('Stop');
+    expect(fs.existsSync(`${file}.rotate`)).toBe(false);
+    fill(file, 'b');
+    await runHook(d);
+    expect(fs.readFileSync(old, 'utf8').startsWith('bbb')).toBe(true);
+    expect(fs.readdirSync(path.dirname(file)).filter((n) => n.includes('.old.'))).toHaveLength(1);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('leaves a small log alone and leaves no lock', async () => {
+    const { root, d, file, old } = setup();
+    fs.writeFileSync(file, 'x\n');
+    await runHook(d);
+    expect(fs.existsSync(old)).toBe(false);
+    expect(fs.existsSync(`${file}.rotate`)).toBe(false);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('skips rotation when the lock is held but still appends', async () => {
+    const { root, d, file, old } = setup();
+    fill(file, 'a');
+    fs.writeFileSync(`${file}.rotate`, '');
+    await runHook(d);
+    expect(fs.existsSync(old)).toBe(false);
+    expect(fs.readFileSync(file, 'utf8').trim().split('\n')).toHaveLength(2);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('survives a failing rename and still appends', async () => {
+    const { root, d, file, old } = setup();
+    fill(file, 'a');
+    d.rename = () => {
+      throw Object.assign(new Error('busy'), { code: 'EPERM' });
+    };
+    await runHook(d);
+    expect(fs.existsSync(old)).toBe(false);
+    expect(fs.readFileSync(file, 'utf8').trim().split('\n')).toHaveLength(2);
+    expect(fs.existsSync(`${file}.rotate`)).toBe(false);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('prunes old generations and keeps the current one', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-hk-rot-'));
+    const a = path.join(root, 'a.old.jsonl');
+    const me = path.join(root, `${SID}.old.jsonl`);
+    for (const f of [a, me]) {
+      fs.writeFileSync(f, '');
+      fs.utimesSync(f, 1, 1);
+    }
+    expect(pruneHookLogs(root, [`${SID}.old.jsonl`], Date.now(), 1000, 200, 10_000)).toBe(1);
+    expect(fs.existsSync(a)).toBe(false);
+    expect(fs.existsSync(me)).toBe(true);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('keeps the current old generation on a new session', async () => {
+    const { root, d } = setup();
+    let keep: string[] = [];
+    d.readStdin = async () => ({
+      text: body({ hook_event_name: 'SessionStart', source: 'startup' }),
+      overflow: false,
+    });
+    d.prune = (_dir, k) => {
+      keep = k;
+      return 0;
+    };
+    d.schedule = () => {};
+    await runHook(d);
+    expect(keep).toContain(`${SID}.old.jsonl`);
+    fs.rmSync(root, { recursive: true, force: true });
   });
 });
