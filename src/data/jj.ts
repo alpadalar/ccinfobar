@@ -4,7 +4,7 @@ import path from 'node:path';
 import { deepSanitize, sanitizeText } from '../core/sanitize.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
 import { parseShortstat } from './git.js';
-import { binary, pathValue, whichDeps } from './which.js';
+import { binary, pathDirs, pathValue, whichDeps } from './which.js';
 
 // jj starts slower than git
 export const JJ_TIMEOUT =
@@ -155,6 +155,12 @@ export interface JjOptions {
   persist?: boolean;
 }
 
+// binary() returns the bare name off Windows
+function binPresent(bin: string, env: NodeJS.ProcessEnv): boolean {
+  if (path.isAbsolute(bin)) return fs.existsSync(bin);
+  return pathDirs(env, process.platform).some((d) => fs.existsSync(path.join(d, bin)));
+}
+
 export function readJj(cwd: string, opts: JjOptions = {}): JjReader | null {
   const root = findJjRoot(cwd);
   if (!root) return null;
@@ -177,7 +183,9 @@ export function readJj(cwd: string, opts: JjOptions = {}): JjReader | null {
       const r = exec(bin, args, dir);
       if (r.out === null && (r.code === 'ENOENT' || r.code === 'ETIMEDOUT')) {
         blocked = true;
-        if (persist) writeCache(r.code === 'ENOENT' ? missFile : backFile, { at: now }, env);
+        // a vanished cwd also says ENOENT with e.path === bin
+        const miss = r.code === 'ENOENT' && fs.existsSync(dir) && !binPresent(bin, env);
+        if (persist) writeCache(miss ? missFile : backFile, { at: now }, env);
       }
       return r.out;
     };

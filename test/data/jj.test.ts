@@ -248,6 +248,65 @@ describe('jj caches (injected exec)', () => {
     expect(ok.calls.length).toBe(1);
   });
 
+  describe('ENOENT classification', () => {
+    const win = process.platform === 'win32';
+    function stubbed(name: string) {
+      const s = setup(name, false);
+      const dir = fs.mkdtempSync(path.join(tmp, 'stub-'));
+      const stub = path.join(dir, win ? 'jj.exe' : 'jj');
+      fs.writeFileSync(stub, '');
+      fs.chmodSync(stub, 0o755);
+      for (const k of Object.keys(s.env)) if (k.toUpperCase() === 'PATH') delete s.env[k];
+      s.env.PATH = dir;
+      resetWhich();
+      const files = (prefix: string) => fs.readdirSync(s.cache).filter((n) => n.startsWith(prefix));
+      return { ...s, stub, files };
+    }
+
+    it('a repo dir deleted before the spawn gets the per-root back-off, not jj-miss', () => {
+      const a = stubbed('vanish');
+      const r = readJj(a.root, { exec: () => ({ out: null, code: 'ENOENT' }), env: a.env, now: T })!;
+      fs.rmSync(a.root, { recursive: true, force: true });
+      expect(r.bookmarks()).toBeNull();
+      expect(a.files('jj-miss-')).toEqual([]);
+      expect(a.files('jj-backoff-').length).toBe(1);
+      const b = setup('vanish-next', false);
+      const ok = fakeExec();
+      b.env.PATH = a.env.PATH;
+      expect(readJj(b.root, { exec: ok.exec, env: b.env, now: T })?.bookmarks()).toEqual(['main']);
+    });
+
+    it('a missing binary with the repo dir present writes jj-miss only', () => {
+      const a = stubbed('nobin');
+      const r = readJj(a.root, { exec: () => ({ out: null, code: 'ENOENT' }), env: a.env, now: T })!;
+      fs.rmSync(a.stub);
+      expect(r.bookmarks()).toBeNull();
+      expect(a.files('jj-miss-').length).toBe(1);
+      expect(a.files('jj-backoff-')).toEqual([]);
+    });
+
+    it('ENOENT with dir and binary present backs off', () => {
+      const a = stubbed('both');
+      readJj(a.root, { exec: () => ({ out: null, code: 'ENOENT' }), env: a.env, now: T })!.bookmarks();
+      expect(a.files('jj-miss-')).toEqual([]);
+      expect(a.files('jj-backoff-').length).toBe(1);
+    });
+
+    it('persist false writes nothing in every case', () => {
+      const a = stubbed('nopersist-enoent');
+      const r = readJj(a.root, {
+        exec: () => ({ out: null, code: 'ENOENT' }),
+        env: a.env,
+        now: T,
+        persist: false,
+      })!;
+      fs.rmSync(a.stub);
+      fs.rmSync(a.root, { recursive: true, force: true });
+      r.bookmarks();
+      expect(fs.readdirSync(a.cache).filter((n) => n.startsWith('jj-'))).toEqual([]);
+    });
+  });
+
   it('caches read-only results on op_heads', () => {
     const { root, env } = setup('heads');
     const f = fakeExec();
