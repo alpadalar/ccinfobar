@@ -297,8 +297,11 @@ describe('contentFromConfig', () => {
     expect(() => saveUserTheme({ id: 'con', extends: 'nord' }, themes())).toThrow(
       t('err.id.reserved', { id: 'con' }),
     );
+    expect(() => saveUserTheme({ id: 'com0', extends: 'nord' }, themes())).toThrow(
+      t('err.id.reserved', { id: 'com0' }),
+    );
     expect(() => saveUserTheme({ id: 'bad id', extends: 'nord' }, themes())).toThrow(t('err.theme.badId'));
-    for (const id of ['console', 'com10', 'com0', 'nul-theme', 'aux2']) {
+    for (const id of ['console', 'com10', 'nul-theme', 'aux2']) {
       expect(() => saveUserTheme({ id, extends: 'nord' }, themes())).not.toThrow();
     }
     fs.writeFileSync(path.join(themes(), 'con.json'), JSON.stringify({ extends: 'nord' }));

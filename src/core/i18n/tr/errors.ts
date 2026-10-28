@@ -56,7 +56,7 @@ export const errorMessages = {
   'err.cfgpath.pastEnd': '{index} dizini listenin sonunu aşıyor',
   'err.cfgpath.notObject': 'nesne olmayan bir değerin içinde "{name}" ayarlanamaz',
   'err.id.reserved':
-    '"{id}" Windows\'ta ayrılmış bir aygıt adı (CON, PRN, AUX, NUL, COM1-9, LPT1-9); başka bir kimlik seçin',
+    '"{id}" Windows\'ta ayrılmış bir aygıt adı (CON, PRN, AUX, NUL, COM0-9, LPT0-9); başka bir kimlik seçin',
   'err.theme.badId': 'Tema kimliği yalnızca harf, rakam, nokta, tire veya alt çizgi içerebilir',
   'err.preview.unknownScenario': 'bilinmeyen senaryo',
   'err.server.badJson': 'Geçersiz JSON',
