@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 - Web editor and TUI: the subagent rows (`subagentLine.fields`) can be switched on/off and reordered in Settings
+- Web editor Install dialog and TUI install: an option to also render the subagent panel rows (`--subagents`); Settings shows whether Claude Code runs the subagent line
 - TUI: model profile entries (`profiles.models`) can be added, edited and removed in Settings, like the web editor
 - Web editor: a "Show tips" switch in Settings → Appearance brings the rotating tip line back after it was hidden with ×
 - `ccinfobar doctor` warns when the status line command pins a Node binary that no longer exists, for example after a Node upgrade; `ccinfobar install` pins the current one
