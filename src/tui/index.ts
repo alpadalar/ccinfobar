@@ -4,6 +4,7 @@ import {
   globalBinary,
   type InstallPlan,
   planInstall,
+  type SubagentPlan,
   setupCommand,
 } from '../commands/install.js';
 import { backupsDir } from '../commands/settings-file.js';
@@ -11,6 +12,7 @@ import { ConfigBrokenError, type LoadResult, saveConfig } from '../core/config.j
 import { upgradeOptions } from '../core/edit.js';
 import { t } from '../core/i18n/index.js';
 import { availablePresets, loadForUse } from '../core/load.js';
+import { sanitizeText } from '../core/sanitize.js';
 import { saveUserTheme } from '../core/themes.js';
 import { gsdInstalled } from '../data/gsd.js';
 import { installKind } from '../data/update-state.js';
@@ -56,12 +58,35 @@ function planCommand(deps: EffectDeps): string | null {
 const commandOf = (sl: InstallPlan['current']): string | null =>
   typeof sl?.command === 'string' ? sl.command : null;
 
+const clean = (v: unknown): string => sanitizeText(typeof v === 'string' ? v : '').replace(/\s+/g, ' ');
+
+function subagentChange(sub: SubagentPlan): string {
+  const from =
+    sub.current && typeof sub.current === 'object'
+      ? (sub.current as { command?: unknown }).command
+      : sub.current;
+  const params = { command: clean(sub.proposed.command), from: clean(from) };
+  if (!sub.changes) return t('install.dry.subagentKeep');
+  if (sub.owner === 'none') return t('install.dry.subagentAdd', params);
+  if (sub.owner === 'ours') return t('install.dry.subagentRewrite', params);
+  return t('install.dry.subagentReplace', params);
+}
+
 function tuiPlan(plan: InstallPlan): TuiInstallPlan {
+  const sub = plan.subagent;
   return {
     current: commandOf(plan.current),
     proposed: plan.proposed.command,
     needsConfirm: plan.needsConfirm,
-  };
+    ...(sub
+      ? {
+          subagent: {
+            owner: sub.owner === 'ours' ? 'us' : sub.owner === 'foreign' ? 'other' : null,
+            change: subagentChange(sub),
+          },
+        }
+      : {}),
+  } as TuiInstallPlan;
 }
 
 export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): Action {
@@ -88,13 +113,19 @@ export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): 
     const file = deps.settingsFile;
     if (effect.kind === 'planInstall') {
       const command = planCommand(deps);
-      const plan = tuiPlan(planInstall({ file, command: command ?? t('tui.msg.pending') }));
-      return { type: 'installPlanned', plan: command === null ? { ...plan, pending: true } : plan };
+      const plan = tuiPlan(
+        planInstall({ file, command: command ?? t('tui.msg.pending'), subagents: effect.subagents }),
+      );
+      return {
+        type: 'installPlanned',
+        plan: command === null ? { ...plan, pending: true } : plan,
+        ...(effect.subagents === undefined ? {} : { subagents: effect.subagents }),
+      };
     }
     saveConfig(upgradeOptions(state.config), state.path);
     const proposed = effect.plan?.proposed;
     const command = proposed && !effect.plan?.pending ? proposed : installCommand(deps);
-    const plan = planInstall({ file, command });
+    const plan = planInstall({ file, command, subagents: effect.subagents });
     if (effect.plan && commandOf(plan.current) !== effect.plan.current)
       return { type: 'effectDone', ok: false, message: t('install.stale', { file: plan.file }) };
     applyInstall(plan, { confirmed: effect.confirmed, adoptLegacy: effect.confirmed });

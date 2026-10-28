@@ -45,6 +45,7 @@ export interface TuiInstallPlan {
   needsConfirm: boolean;
   // the command is set up after the confirm
   pending?: boolean;
+  subagent?: { owner: 'us' | 'other' | null; change: string };
 }
 
 export type Mode =
@@ -59,13 +60,13 @@ export type Mode =
       back: Mode;
       naming: { text: string; pos: number } | null;
     }
-  | { kind: 'confirm'; what: ConfirmKind; preset?: string; plan?: TuiInstallPlan }
+  | { kind: 'confirm'; what: ConfirmKind; preset?: string; plan?: TuiInstallPlan; subagents?: boolean }
   | { kind: 'help' };
 
 export type Effect =
   | { kind: 'save'; thenQuit?: boolean }
-  | { kind: 'planInstall' }
-  | { kind: 'install'; confirmed: boolean; plan?: TuiInstallPlan }
+  | { kind: 'planInstall'; subagents?: boolean }
+  | { kind: 'install'; confirmed: boolean; plan?: TuiInstallPlan; subagents?: boolean }
   | { kind: 'saveTheme'; id: string };
 
 export interface DragState {
@@ -130,7 +131,7 @@ export type Action =
   | { type: 'clear' }
   | { type: 'cycle'; delta: 1 | -1 }
   | { type: 'clickItem'; area: 'main' | 'sub'; index: number }
-  | { type: 'confirm'; answer: 'yes' | 'no' | 'save' | 'discard' }
+  | { type: 'confirm'; answer: 'yes' | 'no' | 'save' | 'discard' | 'subagents' }
   | {
       type: 'effectDone';
       ok: boolean;
@@ -139,7 +140,7 @@ export type Action =
       thenQuit?: boolean;
       applyTheme?: string;
     }
-  | { type: 'installPlanned'; plan: TuiInstallPlan }
+  | { type: 'installPlanned'; plan: TuiInstallPlan; subagents?: boolean }
   | { type: 'message'; text: string };
 
 const PAGE = 8;
@@ -676,6 +677,11 @@ function reduceConfirm(state: State, action: Action, mode: Extract<Mode, { kind:
   if (action.type === 'cancel') return back;
   if (action.type !== 'confirm') return state;
   if (action.answer === 'no') return back;
+  if (action.answer === 'subagents') {
+    if (mode.what !== 'install') return state;
+    const subagents = !mode.subagents;
+    return { ...state, mode: { ...mode, subagents }, effect: { kind: 'planInstall', subagents } };
+  }
   switch (mode.what) {
     case 'quit':
       if (action.answer === 'save') return { ...back, effect: { kind: 'save', thenQuit: true } };
@@ -695,7 +701,15 @@ function reduceConfirm(state: State, action: Action, mode: Extract<Mode, { kind:
     }
     case 'install':
       return action.answer === 'yes'
-        ? { ...back, effect: { kind: 'install', confirmed: true, ...(mode.plan ? { plan: mode.plan } : {}) } }
+        ? {
+            ...back,
+            effect: {
+              kind: 'install',
+              confirmed: true,
+              ...(mode.plan ? { plan: mode.plan } : {}),
+              subagents: mode.subagents === true,
+            },
+          }
         : state;
   }
 }
@@ -709,7 +723,16 @@ export function reduce(prev: State, action: Action): State {
     case 'forceQuit':
       return { ...state, quit: true };
     case 'installPlanned':
-      return { ...state, effect: null, mode: { kind: 'confirm', what: 'install', plan: action.plan } };
+      return {
+        ...state,
+        effect: null,
+        mode: {
+          kind: 'confirm',
+          what: 'install',
+          plan: action.plan,
+          subagents: action.subagents ?? action.plan.subagent?.owner === 'us',
+        },
+      };
     case 'effectDone': {
       const done = { ...state, effect: null, message: action.message };
       if (!action.ok) return done;

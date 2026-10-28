@@ -153,6 +153,20 @@ describe('modals', () => {
     expect(text(build(defaultConfig(), { type: 'help' })).join('\n')).toContain('undo');
   });
 
+  it('shows the subagent toggle and the plan line in the install confirm', () => {
+    const plan = {
+      current: null,
+      proposed: 'ccinfobar',
+      needsConfirm: false,
+      subagent: { owner: null, change: 'Would set subagentStatusLine to "ccinfobar subagent-line"' },
+    };
+    const off = text(build(defaultConfig(), { type: 'installPlanned', plan }));
+    expect(off.join('\n')).toContain('s Subagent rows: off');
+    const on = text(build(defaultConfig(), { type: 'installPlanned', plan, subagents: true })).join('\n');
+    expect(on).toContain('s Subagent rows: on');
+    expect(on).toContain('Would set subagentStatusLine to "ccinfobar subagent-line"');
+  });
+
   it('fits every modal into small terminals', () => {
     const modes: Action[][] = [
       [{ type: 'openPicker' }],

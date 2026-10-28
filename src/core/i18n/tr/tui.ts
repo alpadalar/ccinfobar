@@ -214,6 +214,7 @@ export const tuiMessages = {
   'tui.confirm.applyPreset': 'Hazır ayarı uygula',
   'tui.confirm.installQuestion': "Claude Code'un statusLine ayarı ccinfobar olsun mu?",
   'tui.confirm.savedFirst': 'Kaydedilmemiş değişiklikler önce kaydedilir.',
+  'tui.confirm.subagents': 'Alt ajan satırları: {state}',
   'tui.confirm.install': 'kur',
   'tui.confirm.installTitle': 'Kurulum',
   'tui.help.title': 'Tuşlar · kapatmak için bir tuşa basın',

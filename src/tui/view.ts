@@ -506,18 +506,23 @@ function confirmModal(state: State, mode: Extract<Mode, { kind: 'confirm' }>, w:
         t('tui.confirm.applyPreset'),
       );
     }
-    case 'install':
+    case 'install': {
+      const state = t(mode.subagents ? 'tui.value.on' : 'tui.value.off');
+      const change = mode.plan?.subagent?.change;
       return centered(
         [
           bold(truncate(installQuestion(mode.plan), Math.max(10, w - 4))),
+          ...(change ? [truncate(shown(change), Math.max(10, w - 4))] : []),
           dim(t('tui.confirm.savedFirst')),
           '',
           `${k('y', 'tui.confirm.install')}   ${k('n', 'tui.confirm.cancel')}`,
+          `${bold(fg('s', 'brightYellow'))} ${t('tui.confirm.subagents', { state })}`,
         ],
         w,
         h,
         t('tui.confirm.installTitle'),
       );
+    }
   }
 }
 

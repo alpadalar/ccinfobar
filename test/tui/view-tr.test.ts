@@ -104,6 +104,14 @@ describe('Turkish TUI view', () => {
     expect(tr({ type: 'openPresets' })).toContain('Hazır ayarlar · mevcut düzenin yerine geçer');
   });
 
+  it('translates the install subagent toggle', () => {
+    const plan = { current: null, proposed: 'ccinfobar', needsConfirm: false };
+    const tr = (subagents: boolean) =>
+      withLang('tr', () => text(build(defaultConfig(), { type: 'installPlanned', plan, subagents })));
+    expect(tr(false)).toContain('s Alt ajan satırları: kapalı');
+    expect(tr(true)).toContain('s Alt ajan satırları: açık');
+  });
+
   it('shows preset and theme text from the catalog', () => {
     const presets = withLang('tr', () => text(build(defaultConfig(), { type: 'openPresets' })));
     const p = PRESETS[0]!;

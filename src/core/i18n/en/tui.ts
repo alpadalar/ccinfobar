@@ -209,6 +209,7 @@ export const tuiMessages = {
   'tui.confirm.installQuestion': "Set Claude Code's statusLine to ccinfobar?",
   'tui.confirm.savedFirst': 'Unsaved changes are saved first.',
   'tui.confirm.install': 'install',
+  'tui.confirm.subagents': 'Subagent rows: {state}',
   'tui.confirm.installTitle': 'Install',
   'tui.help.title': 'Keys · press any key to close',
   'tui.help.select': 'select widget / line',

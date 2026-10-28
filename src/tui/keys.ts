@@ -266,6 +266,7 @@ function confirmKey(k: Key, what: string): Action | null {
     if (c === 'c' || c === 'n') return { type: 'confirm', answer: 'no' };
     return null;
   }
+  if (what === 'install' && c === 's') return { type: 'confirm', answer: 'subagents' };
   if (c === 'y' || k.name === 'return') return { type: 'confirm', answer: 'yes' };
   if (c === 'n') return { type: 'confirm', answer: 'no' };
   return null;
