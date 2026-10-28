@@ -35,9 +35,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           awk -v tag="${GITHUB_REF_NAME#v}" 'index($0, "## [" tag "]") == 1 {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md > notes.md
-          [ -s notes.md ] || echo 'See CHANGELOG.md' > notes.md
+          grep -q '[^[:space:]]' notes.md || echo 'See CHANGELOG.md' > notes.md
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
+            gh release upload "$GITHUB_REF_NAME" ccinfobar.tgz ccinfobar-*.tgz --clobber
           else
             gh release create "$GITHUB_REF_NAME" ccinfobar.tgz ccinfobar-*.tgz \
               --title "$GITHUB_REF_NAME" --notes-file notes.md

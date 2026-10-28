@@ -114,8 +114,16 @@ describe('release workflow', () => {
     expect(releaseText).toContain('index($0, "## [" tag "]") == 1');
     expect(releaseText).not.toContain('$0 ~');
     expect(releaseText).toContain('> notes.md');
-    expect(releaseText).toContain("[ -s notes.md ] || echo 'See CHANGELOG.md' > notes.md");
+    expect(releaseText).toContain("grep -q '[^[:space:]]' notes.md || echo 'See CHANGELOG.md' > notes.md");
+    expect(releaseText).not.toContain('[ -s notes.md ]');
     expect(releaseText).toContain('gh release edit "$GITHUB_REF_NAME" --notes-file notes.md');
+    const upload = 'gh release upload "$GITHUB_REF_NAME" ccinfobar.tgz ccinfobar-*.tgz --clobber';
+    expect(releaseText).toContain(upload);
+    const edit = release.findIndex((l) => l.includes('gh release edit'));
+    const up = release.findIndex((l) => l.includes(upload));
+    const other = release.findIndex((l) => l.trim() === 'else');
+    expect(up).toBeGreaterThan(edit);
+    expect(up).toBeLessThan(other);
     expect(releaseText).toMatch(/gh release create .*\\\n?.*--notes-file notes\.md/);
     expect(releaseText).not.toMatch(/--notes "/);
     expect(releaseText).not.toContain('&& exit 0');
