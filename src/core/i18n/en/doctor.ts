@@ -92,6 +92,8 @@ export const doctorMessages = {
   'doctor.statusLine': '{mark} Claude Code statusLine in {file}: {command}',
   'doctor.statusLineUnset': '{mark} Claude Code statusLine in {file}: not set',
   'doctor.subagentLine': '{mark} Claude Code subagentStatusLine: {command}',
+  'doctor.statusLineEffective': '  Claude Code uses the {layer} statusLine from {file}: {command}',
+  'doctor.subagentLineEffective': '  Claude Code uses the {layer} subagentStatusLine from {file}: {command}',
   'doctor.subagentLineForeign':
     '  not managed by ccinfobar; `{command} install --subagents` replaces it after asking',
   'doctor.vimTwice':

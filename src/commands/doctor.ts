@@ -25,6 +25,7 @@ import { readLastPayload } from '../core/preview.js';
 import { overflowOf, resolveAppearance } from '../core/renderer.js';
 import { rotationIds } from '../core/rotation.js';
 import { sanitizeText } from '../core/sanitize.js';
+import { effectiveObject, type SettingsLayer } from '../core/settings-layers.js';
 import { themeExists } from '../core/themes.js';
 import type { Config, OptionSpec, StatusPayload } from '../core/types.js';
 import { VERSION } from '../core/version.js';
@@ -326,9 +327,8 @@ export function printWidgetReport(cfgFile: string, loaded?: LoadResult): void {
 function printHooks(
   manifest: Manifest,
   settingsFile: string,
-  dirs: Set<string>,
   last: StatusPayload | null,
-  managedFiles: string[],
+  layers: SettingsLayer[],
   progress: Config['progress'],
 ): void {
   const entries = manifest.readOnly ? [] : findHookEntries(manifest, settingsFile);
@@ -349,7 +349,6 @@ function printHooks(
     for (const [command, count] of missing)
       console.log(t('doctor.hooks.missingBinary', { command: safe(command), count }));
   }
-  const layers = settingsLayers(settingsFile, dirs, managedFiles);
   const progressOut = progressWarnings({
     layers,
     progress,
@@ -474,12 +473,30 @@ export function runDoctor(
     if (dropped) console.log(dropped);
     for (const l of httpReport(raw)) console.log(l);
   }
+  const dirs = new Set([process.cwd()]);
+  const last = readLastPayload();
+  const lastDir = last?.workspace?.project_dir ?? last?.workspace?.current_dir ?? last?.cwd;
+  if (lastDir && fs.existsSync(lastDir)) dirs.add(lastDir);
+  const layers = settingsLayers(
+    settingsFile,
+    dirs,
+    opts.managedFiles ?? managedSettingsFiles(process.platform, process.env),
+  );
   const slFile = { mark: ok(usesUs), file: tildify(settingsFile) };
   console.log(
     sl?.command !== undefined
       ? t('doctor.statusLine', { ...slFile, command: safe(sl.command) })
       : t('doctor.statusLineUnset', slFile),
   );
+  const effSl = effectiveObject(layers, 'statusLine');
+  if (effSl && effSl.layer.name !== 'user')
+    console.log(
+      t('doctor.statusLineEffective', {
+        layer: effSl.layer.name,
+        file: tildify(effSl.layer.file),
+        command: safe(effSl.value.command),
+      }),
+    );
   if (typeof sl?.command === 'string') {
     for (const w of commandWarnings(sl.command)) console.log(w);
     const node = pinnedNode(sl.command);
@@ -492,6 +509,15 @@ export function runDoctor(
     console.log(t('doctor.subagentLine', { mark: ok(owned), command: safe(sub.command) }));
     if (!owned) console.log(t('doctor.subagentLineForeign', { command: selfCommand() }));
   }
+  const effSub = effectiveObject(layers, 'subagentStatusLine');
+  if (effSub && effSub.layer.name !== 'user')
+    console.log(
+      t('doctor.subagentLineEffective', {
+        layer: effSub.layer.name,
+        file: tildify(effSub.layer.file),
+        command: safe(effSub.value.command),
+      }),
+    );
   if (sl?.refreshInterval === undefined) {
     const cfg = loaded.config;
     const extra = cfg.tui ? titleWidgets(cfg.tui) : [];
@@ -518,35 +544,17 @@ export function runDoctor(
       console.log(t('doctor.manifestEntry', { kind: safe(e.kind), file: safe(tildify(String(e.file))) }));
     }
   }
-  const dirs = new Set([process.cwd()]);
-  const last = readLastPayload();
-  const lastDir = last?.workspace?.project_dir ?? last?.workspace?.current_dir ?? last?.cwd;
-  if (lastDir && fs.existsSync(lastDir)) dirs.add(lastDir);
   const claudeJson = readJsonSafe<Record<string, unknown>>(
     claudeJsonPath(),
     (v): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v),
   );
   if (
     hasVimWidget(loaded.config) &&
-    editorModeOf(
-      settingsLayers(
-        settingsFile,
-        dirs,
-        opts.managedFiles ?? managedSettingsFiles(process.platform, process.env),
-      ),
-      claudeJson,
-    ) === 'vim' &&
-    sl?.hideVimModeIndicator !== true
+    editorModeOf(layers, claudeJson) === 'vim' &&
+    effectiveObject(layers, 'statusLine')?.value.hideVimModeIndicator !== true
   )
     console.log(t('doctor.vimTwice', { command: selfCommand(kind) }));
-  printHooks(
-    manifest,
-    settingsFile,
-    dirs,
-    last,
-    opts.managedFiles ?? managedSettingsFiles(process.platform, process.env),
-    loaded.config.progress,
-  );
+  printHooks(manifest, settingsFile, last, layers, loaded.config.progress);
   console.log(t('doctor.backups', { dir: tildify(backupsDir()) }));
   for (const dir of dirs) {
     const o = projectOverride(dir);
