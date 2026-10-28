@@ -43,6 +43,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The automatic update no longer falls back to installing the GitHub release tarball when GitHub publishes no checksum for it: nothing is installed, `ccinfobar doctor` says so and the update is retried at the next check; a rollback whose reinstall has no checksum is recorded as failed instead of installing unverified bytes (reason: never install unverified bytes). Manual `ccinfobar update` likewise installs from the npm registry only.
 
 ### Fixed
+- `ccinfobar import ccstatusline` turns `git-insertions` + `git-deletions` (and the jj pair) into one changes widget instead of two and says so in the import notes; `jj-root-dir` is noted as approximated by `project-dir`
 - The update notice (`update: notify`) no longer pushes the last status line past the terminal width; when it does not fit it moves to its own line
 - `--flag=false`, `--flag=0`, `--flag=true` and `--flag=1` on switch flags such as `--yes`, `--detach` and `--open` are read as booleans, so `--yes=false` no longer confirms and `--detach=1` detaches
 - `--width`, `--refresh` and `--port` now accept only whole numbers in range (1-10000, 1-86400, 1-65535); an invalid or missing value prints a usage error and exits non-zero instead of being silently accepted (previously `--width abc` rendered without a width and `--refresh 0` dropped the interval)
