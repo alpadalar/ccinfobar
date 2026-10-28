@@ -84,7 +84,7 @@ export function httpGroups(config: Pick<Config, 'lines'>): Map<string, HttpGroup
 const NETWORK: [RegExp, JobNetwork][] = [
   [/^(update|status|usage-[0-9a-f]{16})$/, 'auto'],
   [/^(http|gh)-[0-9a-f]{16}$/, 'explicit'],
-  [/^repos-dirty-[0-9a-f]{20}$/, 'none'],
+  [/^(repos-dirty|cmd)-[0-9a-f]{20}$/, 'none'],
 ];
 
 // doctor reads it without loading the registry; a test keeps it in step

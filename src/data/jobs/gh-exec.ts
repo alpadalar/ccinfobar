@@ -12,7 +12,8 @@ export const defaultExecFile: ExecFileLike = (file, args, opts) =>
           timeout: opts.timeout,
           env: opts.env,
           maxBuffer: opts.maxBuffer,
-          windowsHide: true,
+          windowsHide: opts.windowsHide ?? true,
+          ...(opts.shell ? { shell: true } : {}),
           encoding: 'utf8',
           // Windows looks up gh in the cwd first; callers pass safeCwd()
           ...(opts.cwd ? { cwd: opts.cwd } : {}),
@@ -28,7 +29,10 @@ export const defaultExecFile: ExecFileLike = (file, args, opts) =>
           });
         },
       );
-      child.stdin?.end();
+      if (typeof opts.input === 'string') {
+        child.stdin?.on('error', () => {});
+        child.stdin?.end(opts.input);
+      } else child.stdin?.end();
     } catch {
       resolve({ code: null, stdout: '', stderr: '', errno: 'spawn' });
     }

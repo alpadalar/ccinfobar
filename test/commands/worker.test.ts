@@ -316,6 +316,26 @@ describe('sweepJobs', () => {
     expect(fs.existsSync(tmpNew)).toBe(true);
   });
 
+  it('keeps cmd envelopes the config produces and sweeps the rest', () => {
+    const s = setup();
+    const now = Date.now();
+    const old = (name: string) => {
+      const p = path.join(jobsDir(s.env), name);
+      fs.writeFileSync(p, '{}');
+      const t = (now - 8 * 86_400_000) / 1000;
+      fs.utimesSync(p, t, t);
+      return p;
+    };
+    const keepKey = `cmd-${'a'.repeat(20)}`;
+    const kept = old(`${keepKey}.json`);
+    const gone = old(`cmd-${'b'.repeat(20)}.json`);
+    const odd = old('cmd-xyz.json');
+    sweepJobs(s.env, new Set([keepKey]), now);
+    expect(fs.existsSync(kept)).toBe(true);
+    expect(fs.existsSync(gone)).toBe(false);
+    expect(fs.existsSync(odd)).toBe(true);
+  });
+
   it('never follows a directory or fails on a missing jobs dir', () => {
     const s = setup();
     const d = path.join(jobsDir(s.env), 'http-1111111111111111.json');

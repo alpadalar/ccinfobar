@@ -326,6 +326,10 @@ describe('import graph', () => {
     expect(read('src/data/jobs/http.ts')).toContain("await import('../../core/jsonpath.js')");
     expect(read('src/data/jobs/status.ts')).toContain("await import('./fetch.js')");
     expect(read('src/data/jobs/gh.ts')).toContain("await import('./gh-exec.js')");
+    expect(read('src/data/jobs/command.ts')).toContain("await import('./gh-exec.js')");
+    expect(read('src/data/jobs/command.ts')).not.toMatch(
+      /^import[^;]*from\s+'(node:child_process|\.\/gh-exec\.js)'/m,
+    );
     for (const f of ['data/jobs/fetch.ts', 'data/jobs/gh-exec.ts']) {
       expect(read(`src/${f}`), f).not.toMatch(/^import\s+(?!type\b)[^;]*from\s+'\./m);
       expect(closure(f)).toEqual(new Set([`src/${f}`]));

@@ -8,7 +8,7 @@ import type { Config, StatusPayload } from '../../core/types.js';
 import type { WorkspaceRepos } from '../repos.js';
 import { acquireLock, writeAtomic } from '../store.js';
 
-export type JobId = 'usage' | 'update' | 'status' | 'http' | 'gh' | 'repos';
+export type JobId = 'usage' | 'update' | 'status' | 'http' | 'gh' | 'repos' | 'command';
 export type JobNetwork = 'auto' | 'explicit' | 'none';
 
 export interface JobRequest {
@@ -52,7 +52,16 @@ export interface AcceptInput {
 export type ExecFileLike = (
   file: string,
   args: string[],
-  opts: { timeout: number; env: NodeJS.ProcessEnv; maxBuffer: number; cwd?: string; signal?: AbortSignal },
+  opts: {
+    timeout: number;
+    env: NodeJS.ProcessEnv;
+    maxBuffer: number;
+    cwd?: string;
+    signal?: AbortSignal;
+    input?: string;
+    shell?: boolean;
+    windowsHide?: boolean;
+  },
 ) => Promise<{ code: number | null; stdout: string; stderr: string; errno?: string }>;
 
 export interface JobCtx<V> {

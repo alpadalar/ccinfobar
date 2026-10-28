@@ -3,6 +3,7 @@ import { configPath } from '../../core/paths.js';
 import type { Config, StatusPayload } from '../../core/types.js';
 import type { WorkspaceRepos } from '../repos.js';
 import { updateJob } from '../update-state.js';
+import { commandJob } from './command.js';
 import { ghJob } from './gh.js';
 import { httpJob } from './http.js';
 import { reposJob } from './repos.js';
@@ -25,6 +26,7 @@ export const JOBS: Job<unknown>[] = [
   httpJob as Job<unknown>,
   ghJob as Job<unknown>,
   reposJob as Job<unknown>,
+  commandJob as Job<unknown>,
 ];
 
 export function jobFor(key: string, jobs: Job<unknown>[] = JOBS): Job<unknown> | undefined {

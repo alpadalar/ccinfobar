@@ -179,6 +179,7 @@ describe('keyNetwork', () => {
       http: 'http-0123456789abcdef',
       gh: 'gh-0123456789abcdef',
       repos: 'repos-dirty-0123456789abcdef0123',
+      command: 'cmd-0123456789abcdef0123',
     };
     for (const job of JOBS) {
       const key = samples[job.id]!;

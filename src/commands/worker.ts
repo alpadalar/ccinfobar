@@ -42,7 +42,7 @@ const CACHE_RE =
   /^(transcript|agent3|cmd|repos|repos-dirty|env|bin|git|jj|jj-miss|jj-backoff|agents-dir)-[0-9a-f]{20}\.json$/;
 const WIDTH_RE = /^width-[A-Za-z0-9_-]{1,128}\.json$/;
 const LEGACY_RE = /^agent2-[0-9a-f]{20}\.json$/;
-const SWEEP_RE = /^((?:http|gh)-[0-9a-f]{16})\.json$/;
+const SWEEP_RE = /^((?:http|gh)-[0-9a-f]{16}|cmd-[0-9a-f]{20})\.json$/;
 
 // own copy: importing cli/silence.ts would split it out of bin.ts
 function quiet(): void {
