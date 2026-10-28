@@ -119,6 +119,10 @@ export const doctorMessages = {
     '  ccinfobar {version} failed its post-install check and the rollback to {current} failed too; run `{command}`',
   'doctor.update.rollbackUnverified':
     '  ccinfobar {version} failed its post-install check ({reason}); rolled back to {current}, but the check of the restored version did not finish on this machine; if the status line is missing, run `{command}`',
+  'doctor.update.deferred':
+    '  {latest} is available but younger than {hours} h (updateMinAgeHours); it is installed on a later check',
+  'doctor.update.deferredUnknown':
+    '  {latest} is available but its release date could not be read; the check runs again later',
   'doctor.updateMode.auto': 'auto',
   'doctor.updateMode.notify': 'notify',
   'doctor.updateMode.off': 'off',

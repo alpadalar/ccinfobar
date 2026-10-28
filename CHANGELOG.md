@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- `updateMinAgeHours` (config, web editor Settings, TUI): with `update: "auto"`, wait until a release is at least that many hours old (1-720; the GitHub release date, or npm's publish time as fallback) before installing it; a too-new release is skipped with `reason: too-new` and installed on a later check, and `ccinfobar doctor` says so. Default `0` keeps today's behaviour; update notices and `ccinfobar update` ignore the setting
 - `command` widgets can run in the background worker with `background: true` (needs `cacheSeconds > 0`): the status line shows the last result and never waits for the command; a background result is one plain line, so `preserveColors` has no effect there. The `commandBudgetMs` setting is in the web editor's Settings and the TUI. `docs/WIDGETS.md` now says plainly that a `command` runs through the shell with the status line's full environment.
 
 - `ccinfobar subagent-line` renders Claude Code's subagent panel rows (agent type, label, token sparkline, tokens and context share, model and effort, elapsed time) from the JSON Claude Code sends, fitted to the panel width, with the parts chosen by the new `subagentLine.fields` config key; it reads only the config file and prints nothing on bad input. `ccinfobar install --subagents` sets it up with a backup and a manifest entry, `ccinfobar doctor` shows it and `ccinfobar uninstall` (or `uninstall --subagents`) removes it, restoring any entry that was there before.

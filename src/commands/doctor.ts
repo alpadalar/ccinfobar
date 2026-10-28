@@ -610,6 +610,13 @@ export function runDoctor(
             : `npm install -g ccinfobar@${VERSION}`,
       }),
     );
+  if (upd?.deferred && upd.deferred === upd.latest && loaded.config.updateMinAgeHours)
+    console.log(
+      t(upd.reason === 'age-unknown' ? 'doctor.update.deferredUnknown' : 'doctor.update.deferred', {
+        latest: safe(upd.deferred),
+        hours: loaded.config.updateMinAgeHours,
+      }),
+    );
   printJobs(loaded.config, process.env, Date.now());
   printWidgetReport(cfgFile, loaded);
   if (!usesUs) console.log(t('doctor.enableHint', { command: selfCommand(kind) }));

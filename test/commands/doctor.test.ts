@@ -513,6 +513,29 @@ describe('runDoctor install report', () => {
     }
   });
 
+  it('says why a release waits when it is deferred', () => {
+    fs.mkdirSync(cacheDir(), { recursive: true });
+    const upd = path.join(cacheDir(), 'update.json');
+    const cfg = () =>
+      cfgFile('aged.json', JSON.stringify({ lines: [[{ type: 'model' }]], updateMinAgeHours: 24 }));
+    const write = (o: object) => fs.writeFileSync(upd, JSON.stringify({ checkedAt: Date.now(), ...o }));
+    const params = { latest: '9.9.9', hours: 24 };
+    try {
+      write({ latest: '9.9.9', deferred: '9.9.9', reason: 'too-new' });
+      expect(capture(() => runDoctor(cfg()))).toContain(t('doctor.update.deferred', params));
+      const tr = withEnvLang('tr', () => capture(() => runDoctor(cfg())));
+      expect(tr).toContain(withLang('tr', () => t('doctor.update.deferred', params)));
+      write({ latest: '9.9.9', deferred: '9.9.9', reason: 'age-unknown' });
+      expect(capture(() => runDoctor(cfg()))).toContain(t('doctor.update.deferredUnknown', params));
+      write({ latest: '9.9.9' });
+      expect(capture(() => runDoctor(cfg())).join('\n')).not.toContain('updateMinAgeHours');
+      write({ latest: '9.9.9', deferred: '9.9.8', reason: 'too-new' });
+      expect(capture(() => runDoctor(cfg())).join('\n')).not.toContain('updateMinAgeHours');
+    } finally {
+      fs.rmSync(upd, { force: true });
+    }
+  });
+
   it('shows the last update check in the display language', () => {
     fs.mkdirSync(cacheDir(), { recursive: true });
     const upd = path.join(cacheDir(), 'update.json');
