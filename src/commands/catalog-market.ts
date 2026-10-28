@@ -205,6 +205,10 @@ function showPlan(c: Ctx, p: Planned, endpoint: string): void {
     if (item.payload) for (const line of payloadLines(item.payload, width)) c.io.log(line);
     else c.io.log(`    ${t('catalog.publish.noPayload')}`);
   }
+  for (const r of p.review.renamed) {
+    const name = clean(p.review.plan.find((i) => i.id === r.id)?.name ?? '');
+    c.io.log(t('catalog.publish.slugTaken', { name, slug: clean(r.from), newSlug: clean(r.to) }));
+  }
   c.io.log('');
   const reg = p.review.registration;
   if (reg) {

@@ -163,6 +163,7 @@ export interface PublishPlanInfo {
     remoteId: string | null;
     payload: unknown;
   }[];
+  renamed?: { id: string; from: string; to: string }[];
   skipped: { id: string; reason: 'not-shared' | 'up-to-date' | 'withdrawn' }[];
 }
 

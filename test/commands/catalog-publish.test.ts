@@ -101,6 +101,12 @@ async function server(opts: { allowOverwrite?: boolean } = {}) {
   return { url: s.url, env: { CCINFOBAR_MARKETPLACE_URL: s.url } };
 }
 
+// the plan sees no remote slugs, so the server's 409 does the work
+const blind = ((input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+  /\/v1\/index[^/]*$/.test(String(input))
+    ? Promise.resolve(new Response('{}', { status: 500 }))
+    : globalThis.fetch(input, init)) as typeof fetch;
+
 function counted() {
   let calls = 0;
   const fn = ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
@@ -314,8 +320,31 @@ describe('catalog publish', () => {
     expect(three.code).toBe(1);
     writeCfg([[{ id: 'x', type: 'cost' }]]);
     await run(['save', 'Other', '--update', '--kind', 'preset', '--description', 'changed']);
-    const four = await run(['publish', '--yes'], { env });
+    const four = await run(['publish', '--yes'], { env, fetch: blind });
     expect(four.text).toMatch(/Other: other was taken on the marketplace, published as alperen\/other-2/);
+  });
+
+  it('the plan says when a slug is already used and will be suffixed (COR2-10)', async () => {
+    const { env } = await server();
+    const lost = ((input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+      globalThis.fetch(input, init).then((r) => {
+        if (init?.method === 'POST' && String(input).endsWith('/v1/entries'))
+          throw Object.assign(new Error('timed out'), { name: 'TimeoutError' });
+        return r;
+      })) as typeof fetch;
+    await saveMine('Other');
+    await run(['publish', '--yes'], { env, fetch: lost });
+    writeCfg([[{ id: 'x', type: 'cost' }]]);
+    await run(['save', 'Other', '--update', '--kind', 'preset', '--description', 'changed']);
+    const dry = await run(['publish', '--dry-run'], { env });
+    expect(dry.text).toContain(
+      'Other: other is already used on the marketplace; it will be published as other-2',
+    );
+    const tr = await withLangAsync('tr', () => run(['publish', '--dry-run'], { env }));
+    expect(tr.text).toContain("Other: other marketplace'te zaten kullanılıyor; other-2 olarak yayımlanacak");
+    const go = await run(['publish', '--yes'], { env });
+    expect(go.text).toContain('alperen/other-2');
+    expect(go.text).not.toContain('was taken on the marketplace');
   });
 
   it('withdraws an unshared entry', async () => {
@@ -467,13 +496,13 @@ describe('catalog publish', () => {
     writeCfg([[{ id: 'x', type: 'cost' }]]);
     await saveMine('Mine', 'preset');
     await saveMine('Other', 'preset');
-    const r = await run(['publish', '--yes'], { env: s.env });
+    const r = await run(['publish', '--yes'], { env: s.env, fetch: blind });
     expect(r.code).toBe(1);
     expect(r.out).toContain('Published Other v1 as alperen/other');
     expect(r.err).toEqual(['Mine: The marketplace already has an entry with this name']);
     for (const e of listEntries(cat).filter((x) => x.name === 'Mine')) await run(['delete', e.id, '--yes']);
     await saveMine('Mine', 'preset');
-    const tr = await withLangAsync('tr', () => run(['publish', '--yes'], { env: s.env }));
+    const tr = await withLangAsync('tr', () => run(['publish', '--yes'], { env: s.env, fetch: blind }));
     expect(tr.err).toEqual(["Mine: Marketplace'te bu adla bir girdi zaten var"]);
   });
 

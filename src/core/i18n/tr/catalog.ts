@@ -228,6 +228,8 @@ export const catalogMessages = {
   'catalog.publish.adopted':
     '{name}: marketplace bu sürümü önceki bir denemeden zaten almıştı; {id} ile bağlandı',
   'catalog.publish.slugRetried': "{name}: {slug} marketplace'te alınmıştı, {id} olarak yayımlandı",
+  'catalog.publish.slugTaken':
+    "{name}: {slug} marketplace'te zaten kullanılıyor; {newSlug} olarak yayımlanacak",
   'catalog.publish.pending': 'Bir marketplace yöneticisinin incelemesi bekleniyor',
   'catalog.publish.withdrawn': '{name} geri çekildi ({id})',
   'catalog.publish.failed': '{name}: {reason}',

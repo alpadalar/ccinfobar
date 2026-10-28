@@ -217,6 +217,8 @@ export const catalogMessages = {
   'catalog.publish.adopted':
     '{name}: the marketplace already had this version from an earlier try; linked to {id}',
   'catalog.publish.slugRetried': '{name}: {slug} was taken on the marketplace, published as {id}',
+  'catalog.publish.slugTaken':
+    '{name}: {slug} is already used on the marketplace; it will be published as {newSlug}',
   'catalog.publish.pending': 'Waiting for review by a marketplace admin',
   'catalog.publish.withdrawn': 'Withdrew {name} ({id})',
   'catalog.publish.failed': '{name}: {reason}',

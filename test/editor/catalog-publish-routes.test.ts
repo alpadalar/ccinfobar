@@ -225,6 +225,27 @@ describe('editor publish routes', () => {
     });
   });
 
+  it('lists a slug moved for a remote collision in the review view (COR2-10)', async () => {
+    await market();
+    const a = await save({ name: 'Mine' });
+    expect((await publish([a.ref])).status).toBe(200);
+    const file = path.join(dir, 'cfg', 'catalog', 'entries', `${a.ref}.json`);
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+    raw.name = 'Other';
+    raw.slug = 'other';
+    fs.writeFileSync(file, JSON.stringify(raw));
+    const b = await save({ name: 'Mine', config: config([[{ id: 'c', type: 'clock' }]]) });
+    const view = (await plan([b.ref])).json();
+    expect(view.plan[0].payload.slug).toBe('mine-2');
+    expect(view.renamed).toEqual([{ id: b.ref, from: 'mine', to: 'mine-2' }]);
+    const ok = await request('POST', '/api/catalog/publish', {
+      refs: [b.ref],
+      confirm: true,
+      planHash: view.planHash,
+    });
+    expect(ok.json().results[0]).toMatchObject({ ok: true, remoteId: 'alp/mine-2' });
+  });
+
   it('refuses a changed plan with 409 planChanged and sends nothing', async () => {
     await market();
     const e = await save();

@@ -310,6 +310,17 @@ export async function publishDialog(data: CatalogState, refs?: string[]): Promis
     content.replaceChildren(
       h('p', { class: 'modal-text' }, t('catalog.publish.plan')),
       h('ol', { class: 'catalog-publish-list' }, ...view.plan.map(planItem)),
+      ...(view?.renamed ?? []).map((r) =>
+        h(
+          'p',
+          { class: 'modal-text' },
+          t('catalog.publish.slugTaken', {
+            name: shown(view?.plan.find((i) => i.id === r.id)?.name ?? ''),
+            slug: shown(r.from),
+            newSlug: shown(r.to),
+          }),
+        ),
+      ),
       skipped.length ? h('ul', { class: 'catalog-publish-skipped' }, ...skipped) : '',
       reg ? handleField(reg) : '',
       h(

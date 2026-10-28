@@ -893,6 +893,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       ...(review.submitUrl ? { submitUrl: review.submitUrl } : {}),
       registration: review.registration,
       plan,
+      renamed: review.renamed.filter((r) => plan.some((i) => i.id === r.id)),
       skipped,
     };
     return { m, view, review: kept };
