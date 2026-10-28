@@ -47,6 +47,8 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   const cfgFile = typeof args.flags.config === 'string' ? path.resolve(args.flags.config) : configPath();
   // help follows the env (D-36)
   const help = args.flags.help || args.command === 'help';
+  const ttyHelp = args.command === null && process.stdin.isTTY && typeof args.flags.payload !== 'string';
+  if (command || help || ttyHelp) await import('../core/i18n/ui.js');
   applyLanguage(command && !help ? configLanguage(cfgFile) : undefined);
 
   if (args.flags.version) {

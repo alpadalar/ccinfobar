@@ -6,7 +6,7 @@ import { help, OPTIONS, USAGE } from '../../src/cli/help.js';
 import { resetLanguageCache } from '../../src/cli/lang.js';
 import { main } from '../../src/cli/main.js';
 import { runRender } from '../../src/cli/render.js';
-import { cliMessages } from '../../src/core/i18n/en/cli.js';
+import { helpMessages } from '../../src/core/i18n/en/help.js';
 import type { LanguageDef } from '../../src/core/i18n/index.js';
 import { claudeSettingsPath } from '../../src/core/paths.js';
 import { VERSION } from '../../src/core/version.js';
@@ -98,7 +98,7 @@ describe('help()', () => {
 
   it('aligns by visible width with fullwidth text', () => {
     const wide = Object.fromEntries(
-      Object.keys(cliMessages).map((id) => [
+      Object.keys(helpMessages).map((id) => [
         id,
         id === 'help.cmd.uninstall' ? 'ＡＢＣ\u3000ｄ\nＥＦ' : 'ＷＩＤＥ\u3000ｔｅｘｔ',
       ]),

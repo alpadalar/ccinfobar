@@ -522,3 +522,64 @@ describe('import graph', () => {
     expect(text).not.toMatch(/from ['"]node:|require\(/);
   });
 });
+
+// D-37: the English UI tables load with the commands, never with the render
+describe('English table split', () => {
+  const UI_TABLES = [
+    ...[
+      'bench',
+      'commands',
+      'doctor',
+      'editor',
+      'explain',
+      'help',
+      'hooks',
+      'index',
+      'inspector',
+      'install',
+      'jobs',
+      'preview',
+      'static',
+      'theme-editor',
+      'tui',
+    ].map((n) => `src/core/i18n/en/${n}.ts`),
+    'src/core/i18n/ui.ts',
+  ];
+  const read = (f: string) => fs.readFileSync(path.join(root, f), 'utf8');
+
+  for (const entry of ['cli/render.ts', 'cli/main.ts', 'cli/hook.ts', 'cli/subagent-line.ts']) {
+    it(`keeps the UI tables out of src/${entry}`, () => {
+      const files = closure(entry);
+      expect([...files].filter((f) => UI_TABLES.includes(f))).toEqual([]);
+    });
+  }
+
+  it('wires ui.ts for commands, bundles and the index chunk', () => {
+    expect(read('src/cli/main.ts')).toContain("await import('../core/i18n/ui.js')");
+    expect(read('src/core/i18n/ui.ts')).toContain("from './index.js'");
+    expect(read('src/core/i18n/bundled.ts')).toContain("import './ui.js'");
+  });
+
+  it.skipIf(skipDist)('built render and hook chunks carry no help or command text', () => {
+    const dist = path.join(root, 'dist');
+    const entry = read('dist/ccinfobar.js');
+    const roots = [...entry.matchAll(/import\("\.\/chunks\/((?:cli|hook)-[^"]+\.js)"\)/g)].map((m) => m[1]!);
+    expect(roots).toHaveLength(2);
+    const marker = /A customizable, GSD-aware status line/;
+    const seen = new Set<string>();
+    const stack = [...roots];
+    while (stack.length) {
+      const f = stack.pop()!;
+      if (seen.has(f)) continue;
+      seen.add(f);
+      const text = fs.readFileSync(path.join(dist, 'chunks', f), 'utf8');
+      expect(text, f).not.toMatch(marker);
+      for (const m of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(m[1]!);
+    }
+    expect(seen.size).toBeGreaterThan(2);
+    const lazy = fs
+      .readdirSync(path.join(dist, 'chunks'))
+      .filter((f) => marker.test(fs.readFileSync(path.join(dist, 'chunks', f), 'utf8')));
+    expect(lazy.length).toBeGreaterThan(0);
+  });
+});

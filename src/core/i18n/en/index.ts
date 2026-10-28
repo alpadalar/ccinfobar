@@ -8,6 +8,7 @@ import { editorMessages } from './editor.js';
 import { errorMessages } from './errors.js';
 import { explainMessages } from './explain.js';
 import { funMessages } from './fun.js';
+import { helpMessages } from './help.js';
 import { hookMessages } from './hooks.js';
 import { inspectorMessages } from './inspector.js';
 import { installMessages } from './install.js';
@@ -32,6 +33,7 @@ export const en = {
   ...displayMessages,
   ...funMessages,
   ...cliMessages,
+  ...helpMessages,
   ...commandsMessages,
   ...errorMessages,
   ...inspectorMessages,

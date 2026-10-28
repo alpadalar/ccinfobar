@@ -1,4 +1,4 @@
-import { en } from './en/index.js';
+import { renderMessages } from './en/render.js';
 import type { LanguageDef, LanguageTables, MetaTable } from './types.js';
 
 export const EN = {
@@ -6,7 +6,7 @@ export const EN = {
   name: 'English',
   aliases: [],
   locale: 'en',
-  messages: en,
+  messages: renderMessages as LanguageDef['messages'],
   lazy: undefined as LanguageDef['lazy'],
 } satisfies LanguageDef;
 

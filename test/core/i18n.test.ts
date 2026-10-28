@@ -13,6 +13,7 @@ import { editorMessages } from '../../src/core/i18n/en/editor.js';
 import { errorMessages } from '../../src/core/i18n/en/errors.js';
 import { explainMessages } from '../../src/core/i18n/en/explain.js';
 import { funMessages } from '../../src/core/i18n/en/fun.js';
+import { helpMessages } from '../../src/core/i18n/en/help.js';
 import { hookMessages } from '../../src/core/i18n/en/hooks.js';
 import { importMessages } from '../../src/core/i18n/en/import.js';
 import { en } from '../../src/core/i18n/en/index.js';
@@ -61,6 +62,7 @@ import { editorMessages as trEditor } from '../../src/core/i18n/tr/editor.js';
 import { errorMessages as trErrors } from '../../src/core/i18n/tr/errors.js';
 import { explainMessages as trExplain } from '../../src/core/i18n/tr/explain.js';
 import { funMessages as trFun } from '../../src/core/i18n/tr/fun.js';
+import { helpMessages as trHelp } from '../../src/core/i18n/tr/help.js';
 import { hookMessages as trHooks } from '../../src/core/i18n/tr/hooks.js';
 import { importMessages as trImport } from '../../src/core/i18n/tr/import.js';
 import { tr } from '../../src/core/i18n/tr/index.js';
@@ -255,6 +257,7 @@ const AREA_PAIRS: [string, Table, Table][] = [
   ['widgets', widgetMessages, trWidgets],
   ['fun', funMessages, trFun],
   ['cli', cliMessages, trCli],
+  ['help', helpMessages, trHelp],
   ['commands', commandsMessages, trCommands],
   ['errors', errorMessages, trErrors],
   ['inspector', inspectorMessages, trInspector],
@@ -426,6 +429,7 @@ describe('en table', () => {
       displayMessages,
       funMessages,
       cliMessages,
+      helpMessages,
       commandsMessages,
       errorMessages,
       inspectorMessages,

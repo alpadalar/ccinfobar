@@ -3,6 +3,10 @@ import type { lazyMessages } from './en/lazy.js';
 import { EN, type LanguageId, languageDef } from './languages.js';
 import type { LanguageDef, Message, Params, Plural } from './types.js';
 
+export function installEnglish(messages: LanguageDef['messages']): void {
+  EN.messages = messages;
+}
+
 export type MessageId = keyof typeof en | keyof typeof lazyMessages;
 export type { LanguageId, LanguageSetting } from './languages.js';
 export type { LanguageSource, Resolved } from './resolve.js';

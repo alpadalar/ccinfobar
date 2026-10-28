@@ -1,3 +1,4 @@
+import './ui.js';
 import { installTables } from './languages.js';
 import { tables as tr } from './tr/tables.js';
 
