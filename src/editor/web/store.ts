@@ -174,6 +174,8 @@ export interface PublishResultInfo {
   version: number | null;
   errorId: string | null;
   errorParams?: { status?: number };
+  adopted?: true;
+  retried?: { from: string; to: string };
 }
 
 export interface MarketSummaryInfo {

@@ -347,6 +347,8 @@ export async function runPublishCommand(c: Ctx): Promise<void> {
     const id = clean(r.remoteId);
     if (r.version === null) c.io.log(t('catalog.publish.withdrawn', { name, id }));
     else c.io.log(t('catalog.publish.ok', { name, version: r.version, id }));
+    if (r.adopted) c.io.log(t('catalog.publish.adopted', { name, id }));
+    if (r.retried) c.io.log(t('catalog.publish.slugRetried', { name, slug: clean(r.retried.from), id }));
     if (r.pending && r.reason === 'new-link' && r.links)
       c.io.log(
         t('catalog.publish.pendingLink', { version: r.version ?? 0, hosts: clean(r.links.join(', ')) }),

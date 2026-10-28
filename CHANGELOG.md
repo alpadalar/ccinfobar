@@ -43,6 +43,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The automatic update no longer falls back to installing the GitHub release tarball when GitHub publishes no checksum for it: nothing is installed, `ccinfobar doctor` says so and the update is retried at the next check; a rollback whose reinstall has no checksum is recorded as failed instead of installing unverified bytes (reason: never install unverified bytes). Manual `ccinfobar update` likewise installs from the npm registry only.
 
 ### Fixed
+- A marketplace publish whose answer was lost no longer leaves the entry stuck on a conflict: the next publish links the existing marketplace entry when it holds the same content, otherwise it publishes under `<slug>-2` and says so
 - Theme and preset ids that are Windows device names (`con`, `nul`, `com1`, `lpt1`, with or without an extension) are refused on every platform so a shared config stays portable; installing a marketplace theme named `Dracula` uses the builtin `dracula` instead of writing a copy. Existing files with such names still load
 - `ccinfobar import ccstatusline` turns `git-insertions` + `git-deletions` (and the jj pair) into one changes widget instead of two and says so in the import notes; `jj-root-dir` is noted as approximated by `project-dir`
 - The update notice (`update: notify`) no longer pushes the last status line past the terminal width; when it does not fit it moves to its own line

@@ -343,6 +343,45 @@ describe('publish review', () => {
     expect(await p).toEqual(next);
   });
 
+  it('says when a publish adopted an earlier try or moved to another slug (COR2-09)', async () => {
+    online();
+    await init();
+    reply('POST /api/catalog/publish/plan', 200, plan({ planHash: 'abc123' }));
+    reply('POST /api/catalog/publish', 200, {
+      ok: true,
+      code: null,
+      results: [
+        {
+          id: 'u-w',
+          ok: true,
+          code: null,
+          remoteId: 'ada/my-setup',
+          version: 1,
+          errorId: null,
+          adopted: true,
+        },
+        {
+          id: 'u-o',
+          ok: true,
+          code: null,
+          remoteId: 'ada/old-one-2',
+          version: 1,
+          errorId: null,
+          retried: { from: 'old-one', to: 'old-one-2' },
+        },
+      ],
+      catalog,
+    });
+    await publish(catalog, ['u-w', 'u-o']);
+    button('Publish')!.dispatch('click');
+    await flush();
+    const all = texts(top());
+    expect(all).toContain(
+      'My setup: the marketplace already had this version from an earlier try; linked to ada/my-setup',
+    );
+    expect(all).toContain('Old one: old-one was taken on the marketplace, published as ada/old-one-2');
+  });
+
   it('shows a withdraw result and the reserved note', async () => {
     online();
     await init();

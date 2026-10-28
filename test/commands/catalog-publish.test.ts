@@ -291,6 +291,33 @@ describe('catalog publish', () => {
     expect(show.out[1]).toBe('Preset · v2 · by Alperen (alperen)');
   });
 
+  it('says when a publish adopted an earlier try, and when it moved to a -2 slug (COR2-09)', async () => {
+    const { env } = await server();
+    const lost = ((input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+      globalThis.fetch(input, init).then((r) => {
+        if (init?.method === 'POST' && String(input).endsWith('/v1/entries'))
+          throw Object.assign(new Error('timed out'), { name: 'TimeoutError' });
+        return r;
+      })) as typeof fetch;
+    await saveMine();
+    const one = await run(['publish', '--yes'], { env, fetch: lost });
+    expect(one.code).toBe(1);
+    const two = await run(['publish', '--yes'], { env });
+    expect(two.code).toBeUndefined();
+    expect(two.out).toContain(
+      'Mine: the marketplace already had this version from an earlier try; linked to alperen/mine',
+    );
+    expect(stateOf('Mine')).toBe('published');
+
+    await saveMine('Other');
+    const three = await run(['publish', '--yes'], { env, fetch: lost });
+    expect(three.code).toBe(1);
+    writeCfg([[{ id: 'x', type: 'cost' }]]);
+    await run(['save', 'Other', '--update', '--kind', 'preset', '--description', 'changed']);
+    const four = await run(['publish', '--yes'], { env });
+    expect(four.text).toMatch(/Other: other was taken on the marketplace, published as alperen\/other-2/);
+  });
+
   it('withdraws an unshared entry', async () => {
     await saveMine();
     const s = await server();
@@ -426,34 +453,28 @@ describe('catalog publish', () => {
   });
 
   it('prints the reason of a failed item in English and Turkish', async () => {
-    // WR-07: the same name with two kinds publishes both
+    // the -2 slug is taken too, so the retry conflicts as well (COR2-09)
     await saveMine('Mine', 'preset');
-    await saveMine('Mine', 'theme');
+    await saveMine('Mine 2', 'preset');
     const s = await server();
     const both = await run(['publish', '--yes'], { env: s.env });
     expect(both.code).toBeUndefined();
-    expect(both.out).toContain('Published Mine v1 as alperen/mine-preset');
-    expect(both.out).toContain('Published Mine v1 as alperen/mine-theme');
+    expect(both.out).toContain('Published Mine v1 as alperen/mine');
+    expect(both.out).toContain('Published Mine 2 v1 as alperen/mine-2');
     // a new local entry whose slug is taken on the marketplace fails on its own
     for (const e of listEntries(cat)) await run(['delete', e.id, '--yes']);
+    // other content, so nothing is adopted
+    writeCfg([[{ id: 'x', type: 'cost' }]]);
     await saveMine('Mine', 'preset');
-    await saveMine('Mine', 'theme');
     await saveMine('Other', 'preset');
     const r = await run(['publish', '--yes'], { env: s.env });
     expect(r.code).toBe(1);
     expect(r.out).toContain('Published Other v1 as alperen/other');
-    expect(r.err).toEqual([
-      'Mine: The marketplace already has an entry with this name',
-      'Mine: The marketplace already has an entry with this name',
-    ]);
+    expect(r.err).toEqual(['Mine: The marketplace already has an entry with this name']);
     for (const e of listEntries(cat).filter((x) => x.name === 'Mine')) await run(['delete', e.id, '--yes']);
     await saveMine('Mine', 'preset');
-    await saveMine('Mine', 'theme');
     const tr = await withLangAsync('tr', () => run(['publish', '--yes'], { env: s.env }));
-    expect(tr.err).toEqual([
-      "Mine: Marketplace'te bu adla bir girdi zaten var",
-      "Mine: Marketplace'te bu adla bir girdi zaten var",
-    ]);
+    expect(tr.err).toEqual(["Mine: Marketplace'te bu adla bir girdi zaten var"]);
   });
 
   it('names a read-only marketplace and its submit page', async () => {

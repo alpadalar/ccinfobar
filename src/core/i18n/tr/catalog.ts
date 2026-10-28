@@ -225,6 +225,9 @@ export const catalogMessages = {
   'catalog.publish.ok': '{name} v{version}, {id} olarak yayımlandı',
   'catalog.publish.pendingLink':
     'Sürüm {version}, {hosts} bağlantıları eklediği için bir marketplace yöneticisinin incelemesini bekliyor',
+  'catalog.publish.adopted':
+    '{name}: marketplace bu sürümü önceki bir denemeden zaten almıştı; {id} ile bağlandı',
+  'catalog.publish.slugRetried': "{name}: {slug} marketplace'te alınmıştı, {id} olarak yayımlandı",
   'catalog.publish.pending': 'Bir marketplace yöneticisinin incelemesi bekleniyor',
   'catalog.publish.withdrawn': '{name} geri çekildi ({id})',
   'catalog.publish.failed': '{name}: {reason}',

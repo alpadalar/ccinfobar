@@ -132,6 +132,8 @@ function resultText(r: PublishResultInfo, item: PlanItem | undefined): string[] 
       ? t('catalog.publish.withdrawn', { name, id })
       : t('catalog.publish.ok', { name, version: r.version, id }),
   ];
+  if (r.adopted) out.push(t('catalog.publish.adopted', { name, id }));
+  if (r.retried) out.push(t('catalog.publish.slugRetried', { name, slug: shown(r.retried.from), id }));
   if (r.errorId) out.push(idText(r.errorId, null, ''));
   return out.filter(Boolean);
 }

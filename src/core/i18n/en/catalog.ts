@@ -214,6 +214,9 @@ export const catalogMessages = {
   'catalog.publish.ok': 'Published {name} v{version} as {id}',
   'catalog.publish.pendingLink':
     'Version {version} waits for review by a marketplace admin because it adds links to {hosts}',
+  'catalog.publish.adopted':
+    '{name}: the marketplace already had this version from an earlier try; linked to {id}',
+  'catalog.publish.slugRetried': '{name}: {slug} was taken on the marketplace, published as {id}',
   'catalog.publish.pending': 'Waiting for review by a marketplace admin',
   'catalog.publish.withdrawn': 'Withdrew {name} ({id})',
   'catalog.publish.failed': '{name}: {reason}',
