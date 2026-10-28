@@ -227,7 +227,8 @@ describe('reserved ids on win32', () => {
     expect(fs.existsSync(path.join(dir, 'con.json'))).toBe(true);
   });
 
-  it('keeps listing an existing file elsewhere', () => {
+  // con.json is the CON device on a real Windows runner
+  it.skipIf(process.platform === 'win32')('keeps listing an existing file elsewhere', () => {
     const dir = setup();
     expect(listPresets(dir).find((p) => p.id === 'con')?.source).toBe('user');
   });

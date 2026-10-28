@@ -304,6 +304,8 @@ describe('contentFromConfig', () => {
     for (const id of ['console', 'com10', 'nul-theme', 'aux2']) {
       expect(() => saveUserTheme({ id, extends: 'nord' }, themes())).not.toThrow();
     }
+    // con.json is the CON device on a real Windows runner
+    if (process.platform === 'win32') return;
     fs.writeFileSync(path.join(themes(), 'con.json'), JSON.stringify({ extends: 'nord' }));
     expect(listThemes(themes()).some((x) => x.id === 'con' && x.source === 'user')).toBe(true);
     expect(deleteUserTheme('con', themes())).toBe(true);
