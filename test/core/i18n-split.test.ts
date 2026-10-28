@@ -8,6 +8,9 @@ import { samplePayload } from '../../src/core/sample.js';
 
 const root = path.resolve(__dirname, '../..');
 const IMPORT_RE = /^\s*(?:import|export)\s+(?!type\b)[^'"]*?from\s+'(\.[^']+)'/gm;
+const DYNAMIC_RE = /\bimport\(\s*'(\.[^']+)'\s*\)/g;
+const TEMPLATE_RE = /\bt\(`([a-z]+(?:\.[a-zA-Z0-9_-]+)*\.)\$\{/g;
+const PREFIXES = ['rule.error.', 'fun.quip.', 'widget.gsd.status.', 'widget.status.level.'];
 const ID_RE = /'([a-z]+(?:\.[a-zA-Z0-9_-]+)+)'/g;
 
 function resolve(from: string, spec: string): string | null {
@@ -25,7 +28,13 @@ function closure(entry: string): string[] {
     const file = stack.pop()!;
     if (seen.has(file)) continue;
     seen.add(file);
-    for (const m of fs.readFileSync(file, 'utf8').matchAll(IMPORT_RE)) {
+    const text = fs.readFileSync(file, 'utf8');
+    for (const m of text.matchAll(IMPORT_RE)) {
+      const next = resolve(file, m[1]!);
+      if (next) stack.push(next);
+    }
+    if (path.relative(root, file) === path.join('src', 'cli', 'main.ts')) continue;
+    for (const m of text.matchAll(DYNAMIC_RE)) {
       const next = resolve(file, m[1]!);
       if (next) stack.push(next);
     }
@@ -50,7 +59,7 @@ describe('render table (19-D-01)', () => {
   });
 
   it('holds the ids built from a prefix', () => {
-    for (const prefix of ['rule.error.', 'fun.quip.', 'widget.gsd.status.', 'widget.status.level.']) {
+    for (const prefix of PREFIXES) {
       const ids = [...full].filter((id) => id.startsWith(prefix));
       expect(ids.length, prefix).toBeGreaterThan(0);
       expect(
@@ -58,6 +67,23 @@ describe('render table (19-D-01)', () => {
         prefix,
       ).toEqual([]);
     }
+  });
+
+  it('builds template ids only from the checked prefixes', () => {
+    const unknown: string[] = [];
+    for (const file of closure('cli/main.ts')) {
+      if (file.includes(`${path.sep}i18n${path.sep}`)) continue;
+      for (const m of fs.readFileSync(file, 'utf8').matchAll(TEMPLATE_RE)) {
+        if (!PREFIXES.includes(m[1]!)) unknown.push(`${path.relative(root, file)}: ${m[1]}`);
+      }
+    }
+    expect(unknown).toEqual([]);
+  });
+
+  it('follows dynamic imports on the render path', () => {
+    const files = closure('cli/main.ts');
+    expect(files).toContain(path.join(root, 'src', 'core', 'jsonpath.ts'));
+    expect(files).not.toContain(path.join(root, 'src', 'commands', 'doctor.ts'));
   });
 
   it('leaves the help text to the UI table', () => {
