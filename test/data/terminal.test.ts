@@ -2,7 +2,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cachedTerminalWidth, type TerminalDeps, terminalWidth } from '../../src/data/terminal.js';
+import {
+  cachedTerminalWidth,
+  type TerminalDeps,
+  type TtyIo,
+  terminalWidth,
+  ttyColumns,
+} from '../../src/data/terminal.js';
 
 let dir = '';
 let clock = 1_000_000;
@@ -105,5 +111,88 @@ describe('cachedTerminalWidth', () => {
     clock += 24 * 3_600_000;
     expect(cachedTerminalWidth('s', undefined, deps())).toBe(120);
     expect(calls.length).toBe(n);
+  });
+});
+
+describe('ttyColumns fd lifecycle', () => {
+  function io(over: Partial<TtyIo> = {}, columns: unknown = 120) {
+    const log: string[] = [];
+    const t: TtyIo = {
+      open: () => {
+        log.push('open');
+        return 9;
+      },
+      isatty: () => {
+        log.push('isatty');
+        return true;
+      },
+      stream: () => {
+        log.push('stream');
+        return {
+          columns,
+          destroy: () => {
+            log.push('destroy');
+          },
+        };
+      },
+      close: (fd) => {
+        log.push(`close${fd}`);
+      },
+      ...over,
+    };
+    return { t, log };
+  }
+  const count = (log: string[], k: string) => log.filter((x) => x === k).length;
+
+  it('destroys then closes once', () => {
+    const { t, log } = io();
+    expect(ttyColumns(t)).toBe(120);
+    expect(log).toEqual(['open', 'isatty', 'stream', 'destroy', 'close9']);
+  });
+
+  it('closes once when not a tty', () => {
+    const { t, log } = io({ isatty: () => false });
+    expect(ttyColumns(t)).toBeNull();
+    expect(count(log, 'close9')).toBe(1);
+    expect(count(log, 'stream')).toBe(0);
+  });
+
+  it('closes once when the stream constructor throws', () => {
+    const { t, log } = io({
+      stream: () => {
+        throw new Error('x');
+      },
+    });
+    expect(ttyColumns(t)).toBeNull();
+    expect(count(log, 'close9')).toBe(1);
+    expect(count(log, 'destroy')).toBe(0);
+  });
+
+  it('returns null for bad columns but still destroys and closes once', () => {
+    for (const c of [0, Number.NaN, 'x', null]) {
+      const { t, log } = io({}, c);
+      expect(ttyColumns(t)).toBeNull();
+      expect(count(log, 'destroy')).toBe(1);
+      expect(count(log, 'close9')).toBe(1);
+    }
+  });
+
+  it('never closes when open throws', () => {
+    const { t, log } = io({
+      open: () => {
+        throw new Error('ENXIO');
+      },
+    });
+    expect(ttyColumns(t)).toBeNull();
+    expect(log.some((x) => x.startsWith('close'))).toBe(false);
+  });
+
+  it('swallows a throwing close', () => {
+    const { t } = io({
+      close: () => {
+        throw new Error('EBADF');
+      },
+    });
+    expect(ttyColumns(t)).toBe(120);
   });
 });

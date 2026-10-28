@@ -286,3 +286,35 @@ describe('long lines', () => {
     expect(rs.mock.calls.length).toBeLessThan(200);
   });
 });
+
+describe('usage dedupe', () => {
+  const bare = (id?: string, req?: string) =>
+    `${JSON.stringify({
+      type: 'assistant',
+      timestamp: new Date(NOW).toISOString(),
+      ...(req ? { requestId: req } : {}),
+      message: {
+        ...(id ? { id } : {}),
+        model: 'claude-sonnet-5-5',
+        content: [],
+        usage: { input_tokens: 10, output_tokens: 5 },
+      },
+    })}\n`;
+
+  it('counts every line with neither message id nor requestId', () => {
+    const f = fixture();
+    f.add('a1', bare() + bare());
+    const r = f.read()[0]!;
+    expect(r.total).toBe(30);
+    fs.appendFileSync(f.jsonl('a1'), bare());
+    expect(f.read()[0]!.total).toBe(45);
+  });
+
+  it('still dedupes keyed lines', () => {
+    const f = fixture();
+    f.add('a1', bare('m1') + bare('m1') + bare(undefined, 'r1') + bare(undefined, 'r1') + bare());
+    expect(f.read()[0]!.total).toBe(45);
+    fs.appendFileSync(f.jsonl('a1'), bare('m1') + bare());
+    expect(f.read()[0]!.total).toBe(60);
+  });
+});

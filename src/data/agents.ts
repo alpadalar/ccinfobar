@@ -104,9 +104,12 @@ function applyLine(s: Summary, line: string): void {
   }
   const key = `${msg.id ?? ''}:${e.requestId ?? ''}`;
   const u = msg.usage as Json | undefined;
-  if (!u || s.seen.includes(key)) return;
-  s.seen.push(key);
-  if (s.seen.length > SEEN_KEPT) s.seen.splice(0, s.seen.length - SEEN_KEPT);
+  if (!u) return;
+  if (msg.id !== undefined || e.requestId !== undefined) {
+    if (s.seen.includes(key)) return;
+    s.seen.push(key);
+    if (s.seen.length > SEEN_KEPT) s.seen.splice(0, s.seen.length - SEEN_KEPT);
+  }
   const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
   s.input += n(u.input_tokens);
   s.output += n(u.output_tokens);

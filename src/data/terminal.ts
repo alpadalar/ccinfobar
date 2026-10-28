@@ -35,23 +35,43 @@ function positive(v: string | null | undefined): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-function ttyColumns(): number | null {
-  let fd: number | undefined;
+export interface TtyIo {
+  open(): number;
+  isatty(fd: number): boolean;
+  stream(fd: number): { columns: unknown; destroy(): void };
+  close(fd: number): void;
+}
+
+const NODE_TTY: TtyIo = {
+  open: () =>
+    fs.openSync('/dev/tty', fs.constants.O_RDONLY | fs.constants.O_NOCTTY | fs.constants.O_NONBLOCK),
+  isatty: (fd) => tty.isatty(fd),
+  stream: (fd) => new tty.WriteStream(fd),
+  close: (fd) => fs.closeSync(fd),
+};
+
+export function ttyColumns(io: TtyIo = NODE_TTY): number | null {
+  let fd: number;
   try {
-    fd = fs.openSync('/dev/tty', fs.constants.O_RDONLY | fs.constants.O_NOCTTY | fs.constants.O_NONBLOCK);
-    if (!tty.isatty(fd)) return null;
-    const stream = new tty.WriteStream(fd);
-    const cols = stream.columns;
-    stream.destroy();
-    return positive(String(cols));
+    fd = io.open();
+  } catch {
+    return null;
+  }
+  let stream: { columns: unknown; destroy(): void } | null = null;
+  try {
+    if (!io.isatty(fd)) return null;
+    stream = io.stream(fd);
+    return positive(String(stream.columns));
   } catch {
     return null;
   } finally {
-    if (fd !== undefined) {
-      try {
-        fs.closeSync(fd);
-      } catch {}
-    }
+    try {
+      stream?.destroy();
+    } catch {}
+    // libuv reopens the tty and owns only its dup; our fd stays ours
+    try {
+      io.close(fd);
+    } catch {}
   }
 }
 
