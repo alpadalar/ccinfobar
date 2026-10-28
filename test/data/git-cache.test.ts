@@ -222,7 +222,7 @@ describe('gitCacheName and readGitCache', () => {
     const env = { CCINFOBAR_CACHE_DIR: dir };
     try {
       const good: GitCacheEntry = {
-        v: 1,
+        v: 2,
         at: 5,
         sig: [
           ['/a', 1, 2],
@@ -232,10 +232,23 @@ describe('gitCacheName and readGitCache', () => {
       };
       writeCache('t.json', good, env);
       expect(readGitCache('t.json', env)).toEqual(good);
-      for (const bad of [{ v: 99 }, { v: 1, at: 'x' }, 'str', null, { ...good, sig: [['/a', 'x']] }]) {
+      for (const bad of [
+        { v: 99 },
+        { v: 2, at: 'x' },
+        { ...good, v: 1 },
+        'str',
+        null,
+        { ...good, sig: [['/a', 'x']] },
+        { ...good, info: { ...info, detached: 'yes' } },
+        { ...good, info: { ...info, sha: 5 } },
+        { ...good, info: { ...info, remoteUrl: {} } },
+      ]) {
         writeCache('t.json', bad, env);
         expect(readGitCache('t.json', env)).toBeNull();
       }
+      const ok = { ...good, info: { ...info, upstreamUrl: undefined, forkUrl: null } };
+      writeCache('t.json', ok, env);
+      expect(readGitCache('t.json', env)).not.toBeNull();
       writeCache('t.json', { ...good, info: { ...info, branch: '\u001b[31mred' } }, env);
       expect(readGitCache('t.json', env)!.info.branch).not.toContain('\u001b');
       expect(readGitCache('missing.json', env)).toBeNull();

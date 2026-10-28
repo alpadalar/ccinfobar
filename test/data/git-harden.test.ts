@@ -18,9 +18,9 @@ const available = hasGit();
 const posix = process.platform !== 'win32';
 
 const SAMPLE =
-  'local\tremote.origin.url git@h:o/r.git\n' +
-  'local\tfilter.evil.clean touch /x\n' +
-  'global\tfilter.lfs.clean git-lfs clean -- %f\n';
+  'local\0remote.origin.url\ngit@h:o/r.git\0' +
+  'local\0filter.evil.clean\ntouch /x\0' +
+  'global\0filter.lfs.clean\ngit-lfs clean -- %f\0';
 
 describe('scoped config parsing', () => {
   it('parses scope, key and value', () => {
@@ -29,8 +29,28 @@ describe('scoped config parsing', () => {
       { scope: 'local', key: 'filter.evil.clean', value: 'touch /x' },
       { scope: 'global', key: 'filter.lfs.clean', value: 'git-lfs clean -- %f' },
     ]);
-    expect(parseScopedConfig('local\tfilter.x.clean\n\n')).toEqual([
+    expect(parseScopedConfig('local\0filter.x.clean\0\0')).toEqual([
       { scope: 'local', key: 'filter.x.clean', value: '' },
+    ]);
+  });
+
+  it('parses keys with spaces and valueless records', () => {
+    const out = 'local\0filter.a b.clean\necho evil\0global\0user.name\nMe\0';
+    expect(parseScopedConfig(out)).toEqual([
+      { scope: 'local', key: 'filter.a b.clean', value: 'echo evil' },
+      { scope: 'global', key: 'user.name', value: 'Me' },
+    ]);
+    expect(parseScopedConfig('local\0core.bare\0')).toEqual([
+      { scope: 'local', key: 'core.bare', value: '' },
+    ]);
+    expect(parseScopedConfig('')).toEqual([]);
+    expect(localFilterOverrides(parseScopedConfig(out))).toEqual([
+      '-c',
+      'filter.a b.clean=',
+      '-c',
+      'filter.a b.smudge=',
+      '-c',
+      'filter.a b.process=',
     ]);
   });
 
@@ -43,7 +63,7 @@ describe('scoped config parsing', () => {
       '-c',
       'filter.evil.process=',
     ]);
-    const wt = parseScopedConfig('worktree\tfilter.w.process cmd\nworktree\tfilter.w.smudge cmd\n');
+    const wt = parseScopedConfig('worktree\0filter.w.process\ncmd\0worktree\0filter.w.smudge\ncmd\0');
     expect(localFilterOverrides(wt)).toEqual([
       '-c',
       'filter.w.clean=',
@@ -52,11 +72,11 @@ describe('scoped config parsing', () => {
       '-c',
       'filter.w.process=',
     ]);
-    expect(localFilterOverrides(parseScopedConfig('system\tfilter.s.clean x\n'))).toEqual([]);
+    expect(localFilterOverrides(parseScopedConfig('system\0filter.s.clean\nx\0'))).toEqual([]);
   });
 
   it('uses --config-env for names that contain =', () => {
-    const out = localFilterOverrides(parseScopedConfig('local\tfilter.a=b.clean x\n'));
+    const out = localFilterOverrides(parseScopedConfig('local\0filter.a=b.clean\nx\0'));
     expect(out).toHaveLength(3);
     for (const a of out) expect(a).toMatch(/^--config-env=filter\.a=b\.(clean|smudge|process)=\w+$/);
   });
@@ -125,6 +145,14 @@ describe.skipIf(!available || !posix)('hostile repos', () => {
       clearInterval(timer);
     }
     expect(ticks).toBeGreaterThan(0);
+  });
+
+  it('disables a repo-local filter whose name has a space', () => {
+    const marker = path.join(base, 'space-marker');
+    const dir = filterRepo('space', 'a b', marker);
+    const g = readGit(dir);
+    expect(g?.unstaged).toBe(1);
+    expect(fs.existsSync(marker)).toBe(false);
   });
 
   it('blocks a core.fsmonitor hook, and the switch turns it back on', () => {

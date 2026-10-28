@@ -195,17 +195,19 @@ export interface ScopedEntry {
 
 export function parseScopedConfig(out: string): ScopedEntry[] {
   const entries: ScopedEntry[] = [];
-  for (const line of out.split('\n')) {
-    const tab = line.indexOf('\t');
-    if (tab < 1) continue;
-    const rest = line.slice(tab + 1);
-    const sp = rest.indexOf(' ');
-    const key = sp < 0 ? rest : rest.slice(0, sp);
-    if (!key) continue;
-    entries.push({ scope: line.slice(0, tab), key, value: sp < 0 ? '' : rest.slice(sp + 1) });
+  const tok = out.split('\0');
+  for (let i = 0; i + 1 < tok.length; i += 2) {
+    const scope = tok[i]!;
+    const kv = tok[i + 1]!;
+    const nl = kv.indexOf('\n');
+    const key = nl < 0 ? kv : kv.slice(0, nl);
+    if (!scope || !key) continue;
+    entries.push({ scope, key, value: nl < 0 ? '' : kv.slice(nl + 1) });
   }
   return entries;
 }
+
+const CONFIG_ARGS = ['config', '--show-scope', '-z', '--get-regexp'] as const;
 
 const FILTER_KEY = /^filter\.(.+)\.(clean|smudge|process)$/;
 
@@ -240,13 +242,7 @@ export async function hardenedGit(
   let pre: string[] = [];
   if (opts.harden) {
     // no overrides known, so no status
-    const cfg = await execAsync(
-      cwd,
-      [...HARDEN, 'config', '--show-scope', '--get-regexp', SCOPED_RE],
-      opts.timeout,
-      env,
-      true,
-    );
+    const cfg = await execAsync(cwd, [...HARDEN, ...CONFIG_ARGS, SCOPED_RE], opts.timeout, env, true);
     if (cfg === null) return null;
     pre = [...HARDEN, ...localFilterOverrides(parseScopedConfig(cfg))];
   }
@@ -270,7 +266,7 @@ function readGitSpawning(cwd: string, harden: boolean): GitInfo | null {
   const common = commonRaw ? path.resolve(cwd, commonRaw) : gitDir;
 
   // exits 1 when nothing matches
-  const cfgOut = git(cwd, ['config', '--show-scope', '--get-regexp', SCOPED_RE], pre, true);
+  const cfgOut = git(cwd, [...CONFIG_ARGS, SCOPED_RE], pre, true);
   if (cfgOut === null && harden) return null;
   const entries = parseScopedConfig(cfgOut ?? '');
   const url = (name: string) => entries.find((e) => e.key === `remote.${name}.url`)?.value.trim() || null;
@@ -333,7 +329,7 @@ export function readGit(
     out = hit.cfg.out;
     reused = true;
   } else {
-    const got = git(cwd, ['config', '--show-scope', '--get-regexp', READ_RE], pre, true);
+    const got = git(cwd, [...CONFIG_ARGS, READ_RE], pre, true);
     if (got === null) {
       if (harden) return null;
       out = '';
@@ -477,7 +473,7 @@ export function sameSig(a: GitSig[], b: GitSig[]): boolean {
 }
 
 export const GIT_TTL = 2000;
-const GIT_CACHE_VERSION = 1;
+const GIT_CACHE_VERSION = 2;
 
 export function gitCacheName(root: string, gitdir: string, harden: boolean, gitBin: string): string {
   return `git-${cacheKey(root, gitdir, harden ? '1' : '0', gitBin)}.json`;
@@ -500,6 +496,8 @@ function isSig(x: unknown): x is GitSig {
 const num = (x: unknown): boolean => typeof x === 'number' && Number.isFinite(x);
 const numOrNull = (x: unknown): boolean => x === null || num(x);
 
+const strOrNull = (x: unknown): boolean => x === null || typeof x === 'string';
+
 function isInfo(x: unknown): x is GitInfo {
   if (!x || typeof x !== 'object') return false;
   const o = x as Record<string, unknown>;
@@ -508,7 +506,10 @@ function isInfo(x: unknown): x is GitInfo {
     (o.branch === null || typeof o.branch === 'string') &&
     ['ahead', 'behind', 'staged', 'unstaged', 'untracked', 'conflicts'].every((k) => num(o[k])) &&
     ['insertions', 'deletions', 'stash'].every((k) => numOrNull(o[k])) &&
-    typeof o.isWorktree === 'boolean'
+    typeof o.isWorktree === 'boolean' &&
+    typeof o.detached === 'boolean' &&
+    ['sha', 'upstream', 'remoteUrl', 'operation'].every((k) => strOrNull(o[k])) &&
+    ['upstreamUrl', 'forkUrl'].every((k) => o[k] === undefined || strOrNull(o[k]))
   );
 }
 
