@@ -308,6 +308,7 @@ export async function overwrite(
   const row = await readEntryRow(db, p, s);
   if (!row) throw fail(404, 'not-found');
   if (gone(row.state)) throw fail(410, 'withdrawn');
+  if (row.held) throw fail(409, 'conflict', HELD_WAIT);
   if (n !== row.version) throw fail(409, 'conflict', LATEST_ONLY);
   const payload = parseVersionPayload(raw);
   if (!payload) throw fail(400, 'invalid');

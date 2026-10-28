@@ -1141,6 +1141,20 @@ describe.skipIf(skipSqlite)('worker moderation guards', () => {
       expect(JSON.stringify(await r.json())).toContain('waiting for review');
     });
 
+    it('overwrite is 409 while a held version waits', async () => {
+      const s = await trusted({ ALLOW_OVERWRITE: 'true' });
+      expect((await next(s, 'one', 1, linked(NEW))).status).toBe(202);
+      const put = await s.call('PUT', '/v1/entries/pub/one/versions/1', {
+        token: s.pub,
+        body: { content: preset('cwd') },
+      });
+      expect(put.status).toBe(409);
+      expect(JSON.stringify(await put.json())).toContain('waiting for review');
+      expect((await s.get('/v1/entries/pub/one.json')).json.hash).toBe(
+        (await s.get('/v1/entries/pub/one.json')).json.versions[0].hash,
+      );
+    });
+
     it('the same, fewer or equivalent links go live', async () => {
       const s = await trusted();
       expect((await s.publish('lk', s.pub, linked('https://example.com/x'))).status).toBe(201);
