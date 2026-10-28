@@ -1,7 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { deepSanitize } from '../core/sanitize.js';
+import { deepSanitize, tooDeep } from '../core/sanitize.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
 import { findUp, gitdirOf, parseHead, readSmall } from './repos.js';
 import { binary, whichDeps } from './which.js';
@@ -517,7 +517,7 @@ export function readGitCache(name: string, env: NodeJS.ProcessEnv): GitCacheEntr
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   if (o.v !== GIT_CACHE_VERSION || typeof o.at !== 'number') return null;
-  if (!Array.isArray(o.sig) || !o.sig.every(isSig) || !isInfo(o.info)) return null;
+  if (!Array.isArray(o.sig) || !o.sig.every(isSig) || !isInfo(o.info) || tooDeep(o.info)) return null;
   const entry: GitCacheEntry = { v: o.v, at: o.at, sig: o.sig as GitSig[], info: deepSanitize(o.info) };
   if (o.cfg !== undefined) {
     const c = o.cfg as Record<string, unknown> | null;

@@ -14,7 +14,11 @@ export function ingestPayload(raw: string): StatusPayload | null {
     return null;
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-  return deepSanitize(parsed as StatusPayload, SKIP);
+  try {
+    return deepSanitize(parsed as StatusPayload, SKIP);
+  } catch {
+    return null;
+  }
 }
 
 export function hasReplies(p: StatusPayload): boolean {

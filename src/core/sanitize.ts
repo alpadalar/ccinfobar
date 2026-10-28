@@ -76,16 +76,31 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 
 const NONE: ReadonlySet<string> = new Set();
 
+export const MAX_DEPTH = 64;
+
+export function tooDeep(v: unknown, max = MAX_DEPTH): boolean {
+  const stack: [unknown, number][] = [[v, 0]];
+  while (stack.length) {
+    const [x, d] = stack.pop()!;
+    if (x === null || typeof x !== 'object') continue;
+    if (d >= max) return true;
+    for (const c of Array.isArray(x) ? x : Object.values(x)) stack.push([c, d + 1]);
+  }
+  return false;
+}
+
 // skipKeys apply to top-level keys only
-export function deepSanitize<T>(value: T, skipKeys: ReadonlySet<string> = NONE): T {
+export function deepSanitize<T>(value: T, skipKeys: ReadonlySet<string> = NONE, depth = 0): T {
   if (typeof value === 'string') return sanitizeText(value) as T;
-  if (Array.isArray(value)) return value.map((v) => deepSanitize(v)) as T;
-  if (isPlainObject(value)) {
+  const arr = Array.isArray(value);
+  if (arr || isPlainObject(value)) {
+    if (depth >= MAX_DEPTH) throw new RangeError('too-deep');
+    if (arr) return value.map((v) => deepSanitize(v, NONE, depth + 1)) as T;
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       const key = sanitizeText(k);
       if (key === '__proto__') continue;
-      out[key] = skipKeys.has(k) ? v : deepSanitize(v);
+      out[key] = skipKeys.has(k) ? v : deepSanitize(v, NONE, depth + 1);
     }
     return out as T;
   }

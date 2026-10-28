@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ReposDirtyValue } from '../core/job-values.js';
-import { deepSanitize, sanitizeText } from '../core/sanitize.js';
+import { deepSanitize, sanitizeText, tooDeep } from '../core/sanitize.js';
 import type { Config } from '../core/types.js';
 import { cacheFile, cacheKey, readCache, writeCache } from './cache.js';
 import { jobValue, readEnvelope } from './jobs/runner.js';
@@ -220,6 +220,7 @@ function fromCache(
   if (c.v !== VERSION || typeof c.at !== 'number' || c.dirMtime !== dirMtime) return null;
   if (now < c.at || now - c.at >= TTL) return null;
   if (!Array.isArray(c.repos) || !c.repos.every(isEntry) || typeof c.total !== 'number') return null;
+  if (tooDeep(c.repos)) return null;
   return deepSanitize({ repos: c.repos as RepoEntry[], total: c.total });
 }
 

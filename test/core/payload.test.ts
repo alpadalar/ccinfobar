@@ -81,3 +81,11 @@ describe('readLastPayload', () => {
     }
   });
 });
+
+describe('ingestPayload depth', () => {
+  it('returns null for a payload nested past 64 levels', () => {
+    const deep = '['.repeat(65) + ']'.repeat(65);
+    expect(ingestPayload(`{"model":{"display_name":"x"},"deep":${deep}}`)).toBeNull();
+    expect(ingestPayload('{"model":{"display_name":"x"}}')).not.toBeNull();
+  });
+});

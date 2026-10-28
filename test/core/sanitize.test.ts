@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   deepSanitize,
   keepSgrAndLinks,
+  MAX_DEPTH,
   safeConfigUrl,
   safeUrl,
   sanitizeText,
+  tooDeep,
 } from '../../src/core/sanitize.js';
 
 function mulberry32(seed: number): () => number {
@@ -181,5 +183,35 @@ describe('deepSanitize', () => {
     const out = deepSanitize(JSON.parse('{"__proto__":{"x":1},"a":"b"}')) as Record<string, unknown>;
     expect(Object.getPrototypeOf(out)).toBe(Object.prototype);
     expect(out).toEqual({ a: 'b' });
+  });
+});
+
+function nest(n: number, obj = false): unknown {
+  return JSON.parse(obj ? '{"a":'.repeat(n) + '1' + '}'.repeat(n) : '['.repeat(n) + ']'.repeat(n));
+}
+
+describe('depth guard', () => {
+  it('tooDeep passes 64 levels and fails 65', () => {
+    expect(MAX_DEPTH).toBe(64);
+    for (const obj of [false, true]) {
+      expect(tooDeep(nest(64, obj))).toBe(false);
+      expect(tooDeep(nest(65, obj))).toBe(true);
+    }
+    expect(tooDeep(null)).toBe(false);
+    expect(tooDeep('x')).toBe(false);
+    expect(tooDeep({})).toBe(false);
+  });
+
+  it('tooDeep is iterative', () => {
+    let v: unknown = [];
+    for (let i = 0; i < 200_000; i++) v = [v];
+    expect(tooDeep(v)).toBe(true);
+  });
+
+  it('deepSanitize throws too-deep past the limit', () => {
+    expect(deepSanitize(nest(64))).toEqual(nest(64));
+    expect(deepSanitize(nest(64, true))).toEqual(nest(64, true));
+    expect(() => deepSanitize(nest(65))).toThrow(RangeError);
+    expect(() => deepSanitize(nest(65, true))).toThrow('too-deep');
   });
 });
