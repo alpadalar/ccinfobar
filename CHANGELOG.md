@@ -44,6 +44,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The automatic update no longer falls back to installing the GitHub release tarball when GitHub publishes no checksum for it: nothing is installed, `ccinfobar doctor` says so and the update is retried at the next check; a rollback whose reinstall has no checksum is recorded as failed instead of installing unverified bytes (reason: never install unverified bytes). Manual `ccinfobar update` likewise installs from the npm registry only.
 
 ### Fixed
+- The `agents` widget counts every usage entry of a subagent transcript that has no message or request id instead of collapsing them into one
 - git config keys that contain a space (such as `filter.a b.clean`) are now read correctly when ccinfobar disables repo-local filters; the git cache is rebuilt once after the update
 - Two background workers can no longer both take over the same stale lock: a stale lock is moved aside and checked before a new one is created
 - A marketplace publish whose answer was lost no longer leaves the entry stuck on a conflict: the next publish links the existing marketplace entry when it holds the same content, otherwise it publishes under `<slug>-2` and says so; a planned slug that another of your marketplace entries already uses is suffixed before publishing and the plan says so
