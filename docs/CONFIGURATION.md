@@ -568,7 +568,7 @@ Prices change, and they are never fetched; add your own entries to fix or extend
 | `input`, `output`, `cacheRead`, `cacheWrite` | Prices per 1M tokens, positive. A price needs both `input` and `output` |
 | `currency` | Three capital letters, default `USD` |
 
-Your entries win over the built-ins and the first match wins; they apply to every provider. Set them with `ccinfobar config set profiles.builtIn false` or `ccinfobar config set profiles.models '[{"match":"glm-*","contextWindow":500000}]'`, or in the web editor's Settings (Model profiles), which also lists the built-ins. The TUI has the on/off switch only.
+Your entries win over the built-ins and the first match wins; they apply to every provider. Set them with `ccinfobar config set profiles.builtIn false` or `ccinfobar config set profiles.models '[{"match":"glm-*","contextWindow":500000}]'`, or in the web editor's Settings (Model profiles), which also lists the built-ins. In the TUI, Settings lists each entry as compact JSON (edit it, or clear it to remove) and an **Add model profile** field. `match` is an anchored, case-insensitive glob (`*` matches any run of characters; not a regular expression). Your entries are checked first and the first match wins; a partial entry does not inherit fields from a built-in.
 
 ## Terminal progress
 

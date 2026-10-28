@@ -11,6 +11,8 @@ export const tuiMessages = {
   'tui.parse.rotationTheme': 'Unknown theme "{id}"',
   'tui.parse.rotationEvery': 'Use hour, day, week or minutes (1-10080), e.g. 30m',
   'tui.parse.rotationWeekdays': 'Bad entry "{value}"; use mon=nord,tue=dracula',
+  'tui.parse.profile': 'Not a valid profile: JSON with at least "match"',
+  'tui.parse.profileMax': 'At most {max} model profiles',
   'tui.parse.json': 'Invalid JSON: {message}',
   'tui.parse.breakpointArray': 'Expected a JSON array of breakpoints',
   'tui.parse.breakpointAreas': 'Each breakpoint needs "areas": ["row of widget ids", ...]',
@@ -90,6 +92,12 @@ export const tuiMessages = {
   'tui.field.profilesBuiltIn': 'Built-in model profiles',
   'tui.field.profilesBuiltInHelp':
     'Use built-in names, windows and prices for third-party models; edit overrides with ccinfobar config set profiles.models',
+  'tui.field.profileEntry': 'Model profile {n} ({match})',
+  'tui.field.profileEntryHelp':
+    'JSON with "match" (glob, * allowed), optional label, contextWindow, input, output, cacheRead, cacheWrite, currency; empty removes',
+  'tui.field.profileAdd': 'Add model profile',
+  'tui.field.profileAddHelp':
+    'JSON with "match" (glob, * allowed) and optional label, contextWindow, input, output, cacheRead, cacheWrite, currency',
   'tui.field.language': 'Language',
   'tui.field.languageAuto': 'Auto ({name})',
   'tui.field.languageHelp': "Auto follows this machine's language settings, like the status line",

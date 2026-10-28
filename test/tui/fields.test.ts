@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
-import { setThemeRotation } from '../../src/core/edit.js';
+import { addProfileOverride, setThemeRotation } from '../../src/core/edit.js';
 import { resolveAppearance } from '../../src/core/renderer.js';
 import { resolveTheme } from '../../src/core/themes.js';
 import type { Config } from '../../src/core/types.js';
@@ -664,5 +664,67 @@ describe('updateMinAgeHours field', () => {
       const c = f.set({ ...defaultConfig(), updateMinAgeHours: 12 }, bad);
       expect('updateMinAgeHours' in c).toBe(false);
     }
+  });
+});
+
+describe('model profile fields', () => {
+  const a = { match: 'glm-*', label: 'GLM', contextWindow: 300000 };
+  const b = { match: 'kimi-*', input: 1 };
+  const cfg = (): Config => addProfileOverride(addProfileOverride(defaultConfig(), a), b);
+  const of = (c: Config, id: string) => globalFields(c).find((f) => f.id === id)!;
+  const apply = (c: Config, id: string, text: string): Config => {
+    const f = of(c, id);
+    const r = f.parse(text);
+    if (!r.ok) throw new Error(r.error);
+    return f.set(c, r.value);
+  };
+
+  it('lists entry fields then the add field after profiles.builtIn', () => {
+    const ids = globalFields(cfg()).map((f) => f.id);
+    const at = ids.indexOf('profiles.builtIn');
+    expect(ids.slice(at + 1)).toEqual(['profiles.models.0', 'profiles.models.1', 'profiles.models.add']);
+    const none = globalFields(defaultConfig()).map((f) => f.id);
+    expect(none.slice(none.indexOf('profiles.builtIn') + 1)).toEqual(['profiles.models.add']);
+  });
+
+  it('shows compact JSON and replaces the entry', () => {
+    const c = cfg();
+    expect(of(c, 'profiles.models.0').get(c)).toBe(JSON.stringify(c.profiles?.models?.[0]));
+    const next = apply(c, 'profiles.models.0', '{"match":"glm-*","label":"G2"}');
+    expect(next.profiles?.models).toEqual([{ match: 'glm-*', label: 'G2' }, b]);
+  });
+
+  it('empty removes, bad text is rejected with the translated error', () => {
+    const c = cfg();
+    expect(apply(c, 'profiles.models.0', '').profiles?.models).toEqual([b]);
+    for (const bad of ['nope', '{"label":"x"}', '[1]']) {
+      const r = of(c, 'profiles.models.0').parse(bad);
+      expect(r).toEqual({ ok: false, error: 'Not a valid profile: JSON with at least "match"' });
+    }
+    expect(withLang('tr', () => of(c, 'profiles.models.0').parse('nope'))).toEqual({
+      ok: false,
+      error: 'Geçerli bir profil değil: en az "match" içeren JSON',
+    });
+  });
+
+  it('the add field appends and refuses at 100 entries', () => {
+    const c = apply(cfg(), 'profiles.models.add', '{"match":"x-*","label":"X"}');
+    expect(c.profiles?.models).toHaveLength(3);
+    expect(of(c, 'profiles.models.add').get(c)).toBe('');
+    let full = defaultConfig();
+    for (let i = 0; i < 100; i++) full = addProfileOverride(full, { match: `m${i}` });
+    expect(of(full, 'profiles.models.add').parse('{"match":"z"}')).toEqual({
+      ok: false,
+      error: 'At most 100 model profiles',
+    });
+  });
+
+  it('labels follow the language', () => {
+    const c = cfg();
+    expect(of(c, 'profiles.models.0').label).toBe('Model profile 1 (glm-*)');
+    expect(withLang('tr', () => globalFields(c).find((f) => f.id === 'profiles.models.0')!.label)).toBe(
+      'Model profili 1 (glm-*)',
+    );
+    expect(of(c, 'profiles.models.add').label).toBe('Add model profile');
   });
 });

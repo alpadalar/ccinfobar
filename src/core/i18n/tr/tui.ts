@@ -14,6 +14,8 @@ export const tuiMessages = {
   'tui.parse.rotationTheme': 'Bilinmeyen tema "{id}"',
   'tui.parse.rotationEvery': 'hour, day, week ya da dakika (1-10080) kullanın, örneğin 30m',
   'tui.parse.rotationWeekdays': 'Geçersiz girdi "{value}"; mon=nord,tue=dracula kullanın',
+  'tui.parse.profile': 'Geçerli bir profil değil: en az "match" içeren JSON',
+  'tui.parse.profileMax': 'En fazla {max} model profili',
   'tui.parse.json': 'Geçersiz JSON: {message}',
   'tui.parse.breakpointArray': 'Kırılma noktalarından oluşan bir JSON dizisi bekleniyordu',
   'tui.parse.breakpointAreas':
@@ -96,6 +98,12 @@ export const tuiMessages = {
   'tui.field.profilesBuiltIn': 'Yerleşik profiller',
   'tui.field.profilesBuiltInHelp':
     'Üçüncü taraf modeller için yerleşik adlar, pencereler ve fiyatlar kullanılır; özel değerleri ccinfobar config set profiles.models ile düzenleyin',
+  'tui.field.profileEntry': 'Model profili {n} ({match})',
+  'tui.field.profileEntryHelp':
+    '"match" (glob, * kullanılabilir) ve isteğe bağlı label, contextWindow, input, output, cacheRead, cacheWrite, currency içeren JSON; boş bırakmak siler',
+  'tui.field.profileAdd': 'Model profili ekle',
+  'tui.field.profileAddHelp':
+    '"match" (glob, * kullanılabilir) ve isteğe bağlı label, contextWindow, input, output, cacheRead, cacheWrite, currency içeren JSON',
   'tui.field.language': 'Dil',
   'tui.field.languageAuto': 'Otomatik ({name})',
   'tui.field.languageHelp': 'Otomatik, durum satırı gibi bu bilgisayarın dil ayarlarını izler',

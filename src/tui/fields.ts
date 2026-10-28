@@ -3,6 +3,7 @@ import { BREW_UPGRADE } from '../core/brew.js';
 import { describeRuleError, type RuleKey, validateRule } from '../core/conditions.js';
 import { normalizeTui } from '../core/config.js';
 import {
+  addProfileOverride,
   defaultPriority,
   effectiveOverflow,
   findItem,
@@ -12,6 +13,7 @@ import {
   PROGRESS_CHOICES,
   PROGRESS_DEFAULTS,
   RULE_PRESETS,
+  removeProfileOverride,
   ruleFromText,
   rulePreset,
   ruleToText,
@@ -23,6 +25,7 @@ import {
   setOption,
   setOverflow,
   setPriority,
+  setProfileOverride,
   setProfilesBuiltIn,
   setProgress,
   setRotationEvery,
@@ -35,6 +38,7 @@ import { type LanguageId, type LanguageSetting, type MessageId, t } from '../cor
 import { LANGUAGES, nativeName } from '../core/i18n/languages.js';
 import { choiceLabel, optionHelp, optionLabel } from '../core/i18n/widget-text.js';
 import { BOX_PRESETS } from '../core/panel.js';
+import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from '../core/profiles.js';
 import { resolveAppearance } from '../core/renderer.js';
 import { formatWeekdays, parseEvery, parseWeekdays } from '../core/rotation.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -45,6 +49,7 @@ import type {
   OptionChoice,
   OptionValue,
   OverflowMode,
+  ProfileOverride,
   ProgressConfig,
   TuiConfig,
   WidgetDef,
@@ -623,7 +628,7 @@ export function panelFields(): Field[] {
 
 export function globalFields(config?: Config, autoLanguage?: LanguageId, brew = false): Field[] {
   const panel = config && resolveAppearance(config).style === 'tui' ? panelFields() : [];
-  const all = baseGlobalFields(autoLanguage, brew);
+  const all = [...baseGlobalFields(autoLanguage, brew), ...profileFields(config)];
   all.splice(all.findIndex((f) => f.id === 'style') + 1, 0, ...panel);
   return all;
 }
@@ -643,6 +648,52 @@ function languageField(autoLanguage?: LanguageId): Field {
       help: t('tui.field.languageHelp'),
     },
   );
+}
+
+function parseProfile(text: string): Parsed {
+  const s = text.trim();
+  if (!s) return { ok: true, value: undefined };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(s);
+  } catch {
+    return { ok: false, error: t('tui.parse.profile') };
+  }
+  const clean = raw && typeof raw === 'object' ? normalizeProfileOverride(raw) : null;
+  return clean ? { ok: true, value: JSON.stringify(clean) } : { ok: false, error: t('tui.parse.profile') };
+}
+
+const profileOf = (v: string): ProfileOverride => JSON.parse(v) as ProfileOverride;
+
+function profileFields(config?: Config): Field[] {
+  const models = config?.profiles?.models ?? [];
+  const entries: Field[] = models.map((e, i) => ({
+    id: `profiles.models.${i}`,
+    label: t('tui.field.profileEntry', { n: i + 1, match: sanitizeText(e.match) }),
+    kind: 'text',
+    resettable: false,
+    help: t('tui.field.profileEntryHelp'),
+    get: (c) => JSON.stringify(c.profiles?.models?.[i] ?? {}),
+    set: (c, v) =>
+      v === undefined || v === ''
+        ? removeProfileOverride(c, i)
+        : setProfileOverride(c, i, profileOf(String(v))),
+    parse: parseProfile,
+  }));
+  const add: Field = {
+    id: 'profiles.models.add',
+    label: t('tui.field.profileAdd'),
+    kind: 'text',
+    resettable: false,
+    help: t('tui.field.profileAddHelp'),
+    get: () => '',
+    set: (c, v) => (v === undefined || v === '' ? c : addProfileOverride(c, profileOf(String(v)))),
+    parse: (text) =>
+      models.length >= PROFILE_OVERRIDES_MAX
+        ? { ok: false, error: t('tui.parse.profileMax', { max: PROFILE_OVERRIDES_MAX }) }
+        : parseProfile(text),
+  };
+  return [...entries, add];
 }
 
 const splitIds = (text: string): string[] => text.split(/[\s,]+/).filter(Boolean);
