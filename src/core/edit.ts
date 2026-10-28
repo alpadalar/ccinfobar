@@ -607,6 +607,17 @@ export function updateProfileOverride(
   return withProfiles(config, { ...config.profiles, models: list });
 }
 
+// full replace, so dropped keys really drop
+export function setProfileOverride(config: Config, index: number, entry: ProfileOverride): Config {
+  const models = config.profiles?.models ?? [];
+  const clean = normalizeProfileOverride(entry);
+  if (!clean || !models[index]) return config;
+  return withProfiles(config, {
+    ...config.profiles,
+    models: models.map((e, i) => (i === index ? clean : e)),
+  });
+}
+
 export function removeProfileOverride(config: Config, index: number): Config {
   const models = config.profiles?.models ?? [];
   if (!models[index]) return config;

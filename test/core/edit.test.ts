@@ -42,6 +42,7 @@ import {
   setOption,
   setOverflow,
   setPriority,
+  setProfileOverride,
   setProfilesBuiltIn,
   setProgress,
   setRotationEvery,
@@ -801,5 +802,23 @@ describe('applyCatalogContent', () => {
     for (const [k, v] of Object.entries(owner)) expect(lists[v] as readonly string[], k).toContain(k);
     const entry: readonly string[] = [...LAYOUT_KEYS, ...APPEARANCE_KEYS, ...PERSONAL_KEYS];
     for (const k of LOCAL_PERSONAL_KEYS) expect(entry).not.toContain(k);
+  });
+});
+
+describe('setProfileOverride', () => {
+  const two = addProfileOverride(
+    addProfileOverride(defaultConfig(), { match: 'a-*', label: 'A', contextWindow: 300000 }),
+    { match: 'b-*' },
+  );
+
+  it('replaces an entry fully and keeps the rest', () => {
+    const c = setProfileOverride(two, 0, { match: 'x', label: 'L' });
+    expect(c.profiles?.models).toEqual([{ match: 'x', label: 'L' }, { match: 'b-*' }]);
+  });
+
+  it('ignores a bad index or an invalid entry', () => {
+    expect(setProfileOverride(two, 5, { match: 'x' })).toEqual(two);
+    expect(setProfileOverride(two, -1, { match: 'x' })).toEqual(two);
+    expect(setProfileOverride(two, 0, { label: 'no match' } as never)).toEqual(two);
   });
 });
