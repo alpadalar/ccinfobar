@@ -7,7 +7,7 @@ import {
   PERSONAL_KEYS,
   parseCols,
 } from '../core/entry-keys.js';
-import { deepSanitize, safeUrl, sanitizeText, tooDeep } from '../core/sanitize.js';
+import { cleanLabel, deepSanitize, safeUrl, tooDeep } from '../core/sanitize.js';
 
 export const PROTOCOL_VERSION = 1;
 export const ID_PART_RE = /^[a-z0-9][a-z0-9-]{0,38}$/;
@@ -313,7 +313,7 @@ const own = (o: Record<string, unknown>, k: string): unknown => (Object.hasOwn(o
 
 function text(v: unknown, max: number): string | null {
   if (typeof v !== 'string') return null;
-  return [...sanitizeText(v).trim()].slice(0, max).join('').trim();
+  return [...cleanLabel(v).trim()].slice(0, max).join('').trim();
 }
 
 const optText = (v: unknown, max: number): string | null => (v === undefined ? '' : text(v, max));

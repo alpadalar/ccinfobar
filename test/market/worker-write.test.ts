@@ -225,6 +225,21 @@ describe.skipIf(skipSqlite)('worker writes', () => {
       expect(bytes).toBe(new TextEncoder().encode(body).length);
     });
 
+    it('strips invisible characters from labels without changing the hash', async () => {
+      const t = await setup();
+      const token = await t.account('alp', 7);
+      const content = {
+        layout: { lines: [[{ type: 'text', options: { text: 'a\u200bb' } }]] },
+      } as unknown as EntryContent;
+      const body = { ...publishBody('zw', content), name: 'Name\u200b zw' };
+      const r = await t.call('POST', '/v1/entries', { token, body });
+      expect(r.status).toBe(201);
+      expect(((await r.json()) as { hash: string }).hash).toBe(contentHash(content));
+      const entry = parseRemoteEntry((await t.get('/v1/entries/alp/zw.json')).json)!;
+      expect(entry.name).toBe('Name zw');
+      expect(parseIndex((await t.get('/v1/index.json')).json)!.entries[0]!.name).toBe('Name zw');
+    });
+
     it('stores sanitized content and hashes what it stores', async () => {
       const t = await setup();
       const token = await t.account('alp', 7);

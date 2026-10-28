@@ -299,6 +299,17 @@ describe('market protocol', () => {
     expect(parseRemoteVersion({ version: 1, hash: 'z', content: {} })).toBeNull();
   });
 
+  it('labels lose zero-width and tag characters', () => {
+    const idx = parseIndex({
+      generatedAt: '2026-10-16T08:00:00.000Z',
+      entries: [summary({ name: 'Nord\u200b cockpit\ufeff', author: 'a\u{e0041}b' })],
+    })!;
+    expect(idx.entries[0]!.name).toBe('Nord cockpit');
+    expect(idx.entries[0]!.author).toBe('ab');
+    const content = { layout: layout([{ id: 'a', type: 'model' }]) };
+    expect(parsePublishPayload({ kind: 'preset', slug: 's', name: 'A\u200bB', content })!.name).toBe('AB');
+  });
+
   it('parsePublishPayload and parseVersionPayload validate writes', () => {
     const content = { layout: layout([{ id: 'a', type: 'model' }]) };
     const p = parsePublishPayload({

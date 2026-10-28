@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cleanLabel,
   deepSanitize,
   keepSgrAndLinks,
   MAX_DEPTH,
@@ -213,5 +214,26 @@ describe('depth guard', () => {
     expect(deepSanitize(nest(64, true))).toEqual(nest(64, true));
     expect(() => deepSanitize(nest(65))).toThrow(RangeError);
     expect(() => deepSanitize(nest(65, true))).toThrow('too-deep');
+  });
+});
+
+describe('cleanLabel', () => {
+  it.each([
+    0x200b, 0x200c, 0x200d, 0x200e, 0x200f, 0x2060, 0x2061, 0x2062, 0x2063, 0x2064, 0xfeff, 0x061c, 0xe0000,
+    0xe0020, 0xe007f,
+  ])('strips U+%s from labels', (cp) => {
+    expect(cleanLabel(`a${String.fromCodePoint(cp)}b`)).toBe('ab');
+  });
+
+  it('keeps the sanitizeText behaviour for escapes and drops the joiner', () => {
+    const esc = '\u001b[31mx\u001b[0m';
+    expect(cleanLabel(esc)).toBe(sanitizeText(esc));
+    expect(cleanLabel('\u{1f468}\u200d\u{1f4bb}')).toBe('\u{1f468}\u{1f4bb}');
+  });
+
+  it('leaves the render path sanitizer alone', () => {
+    expect(sanitizeText('\u{1f468}\u200d\u{1f4bb}')).toContain('\u200d');
+    const flag = '\u{1f3f4}\u{e0067}\u{e0062}\u{e0065}\u{e006e}\u{e0067}\u{e007f}';
+    expect(sanitizeText(flag)).toBe(flag);
   });
 });

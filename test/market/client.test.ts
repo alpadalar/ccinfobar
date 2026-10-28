@@ -143,6 +143,13 @@ describe('market client', () => {
     expect(calls).toHaveLength(0);
   });
 
+  it('content holding U+200B still verifies', async () => {
+    const content = preset([{ id: 't', type: 'text', options: { text: 'a\u200bb' } }]);
+    const { c } = client([json({ version: 1, content, hash: sha(content) })]);
+    const v = await c.version('alp/mini', 1, 'preset', sha(content));
+    expect(JSON.stringify(v.content)).toContain('\u200b');
+  });
+
   it('a version whose hash does not match is rejected', async () => {
     const content = preset();
     const { c, calls } = client([

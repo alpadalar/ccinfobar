@@ -17,6 +17,16 @@ export function sanitizeText(s: string): string {
   return cleanText(s.replace(SEQ, ''));
 }
 
+const INVISIBLE = /[\u200b-\u200f\u2060-\u2064\ufeff\u061c]|[\u{e0000}-\u{e007f}]/gu;
+
+export function stripInvisible(s: string): string {
+  return s.replace(INVISIBLE, '');
+}
+
+export function cleanLabel(s: string): string {
+  return stripInvisible(sanitizeText(s));
+}
+
 export function keepSgrAndLinks(s: string): string {
   let out = '';
   let last = 0;
