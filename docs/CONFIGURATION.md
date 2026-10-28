@@ -97,7 +97,7 @@ The file declares a JSON schema, so VS Code and other editors offer completion a
 | `widthOffset` | number | `10` | Columns subtracted from the terminal width in `auto` mode. Outside fullscreen mode Claude Code shows notifications on the right of the status line row; raise this (for example to `40`) to keep them visible. |
 | `update` | `auto` \| `notify` \| `off` | `"auto"` | Background update behaviour, see [Updates](../README.md#updates); Homebrew copies only notify (see [DISTRIBUTION.md](DISTRIBUTION.md)) |
 | `gsdAutoLine` | boolean | unset | Set by ccinfobar when it left GSD out because GSD was not installed; once GSD is installed the default GSD line is added as the second line and this is removed |
-| `usageApi` | boolean | `true` | Fill usage limit widgets from Claude when Claude Code sends no `rate_limits`, see [Usage limits](../README.md#usage-limits) |
+| `usageApi` | boolean | `true` | With `true` (the default) ccinfobar asks `api.anthropic.com/api/oauth/usage` for your plan limits with your local Claude login, only when Claude Code sends no `rate_limits`; `false` turns the fetch off (so does `CCINFOBAR_NO_USAGE_API`), see [Usage limits](../README.md#usage-limits) |
 | `budget` | object | | Daily and per-session spend budget for the `budget` widget, see [Budget](#budget) |
 | `gitHardening` | boolean | `true` | Ignore repo-local `core.fsmonitor` and `filter.<name>` drivers when ccinfobar runs git, so a cloned repo cannot run commands through the status line. Set `false` only if you need them |
 | `loadingText` | string | `loading…` | Shown by context, token and plan-limit widgets until Claude's first reply, instead of `0%`. Up to 40 characters; `""` turns it off. Items with `hideEmpty` stay hidden |
@@ -363,7 +363,7 @@ Plan limits (5-hour, weekly and per-model weekly) are kept in one file per accou
 - The latest window wins, then the newest capture, so an idle session shows the active session's numbers.
 - An expired window is dropped and never comes back.
 - The usage API only replaces a payload value when its fetch is newer and the two differ by at least 1 point (the API sends whole percents, Claude Code tenths).
-- With `usageApi: false` sessions still share the values Claude Code sends; only the fetch is off.
+- With `usageApi: false` sessions still share the values Claude Code sends; only the fetch is off. With the default `true`, ccinfobar asks `api.anthropic.com/api/oauth/usage` for your plan limits with your local Claude login, only when Claude Code sends no `rate_limits`.
 - When the usage fetch sees that you logged in to another account, the stored values are dropped. A token refresh does not count as a switch: the account is recognized by its id in `.claude.json` (`oauthAccount`), else by the refresh token.
 
 The file holds percentages, reset times and a few samples for the projection widgets, never a token. `ccinfobar explain` says whether a value came from this session, another session or the usage API.
