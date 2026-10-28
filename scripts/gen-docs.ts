@@ -405,11 +405,11 @@ function schema(): object {
       },
       updateMinAgeHours: {
         type: 'integer',
-        minimum: 1,
+        minimum: 0,
         maximum: 720,
         default: 0,
         description:
-          'Automatic updates wait until a release is at least this many hours old; 0 installs as soon as it is seen',
+          'Automatic updates wait until a release is at least this many hours old (1-720); 0, the default, installs as soon as it is seen',
       },
       loadingText: {
         type: 'string',

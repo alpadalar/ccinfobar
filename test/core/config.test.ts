@@ -345,3 +345,31 @@ describe('config depth guard', () => {
     expect(loaded.config.lines.length).toBeGreaterThan(0);
   });
 });
+
+describe('config schema ranges', () => {
+  type Prop = { default?: unknown; minimum?: number; maximum?: number; properties?: Record<string, Prop> };
+  const schema = JSON.parse(
+    fs.readFileSync(new URL('../../schema/config.schema.json', import.meta.url), 'utf8'),
+  ) as { properties: Record<string, Prop> };
+
+  it('keeps every numeric default inside its own range', () => {
+    const check = (name: string, p: Prop) => {
+      if (typeof p.default !== 'number') return;
+      if (typeof p.minimum === 'number') expect(p.default, name).toBeGreaterThanOrEqual(p.minimum);
+      if (typeof p.maximum === 'number') expect(p.default, name).toBeLessThanOrEqual(p.maximum);
+    };
+    for (const [name, p] of Object.entries(schema.properties)) {
+      check(name, p);
+      for (const [sub, q] of Object.entries(p.properties ?? {})) check(`${name}.${sub}`, q);
+    }
+  });
+
+  it('accepts 0 for updateMinAgeHours, the documented off value', () => {
+    expect(schema.properties.updateMinAgeHours).toMatchObject({
+      type: 'integer',
+      minimum: 0,
+      maximum: 720,
+      default: 0,
+    });
+  });
+});
