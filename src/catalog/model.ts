@@ -8,6 +8,7 @@ import {
   PERSONAL_KEYS,
 } from '../core/edit.js';
 import { parseCols, takesCols } from '../core/entry-keys.js';
+import { cleanLabel } from '../core/sanitize.js';
 import type { ThemeInput } from '../core/themes/style.js';
 import type { Config } from '../core/types.js';
 
@@ -389,7 +390,7 @@ function parseRemote(v: unknown): RemoteRef | null {
     publishedAt,
     ...(v.review === 'pending' ? { review: v.review } : {}),
     ...(v.review === 'pending' && v.reason === 'new-link' && isStrList(v.links)
-      ? { reason: v.reason, links: v.links.slice(0, 20).map((x) => x.slice(0, 200)) }
+      ? { reason: v.reason, links: v.links.slice(0, 20).map((x) => cleanLabel(x).slice(0, 200)) }
       : {}),
   };
 }

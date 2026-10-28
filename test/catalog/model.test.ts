@@ -243,6 +243,15 @@ describe('catalog model', () => {
     expect(out.version).toBe(2);
   });
 
+  it('cleans saved held links of control and bidi characters', () => {
+    const raw = structuredClone(
+      markPublished(entry(), { ...remote(), review: 'pending' }),
+    ) as unknown as Record<string, any>;
+    raw.share.remote.reason = 'new-link';
+    raw.share.remote.links = ['ex\u001b[31mam\u202eple.com/x\u0007'];
+    expect(parseEntry(raw)!.share.remote?.links).toEqual(['example.com/x']);
+  });
+
   it('parses review only when it is exactly pending and mergeRaw keeps it with unknown keys (D-09, CR-01)', () => {
     const p = markPublished(entry(), { ...remote(), review: 'pending' });
     const raw = structuredClone(p) as unknown as Record<string, any>;

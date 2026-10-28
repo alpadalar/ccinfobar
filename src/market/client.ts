@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { APPEARANCE_KEYS, LAYOUT_KEYS, pick } from '../catalog/model.js';
 import { normalizeConfig } from '../core/config.js';
 import type { EntryContent, EntryKind } from '../core/edit.js';
-import { deepSanitize } from '../core/sanitize.js';
+import { cleanLabel, deepSanitize } from '../core/sanitize.js';
 import { parseThemeInput } from '../core/themes.js';
 import type { Config } from '../core/types.js';
 import { CAP_BYTES, errorCode, JobFetchError, type JsonResponse, requestJson } from '../data/jobs/fetch.js';
@@ -189,9 +189,11 @@ export interface Written {
   links?: string[];
 }
 
+const label = (x: string): string => cleanLabel(x).slice(0, 200);
+
 function heldLinks(v: unknown): string[] | null {
   if (!Array.isArray(v) || v.length > 20) return null;
-  return v.every((x) => typeof x === 'string' && x.length <= 200) ? (v as string[]) : null;
+  return v.every((x) => typeof x === 'string' && x.length <= 200) ? (v as string[]).map(label) : null;
 }
 
 function written(body: unknown): Written {

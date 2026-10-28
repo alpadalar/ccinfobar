@@ -621,6 +621,26 @@ describe('market client accounts, admin and conditional reads', () => {
     }
   });
 
+  it('held links lose control and bidi characters', async () => {
+    const { c } = client(
+      [
+        json(
+          {
+            version: 2,
+            hash: H,
+            pending: true,
+            reason: 'new-link',
+            links: ['ex\u001b[31mam\u202eple.com/x\u0007'],
+          },
+          202,
+        ),
+      ],
+      { token: 'tok-1' },
+    );
+    const w = await c.addVersion('alp/mini', 1, { content: preset(), note: '' });
+    expect(w.links).toEqual(['example.com/x']);
+  });
+
   it('indexIfChanged sends one conditional request and stops on 304', async () => {
     const { c, calls } = client([new Response(null, { status: 304, headers: { etag: '"g4"' } })]);
     expect(await c.indexIfChanged('"g4"')).toEqual({ changed: false });
