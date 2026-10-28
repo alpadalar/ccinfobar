@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { cacheKey } from '../../src/data/cache.js';
 import { binary, findBinary, pathDirs, pathValue, resetWhich, type WhichDeps } from '../../src/data/which.js';
 
 const GIT = 'C:\\Git\\cmd\\git.exe';
@@ -140,5 +141,54 @@ describe('which', () => {
     resetWhich();
     a.state.now += 2000;
     expect(binary('git', a.deps)).toBe(GIT);
+  });
+});
+
+describe('which cache by name', () => {
+  const cdir = () => process.env.CCINFOBAR_CACHE_DIR!;
+  const read = (f: string) => JSON.parse(fs.readFileSync(`${cdir()}/${f}`, 'utf8'));
+
+  it('keeps one file per binary across PATH variants', () => {
+    for (const p of ['C:\\Git\\cmd', 'C:\\Git\\cmd;C:\\x', 'C:\\y;C:\\Git\\cmd']) {
+      resetWhich();
+      binary('git', mk([GIT], { Path: p }).deps);
+    }
+    binary('jj', mk([], { Path: 'C:\\Git\\cmd' }).deps);
+    expect(binFiles().sort()).toEqual(['bin-git.json', 'bin-jj.json']);
+    const c = read('bin-git.json');
+    expect(c.pv).toMatch(/^[0-9a-f]{20}$/);
+    expect(c.pv).toBe(cacheKey('C:\\y;C:\\Git\\cmd'));
+    expect(c.path).toBe(GIT);
+    expect(typeof c.at).toBe('number');
+  });
+
+  it('treats a foreign, missing or non-string pv as a miss and overwrites', () => {
+    const env = { PATH: 'C:\\Git\\cmd' };
+    for (const pv of ['f'.repeat(20), undefined, 7]) {
+      const a = mk([GIT], env);
+      resetWhich();
+      fs.writeFileSync(`${cdir()}/bin-git.json`, JSON.stringify({ pv, path: GIT, at: a.state.now }));
+      expect(binary('git', a.deps)).toBe(GIT);
+      expect(a.log.length).toBeGreaterThan(1);
+      expect(read('bin-git.json').pv).toBe(cacheKey(env.PATH));
+    }
+  });
+
+  it('re-probes when PATH changes and leaves legacy files alone', () => {
+    const legacy = `${cdir()}/bin-${'a'.repeat(20)}.json`;
+    fs.writeFileSync(legacy, '{}');
+    const a = mk([GIT], { PATH: 'C:\\Git\\cmd' });
+    binary('git', a.deps);
+    resetWhich();
+    a.log.length = 0;
+    binary('git', a.deps);
+    expect(a.log).toEqual([GIT]);
+    const b = mk([GIT], { PATH: 'C:\\Git\\cmd;C:\\z' });
+    resetWhich();
+    binary('git', b.deps);
+    expect(b.log.length).toBeGreaterThan(1);
+    expect(read('bin-git.json').pv).toBe(cacheKey('C:\\Git\\cmd;C:\\z'));
+    expect(fs.existsSync(legacy)).toBe(true);
+    fs.rmSync(legacy);
   });
 });

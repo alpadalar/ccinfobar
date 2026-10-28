@@ -74,10 +74,11 @@ export function binary(name: 'git' | 'jj', deps: WhichDeps = whichDeps()): strin
   const memoKey = `${name}\0${pv}`;
   if (memo.has(memoKey)) return memo.get(memoKey) ?? null;
   const now = (deps.now ?? Date.now)();
-  const file = `bin-${cacheKey(name, pv, 'win32')}.json`;
-  const hit = readCache<{ path: string | null; at: number }>(file);
+  const file = `bin-${name}.json`;
+  const pvKey = cacheKey(pv);
+  const hit = readCache<{ pv: string; path: string | null; at: number }>(file);
   let found: string | null | undefined;
-  if (hit && typeof hit.at === 'number' && Number.isFinite(hit.at)) {
+  if (hit && hit.pv === pvKey && typeof hit.at === 'number' && Number.isFinite(hit.at)) {
     const age = now - hit.at;
     if (hit.path === null && age >= 0 && age < NEGATIVE_TTL) found = null;
     else if (
@@ -92,7 +93,7 @@ export function binary(name: 'git' | 'jj', deps: WhichDeps = whichDeps()): strin
   }
   if (found === undefined) {
     found = findBinary(name, deps);
-    writeCache(file, { path: found, at: now });
+    writeCache(file, { pv: pvKey, path: found, at: now });
   }
   memo.set(memoKey, found);
   return found;
