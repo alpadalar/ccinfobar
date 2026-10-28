@@ -377,16 +377,15 @@ describe.skipIf(skipSqlite)('worker GitHub sign-in', () => {
     expect((await s.signIn(T1)).status).toBe(429);
   });
 
-  it('cleans old salts and rate rows on sign-in', async () => {
+  it('leaves old salts and rate rows to the cron on sign-in', async () => {
     const s = await setup({ users: { [T1]: user(1, 'a') } });
     await s.db
       .prepare("INSERT INTO salts (day, salt) VALUES ('2000-01-01', 'old'), ('2000-01-02', 'old2')")
       .run();
     await s.db.prepare("INSERT INTO rate (key, win, n) VALUES ('w:old', 0, 1)").run();
     await ok(await s.signIn(T1));
-    const days = (await s.rows('salts')).map((r) => r.day);
-    expect(days).not.toContain('2000-01-01');
-    expect((await s.rows('rate')).map((r) => r.key)).not.toContain('w:old');
+    expect((await s.rows('salts')).map((r) => r.day)).toContain('2000-01-01');
+    expect((await s.rows('rate')).map((r) => r.key)).toContain('w:old');
   });
 });
 

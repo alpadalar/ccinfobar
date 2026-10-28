@@ -1,11 +1,11 @@
 // GitHub sign-in; the GitHub token is used once, never stored or logged (D-06, D-10, R-14)
 import { sanitizeText } from '../../core/sanitize.js';
 import { CLIENT_ID_RE, LIST_CAP, MARKET_LIMITS } from '../protocol.js';
-import { CAPS, fail, limited, TOKEN_RE } from '../rules.js';
+import { CAPS, fail, limited, retryAfterSeconds, TOKEN_RE, windowOf } from '../rules.js';
 import { type Env, unverifiedOk, type WorkerDeps } from './env.js';
 import { boundedJson, json, PRIVATE_HEADERS, readJsonBody } from './http.js';
 import { isAdmin } from './moderation.js';
-import { buckets, check, cleanup, ipHash } from './rate.js';
+import { bindingAllowed, buckets, check, ipHash } from './rate.js';
 import {
   type Account,
   accountByToken,
@@ -178,8 +178,9 @@ export async function signInWithGitHub(env: Env, deps: WorkerDeps, req: Request)
   // no GitHub call and no row write on a server that cannot verify tokens
   if (secret ? !CLIENT_ID_RE.test(clientId) : !unverifiedOk(env)) throw fail(503, 'unavailable');
   const now = deps.now();
+  if (!(await bindingAllowed(env.SIGNIN, 'a', req, now)))
+    throw limited(retryAfterSeconds(windowOf(now), now));
   await check(db, `a:${await ipHash(db, req, now)}`, buckets(env).signIn, now);
-  await cleanup(db, now).catch(() => {});
   const raw = await readJsonBody(req, BODY_CAP);
   const token =
     raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as { token?: unknown }).token : undefined;

@@ -19,7 +19,7 @@ import { createHandler } from '../../src/market/worker/handler.js';
 import { buckets, cleanup, hit, ipHash, readAllowed } from '../../src/market/worker/rate.js';
 import { START } from './conformance.js';
 import { skipSqlite } from './d1-sqlite.js';
-import { makeEnv } from './worker-env.js';
+import { fakeRateLimit, makeEnv, throwingRateLimit } from './worker-env.js';
 import { seedPublisher, seedToken } from './worker-seed.js';
 
 const BASE = 'http://w.test';
@@ -42,20 +42,61 @@ const publishBody = (slug: string, content: unknown = preset()) => ({
 const from = (ip: string | null, p = '/v1/index.json') =>
   new Request(BASE + p, { headers: ip ? { 'cf-connecting-ip': ip } : {} });
 
-async function setup(vars: Partial<Env> = {}, reads?: RateLimit) {
+type Limit = number | RateLimit;
+
+const WRITE_RE = /^\s*(insert|update|delete)\b/i;
+
+async function setup(
+  vars: Partial<Env> = {},
+  reads?: RateLimit,
+  limits: { writes?: Limit; signin?: Limit } = {},
+) {
   const { env, clock } = await makeEnv(vars);
   const db = env.DB;
   const batches: D1Result[][] = [];
+  let writeStatements = 0;
+  const inner = new WeakMap<object, D1PreparedStatement>();
+  const sqlOf = new WeakMap<object, string>();
+  const watch = (st: D1PreparedStatement, sql: string): D1PreparedStatement => {
+    const write = WRITE_RE.test(sql);
+    const wrapped: D1PreparedStatement = {
+      bind: (...v: unknown[]) => watch(st.bind(...v), sql),
+      first: ((c?: string) => {
+        if (write) writeStatements++;
+        return st.first(c as string);
+      }) as D1PreparedStatement['first'],
+      all: () => {
+        if (write) writeStatements++;
+        return st.all();
+      },
+      run: () => {
+        if (write) writeStatements++;
+        return st.run();
+      },
+      raw: (o) => st.raw(o),
+    };
+    inner.set(wrapped, st);
+    sqlOf.set(wrapped, sql);
+    return wrapped;
+  };
   const counted: D1Database = {
-    prepare: (s) => db.prepare(s),
+    prepare: (s) => watch(db.prepare(s), s),
     batch: async (list: D1PreparedStatement[]) => {
-      const r = await db.batch(list);
+      const r = await db.batch(list.map((x) => inner.get(x) ?? x));
+      writeStatements += list.filter((x) => WRITE_RE.test(sqlOf.get(x) ?? '')).length;
       batches.push(r as D1Result[]);
       return r as never;
     },
     exec: (s) => db.exec(s),
   };
-  const full = { ...env, DB: counted, ...(reads ? { READS: reads } : {}) } as Env;
+  const bind = (l: Limit) => (typeof l === 'number' ? fakeRateLimit(l, clock.now) : l);
+  const full = {
+    ...env,
+    DB: counted,
+    ...(reads ? { READS: reads } : {}),
+    ...(limits.writes === undefined ? {} : { WRITES: bind(limits.writes) }),
+    ...(limits.signin === undefined ? {} : { SIGNIN: bind(limits.signin) }),
+  } as Env;
   const handler = createHandler(full, {
     now: clock.now,
     fetch: () => Promise.reject(new Error('no fetch')),
@@ -85,7 +126,7 @@ async function setup(vars: Partial<Env> = {}, reads?: RateLimit) {
   const rows = async (table: string) => (await db.prepare(`SELECT * FROM ${table}`).all()).results;
   const counter = async () =>
     Number(await db.prepare("SELECT n FROM counters WHERE k = 'bytes'").first<number>('n'));
-  return { db, env: full, clock, call, account, rows, counter, batches };
+  return { db, env: full, clock, call, account, rows, counter, batches, writes: () => writeStatements };
 }
 
 async function error(r: Response): Promise<{ status: number; code: string; message: string }> {
@@ -196,7 +237,7 @@ describe.skipIf(skipSqlite)('worker rate limits', () => {
   });
 
   it('counts every write route, signed in or not', async () => {
-    const w = await setup({ WRITE_LIMIT: '4', ALLOW_OVERWRITE: 'false' });
+    const w = await setup({ ALLOW_OVERWRITE: 'false' }, undefined, { writes: 4 });
     const token = await w.account('alp');
     expect((await w.call('POST', '/v1/entries', { body: publishBody('a') })).status).toBe(401);
     expect((await w.call('POST', '/v1/entries/alp/a/versions', { token, body: {} })).status).toBe(404);
@@ -209,8 +250,8 @@ describe.skipIf(skipSqlite)('worker rate limits', () => {
     ).toBe(401);
   });
 
-  it('one address shares w: while each publisher has its own t: bucket', async () => {
-    const w = await setup({ WRITE_LIMIT: '3' });
+  it('one address shares WRITES while each publisher has its own t: bucket', async () => {
+    const w = await setup({ WRITE_LIMIT: '3' }, undefined, { writes: 3 });
     const alp = await w.account('alp');
     const bob = await w.account('bob');
     expect((await w.call('POST', '/v1/entries', { token: alp, body: publishBody('a1') })).status).toBe(201);
@@ -229,9 +270,72 @@ describe.skipIf(skipSqlite)('worker rate limits', () => {
       (await w.call('POST', '/v1/entries', { token: bob, body: publishBody('b2'), ip: other })).status,
     ).toBe(201);
     const keys = (await w.rows('rate')).map((r) => String(r.key)).sort();
-    expect(keys.filter((k) => k.startsWith('t:'))).toEqual(['t:alp', 't:bob']);
-    expect(keys.filter((k) => k.startsWith('w:'))).toHaveLength(2);
-    for (const k of keys.filter((k) => k.startsWith('w:'))) expect(k).toMatch(/^w:[0-9a-f]{32}$/);
+    expect(keys).toEqual(['t:alp', 't:bob']);
+  });
+
+  it('an unauthenticated flood writes nothing to D1', async () => {
+    const w = await setup({}, undefined, { writes: 30 });
+    w.clock.advance(1000);
+    const routes: [string, string][] = [
+      ['POST', '/v1/entries'],
+      ['PUT', '/v1/entries/alp/a/versions/1'],
+      ['DELETE', '/v1/entries/alp/a'],
+    ];
+    for (const [method, p] of routes) {
+      const ip = `198.51.100.${routes.findIndex((r) => r[1] === p) + 10}`;
+      const codes: number[] = [];
+      let last: Response | undefined;
+      for (let i = 0; i < 50; i++) {
+        last = await w.call(method, p, { body: method === 'DELETE' ? undefined : publishBody('a'), ip });
+        codes.push(last.status);
+      }
+      expect(codes.slice(0, 30).every((c) => c === 401)).toBe(true);
+      expect(codes.slice(30).every((c) => c === 429)).toBe(true);
+      expect(last!.headers.get('retry-after')).toBe(
+        String(retryAfterSeconds(windowOf(w.clock.now()), w.clock.now())),
+      );
+    }
+    expect(w.writes()).toBe(0);
+    expect(await w.rows('rate')).toHaveLength(0);
+    expect(await w.rows('salts')).toHaveLength(0);
+  });
+
+  it('without a binding unauthenticated writes are 401 and still write nothing', async () => {
+    const w = await setup();
+    for (let i = 0; i < 40; i++) {
+      expect((await w.call('POST', '/v1/entries', { body: publishBody('a') })).status).toBe(401);
+    }
+    expect(w.writes()).toBe(0);
+    expect(await w.rows('rate')).toHaveLength(0);
+    expect(await w.rows('salts')).toHaveLength(0);
+  });
+
+  it('a throwing WRITES binding fails open', async () => {
+    const w = await setup({}, undefined, { writes: throwingRateLimit() });
+    const token = await w.account('alp');
+    expect((await w.call('POST', '/v1/entries', { token, body: publishBody('a') })).status).toBe(201);
+  });
+
+  it('SIGNIN refuses a flood before any D1 write and sign-in no longer cleans per request', async () => {
+    const w = await setup(
+      { GITHUB_CLIENT_ID: 'Ov23liVCN9Nf6VlLv3St', ALLOW_UNVERIFIED_GITHUB_TOKENS: 'true' },
+      undefined,
+      {
+        signin: 2,
+      },
+    );
+    await w.db.prepare("INSERT INTO rate (key, win, n) VALUES ('w:old', 0, 1)").run();
+    const post = () => w.call('POST', '/v1/auth/github', { body: { token: 'x' } });
+    expect((await post()).status).toBe(400);
+    expect((await post()).status).toBe(400);
+    const before = w.writes();
+    const over = await post();
+    expect(over.status).toBe(429);
+    expect(over.headers.get('retry-after')).toBe(
+      String(retryAfterSeconds(windowOf(w.clock.now()), w.clock.now())),
+    );
+    expect(w.writes()).toBe(before);
+    expect((await w.rows('rate')).map((r) => r.key)).toContain('w:old');
   });
 
   it('stores no address anywhere', async () => {
@@ -270,31 +374,28 @@ describe.skipIf(skipSqlite)('worker rate limits', () => {
 
   it('cleanup drops salts older than yesterday and stale windows', async () => {
     const w = await setup();
-    const token = await w.account('alp');
-    await w.call('POST', '/v1/entries', { token, body: publishBody('a') });
-    const before = (await w.rows('rate')).map((r) => String(r.key));
-    expect(before).toHaveLength(2);
+    await w.db
+      .prepare("INSERT INTO rate (key, win, n) VALUES ('t:alp', ?1, 1)")
+      .bind(windowOf(w.clock.now()))
+      .run();
+    await ipHash(w.db, from(IP), w.clock.now());
     const [old] = await w.rows('salts');
     // a fresh day keeps today's rows
     await cleanup(w.db, w.clock.now());
     expect(await w.rows('salts')).toHaveLength(1);
-    expect(await w.rows('rate')).toHaveLength(2);
+    expect(await w.rows('rate')).toHaveLength(1);
     w.clock.advance(DAY);
     await cleanup(w.db, w.clock.now());
     expect(await w.rows('salts')).toEqual([old]);
     expect(await w.rows('rate')).toHaveLength(0);
-    await w.call('POST', '/v1/entries', { token, body: publishBody('b') });
+    await ipHash(w.db, from(IP), w.clock.now());
     w.clock.advance(DAY);
-    await w.call('POST', '/v1/entries', { token, body: publishBody('c') });
+    await ipHash(w.db, from(IP), w.clock.now());
     expect(await w.rows('salts')).toHaveLength(3);
     await cleanup(w.db, w.clock.now());
     const salts = await w.rows('salts');
     expect(salts).toHaveLength(2);
     expect(salts).not.toContainEqual(old);
-    // the same address gets a new, unlinkable key each day
-    const keys = (await w.rows('rate')).map((r) => String(r.key)).filter((k) => k.startsWith('w:'));
-    expect(keys).toHaveLength(1);
-    expect(before).not.toContain(keys[0]);
   });
 
   it('GETs use the READS binding and write no rate rows', async () => {
@@ -406,9 +507,9 @@ describe.skipIf(skipSqlite)('worker storage guard', () => {
     expect(await w.counter()).toBe(0);
     w.batches.length = 0;
     expect((await w.call('POST', '/v1/entries', { token, body: publishBody('a', big()) })).status).toBe(201);
-    // salt, content, index read, index pages
-    expect(w.batches).toHaveLength(4);
-    const content = w.batches[1]!;
+    // content, index read, index pages
+    expect(w.batches).toHaveLength(3);
+    const content = w.batches[0]!;
     const size = Math.max(...content.map((r) => r.meta.size_after));
     expect(size).toBeGreaterThan(0);
     expect(await w.counter()).toBe(size);

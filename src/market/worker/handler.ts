@@ -52,7 +52,7 @@ import {
   setBan,
 } from './moderation.js';
 import { landingPage } from './page.js';
-import { buckets, check, ipHash, readAllowed } from './rate.js';
+import { bindingAllowed, readAllowed } from './rate.js';
 import { settleIndex } from './settle.js';
 import { indexEtag, indexTag, readEntryDoc, readIndexPage, readVersionDoc } from './store.js';
 import { addVersion, overwrite, publish, withdraw } from './write.js';
@@ -145,12 +145,11 @@ async function read(db: D1Database, p: string, inm: string | null, gen?: number 
 export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
   const meta = buildMeta(env);
   const name = env.MARKET_NAME || 'ccinfobar marketplace';
-  const writes = buckets(env).write;
 
-  // only routes that reach the database count, so junk costs no row writes
-  async function counted(req: Request): Promise<void> {
+  // the binding refuses before any D1 statement; the per-publisher bucket stays in writer()
+  async function gate(req: Request): Promise<void> {
     const t = deps.now();
-    await check(env.DB, `w:${await ipHash(env.DB, req, t)}`, writes, t);
+    if (!(await bindingAllowed(env.WRITES, 'w', req, t))) throw limited(retryAfterSeconds(windowOf(t), t));
   }
 
   // the admin check comes before ids and bodies
@@ -215,7 +214,7 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
       if (p === logoutPath()) return logout(env, req);
       if (p.startsWith('/v1/admin/')) return adminPost(req, p);
       if (p === entriesPath()) {
-        await counted(req);
+        await gate(req);
         return publish(env.DB, env, deps, req);
       }
       // its own per-reporter bucket
@@ -224,7 +223,7 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
       const v = VERSIONS_RE.exec(p);
       if (v) {
         const [pp, s] = [part(v[1]!), part(v[2]!)];
-        await counted(req);
+        await gate(req);
         return addVersion(env.DB, env, deps, req, pp, s);
       }
     }
@@ -232,7 +231,7 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
       const m = PUT_RE.exec(p);
       if (m) {
         const [pp, s, n] = [part(m[1]!), part(m[2]!), versionNo(m[3]!)];
-        await counted(req);
+        await gate(req);
         return overwrite(env.DB, env, deps, req, pp, s, n);
       }
     }
@@ -240,7 +239,7 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
       const w = WITHDRAW_RE.exec(p);
       if (w) {
         const [pp, s] = [part(w[1]!), part(w[2]!)];
-        await counted(req);
+        await gate(req);
         return withdraw(env.DB, env, deps, req, pp, s);
       }
     }

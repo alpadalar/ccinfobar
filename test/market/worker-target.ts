@@ -3,7 +3,7 @@ import { fixedWindow } from '../../src/market/server.js';
 import type { Env } from '../../src/market/worker/env.js';
 import { createHandler } from '../../src/market/worker/handler.js';
 import type { MarketTarget, TargetOpts } from './conformance.js';
-import { makeEnv } from './worker-env.js';
+import { fakeRateLimit, makeEnv } from './worker-env.js';
 import { seedPublisher, seedToken } from './worker-seed.js';
 
 // the Worker handler behind a loopback URL; nothing leaves the process
@@ -19,6 +19,13 @@ export async function makeWorkerTarget(o: TargetOpts = {}): Promise<MarketTarget
   if (r?.readsPerMinute) {
     const reads = fixedWindow(r.readsPerMinute, clock.now);
     env.READS = { limit: async ({ key }) => ({ success: reads(key) === null }) };
+  }
+  if (r) {
+    env.WRITES = fakeRateLimit(r.perMinute, clock.now);
+    env.SIGNIN = fakeRateLimit(
+      r.registersPerMinute ?? Math.min(r.perMinute, REGISTERS_PER_MINUTE),
+      clock.now,
+    );
   }
   const handler = createHandler(env, {
     now: clock.now,
