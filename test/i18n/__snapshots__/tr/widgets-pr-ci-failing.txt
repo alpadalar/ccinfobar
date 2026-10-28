@@ -109,9 +109,9 @@ command: (empty)
 link: link
 env: (empty)
 http: (empty)
-pet: =(º·º)=
-kaomoji: (ºoº)
-quip: Düşünecek bol yer var
 text: (empty)
 separator: |
 flex:
+pet: =(º·º)=
+kaomoji: (ºoº)
+quip: Düşünecek bol yer var
