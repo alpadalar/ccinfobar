@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ruleNeeds } from '../core/conditions.js';
 import { cacheDir, MAX_PROJECT, normalizeRoot } from '../core/paths.js';
-import { isProjectHash } from '../core/report-types.js';
+import { isProjectHash } from '../core/project-hash.js';
 import { addDays, dayKey, mondayOf, monthKey } from '../core/time.js';
 import type { Config, StatusPayload } from '../core/types.js';
 import { accountKey } from './limits.js';

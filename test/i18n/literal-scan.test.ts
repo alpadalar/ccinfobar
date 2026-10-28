@@ -159,6 +159,7 @@ const SWEPT: string[] = [
   'src/core/payload.ts',
   'src/core/presets.ts',
   'src/core/prices.ts',
+  'src/core/project-hash.ts',
   'src/core/report-model.ts',
   'src/core/report-format.ts',
   'src/core/report-types.ts',

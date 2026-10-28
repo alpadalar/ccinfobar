@@ -4,9 +4,6 @@ import type { priceFor, requestCost } from './prices.js';
 import type { ProfileVendor } from './profiles.js';
 import type { Config } from './types.js';
 
-export const PROJECT_HASH_RE = /^[0-9a-f]{16}$/;
-export const isProjectHash = (v: string): boolean => PROJECT_HASH_RE.test(v);
-
 export const IDLE_CAP_MS = 300_000;
 export const MAX_REPORT_LINE = 16 * 1024 * 1024;
 export const MAX_REPORT_FILES = 100_000;
