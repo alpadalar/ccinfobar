@@ -1210,6 +1210,25 @@ describe.skipIf(skipSqlite)('worker moderation guards', () => {
         expect(rv.headers.get('etag')).toMatch(new RegExp(`^"${hash}-[0-9]+"$`));
       });
 
+      it('show of a held version has the held version own document and the added links', async () => {
+        const s = await trusted();
+        const r = await s.call('POST', '/v1/entries/pub/one/versions', {
+          token: s.pub,
+          headers: { 'if-match': '"1"' },
+          body: { content: linked(NEW), name: 'Held name', description: 'Held description' },
+        });
+        expect(r.status).toBe(202);
+        const rv = (await s.get(adminEntryPath('pub/one'), s.admin)).json;
+        expect(rv.entry).toMatchObject({
+          name: 'Held name',
+          description: 'Held description',
+          version: 2,
+          state: 'live',
+        });
+        expect(rv.links).toEqual({ added: ['example.com/x'] });
+        expect(rv.held).toBe(2);
+      });
+
       it('approve makes the held version live, a stale tag is 412', async () => {
         const s = await trusted();
         await hold(s, 1, NEW);

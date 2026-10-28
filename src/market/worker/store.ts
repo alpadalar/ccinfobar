@@ -835,6 +835,8 @@ export interface ReviewRow {
   tag: string;
   // the version number under review when it is a held one
   held?: number;
+  // links the held version adds
+  added?: string[];
 }
 
 export const reviewTag = (hash: string, gen: number): string => `"${hash}-${gen}"`;
@@ -864,11 +866,14 @@ export async function reviewRow(db: D1Database, p: string, s: string): Promise<R
   const held = heldOf(row.held);
   const out: ReviewRow = {
     state: row.state,
-    doc: String(row.doc),
+    doc: held ? held.doc : String(row.doc),
     body: (held ? row.held_body : row.body) ?? null,
     tag: reviewTag(held ? held.hash : String(row.hash), Number(row.gen)),
   };
-  if (held) out.held = held.version;
+  if (held) {
+    out.held = held.version;
+    out.added = held.links;
+  }
   return out;
 }
 

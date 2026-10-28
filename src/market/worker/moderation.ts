@@ -105,6 +105,7 @@ export async function review(env: Env, p: string, s: string): Promise<Response> 
   // approve sends this tag back as If-Match
   const out: Record<string, unknown> = { entry, content: v.content, hash: v.hash };
   if (row.held !== undefined) out.held = row.held;
+  if (row.added) out.links = { added: row.added };
   return json(200, out, { etag: row.tag });
 }
 
