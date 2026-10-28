@@ -1091,4 +1091,84 @@ describe.skipIf(skipSqlite)('worker moderation guards', () => {
     expect(await s.rows('reports')).toEqual([]);
     expect(s.hookLeft()).toBe(false);
   });
+
+  describe('held link review (17-D-02)', () => {
+    const linked = (url: string, type = 'model') =>
+      ({
+        layout: { lines: [[{ type }, { type: 'link', options: { url } }]] },
+      }) as unknown as EntryContent;
+    const NEW = 'https://Example.com/x';
+    const next = (s: Awaited<ReturnType<typeof trusted>>, slug: string, v: number, content: EntryContent) =>
+      s.call('POST', `/v1/entries/pub/${slug}/versions`, {
+        token: s.pub,
+        headers: { 'if-match': `"${v}"` },
+        body: { content },
+      });
+    const meEntry = async (s: Awaited<ReturnType<typeof trusted>>, id: string) =>
+      parseMe((await s.get('/v1/me', s.pub)).json)?.entries.find((e) => e.id === id);
+
+    it('a trusted version with a new link is held', async () => {
+      const s = await trusted();
+      const etag = (await s.get('/v1/index.json')).headers.get('etag');
+      const before = Number((await s.publisher('pub'))!.bytes);
+      const content = linked(NEW);
+      const r = await next(s, 'one', 1, content);
+      expect(r.status).toBe(202);
+      const b = (await r.json()) as Record<string, unknown>;
+      expect(b).toMatchObject({
+        id: 'pub/one',
+        version: 2,
+        pending: true,
+        reason: 'new-link',
+        links: ['example.com/x'],
+      });
+      expect(typeof b.hash).toBe('string');
+      expect((await s.get('/v1/entries/pub/one/2.json')).status).toBe(404);
+      const doc = (await s.get('/v1/entries/pub/one.json')).json;
+      expect(doc.version).toBe(1);
+      expect(doc.versions).toHaveLength(1);
+      expect((await s.get('/v1/index.json')).headers.get('etag')).toBe(etag);
+      expect(await meEntry(s, 'pub/one')).toMatchObject({ state: 'live', version: 1, held: 2 });
+      expect(await s.versionRows('pub', 'one')).toHaveLength(2);
+      expect(Number((await s.publisher('pub'))!.bytes)).toBeGreaterThan(before);
+    });
+
+    it('a second version while held is 409 conflict', async () => {
+      const s = await trusted();
+      expect((await next(s, 'one', 1, linked(NEW))).status).toBe(202);
+      const r = await next(s, 'one', 1, linked(NEW));
+      expect(r.status).toBe(409);
+      expect(JSON.stringify(await r.json())).toContain('waiting for review');
+    });
+
+    it('the same, fewer or equivalent links go live', async () => {
+      const s = await trusted();
+      expect((await s.publish('lk', s.pub, linked('https://example.com/x'))).status).toBe(201);
+      expect(await s.indexIds()).toContain('pub/lk');
+      const same = await next(s, 'lk', 1, linked('https://EXAMPLE.com/x?q=1', 'cwd'));
+      expect(same.status).toBe(201);
+      const fewer = await next(s, 'lk', 2, preset('git-branch'));
+      expect(fewer.status).toBe(201);
+      const none = await next(s, 'one', 1, preset('cwd'));
+      expect(none.status).toBe(201);
+      expect((await meEntry(s, 'pub/lk'))?.held).toBeUndefined();
+    });
+
+    it('an untrusted publisher is unchanged', async () => {
+      const s = await three();
+      const o = await s.publish('o1', s.other);
+      expect(o.status).toBe(201);
+      const r = await s.call('POST', '/v1/entries/other/o1/versions', {
+        token: s.other,
+        headers: { 'if-match': '"1"' },
+        body: { content: linked(NEW) },
+      });
+      expect(r.status).toBe(201);
+      expect(((await s.entry('other', 'o1')) as { state: string }).state).toBe('pending');
+      const held = await s.db.prepare('SELECT held FROM entries WHERE slug = ?1').bind('o1').first<{
+        held: string | null;
+      }>();
+      expect(held?.held).toBeNull();
+    });
+  });
 });

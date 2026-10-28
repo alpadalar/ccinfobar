@@ -191,6 +191,19 @@ export async function readEntryDoc(db: D1Database, p: string, s: string): Promis
   return { state: row.state, doc: row.doc, etag: `"${row.hash}-${row.gen}"`, banned: !!row.banned };
 }
 
+export async function readVersionBody(
+  db: D1Database,
+  p: string,
+  s: string,
+  n: number,
+): Promise<string | null> {
+  const row = await db
+    .prepare('SELECT body FROM versions WHERE publisher = ?1 AND slug = ?2 AND version = ?3')
+    .bind(p, s, n)
+    .first<{ body: string | null }>();
+  return row?.body ?? null;
+}
+
 export interface VersionDoc {
   state: EntryState;
   found: boolean;

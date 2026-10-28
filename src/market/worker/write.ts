@@ -1,5 +1,6 @@
 import {
   canonicalJson,
+  contentLinks,
   contentProblems,
   MARKET_LIMITS,
   type MarketEntry,
@@ -24,6 +25,9 @@ import {
   type Counts,
   dropPendingStatements,
   type EntryState,
+  entryDocText,
+  entrySummaryText,
+  heldStatements,
   needsReview,
   noteSize,
   overwriteStatements,
@@ -32,6 +36,7 @@ import {
   publishStatements,
   type Room,
   readEntryRow,
+  readVersionBody,
   requireWriter,
   storageUse,
   versionStatements,
@@ -49,6 +54,18 @@ const gone = (state: EntryState): boolean => state === 'withdrawn' || state === 
 
 const LATEST_ONLY = 'only the latest version can be overwritten';
 const REVIEW_FIRST = 'new content waits until an admin approves your next entry';
+const HELD_WAIT = 'a version is waiting for review';
+const NEW_LINK = 'a new link needs review: publish it as a new version';
+
+// links the new content has that the live version did not
+async function addedLinks(db: D1Database, p: string, s: string, version: number, content: unknown) {
+  let before: string[] = [];
+  try {
+    const body = await readVersionBody(db, p, s, version);
+    if (body !== null) before = contentLinks((JSON.parse(body) as { content?: unknown }).content);
+  } catch {}
+  return contentLinks(content).filter((l) => !before.includes(l));
+}
 
 // each publisher has its own write window too
 async function writer(db: D1Database, env: Env, deps: WorkerDeps, req: Request): Promise<Publisher> {
@@ -201,6 +218,9 @@ export async function addVersion(
   if (entry.versions.length >= (deps.caps?.versions ?? MAX_VERSIONS)) {
     throw fail(413, 'over-quota', 'too many versions');
   }
+  const review = row.state === 'live' && who.trusted;
+  if (review && row.held) throw fail(409, 'conflict', HELD_WAIT);
+  const added = review ? await addedLinks(db, p, s, row.version, payload.content) : [];
   const version = row.version + 1;
   const at = iso(deps);
   const next: StoredEntry = {
@@ -217,6 +237,37 @@ export async function addVersion(
   const body = versionText({ version, content: payload.content, hash });
   const bytes = utf8(body);
   await room(db, env, who.handle, bytes, row.state === 'pending');
+  if (added.length > 0) {
+    try {
+      const done = await db.batch([
+        requireWriter(db, who.digest, who.handle),
+        ...heldStatements(db, {
+          entry: next,
+          expected: row.version,
+          expectedHash: entry.hash,
+          body,
+          room: roomOf(env),
+          held: {
+            version,
+            hash,
+            at,
+            reason: 'new-link',
+            links: added,
+            summary: entrySummaryText(next),
+            doc: entryDocText(next),
+          },
+        }),
+      ]);
+      await noteSize(db, done);
+    } catch (err) {
+      const c = writeConflict(err);
+      if (c === 'quota') throw await roomGone(db, env, who.handle, bytes, false);
+      if (c === 'guard') await stillWriter(db, req);
+      if (c === 'version' || c === 'guard') throw fail(412, 'stale');
+      throw err;
+    }
+    return json(202, { id: entry.id, version, hash, pending: true, reason: 'new-link', links: added });
+  }
   try {
     const done = await db.batch([
       requireWriter(db, who.digest, who.handle),
@@ -262,6 +313,11 @@ export async function overwrite(
   if (!payload) throw fail(400, 'invalid');
   const entry = row.entry;
   const hash = await checkedHash(env, entry.kind, payload.content);
+  if (row.state === 'live' && who.trusted) {
+    if ((await addedLinks(db, p, s, row.version, payload.content)).length > 0) {
+      throw fail(403, 'forbidden', NEW_LINK);
+    }
+  }
   const at = iso(deps);
   const last = entry.versions.at(-1)!;
   const next: StoredEntry = {

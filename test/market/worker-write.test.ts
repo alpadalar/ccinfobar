@@ -756,6 +756,17 @@ describe.skipIf(skipSqlite)('worker writes', () => {
       }
     });
 
+    it('refuses a new link and takes the same content without it', async () => {
+      const t = await withTwo(on);
+      const link = {
+        layout: { lines: [[{ type: 'model' }, { type: 'link', options: { url: 'https://example.com/a' } }]] },
+      };
+      const r = await t.call('PUT', put, { token: t.token, body: { content: link } });
+      expect(await error(r)).toMatchObject({ status: 403, code: 'forbidden' });
+      const ok = await t.call('PUT', put, { token: t.token, body: { content: preset('git-branch') } });
+      expect(ok.status).toBe(200);
+    });
+
     it('replaces only the latest version and marks it', async () => {
       const t = await withTwo(on);
       t.clock.advance(60_000);
