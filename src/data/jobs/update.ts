@@ -16,6 +16,7 @@ export interface UpdateValue {
   latest: string | null;
   installed?: string;
   rejected?: string;
+  deferred?: string;
   rollback?: 'ok' | 'failed' | 'unverified';
   reason?: string;
 }
@@ -25,6 +26,7 @@ export interface UpdateState {
   latest: string | null;
   installed?: string;
   rejected?: string;
+  deferred?: string;
   rollback?: 'ok' | 'failed' | 'unverified';
   reason?: string;
   error?: string;
@@ -38,12 +40,15 @@ const reasonOf = (v: unknown): string | undefined =>
 
 function rejectFields(o: {
   rejected?: unknown;
+  deferred?: unknown;
   rollback?: unknown;
   reason?: unknown;
-}): Pick<UpdateState, 'rejected' | 'rollback' | 'reason'> {
-  const out: Pick<UpdateState, 'rejected' | 'rollback' | 'reason'> = {};
+}): Pick<UpdateState, 'rejected' | 'deferred' | 'rollback' | 'reason'> {
+  const out: Pick<UpdateState, 'rejected' | 'deferred' | 'rollback' | 'reason'> = {};
   const rejected = version(o.rejected);
   if (rejected) out.rejected = rejected;
+  const deferred = version(o.deferred);
+  if (deferred) out.deferred = deferred;
   const rollback = rollbackOf(o.rollback);
   if (rollback) out.rollback = rollback;
   const reason = reasonOf(o.reason);
@@ -165,6 +170,7 @@ export const updateJob: Job<UpdateValue> = {
     try {
       const value = await m.checkForUpdate(ctx.config, undefined, ctx.env, {
         fetch: ctx.fetch,
+        now: () => ctx.now,
         rejected: prevValue?.rejected ?? null,
         recordRejected: (v) => {
           writeEnvelope(okEnvelope('update', v, ctx.now, req.param), ctx.env);

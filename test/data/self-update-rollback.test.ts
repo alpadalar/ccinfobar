@@ -14,9 +14,14 @@ vi.mock('node:child_process', async (orig) => {
   return { ...real, execFile: (...a: unknown[]) => mocks.execFile(...a) };
 });
 
-const { checkForUpdate, fetchTarball, installVersionAsync, releaseDigest, verifyInstall } = await import(
-  '../../src/data/self-update.js'
-);
+const {
+  checkForUpdate,
+  fetchTarball,
+  installVersionAsync,
+  releaseDigest,
+  releasePublishedAt,
+  verifyInstall,
+} = await import('../../src/data/self-update.js');
 const realExecFile = (await vi.importActual<typeof import('node:child_process')>('node:child_process'))
   .execFile;
 
@@ -415,5 +420,86 @@ describe('tarball digest verification', () => {
       'checksum-mismatch',
     );
     expect(mocks.execFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('release age gate', () => {
+  const T = Date.parse('2026-10-28T12:00:00Z');
+  const H = 3_600_000;
+  const aged: Config = { ...cfg, updateMinAgeHours: 24 };
+  const run = (c: Config, at: number | null, extra: object = {}) => {
+    const install = vi.fn();
+    const publishedAt = vi.fn(async () => at);
+    const p = checkForUpdate(c, '0.1.0', {}, { ...base, install, publishedAt, now: () => T, ...extra });
+    return { p, install, publishedAt };
+  };
+
+  it('defers a release younger than the minimum age', async () => {
+    const r = run(aged, T - H);
+    expect(await r.p).toEqual({ latest: '9.9.9', deferred: '9.9.9', reason: 'too-new' });
+    expect(r.install).not.toHaveBeenCalled();
+  });
+
+  it('installs a release old enough', async () => {
+    const r = run(aged, T - 25 * H);
+    expect(await r.p).toEqual({ latest: '9.9.9', installed: '9.9.9' });
+    expect(r.install).toHaveBeenCalledOnce();
+  });
+
+  it('defers with age-unknown when the date is unknown', async () => {
+    const r = run(aged, null);
+    expect(await r.p).toEqual({ latest: '9.9.9', deferred: '9.9.9', reason: 'age-unknown' });
+    expect(r.install).not.toHaveBeenCalled();
+  });
+
+  it('makes no date request when the key is absent or 0', async () => {
+    const a = run(cfg, T - H);
+    expect(await a.p).toEqual({ latest: '9.9.9', installed: '9.9.9' });
+    expect(a.publishedAt).not.toHaveBeenCalled();
+    const b = run({ ...cfg, updateMinAgeHours: 0 }, T - H);
+    expect(await b.p).toEqual({ latest: '9.9.9', installed: '9.9.9' });
+    expect(b.publishedAt).not.toHaveBeenCalled();
+  });
+
+  it('keeps the rejected check ahead of the age check', async () => {
+    const r = run(aged, T - H, { rejected: '9.9.9' });
+    expect(await r.p).toEqual({ latest: '9.9.9', rejected: '9.9.9' });
+    expect(r.publishedAt).not.toHaveBeenCalled();
+  });
+
+  it('looks the date up through the injected fetch', async () => {
+    const f = fakeFetch([json({ published_at: new Date(T - H).toISOString() })]);
+    const install = vi.fn();
+    const out = await checkForUpdate(aged, '0.1.0', {}, { ...base, install, fetch: f.fetch, now: () => T });
+    expect(out).toMatchObject({ deferred: '9.9.9', reason: 'too-new' });
+    expect(f.calls).toHaveLength(1);
+  });
+});
+
+describe('releasePublishedAt', () => {
+  const gh = (v: string) => `https://api.github.com/repos/alpadalar/ccinfobar/releases/tags/v${v}`;
+  it('reads the GitHub published_at and skips npm', async () => {
+    const f = fakeFetch([json({ published_at: '2026-10-28T10:00:00Z' })]);
+    expect(await releasePublishedAt('0.9.0', f.fetch)).toBe(Date.parse('2026-10-28T10:00:00Z'));
+    expect(f.calls.map((c) => c.url)).toEqual([gh('0.9.0')]);
+  });
+
+  it('falls back to the npm packument time', async () => {
+    const f = fakeFetch([json({}, 404), json({ time: { '0.9.0': '2026-10-27T10:00:00Z' } })]);
+    expect(await releasePublishedAt('0.9.0', f.fetch)).toBe(Date.parse('2026-10-27T10:00:00Z'));
+    expect(f.calls[1]!.url).toBe('https://registry.npmjs.org/ccinfobar');
+  });
+
+  it('returns null when both fail or the date is unusable', async () => {
+    expect(await releasePublishedAt('0.9.0', fakeFetch([new Error('x'), json({}, 500)]).fetch)).toBeNull();
+    expect(
+      await releasePublishedAt(
+        '0.9.0',
+        fakeFetch([json({ published_at: 'nope' }), json({ time: {} })]).fetch,
+      ),
+    ).toBeNull();
+    expect(
+      await releasePublishedAt('0.9.0', fakeFetch([json({}, 404), json({ time: { '0.9.0': 'bad' } })]).fetch),
+    ).toBeNull();
   });
 });

@@ -323,3 +323,20 @@ describe('rejected updates', () => {
     expect(e).toMatchObject({ ok: true, value: { latest: '9.9.9', rejected: '9.9.9' } });
   });
 });
+
+describe('deferred updates', () => {
+  it('round-trips deferred and reason and drops a non-version', () => {
+    const e = okEnvelope<UpdateValue>('update', { latest: '0.9.0', deferred: '0.9.0', reason: 'too-new' }, 7);
+    const s = toUpdateState(e);
+    expect(s).toMatchObject({ latest: '0.9.0', deferred: '0.9.0', reason: 'too-new' });
+    expect(fromUpdateState(s).value).toEqual({ latest: '0.9.0', deferred: '0.9.0', reason: 'too-new' });
+    const bad = okEnvelope('update', { latest: '0.9.0', deferred: '<b>x' }, 7);
+    expect(toUpdateState(bad as unknown as JobEnvelope<UpdateValue>).deferred).toBeUndefined();
+  });
+
+  it('readLegacyUpdate carries deferred', () => {
+    const env = sandbox();
+    legacy(env, { checkedAt: 1, latest: '0.9.0', deferred: '0.9.0', reason: 'age-unknown' });
+    expect(readLegacyUpdate(env)).toMatchObject({ deferred: '0.9.0', reason: 'age-unknown' });
+  });
+});

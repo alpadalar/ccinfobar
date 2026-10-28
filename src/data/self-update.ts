@@ -146,6 +146,41 @@ export async function releaseDigest(
   }
 }
 
+export async function releasePublishedAt(
+  version: string,
+  fetcher: typeof fetch = fetch,
+  timeoutMs = 4000,
+): Promise<number | null> {
+  const ms = (v: unknown): number | null => {
+    const t = typeof v === 'string' ? Date.parse(v) : Number.NaN;
+    return Number.isFinite(t) ? t : null;
+  };
+  try {
+    const res = await fetcher(
+      `https://api.github.com/repos/${REPO}/releases/tags/v${assertVersion(version)}`,
+      {
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: { accept: 'application/vnd.github+json', 'user-agent': 'ccinfobar' },
+      },
+    );
+    if (res.ok) {
+      const at = ms(((await res.json()) as { published_at?: unknown }).published_at);
+      if (at !== null) return at;
+    }
+  } catch {}
+  try {
+    const res = await fetcher('https://registry.npmjs.org/ccinfobar', {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { 'user-agent': 'ccinfobar' },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { time?: Record<string, unknown> };
+    return ms(body.time?.[version]);
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchTarball(
   version: string,
   expectedHex: string,
@@ -367,6 +402,8 @@ export interface CheckDeps {
   recordRejected?: (r: { latest: string; rejected: string; rollback: 'failed'; reason: string }) => void;
   installMs?: number;
   rollbackMs?: number;
+  now?: () => number;
+  publishedAt?: (version: string) => Promise<number | null>;
 }
 
 export const INSTALL_BUDGET_MS = 240_000;
@@ -420,6 +457,7 @@ export async function checkForUpdate(
   latest: string;
   installed?: string;
   rejected?: string;
+  deferred?: string;
   rollback?: 'ok' | 'failed' | 'unverified';
   reason?: string;
   error?: string;
@@ -432,6 +470,14 @@ export async function checkForUpdate(
     (kind === 'npm-global' || kind === 'local')
   ) {
     if (deps.rejected && deps.rejected === latest) return { latest, rejected: latest };
+    const minAge = config.updateMinAgeHours ?? 0;
+    if (minAge > 0) {
+      const at = await (deps.publishedAt ?? ((v) => releasePublishedAt(v, deps.fetch)))(latest);
+      if (at === null) return { latest, deferred: latest, reason: 'age-unknown' };
+      if ((deps.now ?? Date.now)() - at < minAge * 3_600_000) {
+        return { latest, deferred: latest, reason: 'too-new' };
+      }
+    }
     const prefix = kind === 'local' ? localPrefix(env) : undefined;
     const install = deps.install ?? ((v, p, s) => installVersionAsync(v, p, s, deps.fetch));
     await install(latest, prefix, within(deps.installMs ?? INSTALL_BUDGET_MS, deps.signal));
