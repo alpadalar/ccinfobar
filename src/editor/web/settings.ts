@@ -104,6 +104,9 @@ function profileValue(
   return v;
 }
 
+export const budgetValue = (v: number | null): number | undefined =>
+  v === null || !Number.isFinite(v) ? undefined : Math.min(60000, Math.max(100, Math.floor(v)));
+
 export function draftOverride(draft: ProfileDraft): ProfileOverride | null {
   const out: Record<string, unknown> = {};
   for (const { key } of PROFILE_COLUMNS) {
@@ -820,6 +823,17 @@ export async function openSettings(): Promise<void> {
           t('web.settings.gitHardening'),
           toggle(c.gitHardening !== false, (v) => set({ gitHardening: v ? undefined : false })),
           t('web.settings.gitHardeningHelp'),
+          true,
+        ),
+        field(
+          t('web.settings.commandBudgetMs'),
+          numberInput(c.commandBudgetMs ?? '', (v) => set({ commandBudgetMs: budgetValue(v) }), {
+            min: 100,
+            max: 60000,
+            step: 100,
+            placeholder: '3000',
+          }),
+          t('web.settings.commandBudgetMsHelp'),
           true,
         ),
         field(

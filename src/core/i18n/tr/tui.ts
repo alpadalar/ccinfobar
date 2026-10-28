@@ -75,6 +75,9 @@ export const tuiMessages = {
   'tui.field.gitHardening': 'Git sıkılaştırması',
   'tui.field.gitHardeningHelp':
     "Depoların kendi git hook'larını ve filtrelerini durum satırı üzerinden çalıştırmasını engeller",
+  'tui.field.commandBudgetMs': 'Komut bütçesi (ms)',
+  'tui.field.commandBudgetMsHelp':
+    "Bir yenilemedeki tüm command widget'ları için ortak süre; varsayılan 3000, 100-60000",
   'tui.field.icons': 'Simgeler',
   'tui.field.colorLevel': 'Renk düzeyi',
   'tui.field.colorLevel.0': '0 (renk yok)',

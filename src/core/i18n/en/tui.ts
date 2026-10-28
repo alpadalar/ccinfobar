@@ -69,6 +69,9 @@ export const tuiMessages = {
   'tui.field.gitHardening': 'Git hardening',
   'tui.field.gitHardeningHelp':
     'Stop repos from running their own git hooks and filters through the status line',
+  'tui.field.commandBudgetMs': 'Command budget (ms)',
+  'tui.field.commandBudgetMsHelp':
+    'Shared time for all command widgets of one refresh; default 3000, 100-60000',
   'tui.field.icons': 'Icons',
   'tui.field.colorLevel': 'Color level',
   'tui.field.colorLevel.0': '0 (none)',

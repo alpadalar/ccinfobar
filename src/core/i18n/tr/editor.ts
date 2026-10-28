@@ -59,6 +59,9 @@ export const editorMessages = {
   'web.settings.gitHardening': 'Git sıkılaştırması',
   'web.settings.gitHardeningHelp':
     "Depoların kendi git hook'larını ve filtrelerini durum satırı üzerinden çalıştırmasını engeller.",
+  'web.settings.commandBudgetMs': 'Komut widget bütçesi (ms)',
+  'web.settings.commandBudgetMsHelp':
+    "Bir yenilemedeki tüm command widget'ları bu süreyi paylaşır; süre bitince kalanlar önbellekteki çıktıyı ya da hiçbir şey göstermez. Varsayılan 3000.",
   'web.settings.savePayload': "Son payload'ı kaydet",
   'web.settings.savePayloadHelp': 'Önizlemenin gerçek son oturumunuzu kullanmasını sağlar.',
   'web.settings.budget': 'Bütçe',

@@ -209,3 +209,13 @@ describe('settings model profiles', () => {
     expect(draftOverride({ label: 'X' })).toBeNull();
   });
 });
+
+describe('settings command budget', () => {
+  it('clamps the typed value and clears an empty one', async () => {
+    const { budgetValue } = await import('../../src/editor/web/settings.js');
+    expect(budgetValue(1500)).toBe(1500);
+    expect(budgetValue(50)).toBe(100);
+    expect(budgetValue(99999)).toBe(60000);
+    expect(budgetValue(null)).toBeUndefined();
+  });
+});

@@ -828,6 +828,14 @@ function baseGlobalFields(autoLanguage?: LanguageId, brew = false): Field[] {
       { help: t('tui.field.gitHardeningHelp') },
     ),
     globalField(
+      'commandBudgetMs',
+      t('tui.field.commandBudgetMs'),
+      'number',
+      (c) => c.commandBudgetMs,
+      (c, v) => ({ ...c, commandBudgetMs: Math.min(60000, Math.max(100, Math.floor(Number(v)))) }),
+      { help: t('tui.field.commandBudgetMsHelp') },
+    ),
+    globalField(
       'overflow',
       t('opt.overflow'),
       'select',

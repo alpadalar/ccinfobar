@@ -631,3 +631,13 @@ describe('theme rotation fields', () => {
     expect(field('theme').effective!(defaultConfig())).toBe(resolveTheme('classic').name);
   });
 });
+
+describe('commandBudgetMs field', () => {
+  it('sets, clamps and shows the value', () => {
+    const f = field('commandBudgetMs');
+    expect(f.kind).toBe('number');
+    expect(f.set(defaultConfig(), 1500).commandBudgetMs).toBe(1500);
+    expect(f.set(defaultConfig(), 50).commandBudgetMs).toBe(100);
+    expect(f.set(defaultConfig(), 99999).commandBudgetMs).toBe(60000);
+  });
+});

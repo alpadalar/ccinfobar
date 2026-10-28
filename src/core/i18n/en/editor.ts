@@ -55,6 +55,9 @@ export const editorMessages = {
   'web.settings.gitHardening': 'Git hardening',
   'web.settings.gitHardeningHelp':
     'Stop repos from running their own git hooks and filters through the status line.',
+  'web.settings.commandBudgetMs': 'Command widget budget (ms)',
+  'web.settings.commandBudgetMsHelp':
+    'All command widgets of one refresh share this time; after it the rest show cached output or nothing. Default 3000.',
   'web.settings.savePayload': 'Save last payload',
   'web.settings.savePayloadHelp': 'Lets the preview use your real last session.',
   'web.settings.budget': 'Budget',
