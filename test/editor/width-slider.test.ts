@@ -31,4 +31,21 @@ describe('editor width slider (WR-06)', () => {
     store.setWidth(300);
     expect(set).toEqual(['400', '40', '300']);
   });
+
+  it('setWidth with persist false previews without remembering', async () => {
+    const set: string[] = [];
+    g.localStorage = { getItem: () => '300', setItem: (_k: string, v: string) => set.push(v) };
+    const store = await import('../../src/editor/web/store.js');
+    store.init({ config: {}, savedConfig: {}, categories: [], widgets: [] } as any);
+    let fired = 0;
+    store.on('width', () => fired++);
+    store.setWidth(250, { persist: false });
+    expect(store.S.width).toBe(250);
+    expect(set).toEqual([]);
+    expect(fired).toBe(1);
+    store.setWidth(Number.NaN, { persist: false });
+    expect(store.S.width).toBe(250);
+    store.setWidth(200);
+    expect(set).toEqual(['200']);
+  });
 });

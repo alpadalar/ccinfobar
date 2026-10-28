@@ -283,12 +283,14 @@ function savedWidth(): number {
 }
 
 // the slider and an applied entry share this path
-export function setWidth(n: number): void {
+export function setWidth(n: number, opts: { persist?: boolean } = {}): void {
   if (!Number.isFinite(n)) return;
   S.width = Math.max(COLS_MIN, Math.min(COLS_MAX, Math.round(n)));
-  try {
-    localStorage.setItem(WIDTH_KEY, String(S.width));
-  } catch {}
+  if (opts.persist !== false) {
+    try {
+      localStorage.setItem(WIDTH_KEY, String(S.width));
+    } catch {}
+  }
   emit('width');
 }
 

@@ -61,7 +61,7 @@ export async function openShareCode(code: string): Promise<void> {
     }
   }
   replaceAll(keepLanguage(applyCatalogContent(S.config, content, 'bundle', themeId), S.config));
-  if (typeof r.cols === 'number') setWidth(r.cols);
+  if (typeof r.cols === 'number') setWidth(r.cols, { persist: false });
   toast(dropped ? t('share.open.dropped', { count: dropped }) : t('share.open.done'), 'info');
 }
 
@@ -109,16 +109,20 @@ async function copy(text: string, area: HTMLTextAreaElement): Promise<void> {
 export async function shareDialog(): Promise<void> {
   const box = h('div', { class: 'share-box' });
   let current: ShareInfo | null = null;
+  let seq = 0;
   const render = async (include: boolean) => {
+    const n = ++seq;
     let info: ShareInfo;
     try {
       info = await api.share(S.config, include, S.width);
     } catch (err) {
+      if (n !== seq) return;
       current = null;
       clear(box);
       box.append(h('div', { class: 'form-error', role: 'alert' }, message(err)));
       return;
     }
+    if (n !== seq) return;
     current = info;
     const area = codeArea({ readonly: true, rows: 5, 'aria-label': t('share.dialog.title') });
     area.value = info.code;
@@ -126,7 +130,10 @@ export async function shareDialog(): Promise<void> {
     const toggle = h('input', {
       type: 'checkbox',
       checked: info.included,
-      onChange: () => void render(toggle.checked),
+      onChange: () => {
+        toggle.disabled = true;
+        void render(toggle.checked);
+      },
     });
     clear(box);
     box.append(
