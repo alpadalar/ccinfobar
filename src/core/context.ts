@@ -8,6 +8,7 @@ import { readJj } from '../data/jj.js';
 import { createJobReader } from '../data/jobs/runner.js';
 import { hookTurnStart } from '../data/live.js';
 import { readRepos } from '../data/repos.js';
+import { readSandbox } from '../data/sandbox.js';
 import { readTranscript } from '../data/transcript.js';
 import { COMMAND_BUDGET_DEFAULT } from './display-opts.js';
 import type { Config, DataSources, RenderContext, StatusPayload } from './types.js';
@@ -102,6 +103,7 @@ export function createContext(opts: ContextOptions): RenderContext {
             now: now.getTime(),
           }),
         ),
+      sandbox: opts.data?.sandbox ?? lazy(() => readSandbox(opts.payload.workspace?.project_dir ?? cwd, env)),
       agents:
         opts.data?.agents ??
         lazy(() => {

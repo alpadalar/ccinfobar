@@ -14,6 +14,7 @@ import {
   sampleLimits,
   samplePayload,
   sampleRepos,
+  sampleSandbox,
   sampleTranscript,
 } from './sample.js';
 import type { Config, DataSources, StatusPayload } from './types.js';
@@ -51,6 +52,7 @@ function base(now: number): ScenarioBundle {
       repos: () => null,
       hooks: () => sampleHooks(now),
       environment: sampleEnvironment,
+      sandbox: sampleSandbox,
     },
     env: {},
   };

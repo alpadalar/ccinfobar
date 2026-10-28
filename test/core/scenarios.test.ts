@@ -86,6 +86,7 @@ describe('scenarios', () => {
         'repos',
         'hooks',
         'environment',
+        'sandbox',
         'jobs',
       ] as const) {
         expect(typeof data[k], `${s.id}.${k}`).toBe('function');

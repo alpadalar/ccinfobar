@@ -6,6 +6,7 @@ import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js
 import { accountKey } from '../data/limits.js';
 import { hookTurnStart } from '../data/live.js';
 import { readRepos } from '../data/repos.js';
+import { readSandbox } from '../data/sandbox.js';
 import { readTranscript } from '../data/transcript.js';
 import { effectiveUsage } from '../data/usage.js';
 import { createContext, lazy, resolveCwd } from './context.js';
@@ -27,6 +28,7 @@ import {
   sampleLedger,
   sampleLimits,
   samplePayload,
+  sampleSandbox,
   sampleTranscript,
 } from './sample.js';
 import { sanitizeText } from './sanitize.js';
@@ -159,6 +161,7 @@ function previewContext(raw: Config, source: PreviewSource, width: number, theme
           const cwd = resolveCwd(last);
           return readEnvironment(last.workspace?.project_dir ?? cwd, cwd, env, { persist: false });
         }),
+        sandbox: lazy(() => readSandbox(last.workspace?.project_dir ?? resolveCwd(last), env)),
         ...(ledgerOn(config)
           ? {
               ledger: lazy(() => {
@@ -195,6 +198,7 @@ function previewContext(raw: Config, source: PreviewSource, width: number, theme
       repos: () => null,
       hooks: () => sampleHooks(now),
       environment: sampleEnvironment,
+      sandbox: sampleSandbox,
       jobs: () => sampleJobs(now),
     },
   });

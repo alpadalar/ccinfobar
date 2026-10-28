@@ -14,6 +14,7 @@ export type SourceKind =
   | 'repos'
   | 'hooks'
   | 'environment'
+  | 'sandbox'
   | 'job'
   | 'env'
   | 'config'
@@ -131,6 +132,8 @@ export function createTrace(): Trace {
     if (jj) data.jj = via('jj', () => jj());
     const environment = d.environment;
     if (environment) data.environment = via('environment', () => environment());
+    const sandbox = d.sandbox;
+    if (sandbox) data.sandbox = via('sandbox', () => sandbox());
     const jobs = d.jobs;
     if (jobs) {
       const now = ctx.now.getTime();

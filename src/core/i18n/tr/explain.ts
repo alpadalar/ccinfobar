@@ -132,6 +132,7 @@ export const explainMessages = {
   'explain.source.repos': 'çalışma alanı depo taraması',
   'explain.source.hooks': 'hook günlüğü',
   'explain.source.environment': 'bellek dosyaları, kurallar ve ayarlar',
+  'explain.source.sandbox': 'sandbox ayarları',
   'explain.source.job': 'iş {path}',
   'explain.source.job.age': '{age} önce',
   'explain.source.job.ok': 'tamam',

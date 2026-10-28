@@ -357,6 +357,7 @@ export interface DataSources {
   repos?(): import('../data/repos.js').WorkspaceRepos | null;
   hooks?(): import('../data/hooks.js').HookState | null;
   environment?(): import('../data/environment.js').EnvCounts | null;
+  sandbox?(): import('../data/sandbox.js').SandboxState | null;
   jobs?(): import('../data/jobs/runner.js').JobReader;
   jj?(): import('../data/jj.js').JjReader | null;
   agents(): import('../data/agents.js').AgentInfo[];

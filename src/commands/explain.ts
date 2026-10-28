@@ -36,6 +36,7 @@ import {
   sampleLedger,
   sampleLimits,
   samplePayload,
+  sampleSandbox,
   sampleTranscript,
 } from '../core/sample.js';
 import { sanitizeText } from '../core/sanitize.js';
@@ -61,6 +62,7 @@ import { ledgerOn, ledgerView, projectRoot, readLedger } from '../data/ledger.js
 import { accountKey, type LimitsView, modelKey, readLimitsStore } from '../data/limits.js';
 import { hookTurnStart } from '../data/live.js';
 import { readRepos } from '../data/repos.js';
+import { readSandbox } from '../data/sandbox.js';
 import { readTranscript, type TranscriptInfo, transcriptCacheName } from '../data/transcript.js';
 import { effectiveUsage, type UsageCache, usageKey } from '../data/usage.js';
 import { getWidget } from '../widgets/index.js';
@@ -136,6 +138,7 @@ function readOnlyData(
       const cwd = resolveCwd(payload);
       return readEnvironment(payload.workspace?.project_dir ?? cwd, cwd, env, { persist: false, now });
     }),
+    sandbox: lazy(() => readSandbox(payload.workspace?.project_dir ?? resolveCwd(payload), env)),
   };
   if (ledgerOn(config)) {
     data.ledger = lazy(() => {
@@ -162,6 +165,7 @@ function sampleData(now: number, payload: StatusPayload): DataSources {
     repos: () => null,
     hooks: () => sampleHooks(now),
     environment: sampleEnvironment,
+    sandbox: sampleSandbox,
     jobs: () => sampleJobs(now),
   };
 }

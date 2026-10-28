@@ -9,6 +9,7 @@ import type { JobEnvelope, JobReader } from '../data/jobs/runner.js';
 import type { LedgerView } from '../data/ledger.js';
 import type { LimitsView, ResolvedWindow } from '../data/limits.js';
 import type { WorkspaceRepos } from '../data/repos.js';
+import type { SandboxState } from '../data/sandbox.js';
 import type { TranscriptInfo } from '../data/transcript.js';
 import type { GhValue, HttpValue, StatusValue } from './job-values.js';
 import { toEpochMs } from './time.js';
@@ -365,6 +366,10 @@ export function sampleHooks(now = Date.now()): HookState {
     lastPermission: null,
     agents: Object.create(null),
   };
+}
+
+export function sampleSandbox(): SandboxState {
+  return { enabled: true, strict: false };
 }
 
 export function sampleEnvironment(): EnvCounts {
