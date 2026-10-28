@@ -107,4 +107,5 @@ export const cliMessages = {
   'help.opt.help': 'Bu yardımı gösterir',
   'cli.unknownCommand': 'Bilinmeyen komut "{command}". ccinfobar --help çalıştırın.',
   'cli.invalidJson': "ccinfobar: stdin'den gelen JSON geçersiz",
+  'cli.badInt': '{flag} için {min} ile {max} arasında bir tam sayı gerekir',
 } satisfies Record<keyof typeof enCli, Message>;

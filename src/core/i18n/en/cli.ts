@@ -100,4 +100,5 @@ export const cliMessages = {
   'help.opt.help': 'Show this help',
   'cli.unknownCommand': 'Unknown command "{command}". Run ccinfobar --help.',
   'cli.invalidJson': 'ccinfobar: invalid JSON on stdin',
+  'cli.badInt': '{flag} needs a whole number from {min} to {max}',
 } as const;

@@ -12,6 +12,7 @@ const SWEPT: string[] = [
   'src/cli/main.ts',
   'src/cli/render.ts',
   'src/cli/lang.ts',
+  'src/cli/flags.ts',
   'src/core/rotation.ts',
   'src/importers/index.ts',
   'src/importers/ccstatusline.ts',
