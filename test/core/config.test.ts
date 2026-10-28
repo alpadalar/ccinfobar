@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  COMMAND_BUDGET_DEFAULT,
   defaultConfig,
   inspectConfigText,
   loadConfig,
@@ -17,6 +18,12 @@ import { SCENARIO_NOW } from '../../src/core/scenarios.js';
 import { withLang } from '../helpers.js';
 
 describe('config', () => {
+  it('takes the command budget default from a pure module, not from the exec module', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../../src/core/config.ts'), 'utf8');
+    expect(src).not.toContain('data/exec');
+    expect(COMMAND_BUDGET_DEFAULT).toBe(3000);
+  });
+
   it('normalizes commandBudgetMs with a clamp and keeps it out of the defaults', () => {
     expect(normalizeConfig({ commandBudgetMs: 1500 }).commandBudgetMs).toBe(1500);
     expect(normalizeConfig({ commandBudgetMs: 50 }).commandBudgetMs).toBe(100);

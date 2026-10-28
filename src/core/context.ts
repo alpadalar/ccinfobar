@@ -1,6 +1,6 @@
 import { readAgents } from '../data/agents.js';
 import { readEnvironment } from '../data/environment.js';
-import { COMMAND_BUDGET_DEFAULT, execCommand } from '../data/exec.js';
+import { execCommand } from '../data/exec.js';
 import { readGit } from '../data/git.js';
 import { readGsd } from '../data/gsd.js';
 import { readHookState } from '../data/hooks.js';
@@ -9,6 +9,7 @@ import { createJobReader } from '../data/jobs/runner.js';
 import { hookTurnStart } from '../data/live.js';
 import { readRepos } from '../data/repos.js';
 import { readTranscript } from '../data/transcript.js';
+import { COMMAND_BUDGET_DEFAULT } from './display-opts.js';
 import type { Config, DataSources, RenderContext, StatusPayload } from './types.js';
 
 export function lazy<T>(fn: () => T): () => T {

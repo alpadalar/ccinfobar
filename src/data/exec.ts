@@ -1,7 +1,5 @@
 import { execSync } from 'node:child_process';
 
-export const COMMAND_BUDGET_DEFAULT = 3000;
-
 export interface ExecOptions {
   input: string;
   cwd: string;

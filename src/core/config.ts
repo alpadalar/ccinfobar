@@ -1,8 +1,7 @@
 import fs from 'node:fs';
-import { COMMAND_BUDGET_DEFAULT } from '../data/exec.js';
 import { writeAtomic } from '../data/store.js';
 import { SUBAGENT_FIELDS, type SubagentField } from '../widgets/shared.js';
-import { GLYPH_MODES, OVERFLOW_MODES } from './display-opts.js';
+import { COMMAND_BUDGET_DEFAULT, GLYPH_MODES, OVERFLOW_MODES } from './display-opts.js';
 import { normalizeHeaderSpec, parseHeaderSpec, parseUrlTemplate } from './http-spec.js';
 import { t } from './i18n/index.js';
 import { asciiLower, LANGUAGE_SETTINGS } from './i18n/languages.js';

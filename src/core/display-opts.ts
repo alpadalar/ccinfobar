@@ -39,3 +39,6 @@ export function needsWidth(config: Config): boolean {
   // only a fixed maxWidth needs no terminal width (implicit truncate does)
   return typeof config.maxWidth !== 'number';
 }
+
+// ms all command widgets of one refresh share
+export const COMMAND_BUDGET_DEFAULT = 3000;
