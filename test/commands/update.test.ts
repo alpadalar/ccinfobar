@@ -231,6 +231,7 @@ describe('manual update output', () => {
         installs.push([v, prefix]);
         if (opts.fail) throw new Error(opts.fail);
       },
+      verify: async () => null,
       installKind: () => opts.kind ?? 'npm-global',
       writeState: () => {},
       log: (l) => out.push(l),

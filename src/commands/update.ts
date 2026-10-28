@@ -12,6 +12,7 @@ import {
   installChecked,
   installVersionAsync,
   type Verify,
+  verifyInstall,
 } from '../data/self-update.js';
 import {
   BREW_UPGRADE,
@@ -76,7 +77,7 @@ export function takeOverAfterUpdate(env: NodeJS.ProcessEnv = process.env): void 
 export interface UpdateDeps {
   fetchLatest: (timeoutMs: number) => Promise<string>;
   install: NonNullable<CheckDeps['install']>;
-  verify?: Verify;
+  verify: Verify;
   installKind: () => InstallKind;
   writeState: typeof writeUpdateState;
   log: (line: string) => void;
@@ -86,6 +87,7 @@ export interface UpdateDeps {
 const DEPS: UpdateDeps = {
   fetchLatest,
   install: (v, p, sig) => installVersionAsync(v, p, sig),
+  verify: verifyInstall,
   installKind,
   writeState: writeUpdateState,
   log: (line) => console.log(line),
@@ -131,7 +133,7 @@ export async function manualUpdate(
   try {
     out = await installChecked(latest, current, prefix, process.env, {
       install: d.install,
-      verify: d.verify ?? (deps.install ? async () => null : undefined),
+      verify: d.verify,
     });
   } catch (err) {
     d.error(t('cmd.update.npmFailed', { message: (err as Error).message }));
