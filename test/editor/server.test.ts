@@ -459,8 +459,7 @@ describe('editor server', () => {
   it('shuts down on request', async () => {
     const res = await request('POST', '/api/shutdown', { body: '{}' });
     expect(res.status).toBe(200);
-    await new Promise((r) => setTimeout(r, 200));
-    await expect(request('GET', '/api/state')).rejects.toThrow();
+    await vi.waitFor(() => expect(request('GET', '/api/state')).rejects.toThrow(), { timeout: 10_000 });
   });
 });
 

@@ -165,7 +165,7 @@ describe('performance', () => {
 
 const SPAWNS = ['execFileSync', 'execSync', 'spawn', 'spawnSync', 'execFile', 'exec', 'fork'] as const;
 
-describe.skipIf(fs.existsSync(path.join(os.tmpdir(), '.git')))('live widgets through real readers', () => {
+describe('live widgets through real readers', () => {
   it('render workspace-repos, env-counts, turn-timer, tool-activity and permission-wait without spawning', () => {
     const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-live-perf-')));
     fx.managedDir = path.join(root, 'managed');
@@ -179,6 +179,7 @@ describe.skipIf(fs.existsSync(path.join(os.tmpdir(), '.git')))('live widgets thr
     const env = {
       CLAUDE_CONFIG_DIR: path.join(root, 'claude'),
       CCINFOBAR_CACHE_DIR: path.join(root, 'cache'),
+      GIT_CEILING_DIRECTORIES: path.dirname(root),
     };
     const ws = path.join(root, 'ws');
     for (const [name, branch] of [
@@ -356,7 +357,7 @@ describe('phase 6 widgets through real readers', () => {
   });
 });
 
-describe.skipIf(fs.existsSync(path.join(os.tmpdir(), '.git')))('phase 7 render through real readers', () => {
+describe('phase 7 render through real readers', () => {
   const files = (dir: string): string[] =>
     fs.existsSync(dir) ? (fs.readdirSync(dir, { recursive: true }) as string[]) : [];
 
@@ -366,6 +367,7 @@ describe.skipIf(fs.existsSync(path.join(os.tmpdir(), '.git')))('phase 7 render t
       CLAUDE_CONFIG_DIR: path.join(root, 'claude'),
       CCINFOBAR_CACHE_DIR: path.join(root, 'cache'),
       CCINFOBAR_CONFIG_DIR: root,
+      GIT_CEILING_DIRECTORIES: path.dirname(root),
     };
     const payload: StatusPayload = {
       ...base(),
