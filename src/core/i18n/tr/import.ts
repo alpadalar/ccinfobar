@@ -125,6 +125,7 @@ export const importMessages = {
   'import.note.separatorMerged':
     '{tool} satırları farklı ayraçlar kullanıyor; artık her satır en sık kullanılan ayracı ({separator}) kullanıyor',
   'import.note.hudIgnored': '{file} bir JSON nesnesi değil, yok sayıldı',
+  'import.note.combined': '{tool} "{names}" tek bir {widget} widget\'ında birleştirildi',
   'import.note.hudApprox': '{tool} "{name}", {widget} bileşeniyle yaklaşık olarak gösteriliyor',
   'import.note.loginTypeApprox':
     '{tool} plan veya giriş türü, provider bileşeniyle yaklaşık olarak gösteriliyor',

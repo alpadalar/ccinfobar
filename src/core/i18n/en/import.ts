@@ -119,6 +119,7 @@ export const importMessages = {
   'import.note.separatorMerged':
     '{tool} lines use different separators; every line now uses the most common one, {separator}',
   'import.note.hudIgnored': '{file} is not a JSON object and was ignored',
+  'import.note.combined': '{tool} "{names}" are combined into one {widget} widget',
   'import.note.hudApprox': '{tool} "{name}" is approximated by the {widget} widget',
   'import.note.loginTypeApprox': '{tool} plan or login type is approximated by the provider widget',
   'import.note.hudShownAlways':

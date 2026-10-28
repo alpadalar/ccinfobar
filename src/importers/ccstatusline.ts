@@ -84,6 +84,8 @@ const RENAMED: Record<string, { type: string; options?: Record<string, OptionVal
   'flex-separator': { type: 'flex' },
 };
 
+const SPLIT = new Set(['git-insertions', 'git-deletions', 'jj-insertions', 'jj-deletions']);
+
 export const TARGETS: readonly string[] = [
   ...new Set([...SAME, ...Object.values(RENAMED).map((r) => r.type), 'text', 'command', 'separator']),
 ];
@@ -120,6 +122,29 @@ export function convertColor(v: unknown): string | undefined {
   return undefined;
 }
 
+type Pair = { src: string; item: WidgetItem };
+
+function collapse(pairs: Pair[], notes: ImportNote[]): WidgetItem[] {
+  const kept: Pair[] = [];
+  for (const p of pairs) {
+    let at = kept.length - 1;
+    while (at >= 0 && kept[at]!.item.type === 'separator') at--;
+    const prev = at >= 0 ? kept[at] : undefined;
+    if (SPLIT.has(p.src) && prev && prev.item.type === p.item.type) {
+      kept.length = at + 1;
+      const text = t('import.note.combined', {
+        tool: 'ccstatusline',
+        names: `${prev.src}, ${p.src}`,
+        widget: p.item.type,
+      });
+      notes.push({ kind: 'approx', text });
+      continue;
+    }
+    kept.push(p);
+  }
+  return kept.map((p) => p.item);
+}
+
 function convertItem(raw: Raw, notes: ImportNote[]): WidgetItem | null {
   const type = String(raw.type ?? '');
   const id = String(raw.id ?? type);
@@ -147,6 +172,10 @@ function convertItem(raw: Raw, notes: ImportNote[]): WidgetItem | null {
     const text = t('import.note.noEquivalent', { tool: 'ccstatusline', name: sanitizeText(type) });
     notes.push({ kind: 'drop', text });
     return null;
+  }
+  if (type === 'jj-root-dir') {
+    const text = t('import.note.hudApprox', { tool: 'ccstatusline', name: type, widget: item.type });
+    notes.push({ kind: 'approx', text });
   }
   const meta = (raw.metadata && typeof raw.metadata === 'object' ? raw.metadata : {}) as Raw;
   const states = hideNotes(type, meta.hide, notes);
@@ -181,11 +210,14 @@ export function importCcstatusline(raw: unknown): ImportResult {
   const s = (raw && typeof raw === 'object' ? raw : {}) as Raw;
   const lines = Array.isArray(s.lines) ? (s.lines as unknown[]) : [];
   const config: Partial<Config> = {
-    lines: lines.map((line) =>
-      (Array.isArray(line) ? (line as Raw[]) : [])
-        .map((it) => convertItem(it, notes))
-        .filter((it): it is WidgetItem => it !== null),
-    ),
+    lines: lines.map((line) => {
+      const pairs: Pair[] = [];
+      for (const it of Array.isArray(line) ? (line as Raw[]) : []) {
+        const item = convertItem(it, notes);
+        if (item) pairs.push({ src: String(it.type ?? ''), item });
+      }
+      return collapse(pairs, notes);
+    }),
     separator: ' ',
   };
   const hasSeparatorWidgets = config.lines!.some((l) => l.some((i) => i.type === 'separator'));

@@ -133,21 +133,50 @@ describe('ccstatusline import', () => {
         ],
       ],
     });
-    expect(r.notes).toEqual([]);
+    expect(r.notes.map((n) => n.text)).toEqual([
+      t('import.note.hudApprox', { tool: 'ccstatusline', name: 'jj-root-dir', widget: 'project-dir' }),
+      t('import.note.combined', {
+        tool: 'ccstatusline',
+        names: 'jj-changes, jj-insertions',
+        widget: 'jj-changes',
+      }),
+      t('import.note.combined', {
+        tool: 'ccstatusline',
+        names: 'jj-changes, jj-deletions',
+        widget: 'jj-changes',
+      }),
+    ]);
     expect(r.config.lines![0]).toEqual([
       { id: 'b', type: 'jj-bookmarks', hideEmpty: true },
       { id: 'w', type: 'jj-workspace' },
       { id: 'r', type: 'jj-revision' },
       { id: 'd', type: 'jj-description' },
       { id: 'c', type: 'jj-changes' },
-      { id: 'i', type: 'jj-changes' },
-      { id: 'x', type: 'jj-changes', hideEmpty: true },
       { id: 'root', type: 'project-dir' },
       { id: 'f1', type: 'git-is-fork', hideEmpty: false },
       { id: 'f2', type: 'git-is-fork', hideEmpty: true, options: { symbol: 'F' } },
       { id: 'o1', type: 'git-repo', options: { ownerOnlyWhenFork: true } },
       { id: 'o2', type: 'git-repo' },
     ]);
+  });
+
+  it('collapses insertions and deletions into one changes widget', () => {
+    const line = (...types: string[]) => [types.map((type, i) => ({ id: `${type}${i}`, type }))];
+    const note = (names: string, widget: string) =>
+      t('import.note.combined', { tool: 'ccstatusline', names, widget });
+    const jj = importCcstatusline({ lines: line('jj-insertions', 'separator', 'jj-deletions') });
+    expect(jj.config.lines![0]!.map((i) => i.type)).toEqual(['jj-changes']);
+    expect(jj.notes).toEqual([{ kind: 'approx', text: note('jj-insertions, jj-deletions', 'jj-changes') }]);
+    const git = importCcstatusline({
+      lines: line('git-insertions', 'separator', 'git-deletions', 'separator', 'git-branch'),
+    });
+    expect(git.config.lines![0]!.map((i) => i.type)).toEqual(['git-changes', 'separator', 'git-branch']);
+    expect(git.notes.map((n) => n.text)).toEqual([note('git-insertions, git-deletions', 'git-changes')]);
+    const bare = importCcstatusline({ lines: line('jj-insertions', 'jj-deletions') });
+    expect(bare.config.lines![0]!.map((i) => i.type)).toEqual(['jj-changes']);
+    const same = importCcstatusline({ lines: line('jj-changes', 'jj-changes') });
+    expect(same.config.lines![0]!.map((i) => i.type)).toEqual(['jj-changes', 'jj-changes']);
+    expect(same.notes).toEqual([]);
   });
 
   it('imports the usable context widget as basis usable', () => {
