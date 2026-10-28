@@ -1,6 +1,5 @@
 import './i18n/lazy.js';
 import { t } from './i18n/index.js';
-import { isProjectHash } from './project-hash.js';
 import {
   type CostSource,
   LEDGER_ZERO_USD,
@@ -282,7 +281,7 @@ export function buildReport(data: ScanResult, opts: ReportOptions): Report {
     const s = Object.hasOwn(data.sessions, sid) ? data.sessions[sid] : undefined;
     const l = Object.hasOwn(data.ledger, sid) ? data.ledger[sid] : undefined;
     const lp = l && typeof l.p === 'string' ? l.p : '';
-    if (lp && !isProjectHash(lp)) owner.set(sid, { project: lp, approx: false });
+    if (lp && !/^[0-9a-f]{16}$/.test(lp)) owner.set(sid, { project: lp, approx: false });
     else if (s?.cwd) owner.set(sid, { project: s.cwd, approx: false });
     else if (lp && data.projectNames?.has(lp))
       owner.set(sid, { project: data.projectNames.get(lp)!, approx: false });

@@ -90,7 +90,6 @@ const PURE = [
   'src/core/job-values.ts',
   'src/core/profiles.ts',
   'src/core/prices.ts',
-  'src/core/project-hash.ts',
   'src/core/report-types.ts',
   'src/core/report-model.ts',
   'src/core/report-format.ts',

@@ -3,13 +3,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ruleNeeds } from '../core/conditions.js';
 import { cacheDir, MAX_PROJECT, normalizeRoot } from '../core/paths.js';
-import { isProjectHash } from '../core/project-hash.js';
 import { addDays, dayKey, mondayOf, monthKey } from '../core/time.js';
 import type { Config, StatusPayload } from '../core/types.js';
 import { accountKey } from './limits.js';
 import { appendLine, readJsonSafe, writeAtomic } from './store.js';
 
-export { dayKey, isProjectHash, monthKey };
+export { dayKey, monthKey };
+
+export const isProjectHash = (v: string): boolean => /^[0-9a-f]{16}$/.test(v);
 
 export interface LedgerLine {
   v: 1;

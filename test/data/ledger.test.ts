@@ -209,6 +209,10 @@ describe('projectHash', () => {
     expect(isProjectHash('0123456789abcdef0')).toBe(false);
   });
 
+  it('has no module of its own, which would be one more render chunk', () => {
+    expect(fs.existsSync(path.resolve(__dirname, '../../src/core/project-hash.ts'))).toBe(false);
+  });
+
   it('folds legacy path lines and hashed lines into one bucket', () => {
     const s = fold(line('s1', 1), line('s1', 2.5), line('s1', 3, T, A, projectHash(P)));
     expect(Object.keys(s.projects[A]!)).toEqual([projectHash(P)]);
