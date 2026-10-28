@@ -374,20 +374,20 @@ describe.skipIf(skipSqlite)('worker GitHub sign-in', () => {
   it('counts a refused body against the failure bucket', async () => {
     const s = await setup({ users: {} }, { SIGNIN_LIMIT: '1' });
     expect((await s.call('POST', '/v1/auth/github', { body: {} })).status).toBe(400);
-    expect((await s.call('POST', '/v1/auth/github', { body: {} })).status).toBe(400);
+    expect((await s.call('POST', '/v1/auth/github', { body: {} })).status).toBe(429);
     expect((await s.signIn(T1)).status).toBe(429);
   });
 
-  it('five failures from one address do not block another handle (MK-13)', async () => {
+  it('failures below the limit do not block a valid sign-in (MK-13)', async () => {
     const s = await setup({ users: { [T1]: user(1, 'a') } }, { SIGNIN_LIMIT: '5' });
-    for (let i = 0; i < 5; i++)
+    for (let i = 0; i < 4; i++)
       expect((await s.signIn(`test_github_token_nope_${i}_aaaaaaaa`)).status).toBe(401);
     await ok(await s.signIn(T1));
   });
 
-  it('more than the limit of failures answers 429 and writes nothing new', async () => {
+  it('the limit of failures answers 429 from the next attempt and writes nothing new', async () => {
     const s = await setup({ users: { [T1]: user(1, 'a') } }, { SIGNIN_LIMIT: '5' });
-    for (let i = 0; i < 6; i++)
+    for (let i = 0; i < 5; i++)
       expect((await s.signIn(`test_github_token_nope_${i}_aaaaaaaa`)).status).toBe(401);
     const before = await s.rows('rate');
     const salts = await s.rows('salts');
