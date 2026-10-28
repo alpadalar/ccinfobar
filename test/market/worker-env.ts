@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { D1Database, Env } from '../../src/market/worker/env.js';
+import { fixedWindow } from '../../src/market/server.js';
+import type { D1Database, Env, RateLimit } from '../../src/market/worker/env.js';
 import { START } from './conformance.js';
 import { d1, type TestD1 } from './d1-sqlite.js';
 
@@ -54,4 +55,13 @@ export function stubEnv(vars: Partial<Env> = {}): { env: Env; clock: Clock } {
   };
   const DB: D1Database = { prepare: no, batch: no, exec: no };
   return { env: { ...VARS, ...vars, DB } as Env, clock: clock() };
+}
+
+export function fakeRateLimit(limit: number, now: () => number): RateLimit {
+  const window = fixedWindow(limit, now);
+  return { limit: async ({ key }) => ({ success: window(key) === null }) };
+}
+
+export function throwingRateLimit(): RateLimit {
+  return { limit: () => Promise.reject(new Error('binding down')) };
 }

@@ -409,8 +409,18 @@ describe('worker/wrangler.jsonc', () => {
     expect(cfg).not.toHaveProperty('keep_vars');
   });
 
-  it('keeps the optional READS rate limit binding', () => {
-    expect(cfg.ratelimits.map((r: { name: string }) => r.name)).toEqual(['READS']);
+  it('declares the READS, WRITES and SIGNIN rate limit bindings', () => {
+    const rl = cfg.ratelimits as { name: string; namespace_id: string; simple: unknown }[];
+    expect(rl.map((r) => r.name)).toEqual(['READS', 'WRITES', 'SIGNIN']);
+    expect(new Set(rl.map((r) => r.namespace_id)).size).toBe(3);
+    expect(rl.every((r) => typeof r.namespace_id === 'string')).toBe(true);
+    expect(rl.map((r) => r.simple)).toEqual([
+      { limit: 60, period: 60 },
+      { limit: 30, period: 60 },
+      { limit: 20, period: 60 },
+    ]);
+    expect((30 * 1440) / 100_000).toBeLessThan(0.5);
+    expect((20 * 1440) / 100_000).toBeLessThan(0.5);
   });
 
   it('reads at most 60 a minute per address, far under the daily requests (WR-07)', () => {

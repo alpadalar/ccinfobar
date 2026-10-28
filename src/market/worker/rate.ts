@@ -7,7 +7,7 @@ import {
   WRITES_PER_MINUTE,
   windowOf,
 } from '../rules.js';
-import { type D1Database, type Env, intVar } from './env.js';
+import { type D1Database, type Env, intVar, type RateLimit } from './env.js';
 import { bumpRate, cleanupStatements, saltStatements } from './store.js';
 import { randomToken, sha256Hex } from './tokens.js';
 
@@ -59,16 +59,24 @@ export async function check(db: D1Database, key: string, b: Bucket, now: number)
   if (wait !== null) throw limited(wait);
 }
 
-// the key lives in memory only; a missing or failing binding never blocks reads
-export async function readAllowed(env: Env, req: Request, now: number): Promise<boolean> {
-  if (!env.READS) return true;
-  const key = `r:${(await sha256Hex(dayOf(now) + ipOf(req))).slice(0, 32)}`;
+// the key lives in memory only; a missing or failing binding never blocks
+export async function bindingAllowed(
+  b: RateLimit | undefined,
+  prefix: string,
+  req: Request,
+  now: number,
+): Promise<boolean> {
+  if (!b) return true;
+  const key = `${prefix}:${(await sha256Hex(dayOf(now) + ipOf(req))).slice(0, 32)}`;
   try {
-    return (await env.READS.limit({ key })).success !== false;
+    return (await b.limit({ key })).success !== false;
   } catch {
     return true;
   }
 }
+
+export const readAllowed = (env: Env, req: Request, now: number): Promise<boolean> =>
+  bindingAllowed(env.READS, 'r', req, now);
 
 // older salts go, so their hashes become unlinkable; answers the rate rows deleted
 export async function cleanup(db: D1Database, now: number): Promise<number> {

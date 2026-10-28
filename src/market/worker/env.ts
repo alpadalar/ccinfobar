@@ -43,6 +43,8 @@ export interface ExecutionContextLike {
 export interface Env {
   DB: D1Database;
   READS?: RateLimit;
+  WRITES?: RateLimit;
+  SIGNIN?: RateLimit;
   MARKET_NAME?: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;

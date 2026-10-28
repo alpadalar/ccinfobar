@@ -22,7 +22,13 @@
   // cleanup and a stale index every six hours (WR-03, WR-05); Free allows 5 crons per account
   "triggers": { "crons": ["17 */6 * * *"] },
   // per address; 86,400 a day at most, under the 100k Free requests (WR-07)
-  "ratelimits": [{ "name": "READS", "namespace_id": "1201", "simple": { "limit": 60, "period": 60 } }],
+  "ratelimits": [
+    { "name": "READS", "namespace_id": "1201", "simple": { "limit": 60, "period": 60 } },
+    // writes per address before any D1 row (17-D-04)
+    { "name": "WRITES", "namespace_id": "1202", "simple": { "limit": 30, "period": 60 } },
+    // sign-in flood ceiling, above the 5-failure D1 bucket
+    { "name": "SIGNIN", "namespace_id": "1203", "simple": { "limit": 20, "period": 60 } }
+  ],
   // public values; secrets go through wrangler secret
   // sign-in answers 503 until GITHUB_CLIENT_SECRET is set (R-14)
   "vars": {
