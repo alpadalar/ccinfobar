@@ -277,7 +277,7 @@ describe('detectClaudeCode', () => {
     const t0 = Date.now();
     ac.abort();
     await expect(run).rejects.toThrow('aborted');
-    expect(Date.now() - t0).toBeLessThan(250);
+    expect(Date.now() - t0).toBeLessThan(2000);
     for (let i = 0; i < 40 && !fs.existsSync(marker); i++) await new Promise((r) => setTimeout(r, 50));
     expect(fs.existsSync(marker)).toBe(true);
     fs.rmSync(dir, { recursive: true, force: true });

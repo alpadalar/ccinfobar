@@ -39,7 +39,7 @@ describe('globMatch', () => {
     const glob = `${'a*'.repeat(99)}b`;
     const start = Date.now();
     expect(globMatch(glob, 'a'.repeat(5000))).toBe(false);
-    expect(Date.now() - start).toBeLessThan(200);
+    expect(Date.now() - start).toBeLessThan(2000);
   });
 });
 

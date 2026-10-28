@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   type HookDeps,
   pruneHookLogs,
@@ -213,6 +213,7 @@ describe('scanFields', () => {
 });
 
 describe('readHookStdin', () => {
+  afterEach(() => vi.useRealTimers());
   // fake fd reads: each item is one read result
   const reader = (items: Array<string | NodeJS.ErrnoException | null>, calls: number[] = []) => {
     return (buf: Buffer, cb: (err: NodeJS.ErrnoException | null, n: number) => void) => {
@@ -251,12 +252,10 @@ describe('readHookStdin', () => {
   });
 
   it('resolves at the deadline when stdin never ends', async () => {
-    const start = Date.now();
-    expect(await readHookStdin(1024, 50, reader(['par']), () => false)).toEqual({
-      text: 'par',
-      overflow: false,
-    });
-    expect(Date.now() - start).toBeLessThan(1000);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const p = readHookStdin(1024, 50, reader(['par']), () => false);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(await p).toEqual({ text: 'par', overflow: false });
   });
 
   it('caps the kept bytes and keeps draining', async () => {
@@ -288,6 +287,7 @@ describe('readHookStdin', () => {
 });
 
 describe('readStdinStream (Windows)', () => {
+  afterEach(() => vi.useRealTimers());
   it('returns the text when the stream ends', async () => {
     const s = new PassThrough();
     const p = readStdinStream(s, 1024, 1000);
@@ -298,11 +298,11 @@ describe('readStdinStream (Windows)', () => {
 
   it('resolves at the deadline when the stream never ends', async () => {
     const s = new PassThrough();
-    const start = Date.now();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const p = readStdinStream(s, 1024, 50);
     s.write('par');
+    await vi.advanceTimersByTimeAsync(50);
     expect(await p).toEqual({ text: 'par', overflow: false });
-    expect(Date.now() - start).toBeLessThan(1000);
   });
 
   it('caps the kept bytes and keeps draining', async () => {

@@ -19,6 +19,7 @@ beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-store-'));
 });
 afterEach(() => {
+  vi.useRealTimers();
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -116,16 +117,23 @@ describe('renameWithRetry', () => {
   });
 
   it('throws once the budget is spent', () => {
-    const start = Date.now();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const waits: number[] = [];
     expect(() =>
       renameWithRetry('a', 'b', 50, {
         platform: 'win32',
+        sleep: (ms) => {
+          waits.push(ms);
+          vi.advanceTimersByTime(ms);
+        },
         rename: () => {
           throw errno('EPERM');
         },
       }),
     ).toThrow('EPERM');
-    expect(Date.now() - start).toBeLessThan(200);
+    expect(waits.reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
+    expect(waits.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(50);
+    expect(Math.max(...waits)).toBeLessThanOrEqual(100);
   });
 
   it('caps each wait at 100 ms', () => {

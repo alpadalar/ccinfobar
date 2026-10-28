@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../../../src/core/types.js';
 import { retryAfterMs } from '../../../src/data/jobs/fetch.js';
 import {
@@ -301,6 +301,7 @@ describe('scheduleRequests', () => {
 });
 
 describe('executeJob', () => {
+  afterEach(() => vi.useRealTimers());
   const ctx = (env: NodeJS.ProcessEnv, prev: JobEnvelope<string> | null = null): JobCtx<string> => ({
     env,
     config: {} as Config,
@@ -396,11 +397,14 @@ describe('executeJob', () => {
 
   it('times out a slow run', async () => {
     const env = tmpEnv();
-    const out = await executeJob(
-      job(() => new Promise((r) => setTimeout(() => r(okEnvelope('status', 'late', NOW)), 400).unref())),
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const pending = executeJob(
+      job(() => new Promise(() => {})),
       { key: 'status' },
       ctx(env),
     );
+    await vi.advanceTimersByTimeAsync(50);
+    const out = await pending;
     expect(out).toMatchObject({ ok: false, error: 'timeout' });
     expect(readEnvelope('status', env)?.error).toBe('timeout');
   });
