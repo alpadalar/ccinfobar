@@ -112,6 +112,13 @@ import type { Config, ProgressConfig, WidgetItem } from '../core/types.js';
 import { gsdInstalled } from '../data/gsd.js';
 import { PROGRESS_EVENTS, progressChannel } from '../data/progress.js';
 import { requestClear } from '../data/progress-clear.js';
+import {
+  type CheckDeps,
+  type InstallOutcome,
+  installChecked,
+  type Verify,
+  verifyInstall,
+} from '../data/self-update.js';
 import { writeAtomic } from '../data/store.js';
 import type { ImportTarget } from '../importers/confirm.js';
 import { ID_PART_RE, isRemoteId, REPORT_REASON_MAX } from '../market/protocol.js';
@@ -136,6 +143,7 @@ export interface EditorOptions {
   claudeVersion?: () => string | null | Promise<string | null>;
   installKind?: () => InstallKind;
   fetchLatest?: (timeoutMs: number) => Promise<string>;
+  update?: { install?: CheckDeps['install']; verify?: Verify };
   detached?: { idleMs: number; stateFile: string; checkMs?: number; now?: () => number };
   // a decoded share code; the page opens it from #c=
   share?: string;
@@ -1671,16 +1679,48 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           if (kind !== 'npm-global' && kind !== 'local') {
             throw httpError(409, 'err.server.cannotUpdate', { kind });
           }
+          let out: InstallOutcome;
           try {
-            await installVersionAsync(latest, kind === 'local' ? localPrefix() : undefined);
+            out = await installChecked(
+              latest,
+              VERSION,
+              kind === 'local' ? localPrefix() : undefined,
+              process.env,
+              {
+                install: opts.update?.install ?? ((v, p, sig) => installVersionAsync(v, p, sig)),
+                verify: opts.update?.verify ?? verifyInstall,
+                recordRejected: (r) => writeUpdateState({ checkedAt: Date.now(), ...r }),
+              },
+            );
           } catch (err) {
             if ((err as Error).message === 'digest-unavailable') {
               throw httpError(500, 'err.server.digestUnavailable');
             }
             throw httpError(500, 'err.server.npmFailed', { error: (err as Error).message });
           }
+          if ('rejected' in out) {
+            writeUpdateState({
+              checkedAt: Date.now(),
+              latest,
+              rejected: latest,
+              rollback: out.rollback,
+              reason: out.reason,
+            });
+            throw httpError(500, 'err.server.updateRejected', {
+              version: latest,
+              reason: out.reason,
+              rollback: out.rollback,
+            });
+          }
           writeUpdateState({ checkedAt: Date.now(), latest, installed: latest });
-          send(res, 200, { current: VERSION, latest, newer, installed: latest, kind });
+          send(res, 200, {
+            current: VERSION,
+            latest,
+            newer,
+            installed: latest,
+            kind,
+            ...(out.inconclusive ? { inconclusive: out.inconclusive } : {}),
+          });
           return;
         }
         writeUpdateState({ checkedAt: Date.now(), latest });

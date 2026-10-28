@@ -74,4 +74,5 @@ export const errorMessages = {
   'err.server.digestUnavailable':
     'npm güncellemeyi kuramadı ve GitHub sürüm için sağlama toplamı yayımlamadı; hiçbir şey kurulmadı',
   'err.server.npmFailed': 'npm install başarısız oldu: {error}',
+  'err.server.updateRejected': '{version} denetimi geçemedi ({reason}); geri dönüş: {rollback}',
 } satisfies Record<keyof typeof enErrors, Message>;

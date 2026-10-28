@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InstallKind } from '../../src/commands/update.js';
 import { t } from '../../src/core/i18n/index.js';
+import { readUpdateState } from '../../src/data/update-state.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
 import { withLang } from '../helpers.js';
 
@@ -40,7 +41,11 @@ function request(
   });
 }
 
-async function start(kind: InstallKind, fetchLatest: (ms: number) => Promise<string>): Promise<void> {
+async function start(
+  kind: InstallKind,
+  fetchLatest: (ms: number) => Promise<string>,
+  update?: { verify?: (v: string) => Promise<string | null> },
+): Promise<void> {
   handle = await startEditor({
     configPath: path.join(dir, 'config', 'c.json'),
     open: false,
@@ -48,6 +53,7 @@ async function start(kind: InstallKind, fetchLatest: (ms: number) => Promise<str
     claudeVersion: () => null,
     installKind: () => kind,
     fetchLatest,
+    update: { install, ...update },
   });
   port = Number(new URL(handle.url).port);
 }
@@ -130,5 +136,42 @@ describe('editor update api on a Homebrew copy', () => {
     const res = await request('POST', '/api/update', '{"install":true}');
     expect(res.status).toBe(502);
     expect(install).not.toHaveBeenCalled();
+  });
+});
+
+describe('editor update api verification', () => {
+  const stateOf = () => readUpdateState();
+
+  it('answers 500 updateRejected and records the state when the check fails', async () => {
+    await start('npm-global', latest, { verify: async (v) => (v === '99.0.0' ? 'render-failed:1' : null) });
+    const res = await request('POST', '/api/update', '{"install":true}');
+    expect(res.status).toBe(500);
+    expect(res.json().errorId).toBe('err.server.updateRejected');
+    expect(res.json().errorParams).toEqual({ version: '99.0.0', reason: 'render-failed:1', rollback: 'ok' });
+    expect(res.json().error).toBe('99.0.0 failed its check (render-failed:1); rollback ok');
+    expect(install.mock.calls.map((c) => (c as unknown as string[])[0])).toEqual([
+      '99.0.0',
+      expect.any(String),
+    ]);
+    expect(stateOf()).toMatchObject({ rejected: '99.0.0', rollback: 'ok', reason: 'render-failed:1' });
+    expect(withLang('tr', () => t('err.server.updateRejected', res.json().errorParams))).toBe(
+      '99.0.0 denetimi geçemedi (render-failed:1); geri dönüş: ok',
+    );
+  });
+
+  it('installs when the check passes', async () => {
+    await start('npm-global', latest, { verify: async () => null });
+    const res = await request('POST', '/api/update', '{"install":true}');
+    expect(res.status).toBe(200);
+    expect(res.json()).toMatchObject({ installed: '99.0.0' });
+    expect(res.json()).not.toHaveProperty('inconclusive');
+    expect(stateOf()).toMatchObject({ installed: '99.0.0' });
+  });
+
+  it('keeps the install and says the check was inconclusive', async () => {
+    await start('npm-global', latest, { verify: async () => 'entry-missing' });
+    const res = await request('POST', '/api/update', '{"install":true}');
+    expect(res.status).toBe(200);
+    expect(res.json()).toMatchObject({ installed: '99.0.0', inconclusive: 'entry-missing' });
   });
 });

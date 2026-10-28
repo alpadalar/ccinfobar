@@ -70,4 +70,5 @@ export const errorMessages = {
   'err.server.digestUnavailable':
     'npm could not install the update and GitHub published no checksum for the release; nothing was installed',
   'err.server.npmFailed': 'npm install failed: {error}',
+  'err.server.updateRejected': '{version} failed its check ({reason}); rollback {rollback}',
 } as const;
