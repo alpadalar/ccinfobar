@@ -91,7 +91,7 @@ export interface Job<V> {
   keys(input: JobInput): JobRequest[];
   accepts(req: JobRequest, input: AcceptInput): boolean;
   due(envelope: JobEnvelope<V> | null, now: number, req: JobRequest): boolean;
-  readPrev?(key: string, env: NodeJS.ProcessEnv): JobEnvelope<V> | null;
+  readPrev?(key: string, env: NodeJS.ProcessEnv, reader?: JobReader): JobEnvelope<V> | null;
   run(req: JobRequest, ctx: JobCtx<V>): Promise<JobEnvelope<V>>;
 }
 

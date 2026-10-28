@@ -4,6 +4,7 @@ import { BREW_UPGRADE } from '../core/brew.js';
 import { configDir } from '../core/paths.js';
 import type { Config, StatusPayload } from '../core/types.js';
 import {
+  type JobReader,
   jobsDisabled,
   nonessentialTrafficOff,
   readEnvelope,
@@ -31,8 +32,11 @@ export function updateFile(env: NodeJS.ProcessEnv = process.env): string {
   return legacyUpdateFile(env);
 }
 
-export function readUpdateState(env: NodeJS.ProcessEnv = process.env): UpdateState | null {
-  const e = readEnvelope<UpdateValue>('update', env);
+export function readUpdateState(
+  env: NodeJS.ProcessEnv = process.env,
+  reader?: JobReader,
+): UpdateState | null {
+  const e = reader ? reader.job<UpdateValue>('update') : readEnvelope<UpdateValue>('update', env);
   return e ? toUpdateState(e) : readLegacyUpdate(env);
 }
 
@@ -76,19 +80,38 @@ export function compareVersions(a: string, b: string): number {
   return comparePre(pa.pre, pb.pre);
 }
 
+const newer = (s: UpdateState | null, current: string): string | null =>
+  s?.latest && compareVersions(s.latest, current) > 0 ? s.latest : null;
+
+const rejectedIn = (s: UpdateState | null, current: string): { rejected: string } | null =>
+  s?.rejected && s.latest === s.rejected && compareVersions(s.rejected, current) > 0
+    ? { rejected: s.rejected }
+    : null;
+
 export function availableUpdate(current: string, env: NodeJS.ProcessEnv = process.env): string | null {
-  const s = readUpdateState(env);
-  return s?.latest && compareVersions(s.latest, current) > 0 ? s.latest : null;
+  return newer(readUpdateState(env), current);
 }
 
 export function rejectedUpdate(
   current: string,
   env: NodeJS.ProcessEnv = process.env,
 ): { rejected: string } | null {
-  const s = readUpdateState(env);
-  return s?.rejected && s.latest === s.rejected && compareVersions(s.rejected, current) > 0
-    ? { rejected: s.rejected }
-    : null;
+  return rejectedIn(readUpdateState(env), current);
+}
+
+function noticeFor(
+  config: Config,
+  env: NodeJS.ProcessEnv,
+  kindOf: () => InstallKind,
+  latestOf: () => string | null,
+): string | null {
+  if (config.update === 'off' || updatesDisabled(config, env)) return null;
+  // most renders know no newer version, so skip the realpath
+  const latest = latestOf();
+  if (!latest) return null;
+  const kind = kindOf();
+  if (effectiveUpdate(config, kind) !== 'notify' || kind === 'npx') return null;
+  return `⬆ ccinfobar ${latest} · ${updateHint(kind)}`;
 }
 
 export function updateNotice(
@@ -97,13 +120,24 @@ export function updateNotice(
   env: NodeJS.ProcessEnv = process.env,
   kindOf: () => InstallKind = installKind,
 ): string | null {
-  if (config.update === 'off' || updatesDisabled(config, env)) return null;
-  // most renders know no newer version, so skip the realpath
-  const latest = availableUpdate(current, env);
-  if (!latest) return null;
-  const kind = kindOf();
-  if (effectiveUpdate(config, kind) !== 'notify' || kind === 'npx') return null;
-  return `⬆ ccinfobar ${latest} · ${updateHint(kind)}`;
+  return noticeFor(config, env, kindOf, () => availableUpdate(current, env));
+}
+
+// one state read serves the notice and the rejected check
+export function updateInfo(
+  config: Config,
+  current: string,
+  env: NodeJS.ProcessEnv = process.env,
+  reader?: JobReader,
+  kindOf: () => InstallKind = installKind,
+): { notice: string | null; rejected: { rejected: string } | null } {
+  let state: UpdateState | null | undefined;
+  const read = (): UpdateState | null => {
+    if (state === undefined) state = readUpdateState(env, reader);
+    return state;
+  };
+  const notice = noticeFor(config, env, kindOf, () => newer(read(), current));
+  return { notice, rejected: updatesDisabled(config, env) ? null : rejectedIn(read(), current) };
 }
 
 export type InstallKind = 'npm-global' | 'local' | 'npx' | 'brew' | 'source' | 'unknown';

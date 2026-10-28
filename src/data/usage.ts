@@ -6,7 +6,7 @@ import { cacheDir, claudeDir, claudeJsonPath } from '../core/paths.js';
 import { deepSanitize } from '../core/sanitize.js';
 import type { Config, ModelWindow, RateWindow, StatusPayload } from '../core/types.js';
 import { getWidget } from '../widgets/index.js';
-import { type JobEnvelope, okEnvelope, readEnvelope, writeEnvelope } from './jobs/runner.js';
+import { type JobEnvelope, type JobReader, okEnvelope, readEnvelope, writeEnvelope } from './jobs/runner.js';
 import {
   accountKey,
   captureTime,
@@ -129,9 +129,9 @@ function readLegacyCache(env: NodeJS.ProcessEnv): UsageCache | null {
 }
 
 // cached API text reaches widgets after payload ingest
-export function readUsageCache(env: NodeJS.ProcessEnv = process.env): UsageCache | null {
+export function readUsageCache(env: NodeJS.ProcessEnv = process.env, reader?: JobReader): UsageCache | null {
   try {
-    const e = readEnvelope<UsageValue>(usageKey(env), env);
+    const e = reader ? reader.job<UsageValue>(usageKey(env)) : readEnvelope<UsageValue>(usageKey(env), env);
     if (e) return toUsageCache(e);
   } catch {}
   return readLegacyCache(env);
@@ -169,7 +169,7 @@ export function effectiveUsage(
   config: Config,
   payload: StatusPayload,
   env: NodeJS.ProcessEnv = process.env,
-  opts: { transcript?: () => TranscriptInfo | null; now?: number } = {},
+  opts: { transcript?: () => TranscriptInfo | null; now?: number; reader?: JobReader } = {},
 ): EffectiveUsage {
   if (!limitsOn(config, env)) {
     return {
@@ -183,7 +183,7 @@ export function effectiveUsage(
     };
   }
   const usageOn = !usageApiDisabled(config, env) && needsUsage(config, payload, env);
-  const usage = usageOn ? readUsageCache(env) : null;
+  const usage = usageOn ? readUsageCache(env, opts.reader) : null;
   const captureAt = captureTime(payload, opts.transcript);
   const storeText = readLimitsStoreText(env);
   const r = resolveLimits(payload, parseLimitsStore(storeText), usage, opts.now ?? Date.now(), captureAt);
@@ -405,11 +405,16 @@ export function recordUsage(
 }
 
 // previous state for a fetch; the shared usage.json may belong to another config dir
-export function usagePrev(env: NodeJS.ProcessEnv): {
+export function usagePrev(
+  env: NodeJS.ProcessEnv,
+  reader?: JobReader,
+): {
   cache: UsageCache | null;
   envelope: JobEnvelope<UsageValue> | null;
 } {
-  const envelope = readEnvelope<UsageValue>(usageKey(env), env);
+  const envelope = reader
+    ? reader.job<UsageValue>(usageKey(env))
+    : readEnvelope<UsageValue>(usageKey(env), env);
   if (envelope) return { cache: toUsageCache(envelope), envelope };
   const read = readLegacyCache(env);
   return { cache: read?.legacy ? null : read, envelope: null };

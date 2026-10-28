@@ -151,8 +151,8 @@ export const updateJob: Job<UpdateValue> = {
   due(e, now, req) {
     return updateDue(e ? toUpdateState(e) : null, now, req.param);
   },
-  readPrev(_key, env) {
-    const e = readEnvelope<UpdateValue>('update', env);
+  readPrev(_key, env, reader) {
+    const e = reader ? reader.job<UpdateValue>('update') : readEnvelope<UpdateValue>('update', env);
     if (e) return e;
     const s = readLegacyUpdate(env);
     return s ? fromUpdateState(s) : null;

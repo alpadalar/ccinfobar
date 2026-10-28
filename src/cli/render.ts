@@ -11,6 +11,7 @@ import { finalizeLine, render } from '../core/renderer.js';
 import { resolveTheme, withActiveTheme } from '../core/themes.js';
 import type { Config, DataSources, RenderContext, StatusPayload } from '../core/types.js';
 import { scheduleJobs } from '../data/jobs/index.js';
+import { createJobReader } from '../data/jobs/runner.js';
 import {
   ledgerOn,
   ledgerView,
@@ -25,7 +26,7 @@ import { readRepos } from '../data/repos.js';
 import { writeAtomic } from '../data/store.js';
 import { cachedTerminalWidth, terminalWidth } from '../data/terminal.js';
 import { readTranscript } from '../data/transcript.js';
-import { rejectedUpdate, updateNotice, updatesDisabled } from '../data/update-state.js';
+import { updateInfo } from '../data/update-state.js';
 import { effectiveUsage } from '../data/usage.js';
 import type { Args } from './args.js';
 import { intFlag } from './flags.js';
@@ -182,10 +183,11 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
   }
   if (config.savePayload && typeof args.flags.payload !== 'string') savePayload(payload);
   const transcript = lazy(() => readTranscript(payload.transcript_path));
-  const eff = effectiveUsage(config, payload, process.env, { transcript });
+  const jobs = createJobReader(process.env);
+  const eff = effectiveUsage(config, payload, process.env, { transcript, reader: jobs });
   const cwd = resolveCwd(eff.payload);
   const repos = lazy(() => readRepos(cwd, process.env));
-  const data: Partial<DataSources> = { transcript, limits: () => eff.limits, repos };
+  const data: Partial<DataSources> = { transcript, limits: () => eff.limits, repos, jobs: () => jobs };
   const ledgerUsed = ledgerOn(config);
   const ledger = lazy(() => readLedger(process.env, Date.now(), { budget: RENDER_BUDGET }));
   if (ledgerUsed) {
@@ -202,11 +204,9 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
   const ctx = statusContext(config, eff.payload, width, data);
   let notice: string | null = null;
   try {
-    notice = updateNotice(config, VERSION);
-    if (!updatesDisabled(config)) {
-      const rej = rejectedUpdate(VERSION);
-      if (rej) notice = t('update.rejected', { version: rej.rejected, current: VERSION });
-    }
+    const info = updateInfo(config, VERSION, process.env, jobs);
+    notice = info.notice;
+    if (info.rejected) notice = t('update.rejected', { version: info.rejected.rejected, current: VERSION });
   } catch {}
   const lines = render(ctx, { notice: notice ?? undefined });
   // NBSP in every mode: Claude Code trims and collapses plain spaces (WR-05)
@@ -217,7 +217,7 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
       const read = ledger();
       if (read) recordLedger(process.env, payload, read, Date.now());
     }
-    scheduleJobs(config, payload, process.env, path.resolve(cwd), cfgFile, { repos });
+    scheduleJobs(config, payload, process.env, path.resolve(cwd), cfgFile, { repos, reader: jobs });
   } catch {}
   try {
     const p = config.progress;

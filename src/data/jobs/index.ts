@@ -10,6 +10,7 @@ import { reposJob } from './repos.js';
 import {
   blockedByTraffic,
   type Job,
+  type JobReader,
   type JobRequest,
   jobsDisabled,
   readEnvelope,
@@ -44,6 +45,7 @@ export function scheduleJobs(
     spawn?: typeof spawnSelf;
     jobs?: Job<unknown>[];
     repos?: () => WorkspaceRepos | null;
+    reader?: JobReader;
   } = {},
 ): string[] {
   if (jobsDisabled(env)) return [];
@@ -54,7 +56,11 @@ export function scheduleJobs(
     try {
       const input = { config, payload, env, cwd, now, ...(opts.repos ? { repos: opts.repos } : {}) };
       for (const req of job.keys(input)) {
-        const prev = job.readPrev ? job.readPrev(req.key, env) : readEnvelope(req.key, env);
+        const prev = job.readPrev
+          ? job.readPrev(req.key, env, opts.reader)
+          : opts.reader
+            ? opts.reader.job(req.key)
+            : readEnvelope(req.key, env);
         if (job.due(prev, now, req)) kept.push({ req, lockMs: job.lockMs });
       }
     } catch {}

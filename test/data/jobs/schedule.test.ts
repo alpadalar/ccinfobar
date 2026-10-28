@@ -6,12 +6,17 @@ import { defaultConfig } from '../../../src/core/config.js';
 import { configPath } from '../../../src/core/paths.js';
 import { scheduleJobs } from '../../../src/data/jobs/index.js';
 import {
+  createJobReader,
+  envelopeFile,
   type Job,
   type JobNetwork,
   lockFile,
   okEnvelope,
   writeEnvelope,
 } from '../../../src/data/jobs/runner.js';
+import { updateJob } from '../../../src/data/jobs/update.js';
+import { usageJob } from '../../../src/data/jobs/usage.js';
+import { usageKey } from '../../../src/data/usage.js';
 
 const NOW = 1_800_000_000_000;
 const CWD = path.resolve(os.tmpdir(), 'proj');
@@ -135,5 +140,54 @@ describe('scheduleJobs', () => {
     const { keys, calls } = run(tmpEnv(), [fake('a-auto', 'auto', { due: () => false })]);
     expect(keys).toEqual([]);
     expect(calls).toEqual([]);
+  });
+
+  it('reads an envelope once when a widget reader already has it', () => {
+    const env = tmpEnv();
+    writeEnvelope(okEnvelope('a-auto', 1, NOW), env);
+    const file = envelopeFile('a-auto', env);
+    const reader = createJobReader(env);
+    const read = vi.spyOn(fs, 'readFileSync');
+    reader.job('a-auto');
+    try {
+      scheduleJobs(defaultConfig(), {}, env, CWD, null, {
+        now: NOW,
+        spawn: () => true,
+        jobs: [fake('a-auto', 'auto')],
+        reader,
+      });
+      expect(read.mock.calls.filter(([f]) => f === file)).toHaveLength(1);
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  it('hands the reader to a job readPrev', () => {
+    const readPrev = vi.fn(() => null);
+    const reader = createJobReader(tmpEnv());
+    scheduleJobs(defaultConfig(), {}, tmpEnv(), CWD, null, {
+      now: NOW,
+      spawn: () => true,
+      jobs: [fake('a-auto', 'auto', { readPrev })],
+      reader,
+    });
+    expect(readPrev).toHaveBeenCalledWith('a-auto', expect.anything(), reader);
+  });
+
+  it('reads the update and usage envelopes through the reader, legacy only without one', () => {
+    const env = tmpEnv();
+    const upd = okEnvelope('update', { latest: '9.9.9' }, NOW);
+    const use = okEnvelope(usageKey(env), { fetchedAt: NOW }, NOW);
+    const job = vi.fn((k: string) => (k === 'update' ? upd : k === usageKey(env) ? use : null));
+    const reader = { job } as unknown as ReturnType<typeof createJobReader>;
+    const read = vi.spyOn(fs, 'readFileSync');
+    try {
+      expect(updateJob.readPrev?.('update', env, reader)).toBe(upd);
+      expect(usageJob.readPrev?.(usageKey(env), env, reader)).toBe(use);
+      expect(job).toHaveBeenCalledTimes(2);
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      read.mockRestore();
+    }
   });
 });

@@ -30,9 +30,9 @@ export const usageJob: Job<UsageValue> = {
   due(e, now) {
     return usageDue(e ? toUsageCache(e) : null, now);
   },
-  readPrev(key, env) {
+  readPrev(key, env, reader) {
     if (key !== usageKey(env)) return null;
-    const prev = usagePrev(env);
+    const prev = usagePrev(env, reader);
     return prev.envelope ?? (prev.cache ? fromUsageCache(key, prev.cache, null) : null);
   },
   async run(req, ctx) {
