@@ -522,6 +522,14 @@ export async function bumpRate(db: D1Database, key: string, win: number): Promis
   return Number(n);
 }
 
+export async function peekRate(db: D1Database, key: string, win: number): Promise<number> {
+  const n = await db
+    .prepare('SELECT n FROM rate WHERE key = ?1 AND win = ?2')
+    .bind(key, win)
+    .first<number>('n');
+  return Number(n ?? 0);
+}
+
 // bounded per call; the rate rows are found through their window index (0004)
 export const CLEANUP_BATCH = 500;
 

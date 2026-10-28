@@ -363,18 +363,69 @@ describe.skipIf(skipSqlite)('worker GitHub sign-in', () => {
     const r = await s.signIn(T1);
     expect(r.status).toBe(429);
     expect(Number(r.headers.get('retry-after'))).toBeGreaterThan(0);
-    expect(s.fake.calls).toHaveLength(2);
+    expect(s.fake.calls).toHaveLength(3);
     const keys = (await s.rows('rate')).map((x) => String(x.key));
-    expect(keys.some((k) => k.startsWith('a:'))).toBe(true);
+    expect(keys.some((k) => k.startsWith('s:'))).toBe(true);
     expect(keys.join()).not.toContain('203.0.113.9');
     s.clock.advance(60_000);
     await ok(await s.signIn(T1));
   });
 
-  it('counts a refused body against the sign-in bucket', async () => {
+  it('counts a refused body against the failure bucket', async () => {
     const s = await setup({ users: {} }, { SIGNIN_LIMIT: '1' });
     expect((await s.call('POST', '/v1/auth/github', { body: {} })).status).toBe(400);
+    expect((await s.call('POST', '/v1/auth/github', { body: {} })).status).toBe(400);
     expect((await s.signIn(T1)).status).toBe(429);
+  });
+
+  it('five failures from one address do not block another handle (MK-13)', async () => {
+    const s = await setup({ users: { [T1]: user(1, 'a') } }, { SIGNIN_LIMIT: '5' });
+    for (let i = 0; i < 5; i++)
+      expect((await s.signIn(`test_github_token_nope_${i}_aaaaaaaa`)).status).toBe(401);
+    await ok(await s.signIn(T1));
+  });
+
+  it('more than the limit of failures answers 429 and writes nothing new', async () => {
+    const s = await setup({ users: { [T1]: user(1, 'a') } }, { SIGNIN_LIMIT: '5' });
+    for (let i = 0; i < 6; i++)
+      expect((await s.signIn(`test_github_token_nope_${i}_aaaaaaaa`)).status).toBe(401);
+    const before = await s.rows('rate');
+    const salts = await s.rows('salts');
+    const r = await s.signIn(T1);
+    expect(r.status).toBe(429);
+    expect(Number(r.headers.get('retry-after'))).toBeGreaterThan(0);
+    expect(await s.rows('rate')).toEqual(before);
+    expect(await s.rows('salts')).toEqual(salts);
+  });
+
+  it('limits successes per handle, not per address', async () => {
+    const s = await setup({ users: { [T1]: user(1, 'a'), [T2]: user(2, 'b') } }, { SIGNIN_LIMIT: '2' });
+    await ok(await s.signIn(T1));
+    await ok(await s.signIn(T1));
+    expect((await s.signIn(T1)).status).toBe(429);
+    await ok(await s.signIn(T2));
+    const keys = (await s.rows('rate')).map((x) => String(x.key));
+    expect(keys.filter((k) => k.startsWith('s:')).sort()).toEqual(['s:a', 's:b']);
+    expect(keys.every((k) => k.startsWith('s:') || k.startsWith('a:'))).toBe(true);
+    expect(keys.some((k) => k.startsWith('a:'))).toBe(false);
+  });
+
+  it('upstream errors and unavailable are not failures', async () => {
+    const s = await setup({ users: {}, status: 500 }, { SIGNIN_LIMIT: '5' });
+    expect((await s.signIn(T1)).status).toBe(502);
+    expect((await s.rows('rate')).map((x) => String(x.key)).filter((k) => k.startsWith('a:'))).toEqual([]);
+    const u = await setup({ users: {} }, { ALLOW_UNVERIFIED_GITHUB_TOKENS: '' });
+    expect((await u.signIn(T1)).status).toBe(503);
+    expect(await u.rows('rate')).toEqual([]);
+  });
+
+  it('a banned account counts as a failure', async () => {
+    const s = await setup({ users: { [T1]: user(1, 'a') } }, { SIGNIN_LIMIT: '5' });
+    await ok(await s.signIn(T1));
+    await s.db.prepare("UPDATE publishers SET banned_at = '2026-01-01T00:00:00Z'").run();
+    expect((await s.signIn(T1)).status).toBe(403);
+    const keys = (await s.rows('rate')).map((x) => String(x.key));
+    expect(keys.some((k) => k.startsWith('a:'))).toBe(true);
   });
 
   it('leaves old salts and rate rows to the cron on sign-in', async () => {

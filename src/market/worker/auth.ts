@@ -1,7 +1,7 @@
 // GitHub sign-in; the GitHub token is used once, never stored or logged (D-06, D-10, R-14)
 import { sanitizeText } from '../../core/sanitize.js';
 import { CLIENT_ID_RE, LIST_CAP, MARKET_LIMITS } from '../protocol.js';
-import { CAPS, fail, limited, retryAfterSeconds, TOKEN_RE, windowOf } from '../rules.js';
+import { CAPS, fail, limited, MarketHttpError, retryAfterSeconds, TOKEN_RE, windowOf } from '../rules.js';
 import { type Env, unverifiedOk, type WorkerDeps } from './env.js';
 import { boundedJson, json, PRIVATE_HEADERS, readJsonBody } from './http.js';
 import { isAdmin } from './moderation.js';
@@ -9,11 +9,13 @@ import { bindingAllowed, buckets, check, ipHash } from './rate.js';
 import {
   type Account,
   accountByToken,
+  bumpRate,
   claimHandle,
   deleteToken,
   type GitHubUser,
   knownAccount,
   myEntries,
+  peekRate,
   tokenStatements,
 } from './store.js';
 import { randomToken, sha256Hex } from './tokens.js';
@@ -180,27 +182,39 @@ export async function signInWithGitHub(env: Env, deps: WorkerDeps, req: Request)
   const now = deps.now();
   if (!(await bindingAllowed(env.SIGNIN, 'a', req, now)))
     throw limited(retryAfterSeconds(windowOf(now), now));
-  await check(db, `a:${await ipHash(db, req, now)}`, buckets(env).signIn, now);
-  const raw = await readJsonBody(req, BODY_CAP);
-  const token =
-    raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as { token?: unknown }).token : undefined;
-  if (typeof token !== 'string' || !GITHUB_TOKEN_RE.test(token)) throw fail(400, 'invalid');
-  const user = secret ? await viaCheckToken(deps, token, clientId, secret) : await viaUser(deps, token);
+  const b = buckets(env).signIn;
+  const win = windowOf(now, b.ms);
+  // a: counts failures only
+  const failKey = `a:${await ipHash(db, req, now)}`;
+  if ((await peekRate(db, failKey, win)) > b.limit) throw limited(retryAfterSeconds(win, now, b.ms));
   try {
-    const at = iso(deps);
-    const account = await accountFor(env, deps, user, at);
-    if (account.banned) throw fail(403, 'banned');
-    const mine = randomToken();
-    await db.batch(tokenStatements(db, account.handle, await sha256Hex(mine), at, KEEP_TOKENS));
-    return json(200, {
-      handle: account.handle,
-      token: mine,
-      displayName: account.displayName,
-      admin: isAdmin(env, account.githubId),
-    });
-  } finally {
-    // only our own app's tokens can be revoked
-    if (secret) await revoke(deps, token, clientId, secret);
+    const raw = await readJsonBody(req, BODY_CAP);
+    const token =
+      raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as { token?: unknown }).token : undefined;
+    if (typeof token !== 'string' || !GITHUB_TOKEN_RE.test(token)) throw fail(400, 'invalid');
+    const user = secret ? await viaCheckToken(deps, token, clientId, secret) : await viaUser(deps, token);
+    try {
+      const at = iso(deps);
+      const account = await accountFor(env, deps, user, at);
+      if (account.banned) throw fail(403, 'banned');
+      await check(db, `s:${account.handle}`, b, now);
+      const mine = randomToken();
+      await db.batch(tokenStatements(db, account.handle, await sha256Hex(mine), at, KEEP_TOKENS));
+      return json(200, {
+        handle: account.handle,
+        token: mine,
+        displayName: account.displayName,
+        admin: isAdmin(env, account.githubId),
+      });
+    } finally {
+      // only our own app's tokens can be revoked
+      if (secret) await revoke(deps, token, clientId, secret);
+    }
+  } catch (err) {
+    if (err instanceof MarketHttpError && [400, 401, 403].includes(err.status)) {
+      await bumpRate(db, failKey, win).catch(() => {});
+    }
+    throw err;
   }
 }
 
