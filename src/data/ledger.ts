@@ -3,18 +3,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ruleNeeds } from '../core/conditions.js';
 import { cacheDir, MAX_PROJECT, normalizeRoot } from '../core/paths.js';
+import { isProjectHash } from '../core/report-types.js';
 import { addDays, dayKey, mondayOf, monthKey } from '../core/time.js';
 import type { Config, StatusPayload } from '../core/types.js';
 import { accountKey } from './limits.js';
 import { appendLine, readJsonSafe, writeAtomic } from './store.js';
 
-export { dayKey, monthKey };
+export { dayKey, isProjectHash, monthKey };
 
 export interface LedgerLine {
   v: 1;
   t: number;
   a: string;
   s: string;
+  // sha256 prefix of the project root (legacy lines: the root)
   p: string;
   // Phase 9 rebuild input
   tp: string;
@@ -109,6 +111,12 @@ export const slotKey = (t: number): number => Math.floor(t / SLOT_MS);
 
 export { displayRoot, normalizeRoot } from '../core/paths.js';
 
+export function projectHash(root: string): string {
+  return createHash('sha256').update(root).digest('hex').slice(0, 16);
+}
+
+const projectKey = (p: string): string => (isProjectHash(p) ? p : projectHash(p));
+
 export function projectRoot(payload: StatusPayload, platform: NodeJS.Platform = process.platform): string {
   const raw =
     payload.workspace?.project_dir || payload.workspace?.current_dir || payload.cwd || process.cwd();
@@ -175,7 +183,7 @@ function foldLine(s: Summary, text: string): void {
   if (!(e.delta > 0)) return;
   const day = dayKey(e.t);
   add(child(s.days, e.a), day, e.delta);
-  add(child(child(s.projects, e.a), e.p), day, e.delta);
+  add(child(child(s.projects, e.a), projectKey(e.p)), day, e.delta);
   const k = slotKey(e.t);
   if (k < 1e9) add(child(s.slots, e.a), String(k), e.delta);
 }
@@ -231,7 +239,13 @@ function parseSummary(raw: unknown): Summary {
   for (const [a, v] of obj(r.projects)) {
     if (!idOk(a)) continue;
     const projects = map<DayRows>();
-    for (const [p, rows] of obj(v)) if (projectOk(p)) projects[p] = dayRows(rows);
+    for (const [p, rows] of obj(v)) {
+      if (!projectOk(p)) continue;
+      const key = projectKey(p);
+      const into = projects[key];
+      if (!into) projects[key] = dayRows(rows);
+      else for (const [day, n] of Object.entries(dayRows(rows))) add(into, day, n);
+    }
     s.projects[a] = projects;
   }
   for (const [a, t] of obj(r.since)) if (idOk(a) && num(t)) s.since[a] = t;
@@ -485,7 +499,7 @@ export function ledgerView(
   const today = dayKey(now);
   const month = `${monthKey(now)}-`;
   const all = sums(summary.days[account], today, monday, sunday, month);
-  const proj = sums(summary.projects[account]?.[project], today, monday, sunday, month);
+  const proj = sums(summary.projects[account]?.[projectHash(project)], today, monday, sunday, month);
   const slots = map<number>() as Record<number, number>;
   const first = slotKey(now - KEEP_SLOT_MS);
   const cur = slotKey(now);
@@ -552,7 +566,7 @@ export function recordLedger(
           t: now,
           a: accountKey(env),
           s,
-          p: projectRoot(payload),
+          p: projectHash(projectRoot(payload)),
           tp: transcriptHash(payload.transcript_path),
           c,
         };

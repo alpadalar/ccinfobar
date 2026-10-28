@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,13 +10,16 @@ import {
   dayKey,
   emptySummary,
   foldText,
+  isProjectHash,
   ledgerOn,
   ledgerView,
   monthKey,
+  projectHash,
   projectRoot,
   pruneLedger,
   RENDER_BUDGET,
   readLedger,
+  rebuildSummary,
   recordLedger,
   SLOT_MS,
   type Summary,
@@ -196,6 +200,23 @@ describe('projectRoot', () => {
   });
 });
 
+describe('projectHash', () => {
+  it('is a 16-hex sha256 prefix and tells hashes from paths', () => {
+    expect(projectHash(P)).toBe(createHash('sha256').update(P).digest('hex').slice(0, 16));
+    expect(isProjectHash(projectHash('/x'))).toBe(true);
+    expect(isProjectHash(P)).toBe(false);
+    expect(isProjectHash('C:\\x')).toBe(false);
+    expect(isProjectHash('0123456789abcdef0')).toBe(false);
+  });
+
+  it('folds legacy path lines and hashed lines into one bucket', () => {
+    const s = fold(line('s1', 1), line('s1', 2.5), line('s1', 3, T, A, projectHash(P)));
+    expect(Object.keys(s.projects[A]!)).toEqual([projectHash(P)]);
+    expect(close(s.projects[A]![projectHash(P)]!['2026-10-14'])).toBe(2);
+    expect(close(ledgerView(s, A, P, T)!.project.today)).toBe(2);
+  });
+});
+
 describe('foldText', () => {
   it('folds per account, day and project', () => {
     const s = fold(
@@ -205,8 +226,8 @@ describe('foldText', () => {
       line('s2', 0.5, T, A, '/other'),
     );
     expect(close(s.days[A]?.['2026-10-14'])).toBe(2);
-    expect(close(s.projects[A]?.[P]?.['2026-10-14'])).toBe(1.5);
-    expect(close(s.projects[A]?.['/other']?.['2026-10-14'])).toBe(0.5);
+    expect(close(s.projects[A]?.[projectHash(P)]?.['2026-10-14'])).toBe(1.5);
+    expect(close(s.projects[A]?.[projectHash('/other')]?.['2026-10-14'])).toBe(0.5);
     expect(s.since[A]).toBe(T);
     expect(Object.getPrototypeOf(s.days)).toBeNull();
     expect(Object.getPrototypeOf(s.days[A])).toBeNull();
@@ -396,6 +417,34 @@ describe('ledger files', () => {
     expect(readLedger(env, T).summary.v).toBe(1);
   });
 
+  it('re-keys a legacy summary and sums colliding day rows', () => {
+    fs.mkdirSync(path.dirname(summary()), { recursive: true });
+    fs.writeFileSync(
+      summary(),
+      JSON.stringify({
+        v: 1,
+        projects: {
+          [A]: {
+            [P]: { '2026-10-14': 1.5 },
+            [projectHash(P)]: { '2026-10-14': 0.5 },
+          },
+        },
+      }),
+    );
+    const p = readLedger(env, T).summary.projects[A]!;
+    expect(Object.keys(p)).toEqual([projectHash(P)]);
+    expect(close(p[projectHash(P)]!['2026-10-14'])).toBe(2);
+  });
+
+  it('rebuilds legacy month files to hashed keys without rewriting them', () => {
+    fs.mkdirSync(path.dirname(month()), { recursive: true });
+    const text = line('s1', 0) + line('s1', 1);
+    fs.writeFileSync(month(), text);
+    const s = rebuildSummary(env, T)!;
+    expect(Object.keys(s.projects[A]!)).toEqual([projectHash(P)]);
+    expect(fs.readFileSync(month(), 'utf8')).toBe(text);
+  });
+
   it('appends only a changed total and writes the summary when moved', () => {
     const payload = (c: number) =>
       ({
@@ -410,6 +459,8 @@ describe('ledger files', () => {
     const first = JSON.parse(lines()[0]!) as Record<string, unknown>;
     expect(first).toMatchObject({ v: 1, t: T, a: accountKey(env), s: 's1', c: 0 });
     expect(first.tp).toMatch(/^[0-9a-f]{12}$/);
+    expect(first.p).toMatch(/^[0-9a-f]{16}$/);
+    expect(fs.readFileSync(month(), 'utf8')).not.toContain(P);
     expect(Object.keys(first).sort()).toEqual(['a', 'c', 'p', 's', 't', 'tp', 'v']);
     recordLedger(env, payload(0), readLedger(env, T), T);
     expect(lines()).toHaveLength(1);
@@ -481,7 +532,7 @@ describe('retention', () => {
     );
     pruneLedger(env, s, T);
     expect(Object.keys(s.days[A]!)).toEqual([dayKey(T - 29 * DAY)]);
-    expect(Object.keys(s.projects[A]![P]!)).toEqual([dayKey(T - 29 * DAY)]);
+    expect(Object.keys(s.projects[A]![projectHash(P)]!)).toEqual([dayKey(T - 29 * DAY)]);
     expect(Object.keys(s.sessions)).toEqual(['kept']);
   });
 
