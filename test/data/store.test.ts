@@ -230,27 +230,107 @@ describe('acquireLock', () => {
     expect(acquireLock(lock, 60_000)).toBe(false);
   });
 
-  it('never grants a stale lock to two contenders', () => {
-    const lock = path.join(dir, 'locks', 'race.lock');
+  const stale = (lock: string) => {
     expect(acquireLock(lock, 60_000)).toBe(true);
     const past = new Date(Date.now() - 120_000);
     fs.utimesSync(lock, past, past);
-    const unlink = fs.unlinkSync;
+  };
+  const leftovers = (d: string) =>
+    fs.readdirSync(d).filter((n) => n.endsWith('.stale') || n.endsWith('.takeover'));
+
+  it('never grants a stale lock to two contenders', () => {
+    const lock = path.join(dir, 'locks', 'race.lock');
+    stale(lock);
+    const rename = fs.renameSync;
     let rival: boolean | null = null;
     let entered = false;
     // the rival contender runs while the first is mid-takeover
-    const spy = vi.spyOn(fs, 'unlinkSync').mockImplementation(((p: fs.PathLike) => {
-      if (String(p) === lock && !entered) {
+    const spy = vi.spyOn(fs, 'renameSync').mockImplementation(((from: fs.PathLike, to: fs.PathLike) => {
+      if (String(from) === lock && !entered) {
         entered = true;
         rival = acquireLock(lock, 60_000);
       }
-      return unlink(p);
-    }) as typeof fs.unlinkSync);
+      return rename(from, to);
+    }) as typeof fs.renameSync);
     const first = acquireLock(lock, 60_000);
     spy.mockRestore();
     expect([first, rival].filter(Boolean)).toHaveLength(1);
-    expect(fs.existsSync(`${lock}.takeover`)).toBe(false);
+    expect(leftovers(path.dirname(lock))).toEqual([]);
     expect(acquireLock(lock, 60_000)).toBe(false);
+  });
+
+  it('wins exactly once when both contenders pass the staleness check', () => {
+    const lock = path.join(dir, 'locks', 'both.lock');
+    stale(lock);
+    const rename = fs.renameSync;
+    let rival: boolean | null = null;
+    let entered = false;
+    const spy = vi.spyOn(fs, 'renameSync').mockImplementation(((from: fs.PathLike, to: fs.PathLike) => {
+      if (String(from) === lock && !entered) {
+        entered = true;
+        fs.unlinkSync(`${lock}.takeover`);
+        rival = acquireLock(lock, 60_000);
+      }
+      return rename(from, to);
+    }) as typeof fs.renameSync);
+    const first = acquireLock(lock, 60_000);
+    spy.mockRestore();
+    expect([first, rival].filter(Boolean)).toHaveLength(1);
+    expect(fs.readdirSync(path.dirname(lock)).filter((n) => n.endsWith('.stale'))).toEqual([]);
+    expect(fs.existsSync(lock)).toBe(true);
+  });
+
+  it('restores a fresh lock that appears between the check and the rename', () => {
+    const lock = path.join(dir, 'locks', 'fresh.lock');
+    stale(lock);
+    const rename = fs.renameSync;
+    let entered = false;
+    const spy = vi.spyOn(fs, 'renameSync').mockImplementation(((from: fs.PathLike, to: fs.PathLike) => {
+      if (String(from) === lock && !entered) {
+        entered = true;
+        fs.unlinkSync(lock);
+        fs.closeSync(fs.openSync(lock, 'wx'));
+      }
+      return rename(from, to);
+    }) as typeof fs.renameSync);
+    const got = acquireLock(lock, 60_000);
+    spy.mockRestore();
+    expect(got).toBe(false);
+    expect(fs.existsSync(lock)).toBe(true);
+    expect(Date.now() - fs.statSync(lock).mtimeMs).toBeLessThan(60_000);
+    expect(leftovers(path.dirname(lock))).toEqual([]);
+  });
+
+  it('restores by rename when hard links are unavailable', () => {
+    const lock = path.join(dir, 'locks', 'nolink.lock');
+    stale(lock);
+    const rename = fs.renameSync;
+    let entered = false;
+    const rn = vi.spyOn(fs, 'renameSync').mockImplementation(((from: fs.PathLike, to: fs.PathLike) => {
+      if (String(from) === lock && !entered) {
+        entered = true;
+        fs.unlinkSync(lock);
+        fs.closeSync(fs.openSync(lock, 'wx'));
+      }
+      return rename(from, to);
+    }) as typeof fs.renameSync);
+    const ln = vi.spyOn(fs, 'linkSync').mockImplementation(() => {
+      throw errno('EPERM');
+    });
+    const got = acquireLock(lock, 60_000);
+    ln.mockRestore();
+    rn.mockRestore();
+    expect(got).toBe(false);
+    expect(fs.existsSync(lock)).toBe(true);
+    expect(leftovers(path.dirname(lock))).toEqual([]);
+  });
+
+  it('replaces a plain stale lock with a fresh one and leaves no grave', () => {
+    const lock = path.join(dir, 'locks', 'plain.lock');
+    stale(lock);
+    expect(acquireLock(lock, 60_000)).toBe(true);
+    expect(Date.now() - fs.statSync(lock).mtimeMs).toBeLessThan(60_000);
+    expect(fs.readdirSync(path.dirname(lock))).toEqual(['plain.lock']);
   });
 
   it('backs off from a fresh takeover guard and clears a crashed one', () => {
@@ -261,8 +341,17 @@ describe('acquireLock', () => {
     fs.writeFileSync(`${lock}.takeover`, '');
     expect(acquireLock(lock, 60_000)).toBe(false);
     fs.utimesSync(`${lock}.takeover`, past, past);
+    const moved: string[] = [];
+    const rename = fs.renameSync;
+    const spy = vi.spyOn(fs, 'renameSync').mockImplementation(((from: fs.PathLike, to: fs.PathLike) => {
+      moved.push(String(from));
+      return rename(from, to);
+    }) as typeof fs.renameSync);
     expect(acquireLock(lock, 60_000)).toBe(false);
+    spy.mockRestore();
+    expect(moved).toEqual([`${lock}.takeover`]);
     expect(fs.existsSync(`${lock}.takeover`)).toBe(false);
+    expect(leftovers(path.dirname(lock))).toEqual([]);
     expect(acquireLock(lock, 60_000)).toBe(true);
   });
 

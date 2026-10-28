@@ -186,6 +186,39 @@ function tryCreate(file: string): boolean {
 
 const GUARD_STALE_MS = 5000;
 
+function moveIfStale(file: string, staleMs: number, now: number): boolean {
+  const grave = `${file}.${process.pid}.${randomHex(4)}.stale`;
+  try {
+    fs.renameSync(file, grave);
+  } catch {
+    return false;
+  }
+  try {
+    if (now - fs.statSync(grave).mtimeMs < staleMs) {
+      restore(grave, file);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try {
+      fs.unlinkSync(grave);
+    } catch {}
+  }
+}
+
+// a fresh lock was moved; may lose to a third creator, jobs are idempotent
+function restore(grave: string, file: string): void {
+  try {
+    fs.linkSync(grave, file);
+  } catch {
+    try {
+      if (!fs.existsSync(file)) fs.renameSync(grave, file);
+    } catch {}
+  }
+}
+
 export function acquireLock(file: string, staleMs: number, now = Date.now()): boolean {
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -209,13 +242,14 @@ function takeOver(file: string, staleMs: number, now: number): boolean {
   } catch {
     try {
       // a guard left by a crashed takeover; the next attempt retries
-      if (now - fs.statSync(guard).mtimeMs >= Math.min(staleMs, GUARD_STALE_MS)) fs.unlinkSync(guard);
+      const min = Math.min(staleMs, GUARD_STALE_MS);
+      if (now - fs.statSync(guard).mtimeMs >= min) moveIfStale(guard, min, now);
     } catch {}
     return false;
   }
   try {
     if (now - fs.statSync(file).mtimeMs < staleMs) return false;
-    fs.unlinkSync(file);
+    if (!moveIfStale(file, staleMs, now)) return false;
     return tryCreate(file);
   } catch {
     return false;
