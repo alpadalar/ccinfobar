@@ -5,7 +5,7 @@ import { CAPS, fail, limited, MarketHttpError, retryAfterSeconds, TOKEN_RE, wind
 import { type Env, unverifiedOk, type WorkerDeps } from './env.js';
 import { boundedJson, json, PRIVATE_HEADERS, readJsonBody } from './http.js';
 import { isAdmin } from './moderation.js';
-import { bindingAllowed, buckets, check, ipHash } from './rate.js';
+import { buckets, check, ipHash, limiterAllowed } from './rate.js';
 import {
   type Account,
   accountByToken,
@@ -180,7 +180,7 @@ export async function signInWithGitHub(env: Env, deps: WorkerDeps, req: Request)
   // no GitHub call and no row write on a server that cannot verify tokens
   if (secret ? !CLIENT_ID_RE.test(clientId) : !unverifiedOk(env)) throw fail(503, 'unavailable');
   const now = deps.now();
-  if (!(await bindingAllowed(env.SIGNIN, 'a', req, now)))
+  if (!(await limiterAllowed(env, env.SIGNIN, 'a', req, now)))
     throw limited(retryAfterSeconds(windowOf(now), now));
   const b = buckets(env).signIn;
   const win = windowOf(now, b.ms);

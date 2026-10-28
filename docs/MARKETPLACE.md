@@ -63,6 +63,7 @@ Every request can get `429 rate-limited`. Every write can also answer `415 unsup
 | `capabilities.cols` | The server stores `cols` and returns it; without it clients leave `cols` out of write bodies |
 | `auth` | `["token"]` (the reference server: register a handle) or `["github-device"]` (GitHub sign-in) |
 | `github.clientId` | The public client id of the OAuth app that the device flow uses. It is not a secret |
+| `limiters.reads`, `writes`, `signIn` | Whether the Worker has its `READS`, `WRITES` and `SIGNIN` rate limit bindings (public, no sensitive data; a Worker with `writes: false` refuses writes, see Rate limits) |
 | `limits` | The size limits below; a server may advertise a smaller `maxEntryBytes` |
 | `quota.publisherBytes` | How much live content one publisher may store |
 | `quota.pendingEntries`, `quota.pendingBytes` | How many entries, and how much content, one publisher may have waiting for review |
@@ -232,7 +233,9 @@ Reads never build JSON. Each entry row keeps its summary and its entry document 
 | Sign-in | 20 a minute per address through the `SIGNIN` binding (a flood ceiling), then, in D1, failed attempts per address (`SIGNIN_LIMIT`, default 5 a minute: a bad body, an unknown or foreign token, a GitHub refusal or a ban; a sign-in is refused once more than that many failures are in the window, so five mistakes still let a valid attempt through) and successful sign-ins per handle (`SIGNIN_LIMIT` a minute). GitHub outages (`502`) and `503` do not count. | sha256 of the day and the address, in memory only; salted address hash |
 | Reports | 5 an hour per reporter (`REPORT_LIMIT`) | handle |
 
-The bindings answer before the body is read or the token is looked up, so a junk request writes no D1 row at all; without a binding (self-hosted, tests) or when it fails, the request goes on to the D1 buckets. The per-publisher counters live in D1 fixed windows.
+The bindings answer before the body is read or the token is looked up, so a junk request writes no D1 row at all; without the `WRITES` or `SIGNIN` binding, publish, new version, overwrite, withdraw and sign-in answer `503 unavailable` ("rate limiter is not configured") instead of running unlimited; set `ALLOW_OPEN_LIMITERS=true` (self-hosted dev and tests only) to let them go on to the D1 buckets. A binding that is present but throws still lets the request through to the D1 buckets. `/v1/meta.json` shows which bindings exist in `limiters`. The per-publisher counters live in D1 fixed windows.
+
+**Burst check (owner, production).** After a deploy, send 40 concurrent anonymous POSTs and expect at least one `429` (the rest are `401`): run `seq 40 | xargs -P 10 -I{} curl -s -o /dev/null -w '%{http_code}\n' -X POST "$MARKET_URL/v1/entries" | sort | uniq -c` with `MARKET_URL` set to the Worker URL. Zero `429` after repeated runs means the binding is inert (check `limiters` in `/v1/meta.json`, then `wrangler tail`). Cloudflare counts per location and approximately, so run it a few times from one machine.
 
 ### Storage guards
 

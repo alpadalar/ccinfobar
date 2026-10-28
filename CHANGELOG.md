@@ -43,6 +43,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The automatic update no longer falls back to installing the GitHub release tarball when GitHub publishes no checksum for it: nothing is installed, `ccinfobar doctor` says so and the update is retried at the next check; a rollback whose reinstall has no checksum is recorded as failed instead of installing unverified bytes (reason: never install unverified bytes). Manual `ccinfobar update` likewise installs from the npm registry only.
 
 ### Fixed
+- The marketplace Worker now answers `503` for publish, new version, overwrite, withdraw and sign-in when its `WRITES` or `SIGNIN` rate limit binding is missing (it used to run unlimited without any sign), and `/v1/meta.json` lists the configured bindings under `limiters`; `ALLOW_OPEN_LIMITERS=true` keeps the old open behaviour for self-hosted development.
 
 - The subagent panel line no longer hides a running agent whose row would be empty (Claude Code keeps its default row), fits very narrow panes instead of assuming 120 columns, and honours `glyphMode` and `ambiguousWidth` when measuring.
 - `install --subagents` keeps extra keys on an existing ccinfobar `subagentStatusLine`, `install --yes` never waits on the vim-indicator offer, `uninstall --subagents --project` no longer removes the project status line, and `--hide-vim-indicator` is ignored with `--project` with a notice.

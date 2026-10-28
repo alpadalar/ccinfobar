@@ -12,6 +12,8 @@ export const VARS: Partial<Env> = {
   GITHUB_CLIENT_ID: 'Ov23liVCN9Nf6VlLv3St',
   ADMIN_GITHUB_IDS: '65018489',
   ALLOW_OVERWRITE: 'false',
+  // tests run most paths without rate limit bindings
+  ALLOW_OPEN_LIMITERS: 'true',
 };
 
 export interface Clock {

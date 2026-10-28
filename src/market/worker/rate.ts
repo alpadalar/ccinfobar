@@ -1,5 +1,6 @@
 // D1 fixed windows keyed by salted address hashes; no address is stored (D-10)
 import {
+  fail,
   limited,
   REGISTERS_PER_MINUTE,
   retryAfterSeconds,
@@ -7,7 +8,7 @@ import {
   WRITES_PER_MINUTE,
   windowOf,
 } from '../rules.js';
-import { type D1Database, type Env, intVar, type RateLimit } from './env.js';
+import { type D1Database, type Env, intVar, limitersOpen, type RateLimit } from './env.js';
 import { bumpRate, cleanupStatements, saltStatements } from './store.js';
 import { randomToken, sha256Hex } from './tokens.js';
 
@@ -73,6 +74,18 @@ export async function bindingAllowed(
   } catch {
     return true;
   }
+}
+
+// writes and sign-in refuse (503) without their binding unless the dev flag opens them
+export async function limiterAllowed(
+  env: Env,
+  b: RateLimit | undefined,
+  prefix: string,
+  req: Request,
+  now: number,
+): Promise<boolean> {
+  if (!b && !limitersOpen(env)) throw fail(503, 'unavailable', 'rate limiter is not configured');
+  return bindingAllowed(b, prefix, req, now);
 }
 
 export const readAllowed = (env: Env, req: Request, now: number): Promise<boolean> =>

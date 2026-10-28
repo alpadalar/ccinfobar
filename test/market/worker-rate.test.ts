@@ -310,6 +310,27 @@ describe.skipIf(skipSqlite)('worker rate limits', () => {
     expect(await w.rows('salts')).toHaveLength(0);
   });
 
+  it('writes and sign-in fail closed (503) without their binding unless the dev flag opens them', async () => {
+    const w = await setup({ ALLOW_OPEN_LIMITERS: 'false', ALLOW_UNVERIFIED_GITHUB_TOKENS: 'true' });
+    const write = await w.call('POST', '/v1/entries', { body: publishBody('a') });
+    expect(write.status).toBe(503);
+    expect((await write.json()).error.code).toBe('unavailable');
+    const signIn = await w.call('POST', '/v1/auth/github', { body: { token: 'x' } });
+    expect(signIn.status).toBe(503);
+    expect(w.writes()).toBe(0);
+    const open = await setup({ ALLOW_OPEN_LIMITERS: 'true' });
+    expect((await open.call('POST', '/v1/entries', { body: publishBody('a') })).status).toBe(401);
+  });
+
+  it('meta tells whether the limiter bindings are configured', async () => {
+    const none = await setup();
+    const a = await (await none.call('GET', '/v1/meta.json')).json();
+    expect(a.limiters).toEqual({ reads: false, writes: false, signIn: false });
+    const some = await setup({}, undefined, { writes: 5, signin: 5 });
+    const b = await (await some.call('GET', '/v1/meta.json')).json();
+    expect(b.limiters).toEqual({ reads: false, writes: true, signIn: true });
+  });
+
   it('a throwing WRITES binding fails open', async () => {
     const w = await setup({}, undefined, { writes: throwingRateLimit() });
     const token = await w.account('alp');

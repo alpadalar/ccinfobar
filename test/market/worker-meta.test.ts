@@ -87,6 +87,7 @@ describe('worker meta', () => {
         report: true,
         cols: true,
       },
+      limiters: { reads: false, writes: false, signIn: false },
       auth: ['github-device'],
       github: { clientId: 'Ov23liVCN9Nf6VlLv3St' },
       limits: { ...MARKET_LIMITS },

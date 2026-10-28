@@ -52,6 +52,8 @@ export interface Env {
   ALLOW_UNVERIFIED_GITHUB_TOKENS?: string;
   ADMIN_GITHUB_IDS?: string;
   ALLOW_OVERWRITE?: string;
+  // dev and tests only: writes and sign-in run without their rate limit bindings
+  ALLOW_OPEN_LIMITERS?: string;
   MAX_ENTRY_BYTES?: string;
   WRITE_LIMIT?: string;
   SIGNIN_LIMIT?: string;
@@ -83,6 +85,9 @@ export const unverifiedOk = (env: Env): boolean => env.ALLOW_UNVERIFIED_GITHUB_T
 
 // off unless set exactly (R-07)
 export const overwriteOn = (env: Env): boolean => env.ALLOW_OVERWRITE === 'true';
+
+// off unless set exactly
+export const limitersOpen = (env: Env): boolean => env.ALLOW_OPEN_LIMITERS === 'true';
 
 // 400 MiB of the 500 MB Free database (R-01)
 export const maxDbBytes = (env: Env): number => intVar(env.MAX_DB_BYTES) ?? 419_430_400;

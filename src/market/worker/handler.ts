@@ -52,7 +52,7 @@ import {
   setBan,
 } from './moderation.js';
 import { landingPage } from './page.js';
-import { bindingAllowed, readAllowed } from './rate.js';
+import { limiterAllowed, readAllowed } from './rate.js';
 import { settleIndex } from './settle.js';
 import { indexEtag, indexTag, readEntryDoc, readIndexPage, readVersionDoc } from './store.js';
 import { addVersion, overwrite, publish, withdraw } from './write.js';
@@ -76,6 +76,7 @@ export function buildMeta(env: Env): Record<string, unknown> {
       report: true,
       cols: true,
     },
+    limiters: { reads: !!env.READS, writes: !!env.WRITES, signIn: !!env.SIGNIN },
     auth: ['github-device'],
     ...(clientId ? { github: { clientId } } : {}),
     limits: { ...MARKET_LIMITS, maxEntryBytes: Math.min(MARKET_LIMITS.maxEntryBytes, max ?? Infinity) },
@@ -149,7 +150,8 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
   // the binding refuses before any D1 statement; the per-publisher bucket stays in writer()
   async function gate(req: Request): Promise<void> {
     const t = deps.now();
-    if (!(await bindingAllowed(env.WRITES, 'w', req, t))) throw limited(retryAfterSeconds(windowOf(t), t));
+    if (!(await limiterAllowed(env, env.WRITES, 'w', req, t)))
+      throw limited(retryAfterSeconds(windowOf(t), t));
   }
 
   // the admin check comes before ids and bodies
