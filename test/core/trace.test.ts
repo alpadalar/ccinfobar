@@ -161,7 +161,18 @@ describe('createContext without trace', () => {
     expect(types.isProxy(ctx.payload)).toBe(false);
     expect(types.isProxy(ctx.env)).toBe(false);
     expect(Object.keys(ctx).sort()).toEqual(
-      ['config', 'cwd', 'data', 'env', 'now', 'payload', 'preview', 'terminalWidth'].sort(),
+      [
+        'budget',
+        'clock',
+        'config',
+        'cwd',
+        'data',
+        'env',
+        'now',
+        'payload',
+        'preview',
+        'terminalWidth',
+      ].sort(),
     );
   });
 });
