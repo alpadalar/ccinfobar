@@ -7,6 +7,7 @@ import {
   firstPathToken,
   flagValue,
   isBin,
+  scriptName,
   toolArgs,
 } from '../../src/importers/args.js';
 
@@ -84,6 +85,16 @@ describe('firstPathToken', () => {
     expect(firstPathToken('ccstatusline', '/h')).toBeNull();
     expect(firstPathToken('./x/y.sh', '/h')).toBeNull();
     expect(firstPathToken('', '/h')).toBeNull();
+  });
+});
+
+describe('scriptName', () => {
+  it('drops the script extension on top of binName', () => {
+    expect(scriptName('~/.claude/hooks/gsd-statusline.js')).toBe('gsd-statusline');
+    expect(scriptName('C:\\x\\ccline.exe')).toBe('ccline');
+    expect(scriptName('ccstatusline@1.2.3')).toBe('ccstatusline');
+    expect(scriptName('run.mjs')).toBe('run');
+    expect(binName('a.js')).toBe('a.js');
   });
 });
 

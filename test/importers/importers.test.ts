@@ -320,6 +320,35 @@ describe('detectTool', () => {
     expect(detectTool(command)?.tool).toBe(tool);
   });
 
+  const tokens: [string, string | null, string?][] = [
+    ['my-ccstatusline-wrapper', 'unknown'],
+    ['/home/x/ccline-tools/run.sh', 'unknown'],
+    ['bash ~/ccusage-notes.sh', 'unknown'],
+    ['node ~/claude-hud-notes/index.js', 'unknown'],
+    ['node ~/.claude/plugins/claude-hud/dist/index.js', 'claude-hud'],
+    [
+      'bash -c \'exec node "$HOME/.claude/plugins/cache/claude-hud/claude-hud/1.2.3/dist/index.js"\'',
+      'claude-hud',
+    ],
+    ['echo ccinfobar-like && ccstatusline', 'ccstatusline'],
+    ['/opt/ccinfobar-tools/my-line.sh', 'unknown'],
+    ['ccinfobar', null],
+    ['/usr/local/bin/ccinfobar', null],
+    ['npx -y ccinfobar@latest', null],
+    ['node /x/ccinfobar.js', null],
+    ['npx -y @owloops/claude-powerline@latest --style=powerline', 'claude-powerline'],
+    ['bunx ccusage statusline', 'ccusage'],
+    ['bun x ccusage statusline', 'ccusage'],
+    ['ccstatusline-zh', 'ccstatusline', 'ccstatusline-zh'],
+  ];
+
+  it.each(tokens)('matches argv tokens, not substrings (SEC2-10): %s', (command, tool, name) => {
+    const hit = detectTool(command);
+    if (tool === null) expect(hit).toBeNull();
+    else expect(hit?.tool).toBe(tool);
+    if (name) expect(hit?.name).toBe(name);
+  });
+
   it('detects ccstatusline-zh by its own name and imports it as ccstatusline', () => {
     for (const command of [
       'npx -y ccstatusline-zh@latest',

@@ -36,6 +36,14 @@ export const isBin =
   (token: string) =>
     names.includes(binName(token));
 
+// detection only: also drops .js/.mjs/.cjs
+export const scriptName = (token: string): string => binName(token).replace(/\.(?:m?js|cjs)$/, '');
+
+export const isScript =
+  (...names: string[]) =>
+  (token: string) =>
+    names.includes(scriptName(token));
+
 // argv from the tool's own token on, also inside a quoted sh -c script
 export function toolArgs(
   args: readonly string[],

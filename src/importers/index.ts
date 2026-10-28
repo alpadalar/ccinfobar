@@ -5,7 +5,7 @@ import { defaultConfig, normalizeConfig } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
 import { claudeDir, claudeSettingsPath } from '../core/paths.js';
 import type { Config } from '../core/types.js';
-import { commandArgs, flagValue, isBin, toolArgs } from './args.js';
+import { binName, commandArgs, flagValue, isBin, isScript, scriptName, toolArgs } from './args.js';
 import { commandScript } from './cc-statusline.js';
 import { CCOMETIXLINE, importCclineFamily } from './ccline-load.js';
 import { isCcline } from './ccometixline.js';
@@ -96,20 +96,39 @@ export interface DetectedTool {
   command: string;
 }
 
+const isCcstatusline = isBin('ccstatusline', 'ccstatusline-zh');
+
+const runsTool = (isTool: (token: string) => boolean) => (command: string) =>
+  toolArgs(commandArgs(command), isTool) !== null;
+
+const HUD = 'claude-hud';
+// the plugin command runs node on a path with a claude-hud segment
+const runsHud = runsTool((tok) => tok.split(/[\\/]/).includes(HUD));
+
+const runsCcinfobar = runsTool(
+  (tok) => ['ccinfobar', 'ccinfobar.js'].includes(binName(tok)) || scriptName(tok) === 'ccinfobar',
+);
+
 interface Known {
-  re: RegExp;
+  re?: RegExp;
+  runs?: (command: string) => boolean;
   tool: DetectedTool['tool'];
   name: string | (() => string);
   importable: boolean;
 }
 
 const LEGACY_KNOWN: readonly Known[] = [
-  { re: /ccstatusline-zh/i, tool: 'ccstatusline', name: 'ccstatusline-zh', importable: true },
-  { re: /ccstatusline/i, tool: 'ccstatusline', name: 'ccstatusline', importable: true },
-  { re: /claude-powerline/i, tool: 'claude-powerline', name: 'claude-powerline', importable: true },
-  { re: /ccline|cometix/i, tool: 'ccometixline', name: 'CCometixLine', importable: true },
-  { re: /\bcship\b/i, tool: 'cship', name: 'cship', importable: true },
-  { re: /claude-hud/i, tool: 'claude-hud', name: 'claude-hud', importable: true },
+  {
+    runs: runsTool(isBin('ccstatusline-zh')),
+    tool: 'ccstatusline',
+    name: 'ccstatusline-zh',
+    importable: true,
+  },
+  { runs: runsTool(isCcstatusline), tool: 'ccstatusline', name: 'ccstatusline', importable: true },
+  { runs: runsTool(isPowerline), tool: 'claude-powerline', name: 'claude-powerline', importable: true },
+  { runs: runsTool(isCcline), tool: 'ccometixline', name: 'CCometixLine', importable: true },
+  { runs: runsTool(isCship), tool: 'cship', name: 'cship', importable: true },
+  { runs: runsHud, tool: 'claude-hud', name: 'claude-hud', importable: true },
 ];
 
 // reviewed tools with nothing to import, matched by their documented install paths
@@ -131,8 +150,13 @@ const OTHER_KNOWN: readonly Known[] = [
 ];
 
 const TAIL_KNOWN: readonly Known[] = [
-  { re: /ccusage/i, tool: 'ccusage', name: 'ccusage statusline', importable: false },
-  { re: /gsd-statusline/i, tool: 'gsd', name: () => t('import.tool.gsd'), importable: false },
+  { runs: runsTool(isBin('ccusage')), tool: 'ccusage', name: 'ccusage statusline', importable: false },
+  {
+    runs: runsTool(isScript('gsd-statusline')),
+    tool: 'gsd',
+    name: () => t('import.tool.gsd'),
+    importable: false,
+  },
 ];
 
 // first match wins, so the most specific names go first
@@ -147,8 +171,8 @@ export function detectTool(
   command: string | undefined | null,
   defs: readonly ImporterDef[] = REGISTRY,
 ): DetectedTool | null {
-  if (!command || /ccinfobar/i.test(command)) return null;
-  const hit = knownList(defs).find((k) => k.re.test(command));
+  if (!command || runsCcinfobar(command)) return null;
+  const hit = knownList(defs).find((k) => (k.runs ? k.runs(command) : k.re?.test(command)));
   if (hit) {
     const name = typeof hit.name === 'string' ? hit.name : hit.name();
     return { tool: hit.tool, name, importable: hit.importable, command };
@@ -205,8 +229,6 @@ export function sniffTool(
   const other = head === null ? undefined : OTHER_SNIFF.find((o) => o.marker.test(head));
   return other ? { tool: 'other', name: other.name, importable: false, command } : null;
 }
-
-const isCcstatusline = isBin('ccstatusline', 'ccstatusline-zh');
 
 export function ccstatuslinePath(env: NodeJS.ProcessEnv = process.env, command = ''): string {
   const flag = flagValue(toolArgs(commandArgs(command), isCcstatusline) ?? [], ['--config']);
@@ -298,10 +320,6 @@ function importCshipFrom(found: CshipFound | null, home: string): ImportResult {
   return { ...result, file: found.file };
 }
 
-const HUD = 'claude-hud';
-// the plugin command runs node on a path under claude-hud
-const runsHud = (command: string) => /claude-hud/i.test(command);
-
 // claude-hud's getClaudeConfigDir
 export function hudPaths(env: NodeJS.ProcessEnv = process.env): {
   dir: string;
@@ -375,9 +393,6 @@ function importHud(file: string | undefined, command: string, env: NodeJS.Proces
 }
 
 type LegacySource = 'ccstatusline' | 'claude-powerline' | 'ccometixline' | 'cship' | 'claude-hud';
-
-const runsTool = (isTool: (token: string) => boolean) => (command: string) =>
-  toolArgs(commandArgs(command), isTool) !== null;
 
 const LEGACY_RUNS: Record<LegacySource, (command: string) => boolean> = {
   ccstatusline: runsTool(isCcstatusline),
