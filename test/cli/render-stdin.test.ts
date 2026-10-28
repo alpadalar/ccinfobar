@@ -1,3 +1,4 @@
+import { type ChildProcess, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,6 +8,7 @@ import { parseArgs } from '../../src/cli/args.js';
 import { readStdin, runRender } from '../../src/cli/render.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { en } from '../../src/core/i18n/en/index.js';
+import { bin, skipDist } from '../dist.js';
 
 function stream() {
   const unref = vi.fn();
@@ -94,4 +96,49 @@ describe('runRender stdin cap', () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+});
+
+describe.skipIf(skipDist)('dist stdin', () => {
+  async function run(feed: (child: ChildProcess) => void): Promise<{ code: number | null; out: string }> {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-stdin-dist-'));
+    const child = spawn(process.execPath, [bin], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        CCINFOBAR_CONFIG_DIR: path.join(dir, 'cfg'),
+        CCINFOBAR_CACHE_DIR: path.join(dir, 'cache'),
+        CLAUDE_CONFIG_DIR: path.join(dir, 'claude'),
+        CCINFOBAR_NO_UPDATE: '1',
+      },
+    });
+    try {
+      let out = '';
+      child.stdout!.on('data', (d) => {
+        out += d;
+      });
+      child.stderr!.on('data', () => {});
+      child.stdin!.on('error', () => {});
+      const exited = new Promise<number | null>((resolve) => child.on('exit', resolve));
+      feed(child);
+      return { code: await exited, out };
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) child.kill();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it('exits after the timeout when stdin never closes', async () => {
+    const r = await run(() => {});
+    expect(r.code).toBe(0);
+  }, 60_000);
+
+  it('answers a 5 MiB payload with the invalid message and exit 0', async () => {
+    const r = await run((child) => {
+      const chunk = Buffer.from(`{"a":"${'x'.repeat(65530)}`);
+      for (let i = 0; i < 80; i++) child.stdin!.write(chunk);
+      child.stdin!.end();
+    });
+    expect(r.code).toBe(0);
+    expect(r.out).toContain(en['cli.invalidJson']);
+  }, 60_000);
 });

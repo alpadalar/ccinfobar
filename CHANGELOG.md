@@ -44,6 +44,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The automatic update no longer falls back to installing the GitHub release tarball when GitHub publishes no checksum for it: nothing is installed, `ccinfobar doctor` says so and the update is retried at the next check; a rollback whose reinstall has no checksum is recorded as failed instead of installing unverified bytes (reason: never install unverified bytes). Manual `ccinfobar update` likewise installs from the npm registry only.
 
 ### Fixed
+- The status line reads at most 4 MiB from stdin and treats a larger payload like invalid JSON (short message, exit 0) instead of buffering it, and it releases stdin after the read or the 3 s timeout, so a refresh whose pipe is never closed no longer lingers
 - The `agents` widget counts every usage entry of a subagent transcript that has no message or request id instead of collapsing them into one
 - git config keys that contain a space (such as `filter.a b.clean`) are now read correctly when ccinfobar disables repo-local filters; the git cache is rebuilt once after the update
 - Two background workers can no longer both take over the same stale lock: a stale lock is moved aside and checked before a new one is created
