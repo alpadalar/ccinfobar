@@ -37,22 +37,42 @@ import { type TtyDeps, writeTty } from './progress-tty.js';
 declare const __VERSION__: string;
 const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
 
-export function readStdin(timeoutMs = 3000): Promise<string> {
+type StdinStream = NodeJS.ReadableStream & { unref?: () => void };
+
+export function readStdin(
+  timeoutMs = 3000,
+  capBytes = 4 * 1024 * 1024,
+  stream: StdinStream = process.stdin,
+): Promise<string | null> {
   return new Promise((resolve) => {
-    let data = '';
-    const timer = setTimeout(() => resolve(data), timeoutMs);
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
-      data += chunk;
-    });
-    process.stdin.on('end', () => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let done = false;
+    const finish = (text: string | null): void => {
+      if (done) return;
+      done = true;
       clearTimeout(timer);
-      resolve(data);
-    });
-    process.stdin.on('error', () => {
-      clearTimeout(timer);
-      resolve(data);
-    });
+      stream.off('data', onData);
+      stream.off('end', onEnd);
+      stream.off('error', onEnd);
+      stream.pause();
+      stream.unref?.();
+      resolve(text);
+    };
+    const onData = (chunk: Buffer | string): void => {
+      const b = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+      if (size + b.length > capBytes) {
+        finish(null);
+        return;
+      }
+      size += b.length;
+      chunks.push(b);
+    };
+    const onEnd = (): void => finish(Buffer.concat(chunks).toString('utf8'));
+    const timer = setTimeout(onEnd, timeoutMs);
+    stream.on('data', onData);
+    stream.on('end', onEnd);
+    stream.on('error', onEnd);
   });
 }
 
@@ -127,9 +147,13 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
     process.exitCode = 1;
     return;
   }
-  let raw: string;
+  let raw: string | null;
   if (typeof args.flags.payload === 'string') raw = fs.readFileSync(args.flags.payload, 'utf8');
   else raw = await readStdin();
+  if (raw === null) {
+    process.stdout.write(`${t('cli.invalidJson')}\n`);
+    return;
+  }
   const payload = ingestPayload(raw);
   if (!payload) {
     process.stdout.write(`${t('cli.invalidJson')}\n`);
