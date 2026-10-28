@@ -153,7 +153,7 @@ describe('scheduleJobs', () => {
       scheduleJobs(defaultConfig(), {}, env, CWD, null, {
         now: NOW,
         spawn: () => true,
-        jobs: [fake('a-auto', 'auto')],
+        jobs: [fake('a-auto', 'auto', { due: () => false })],
         reader,
       });
       expect(read.mock.calls.filter(([f]) => f === file)).toHaveLength(1);
@@ -189,5 +189,61 @@ describe('scheduleJobs', () => {
     } finally {
       read.mockRestore();
     }
+  });
+
+  describe('refresh before a spawn', () => {
+    const stale = (e: { fetchedAt: number } | null, now: number) => !e || e.fetchedAt < now - 1000;
+    const job = () => fake('t1', 'none', { keyRe: /^t1$/, keys: () => [{ key: 't1' }], due: stale });
+    const go = (env: NodeJS.ProcessEnv, reader: ReturnType<typeof createJobReader>) => {
+      const spawn = vi.fn(() => true);
+      const keys = scheduleJobs(defaultConfig(), {}, env, CWD, null, {
+        now: NOW,
+        jobs: [job()],
+        reader,
+        spawn,
+      });
+      return { keys, spawn };
+    };
+
+    it('re-reads a due envelope before scheduling and skips a job that just finished', () => {
+      const env = tmpEnv();
+      const reader = createJobReader(env);
+      expect(reader.job('t1')).toBeNull();
+      writeEnvelope(okEnvelope('t1', { ok: 1 }, NOW), env);
+      const { keys, spawn } = go(env, reader);
+      expect(keys).toEqual([]);
+      expect(spawn).not.toHaveBeenCalled();
+      expect(reader.job('t1')?.fetchedAt).toBe(NOW);
+    });
+
+    it('does not re-read a job that is not due', () => {
+      const env = tmpEnv();
+      writeEnvelope(okEnvelope('t1', { ok: 1 }, NOW), env);
+      const inner = createJobReader(env);
+      inner.job('t1');
+      const refresh = vi.fn((k: string) => inner.refresh?.(k));
+      const reader = { job: (k: string) => inner.job(k), refresh } as unknown as ReturnType<
+        typeof createJobReader
+      >;
+      const { keys } = go(env, reader);
+      expect(keys).toEqual([]);
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it('re-reads once and still schedules a job that is stale on disk', () => {
+      const env = tmpEnv();
+      writeEnvelope(okEnvelope('t1', { ok: 1 }, NOW - 5000), env);
+      const inner = createJobReader(env);
+      inner.job('t1');
+      const refresh = vi.fn((k: string) => inner.refresh?.(k));
+      const reader = { job: (k: string) => inner.job(k), refresh } as unknown as ReturnType<
+        typeof createJobReader
+      >;
+      const { keys, spawn } = go(env, reader);
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(refresh).toHaveBeenCalledWith('t1');
+      expect(keys).toEqual(['t1']);
+      expect(spawn).toHaveBeenCalledTimes(1);
+    });
   });
 });

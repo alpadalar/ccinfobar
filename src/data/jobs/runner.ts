@@ -97,6 +97,7 @@ export interface Job<V> {
 
 export interface JobReader {
   job<V = unknown>(key: string): JobEnvelope<V> | null;
+  refresh?(key: string): void;
 }
 
 export const SAFE_KEY = /^[a-z][a-z0-9-]{0,63}$/;
@@ -159,6 +160,9 @@ export function createJobReader(env: NodeJS.ProcessEnv = process.env): JobReader
         seen.set(key, e);
       }
       return (seen.get(key) ?? null) as JobEnvelope<V> | null;
+    },
+    refresh(key: string): void {
+      seen.delete(key);
     },
   };
 }

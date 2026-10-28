@@ -56,11 +56,18 @@ export function scheduleJobs(
     try {
       const input = { config, payload, env, cwd, now, ...(opts.repos ? { repos: opts.repos } : {}) };
       for (const req of job.keys(input)) {
-        const prev = job.readPrev
-          ? job.readPrev(req.key, env, opts.reader)
-          : opts.reader
-            ? opts.reader.job(req.key)
-            : readEnvelope(req.key, env);
+        const read = () =>
+          job.readPrev
+            ? job.readPrev(req.key, env, opts.reader)
+            : opts.reader
+              ? opts.reader.job(req.key)
+              : readEnvelope(req.key, env);
+        let prev = read();
+        if (job.due(prev, now, req) && opts.reader?.refresh) {
+          // a worker may have finished during this render
+          opts.reader.refresh(req.key);
+          prev = read();
+        }
         if (job.due(prev, now, req)) kept.push({ req, lockMs: job.lockMs });
       }
     } catch {}
