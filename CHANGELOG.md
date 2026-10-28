@@ -68,6 +68,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Security
 
+- Marketplace: a trusted publisher's new version that adds a link to a host and path the live version did not have is held for admin review (`202 pending`, reason `new-link`) while the entry stays live at its approved version; the review flow (`catalog admin pending|show|approve|reject`) covers it. The documentation now states that the first approval trusts a publisher, what the data-only rule still prevents and how reports and takedowns work.
 - The marketplace Worker refuses write and sign-in floods at Cloudflare's rate-limit bindings (`WRITES`, `SIGNIN`) before reading the body or touching the database, so unauthenticated junk requests no longer cost D1 writes.
 - Marketplace moderation: approving an entry enforces the same live caps as publishing (`413 over-quota` when full), and the sign-in limit now counts failed attempts per address and successful sign-ins per handle, so a shared network address is not locked out by a neighbour's failed attempts.
 - Marketplace and catalog names, descriptions, authors and notes are stored and shown without zero-width, bidi-mark, BOM and tag characters (U+200B–200F, U+2060–2064, U+FEFF, U+061C, U+E0000–E007F), on your machine and on the marketplace Worker; entry content and its hashes are unchanged, so published entries keep verifying.
