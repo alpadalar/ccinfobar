@@ -384,7 +384,7 @@ describe('theme picker', () => {
       { type: 'enter' },
     );
     expect(s.message).toBe(
-      '"nul" is a reserved Windows device name (CON, PRN, AUX, NUL, COM1-9, LPT1-9); pick another id',
+      '"nul" is a reserved Windows device name (CON, PRN, AUX, NUL, COM0-9, LPT0-9); pick another id',
     );
     expect(s.effect).toBeNull();
   });

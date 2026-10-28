@@ -72,7 +72,7 @@ const SCRUB = new Set([
 export const GIT_CMDS = {
   'git --version': ['--version'],
   'rev-parse': [...HARDEN, 'rev-parse', '--show-toplevel', '--git-dir', '--git-common-dir'],
-  'config --show-scope': [...HARDEN, 'config', '--show-scope', '--get-regexp', SCOPED_RE],
+  'config --show-scope': [...HARDEN, 'config', '--show-scope', '-z', '--get-regexp', SCOPED_RE],
   'status --porcelain=v2': [...HARDEN, 'status', '--porcelain=v2', '--branch', '--show-stash'],
   'diff --shortstat': [...HARDEN, 'diff', 'HEAD', '--shortstat', '--no-ext-diff', '--no-textconv'],
 };
