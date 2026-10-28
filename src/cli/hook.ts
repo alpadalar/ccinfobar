@@ -167,7 +167,7 @@ export async function scheduleUpdate(
 }
 
 const PRUNE_RE =
-  /^([A-Za-z0-9_-]{1,128})(\.jsonl|\.old\.jsonl|\.fold\.json|\.progress\.json|\.progress-sent\.json|\.progress-tty\.json)$/;
+  /^([A-Za-z0-9_-]{1,128})(\.jsonl|\.old\.jsonl|\.fold\.json|\.progress\.json|\.progress-sent\.json|\.progress-tty\.json|\.jsonl\.rotate|\.jsonl\.rotate\.takeover)$/;
 
 // bounded by deletions and time, not entries; regular files only
 export function pruneHookLogs(

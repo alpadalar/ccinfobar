@@ -557,6 +557,19 @@ describe('pruneHookLogs', () => {
     }
   });
 
+  it('removes stale rotation locks and takeover guards', () => {
+    const dir = tmp();
+    const lock = make(dir, 'a.jsonl.rotate', 8);
+    const guard = make(dir, 'a.jsonl.rotate.takeover', 8);
+    const fresh = make(dir, 'b.jsonl.rotate', 1);
+    const odd = make(dir, 'c.rotate', 8);
+    expect(pruneHookLogs(dir, [], now, 7 * DAY, 200, 10_000)).toBe(2);
+    expect(fs.existsSync(lock)).toBe(false);
+    expect(fs.existsSync(guard)).toBe(false);
+    expect(fs.existsSync(fresh)).toBe(true);
+    expect(fs.existsSync(odd)).toBe(true);
+  });
+
   it('stops after maxRemove deletions and tolerates a missing dir', () => {
     const dir = tmp();
     for (let i = 0; i < 10; i++) make(dir, `s${i}.jsonl`, 9);
