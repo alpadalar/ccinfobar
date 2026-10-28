@@ -35,6 +35,19 @@ describe('render notice', () => {
     expect(stripAnsi(out[1]!)).toContain('v9');
   });
 
+  it('fits against the last wrapped row, not the whole line', () => {
+    const ctx = ctxWith({
+      config: { maxWidth: 12, overflow: 'wrap', autoWrap: false, lines: [[text('aaaaaaaa'), text('bbb')]] },
+    });
+    const base = render(ctx);
+    expect(base).toHaveLength(2);
+    expect(base.some((l) => l.includes('\n'))).toBe(false);
+    const out = render(ctx, { notice: 'xy' });
+    expect(out).toHaveLength(2);
+    expect(out[0]).toBe(base[0]);
+    expect(stripAnsi(out[1]!)).toBe('bbb xy');
+  });
+
   it('appends when there is no max width and invents no line for an empty config', () => {
     expect(render(line(5), { notice: 'x' }).map(stripAnsi)).toEqual(['aaaaa x']);
     expect(render(ctxWith({ config: { lines: [] } }), { notice: 'x' })).toEqual([]);
