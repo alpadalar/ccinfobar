@@ -27,6 +27,9 @@ export const custom: MetaFile = {
     'Timeout (ms)': 'Zaman aşımı (ms)',
     'Cache seconds': 'Önbellek süresi (saniye)',
     'Keep ANSI colors': 'ANSI renklerini koru',
+    'Run in background': 'Arka planda çalıştır',
+    'Run through the background worker every cacheSeconds; needs cacheSeconds > 0. The command then sees the last saved payload.':
+      'Her cacheSeconds süresinde arka plan işçisiyle çalışır; cacheSeconds > 0 gerekir. Komut son kaydedilen payload’ı görür.',
     Text: 'Metin',
     URL: 'URL',
     'Variable name': 'Değişken adı',

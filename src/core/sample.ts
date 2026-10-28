@@ -311,8 +311,9 @@ export function sampleLedger(now = Date.now()): LedgerView {
   };
 }
 
-function sampleJobValue(key: string): StatusValue | HttpValue | GhValue | null {
+function sampleJobValue(key: string): StatusValue | HttpValue | GhValue | { out: string } | null {
   if (key === 'status') return { indicator: 'none', description: 'All Systems Operational', incidents: [] };
+  if (key.startsWith('cmd-')) return { out: 'command output' };
   if (key.startsWith('http-')) return { paths: {}, any: { ok: true, v: 42.5 } };
   if (key.startsWith('gh-')) {
     return { pass: 12, fail: 0, pending: 0, skipped: 1, cancelled: 0, total: 13, names: [] };

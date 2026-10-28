@@ -6,10 +6,11 @@ import { stripAnsi } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { createContext } from '../../src/core/context.js';
 import { render } from '../../src/core/renderer.js';
-import { samplePayload } from '../../src/core/sample.js';
+import { sampleJobs, samplePayload } from '../../src/core/sample.js';
 import { SCENARIO_NOW } from '../../src/core/scenarios.js';
 import type { WidgetItem } from '../../src/core/types.js';
 import { cacheKey } from '../../src/data/cache.js';
+import { createJobReader, failEnvelope, okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
 import { ctxWith, renderWidget } from '../helpers.js';
 
 const cmd = (id: string, command: string, options: Record<string, string | number> = {}): WidgetItem => ({
@@ -129,5 +130,59 @@ describe('command budget', () => {
     const wall = Date.now() - start;
     expect(wall).toBeLessThan(2500);
     expect(out).toContain('Opus 5.5');
+  });
+});
+
+describe('command background', () => {
+  const boom = () => {
+    throw new Error('exec must not run');
+  };
+  const setup = (opts: Record<string, string | number | boolean>) => {
+    const env = { CCINFOBAR_CACHE_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-bg-')) };
+    const item: WidgetItem = {
+      id: 'b',
+      type: 'command',
+      options: { command: 'echo x', cacheSeconds: 30, background: true, ...opts },
+    };
+    const ctx = ctxWith({ env, exec: boom, jobs: () => createJobReader(env) });
+    return { env, item, ctx, key: `cmd-${cacheKey('echo x', ctx.cwd)}` };
+  };
+
+  it('reads the worker envelope and never runs the command', () => {
+    const { env, item, ctx, key } = setup({});
+    expect(renderWidget('command', ctx, item)).toBeNull();
+    writeEnvelope(okEnvelope(key, { out: 'from worker' }, 1000), env);
+    expect(renderWidget('command', ctx, item)).toBe('from worker');
+  });
+
+  it('shows the last good value of a failed envelope', () => {
+    const { env, item, ctx, key } = setup({});
+    const prev = okEnvelope(key, { out: 'older' }, 1000);
+    writeEnvelope(failEnvelope(key, prev, 'exit-1', 2000, { retryMs: 60_000 }), env);
+    expect(renderWidget('command', ctx, item)).toBe('older');
+  });
+
+  // envelopes are sanitized on write and read, so colors never survive the worker
+  it('formats the envelope text with preserveColors on', () => {
+    const { env, item, ctx, key } = setup({ preserveColors: true });
+    writeEnvelope(okEnvelope(key, { out: '\u001b[31mred\u001b[0m' }, 1000), env);
+    expect(renderWidget('command', ctx, item)).toBe('red');
+  });
+
+  it('falls back to the budgeted path with cacheSeconds 0', () => {
+    const { env } = setup({});
+    const ctx = ctxWith({ env, exec: () => 'ran' });
+    const item: WidgetItem = {
+      id: 'z',
+      type: 'command',
+      options: { command: 'echo x', cacheSeconds: 0, background: true },
+    };
+    expect(renderWidget('command', ctx, item)).toBe('ran');
+  });
+
+  it('shows the sample in a preview', () => {
+    const { item } = setup({});
+    const ctx = ctxWith({ exec: boom, jobs: () => sampleJobs() });
+    expect(renderWidget('command', ctx, item)).toBe('command output');
   });
 });

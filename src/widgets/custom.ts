@@ -3,6 +3,8 @@ import { keepSgrAndLinks, safeConfigUrl, sanitizeText } from '../core/sanitize.j
 import type { WidgetDef } from '../core/types.js';
 import { cacheKey, readCache, writeCache } from '../data/cache.js';
 import { execCommand } from '../data/exec.js';
+import type { CommandValue } from '../data/jobs/command.js';
+import { jobValue } from '../data/jobs/runner.js';
 import { opt } from './shared.js';
 
 interface Cached {
@@ -29,16 +31,27 @@ export const widgets: WidgetDef[] = [
       { key: 'timeout', label: 'Timeout (ms)', kind: 'number', default: 1000 },
       { key: 'cacheSeconds', label: 'Cache seconds', kind: 'number', default: 0 },
       { key: 'preserveColors', label: 'Keep ANSI colors', kind: 'boolean', default: false },
+      {
+        key: 'background',
+        label: 'Run in background',
+        kind: 'boolean',
+        default: false,
+        help: 'Run through the background worker every cacheSeconds; needs cacheSeconds > 0. The command then sees the last saved payload.',
+      },
     ],
     render(ctx, item) {
       const command = opt(item, 'command', '').trim();
       if (!command) return null;
       const ttl = opt(item, 'cacheSeconds', 0) * 1000;
       const name = `cmd-${cacheKey(command, ctx.cwd)}.json`;
-      const hit = ttl > 0 ? readCache<Cached>(name, ctx.env) : null;
+      const bg = ttl > 0 && opt(item, 'background', false);
+      const hit = ttl > 0 && !bg ? readCache<Cached>(name, ctx.env) : null;
       const left = ctx.budget.deadline - ctx.clock();
       let out: string | null = null;
-      if (hit && ctx.clock() - hit.at < ttl) out = hit.out;
+      if (bg) {
+        const j = jobValue(ctx.data.jobs?.()?.job<CommandValue>(`cmd-${cacheKey(command, ctx.cwd)}`) ?? null);
+        out = typeof j?.value?.out === 'string' ? j.value.out : null;
+      } else if (hit && ctx.clock() - hit.at < ttl) out = hit.out;
       else if (left < 50) out = hit?.out ?? null;
       else {
         const input = JSON.stringify({

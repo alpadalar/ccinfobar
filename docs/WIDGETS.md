@@ -193,7 +193,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 
 | Type | Description | Example | Options |
 | --- | --- | --- | --- |
-| `command` | Runs a shell command and shows the first line of output; receives the payload on stdin | `command output` | `command` text, default `""`<br>`timeout` number, default `1000`<br>`cacheSeconds` number, default `0`<br>`preserveColors` boolean, default `false` |
+| `command` | Runs a shell command and shows the first line of output; receives the payload on stdin | `command output` | `command` text, default `""`<br>`timeout` number, default `1000`<br>`cacheSeconds` number, default `0`<br>`preserveColors` boolean, default `false`<br>`background` boolean, default `false` |
 | `link` | Clickable hyperlink (OSC 8) | `docs` | `text` text, default `"link"`<br>`url` text, default `""` |
 | `env` | Value of an environment variable | `production` | `name` text, default `""` |
 | `http` | One value from a JSON endpoint, fetched in the background; the line never waits on it | `$12.50` | `url` text, default `""`<br>`path` text, default `"$"`<br>`format` text, default `"{value}"`<br>`interval` number, default `300`<br>`timeout` number, default `5000`<br>`headers` text, default `""`<br>`decimals` number, default `-1`<br>`maxLength` number, default `40` |
