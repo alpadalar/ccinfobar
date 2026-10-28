@@ -101,4 +101,34 @@ describe('release workflow', () => {
     }
     expect(keys.sort()).toEqual(['contents: write', 'id-token: write']);
   });
+
+  it('cancels only a superseded run of the same ref in ci.yml', () => {
+    const at = ci.findIndex((l) => /^concurrency:\s*$/.test(l));
+    expect(at).toBeGreaterThan(-1);
+    expect(ci[at + 1]).toBe('  group: ${{ github.workflow }}-${{ github.ref }}');
+    expect(ci[at + 2]).toBe('  cancel-in-progress: true');
+    expect(at).toBeLessThan(ci.findIndex((l) => /^jobs:\s*$/.test(l)));
+  });
+
+  it('matches the changelog heading by fixed string and edits or creates the release from a notes file', () => {
+    expect(releaseText).toContain('index($0, "## [" tag "]") == 1');
+    expect(releaseText).not.toContain('$0 ~');
+    expect(releaseText).toContain('> notes.md');
+    expect(releaseText).toContain("[ -s notes.md ] || echo 'See CHANGELOG.md' > notes.md");
+    expect(releaseText).toContain('gh release edit "$GITHUB_REF_NAME" --notes-file notes.md');
+    expect(releaseText).toMatch(/gh release create .*\\\n?.*--notes-file notes\.md/);
+    expect(releaseText).not.toMatch(/--notes "/);
+    expect(releaseText).not.toContain('&& exit 0');
+  });
+
+  it('publishes without repeating the check', () => {
+    expect(releaseText).toContain('npm publish --access public --ignore-scripts');
+    expect(releaseText.match(/npm run check/g)).toHaveLength(1);
+    expect(releaseText.match(/npm run build/g)).toHaveLength(1);
+  });
+
+  it('keeps every job timeout at its current value', () => {
+    expect(Object.values(jobs(release))).toEqual([60]);
+    expect(Object.values(jobs(ci))).toEqual([30, 60, 60, 45, 30, 30]);
+  });
 });
