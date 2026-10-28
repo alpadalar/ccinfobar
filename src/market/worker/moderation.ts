@@ -7,6 +7,7 @@ import { json, readJsonBody } from './http.js';
 import { buckets, check } from './rate.js';
 import { settleIndex } from './settle.js';
 import {
+  approveHeldStatements,
   approveStatements,
   banStatements,
   dropPendingStatements,
@@ -19,6 +20,7 @@ import {
   publishCounts,
   publisherRow,
   readEntryRow,
+  rejectHeldStatements,
   removeStatements,
   requireAdmin,
   resolveStatements,
@@ -83,7 +85,13 @@ async function logFor(
 
 export async function listPending(env: Env): Promise<Response> {
   const rows = await pendingEntries(env.DB, LIST_CAP);
-  return json(200, { entries: rows.map((r) => ({ ...JSON.parse(r.summary), createdAt: r.at })) });
+  return json(200, {
+    entries: rows.map((r) => ({
+      ...JSON.parse(r.summary),
+      createdAt: r.at,
+      ...(r.held ? { held: r.held } : {}),
+    })),
+  });
 }
 
 export async function review(env: Env, p: string, s: string): Promise<Response> {
@@ -95,7 +103,9 @@ export async function review(env: Env, p: string, s: string): Promise<Response> 
   const v = JSON.parse(row.body) as { content: unknown; hash: string };
   const entry = { ...(JSON.parse(row.doc) as Record<string, unknown>), state: row.state };
   // approve sends this tag back as If-Match
-  return json(200, { entry, content: v.content, hash: v.hash }, { etag: row.tag });
+  const out: Record<string, unknown> = { entry, content: v.content, hash: v.hash };
+  if (row.held !== undefined) out.held = row.held;
+  return json(200, out, { etag: row.tag });
 }
 
 const CHANGED = 'entry changed since review';
@@ -109,11 +119,11 @@ function pinOf(req: Request): { hash: string; gen: number } {
   return { hash: m[1]!, gen: Number(m[2]) };
 }
 
-async function pendingOnly(env: Env, p: string, s: string): Promise<string> {
+async function pendingOnly(env: Env, p: string, s: string): Promise<{ tag: string; held: number | null }> {
   const row = await reviewRow(env.DB, p, s);
   if (!row) throw fail(404, 'not-found');
-  if (row.state !== 'pending') throw fail(409, 'conflict', 'entry is not pending');
-  return row.tag;
+  if (row.state !== 'pending' && row.held === undefined) throw fail(409, 'conflict', 'entry is not pending');
+  return { tag: row.tag, held: row.held ?? null };
 }
 
 const gateOf = (env: Env, who: Publisher) => requireAdmin(env.DB, who.digest, adminIds(env));
@@ -121,7 +131,7 @@ const gateOf = (env: Env, who: Publisher) => requireAdmin(env.DB, who.digest, ad
 // a failed batch: the admin, the entry or its revision changed meanwhile
 async function whyNot(env: Env, req: Request, p: string, s: string, pin?: string): Promise<never> {
   await adminOf(env, req);
-  const tag = await pendingOnly(env, p, s);
+  const { tag } = await pendingOnly(env, p, s);
   if (pin && tag !== pin) throw fail(412, 'stale', CHANGED);
   throw fail(409, 'conflict');
 }
@@ -137,9 +147,21 @@ export type AdminRoute = (
 
 export const approve: AdminRoute = async (env, deps, req, who, p, s) => {
   const log = await logFor(deps, req, who, 'approve', `${p}/${s}`);
-  const tag = await pendingOnly(env, p, s);
+  const { tag, held } = await pendingOnly(env, p, s);
   const pin = pinOf(req);
   if (reviewTag(pin.hash, pin.gen) !== tag) throw fail(412, 'stale', CHANGED);
+  if (held !== null) {
+    const now = await readEntryRow(env.DB, p, s);
+    if (!now?.held || now.held.version !== held) throw fail(409, 'conflict');
+    try {
+      await env.DB.batch(approveHeldStatements(env.DB, gateOf(env, who), p, s, pin, now.held, log));
+    } catch (err) {
+      if (writeConflict(err) !== 'guard') throw err;
+      await whyNot(env, req, p, s, tag);
+    }
+    await settleIndex(env.DB, env, deps.now());
+    return json(200, { id: `${p}/${s}`, approved: true });
+  }
   try {
     await env.DB.batch(approveStatements(env.DB, gateOf(env, who), p, s, pin, log, capsOf(env, deps)));
   } catch (err) {
@@ -158,7 +180,19 @@ export const approve: AdminRoute = async (env, deps, req, who, p, s) => {
 
 export const reject: AdminRoute = async (env, deps, req, who, p, s) => {
   const log = await logFor(deps, req, who, 'reject', `${p}/${s}`);
-  await pendingOnly(env, p, s);
+  const { held } = await pendingOnly(env, p, s);
+  if (held !== null) {
+    try {
+      await noteSize(
+        env.DB,
+        await env.DB.batch(rejectHeldStatements(env.DB, gateOf(env, who), p, s, held, log)),
+      );
+    } catch (err) {
+      if (writeConflict(err) !== 'guard') throw err;
+      await whyNot(env, req, p, s);
+    }
+    return json(200, { id: `${p}/${s}`, rejected: true, version: held });
+  }
   try {
     await noteSize(env.DB, await env.DB.batch(dropPendingStatements(env.DB, gateOf(env, who), p, s, log)));
   } catch (err) {

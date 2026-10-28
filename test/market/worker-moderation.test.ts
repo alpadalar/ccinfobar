@@ -1170,5 +1170,99 @@ describe.skipIf(skipSqlite)('worker moderation guards', () => {
       }>();
       expect(held?.held).toBeNull();
     });
+
+    describe('review lifecycle', () => {
+      const hold = async (s: Awaited<ReturnType<typeof trusted>>, v: number, url: string) => {
+        const r = await next(s, 'one', v, linked(url));
+        expect(r.status).toBe(202);
+        return ((await r.json()) as { hash: string }).hash;
+      };
+
+      it('admin pending and show expose the held version', async () => {
+        const s = await trusted();
+        const hash = await hold(s, 1, NEW);
+        await s.call('POST', '/v1/entries', { token: s.other, body: publishBody('o1') });
+        const list = parsePending((await s.get(adminPendingPath(), s.admin)).json);
+        const held = list?.entries.find((e) => e.id === 'pub/one');
+        expect(held).toMatchObject({
+          version: 1,
+          held: { version: 2, reason: 'new-link', links: ['example.com/x'] },
+        });
+        expect(list?.entries.find((e) => e.id === 'other/o1')?.held).toBeUndefined();
+        const rv = await s.get(adminEntryPath('pub/one'), s.admin);
+        const review = parseReview(rv.json);
+        expect(review?.content).toEqual(linked(NEW));
+        expect(review?.hash).toBe(hash);
+        expect(rv.headers.get('etag')).toMatch(new RegExp(`^"${hash}-[0-9]+"$`));
+      });
+
+      it('approve makes the held version live, a stale tag is 412', async () => {
+        const s = await trusted();
+        await hold(s, 1, NEW);
+        const etag = (await s.get('/v1/index.json')).headers.get('etag');
+        const pin = await s.pin('pub/one', s.admin);
+        const stale = { 'if-match': pin['if-match']!.replace(/-(\d+)"$/, '-999"') };
+        expect(await error(await s.approve('pub/one', stale))).toEqual({ status: 412, code: 'stale' });
+        expect((await s.get('/v1/entries/pub/one/2.json')).status).toBe(404);
+        const r = await s.approve('pub/one');
+        expect(r.status).toBe(200);
+        expect(await r.json()).toEqual({ id: 'pub/one', approved: true });
+        const pub = (await s.get('/v1/entries/pub/one/2.json')).json;
+        expect(pub.content).toEqual(linked(NEW));
+        const doc = (await s.get('/v1/entries/pub/one.json')).json;
+        expect(doc.version).toBe(2);
+        expect(doc.versions).toHaveLength(2);
+        expect((await s.get('/v1/index.json')).headers.get('etag')).not.toBe(etag);
+        const one = parseIndex((await s.get('/v1/index.json')).json)!.entries.find((e) => e.id === 'pub/one');
+        expect(one?.version).toBe(2);
+        const bodies = (await s.versionRows('pub', 'one')) as { body: string | null }[];
+        expect(bodies.every((b) => b.body !== null)).toBe(true);
+        expect(await meEntry(s, 'pub/one')).toEqual({ id: 'pub/one', state: 'live', version: 2 });
+        const log = (await s.rows('moderation')) as { action: string }[];
+        expect(log.map((l) => l.action)).toContain('approve');
+      });
+
+      it('reject deletes the held version and keeps the entry live', async () => {
+        const s = await trusted();
+        await hold(s, 1, NEW);
+        expect((await s.approve('pub/one')).status).toBe(200);
+        const bytes = Number((await s.publisher('pub'))!.bytes);
+        await hold(s, 2, 'https://example.org/y');
+        expect(Number((await s.publisher('pub'))!.bytes)).toBeGreaterThan(bytes);
+        const r = await s.call('POST', action('pub/one', 'reject'), { token: s.admin, body: { note: 'no' } });
+        expect(r.status).toBe(200);
+        expect(await r.json()).toMatchObject({ id: 'pub/one', rejected: true });
+        const rows = (await s.versionRows('pub', 'one')) as { version: number }[];
+        expect(rows.map((x) => x.version)).toEqual([1, 2]);
+        expect((await s.publisher('pub'))!.bytes).toBe(bytes);
+        expect((await s.get('/v1/entries/pub/one.json')).json.version).toBe(2);
+        expect(await meEntry(s, 'pub/one')).toMatchObject({ state: 'live', version: 2 });
+        expect((await meEntry(s, 'pub/one'))?.held).toBeUndefined();
+      });
+
+      it('approve and reject with nothing held on a live entry are 409', async () => {
+        const s = await trusted();
+        for (const a of ['approve', 'reject'] as const) {
+          expect(await error(await s.call('POST', action('pub/one', a), { token: s.admin }))).toEqual({
+            status: 409,
+            code: 'conflict',
+          });
+        }
+      });
+
+      it('withdraw clears a held version', async () => {
+        const s = await trusted();
+        await hold(s, 1, NEW);
+        const r = await s.call('DELETE', '/v1/entries/pub/one', { token: s.pub });
+        expect(r.status).toBe(200);
+        const row = await s.db
+          .prepare('SELECT state, held FROM entries WHERE slug = ?1')
+          .bind('one')
+          .first<{ state: string; held: string | null }>();
+        expect(row).toEqual({ state: 'withdrawn', held: null });
+        const rows = (await s.versionRows('pub', 'one')) as { version: number }[];
+        expect(rows.map((x) => x.version)).toEqual([1]);
+      });
+    });
   });
 });
