@@ -155,7 +155,6 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
     });
   }
   const ctx = statusContext(config, eff.payload, width, data);
-  const lines = render(ctx);
   let notice: string | null = null;
   try {
     notice = updateNotice(config, VERSION);
@@ -164,10 +163,7 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
       if (rej) notice = t('update.rejected', { version: rej.rejected, current: VERSION });
     }
   } catch {}
-  if (notice && lines.length) {
-    const level = detectLevel(config.colorLevel);
-    lines[lines.length - 1] += ` ${style(notice, { fg: 'yellow' }, level)}`;
-  }
+  const lines = render(ctx, { notice: notice ?? undefined });
   // NBSP in every mode: Claude Code trims and collapses plain spaces (WR-05)
   process.stdout.write(lines.map((l) => finalizeLine(l)).join('\n') + (lines.length ? '\n' : ''));
   try {

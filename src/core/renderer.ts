@@ -606,17 +606,29 @@ function wrapLine(parts: Part[], a: Appearance, level: Level, max: number, cut: 
     .join('\n');
 }
 
-export function render(base: RenderContext): string[] {
+export function render(base: RenderContext, opts: { notice?: string } = {}): string[] {
   const glyphMode = resolveGlyphMode(base.config, base.env);
   const lang = base.config.language;
   const prevLang = isLanguageId(lang) ? setLanguage(lang) : null;
   const prev = setWidthMode(widthModeFor(glyphMode, base.config.ambiguousWidth));
   try {
-    return renderAll({ ...base, glyphMode });
+    const lines = renderAll({ ...base, glyphMode });
+    return opts.notice && lines.length ? withNotice(lines, opts.notice, base) : lines;
   } finally {
     setWidthMode(prev);
     if (prevLang) setLanguage(prevLang);
   }
+}
+
+function withNotice(lines: string[], notice: string, base: RenderContext): string[] {
+  const level = detectLevel(base.config.colorLevel, base.env);
+  const s = style(notice, { fg: 'yellow' }, level);
+  const max = maxLineWidth(base);
+  const last = lines[lines.length - 1]!;
+  if (max === null || visibleWidth(last) + 1 + visibleWidth(s) <= max) {
+    return [...lines.slice(0, -1), `${last} ${s}`];
+  }
+  return [...lines, truncate(s, max)];
 }
 
 function renderAll(base: RenderContext): string[] {

@@ -15,6 +15,32 @@ const text = (t: string, extra: Partial<WidgetItem> = {}): WidgetItem => ({
   ...extra,
 });
 
+describe('render notice', () => {
+  const line = (n: number, maxWidth?: number) =>
+    ctxWith({ config: { maxWidth, lines: [[text('a'.repeat(n))]] } });
+
+  it('is unchanged without opts and appends when it fits', () => {
+    expect(render(line(5, 80))).toEqual(['aaaaa']);
+    const out = render(line(5, 80), { notice: 'v9 available' });
+    expect(out).toHaveLength(1);
+    expect(stripAnsi(out[0]!)).toBe('aaaaa v9 available');
+    expect(visibleWidth(out[0]!)).toBeLessThanOrEqual(80);
+  });
+
+  it('moves to its own truncated line when it does not fit', () => {
+    const out = render(line(20, 24), { notice: 'v9 available now' });
+    expect(out).toHaveLength(2);
+    expect(out[0]).toBe(render(line(20, 24))[0]);
+    expect(visibleWidth(out[1]!)).toBeLessThanOrEqual(24);
+    expect(stripAnsi(out[1]!)).toContain('v9');
+  });
+
+  it('appends when there is no max width and invents no line for an empty config', () => {
+    expect(render(line(5), { notice: 'x' }).map(stripAnsi)).toEqual(['aaaaa x']);
+    expect(render(ctxWith({ config: { lines: [] } }), { notice: 'x' })).toEqual([]);
+  });
+});
+
 describe('renderer', () => {
   it('joins widgets with the separator and skips empty lines', () => {
     const ctx = ctxWith({ config: { lines: [[text('a'), text('b')], [], [{ id: 'x', type: 'unknown' }]] } });
