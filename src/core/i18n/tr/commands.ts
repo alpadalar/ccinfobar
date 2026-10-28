@@ -65,8 +65,6 @@ export const commandsMessages = {
     '  npx üzerinden çalışıyor: en yeni sürümü kurmak için `npx ccinfobar@latest install` çalıştırın.',
   'cmd.update.installing': '  ccinfobar@{version} kuruluyor ...',
   'cmd.update.updated': '✓ {version} sürümüne güncellendi',
-  'cmd.update.digestUnavailable':
-    '✗ npm güncellemeyi kuramadı ve GitHub sürüm için sağlama toplamı yayımlamadı; hiçbir şey kurulmadı',
   'cmd.update.npmFailed': '✗ npm install başarısız oldu: {message}',
   'cmd.update.manual': '  Kendiniz çalıştırın: npm install -g ccinfobar@{version}',
   'share.size': '{chars} karakter',

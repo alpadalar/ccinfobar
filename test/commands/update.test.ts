@@ -282,18 +282,18 @@ describe('manual update output', () => {
       0,
     ],
     [
-      'no checksum',
+      'registry only, no checksum path',
       { latest: '1.1.0', fail: 'digest-unavailable' },
       [
         'New version available: 1.0.0 → 1.1.0',
         '  Installing ccinfobar@1.1.0 ...',
-        'E ✗ npm could not install the update and GitHub published no checksum for the release; nothing was installed',
+        'E ✗ npm install failed: digest-unavailable',
         'E   Run it yourself: npm install -g ccinfobar@1.1.0',
       ],
       [
         'Yeni sürüm var: 1.0.0 → 1.1.0',
         '  ccinfobar@1.1.0 kuruluyor ...',
-        'E ✗ npm güncellemeyi kuramadı ve GitHub sürüm için sağlama toplamı yayımlamadı; hiçbir şey kurulmadı',
+        'E ✗ npm install başarısız oldu: digest-unavailable',
         'E   Kendiniz çalıştırın: npm install -g ccinfobar@1.1.0',
       ],
       1,

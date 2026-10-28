@@ -59,8 +59,6 @@ export const commandsMessages = {
   'cmd.update.npx': '  Running through npx: run `npx ccinfobar@latest install` to set up the newest release.',
   'cmd.update.installing': '  Installing ccinfobar@{version} ...',
   'cmd.update.updated': '✓ Updated to {version}',
-  'cmd.update.digestUnavailable':
-    '✗ npm could not install the update and GitHub published no checksum for the release; nothing was installed',
   'cmd.update.npmFailed': '✗ npm install failed: {message}',
   'cmd.update.manual': '  Run it yourself: npm install -g ccinfobar@{version}',
   'share.size': '{chars} characters',
