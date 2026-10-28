@@ -108,15 +108,19 @@ export function ceilingStop(
   return best;
 }
 
+export function homeOf(env: NodeJS.ProcessEnv | undefined, p: path.PlatformPath = path): string {
+  const h = isWin(p) ? env?.USERPROFILE || env?.HOME : env?.HOME;
+  return h || os.homedir();
+}
+
 // ignores GIT_DIR and GIT_WORK_TREE on purpose; follows a symlinked .git like readHead
 export function insideRepo(
   start: string,
   p: path.PlatformPath = path,
   opts: { env?: NodeJS.ProcessEnv; home?: string } = {},
 ): string | null {
-  const win = isWin(p);
   const e = opts.env;
-  const home = opts.home ?? (win ? (e?.USERPROFILE ?? e?.HOME) : e?.HOME) ?? os.homedir();
+  const home = opts.home ?? homeOf(e, p);
   const stop = ceilingStop(start, opts.env, p);
   for (const [i, d] of ancestors(start, p).entries()) {
     if (stop !== null && i > 0 && atOrAbove(d, stop, p)) break;

@@ -10,6 +10,7 @@ import {
   ancestors,
   ceilingStop,
   gitdirOf,
+  homeOf,
   insideRepo,
   isHome,
   legacyDirtyFile,
@@ -384,6 +385,15 @@ describe.skipIf(tmpRepo)('insideRepo home skip and ceilings', () => {
     expect(insideRepo(plain, path, { env: { HOME: home, USERPROFILE: home } })).toBeNull();
   });
 
+  it('falls through an empty HOME to the OS home', () => {
+    expect(homeOf({ HOME: '' }, path)).toBe(os.homedir());
+    expect(homeOf({ HOME: '/x' }, path)).toBe('/x');
+    expect(homeOf(undefined, path)).toBe(os.homedir());
+    const r = mk('r');
+    fs.mkdirSync(path.join(r, '.git'));
+    expect(insideRepo(r, path, { env: { HOME: '' } })).toBe(r);
+  });
+
   it('stops at GIT_CEILING_DIRECTORIES but always checks the start dir', () => {
     const home = mk('elsewhere');
     const x = mk('home', 'x');
@@ -418,6 +428,11 @@ describe('win32 insideRepo helpers', () => {
   it('isHome compares case-insensitively', () => {
     expect(isHome('c:\\users\\me', 'C:\\Users\\Me', w)).toBe(true);
     expect(isHome('C:\\Users\\Me\\proj', 'C:\\Users\\Me', w)).toBe(false);
+  });
+
+  it('homeOf skips empty values', () => {
+    expect(homeOf({ USERPROFILE: '', HOME: 'C:\\h' }, w)).toBe('C:\\h');
+    expect(homeOf({ USERPROFILE: 'C:\\u', HOME: 'C:\\h' }, w)).toBe('C:\\u');
   });
 
   it('ceilingStop picks the longest ceiling at or above start, case-insensitive, split on ;', () => {
