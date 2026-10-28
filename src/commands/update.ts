@@ -125,7 +125,12 @@ export async function manualUpdate(
     d.log(t('cmd.update.updated', { version: latest }));
     return 0;
   } catch (err) {
-    d.error(t('cmd.update.npmFailed', { message: (err as Error).message }));
+    const message = (err as Error).message;
+    d.error(
+      message === 'digest-unavailable'
+        ? t('cmd.update.digestUnavailable')
+        : t('cmd.update.npmFailed', { message }),
+    );
     d.error(t('cmd.update.manual', { version: latest }));
     return 1;
   }

@@ -576,7 +576,8 @@ export function runDoctor(
         : t(brew ? 'doctor.update.neverCheckedBrew' : 'doctor.update.neverChecked', params),
     );
   }
-  if (upd?.error) console.log(t('doctor.update.failed', { error: safe(upd.error) }));
+  if (upd?.error === 'digest-unavailable') console.log(t('doctor.update.digestUnavailable'));
+  else if (upd?.error) console.log(t('doctor.update.failed', { error: safe(upd.error) }));
   if (upd?.rejected)
     console.log(
       t((upd.rollback && ROLLBACK_KEYS[upd.rollback]) || 'doctor.update.rolledBack', {

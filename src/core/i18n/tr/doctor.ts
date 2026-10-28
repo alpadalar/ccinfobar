@@ -115,6 +115,8 @@ export const doctorMessages = {
     '✓ Güncel (güncelleme: {mode}, {command} ile güncellenir, Homebrew kurulumu, henüz denetlenmedi)',
   'doctor.brewMode.notify': 'yalnızca bildir',
   'doctor.brewMode.auto': 'yalnızca bildir, auto burada notify gibi çalışır',
+  'doctor.update.digestUnavailable':
+    '  Son güncelleme: npm kuramadı ve GitHub sürüm için sağlama toplamı yayımlamadı, bu yüzden hiçbir şey kurulmadı; ccinfobar bir sonraki denetimde yeniden dener',
   'doctor.update.failed': '  Son güncelleme denetimi başarısız oldu: {error}',
   'doctor.update.rolledBack':
     '  ccinfobar {version} kurulum sonrası denetimi geçemedi ({reason}); {current} sürümüne geri dönüldü',

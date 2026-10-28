@@ -444,6 +444,25 @@ describe('runDoctor install report', () => {
     }
   });
 
+  it('names a missing release checksum instead of the generic failure', () => {
+    fs.mkdirSync(cacheDir(), { recursive: true });
+    const upd = path.join(cacheDir(), 'update.json');
+    fs.writeFileSync(
+      upd,
+      JSON.stringify({ checkedAt: Date.now(), latest: '9.9.9', error: 'digest-unavailable' }),
+    );
+    try {
+      const en = capture(() => runDoctor(plain()));
+      expect(en).toContain(t('doctor.update.digestUnavailable'));
+      expect(en.join('\n')).not.toContain('Last update check failed');
+      const tr = withEnvLang('tr', () => capture(() => runDoctor(plain())));
+      expect(tr).toContain(withLang('tr', () => t('doctor.update.digestUnavailable')));
+      expect(tr.join('\n')).not.toContain('Son güncelleme denetimi başarısız');
+    } finally {
+      fs.rmSync(upd, { force: true });
+    }
+  });
+
   it('shows a rolled back and a failed-rollback update in both languages', () => {
     fs.mkdirSync(cacheDir(), { recursive: true });
     const upd = path.join(cacheDir(), 'update.json');

@@ -108,6 +108,8 @@ export const doctorMessages = {
     '✓ Up to date ({mode}, updates via {command}, Homebrew install, not checked yet)',
   'doctor.brewMode.notify': 'notify mode',
   'doctor.brewMode.auto': 'notify mode, auto acts as notify',
+  'doctor.update.digestUnavailable':
+    '  Last update: npm could not install it and GitHub published no checksum for the release, so nothing was installed; ccinfobar tries again at the next check',
   'doctor.update.failed': '  Last update check failed: {error}',
   'doctor.update.rolledBack':
     '  ccinfobar {version} failed its post-install check ({reason}); rolled back to {current}',
