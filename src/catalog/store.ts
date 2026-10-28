@@ -5,7 +5,7 @@ import { normalizeConfig } from '../core/config.js';
 import { parseCols, takesCols } from '../core/entry-keys.js';
 import { configDir } from '../core/paths.js';
 import { deleteUserPreset, ID_RE, listPresets, type Preset } from '../core/presets.js';
-import { sanitizeText } from '../core/sanitize.js';
+import { cleanLabel, stripInvisible } from '../core/sanitize.js';
 import type { ThemeInput } from '../core/themes/style.js';
 import {
   BUILTIN_THEMES,
@@ -144,6 +144,8 @@ const entryFile = (dir: string, id: string) => path.join(entriesDir(dir), `${id}
 function clip(s: unknown, n: number): string {
   return [...(typeof s === 'string' ? s : '').trim()].slice(0, n).join('').trim();
 }
+
+const lbl = (v: unknown): string => (typeof v === 'string' ? stripInvisible(v) : '');
 
 function readBytes(file: string): Buffer | null {
   try {
@@ -290,12 +292,13 @@ export function saveEntry(input: SaveInput, dir = catalogDir()): CatalogEntry {
 function saveLocked(input: SaveInput, dir: string): CatalogEntry {
   const now = input.now ?? new Date();
   const at = now.toISOString();
-  const name = (typeof input.name === 'string' ? input.name : '').normalize('NFC').trim();
+  let name = (typeof input.name === 'string' ? input.name : '').normalize('NFC').trim();
+  name = stripInvisible(name).trim();
   if (!name || [...name].length > ENTRY_LIMITS.name || CONTROL.test(name))
     fail('bad-name', { limit: ENTRY_LIMITS.name });
   if (!KINDS.includes(input.kind)) fail('bad-content', { kind: input.kind });
   const content = cleanContent(input.kind, input.content);
-  const note = input.note ?? '';
+  const note = stripInvisible(input.note ?? '');
   const cols = takesCols(input.kind) ? parseCols(input.cols) : undefined;
   if (input.mode === 'new') {
     const hit = findByName(input.kind, name, dir);
@@ -304,8 +307,8 @@ function saveLocked(input: SaveInput, dir: string): CatalogEntry {
       id: `u-${randomHex(6)}`,
       kind: input.kind,
       name,
-      description: clip(input.description, ENTRY_LIMITS.description),
-      author: clip(input.author, ENTRY_LIMITS.author),
+      description: clip(lbl(input.description), ENTRY_LIMITS.description),
+      author: clip(lbl(input.author), ENTRY_LIMITS.author),
       content,
       note,
       ...(cols === undefined ? {} : { cols }),
@@ -330,8 +333,8 @@ function saveLocked(input: SaveInput, dir: string): CatalogEntry {
     input.mode === 'update'
       ? appendVersion(cur, content, note, at, cols)
       : overwriteVersion(cur, content, note, at, cols);
-  next.description = clip(input.description, ENTRY_LIMITS.description);
-  if (input.author !== undefined) next.author = clip(input.author, ENTRY_LIMITS.author);
+  next.description = clip(lbl(input.description), ENTRY_LIMITS.description);
+  if (input.author !== undefined) next.author = clip(lbl(input.author), ENTRY_LIMITS.author);
   if (input.origin) next.origin = structuredClone(input.origin);
   const change = input.shareChange;
   if (change === true && isReserved(cur)) fail('reserved', { id, name: cur.name });
@@ -481,7 +484,7 @@ function legacyDirs(o: LegacyDirs): Required<LegacyDirs> {
   };
 }
 
-const safe = (s: unknown, n: number) => clip(sanitizeText(typeof s === 'string' ? s : ''), n);
+const safe = (s: unknown, n: number) => clip(cleanLabel(typeof s === 'string' ? s : ''), n);
 
 function presetItem(p: Preset, dir: string): LegacyItem | null {
   const file = path.join(dir, `${p.id}.json`);

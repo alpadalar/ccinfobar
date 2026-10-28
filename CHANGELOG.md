@@ -68,6 +68,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Security
 
+- Marketplace and catalog names, descriptions, authors and notes are stored and shown without zero-width, bidi-mark, BOM and tag characters (U+200B–200F, U+2060–2064, U+FEFF, U+061C, U+E0000–E007F), on your machine and on the marketplace Worker; entry content and its hashes are unchanged, so published entries keep verifying.
 - The GitHub tarball fallback of the updater checks the release's published sha256 digest when GitHub provides one, and stops before npm runs on a mismatch.
 - The `agents` widget and its cache now mask tokens, passwords and URL credentials inside subagent tool arguments and show file names instead of full paths, with the same rules as the running-tools display, and subagent descriptions are masked before they are shown or cached; masking (running-tool arguments and `agents` rows, descriptions and cache files) now also hides `curl -u`/`--user` passwords, `--password <x>`, `Authorization`/`X-Api-Key`-style header values and bare `sk-`, `ghp_`/`github_pat_` tokens; the old `agent2-*` cache files are no longer read.
 - `env` widgets now need the same consent as command, HTTP and link widgets wherever a layout comes from outside (import, `catalog apply`, share codes, editor Open…/Import, marketplace install); without it they are dropped, so a pasted layout cannot show an environment variable.

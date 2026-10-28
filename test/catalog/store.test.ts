@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type CatalogEntry, ENTRY_LIMITS, type EntryContent, newEntry } from '../../src/catalog/model.js';
+import { entryHash } from '../../src/catalog/share.js';
 import {
   CatalogStoreError,
   catalogDir,
@@ -593,5 +594,30 @@ describe('catalog store: themes carry no cols (WR-07)', () => {
     raw.versions[0].cols = 150;
     handWrite(e.id, JSON.stringify(raw));
     expect(readEntry(e.id, dir)!.entry.versions[0]).not.toHaveProperty('cols');
+  });
+});
+
+describe('invisible characters in labels', () => {
+  it('strips them from labels and leaves content and its hash alone', () => {
+    const c = content();
+    c.layout!.lines![0]!.push({ id: 't', type: 'text', options: { text: 'a\u200bb' } });
+    const before = entryHash(c);
+    const e = saveEntry(
+      input({
+        name: 'My\u200b preset\ufeff',
+        description: 'd\u2060',
+        author: 'a\u{e0041}',
+        note: 'n\u200f',
+        content: c,
+      }),
+      dir,
+    );
+    expect(e.name).toBe('My preset');
+    expect(e.description).toBe('d');
+    expect(e.author).toBe('a');
+    expect(e.versions[0]!.note).toBe('n');
+    const raw = JSON.stringify(rawOf(e.id).versions[0].content);
+    expect(raw).toContain('a\u200bb');
+    expect(entryHash(e.versions[0]!.content)).toBe(before);
   });
 });
