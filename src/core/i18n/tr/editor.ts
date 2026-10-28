@@ -52,6 +52,9 @@ export const editorMessages = {
   'web.settings.language': 'Dil',
   'web.settings.languageAuto': 'Otomatik ({name})',
   'web.settings.languageHelp': 'Otomatik, durum satırı gibi bu bilgisayarın dil ayarlarını izler.',
+  'web.settings.showTips': 'İpuçlarını göster',
+  'web.settings.showTipsHelp':
+    'Önizlemenin üstündeki dönen ipucu satırı. × ile gizlemek bu tarayıcıda hatırlanır',
   'web.settings.data': 'Veri',
   'web.settings.usageApi': "Claude'dan kullanım",
   'web.settings.usageApiHelp':

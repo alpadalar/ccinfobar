@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- Web editor: a "Show tips" switch in Settings → Appearance brings the rotating tip line back after it was hidden with ×
 - `ccinfobar doctor` warns when the status line command pins a Node binary that no longer exists, for example after a Node upgrade; `ccinfobar install` pins the current one
 - `ccinfobar update` falls back to the digest-checked GitHub tarball when npm cannot fetch the version, as the automatic update already did
 - `updateMinAgeHours` (config, web editor Settings, TUI): with `update: "auto"`, wait until a release is at least that many hours old (1-720; the GitHub release date, or npm's publish time as fallback) before installing it; a too-new release is skipped with `reason: too-new` and installed on a later check, and `ccinfobar doctor` says so. Default `0` keeps today's behaviour; update notices and `ccinfobar update` ignore the setting

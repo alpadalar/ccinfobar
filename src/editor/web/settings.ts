@@ -45,6 +45,7 @@ import { browserLanguages } from './i18n-static.js';
 import { field, numberInput, segmented, textInput, toggle } from './inspector.js';
 import { installDialog } from './install-dialog.js';
 import { applySaved, commit, type HooksInfo, S } from './store.js';
+import { setTipsHidden, tipsHidden } from './tips.js';
 import { modal, toast } from './ui.js';
 import { brewHint, canSelfUpdate, kindLabel } from './update-info.js';
 
@@ -468,9 +469,20 @@ function languageField(c: Config, rerender: () => void): HTMLElement {
   return field(t('web.settings.language'), sel, t('web.settings.languageHelp'));
 }
 
+// browser preference, not config: nothing to save
+export function tipsField(): HTMLElement {
+  return field(
+    t('web.settings.showTips'),
+    toggle(!tipsHidden(), (v) => setTipsHidden(!v)),
+    t('web.settings.showTipsHelp'),
+    true,
+  );
+}
+
 function appearanceFields(c: Config, rerender: () => void): HTMLElement[] {
   return [
     languageField(c, rerender),
+    tipsField(),
     field(
       t('web.settings.loadingText'),
       textInput(
