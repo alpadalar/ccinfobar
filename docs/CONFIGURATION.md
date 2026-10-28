@@ -419,6 +419,15 @@ Not covered:
 - `claudeMdExcludes` (excluded files are still counted) and an inline managed `claudeMd`
 - MCP health: `mcpHealth` is reserved because Claude Code does not expose MCP status to the status line, so it does nothing today and `ccinfobar explain` says so
 
+### sandbox
+
+`sandbox` shows a chip when Claude Code's sandbox is enabled. It reads `sandbox.enabled` from the settings files Claude Code reads: managed settings, the repository's `.claude/settings.local.json` (at the repo root and the start folder), `.claude/settings.json` and your user `settings.json`, with Claude Code's precedence (managed, then local, project, user; Boolean keys are resolved one by one, and a repository `false` is ignored under an admin-required sandbox when your user file says `true`). It never reads `~/.claude.json`, voice or account settings.
+
+- Settings passed with `--settings <file>` and MDM or server-managed settings are not visible to a status line, so they are not reflected.
+- The chip shows the setting, not whether the sandbox actually started. On Windows the sandbox never runs and the widget hides.
+- `showOff` shows `sandbox off` when a layer sets `false`; `showStrict` appends `strict` when `allowUnsandboxedCommands` is `false`.
+- Opt-in: no preset uses it.
+
 ### workspace-repos
 
 Lists git repos directly inside the current folder when that folder is not inside a repo. Elsewhere it hides itself instead of showing `repos: —`; set `hideEmpty: false` on it to keep the placeholder. It reads `.git/HEAD` files, never runs git while rendering, and rescans at most every 10 seconds. Inside-repo detection walks up looking for `.git`. A `.git` directly in your home directory (a dotfiles repo) is ignored and `GIT_CEILING_DIRECTORIES` is honoured, so folders under `~` still count as outside a repo. `GIT_DIR` and `GIT_WORK_TREE` are ignored. With `dirty: true` a background job runs a hardened `git status` in up to 50 repos, the ones on screen first, about once a minute; the status line only reads its cache.

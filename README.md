@@ -23,7 +23,7 @@
 
 </div>
 
-ccinfobar is a status line for Claude Code: it renders the JSON that Claude Code sends on every refresh as a themed line (or several). It is for Claude Code users who want to see model, context, cost, limits, git and more without writing a script. It comes with a drag-and-drop web editor and a terminal editor; 117 widgets, 30 themes and a marketplace of presets and bundles; and zero runtime dependencies on Windows, macOS and Linux, with an install that backs up `settings.json` and an uninstall that restores it byte for byte.
+ccinfobar is a status line for Claude Code: it renders the JSON that Claude Code sends on every refresh as a themed line (or several). It is for Claude Code users who want to see model, context, cost, limits, git and more without writing a script. It comes with a drag-and-drop web editor and a terminal editor; 118 widgets, 30 themes and a marketplace of presets and bundles; and zero runtime dependencies on Windows, macOS and Linux, with an install that backs up `settings.json` and an uninstall that restores it byte for byte.
 
 <p align="center"><img src="docs/images/demo.gif" alt="ccinfobar status lines cycling through themes and presets" width="100%"></p>
 
@@ -57,7 +57,7 @@ ccinfobar is a status line for Claude Code: it renders the JSON that Claude Code
 - **30 themes, or your own.** Colored text, colored blocks, powerline arrows, rounded capsules or a bordered panel with a responsive grid, from classic to Nord, Dracula, Rosé Pine, Tokyo Night, Kanagawa and all four Catppuccin flavours. ASCII mode for terminals without a Nerd Font. Preview them all with `ccinfobar themes` and write your own in a few lines of JSON.
 - **Terminal editor too.** `ccinfobar tui` does the same from the keyboard (or mouse) when you are on SSH or prefer to stay in the terminal.
 - **First-class GSD support.** Milestone progress, the current phase, plan completion inside the phase, the next command to run, blockers, requirements and more, as separate widgets you can arrange freely. See [docs/GSD.md](docs/GSD.md).
-- **117 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, the running tool and turn time, an activity strip across sessions, git and Jujutsu (jj) with PR CI checks and fork detection, workspace, system, Claude's service status, your provider or gateway, any JSON endpoint, custom commands and a few just for fun.
+- **118 widgets** covering model and session, context window, tokens and prompt cache, session cost, cost across sessions and budgets, 5-hour and weekly limits with pace tracking and projections, the running tool and turn time, an activity strip across sessions, git and Jujutsu (jj) with PR CI checks and fork detection, workspace, system, Claude's service status, your provider or gateway, any JSON endpoint, custom commands and a few just for fun.
 - **Shows what matters when it matters.** Rules show or hide any widget by context, usage, git, time or provider, narrow terminals drop the least important widgets first, and glyph modes keep lines aligned in JetBrains terminals and GitHub comments. All of it is opt-in.
 - **Uses the current Claude Code payload.** Rate limits, prompt cache statistics, PR status and repository info come straight from the status line JSON, without extra API calls.
 - **Fast, dependency-free, self-updating.** Zero runtime dependencies, lazy data loading, an incremental transcript cache, and network checks that run in one background process, so the status line never waits on the network.
@@ -299,7 +299,7 @@ Mouse works too: click to select, drag a chip to move it.
 
 | Category | Widgets |
 | --- | --- |
-| Session & model | model, effort, thinking, fast mode, output style, session name and id, Claude Code version, vim mode, agent name, skills, provider or gateway (`provider`), how long the turn has run (`turn-timer`), how long the last permission prompt waited (`permission-wait`) |
+| Session & model | model, effort, thinking, fast mode, output style, session name and id, Claude Code version, vim mode, agent name, skills, provider or gateway (`provider`), how long the turn has run (`turn-timer`), how long the last permission prompt waited (`permission-wait`), sandbox status (`sandbox`) |
 | Context window | used or remaining percent (optionally relative to the auto-compact limit), bar, length, window size, compaction count |
 | Tokens & cache | input, output, cached, total, cache hit rate, cache expiry countdown, last cache miss cause, output speed, performance (`performance`: hit rate and average response time) |
 | Cost & time | session cost, cost per hour, estimated cost today, this week and per project across sessions (`cost-today`, `cost-week`, `cost-project`), budget, session and API duration, lines changed, message count |

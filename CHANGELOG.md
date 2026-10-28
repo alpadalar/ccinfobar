@@ -29,6 +29,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Automatic updates now check the new version (`--version` and a test render) before keeping it and roll back to the previous version on failure, including when `--version` or the test render hangs; a rejected version is not retried; if the restored version's own check cannot finish on a slow machine, `doctor` reports the rollback as unverified instead of failed and still names the reinstall command. `ccinfobar doctor` and the status line say when that happened
 - `git-worktree` can show the worktree's branch, original branch, path or original directory (`show`), shortened like `cwd` (`style`, `segments`), and append the branch it was created from (`showOrigin`); without options it shows the name as before
 - `spend-limit` gains `show: amount | percent | remaining | both`, `showPeriod` (`/day`, `/wk`, `/mo`) and optional threshold colours (`thresholdColors`, off by default)
+- `sandbox` widget (Session & model): a chip when the effective Claude Code settings layer enables the sandbox, with `showOff` and `showStrict`; reads only the settings files, never `~/.claude.json`, voice or account data; not in any preset
 
 ### Changed
 - Turkish: `cache-miss-cause` translates the known prompt-cache miss causes (tools changed, system prompt changed, TTL expired 5m/1h, likely server side); unknown names stay as Claude Code sends them, humanized. English output is unchanged (owner decision 2026-10-28)
