@@ -425,7 +425,7 @@ describe.skipIf(skipSqlite)('worker public reads', () => {
     }
   });
 
-  it('never serves a version above the entry version (17-D-02)', async () => {
+  it('never serves a version above the entry version (17-D-17)', async () => {
     const { get, db } = await seeded();
     const before = await indexEtag(db);
     await db

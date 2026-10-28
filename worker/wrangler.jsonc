@@ -24,7 +24,7 @@
   // per address; 86,400 a day at most, under the 100k Free requests (WR-07)
   "ratelimits": [
     { "name": "READS", "namespace_id": "1201", "simple": { "limit": 60, "period": 60 } },
-    // writes per address before any D1 row (17-D-04)
+    // writes per address before any D1 row (17-D-15)
     { "name": "WRITES", "namespace_id": "1202", "simple": { "limit": 30, "period": 60 } },
     // sign-in flood ceiling, above the 5-failure D1 bucket
     { "name": "SIGNIN", "namespace_id": "1203", "simple": { "limit": 20, "period": 60 } }

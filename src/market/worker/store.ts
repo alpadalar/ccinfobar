@@ -260,7 +260,7 @@ export async function tokenPublisher(
   };
 }
 
-// a trusted publisher's next version waiting for link review (17-D-02)
+// a trusted publisher's next version waiting for link review (17-D-17)
 export interface Held {
   version: number;
   hash: string;

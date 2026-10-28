@@ -244,7 +244,7 @@ export async function installVersionAsync(
     let local: string | undefined;
     try {
       if (i === 1) {
-        // never unverified bytes (17-D-03)
+        // never unverified bytes (17-D-23)
         const hex = await releaseDigest(version, fetcher);
         if (!hex) {
           last = new Error('digest-unavailable');

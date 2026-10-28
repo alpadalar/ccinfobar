@@ -1092,7 +1092,7 @@ describe.skipIf(skipSqlite)('worker moderation guards', () => {
     expect(s.hookLeft()).toBe(false);
   });
 
-  describe('held link review (17-D-02)', () => {
+  describe('held link review (17-D-17)', () => {
     const linked = (url: string, type = 'model') =>
       ({
         layout: { lines: [[{ type }, { type: 'link', options: { url } }]] },

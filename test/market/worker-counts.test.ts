@@ -500,7 +500,7 @@ describe.skipIf(skipSqlite)('worker pending caps (WR-02)', () => {
   });
 });
 
-describe.skipIf(skipSqlite)('worker held versions (17-D-02)', () => {
+describe.skipIf(skipSqlite)('worker held versions (17-D-17)', () => {
   const ROOM = { live: 1e9, pending: 1e9, db: 1e12 };
   const LOG = { at: ISO, admin: 'boss', action: 'x', target: 'alp/one', note: '' };
 
