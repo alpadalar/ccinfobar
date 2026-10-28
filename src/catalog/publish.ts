@@ -361,7 +361,7 @@ async function remoteTaken(
         fetch: deps.fetch ?? globalThis.fetch,
         token,
       }).me();
-      handle = handle ?? me.handle;
+      handle = me.handle;
       for (const x of me.entries) if (x.state === 'pending') pending.add(slugOf(x.id));
       for (const x of me.entries) claims.set(slugOf(x.id), null);
     } catch {
@@ -430,7 +430,8 @@ async function recoverConflict(
   taken: ReadonlySet<string>,
 ): Promise<{ sent: Sent; adopted?: true; retried?: { from: string; to: string } }> {
   const hash = entryHash(payload.content);
-  const handle = readPublisher(client.endpoint, dir) ?? (await client.me().catch(() => null))?.handle;
+  const me = await client.me().catch(() => null);
+  const handle = me?.handle ?? readPublisher(client.endpoint, dir);
   const a = e.share.attempt;
   const marked = a && a.endpoint === client.endpoint && a.hash === hash ? a : null;
   const slugs = [payload.slug, ...(marked && marked.slug !== payload.slug ? [marked.slug] : [])];
@@ -443,9 +444,7 @@ async function recoverConflict(
           return { sent: { id, version: live.version, hash }, adopted: true };
       } catch (err) {
         if (codeOf(err) === 'not-found' && marked?.slug === slug) {
-          const mine = (await client.me().catch(() => null))?.entries.find(
-            (x) => x.id === id && x.state === 'pending',
-          );
+          const mine = me?.entries.find((x) => x.id === id && x.state === 'pending');
           if (mine) return { sent: { id, version: mine.version, hash, pending: true }, adopted: true };
         }
       }

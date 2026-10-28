@@ -1010,6 +1010,30 @@ describe('publish: lost answer recovery (COR2-09)', () => {
       expect(share.remote?.review).toBe('pending');
       expect('attempt' in share).toBe(false);
     });
+
+    it('the signed-in handle wins over a stale publisher file', async () => {
+      const m = githubMarket();
+      writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+      writePublisher(GH_ENDPOINT, 'stale', dir);
+      const e = save();
+      await send(null, { dir, env, fetch: lost(m.fetch) });
+      const meCalls = () => m.calls.filter((c) => c.url.endsWith('/v1/me')).length;
+      const before = meCalls();
+      const out = await send(null, { dir, env, fetch: m.fetch });
+      expect(out.results).toEqual([
+        {
+          id: e.id,
+          ok: true,
+          code: null,
+          remoteId: 'octo/mine',
+          version: 1,
+          adopted: true,
+          pending: true,
+        },
+      ]);
+      expect(m.entries.size).toBe(1);
+      expect(meCalls() - before).toBe(2);
+    });
   });
 });
 
