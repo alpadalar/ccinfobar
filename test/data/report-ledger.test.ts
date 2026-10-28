@@ -245,7 +245,7 @@ describe('report project names for hashed ledger lines', () => {
     const data = run();
     const all = buildReport(data, { ...OPTS, filter: null });
     expect(all.rows.map((r) => r.project)).toEqual([displayRoot('/w/a')]);
-    const here = buildReport(data, { ...OPTS, filter: { kind: 'cwd', cwd: displayRoot('/w/a') } });
+    const here = buildReport(data, { ...OPTS, filter: { kind: 'cwd', cwd: normalizeRoot('/w/a') } });
     expect(here.rows.map((r) => r.project)).toEqual([displayRoot('/w/a')]);
   });
 
