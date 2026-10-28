@@ -30,6 +30,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `spend-limit` gains `show: amount | percent | remaining | both`, `showPeriod` (`/day`, `/wk`, `/mo`) and optional threshold colours (`thresholdColors`, off by default)
 
 ### Changed
+- Turkish: `cache-miss-cause` translates the known prompt-cache miss causes (tools changed, system prompt changed, TTL expired 5m/1h, likely server side); unknown names stay as Claude Code sends them, humanized. English output is unchanged (owner decision 2026-10-28)
 - The `fun` category (pet, kaomoji, quip) is listed last in the web editor palette, the TUI palette, `ccinfobar widgets` and docs/WIDGETS.md; the widgets themselves are unchanged (reason: owner decision 2026-10-28, they stay in core but should not sit among the working categories).
 - `workspace-repos` and the `git` rule metric no longer treat every folder as inside a repo when `~/.git` exists (reason: a dotfiles repo in the home directory made `workspace-repos` hide itself everywhere and `showWhen: git` always true); both also honour `GIT_CEILING_DIRECTORIES`. The git widgets still show what git itself finds.
 - All `command` widgets of one refresh now share a time budget (`commandBudgetMs`, default 3000 ms); each still has its own `timeout`, and once the budget is spent the remaining command widgets show their cached output or nothing instead of waiting one after another (reason: a slow or hanging command no longer stalls the whole status line). Layouts with up to three default-timeout commands see no difference.

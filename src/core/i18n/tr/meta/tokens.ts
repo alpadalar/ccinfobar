@@ -32,6 +32,7 @@ export const tokens: MetaFile = {
       name: 'Önbellek ıskası nedeni',
       description: 'Son istem önbelleği ıskasının nedeni',
       label: 'Iska ',
+      sample: 'araçlar değişti (+2/-0)',
     },
     performance: {
       name: 'Performans',

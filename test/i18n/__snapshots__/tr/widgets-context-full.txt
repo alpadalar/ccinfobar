@@ -21,7 +21,7 @@ tokens-cached: 3.2M
 tokens-total: 213k
 cache-hit-rate: 94%
 cache-timer: 41m
-cache-miss-cause: tools changed (+2/-0)
+cache-miss-cause: araçlar değişti (+2/-0)
 performance: 94% · 16.9s
 output-speed: 72 t/s
 session-cost: $1.87

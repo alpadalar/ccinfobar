@@ -1,5 +1,5 @@
 import { latestMiss } from '../core/cache-rule.js';
-import { t } from '../core/i18n/index.js';
+import { type MessageId, t } from '../core/i18n/index.js';
 import { priceFor, requestCost } from '../core/prices.js';
 import { globMatch, PROFILES } from '../core/profiles.js';
 import type { MissCause, RenderContext, StatusPayload, WidgetDef } from '../core/types.js';
@@ -33,8 +33,19 @@ function coldCost(
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
+const CAUSES: Record<string, MessageId> = {
+  tools_changed: 'widget.missCause.toolsChanged',
+  system_prompt_changed: 'widget.missCause.systemPromptChanged',
+  ttl_expired_5m: 'widget.missCause.ttlExpired5m',
+  ttl_expired_1h: 'widget.missCause.ttlExpired1h',
+  likely_server_side: 'widget.missCause.likelyServerSide',
+};
+
+const causeName = (c: string): string =>
+  Object.hasOwn(CAUSES, c) ? t(CAUSES[c]!) : c.replace(/_/g, ' ').trim();
+
 function missPart(cause: string, c: MissCause): string {
-  const name = cause.replace(/_/g, ' ').trim();
+  const name = causeName(cause);
   if (cause === 'tools_changed') {
     const add = num(c.tools_added);
     const rem = num(c.tools_removed);
@@ -48,7 +59,7 @@ function missPart(cause: string, c: MissCause): string {
 }
 
 function missText(c: MissCause | string | null | undefined): string | null {
-  if (typeof c === 'string') return c.replace(/_/g, ' ').trim() || null;
+  if (typeof c === 'string') return causeName(c) || null;
   if (!c || typeof c !== 'object' || !Array.isArray(c.causes)) return null;
   const parts = c.causes.filter((x): x is string => typeof x === 'string').map((x) => missPart(x, c));
   return parts.filter(Boolean).join(', ') || null;
@@ -66,7 +77,7 @@ function summaryText(ctx: RenderContext, pc: StatusPayload['prompt_cache'], max:
     .filter((e): e is [string, number] => typeof e[1] === 'number' && Number.isFinite(e[1]) && e[1] > 0)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'en'))
     .slice(0, max)
-    .map(([k, v]) => `${k.replace(/_/g, ' ').trim()} ${times}${v}`);
+    .map(([k, v]) => `${causeName(k)} ${times}${v}`);
   const head = `${misses}/${requests} ${t('widget.performance.miss')}`;
   return causes.length ? `${head}${text ? ' | ' : ' · '}${causes.join(', ')}` : head;
 }

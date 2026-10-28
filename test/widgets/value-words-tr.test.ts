@@ -173,7 +173,7 @@ describe('widget value words in Turkish', () => {
     });
     expect(both(() => renderWidget('cache-miss-cause', miss))).toEqual([
       'system prompt changed (-40 chars)',
-      'system prompt changed (-40 karakter)',
+      'sistem istemi değişti (-40 karakter)',
     ]);
     expect(both(() => renderWidget('service-status', status('major')))).toEqual([
       '⚠ major: Partial outage',

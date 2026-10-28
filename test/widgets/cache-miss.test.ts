@@ -117,9 +117,9 @@ describe('cache-miss-cause summary', () => {
   it.each([[undefined], [{}], [{ a: 'two' }], [[]]])('counts only for miss_causes %j', (m) => {
     expect(sum({ requests: 48, misses: 3, miss_causes: m })).toBe('3/48 miss');
   });
-  it('keeps cause names untranslated in tr', () => {
+  it('translates known cause names in tr', () => {
     withLang('tr', () => {
-      expect(sum(base)).toBe('3/48 ıska · tools changed ×2, ttl expired 5m ×1');
+      expect(sum(base)).toBe('3/48 ıska · araçlar değişti ×2, 5m TTL doldu ×1');
     });
   });
   it('ignores the latest-miss rule', () => {
@@ -162,5 +162,64 @@ describe('cache-timer', () => {
   });
   it('returns null without prompt_cache', () => {
     expect(renderWidget('cache-timer', ctxWith({ payload: {} }))).toBeNull();
+  });
+});
+
+describe('cache-miss-cause names', () => {
+  const KNOWN = [
+    'tools_changed',
+    'system_prompt_changed',
+    'ttl_expired_5m',
+    'ttl_expired_1h',
+    'likely_server_side',
+  ];
+  const TR = [
+    'araçlar değişti',
+    'sistem istemi değişti',
+    '5m TTL doldu',
+    '1h TTL doldu',
+    'büyük olasılıkla sunucu tarafı',
+  ];
+  const human = (c: string) => c.replace(/_/g, ' ').trim();
+  const modes = (c: string): string[] => {
+    const latest = { last_miss_cause: c };
+    const always = {
+      last_miss_cause: { causes: [c] },
+      last_miss_at: SEC - 600,
+      ttl: '5m',
+      expires_at: SEC + 300,
+    };
+    const summary = { requests: 9, misses: 2, miss_causes: { [c]: 2 } };
+    return [
+      renderWidget('cache-miss-cause', pc(latest), { options: { show: 'always' } }) ?? '',
+      renderWidget('cache-miss-cause', pc(always), { options: { show: 'always' } }) ?? '',
+      renderWidget('cache-miss-cause', pc(summary), { options: { show: 'summary' } }) ?? '',
+    ];
+  };
+
+  it.each([...KNOWN, 'model_changed'])('en output is the humanized id: %s', (c) => {
+    const [a, b, s] = modes(c);
+    expect(a).toBe(human(c));
+    expect(b).toBe(human(c));
+    expect(s).toBe(`2/9 miss · ${human(c)} ×2`);
+  });
+
+  it.each(KNOWN.map((c, i) => [c, TR[i]!]))('tr translates %s', (c, name) => {
+    withLang('tr', () => {
+      const [a, b, s] = modes(c);
+      expect(a).toBe(name);
+      expect(b).toBe(name);
+      expect(s).toBe(`2/9 ıska · ${name} ×2`);
+    });
+  });
+
+  it('tr humanizes unknown names and never prints an id', () => {
+    withLang('tr', () => {
+      for (const o of modes('model_changed')) {
+        expect(o).toContain('model changed');
+        expect(o).not.toContain('widget.missCause');
+      }
+      expect(modes('__proto__').join('')).not.toContain('widget.missCause');
+    });
   });
 });
