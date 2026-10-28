@@ -8,6 +8,7 @@ import { defaultConfig } from '../../src/core/config.js';
 import { language, t } from '../../src/core/i18n/index.js';
 import { SCENARIOS } from '../../src/core/scenarios.js';
 import { type EditorHandle, startEditor } from '../../src/editor/server.js';
+import { SUBAGENT_FIELDS } from '../../src/widgets/shared.js';
 import { withLang } from '../helpers.js';
 
 let dir: string;
@@ -176,6 +177,7 @@ describe('editor server', () => {
     const timed = (type: string) => s.widgets.find((w: { type: string }) => w.type === type)?.timeBased;
     expect([timed('turn-timer'), timed('clock'), timed('model')]).toEqual([true, true, false]);
     expect(s.categories.length).toBeGreaterThan(0);
+    expect(s.subagentFields).toEqual([...SUBAGENT_FIELDS]);
     expect(s.presets[0]).toHaveProperty('config');
     expect(Array.isArray(s.themes)).toBe(true);
     expect(s.themes.length).toBeGreaterThan(10);

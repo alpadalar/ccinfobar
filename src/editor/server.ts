@@ -123,6 +123,7 @@ import { writeAtomic } from '../data/store.js';
 import type { ImportTarget } from '../importers/confirm.js';
 import { ID_PART_RE, isRemoteId, REPORT_REASON_MAX } from '../market/protocol.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
+import { SUBAGENT_FIELDS } from '../widgets/shared.js';
 import type { TerminalColors } from './terminal-colors.js';
 
 declare const __VERSION__: string;
@@ -1093,6 +1094,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           savedConfig: config,
           widgets: widgetCatalog(),
           categories: CATEGORIES,
+          subagentFields: SUBAGENT_FIELDS,
           presets: presetList(),
           presetsDir: tildify(presetsDir()),
           styleHistory: readStyles(),

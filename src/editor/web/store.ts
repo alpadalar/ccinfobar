@@ -81,6 +81,7 @@ export interface ApiState {
   savedConfig: Config;
   widgets: WidgetInfo[];
   categories: { id: string; name: string }[];
+  subagentFields: string[];
   presets: PresetInfo[];
   presetsDir: string;
   styleHistory: StyleHistory;

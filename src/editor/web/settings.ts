@@ -1,5 +1,6 @@
 import {
   addProfileOverride,
+  moveSubagentField,
   PROGRESS_CHOICES,
   PROGRESS_DEFAULTS,
   REFRESH_SUGGEST,
@@ -15,7 +16,9 @@ import {
   setRotationEvery,
   setRotationOrder,
   setRotationWeekday,
+  setSubagentField,
   setThemeRotation,
+  subagentFields,
   timeRuleFeed,
   updateProfileOverride,
 } from '../../core/edit.js';
@@ -289,6 +292,64 @@ function rotationSelect(
   );
   sel.value = value;
   return sel;
+}
+
+const SUBAGENT_FIELD_IDS: Record<string, MessageId> = {
+  status: 'web.subagent.field.status',
+  type: 'web.subagent.field.type',
+  label: 'web.subagent.field.label',
+  spark: 'web.subagent.field.spark',
+  tokens: 'web.subagent.field.tokens',
+  context: 'web.subagent.field.context',
+  model: 'web.subagent.field.model',
+  effort: 'web.subagent.field.effort',
+  elapsed: 'web.subagent.field.elapsed',
+};
+
+export function subagentRows(c: Config, all: readonly string[], apply: ProfileApply): HTMLElement[] {
+  const on = subagentFields(c, all);
+  const order = [...on, ...all.filter((id) => !on.includes(id))];
+  return order.map((id) => {
+    const i = on.indexOf(id);
+    const enabled = i >= 0;
+    const name = SUBAGENT_FIELD_IDS[id] ? t(SUBAGENT_FIELD_IDS[id]) : id;
+    return h(
+      'div',
+      { class: 'profile-row rotation-row' },
+      toggle(enabled, (v) => apply((x) => setSubagentField(x, id, v, all)), undefined, {
+        disabled: enabled && on.length === 1,
+      }),
+      h('span', { class: 'rotation-name' }, name),
+      h(
+        'button',
+        {
+          class: 'icon-btn',
+          type: 'button',
+          disabled: !enabled || i === 0,
+          title: t('web.rotation.up'),
+          'aria-label': t('web.subagent.upName', { name }),
+          onClick: () => {
+            if (enabled && i > 0) apply((x) => moveSubagentField(x, id, -1, all));
+          },
+        },
+        '↑',
+      ),
+      h(
+        'button',
+        {
+          class: 'icon-btn',
+          type: 'button',
+          disabled: !enabled || i === on.length - 1,
+          title: t('web.rotation.down'),
+          'aria-label': t('web.subagent.downName', { name }),
+          onClick: () => {
+            if (enabled && i < on.length - 1) apply((x) => moveSubagentField(x, id, 1, all));
+          },
+        },
+        '↓',
+      ),
+    );
+  });
 }
 
 export function rotationFields(c: Config, themes: RotationTheme[], apply: ProfileApply): HTMLElement[] {
@@ -763,6 +824,14 @@ export async function openSettings(): Promise<void> {
         ),
         ...refreshWarning(cl),
         ...hooksFields(),
+      ),
+      section(
+        t('web.subagent.section'),
+        h('div', { class: 'hint' }, t('web.subagent.help')),
+        ...subagentRows(c, S.api.subagentFields ?? [], (fn, coalesce) => {
+          commit(fn(S.config), coalesce ? { coalesce } : {});
+          render();
+        }),
       ),
       section(t('prog.section'), ...progressFields()),
       section(

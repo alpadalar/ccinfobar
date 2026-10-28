@@ -622,6 +622,8 @@ ccinfobar config set progress.enabled true
 
 Claude Code's `subagentStatusLine` setting runs one command per refresh tick. It sends every visible subagent as one JSON object on stdin (`columns` and a `tasks` array) and shows each `{"id","content"}` line the command prints as that subagent's row. `ccinfobar subagent-line` is that command: it prints one single-line JSON object per task, fitted to `columns`, and nothing at all when the input is empty, oversized or not JSON.
 
+The web editor (Settings → Subagent rows) and the TUI (`subagentLine.fields`) edit this list; a default order with every field removes the key again.
+
 A row looks like this:
 
 ```text
