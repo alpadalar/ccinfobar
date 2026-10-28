@@ -363,6 +363,10 @@ export function normalizeConfig(raw: unknown): Config {
   if (raw.gitHardening === false) cfg.gitHardening = false;
   if (typeof raw.commandBudgetMs === 'number' && Number.isFinite(raw.commandBudgetMs))
     cfg.commandBudgetMs = Math.min(60_000, Math.max(100, Math.floor(raw.commandBudgetMs)));
+  if (typeof raw.updateMinAgeHours === 'number' && Number.isFinite(raw.updateMinAgeHours)) {
+    const h = Math.round(raw.updateMinAgeHours);
+    if (h >= 1) cfg.updateMinAgeHours = Math.min(720, h);
+  }
   if (typeof raw.loadingText === 'string') cfg.loadingText = sanitizeText(raw.loadingText).slice(0, 40);
   const budget = normalizeBudget(raw.budget);
   if (budget) cfg.budget = budget;

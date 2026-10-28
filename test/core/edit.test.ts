@@ -15,6 +15,7 @@ import {
   insertItem,
   keepLanguage,
   LAYOUT_KEYS,
+  LOCAL_PERSONAL_KEYS,
   moveItem,
   moveLine,
   needsRefresh,
@@ -787,11 +788,18 @@ describe('applyCatalogContent', () => {
       subagentLine: 'personal',
       language: 'personal',
       themeRotation: 'personal',
+      updateMinAgeHours: 'personal',
     };
-    const lists = { layout: LAYOUT_KEYS, appearance: APPEARANCE_KEYS, personal: PERSONAL_KEYS };
-    const all: string[] = [...LAYOUT_KEYS, ...APPEARANCE_KEYS, ...PERSONAL_KEYS];
+    const lists = {
+      layout: LAYOUT_KEYS,
+      appearance: APPEARANCE_KEYS,
+      personal: [...PERSONAL_KEYS, ...LOCAL_PERSONAL_KEYS],
+    };
+    const all: string[] = [...LAYOUT_KEYS, ...APPEARANCE_KEYS, ...PERSONAL_KEYS, ...LOCAL_PERSONAL_KEYS];
     expect(new Set(all).size).toBe(all.length);
     expect(all.sort()).toEqual(Object.keys(owner).sort());
     for (const [k, v] of Object.entries(owner)) expect(lists[v] as readonly string[], k).toContain(k);
+    const entry: readonly string[] = [...LAYOUT_KEYS, ...APPEARANCE_KEYS, ...PERSONAL_KEYS];
+    for (const k of LOCAL_PERSONAL_KEYS) expect(entry).not.toContain(k);
   });
 });

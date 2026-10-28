@@ -24,6 +24,17 @@ describe('config', () => {
     expect(COMMAND_BUDGET_DEFAULT).toBe(3000);
   });
 
+  it('normalizes updateMinAgeHours: 1..720 rounded, everything else absent', () => {
+    expect(normalizeConfig({ updateMinAgeHours: 24 }).updateMinAgeHours).toBe(24);
+    expect(normalizeConfig({ updateMinAgeHours: 36.6 }).updateMinAgeHours).toBe(37);
+    expect(normalizeConfig({ updateMinAgeHours: 1000 }).updateMinAgeHours).toBe(720);
+    for (const bad of [0, 0.4, -5, Number.NaN, Number.POSITIVE_INFINITY, '24', null])
+      expect('updateMinAgeHours' in normalizeConfig({ updateMinAgeHours: bad })).toBe(false);
+    expect('updateMinAgeHours' in normalizeConfig({})).toBe(false);
+    expect(JSON.stringify(defaultConfig())).not.toContain('updateMinAgeHours');
+    expect(normalizeConfig(defaultConfig())).toEqual(normalizeConfig({}));
+  });
+
   it('normalizes commandBudgetMs with a clamp and keeps it out of the defaults', () => {
     expect(normalizeConfig({ commandBudgetMs: 1500 }).commandBudgetMs).toBe(1500);
     expect(normalizeConfig({ commandBudgetMs: 50 }).commandBudgetMs).toBe(100);

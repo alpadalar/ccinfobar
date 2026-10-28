@@ -42,6 +42,7 @@ const CONFIG_KEYS = [
   'gsdAutoLine',
   'gitHardening',
   'commandBudgetMs',
+  'updateMinAgeHours',
   'loadingText',
   'budget',
   'profiles',
@@ -181,6 +182,7 @@ const FULL_CONFIG: Required<Config> = {
   gsdAutoLine: true,
   gitHardening: false,
   commandBudgetMs: 3000,
+  updateMinAgeHours: 24,
   loadingText: 'wait',
   budget: { daily: 10, session: 3, warnAt: 0.75 },
   profiles: {

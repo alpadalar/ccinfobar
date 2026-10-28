@@ -249,6 +249,7 @@ export interface Config {
   gsdAutoLine?: boolean;
   gitHardening?: boolean;
   commandBudgetMs?: number;
+  updateMinAgeHours?: number;
   loadingText?: string;
   budget?: BudgetConfig;
   profiles?: ProfilesConfig;

@@ -403,6 +403,14 @@ function schema(): object {
         default: 3000,
         description: 'Time all command widgets of one render share; once spent they show cached output',
       },
+      updateMinAgeHours: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 720,
+        default: 0,
+        description:
+          'Automatic updates wait until a release is at least this many hours old; 0 installs as soon as it is seen',
+      },
       loadingText: {
         type: 'string',
         maxLength: 40,
