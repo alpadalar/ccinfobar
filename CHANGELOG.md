@@ -43,6 +43,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The automatic update no longer falls back to installing the GitHub release tarball when GitHub publishes no checksum for it: nothing is installed, `ccinfobar doctor` says so and the update is retried at the next check; a rollback whose reinstall has no checksum is recorded as failed instead of installing unverified bytes (reason: never install unverified bytes). Manual `ccinfobar update` likewise installs from the npm registry only.
 
 ### Fixed
+- `--width`, `--refresh` and `--port` now accept only whole numbers in range (1-10000, 1-86400, 1-65535); an invalid or missing value prints a usage error and exits non-zero instead of being silently accepted (previously `--width abc` rendered without a width and `--refresh 0` dropped the interval)
 - A background `command` that runs up to its longest timeout can no longer be started a second time by the next refresh: the job lock is now held longer than the job may run.
 - Links a marketplace reports for a version held for review are cleaned of control and bidirectional characters before they are saved in the catalog.
 - `ccinfobar import` no longer offers an import for a command that only contains a tool's name inside a longer word or folder (for example `starship-claude-tools/run.sh` or `my-byebyecode-wrapper`); the tool must be one of the command's own words, as a program name, package name or install folder.
