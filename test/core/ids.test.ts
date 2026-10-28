@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ID_RE, isFileId, reservedId } from '../../src/core/ids.js';
+import { ID_RE, isFileId, readableId, reservedId } from '../../src/core/ids.js';
 
 describe('ids', () => {
   it.each([
@@ -37,5 +37,14 @@ describe('ids', () => {
   it('keeps the id shape', () => {
     expect(ID_RE.source).toBe('^[a-z0-9][a-z0-9._-]{0,63}$');
     expect(ID_RE.flags).toBe('i');
+  });
+
+  it('readableId refuses device names on win32 only', () => {
+    expect(readableId('con', 'win32')).toBe(false);
+    expect(readableId('lpt0.json', 'win32')).toBe(false);
+    expect(readableId('con', 'linux')).toBe(true);
+    expect(readableId('con', 'darwin')).toBe(true);
+    expect(readableId('nord', 'win32')).toBe(true);
+    expect(readableId('bad id', 'linux')).toBe(false);
   });
 });

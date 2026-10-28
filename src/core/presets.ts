@@ -4,7 +4,7 @@ import { writeAtomic } from '../data/store.js';
 import { defaultConfig, normalizeConfig } from './config.js';
 import { uniqueId } from './edit.js';
 import { t } from './i18n/index.js';
-import { ID_RE, reservedId } from './ids.js';
+import { ID_RE, readableId, reservedId } from './ids.js';
 import { configDir } from './paths.js';
 import type { Config, WidgetItem } from './types.js';
 
@@ -401,6 +401,8 @@ export function presetsDir(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(configDir(env), 'presets');
 }
 
+const readable = (id: string) => readableId(id, process.platform);
+
 function readUserPreset(file: string, id: string): Preset | null {
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
@@ -425,7 +427,7 @@ export function listPresets(dir = presetsDir()): Preset[] {
   } catch {}
   for (const f of files.sort()) {
     const id = f.slice(0, -5);
-    const p = ID_RE.test(id) ? readUserPreset(path.join(dir, f), id) : null;
+    const p = readable(id) ? readUserPreset(path.join(dir, f), id) : null;
     if (p) out.set(id, p);
   }
   return [...out.values()];
@@ -449,7 +451,7 @@ export function saveUserPreset(
 }
 
 export function deleteUserPreset(id: string, dir = presetsDir()): boolean {
-  if (!ID_RE.test(id)) return false;
+  if (!readable(id)) return false;
   try {
     fs.unlinkSync(path.join(dir, `${id}.json`));
     return true;

@@ -201,3 +201,34 @@ describe('built-in presets', () => {
     expect(row).toContain(PRESETS.map((p) => p.id).join(', '));
   });
 });
+
+describe('reserved ids on win32', () => {
+  const onWin32 = (fn: () => void) => {
+    const orig = Object.getOwnPropertyDescriptor(process, 'platform')!;
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+    try {
+      fn();
+    } finally {
+      Object.defineProperty(process, 'platform', orig);
+    }
+  };
+  const setup = () => {
+    const dir = tmp();
+    fs.writeFileSync(path.join(dir, 'con.json'), JSON.stringify({ name: 'Con', config: defaultConfig() }));
+    return dir;
+  };
+
+  it('lists and deletes nothing for a device-name id', () => {
+    const dir = setup();
+    onWin32(() => {
+      expect(listPresets(dir).some((p) => p.id === 'con')).toBe(false);
+      expect(deleteUserPreset('con', dir)).toBe(false);
+    });
+    expect(fs.existsSync(path.join(dir, 'con.json'))).toBe(true);
+  });
+
+  it('keeps listing an existing file elsewhere', () => {
+    const dir = setup();
+    expect(listPresets(dir).find((p) => p.id === 'con')?.source).toBe('user');
+  });
+});

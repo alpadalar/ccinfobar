@@ -3,7 +3,7 @@ import path from 'node:path';
 import { writeAtomic } from '../data/store.js';
 import { parseColor } from './ansi.js';
 import { t } from './i18n/index.js';
-import { ID_RE, reservedId } from './ids.js';
+import { ID_RE, readableId, reservedId } from './ids.js';
 import { configDir } from './paths.js';
 import { pickRotationTheme } from './rotation.js';
 import { BASE, BUILTIN } from './themes/builtin.js';
@@ -131,8 +131,10 @@ export function themesDir(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(configDir(env), 'themes');
 }
 
+const readable = (id: string) => readableId(id, process.platform);
+
 function readUserInput(id: string, dir: string): ThemeInput | null {
-  if (!ID_RE.test(id)) return null;
+  if (!readable(id)) return null;
   try {
     const input = parseThemeInput(JSON.parse(fs.readFileSync(path.join(dir, `${id}.json`), 'utf8')));
     return { ...input, id };
@@ -153,7 +155,7 @@ export function resolveTheme(id: string | undefined, dir = themesDir(), depth = 
 }
 
 export function themeExists(id: string, dir = themesDir()): boolean {
-  return builtins.has(id) || (ID_RE.test(id) && fs.existsSync(path.join(dir, `${id}.json`)));
+  return builtins.has(id) || (readable(id) && fs.existsSync(path.join(dir, `${id}.json`)));
 }
 
 export function activeThemeId(config: Config, now = new Date(), dir = themesDir()): string {
@@ -180,7 +182,7 @@ export function listThemes(dir = themesDir()): Theme[] {
   } catch {}
   for (const f of files.sort()) {
     const id = f.slice(0, -5);
-    if (ID_RE.test(id)) out.set(id, resolveTheme(id, dir));
+    if (readable(id)) out.set(id, resolveTheme(id, dir));
   }
   return [...out.values()];
 }
@@ -209,7 +211,7 @@ export function saveUserTheme(input: ThemeInput, dir = themesDir()): string {
 }
 
 export function deleteUserTheme(id: string, dir = themesDir()): boolean {
-  if (!ID_RE.test(id)) return false;
+  if (!readable(id)) return false;
   try {
     fs.unlinkSync(path.join(dir, `${id}.json`));
     return true;

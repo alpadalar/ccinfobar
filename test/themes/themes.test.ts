@@ -1,18 +1,20 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { contrastRatio, parseColor, stripAnsi } from '../../src/core/ansi.js';
 import { normalizeConfig } from '../../src/core/config.js';
 import { render, resolveAppearance } from '../../src/core/renderer.js';
 import {
   BUILTIN_THEMES,
+  deleteUserTheme,
   listThemes,
   parseThemeInput,
   resolveTheme,
   STYLES,
   saveUserTheme,
   type Theme,
+  themeExists,
   themeToInput,
 } from '../../src/core/themes.js';
 import type { WidgetItem } from '../../src/core/types.js';
@@ -271,5 +273,48 @@ describe('legacy config', () => {
     const cfg = normalizeConfig({ powerline: { enabled: true, theme: 'nord' } });
     expect(cfg.style).toBe('powerline');
     expect(cfg.theme).toBe('nord');
+  });
+});
+
+describe('reserved ids on win32', () => {
+  const onWin32 = (fn: () => void) => {
+    const orig = Object.getOwnPropertyDescriptor(process, 'platform')!;
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+    try {
+      fn();
+    } finally {
+      Object.defineProperty(process, 'platform', orig);
+    }
+  };
+  const setup = () => {
+    const dir = tmp();
+    fs.writeFileSync(
+      path.join(dir, 'con.json'),
+      JSON.stringify({ extends: 'nord', colors: { fg: '#123456' } }),
+    );
+    return dir;
+  };
+
+  it('treats a device-name id as absent without opening it', () => {
+    const dir = setup();
+    const spy = vi.spyOn(fs, 'readFileSync');
+    try {
+      onWin32(() => {
+        expect(resolveTheme('con', dir).source).not.toBe('user');
+        expect(themeExists('con', dir)).toBe(false);
+        expect(listThemes(dir).some((x) => x.id === 'con')).toBe(false);
+        expect(deleteUserTheme('con', dir)).toBe(false);
+      });
+      expect(spy.mock.calls.every(([p]) => !String(p).endsWith('con.json'))).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(fs.existsSync(path.join(dir, 'con.json'))).toBe(true);
+  });
+
+  it('keeps loading an existing file elsewhere', () => {
+    const dir = setup();
+    expect(themeExists('con', dir)).toBe(true);
+    expect(listThemes(dir).some((x) => x.id === 'con')).toBe(true);
   });
 });

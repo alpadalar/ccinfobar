@@ -3,7 +3,7 @@ import path from 'node:path';
 import { randomHex } from '../core/builtins.js';
 import { normalizeConfig } from '../core/config.js';
 import { parseCols, takesCols } from '../core/entry-keys.js';
-import { isFileId } from '../core/ids.js';
+import { isFileId, readableId } from '../core/ids.js';
 import { configDir } from '../core/paths.js';
 import { deleteUserPreset, ID_RE, listPresets, type Preset } from '../core/presets.js';
 import { cleanLabel, stripInvisible } from '../core/sanitize.js';
@@ -422,7 +422,7 @@ export interface Deleted {
 export function themeChain(id: string | undefined, themes = themesDir()): string[] {
   const out: string[] = [];
   let cur = id;
-  while (cur && ID_RE.test(cur) && out.length < 8 && !out.includes(cur)) {
+  while (cur && readableId(cur, process.platform) && out.length < 8 && !out.includes(cur)) {
     out.push(cur);
     const raw = readObject(path.join(themes, `${cur}.json`));
     cur = raw && typeof raw.extends === 'string' ? raw.extends : undefined;
