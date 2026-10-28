@@ -137,12 +137,7 @@ describe('ccstatusline import', () => {
       t('import.note.hudApprox', { tool: 'ccstatusline', name: 'jj-root-dir', widget: 'project-dir' }),
       t('import.note.combined', {
         tool: 'ccstatusline',
-        names: 'jj-changes, jj-insertions',
-        widget: 'jj-changes',
-      }),
-      t('import.note.combined', {
-        tool: 'ccstatusline',
-        names: 'jj-changes, jj-deletions',
+        names: 'jj-changes, jj-insertions, jj-deletions',
         widget: 'jj-changes',
       }),
     ]);
@@ -151,7 +146,7 @@ describe('ccstatusline import', () => {
       { id: 'w', type: 'jj-workspace' },
       { id: 'r', type: 'jj-revision' },
       { id: 'd', type: 'jj-description' },
-      { id: 'c', type: 'jj-changes' },
+      { id: 'c', type: 'jj-changes', hideEmpty: true },
       { id: 'root', type: 'project-dir' },
       { id: 'f1', type: 'git-is-fork', hideEmpty: false },
       { id: 'f2', type: 'git-is-fork', hideEmpty: true, options: { symbol: 'F' } },
@@ -174,6 +169,15 @@ describe('ccstatusline import', () => {
     expect(git.notes.map((n) => n.text)).toEqual([note('git-insertions, git-deletions', 'git-changes')]);
     const bare = importCcstatusline({ lines: line('jj-insertions', 'jj-deletions') });
     expect(bare.config.lines![0]!.map((i) => i.type)).toEqual(['jj-changes']);
+    const hidden = importCcstatusline({
+      lines: [
+        [
+          { id: 'a', type: 'jj-insertions' },
+          { id: 'b', type: 'jj-deletions', metadata: { hide: 'no-jj' } },
+        ],
+      ],
+    });
+    expect(hidden.config.lines![0]).toEqual([{ id: 'a', type: 'jj-changes', hideEmpty: true }]);
     const same = importCcstatusline({ lines: line('jj-changes', 'jj-changes') });
     expect(same.config.lines![0]!.map((i) => i.type)).toEqual(['jj-changes', 'jj-changes']);
     expect(same.notes).toEqual([]);

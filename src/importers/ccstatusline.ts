@@ -125,22 +125,27 @@ export function convertColor(v: unknown): string | undefined {
 type Pair = { src: string; item: WidgetItem };
 
 function collapse(pairs: Pair[], notes: ImportNote[]): WidgetItem[] {
-  const kept: Pair[] = [];
+  const kept: (Pair & { absorbed: string[] })[] = [];
   for (const p of pairs) {
     let at = kept.length - 1;
     while (at >= 0 && kept[at]!.item.type === 'separator') at--;
     const prev = at >= 0 ? kept[at] : undefined;
     if (SPLIT.has(p.src) && prev && prev.item.type === p.item.type) {
       kept.length = at + 1;
-      const text = t('import.note.combined', {
-        tool: 'ccstatusline',
-        names: `${prev.src}, ${p.src}`,
-        widget: p.item.type,
-      });
-      notes.push({ kind: 'approx', text });
+      prev.absorbed.push(p.src);
+      if (p.item.hideEmpty) prev.item.hideEmpty = true;
       continue;
     }
-    kept.push(p);
+    kept.push({ ...p, absorbed: [] });
+  }
+  for (const k of kept) {
+    if (!k.absorbed.length) continue;
+    const text = t('import.note.combined', {
+      tool: 'ccstatusline',
+      names: [k.src, ...k.absorbed].join(', '),
+      widget: k.item.type,
+    });
+    notes.push({ kind: 'approx', text });
   }
   return kept.map((p) => p.item);
 }
