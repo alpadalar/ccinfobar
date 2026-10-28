@@ -212,6 +212,8 @@ export const catalogMessages = {
   'catalog.publish.reserved':
     '{name} was withdrawn from the marketplace, and withdrawn ids stay reserved. Save it under a new name to publish it again.',
   'catalog.publish.ok': 'Published {name} v{version} as {id}',
+  'catalog.publish.pendingLink':
+    'Version {version} waits for review by a marketplace admin because it adds links to {hosts}',
   'catalog.publish.pending': 'Waiting for review by a marketplace admin',
   'catalog.publish.withdrawn': 'Withdrew {name} ({id})',
   'catalog.publish.failed': '{name}: {reason}',
@@ -350,6 +352,7 @@ export const catalogMessages = {
     'Only marketplace admins can do this. Sign in with an admin GitHub account: ccinfobar catalog login',
   'catalog.admin.pendingTitle': 'Waiting for review on {endpoint}',
   'catalog.admin.noPending': 'No entries are waiting for review.',
+  'catalog.admin.heldVersion': 'new version {version} (new link: {hosts})',
   'catalog.admin.showHint': 'Review one with: ccinfobar catalog admin show <publisher/slug>',
   'catalog.admin.live': 'Live',
   'catalog.admin.content': 'Content (hash {hash}):',

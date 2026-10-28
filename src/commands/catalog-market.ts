@@ -347,7 +347,11 @@ export async function runPublishCommand(c: Ctx): Promise<void> {
     const id = clean(r.remoteId);
     if (r.version === null) c.io.log(t('catalog.publish.withdrawn', { name, id }));
     else c.io.log(t('catalog.publish.ok', { name, version: r.version, id }));
-    if (r.pending) c.io.log(t('catalog.publish.pending'));
+    if (r.pending && r.reason === 'new-link' && r.links)
+      c.io.log(
+        t('catalog.publish.pendingLink', { version: r.version ?? 0, hosts: clean(r.links.join(', ')) }),
+      );
+    else if (r.pending) c.io.log(t('catalog.publish.pending'));
     if (r.code === 'changed') c.io.log(t('market.error.changed'));
   }
 }

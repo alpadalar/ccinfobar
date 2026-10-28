@@ -296,6 +296,28 @@ describe.skipIf(skipSqlite)('catalog report and admin against the Worker', () =>
     m.db.close();
   });
 
+  it('shows a held version next to plain pending entries', async () => {
+    const m = await seeded();
+    await m.signIn('bob');
+    await m.publish('bob', 'live', 'Bob Live');
+    await live(m, 'bob/live');
+    const withLink = {
+      layout: {
+        lines: [[{ id: 'l', type: 'link', options: { url: 'https://example.com/x', label: 'x' } }]],
+      },
+    } as unknown as EntryContent;
+    const got = await m.client('bob').addVersion('bob/live', 1, { content: withLink, note: 'link' });
+    expect(got).toMatchObject({ pending: true, reason: 'new-link', links: ['example.com/x'] });
+    const text = (await m.cli('admin', ['admin', 'pending'])).out.join('\n');
+    expect(text).toMatch(/pub\/mini\s+Preset\s+Mini\s+@pub\s+v1\s+/);
+    expect(text).toMatch(/bob\/live .*new version 2 \(new link: example\.com\/x\)/);
+    const tr = (await withLangAsync('tr', () => m.cli('admin', ['admin', 'pending']))).out.join('\n');
+    expect(tr).toContain('yeni sürüm 2 (yeni bağlantı: example.com/x)');
+    const pj = JSON.parse((await m.cli('admin', ['admin', 'pending', '--json'])).out[0]!);
+    expect(pj.entries.find((e: { id: string }) => e.id === 'bob/live').held).toMatchObject({ version: 2 });
+    m.db.close();
+  });
+
   it('tells a non-admin that only admins can do this', async () => {
     const m = await seeded();
     for (const argv of [

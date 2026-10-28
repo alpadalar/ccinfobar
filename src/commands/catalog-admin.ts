@@ -176,7 +176,9 @@ async function pending(c: Ctx, s: Session): Promise<void> {
       t(`catalog.kind.${e.kind}`),
       clean(e.name),
       `@${clean(e.publisher)}`,
-      t('catalog.version', { version: e.version }),
+      e.held
+        ? t('catalog.admin.heldVersion', { version: e.held.version, hosts: clean(e.held.links.join(', ')) })
+        : t('catalog.version', { version: e.version }),
       when(e.createdAt),
     ]),
   );

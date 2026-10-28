@@ -591,6 +591,39 @@ describe('catalog on a GitHub-backed marketplace (D-07, D-09, D-16)', () => {
     ]);
   });
 
+  it('says why a held version waits, with the hosts, in en and tr', async () => {
+    const m = githubMarket({ trusted: true });
+    writeCredential(GH_ENDPOINT, GH_TOKEN, cat);
+    await saveMine();
+    await run(['publish', '--yes'], { env, fetch: m.fetch });
+    m.entries.get('octo/mine')!.holdNext = ['example.com/x', 'a.org/y'];
+    writeCfg([
+      [
+        { id: 'm', type: 'model' },
+        { id: 'c', type: 'cost' },
+      ],
+    ]);
+    await run(['save', 'Mine', '--kind', 'preset', '--update']);
+    const r = await run(['publish', '--yes'], { env, fetch: m.fetch });
+    expect(r.out.at(-1)).toBe(
+      'Version 2 waits for review by a marketplace admin because it adds links to example.com/x, a.org/y',
+    );
+    m.entries.get('octo/mine')!.held = undefined;
+    m.entries.get('octo/mine')!.holdNext = ['example.com/x'];
+    writeCfg([
+      [
+        { id: 'm', type: 'model' },
+        { id: 'g', type: 'git-branch' },
+      ],
+    ]);
+    await run(['save', 'Mine', '--kind', 'preset', '--update']);
+    const tr = await withLangAsync('tr', () => run(['publish', '--yes'], { env, fetch: m.fetch }));
+    expect(tr.out.at(-1)).toBe(
+      'Sürüm 2, example.com/x bağlantıları eklediği için bir marketplace yöneticisinin incelemesini bekliyor',
+    );
+    expect(tr.text).not.toContain('pazar yeri');
+  });
+
   it('refuses a hand-set handle on a GitHub-only marketplace', async () => {
     const m = githubMarket();
     const r = await run(['publisher', 'alice'], { env, fetch: m.fetch });

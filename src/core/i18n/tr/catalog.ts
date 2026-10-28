@@ -223,6 +223,8 @@ export const catalogMessages = {
   'catalog.publish.reserved':
     "{name} marketplace'ten geri çekildi ve geri çekilen kimlikler ayrılmış kalır. Yeniden yayımlamak için farklı bir adla kaydedin.",
   'catalog.publish.ok': '{name} v{version}, {id} olarak yayımlandı',
+  'catalog.publish.pendingLink':
+    'Sürüm {version}, {hosts} bağlantıları eklediği için bir marketplace yöneticisinin incelemesini bekliyor',
   'catalog.publish.pending': 'Bir marketplace yöneticisinin incelemesi bekleniyor',
   'catalog.publish.withdrawn': '{name} geri çekildi ({id})',
   'catalog.publish.failed': '{name}: {reason}',
@@ -366,6 +368,7 @@ export const catalogMessages = {
     'Bunu yalnızca marketplace yöneticileri yapabilir. Yönetici bir GitHub hesabıyla giriş yapın: ccinfobar catalog login',
   'catalog.admin.pendingTitle': '{endpoint} üzerinde inceleme bekleyen girdiler',
   'catalog.admin.noPending': 'İnceleme bekleyen girdi yok.',
+  'catalog.admin.heldVersion': 'yeni sürüm {version} (yeni bağlantı: {hosts})',
   'catalog.admin.showHint': 'Birini incelemek için: ccinfobar catalog admin show <publisher/slug>',
   'catalog.admin.live': 'Yayında',
   'catalog.admin.content': 'İçerik (özet değeri {hash}):',
