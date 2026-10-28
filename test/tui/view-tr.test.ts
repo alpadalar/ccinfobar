@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { stripAnsi, visibleWidth } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
+import { setThemeRotation } from '../../src/core/edit.js';
 import { presetText, themeDescription } from '../../src/core/i18n/catalog-text.js';
 import { PRESETS } from '../../src/core/presets.js';
 import type { Config } from '../../src/core/types.js';
 import { visibleWidthIn, widthMode } from '../../src/core/width.js';
-import { type Action, initialState, reduce, type State, themeItems } from '../../src/tui/state.js';
+import {
+  type Action,
+  initialState,
+  reduce,
+  type State,
+  settingsFields,
+  themeItems,
+} from '../../src/tui/state.js';
 import { renderScreen } from '../../src/tui/view.js';
 import { withLang } from '../helpers.js';
 
@@ -13,6 +21,12 @@ const build = (config: Config = defaultConfig(), ...actions: Action[]): State =>
   actions.reduce(reduce, initialState(config, '/tmp/cc/config.json'));
 const screen = (s: State, cols = 100, rows = 30) => renderScreen(s, cols, rows).lines;
 const text = (s: State, cols = 100, rows = 30) => screen(s, cols, rows).map(stripAnsi).join('\n');
+const onField = (s: State, id: string): State => {
+  const cursor = settingsFields(s).findIndex((f) => f.id === id);
+  return { ...s, mode: { ...(s.mode as Extract<State['mode'], { kind: 'settings' }>), cursor } };
+};
+const pooled = () => setThemeRotation(defaultConfig(), { themes: ['nord'], every: 'hour' });
+
 const boldParts = (line: string) =>
   [...line.matchAll(/\x1b\[1m([^\x1b]*)\x1b\[22m/g)].map((m) => m[1]!.trim());
 const hintKeys = (s: State) => boldParts(screen(s, 300, 30).at(-1)!);
@@ -175,5 +189,15 @@ describe('TUI theme previews', () => {
     const tr = withLang('tr', () => text(next));
     expect(tr).toContain('Bağlam ');
     expect(tr).not.toContain('Ctx ');
+  });
+});
+
+describe('disabled rotation rows', () => {
+  it('shows the hint in the value column and the help line until a theme is added', () => {
+    const empty = onField(build(defaultConfig(), { type: 'openGlobal' }), 'rotation.every');
+    const lines = withLang('tr', () => text(empty, 100, 90)).split('\n');
+    expect(lines.filter((l) => l.includes('Önce tema ekleyin')).length).toBeGreaterThanOrEqual(3);
+    const withPool = onField(build(pooled(), { type: 'openGlobal' }), 'rotation.every');
+    expect(withLang('tr', () => text(withPool, 100, 90))).not.toContain('Önce tema ekleyin');
   });
 });

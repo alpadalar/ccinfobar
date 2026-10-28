@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { stripAnsi, visibleWidth } from '../../src/core/ansi.js';
 import { defaultConfig } from '../../src/core/config.js';
+import { setThemeRotation } from '../../src/core/edit.js';
 import type { Config } from '../../src/core/types.js';
-import { type Action, initialState, reduce, type State } from '../../src/tui/state.js';
+import { type Action, initialState, reduce, type State, settingsFields } from '../../src/tui/state.js';
 import { MIN_COLS, MIN_ROWS, renderScreen } from '../../src/tui/view.js';
 
 const build = (config: Config = defaultConfig(), ...actions: Action[]): State =>
   actions.reduce(reduce, initialState(config, '/tmp/cc/config.json'));
 const text = (s: State, cols = 100, rows = 30) => renderScreen(s, cols, rows).lines.map(stripAnsi);
+const onField = (s: State, id: string): State => {
+  const cursor = settingsFields(s).findIndex((f) => f.id === id);
+  return { ...s, mode: { ...(s.mode as Extract<State['mode'], { kind: 'settings' }>), cursor } };
+};
+const pooled = () => setThemeRotation(defaultConfig(), { themes: ['nord'], every: 'hour' });
 
 describe('renderScreen', () => {
   it('always returns exactly rows lines that fit the width', () => {
@@ -196,5 +202,15 @@ describe('panel style', () => {
     expect(row).toBeGreaterThan(0);
     expect(out[row + 1]).toContain('Opus');
     expect(out[row + 1]).not.toMatch(/^\s*[╭╰]/);
+  });
+});
+
+describe('disabled rotation rows', () => {
+  it('shows the hint in the value column and the help line until a theme is added', () => {
+    const empty = onField(build(defaultConfig(), { type: 'openGlobal' }), 'rotation.every');
+    const lines = text(empty, 100, 90).join('\n').split('\n');
+    expect(lines.filter((l) => l.includes('Add themes first')).length).toBeGreaterThanOrEqual(3);
+    const withPool = onField(build(pooled(), { type: 'openGlobal' }), 'rotation.every');
+    expect(text(withPool, 100, 90).join('\n')).not.toContain('Add themes first');
   });
 });

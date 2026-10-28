@@ -177,6 +177,8 @@ function swatch(color: string | undefined): string {
 }
 
 function settingValue(field: Field, config: Config, width: number): string {
+  const hint = field.disabled?.(config);
+  if (hint) return dim(truncate(hint, Math.max(1, width)));
   const { text, isDefault } = displayValue(field, config);
   const sw = field.kind === 'color' && parseColor(text.split(' ')[0]) ? swatch(text.split(' ')[0]) : '';
   const shown = truncate(text, Math.max(1, width - visibleWidth(sw)));
@@ -336,6 +338,7 @@ function settingsModal(state: State, mode: Extract<Mode, { kind: 'settings' }>, 
     else lines.push(mode.sub ? (right[i] ?? '') : (left[i] ?? ''));
   }
   const help =
+    field?.disabled?.(state.config) ??
     field?.help ??
     (field?.kind === 'bool'
       ? t('tui.view.boolHelp')
