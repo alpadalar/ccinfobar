@@ -45,7 +45,6 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Fixed
 - A background `command` that runs up to its longest timeout can no longer be started a second time by the next refresh: the job lock is now held longer than the job may run.
 - Links a marketplace reports for a version held for review are cleaned of control and bidirectional characters before they are saved in the catalog.
-- The marketplace Worker's per-address sign-in failure bucket now refuses once `SIGNIN_LIMIT` failures are in the window (it allowed one more).
 - `ccinfobar import` no longer offers an import for a command that only contains a tool's name inside a longer word or folder (for example `starship-claude-tools/run.sh` or `my-byebyecode-wrapper`); the tool must be one of the command's own words, as a program name, package name or install folder.
 - A `command` widget with `background` set as the string `"true"` (a hand-edited or imported config) now runs in the background worker; it used to show nothing because the widget and the worker disagreed on the value.
 - Admin review of a held marketplace version now shows that version's own name, description and columns (not the live entry's) and lists the links it adds, so an admin approves what they saw.

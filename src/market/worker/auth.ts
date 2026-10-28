@@ -186,7 +186,7 @@ export async function signInWithGitHub(env: Env, deps: WorkerDeps, req: Request)
   const win = windowOf(now, b.ms);
   // a: counts failures only
   const failKey = `a:${await ipHash(db, req, now)}`;
-  if ((await peekRate(db, failKey, win)) >= b.limit) throw limited(retryAfterSeconds(win, now, b.ms));
+  if ((await peekRate(db, failKey, win)) > b.limit) throw limited(retryAfterSeconds(win, now, b.ms));
   try {
     const raw = await readJsonBody(req, BODY_CAP);
     const token =
