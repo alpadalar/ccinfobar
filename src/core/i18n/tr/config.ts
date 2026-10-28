@@ -8,6 +8,7 @@ export const configMessages = {
   'config.refuseBroken':
     '{file} üzerine yazılmıyor: dosya ayrıştırılamıyor. Dosyayı düzeltin ya da ccinfobar doctor çalıştırın.',
   'config.notObject': 'yapılandırma bir JSON nesnesi olmalı',
+  'config.tooDeep': 'yapılandırma 64 seviyeden daha derin iç içe geçmiş',
   'config.linesNotArray': '"lines" bir dizi olmalı',
   'json.unexpectedChar': 'Beklenmeyen karakter {char}',
   'json.unexpectedEnd': 'Beklenmeyen dosya sonu',

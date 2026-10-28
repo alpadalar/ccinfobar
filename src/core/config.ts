@@ -9,7 +9,7 @@ import { locateJsonError, locateKey } from './json-locate.js';
 import { configPath } from './paths.js';
 import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
 import { normalizeThemeRotation } from './rotation.js';
-import { sanitizeText } from './sanitize.js';
+import { sanitizeText, tooDeep } from './sanitize.js';
 import type {
   Align,
   BoxChars,
@@ -429,6 +429,9 @@ export function inspectConfigText(text: string): { raw: unknown; issue: ConfigIs
   }
   if (!isObject(raw)) {
     return { raw, issue: { kind: 'structure', line: 1, column: 1, message: t('config.notObject') } };
+  }
+  if (tooDeep(raw)) {
+    return { raw, issue: { kind: 'structure', line: 1, column: 1, message: t('config.tooDeep') } };
   }
   if (raw.lines !== undefined && !Array.isArray(raw.lines)) {
     const at = locateKey(body, 'lines') ?? { line: 1, column: 1 };

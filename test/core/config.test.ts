@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   defaultConfig,
+  inspectConfigText,
   loadConfig,
   normalizeConfig,
   normalizeHttpOptions,
@@ -11,6 +12,7 @@ import {
   normalizeSubagentLine,
   saveConfig,
 } from '../../src/core/config.js';
+import { withLang } from '../helpers.js';
 
 describe('config', () => {
   it('falls back to defaults for garbage', () => {
@@ -266,5 +268,25 @@ describe('themeRotation', () => {
     expect('themeRotation' in normalizeConfig({ themeRotation: { themes: [] } })).toBe(false);
     expect('themeRotation' in normalizeConfig({ themeRotation: 'nord' })).toBe(false);
     expect(normalizeConfig({ theme: 'nord' })).toStrictEqual({ ...defaultConfig(), theme: 'nord' });
+  });
+});
+
+describe('config depth guard', () => {
+  const deep = `{"lines":[],"x":${'['.repeat(1000)}${']'.repeat(1000)}}`;
+
+  it('reports a structure issue in en and tr', () => {
+    const en = inspectConfigText(deep).issue;
+    expect(en?.kind).toBe('structure');
+    expect(en?.message).toBe('config is nested deeper than 64 levels');
+    expect(withLang('tr', () => inspectConfigText(deep).issue?.message)).toBe(
+      'yapılandırma 64 seviyeden daha derin iç içe geçmiş',
+    );
+  });
+
+  it('loadConfig does not throw and yields a usable config', () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-')), 'c.json');
+    fs.writeFileSync(file, deep);
+    const loaded = loadConfig(file);
+    expect(loaded.config.lines.length).toBeGreaterThan(0);
   });
 });

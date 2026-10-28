@@ -4,6 +4,7 @@ export const configMessages = {
   'config.issue': 'Config {file} has an error at line {line}, column {column}: {message}',
   'config.refuseBroken': 'Refusing to overwrite {file}: it does not parse. Fix it or run ccinfobar doctor.',
   'config.notObject': 'config must be a JSON object',
+  'config.tooDeep': 'config is nested deeper than 64 levels',
   'config.linesNotArray': '"lines" must be an array',
   'json.unexpectedChar': 'Unexpected character {char}',
   'json.unexpectedEnd': 'Unexpected end of file',

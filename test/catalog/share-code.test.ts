@@ -171,6 +171,14 @@ describe('decodeShare on hostile input', () => {
     return r.ok ? '' : r.errorId;
   };
 
+  it('refuses a document nested past 64 levels', () => {
+    let deep: unknown = 1;
+    for (let i = 0; i < 1000; i++) deep = [deep];
+    expect(
+      bad(pack({ v: 1, content: { layout: { lines: [[{ type: 'text', options: { x: deep } }]] } } })),
+    ).toBe('err.share.corrupt');
+  });
+
   it('never throws on garbage', () => {
     expect(bad('')).toBe('err.share.notCode');
     expect(bad('hello')).toBe('err.share.notCode');
