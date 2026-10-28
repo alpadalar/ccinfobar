@@ -15,6 +15,7 @@ import {
 } from '../../src/catalog/model.js';
 import {
   entryHash,
+  marketSlugs,
   type PublishDeps,
   planHash,
   publishPlan,
@@ -598,7 +599,8 @@ describe('runPublish', () => {
     const f = counted();
     const out = await send([next.id, e.id], { dir, env, fetch: f.fetch });
     expect(out.results).toEqual([{ id: next.id, ok: true, code: null, remoteId: 'alperen/two', version: 1 }]);
-    expect(f.calls()).toBe(2);
+    // meta, the index read for taken slugs, one publish
+    expect(f.calls()).toBe(3);
     expect(readCredential(s.url, dir)).toBe(token);
   });
 
@@ -826,6 +828,14 @@ describe('publish: lost answer recovery (COR2-09)', () => {
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
   });
 
+  // the plan sees no remote slugs, so the server's 409 does the work
+  const blind = (base: typeof fetch): typeof fetch =>
+    (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (/\/v1\/index[^/]*$/.test(url)) return new Response('{}', { status: 500 });
+      return base(input, init);
+    }) as typeof fetch;
+
   it('adopts the remote entry on 409 when the hash matches', async () => {
     const s = await server();
     const env = refEnv(s.url);
@@ -854,7 +864,7 @@ describe('publish: lost answer recovery (COR2-09)', () => {
     const e = save();
     await send(null, { dir, env, fetch: lost(globalThis.fetch) });
     save({ mode: 'update', content: preset('cost'), now: at(2) });
-    const out = await send(null, { dir, env });
+    const out = await send(null, { dir, env, fetch: blind(globalThis.fetch) });
     expect(out.results).toEqual([
       {
         id: e.id,
@@ -892,9 +902,8 @@ describe('publish: lost answer recovery (COR2-09)', () => {
     await send(null, { dir, env });
     fs.rmSync(fileOf(a.id));
     fs.rmSync(fileOf(a2.id));
-    const c = counted();
     const b = save({ now: at(3), content: preset('git') });
-    const out = await send(null, { dir, env, fetch: c.fetch });
+    const out = await send(null, { dir, env, fetch: blind(globalThis.fetch) });
     expect(out.results).toMatchObject([{ id: b.id, ok: false, code: 'conflict' }]);
     expect(readEntry(b.id, dir)!.entry.share.lastError).toBe('conflict');
   });
@@ -931,9 +940,8 @@ describe('publish: lost answer recovery (COR2-09)', () => {
       delete raw.share.attempt;
       fs.writeFileSync(fileOf(e.id), JSON.stringify(raw));
       const out = await send(null, { dir, env, fetch: m.fetch });
-      expect(out.results).toMatchObject([
-        { id: e.id, ok: true, remoteId: 'octo/mine-2', retried: { from: 'mine', to: 'mine-2' } },
-      ]);
+      // the pending claim is seen at review, so the plan already has -2
+      expect(out.results).toMatchObject([{ id: e.id, ok: true, remoteId: 'octo/mine-2' }]);
     });
   });
 });
@@ -952,6 +960,8 @@ describe('GitHub-backed marketplace (D-07, D-09)', () => {
       overwrite: true,
       registration: null,
       plan: [],
+      taken: [],
+      renamed: [],
     });
     expect(await runPublish(review, { dir, env, fetch: m.fetch })).toEqual({ code: 'sign-in', results: [] });
     expect(m.calls.map((c) => `${c.method} ${c.url}`)).toEqual([`GET ${GH_ENDPOINT}/v1/meta.json`]);
@@ -1337,5 +1347,100 @@ describe('publish: cols', () => {
     expect(r.code).toBeNull();
     expect(r.cols).toBe(false);
     expect(r.plan[0]!.payload).not.toHaveProperty('cols');
+  });
+});
+
+describe('publish: slug vs remote ids (COR2-10)', () => {
+  const refEnv = (url: string) => ({
+    CCINFOBAR_MARKETPLACE_URL: url,
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  });
+  const slugOf = (r: { plan: { id: string; payload: unknown }[] }, id: string) =>
+    (r.plan.find((i) => i.id === id)!.payload as { slug: string }).slug;
+
+  it('marketSlugs suffixes a singleton whose base is taken', () => {
+    const a = entry(1, { name: 'Mine' });
+    expect(marketSlugs([a], new Set(['mine'])).get(a.id)).toBe('mine-2');
+    expect(marketSlugs([a], new Set(['mine', 'mine-2'])).get(a.id)).toBe('mine-3');
+    expect(marketSlugs([a], new Set(['other'])).get(a.id)).toBe('mine');
+    const b = entry(2, { name: 'Mine', kind: 'theme', createdAt: at(1).toISOString() });
+    const m = marketSlugs([a, b], new Set(['mine-preset']));
+    expect(new Set(m.values()).size).toBe(2);
+    expect(m.get(a.id)).not.toBe('mine-preset');
+  });
+
+  it('a renamed local entry leaves its old remote slug alone', async () => {
+    const s = await server();
+    const deps = { dir, env: refEnv(s.url), now: () => at(5) };
+    const a = save();
+    await send(null, deps);
+    const raw = JSON.parse(fs.readFileSync(fileOf(a.id), 'utf8'));
+    raw.name = 'Other';
+    raw.slug = 'other';
+    fs.writeFileSync(fileOf(a.id), JSON.stringify(raw));
+    const b = save({ name: 'Mine', now: at(3), content: preset('cost') });
+    const review = await reviewPublish([b.id], deps);
+    expect(slugOf(review, b.id)).toBe('mine-2');
+    expect(review.renamed).toEqual([{ id: b.id, from: 'mine', to: 'mine-2' }]);
+    expect(review.taken).toContain('mine');
+    expect(a.id).not.toBe(b.id);
+    const out = await runPublish(review, deps);
+    expect(out.results).toMatchObject([{ id: b.id, ok: true, remoteId: 'alperen/mine-2' }]);
+    expect('retried' in out.results[0]!).toBe(false);
+  });
+
+  it('a live claim with the same content hash keeps the slug and is adopted', async () => {
+    const s = await server();
+    const deps = { dir, env: refEnv(s.url), now: () => at(5) };
+    const a = save();
+    const share0 = JSON.parse(fs.readFileSync(fileOf(a.id), 'utf8')).share;
+    await send(null, deps);
+    const raw = JSON.parse(fs.readFileSync(fileOf(a.id), 'utf8'));
+    raw.share = { ...share0, wanted: true };
+    fs.writeFileSync(fileOf(a.id), JSON.stringify(raw));
+    const review = await reviewPublish(null, deps);
+    expect(slugOf(review, a.id)).toBe('mine');
+    expect(review.renamed).toEqual([]);
+    const out = await runPublish(review, deps);
+    expect(out.results).toMatchObject([{ id: a.id, ok: true, remoteId: 'alperen/mine', adopted: true }]);
+  });
+
+  describe('on a GitHub marketplace', () => {
+    const env = { CCINFOBAR_MARKETPLACE_URL: GH_ENDPOINT };
+    const lost = (base: typeof fetch): typeof fetch =>
+      (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        const res = await base(input, init);
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+        if ((init?.method ?? 'GET') === 'POST' && url.endsWith('/v1/entries'))
+          throw Object.assign(new Error('timed out'), { name: 'TimeoutError' });
+        return res;
+      }) as typeof fetch;
+    const setup = () => {
+      const m = githubMarket();
+      writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+      writePublisher(GH_ENDPOINT, 'octo', dir);
+      return m;
+    };
+
+    it('keeps the slug of a pending entry the attempt marker matches', async () => {
+      const m = setup();
+      const e = save();
+      await send(null, { dir, env, fetch: lost(m.fetch) });
+      const review = await reviewPublish(null, { dir, env, fetch: m.fetch });
+      expect(slugOf(review, e.id)).toBe('mine');
+      expect(review.renamed).toEqual([]);
+    });
+
+    it('suffixes the slug of a pending entry without a marker', async () => {
+      const m = setup();
+      const e = save();
+      await send(null, { dir, env, fetch: lost(m.fetch) });
+      const raw = JSON.parse(fs.readFileSync(fileOf(e.id), 'utf8'));
+      delete raw.share.attempt;
+      fs.writeFileSync(fileOf(e.id), JSON.stringify(raw));
+      const review = await reviewPublish(null, { dir, env, fetch: m.fetch });
+      expect(slugOf(review, e.id)).toBe('mine-2');
+      expect(review.renamed).toEqual([{ id: e.id, from: 'mine', to: 'mine-2' }]);
+    });
   });
 });

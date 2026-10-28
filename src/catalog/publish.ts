@@ -110,24 +110,36 @@ export interface PublishReview {
   cols?: boolean;
   registration: Registration | null;
   plan: PublishItem[];
+  // remote slugs already used under the handle
+  taken: string[];
+  renamed: { id: string; from: string; to: string }[];
 }
 
 const tailed = (base: string, tail: string) =>
   `${base.slice(0, 38 - tail.length).replace(/-+$/, '')}-${tail}`;
 
 // names that map to one slug get the kind, then a number, oldest first
-export function marketSlugs(all: CatalogEntry[]): Map<string, string> {
+export function marketSlugs(
+  all: CatalogEntry[],
+  taken: ReadonlySet<string> = new Set(),
+): Map<string, string> {
   const groups = new Map<string, CatalogEntry[]>();
   for (const e of all) {
     const base = marketSlug(e.name);
     groups.set(base, [...(groups.get(base) ?? []), e]);
   }
   const out = new Map<string, string>();
-  const used = new Set<string>();
+  const used = new Set<string>(taken);
   for (const [base, g] of groups) if (g.length === 1) used.add(base);
   for (const [base, g] of groups) {
     if (g.length === 1) {
-      out.set(g[0]!.id, base);
+      let s = base;
+      if (taken.has(base)) {
+        s = tailed(base, '2');
+        for (let n = 3; used.has(s); n++) s = tailed(base, String(n));
+        used.add(s);
+      }
+      out.set(g[0]!.id, s);
       continue;
     }
     const order = [...g].sort((a, b) =>
@@ -148,9 +160,10 @@ export function publishPlan(
   endpoint: string,
   opts: { overwrite: boolean; cols?: boolean } = { overwrite: true },
   all: CatalogEntry[] = entries,
+  taken: ReadonlySet<string> = new Set(),
 ): PublishItem[] {
   const key = endpointKey(endpoint);
-  const slugs = marketSlugs(all);
+  const slugs = marketSlugs(all, taken);
   const out: PublishItem[] = [];
   for (const e of entries) {
     // installed entries belong to their publisher
@@ -281,7 +294,7 @@ function registrationOf(
 export async function reviewPublish(ids: string[] | null, deps: PublishDeps = {}): Promise<PublishReview> {
   const { dir, endpoint: found } = envOf(deps);
   const endpoint = found ?? '';
-  const none = { endpoint, overwrite: true, registration: null, plan: [] };
+  const none = { endpoint, overwrite: true, registration: null, plan: [], taken: [], renamed: [] };
   if (!endpoint) return { code: 'no-endpoint', ...none };
   const every = listEntries(dir);
   const entries = every.filter((e) => ids === null || ids.includes(e.id));
@@ -305,9 +318,81 @@ export async function reviewPublish(ids: string[] | null, deps: PublishDeps = {}
   const cols = meta.capabilities.cols === true;
   const token = readCredential(anon.endpoint, dir);
   if (!token && signInOnly(meta)) return { code: 'sign-in', ...none };
-  const plan = publishPlan(entries, endpoint, { overwrite, cols }, every);
+  const opts = { overwrite, cols };
+  const first = publishPlan(entries, endpoint, opts, every);
+  const taken = await remoteTaken(anon, token, signInOnly(meta), first, every, deps, dir);
+  const plan = taken.size ? publishPlan(entries, endpoint, opts, every, taken) : first;
   const registration = token ? null : registrationOf(anon.endpoint, plan, entries, deps, dir);
-  return { code: null, endpoint, overwrite, cols, registration, plan };
+  const renamed = plan.flatMap((it, i) => {
+    const from = (first[i]?.payload as PublishPayload | null)?.slug;
+    const to = (it.payload as PublishPayload | null)?.slug;
+    return it.action === 'publish' && from && to && from !== to ? [{ id: it.id, from, to }] : [];
+  });
+  return { code: null, endpoint, overwrite, cols, registration, plan, taken: [...taken].sort(), renamed };
+}
+
+const slugOf = (id: string) => id.split('/')[1] ?? '';
+
+// remote slugs this handle holds, minus claims a planned publish could adopt (18-08)
+async function remoteTaken(
+  anon: MarketClient,
+  token: string | null,
+  github: boolean,
+  plan: PublishItem[],
+  every: CatalogEntry[],
+  deps: PublishDeps,
+  dir: string,
+): Promise<Set<string>> {
+  const waiting = plan.filter((it) => it.action === 'publish');
+  const out = new Set<string>();
+  if (!waiting.length) return out;
+  const key = endpointKey(anon.endpoint);
+  for (const e of every) {
+    const r = e.share.remote;
+    if (r && key !== null && endpointKey(r.endpoint) === key) out.add(slugOf(r.id));
+  }
+  let handle = readPublisher(anon.endpoint, dir);
+  const claims = new Map<string, string | null>();
+  let pending = new Set<string>();
+  if (token && github) {
+    try {
+      const me = await createMarketClient({
+        endpoint: anon.endpoint,
+        fetch: deps.fetch ?? globalThis.fetch,
+        token,
+      }).me();
+      handle = handle ?? me.handle;
+      for (const x of me.entries) if (x.state === 'pending') pending.add(slugOf(x.id));
+      for (const x of me.entries) claims.set(slugOf(x.id), null);
+    } catch {
+      pending = new Set();
+    }
+  }
+  if (handle) {
+    try {
+      const { index } = await cachedIndex(anon.endpoint, { ...cacheOf(anon, deps), refresh: true });
+      for (const x of index.entries) if (x.publisher === handle) claims.set(slugOf(x.id), x.hash);
+    } catch {
+      // an unreadable index claims nothing
+    }
+  }
+  for (const [slug, hash] of claims) {
+    const mine = waiting.some((it) => {
+      const p = it.payload as PublishPayload;
+      if (p.slug !== slug) return false;
+      if (hash !== null && hash === entryHash(p.content)) return true;
+      const a = every.find((e) => e.id === it.id)?.share.attempt;
+      return (
+        pending.has(slug) &&
+        !!a &&
+        a.endpoint === anon.endpoint &&
+        a.slug === slug &&
+        a.hash === entryHash(p.content)
+      );
+    });
+    if (!mine) out.add(slug);
+  }
+  return out;
 }
 
 // the server has no such id: rejected, never public, so the id is free (WR-04)
@@ -347,6 +432,7 @@ async function recoverConflict(
   e: CatalogEntry,
   payload: PublishPayload,
   dir: string,
+  taken: ReadonlySet<string>,
 ): Promise<{ sent: Sent; adopted?: true; retried?: { from: string; to: string } }> {
   const hash = entryHash(payload.content);
   const handle = readPublisher(client.endpoint, dir) ?? (await client.me().catch(() => null))?.handle;
@@ -372,7 +458,8 @@ async function recoverConflict(
       }
     }
   }
-  const to = tailed(payload.slug, '2');
+  let to = tailed(payload.slug, '2');
+  for (let n = 3; taken.has(to); n++) to = tailed(payload.slug, String(n));
   return { sent: await client.publish({ ...payload, slug: to }), retried: { from: payload.slug, to } };
 }
 
@@ -427,11 +514,19 @@ export async function runPublish(
   const client = createMarketClient({ endpoint, fetch: fetchFn, token });
   const results: PublishResult[] = [];
   const every = listEntries(dir);
+  const taken = new Set(review.taken);
   for (const item of items) {
     const cur = readEntry(item.id, dir)?.entry;
     const e = cur && normalizeEntry(cur);
     const again =
-      e && publishPlan([e], endpoint, { overwrite: review.overwrite, cols: review.cols === true }, every)[0];
+      e &&
+      publishPlan(
+        [e],
+        endpoint,
+        { overwrite: review.overwrite, cols: review.cols === true },
+        every,
+        taken,
+      )[0];
     if (!e || !again || canonicalJson(again) !== canonicalJson(item)) {
       results.push(notSent(item));
       continue;
@@ -445,7 +540,7 @@ export async function runPublish(
         got = await sendItem(client, item, remote);
       } catch (err) {
         if (item.action !== 'publish' || codeOf(err) !== 'conflict') throw err;
-        const r = await recoverConflict(client, e, item.payload as PublishPayload, dir);
+        const r = await recoverConflict(client, e, item.payload as PublishPayload, dir, taken);
         got = r.sent;
         recovered = r;
       }
