@@ -32,7 +32,6 @@ export {
   checkForUpdate,
   fetchLatest,
   installSources,
-  installVersion,
   installVersionAsync,
   type NpmCommand,
   type NpmDeps,

@@ -13,6 +13,7 @@ import {
 import type { Config } from '../core/types.js';
 import { HARDEN } from '../data/git.js';
 import type { HookEvent } from '../data/hooks.js';
+import { installVersion } from '../data/self-update.js';
 import { safeCwd } from '../data/update-state.js';
 import { binary } from '../data/which.js';
 import { type BuiltCommand, buildCommand, type CommandTarget, jsForWinBin } from './command.js';
@@ -69,7 +70,6 @@ import {
   compareVersions,
   type InstallKind,
   installKind,
-  installVersion,
   installVersionAsync,
   localPrefix,
   npmCommand,

@@ -244,7 +244,7 @@ function npmError(err: unknown, stderr: unknown): Error {
 export function installVersion(version: string, prefix?: string): void {
   const { file, runs, opts } = npmInstall(version, prefix);
   let last: unknown;
-  // registry only; the verified manual path is REL2-02
+  // registry only; sync for the TUI's setupCommand, installs the running version
   for (const args of runs.slice(0, 1)) {
     try {
       execFileSync(file, args, { ...opts, stdio: ['ignore', 'ignore', 'pipe'] });

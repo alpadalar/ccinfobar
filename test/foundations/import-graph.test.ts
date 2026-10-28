@@ -256,6 +256,14 @@ describe('import graph', () => {
     );
   });
 
+  it('keeps the sync, unverified installVersion to the install setup path', () => {
+    const users = walk(src)
+      .filter((f) => /\binstallVersion\b(?!Async)/.test(fs.readFileSync(f, 'utf8')))
+      .map((f) => path.relative(root, f).replace(/\\/g, '/'))
+      .sort();
+    expect(users).toEqual(['src/commands/install.ts', 'src/data/self-update.ts']);
+  });
+
   it('loads the lazy tables in every module that prints their ids', () => {
     const users = walk(src)
       .filter((f) => !f.includes(`${path.sep}i18n${path.sep}`))
