@@ -638,6 +638,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const cli = setLanguage('en');
   const host = opts.host ?? '127.0.0.1';
   const token = crypto.randomBytes(16).toString('hex');
+  const tokenBuf = Buffer.from(token, 'utf8');
   let command = defaultCommand();
   const setup = opts.setup ?? ((v: string) => setupCommandAsync(v));
   const kindOf = opts.installKind ?? installKind;
@@ -930,7 +931,11 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     }
 
     if (!url.pathname.startsWith('/api/')) throw new HttpError(404, 'Not found');
-    if (req.headers['x-ccinfobar-token'] !== token) throw httpError(401, 'err.server.badToken');
+    const raw = req.headers['x-ccinfobar-token'];
+    const a = Buffer.from(typeof raw === 'string' ? raw : '', 'utf8');
+    if (a.length !== tokenBuf.length || !crypto.timingSafeEqual(a, tokenBuf)) {
+      throw httpError(401, 'err.server.badToken');
+    }
     // only the authenticated tab keeps a detached server alive
     lastRequest = now();
     if (method !== 'GET') {

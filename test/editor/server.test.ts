@@ -69,6 +69,28 @@ describe('editor server', () => {
     expect(res.body).toContain('<');
   });
 
+  it('compares the token in constant time and never answers 500 (SEC2-09)', async () => {
+    const t = handle.token;
+    const last = t.endsWith('0') ? '1' : '0';
+    for (const bad of [`${t.slice(0, -1)}${last}`, t.slice(0, 31), `${t}a`, 'é'.repeat(16)]) {
+      const r = await request('GET', '/api/state', { token: false, headers: { 'x-ccinfobar-token': bad } });
+      expect(r.status).toBe(401);
+    }
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = http.request(
+        { host: '127.0.0.1', port, path: '/api/state', headers: { 'x-ccinfobar-token': [t, t] } },
+        (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        },
+      );
+      req.on('error', reject);
+      req.end();
+    });
+    expect(status).toBe(401);
+    expect((await request('GET', '/api/state')).status).toBe(200);
+  });
+
   it('requires the token for the api', async () => {
     expect((await request('GET', '/api/state', { token: false })).status).toBe(401);
     expect(

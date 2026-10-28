@@ -119,6 +119,19 @@ describe('detached editor server', () => {
       req.end();
     });
     expect(status).toBe(401);
+    const wrong = `${handle.token.slice(0, -1)}${handle.token.endsWith('0') ? '1' : '0'}`;
+    const equalLen = await new Promise<number>((resolve, reject) => {
+      const req = http.request(
+        { host: '127.0.0.1', port: u.port, path: '/api/ping', headers: { 'x-ccinfobar-token': wrong } },
+        (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        },
+      );
+      req.on('error', reject);
+      req.end();
+    });
+    expect(equalLen).toBe(401);
     clock = 1500;
     await sleep(100);
     expect(await closed(handle)).toBe(true);
