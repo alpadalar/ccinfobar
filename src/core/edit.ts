@@ -624,6 +624,44 @@ export function removeProfileOverride(config: Config, index: number): Config {
   return withProfiles(config, { ...config.profiles, models: models.filter((_, i) => i !== index) });
 }
 
+export function subagentFields(config: Config, all: readonly string[]): string[] {
+  const cur = (config.subagentLine?.fields ?? []).filter((f) => all.includes(f));
+  return cur.length ? cur : [...all];
+}
+
+export function setSubagentFields(config: Config, fields: readonly string[], all: readonly string[]): Config {
+  const list = fields.filter((f, i) => all.includes(f) && fields.indexOf(f) === i);
+  const { subagentLine, ...rest } = config;
+  const { fields: _, ...other } = subagentLine ?? {};
+  const isDefault = !list.length || (list.length === all.length && list.every((f, i) => f === all[i]));
+  if (isDefault) return Object.keys(other).length ? { ...rest, subagentLine: other } : rest;
+  return { ...rest, subagentLine: { ...other, fields: list as never } };
+}
+
+export function setSubagentField(config: Config, field: string, on: boolean, all: readonly string[]): Config {
+  if (!all.includes(field)) return config;
+  const cur = subagentFields(config, all);
+  const has = cur.includes(field);
+  if (on === has) return config;
+  if (!on && cur.length === 1) return config;
+  return setSubagentFields(config, on ? [...cur, field] : cur.filter((f) => f !== field), all);
+}
+
+export function moveSubagentField(
+  config: Config,
+  field: string,
+  delta: number,
+  all: readonly string[],
+): Config {
+  const cur = subagentFields(config, all);
+  const from = cur.indexOf(field);
+  const to = from + delta;
+  if (from < 0 || to < 0 || to >= cur.length) return config;
+  const next = [...cur];
+  [next[from], next[to]] = [next[to]!, next[from]!];
+  return setSubagentFields(config, next, all);
+}
+
 export interface Threshold {
   mode: 'show' | 'hide';
   at: number;

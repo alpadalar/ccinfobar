@@ -30,6 +30,7 @@ import {
   setProgress,
   setRotationEvery,
   setRotationOrder,
+  setSubagentFields,
   setThemeRotation,
   updateItem,
 } from '../core/edit.js';
@@ -55,6 +56,7 @@ import type {
   WidgetDef,
   WidgetItem,
 } from '../core/types.js';
+import { SUBAGENT_FIELDS } from '../widgets/shared.js';
 
 export type FieldKind = 'bool' | 'text' | 'number' | 'select' | 'color' | 'theme';
 
@@ -994,6 +996,23 @@ function baseGlobalFields(autoLanguage?: LanguageId, brew = false): Field[] {
     ),
     ...budgetFields(),
     ...progressFields(),
+    globalField(
+      'subagentLine.fields',
+      t('tui.field.subagentFields'),
+      'text',
+      (c) => (c.subagentLine?.fields ?? []).join(', '),
+      (c, v) => setSubagentFields(c, splitIds(String(v)), SUBAGENT_FIELDS),
+      {
+        help: t('tui.field.subagentFieldsHelp'),
+        parse: (text) => {
+          const ids = splitIds(text);
+          const bad = ids.find((id) => !(SUBAGENT_FIELDS as readonly string[]).includes(id));
+          if (bad !== undefined)
+            return { ok: false, error: t('tui.parse.subagentField', { id: sanitizeText(bad) }) };
+          return { ok: true, value: ids.join(', ') };
+        },
+      },
+    ),
     globalField(
       'profiles.builtIn',
       t('tui.field.profilesBuiltIn'),

@@ -728,3 +728,40 @@ describe('model profile fields', () => {
     expect(of(c, 'profiles.models.add').label).toBe('Add model profile');
   });
 });
+
+describe('subagentLine.fields field', () => {
+  const f = () => globalFields().find((x) => x.id === 'subagentLine.fields')!;
+  const ok = (text: string) => {
+    const r = f().parse(text);
+    if (!r.ok) throw new Error(r.error);
+    return r.value;
+  };
+
+  it('shows empty when absent and the list when set', () => {
+    expect(f().get(defaultConfig())).toBe('');
+    const c = f().set(defaultConfig(), ok('label,status'));
+    expect(c.subagentLine?.fields).toEqual(['label', 'status']);
+    expect(f().get(c)).toBe('label, status');
+  });
+
+  it('rejects unknown ids with the translated error', () => {
+    expect(f().parse(' status , bogus ')).toEqual({ ok: false, error: 'Unknown subagent field: bogus' });
+    expect(withLang('tr', () => f().parse('bogus'))).toEqual({
+      ok: false,
+      error: 'Bilinmeyen alt ajan alanı: bogus',
+    });
+  });
+
+  it('empty or the default order removes the section', () => {
+    expect('subagentLine' in f().set(defaultConfig(), ok(''))).toBe(false);
+    const all = 'status,type,label,spark,tokens,context,model,effort,elapsed';
+    expect('subagentLine' in f().set(defaultConfig(), ok(all))).toBe(false);
+  });
+
+  it('labels follow the language', () => {
+    expect(f().label).toBe('Subagent row fields');
+    expect(withLang('tr', () => globalFields().find((x) => x.id === 'subagentLine.fields')!.label)).toBe(
+      'Alt ajan satırı alanları',
+    );
+  });
+});

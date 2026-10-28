@@ -18,6 +18,7 @@ import {
   LOCAL_PERSONAL_KEYS,
   moveItem,
   moveLine,
+  moveSubagentField,
   needsRefresh,
   PERSONAL_KEYS,
   REFRESH_SUGGEST,
@@ -49,7 +50,10 @@ import {
   setRotationOrder,
   setRotationWeekday,
   setRuleQuick,
+  setSubagentField,
+  setSubagentFields,
   setThemeRotation,
+  subagentFields,
   takeStyle,
   timeRuleFeed,
   updateItem,
@@ -820,5 +824,56 @@ describe('setProfileOverride', () => {
     expect(setProfileOverride(two, 5, { match: 'x' })).toEqual(two);
     expect(setProfileOverride(two, -1, { match: 'x' })).toEqual(two);
     expect(setProfileOverride(two, 0, { label: 'no match' } as never)).toEqual(two);
+  });
+});
+
+describe('subagent row ops', () => {
+  const ALL = ['status', 'type', 'label', 'spark', 'tokens', 'context', 'model', 'effort', 'elapsed'];
+  const base = () => defaultConfig();
+
+  it('lists the current fields filtered to known ids', () => {
+    expect(subagentFields(base(), ALL)).toEqual(ALL);
+    const c = { ...base(), subagentLine: { fields: ['label', 'status', 'bogus'] } } as never;
+    expect(subagentFields(c, ALL)).toEqual(['label', 'status']);
+  });
+
+  it('switches a field off and back on at the end', () => {
+    const off = setSubagentField(base(), 'spark', false, ALL);
+    expect(off.subagentLine?.fields).toEqual(ALL.filter((f) => f !== 'spark'));
+    const on = setSubagentField(off, 'spark', true, ALL);
+    expect(on.subagentLine?.fields).toEqual([...ALL.filter((f) => f !== 'spark'), 'spark']);
+  });
+
+  it('refuses to remove the last field', () => {
+    const c = { ...base(), subagentLine: { fields: ['label'] } } as never;
+    expect(setSubagentField(c, 'label', false, ALL)).toEqual(c);
+  });
+
+  it('moves a field and ignores out of range or unknown', () => {
+    expect(moveSubagentField(base(), 'type', -1, ALL).subagentLine?.fields?.slice(0, 2)).toEqual([
+      'type',
+      'status',
+    ]);
+    expect(moveSubagentField(base(), 'status', -1, ALL)).toEqual(base());
+    expect(moveSubagentField(base(), 'elapsed', 1, ALL)).toEqual(base());
+    expect(moveSubagentField(base(), 'bogus', 1, ALL)).toEqual(base());
+  });
+
+  it('collapses the default order and keeps other keys', () => {
+    const swapped = moveSubagentField(base(), 'type', -1, ALL);
+    const back = moveSubagentField(swapped, 'status', -1, ALL);
+    expect('subagentLine' in back).toBe(false);
+    const other = { ...swapped, subagentLine: { ...swapped.subagentLine, extra: 1 } } as never;
+    const kept = moveSubagentField(other, 'status', -1, ALL) as never as Record<string, unknown>;
+    expect(kept.subagentLine).toEqual({ extra: 1 });
+  });
+
+  it('setSubagentFields writes a list and collapses empty or default', () => {
+    expect(setSubagentFields(base(), ['label', 'status'], ALL).subagentLine?.fields).toEqual([
+      'label',
+      'status',
+    ]);
+    expect('subagentLine' in setSubagentFields(base(), [], ALL)).toBe(false);
+    expect('subagentLine' in setSubagentFields(base(), [...ALL], ALL)).toBe(false);
   });
 });
