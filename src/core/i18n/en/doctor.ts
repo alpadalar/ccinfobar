@@ -31,6 +31,8 @@ export const doctorMessages = {
   'doctor.http.badPath': '⚠ http on line {line}: path: {error}; the item shows nothing',
   'doctor.http.plain':
     '⚠ http on line {line}: {host} uses plain http, so the reply can be read or changed on the way. Use https.',
+  'doctor.catalogPerms':
+    '✗ {dir} is readable by other users and holds catalog/credentials.json (your marketplace token); run `chmod 700 {dir}`',
   'doctor.gitHardeningOff': '  Git hardening off (gitHardening: false)',
   'doctor.rotation': '  {status}',
   'doctor.rotationMissing': '  ⚠ Theme rotation lists themes that do not exist and are skipped: {ids}',

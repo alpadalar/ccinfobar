@@ -1132,3 +1132,29 @@ describe('runDoctor vim twice', () => {
     expect(out.some((l) => l.includes('iki kez'))).toBe(true);
   });
 });
+
+describe.skipIf(process.platform === 'win32')('runDoctor catalog permissions (MK-14)', () => {
+  const setup = (mode: number, creds: boolean) => {
+    const d = path.join(configDir(), 'catalog');
+    fs.mkdirSync(d, { recursive: true });
+    fs.chmodSync(d, mode);
+    if (creds) fs.writeFileSync(path.join(d, 'credentials.json'), '{}');
+    return d;
+  };
+  const file = () => cfgFile('perm.json', '{"lines":[[{"id":"m","type":"model"}]]}');
+
+  it('warns in en and tr when credentials sit in a readable dir', () => {
+    const d = setup(0o755, true);
+    const msg = (l: 'en' | 'tr') => withLang(l, () => t('doctor.catalogPerms', { dir: tildify(d) }));
+    expect(withEnvLang('en', () => capture(() => runDoctor(file())))).toContain(msg('en'));
+    expect(withEnvLang('tr', () => capture(() => runDoctor(file())))).toContain(msg('tr'));
+  });
+
+  it('is silent for a private dir or without credentials', () => {
+    setup(0o700, true);
+    expect(capture(() => runDoctor(file())).some((l) => l.includes('chmod 700'))).toBe(false);
+    fs.rmSync(path.join(configDir(), 'catalog'), { recursive: true, force: true });
+    setup(0o755, false);
+    expect(capture(() => runDoctor(file())).some((l) => l.includes('chmod 700'))).toBe(false);
+  });
+});

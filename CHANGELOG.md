@@ -83,6 +83,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - On Windows, git and jj are now run by the absolute path found in `PATH` (`.com` then `.exe`) and never from the repository folder, so a repository that ships its own `git.exe` or `jj.exe` can no longer run it during a refresh or `ccinfobar install`. When neither is on `PATH` the git and jj widgets hide instead of falling back to the bare name. Linux and macOS are unchanged
 - On Windows, ccinfobar sets `NoDefaultCurrentDirectoryInExePath=1` for itself and the programs it starts (unless you set it), and runs `where`, the `npm.cmd` fallback and the browser launch of `ccinfobar edit` from a safe folder, so `where`, `npm` and the `command` widget's shell no longer look in the current folder first; a script in the current folder needs `.\script.bat`
 - Marketplace content, config files, share codes and status line payloads nested deeper than 64 levels are refused with a clear error (`400 invalid` on the marketplace Worker, a config issue, a corrupt share code, an ignored payload) instead of overflowing the stack.
+- The catalog folder (which holds your marketplace token in `credentials.json`) is now created readable by your user only on Linux and macOS, `ccinfobar catalog login` tightens an existing folder before writing the token, and `ccinfobar doctor` warns when the folder is readable by other users.
 
 ## [0.8.2] - 2026-10-20
 

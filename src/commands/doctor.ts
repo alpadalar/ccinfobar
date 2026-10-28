@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { applyLanguage } from '../cli/lang.js';
 import { describeRuleError, validateRule } from '../core/conditions.js';
 import type { LoadResult } from '../core/config.js';
@@ -12,7 +13,14 @@ import { type InspectRow, inspectRows, lineReport, sessionNotes } from '../core/
 import { parsePath } from '../core/jsonpath.js';
 import { loadForUse } from '../core/load.js';
 import { titleWidgets } from '../core/panel.js';
-import { cacheDir, claudeJsonPath, claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
+import {
+  cacheDir,
+  claudeJsonPath,
+  claudeSettingsPath,
+  configDir,
+  lastPayloadPath,
+  tildify,
+} from '../core/paths.js';
 import { readLastPayload } from '../core/preview.js';
 import { overflowOf, resolveAppearance } from '../core/renderer.js';
 import { rotationIds } from '../core/rotation.js';
@@ -545,6 +553,17 @@ export function runDoctor(
     t('doctor.lastPayload', { mark: ok(fs.existsSync(lastPayloadPath())), file: tildify(lastPayloadPath()) }),
   );
   console.log(t('doctor.cacheDir', { dir: tildify(cacheDir()) }));
+  if (process.platform !== 'win32') {
+    try {
+      const catalog = path.join(configDir(), 'catalog');
+      if (
+        fs.existsSync(path.join(catalog, 'credentials.json')) &&
+        (fs.statSync(catalog).mode & 0o077) !== 0
+      ) {
+        console.log(t('doctor.catalogPerms', { dir: tildify(catalog) }));
+      }
+    } catch {}
+  }
   const pruned = pruneTmp(cacheDir(), 3_600_000) + pruneTmp(jobsDir(), 3_600_000);
   if (pruned > 0) console.log(t('doctor.tmpPruned', { count: pruned }));
   const width = doctorWidth(last);

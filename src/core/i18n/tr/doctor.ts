@@ -34,6 +34,8 @@ export const doctorMessages = {
   'doctor.http.badPath': '⚠ {line}. satırdaki http: path: {error}; öğe hiçbir şey göstermez',
   'doctor.http.plain':
     '⚠ {line}. satırdaki http: {host} şifresiz http kullanıyor, bu yüzden yanıt yolda okunabilir ya da değiştirilebilir. https kullanın.',
+  'doctor.catalogPerms':
+    '✗ {dir} diğer kullanıcılar tarafından okunabilir ve catalog/credentials.json dosyasını (marketplace jetonunuzu) içeriyor; `chmod 700 {dir}` çalıştırın',
   'doctor.gitHardeningOff': '  Git sıkılaştırması kapalı (gitHardening: false)',
   'doctor.rotation': '  {status}',
   'doctor.rotationMissing': '  ⚠ Tema döngüsünde olmayan temalar var, atlanıyorlar: {ids}',
