@@ -85,6 +85,8 @@ export const editorMessages = {
   'web.rotation.downName': 'Move {name} down',
   'web.subagent.section': 'Subagent rows',
   'web.subagent.help': 'What `ccinfobar subagent-line` shows for each subagent, in this order',
+  'web.subagent.installed': 'Claude Code runs it for the subagent panel',
+  'web.subagent.notInstalled': 'Not set up yet: install with subagent rows',
   'web.subagent.upName': 'Move {name} up',
   'web.subagent.downName': 'Move {name} down',
   'web.subagent.field.status': 'Status',
@@ -226,6 +228,7 @@ export const editorMessages = {
   'web.install.unsaved': 'You have unsaved changes. Save them so Claude Code uses them.',
   'web.install.failed': 'Install failed: {error}',
   'web.install.update': 'Update',
+  'web.install.subagents': 'Also render the subagent panel rows (--subagents)',
   'web.install.install': 'Install',
 
   'web.term.title': 'Terminal colors used for the preview',

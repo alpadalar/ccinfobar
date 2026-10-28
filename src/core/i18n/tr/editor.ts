@@ -89,6 +89,8 @@ export const editorMessages = {
   'web.rotation.downName': '{name} temasını aşağı taşı',
   'web.subagent.section': 'Alt ajan satırları',
   'web.subagent.help': "`ccinfobar subagent-line`'ın her alt ajan için bu sırayla gösterdikleri",
+  'web.subagent.installed': 'Claude Code alt ajan panelinde çalıştırıyor',
+  'web.subagent.notInstalled': 'Henüz kurulmadı: alt ajan satırlarıyla kurun',
   'web.subagent.upName': '{name} alanını yukarı taşı',
   'web.subagent.downName': '{name} alanını aşağı taşı',
   'web.subagent.field.status': 'Durum',
@@ -234,6 +236,7 @@ export const editorMessages = {
   'web.install.unsaved': "Kaydedilmemiş değişiklikleriniz var. Claude Code'un kullanması için kaydedin.",
   'web.install.failed': 'Kurulum başarısız oldu: {error}',
   'web.install.update': 'Güncelle',
+  'web.install.subagents': 'Alt ajan paneli satırlarını da göster (--subagents)',
   'web.install.install': 'Kur',
 
   'web.term.title': 'Önizlemede kullanılan terminal renkleri',

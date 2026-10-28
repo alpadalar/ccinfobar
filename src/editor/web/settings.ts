@@ -306,6 +306,16 @@ const SUBAGENT_FIELD_IDS: Record<string, MessageId> = {
   elapsed: 'web.subagent.field.elapsed',
 };
 
+export function subagentInstallRow(
+  sub: { command: string; owned: boolean } | null | undefined,
+  open: () => void,
+): HTMLElement[] {
+  return [
+    h('div', { class: 'hint' }, t(sub?.owned ? 'web.subagent.installed' : 'web.subagent.notInstalled')),
+    h('button', { class: 'btn', type: 'button', onClick: open }, t('web.install.title')),
+  ];
+}
+
 export function subagentRows(c: Config, all: readonly string[], apply: ProfileApply): HTMLElement[] {
   const on = subagentFields(c, all);
   const order = [...on, ...all.filter((id) => !on.includes(id))];
@@ -828,6 +838,7 @@ export async function openSettings(): Promise<void> {
       section(
         t('web.subagent.section'),
         h('div', { class: 'hint' }, t('web.subagent.help')),
+        ...subagentInstallRow(cl.subagent, () => openInstall(installDialog())),
         ...subagentRows(c, S.api.subagentFields ?? [], (fn, coalesce) => {
           commit(fn(S.config), coalesce ? { coalesce } : {});
           render();

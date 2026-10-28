@@ -191,6 +191,7 @@ describe('editor server', () => {
     ]);
     expect(s.themesDir).toBe(path.join(dir, 'themes'));
     expect(s.claude).toHaveProperty('installed');
+    expect(s.claude.subagent).toBeNull();
     expect(typeof s.claude.defaultCommand).toBe('string');
     expect(typeof s.hasLastPayload).toBe('boolean');
   });

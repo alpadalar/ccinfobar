@@ -52,6 +52,7 @@ export interface ClaudeInfo {
   installed: boolean;
   defaultCommand: string;
   settingsFile: string;
+  subagent?: { command: string; owned: boolean } | null;
 }
 
 export interface HooksInfo {

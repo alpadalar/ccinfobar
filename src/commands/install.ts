@@ -211,6 +211,19 @@ export interface SubagentPlan {
   asked: boolean;
 }
 
+export function currentSubagentLine(
+  file = claudeSettingsPath(),
+  env: NodeJS.ProcessEnv = process.env,
+): { command: string; owned: boolean } | null {
+  const cur = subagentOf(readSettings(file).data) as Record<string, unknown> | null;
+  if (!cur) return null;
+  const entry = findSubagentLineEntry(openManifest(env), file);
+  return {
+    command: typeof cur.command === 'string' ? cur.command : '',
+    owned: !!entry && ownedEqual(cur, entry.value),
+  };
+}
+
 export function currentStatusLine(file = claudeSettingsPath()): StatusLineSetting | null {
   return statusLineOf(readSettings(file).data);
 }

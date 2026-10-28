@@ -207,3 +207,70 @@ describe('editor install plan', () => {
     expect((await request('GET', '/api/state')).json().claude.installed).toBe(false);
   });
 });
+
+describe('editor install --subagents', () => {
+  const FOREIGN_SUB = { type: 'command', command: 'other-sub', padding: 1 };
+  const read = () => JSON.parse(fs.readFileSync(settings, 'utf8'));
+
+  it('plans a subagentStatusLine only when asked', async () => {
+    await start();
+    const plain = (await request('POST', '/api/install/plan', { command: 'ccinfobar' })).json().plan;
+    expect(plain).not.toHaveProperty('subagent');
+    const asked = await request('POST', '/api/install/plan', { command: 'ccinfobar', subagents: true });
+    expect(asked.json().plan.subagent).toMatchObject({
+      owner: 'none',
+      proposed: { type: 'command', command: 'ccinfobar subagent-line' },
+    });
+  });
+
+  it('rejects a non-boolean subagents with 400 on both routes', async () => {
+    await start();
+    const before = fs.existsSync(settings);
+    for (const url of ['/api/install/plan', '/api/install']) {
+      for (const bad of ['yes', 1, null]) {
+        const res = await request('POST', url, { command: 'ccinfobar', subagents: bad });
+        expect(res.status).toBe(400);
+        expect(res.json().errorId).toBe('install.badSubagents');
+      }
+    }
+    expect(fs.existsSync(settings)).toBe(before);
+  });
+
+  it('installs the subagent line with a backup and keeps other keys', async () => {
+    await start({ type: 'command', command: 'ccinfobar' });
+    const res = await request('POST', '/api/install', { command: 'ccinfobar', subagents: true });
+    expect(res.status).toBe(200);
+    const data = read();
+    expect(data.subagentStatusLine.command).toBe('ccinfobar subagent-line');
+    expect(data.model).toBe('opus');
+    expect(typeof res.json().backup).toBe('string');
+    expect(fs.existsSync(res.json().backup)).toBe(true);
+    expect(res.json().claude.subagent).toEqual({ command: 'ccinfobar subagent-line', owned: true });
+  });
+
+  it('asks before replacing a foreign subagentStatusLine', async () => {
+    await start({ type: 'command', command: 'ccinfobar' });
+    fs.writeFileSync(settings, JSON.stringify({ ...read(), subagentStatusLine: FOREIGN_SUB }));
+    const first = await request('POST', '/api/install', { command: 'ccinfobar', subagents: true });
+    expect(first.status).toBe(409);
+    expect(first.json().errorId).toBe('install.needsConfirm');
+    expect(read().subagentStatusLine).toEqual(FOREIGN_SUB);
+    const ok = await request('POST', '/api/install', {
+      command: 'ccinfobar',
+      subagents: true,
+      confirm: true,
+      current: first.json().plan.current,
+    });
+    expect(ok.status).toBe(200);
+    expect(read().subagentStatusLine.command).toBe('ccinfobar subagent-line');
+  });
+
+  it('reports claude.subagent as null, foreign or ours', async () => {
+    await start({ type: 'command', command: 'ccinfobar' });
+    expect((await request('GET', '/api/state')).json().claude.subagent).toBeNull();
+    fs.writeFileSync(settings, JSON.stringify({ ...read(), subagentStatusLine: FOREIGN_SUB, secret: 'x' }));
+    const info = (await request('GET', '/api/state')).json().claude;
+    expect(info.subagent).toEqual({ command: 'other-sub', owned: false });
+    expect(JSON.stringify(info)).not.toContain('secret');
+  });
+});

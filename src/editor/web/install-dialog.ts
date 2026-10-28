@@ -24,14 +24,19 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
         ? String(claude.statusLine.refreshInterval)
         : '',
   });
+  const sub = h('input', { type: 'checkbox' });
+  sub.checked = claude.subagent?.owned === true;
   const preview = h('pre', { class: 'code-preview' });
   const update = () => {
     const sl: Record<string, unknown> = { type: 'command', command: cmd.value, padding: 0 };
     if (Number(refresh.value) > 0) sl.refreshInterval = Math.floor(Number(refresh.value));
-    preview.textContent = JSON.stringify({ statusLine: sl }, null, 2);
+    const out: Record<string, unknown> = { statusLine: sl };
+    if (sub.checked) out.subagentStatusLine = { type: 'command', command: `${cmd.value} subagent-line` };
+    preview.textContent = JSON.stringify(out, null, 2);
   };
   cmd.addEventListener('input', update);
   refresh.addEventListener('input', update);
+  sub.addEventListener('change', update);
   update();
   const current = claude.statusLine?.command;
   const planBox = h('div', { class: 'install-plan', hidden: true });
@@ -55,6 +60,7 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
       ),
       h('div', { class: 'field' }, h('label', { class: 'field-label' }, t('web.install.command')), cmd),
       h('div', { class: 'field' }, h('label', { class: 'field-label' }, t('web.install.refresh')), refresh),
+      h('label', { class: 'field row-inline' }, sub, h('span', null, t('web.install.subagents'))),
       h('div', { class: 'field-label' }, t('web.install.writesTo', { file: claude.settingsFile })),
       preview,
       planBox,
@@ -91,6 +97,7 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
                 h('pre', { class: 'code-preview' }, commandText(plan.current?.command)),
                 h('div', { class: 'field-label' }, t('editor.planProposed')),
                 h('pre', { class: 'code-preview' }, plan.proposed.command),
+                ...subagentPlan(plan),
                 h(
                   'div',
                   { class: 'modal-foot' },
@@ -106,7 +113,15 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
                       type: 'button',
                       onClick: async () => {
                         try {
-                          done(await api.install(plan.proposed.command, refreshValue(), true, plan.current));
+                          done(
+                            await api.install(
+                              plan.proposed.command,
+                              refreshValue(),
+                              true,
+                              plan.current,
+                              sub.checked,
+                            ),
+                          );
                         } catch (e) {
                           failed(e);
                         }
@@ -118,9 +133,10 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
               );
             };
             try {
-              const { plan } = await api.installPlan(cmd.value.trim(), refreshValue());
+              const { plan } = await api.installPlan(cmd.value.trim(), refreshValue(), sub.checked);
               if (plan.needsConfirm) showPlan(plan);
-              else done(await api.install(cmd.value.trim(), refreshValue()));
+              else
+                done(await api.install(cmd.value.trim(), refreshValue(), undefined, undefined, sub.checked));
             } catch (e) {
               failed(e);
             }
@@ -130,6 +146,24 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
       ),
     ],
   });
+}
+
+function subagentPlan(plan: InstallPlanInfo): ReturnType<typeof h>[] {
+  const sub = plan.subagent;
+  if (!sub) return [];
+  const params = { command: sub.proposed.command, from: commandText(subagentCurrent(sub.current)) };
+  const id = !sub.changes
+    ? 'install.dry.subagentKeep'
+    : sub.owner === 'none'
+      ? 'install.dry.subagentAdd'
+      : sub.owner === 'ours'
+        ? 'install.dry.subagentRewrite'
+        : 'install.dry.subagentReplace';
+  return [h('div', { class: 'hint' }, t(id, params))];
+}
+
+function subagentCurrent(v: unknown): unknown {
+  return v && typeof v === 'object' ? (v as { command?: unknown }).command : v;
 }
 
 function isPlan(v: unknown): v is InstallPlanInfo {

@@ -55,6 +55,7 @@ import {
 import {
   applyInstall,
   currentStatusLine,
+  currentSubagentLine,
   defaultCommand,
   InstallNeedsConfirmError,
   planInstall,
@@ -288,11 +289,16 @@ function claudeInfo(command: string | null) {
   try {
     statusLine = currentStatusLine();
   } catch {}
+  let subagent: { command: string; owned: boolean } | null = null;
+  try {
+    subagent = currentSubagentLine();
+  } catch {}
   return {
     statusLine,
     installed: isInstalled(statusLine, command),
     defaultCommand: command ?? placeholder(),
     settingsFile: tildify(claudeSettingsPath()),
+    subagent,
   };
 }
 
@@ -914,12 +920,19 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const originOk = (o: string) => o === `http://127.0.0.1:${port}` || o === `http://localhost:${port}`;
 
   // pure: never installs; null means setup is still needed
-  function requested(body: Record<string, unknown>): { cmd: string | null; refresh: number | undefined } {
+  function requested(body: Record<string, unknown>): {
+    cmd: string | null;
+    refresh: number | undefined;
+    subagents: boolean | undefined;
+  } {
+    if (body.subagents !== undefined && typeof body.subagents !== 'boolean')
+      throw httpError(400, 'install.badSubagents');
     const asked = typeof body.command === 'string' && body.command.trim() ? body.command.trim() : command;
     const refresh = Number(body.refreshInterval);
     return {
       cmd: !asked || asked.startsWith(PLACEHOLDER_PREFIX) ? null : asked,
       refresh: Number.isFinite(refresh) && refresh > 0 ? refresh : undefined,
+      subagents: body.subagents,
     };
   }
 
@@ -1549,21 +1562,21 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       }
       case 'POST /api/install/plan': {
         const body = asObject(await readBody(req));
-        const { cmd, refresh } = requested(body);
-        send(res, 200, { plan: planInstall({ command: cmd ?? placeholder(), refresh }) });
+        const { cmd, refresh, subagents } = requested(body);
+        send(res, 200, { plan: planInstall({ command: cmd ?? placeholder(), refresh, subagents }) });
         return;
       }
       case 'POST /api/install': {
         const body = asObject(await readBody(req));
-        const { cmd, refresh } = requested(body);
+        const { cmd, refresh, subagents } = requested(body);
         const confirmed = body.confirm === true;
         if (confirmed && !('current' in body)) throw httpError(400, 'install.confirmNeedsCurrent');
-        const draft = planInstall({ command: cmd ?? placeholder(), refresh });
+        const draft = planInstall({ command: cmd ?? placeholder(), refresh, subagents });
         if (confirmed && !deepEqual(body.current ?? null, draft.current))
           throw httpError(409, 'install.stale', { file: tildify(draft.file) }, { plan: draft });
         if (draft.needsConfirm && !confirmed)
           throw httpError(409, 'install.needsConfirm', undefined, { plan: draft });
-        const plan = cmd ? draft : planInstall({ command: await resolveCommand(cmd), refresh });
+        const plan = cmd ? draft : planInstall({ command: await resolveCommand(cmd), refresh, subagents });
         if (plan !== draft && confirmed && !deepEqual(body.current ?? null, plan.current))
           throw httpError(409, 'install.stale', { file: tildify(plan.file) }, { plan });
         let backup: string | null;

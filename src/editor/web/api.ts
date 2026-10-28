@@ -36,6 +36,12 @@ export interface InstallPlanInfo {
   owner: string;
   needsConfirm: boolean;
   changes: boolean;
+  subagent?: {
+    current: unknown;
+    owner: 'none' | 'ours' | 'foreign';
+    proposed: { command: string };
+    changes: boolean;
+  };
 }
 
 export interface LoginStartInfo {
@@ -225,14 +231,29 @@ export const api = {
     }),
   save: (config: Config) => call<{ ok: boolean; config: Config }>('PUT', '/api/config', { config }),
   normalize: (config: unknown) => call<{ config: Config }>('POST', '/api/normalize', { config }),
-  installPlan(command: string, refreshInterval?: number) {
-    return call<{ plan: InstallPlanInfo }>('POST', '/api/install/plan', { command, refreshInterval });
+  installPlan(command: string, refreshInterval?: number, subagents?: boolean) {
+    return call<{ plan: InstallPlanInfo }>('POST', '/api/install/plan', {
+      command,
+      refreshInterval,
+      ...(subagents === undefined ? {} : { subagents }),
+    });
   },
-  install: (command: string, refreshInterval?: number, confirm?: boolean, current?: unknown) =>
+  install: (
+    command: string,
+    refreshInterval?: number,
+    confirm?: boolean,
+    current?: unknown,
+    subagents?: boolean,
+  ) =>
     call<{ ok: boolean; backup: string | null; backupsDir: string; claude: ClaudeInfo }>(
       'POST',
       '/api/install',
-      { command, refreshInterval, ...(confirm ? { confirm: true, current: current ?? null } : {}) },
+      {
+        command,
+        refreshInterval,
+        ...(subagents === undefined ? {} : { subagents }),
+        ...(confirm ? { confirm: true, current: current ?? null } : {}),
+      },
     ),
   themePreviews: (config: Config, src: PreviewSrc, width: number) =>
     call<{ previews: Record<string, string[]> }>('POST', '/api/theme-previews', { config, ...src, width }),

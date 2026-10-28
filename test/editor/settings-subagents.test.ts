@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { defaultConfig } from '../../src/core/config.js';
 import type { Config } from '../../src/core/types.js';
 import { SUBAGENT_FIELDS } from '../../src/widgets/shared.js';
@@ -130,5 +130,22 @@ describe('settings subagent rows', () => {
   it('localizes names in tr', async () => {
     const t = await build(defaultConfig(), 'tr');
     expect(t.rows[1]!.textContent).toContain('Ajan türü');
+  });
+
+  it('shows the install hint and opens the Install dialog', async () => {
+    const { subagentInstallRow } = await import('../../src/editor/web/settings.js');
+    const open = vi.fn();
+    const row = (owned: boolean | null) => {
+      const root = new FakeEl('DIV');
+      root.append(...(subagentInstallRow(owned === null ? null : { command: 'c', owned }, open) as any));
+      return root;
+    };
+    expect(row(true).textContent).toContain('Claude Code runs it for the subagent panel');
+    expect(row(null).textContent).toContain('Not set up yet: install with subagent rows');
+    expect(row(false).textContent).toContain('Not set up yet');
+    row(null)
+      .all((e) => e.tagName === 'BUTTON')[0]!
+      .fire('click');
+    expect(open).toHaveBeenCalledTimes(1);
   });
 });

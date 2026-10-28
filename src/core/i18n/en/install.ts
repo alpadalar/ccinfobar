@@ -66,6 +66,7 @@ export const installMessages = {
     '{file} was written by a newer ccinfobar or is damaged; not changing any settings. Move it aside to continue.',
   'install.manifestBusy': 'Another ccinfobar command is updating {file}; try again in a moment.',
   'install.needsConfirm': 'Confirm replacing the current statusLine first.',
+  'install.badSubagents': 'Subagents must be true or false, or left out.',
   'install.confirmNeedsCurrent': 'A confirmed install must send the statusLine it was shown.',
   'install.prompt.yes': '[Y/n]',
   'install.prompt.no': '[y/N]',
