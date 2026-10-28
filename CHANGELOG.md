@@ -68,6 +68,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Security
 
+- The web editor page is served with a Content-Security-Policy that allows only its own inlined script (by hash), forbids framing and form posts, and the editor compares its session token in constant time.
 - Marketplace: a trusted publisher's new version that adds a link to a host and path the live version did not have is held for admin review (`202 pending`, reason `new-link`) while the entry stays live at its approved version; the review flow (`catalog admin pending|show|approve|reject`) covers it. The documentation now states that the first approval trusts a publisher, what the data-only rule still prevents and how reports and takedowns work.
 - Catalog: after a version is held for new links, `catalog publish` says why it waits and names the hosts (English and Turkish), the local review state is kept until the marketplace lists the version as approved, and `catalog admin pending` shows held versions as `new version N (new link: hosts)`.
 - The marketplace Worker refuses write and sign-in floods at Cloudflare's rate-limit bindings (`WRITES`, `SIGNIN`) before reading the body or touching the database, so unauthenticated junk requests no longer cost D1 writes.
