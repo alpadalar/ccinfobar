@@ -823,6 +823,18 @@ describe('publish: lost answer recovery (COR2-09)', () => {
       return res;
     }) as typeof fetch;
 
+  // only the -2 retry loses its answer
+  const lostRetry = (base: typeof fetch): typeof fetch =>
+    (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const res = await base(input, init);
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if ((init?.method ?? 'GET') === 'POST' && url.endsWith('/v1/entries')) {
+        const slug = JSON.parse(typeof init?.body === 'string' ? init.body : '{}').slug;
+        if (slug === 'mine-2') throw Object.assign(new Error('timed out'), { name: 'TimeoutError' });
+      }
+      return res;
+    }) as typeof fetch;
+
   const refEnv = (url: string) => ({
     CCINFOBAR_MARKETPLACE_URL: url,
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
@@ -908,6 +920,29 @@ describe('publish: lost answer recovery (COR2-09)', () => {
     expect(readEntry(b.id, dir)!.entry.share.lastError).toBe('conflict');
   });
 
+  it('a lost answer on the -2 retry is adopted next time', async () => {
+    const s = await server();
+    const env = refEnv(s.url);
+    const a = save();
+    await send(null, { dir, env });
+    fs.rmSync(fileOf(a.id));
+    const b = save({ now: at(3), content: preset('git') });
+    const one = await send(null, { dir, env, fetch: blind(lostRetry(globalThis.fetch)) });
+    expect(one.results).toMatchObject([{ id: b.id, ok: false, code: 'timeout' }]);
+    expect(readEntry(b.id, dir)!.entry.share.attempt).toEqual({
+      endpoint: s.url,
+      slug: 'mine-2',
+      hash: entryHash(preset('git')),
+    });
+    const two = await send(null, { dir, env });
+    expect(two.results).toEqual([
+      { id: b.id, ok: true, code: null, remoteId: 'alperen/mine-2', version: 1, adopted: true },
+    ]);
+    expect(Object.keys(two.results[0]!)).not.toContain('retried');
+    const idx = (await (await fetch(`${s.url}/v1/index.json`)).json()) as { entries: unknown[] };
+    expect(idx.entries).toHaveLength(2);
+  });
+
   describe('on a GitHub marketplace', () => {
     const env = { CCINFOBAR_MARKETPLACE_URL: GH_ENDPOINT };
     const setup = () => {
@@ -942,6 +977,38 @@ describe('publish: lost answer recovery (COR2-09)', () => {
       const out = await send(null, { dir, env, fetch: m.fetch });
       // the pending claim is seen at review, so the plan already has -2
       expect(out.results).toMatchObject([{ id: e.id, ok: true, remoteId: 'octo/mine-2' }]);
+    });
+
+    it('a lost answer on the -2 retry is adopted next time', async () => {
+      const m = githubMarket({ taken: ['mine'] });
+      writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+      writePublisher(GH_ENDPOINT, 'octo', dir);
+      const e = save();
+      const one = await send(null, { dir, env, fetch: lostRetry(m.fetch) });
+      expect(one.results).toMatchObject([{ ok: false, code: 'timeout' }]);
+      expect(readEntry(e.id, dir)!.entry.share.attempt).toEqual({
+        endpoint: GH_ENDPOINT,
+        slug: 'mine-2',
+        hash: entryHash(preset('model')),
+      });
+      expect([...m.entries.keys()]).toEqual(['octo/mine-2']);
+      const two = await send(null, { dir, env, fetch: m.fetch });
+      expect(two.results).toEqual([
+        {
+          id: e.id,
+          ok: true,
+          code: null,
+          remoteId: 'octo/mine-2',
+          version: 1,
+          adopted: true,
+          pending: true,
+        },
+      ]);
+      expect(m.entries.size).toBe(1);
+      const share = readEntry(e.id, dir)!.entry.share;
+      expect(share.remote?.id).toBe('octo/mine-2');
+      expect(share.remote?.review).toBe('pending');
+      expect('attempt' in share).toBe(false);
     });
   });
 });

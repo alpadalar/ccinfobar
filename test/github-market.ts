@@ -21,10 +21,14 @@ interface Stored {
 }
 
 // a GitHub-backed marketplace: no registration, the first entries wait for review
-export function githubMarket(opts: { trusted?: boolean; auth?: string[]; handle?: string } = {}) {
+export function githubMarket(
+  opts: { trusted?: boolean; auth?: string[]; handle?: string; taken?: string[] } = {},
+) {
   const calls: GhCall[] = [];
   const entries = new Map<string, Stored>();
   const handle = opts.handle ?? 'octo';
+  // slugs owned by someone else: 409, never listed in /v1/me
+  const taken = new Set(opts.taken ?? []);
   const state = { trusted: opts.trusted === true, admin: false };
   const meta = {
     protocol: 1,
@@ -76,7 +80,7 @@ export function githubMarket(opts: { trusted?: boolean; auth?: string[]; handle?
       });
     if (p === '/v1/entries' && method === 'POST') {
       const b = JSON.parse(body);
-      if (entries.has(`${handle}/${b.slug}`))
+      if (taken.has(b.slug) || entries.has(`${handle}/${b.slug}`))
         return json({ error: { code: 'conflict', message: 'slug taken' } }, 409);
       const e: Stored = { id: `${handle}/${b.slug}`, version: 1, state: state.trusted ? 'live' : 'pending' };
       entries.set(e.id, e);

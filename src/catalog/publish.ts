@@ -379,16 +379,11 @@ async function remoteTaken(
   for (const [slug, hash] of claims) {
     const mine = waiting.some((it) => {
       const p = it.payload as PublishPayload;
-      if (p.slug !== slug) return false;
-      if (hash !== null && hash === entryHash(p.content)) return true;
-      const a = every.find((e) => e.id === it.id)?.share.attempt;
-      return (
-        pending.has(slug) &&
-        !!a &&
-        a.endpoint === anon.endpoint &&
-        a.slug === slug &&
-        a.hash === entryHash(p.content)
-      );
+      const h = entryHash(p.content);
+      const a = every.find((x) => x.id === it.id)?.share.attempt;
+      const marked = !!a && a.endpoint === anon.endpoint && a.slug === slug && a.hash === h;
+      if (hash !== null) return hash === h && (p.slug === slug || marked);
+      return pending.has(slug) && marked;
     });
     if (!mine) out.add(slug);
   }
@@ -436,31 +431,34 @@ async function recoverConflict(
 ): Promise<{ sent: Sent; adopted?: true; retried?: { from: string; to: string } }> {
   const hash = entryHash(payload.content);
   const handle = readPublisher(client.endpoint, dir) ?? (await client.me().catch(() => null))?.handle;
+  const a = e.share.attempt;
+  const marked = a && a.endpoint === client.endpoint && a.hash === hash ? a : null;
+  const slugs = [payload.slug, ...(marked && marked.slug !== payload.slug ? [marked.slug] : [])];
   if (handle) {
-    const id = `${handle}/${payload.slug}`;
-    try {
-      const live = await client.entry(id);
-      if (!live.withdrawn && live.hash === hash)
-        return { sent: { id, version: live.version, hash }, adopted: true };
-    } catch (err) {
-      const a = e.share.attempt;
-      if (
-        codeOf(err) === 'not-found' &&
-        a &&
-        a.endpoint === client.endpoint &&
-        a.slug === payload.slug &&
-        a.hash === hash
-      ) {
-        const mine = (await client.me().catch(() => null))?.entries.find(
-          (x) => x.id === id && x.state === 'pending',
-        );
-        if (mine) return { sent: { id, version: mine.version, hash, pending: true }, adopted: true };
+    for (const slug of slugs) {
+      const id = `${handle}/${slug}`;
+      try {
+        const live = await client.entry(id);
+        if (!live.withdrawn && live.hash === hash)
+          return { sent: { id, version: live.version, hash }, adopted: true };
+      } catch (err) {
+        if (codeOf(err) === 'not-found' && marked?.slug === slug) {
+          const mine = (await client.me().catch(() => null))?.entries.find(
+            (x) => x.id === id && x.state === 'pending',
+          );
+          if (mine) return { sent: { id, version: mine.version, hash, pending: true }, adopted: true };
+        }
       }
     }
   }
   let to = tailed(payload.slug, '2');
   for (let n = 3; taken.has(to); n++) to = tailed(payload.slug, String(n));
-  return { sent: await client.publish({ ...payload, slug: to }), retried: { from: payload.slug, to } };
+  try {
+    return { sent: await client.publish({ ...payload, slug: to }), retried: { from: payload.slug, to } };
+  } catch (err) {
+    if (err instanceof Error) Object.assign(err, { sentSlug: to });
+    throw err;
+  }
 }
 
 const notSent = (item: PublishItem): PublishResult => ({
@@ -578,9 +576,10 @@ export async function runPublish(
       if (own && code === 'not-found') code = 'rejected';
       const mark = code;
       const payload = item.payload as PublishPayload | null;
+      const sentSlug = (err as { sentSlug?: string } | null)?.sentSlug ?? payload?.slug;
       const attempt =
-        item.action === 'publish' && payload && TRANSPORT.has(code)
-          ? { endpoint: client.endpoint, slug: payload.slug, hash: entryHash(payload.content) }
+        item.action === 'publish' && payload && sentSlug && TRANSPORT.has(code)
+          ? { endpoint: client.endpoint, slug: sentSlug, hash: entryHash(payload.content) }
           : undefined;
       const apply =
         mark === 'rejected'
