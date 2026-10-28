@@ -198,26 +198,55 @@ describe('detached editor liveness (ROB-04)', () => {
     expect(pings()).toHaveLength(1);
   });
 
-  it('a failed save shows the stopped banner and stops the heartbeat', async () => {
+  it('a failed save with a live server shows a toast and no banner', async () => {
     await boot();
     failSave = true;
     save();
     await tick(0);
+    await tick(1000);
+    expect(banners()).toHaveLength(0);
+    expect(texts(el('toasts')).join('')).toContain(en['web.app.networkError']);
+    expect(pings()).toHaveLength(1);
+    await tick(5 * MIN);
+    expect(pings().length).toBeGreaterThan(1);
+  });
+
+  it('a failed save with a dead server shows the stopped banner once and stops the heartbeat', async () => {
+    await boot();
+    failSave = true;
+    failPing = true;
+    save();
+    await tick(0);
+    expect(banners()).toHaveLength(0);
+    await tick(1000);
     expect(banners()).toHaveLength(1);
     const banner = banners()[0] as FakeEl;
     expect(texts(banner)).toContain(en['web.app.stopped']);
     const button = banner.all((e) => e.tagName === 'BUTTON')[0]!;
     expect(texts(button)).toContain(en['web.app.stoppedExport']);
-    expect(texts(el('toasts')).join('')).not.toContain('Save failed');
+    expect(texts(el('toasts')).join('')).not.toContain(en['web.app.networkError']);
     const before = pings().length;
     await tick(10 * MIN);
     expect(pings()).toHaveLength(before);
+  });
+
+  it('concurrent failures share one confirm ping', async () => {
+    await boot();
+    failSave = true;
+    failPing = true;
+    save();
+    save();
+    await tick(0);
+    await tick(1000);
+    expect(pings()).toHaveLength(1);
+    expect(banners()).toHaveLength(1);
   });
 
   it('a failed ping shows the banner once', async () => {
     await boot();
     failPing = true;
     await tick(5 * MIN + 10);
+    await tick(1000);
     expect(banners()).toHaveLength(1);
     await tick(5 * MIN);
     expect(banners()).toHaveLength(1);
@@ -227,6 +256,7 @@ describe('detached editor liveness (ROB-04)', () => {
     await boot();
     failPing = true;
     await tick(5 * MIN + 10);
+    await tick(1000);
     const button = (banners()[0] as FakeEl).all((e) => e.tagName === 'BUTTON')[0]!;
     g.Blob = class {};
     const realUrl = g.URL;

@@ -163,6 +163,24 @@ export function onServerGone(fn: () => void): void {
   goneHandlers.push(fn);
 }
 
+export const GONE_RETRY_MS = 1000;
+
+let confirming: Promise<boolean> | null = null;
+let gone = false;
+
+function confirmGone(): Promise<boolean> {
+  confirming ??= new Promise<void>((resolve) => setTimeout(resolve, GONE_RETRY_MS))
+    .then(() => fetch('/api/ping', { headers: { 'x-ccinfobar-token': token } }))
+    .then(
+      (r) => r.ok,
+      () => false,
+    )
+    .finally(() => {
+      confirming = null;
+    });
+  return confirming;
+}
+
 async function call<T>(method: string, path: string, body?: unknown, boot = false): Promise<T> {
   let res: Response;
   try {
@@ -174,7 +192,11 @@ async function call<T>(method: string, path: string, body?: unknown, boot = fals
   } catch (err) {
     // the first load shows the raw network error
     if (boot) throw err;
-    for (const fn of goneHandlers) fn();
+    if (await confirmGone()) throw new ApiError(0, t('web.app.networkError'), null);
+    if (!gone) {
+      gone = true;
+      for (const fn of goneHandlers) fn();
+    }
     throw new ApiError(0, t('web.app.stopped'), null);
   }
   let data: unknown = null;
@@ -193,7 +215,7 @@ const entryPath = (ref: string) => `/api/catalog/entries/${encodeURIComponent(re
 
 export const api = {
   ping: () => call<{ ok: boolean }>('GET', '/api/ping'),
-  state: () => call<ApiState>('GET', '/api/state', undefined, true),
+  state: (boot = false) => call<ApiState>('GET', '/api/state', undefined, boot),
   preview: (config: Config, src: PreviewSrc, width: number, theme?: Record<string, unknown>) =>
     call<{ lines: string[]; hidden: string[]; dropped?: string[] }>('POST', '/api/preview', {
       config,

@@ -181,6 +181,7 @@ export const editorMessages = {
   'web.app.saved': 'Saved. Claude Code shows it on its next refresh.',
   'web.app.savedInstall': 'Saved. Install in Claude Code to see it there.',
   'web.app.stopped': 'The editor has stopped. Export your config, then run `ccinfobar edit` again.',
+  'web.app.networkError': 'The editor could not reach its server; try again',
   'web.app.stoppedExport': 'Export config',
   'web.app.saveFailed': 'Save failed: {error}',
   'web.app.importPlaceholder': 'Paste a ccinfobar config JSON or a share code here',

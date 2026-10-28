@@ -556,7 +556,7 @@ async function save(): Promise<void> {
       toast(configBrokenText() ?? '', 'error');
       return;
     }
-    if (err instanceof ApiError && err.status === 0) return;
+    if (S.stopped) return;
     toast(t('web.app.saveFailed', { error: (err as Error).message }), 'error');
   }
 }
@@ -901,7 +901,7 @@ async function boot(): Promise<void> {
   if (params.has('t') || hash) history.replaceState(null, '', location.pathname);
   setToken(token);
   try {
-    init(await api.state());
+    init(await api.state(true));
     onServerGone(serverGone);
   } catch (err) {
     setLanguage(pickUiLanguage(undefined, undefined, browserLanguages()));

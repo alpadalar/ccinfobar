@@ -188,6 +188,7 @@ export const editorMessages = {
   'web.app.savedInstall': "Kaydedildi. Orada görmek için Claude Code'a kurun.",
   'web.app.stopped':
     'Düzenleyici durdu. Yapılandırmanızı dışa aktarın, sonra `ccinfobar edit` komutunu yeniden çalıştırın.',
+  'web.app.networkError': 'Düzenleyici sunucusuna ulaşamadı; yeniden deneyin',
   'web.app.stoppedExport': 'Yapılandırmayı dışa aktar',
   'web.app.saveFailed': 'Kaydetme başarısız oldu: {error}',
   'web.app.importPlaceholder':
