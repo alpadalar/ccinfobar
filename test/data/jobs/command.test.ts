@@ -45,6 +45,10 @@ describe('commandJob', () => {
     expect(commandJob.accepts({ key: `cmd-${'0'.repeat(20)}` }, { config, env, cwd: '/w' })).toBe(false);
   });
 
+  it('holds its lock longer than the job may run', () => {
+    expect(commandJob.lockMs).toBeGreaterThan(commandJob.timeoutMs);
+  });
+
   it('is due every cacheSeconds', () => {
     const req = { key: KEY, ttlMs: 30_000 };
     expect(commandJob.due(null, NOW, req)).toBe(true);

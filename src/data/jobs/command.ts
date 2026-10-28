@@ -61,7 +61,7 @@ function payloadText(env: NodeJS.ProcessEnv): string {
 export const commandJob: Job<CommandValue> = {
   id: 'command',
   network: 'none',
-  lockMs: 60_000,
+  lockMs: 90_000,
   timeoutMs: 70_000,
   retryMs: RETRY_MS,
   keyRe: /^cmd-[0-9a-f]{20}$/,
