@@ -155,6 +155,13 @@ describe('command background', () => {
     expect(renderWidget('command', ctx, item)).toBe('from worker');
   });
 
+  it('takes background "true" as a string like true', () => {
+    const { env, item, ctx, key } = setup({ background: 'true' });
+    expect(renderWidget('command', ctx, item)).toBeNull();
+    writeEnvelope(okEnvelope(key, { out: 'from worker' }, 1000), env);
+    expect(renderWidget('command', ctx, item)).toBe('from worker');
+  });
+
   it('shows the last good value of a failed envelope', () => {
     const { env, item, ctx, key } = setup({});
     const prev = okEnvelope(key, { out: 'older' }, 1000);

@@ -32,7 +32,8 @@ export function commandGroups(config: Pick<Config, 'lines'>, cwd: string): Map<s
   for (const line of lines) {
     if (!Array.isArray(line)) continue;
     for (const item of line) {
-      if (item?.type !== 'command' || item.options?.background !== true) continue;
+      const bg = item?.options?.background;
+      if (item?.type !== 'command' || !(bg === true || bg === 'true')) continue;
       const command = typeof item.options?.command === 'string' ? item.options.command.trim() : '';
       const ttlMs = num(item.options?.cacheSeconds, 0) * 1000;
       if (!command || ttlMs <= 0) continue;

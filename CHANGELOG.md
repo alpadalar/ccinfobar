@@ -43,6 +43,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The automatic update no longer falls back to installing the GitHub release tarball when GitHub publishes no checksum for it: nothing is installed, `ccinfobar doctor` says so and the update is retried at the next check; a rollback whose reinstall has no checksum is recorded as failed instead of installing unverified bytes (reason: never install unverified bytes). Manual `ccinfobar update` likewise installs from the npm registry only.
 
 ### Fixed
+- A `command` widget with `background` set as the string `"true"` (a hand-edited or imported config) now runs in the background worker; it used to show nothing because the widget and the worker disagreed on the value.
 - Admin review of a held marketplace version now shows that version's own name, description and columns (not the live entry's) and lists the links it adds, so an admin approves what they saw.
 - The marketplace Worker refuses an overwrite (`409`) while a held version of the entry waits for review, like a new version does, so approving later cannot publish a document whose hash no longer matches the live body.
 - The marketplace Worker now answers `503` for publish, new version, overwrite, withdraw and sign-in when its `WRITES` or `SIGNIN` rate limit binding is missing (it used to run unlimited without any sign), and `/v1/meta.json` lists the configured bindings under `limiters`; `ALLOW_OPEN_LIMITERS=true` keeps the old open behaviour for self-hosted development.

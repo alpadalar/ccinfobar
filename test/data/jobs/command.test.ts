@@ -122,4 +122,17 @@ describe('commandJob', () => {
   it('groups only background items with a cache', () => {
     expect([...commandGroups(config, '/w').keys()]).toEqual([KEY]);
   });
+
+  it('reads background the way the widget does: true and "true" count, "false" does not', () => {
+    const groups = (background: unknown) => [
+      ...commandGroups(
+        cfg(item({ command: 'echo a', cacheSeconds: '30', background } as WidgetItem['options'])),
+        '/w',
+      ).keys(),
+    ];
+    expect(groups(true)).toEqual([KEY]);
+    expect(groups('true')).toEqual([KEY]);
+    expect(groups('false')).toEqual([]);
+    expect(groups('yes')).toEqual([]);
+  });
 });
