@@ -152,6 +152,8 @@ scripts/
 └── sync-plugin-version.mjs  copy the package version into plugin.json and INSTALL.md
 ```
 
+The fun widgets (`pet`, `kaomoji`, `quip`) stay in core (owner decision 2026-10-28); their category is listed last in `CATEGORIES`, so every palette, listing and docs/WIDGETS.md shows it last.
+
 Rendering flow:
 
 1. Claude Code pipes a JSON payload to `ccinfobar` on stdin.
@@ -244,6 +246,8 @@ The editor preview needs no trace: `renderPreviewReport` renders once with a `si
 ### Cache rule
 
 `src/core/cache-rule.ts` is pure and holds Claude Code's miss rule. `classify` calls a request a miss when its cache reads fall below 95% of the smaller of the previous and the current input and the shortfall is at least 2,000 tokens; the request after a compaction is `expected`. `latestMiss` says whether the latest request missed (`last_miss_at` within 2 s of `expires_at − ttl`), or `unknown`. When the payload has `prompt_cache` it is the only source; the transcript reader applies `classify` only when it is missing.
+
+Removal criterion (owner decision 2026-10-28): `classify` and the transcript miss fallback may be removed once ccinfobar's minimum supported Claude Code version is at least 2.1.251 (the `prompt_cache` row of `MIN_VERSION` in `src/core/inspect.ts`), i.e. when every supported version sends `prompt_cache` natively. `latestMiss` reads the payload and stays; move it to `widgets/tokens.ts` then.
 
 ### Limits store
 

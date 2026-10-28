@@ -15,6 +15,7 @@ const MIN_SHORTFALL = 2000;
 const GAP_MS = 2000;
 const TTL: Record<string, number> = { '5m': 300_000, '1h': 3_600_000 };
 
+// classify: drop once min Claude Code >= 2.1.251
 export function classify(prev: Req | null, cur: Req, everCached: boolean, dropExpected: boolean): Outcome {
   if (!prev) return 'cold';
   if (!everCached && cur.read + cur.write === 0) return 'uncached';
