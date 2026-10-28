@@ -13,6 +13,7 @@ import {
   adminResolvePath,
   authGithubPath,
   canonicalJson,
+  contentLinks,
   contentProblems,
   ERROR_CODES,
   entriesPath,
@@ -858,5 +859,63 @@ describe('market protocol: depth guard', () => {
     expect(contentProblems('preset', { layout: nest(65) })).toEqual(['too-deep']);
     expect(parseRemoteVersion(version({ layout: nest(65) }))).toBeNull();
     expect(parseRemoteVersion(version({ layout: { lines: [[{ type: 'model' }]] } }))).not.toBeNull();
+  });
+});
+
+describe('market protocol: held versions', () => {
+  const link = (url: unknown) => ({ type: 'link', options: { url } });
+
+  it('contentLinks lists sorted unique lower-cased host+path keys of link items', () => {
+    const content = {
+      layout: {
+        lines: [
+          [link('https://Example.com/Path/x?q=1#f'), { type: 'model' }],
+          [link('https://example.com/path/x'), link('not a url')],
+        ],
+      },
+    };
+    expect(contentLinks(content)).toEqual(['example.com/path/x']);
+    expect(contentLinks({ layout: { lines: [[link('https://b.io/'), link('https://a.io/z')]] } })).toEqual([
+      'a.io/z',
+      'b.io/',
+    ]);
+    expect(contentLinks({})).toEqual([]);
+    expect(contentLinks({ appearance: {} })).toEqual([]);
+    expect(contentLinks(null)).toEqual([]);
+    expect(contentLinks({ layout: { lines: [[{ type: 'link' }, link(5)]] } })).toEqual([]);
+  });
+
+  const me = (entries: unknown[]) => ({ handle: 'alp', login: 'alp', entries });
+
+  it('parseMe keeps held on live entries only and drops a bad one', () => {
+    const r = parseMe(
+      me([
+        { id: 'alp/a', state: 'live', version: 3, held: 4 },
+        { id: 'alp/b', state: 'live', version: 3, held: 1.5 },
+        { id: 'alp/c', state: 'pending', version: 1, held: 2 },
+      ]),
+    );
+    expect(r?.entries[0]?.held).toBe(4);
+    expect(r?.entries[1]).toEqual({ id: 'alp/b', state: 'live', version: 3 });
+    expect(r?.entries[2]).toEqual({ id: 'alp/c', state: 'pending', version: 1 });
+  });
+
+  it('parsePending carries a valid held and drops an invalid one', () => {
+    const held = { version: 2, reason: 'new-link', links: ['example.com/x'] };
+    const at = '2026-10-16T08:00:00.000Z';
+    const r = parsePending({
+      entries: [
+        summary({ createdAt: at, held }),
+        summary({ id: 'alp/b', createdAt: at, held: { ...held, reason: 'x' } }),
+        summary({ id: 'alp/c', createdAt: at, held: { ...held, links: [1] } }),
+        summary({ id: 'alp/d', createdAt: at, held: { ...held, links: Array(30).fill('a'.repeat(300)) } }),
+      ],
+    });
+    expect(r?.entries[0]?.held).toEqual(held);
+    expect(r?.entries[1]?.held).toBeUndefined();
+    expect(r?.entries[2]?.held).toBeUndefined();
+    expect(r?.entries[2]?.createdAt).toBe(at);
+    expect(r?.entries[3]?.held?.links).toHaveLength(20);
+    expect(r?.entries[3]?.held?.links[0]).toHaveLength(200);
   });
 });

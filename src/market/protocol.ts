@@ -133,6 +133,7 @@ export interface MeEntry {
   state: 'pending' | 'live';
   version: number;
   cols?: number;
+  held?: number;
 }
 
 export interface MeResult {
@@ -144,7 +145,15 @@ export interface MeResult {
   entries: MeEntry[];
 }
 
-export type PendingSummary = MarketSummary & { createdAt: string };
+export interface HeldInfo {
+  version: number;
+  reason: 'new-link';
+  links: string[];
+}
+
+export const HELD_LINKS_MAX = 20;
+
+export type PendingSummary = MarketSummary & { createdAt: string; held?: HeldInfo };
 
 export interface MarketReport {
   id: number;
@@ -506,7 +515,11 @@ function meEntry(raw: unknown): MeEntry | null {
   if (typeof id !== 'string' || !isRemoteId(id) || !isVersion(version)) return null;
   if (state !== 'pending' && state !== 'live') return null;
   const cols = parseCols(own(raw, 'cols'));
-  return cols === undefined ? { id, state, version } : { id, state, version, cols };
+  const held = own(raw, 'held');
+  const e: MeEntry = { id, state, version };
+  if (cols !== undefined) e.cols = cols;
+  if (state === 'live' && isVersion(held)) e.held = held;
+  return e;
 }
 
 export function parseMe(raw: unknown): MeResult | null {
@@ -529,7 +542,23 @@ export function parseMe(raw: unknown): MeResult | null {
 function pendingSummary(raw: unknown): PendingSummary | null {
   const s = parseSummary(raw);
   const createdAt = s && isObject(raw) ? text(own(raw, 'createdAt'), STAMP) : null;
-  return s && createdAt ? { ...s, createdAt } : null;
+  if (!s || !createdAt) return null;
+  const held = isObject(raw) ? heldInfo(own(raw, 'held')) : null;
+  return held ? { ...s, createdAt, held } : { ...s, createdAt };
+}
+
+function heldInfo(raw: unknown): HeldInfo | null {
+  if (!isObject(raw)) return null;
+  const version = own(raw, 'version');
+  const links = own(raw, 'links');
+  if (!isVersion(version) || own(raw, 'reason') !== 'new-link' || !Array.isArray(links)) return null;
+  const out: string[] = [];
+  for (const l of links.slice(0, HELD_LINKS_MAX)) {
+    const t = text(l, 200);
+    if (t === null) return null;
+    out.push(t);
+  }
+  return { version, reason: 'new-link', links: out };
 }
 
 export function parsePending(raw: unknown): { entries: PendingSummary[] } | null {
@@ -651,6 +680,28 @@ function widgetProblems(lines: unknown, out: string[]): void {
       if (url !== undefined && (typeof url !== 'string' || !safeUrl(url))) out.push('unsafe-link');
     }
   }
+}
+
+export function contentLinks(content: unknown): string[] {
+  if (!isObject(content)) return [];
+  const layout = own(content, 'layout');
+  const lines = isObject(layout) ? own(layout, 'lines') : undefined;
+  if (!Array.isArray(lines)) return [];
+  const out: string[] = [];
+  for (const line of lines) {
+    if (!Array.isArray(line)) continue;
+    for (const item of line) {
+      if (!isObject(item) || own(item, 'type') !== 'link') continue;
+      const opts = own(item, 'options');
+      const url = isObject(opts) ? own(opts, 'url') : undefined;
+      if (typeof url !== 'string') continue;
+      try {
+        const u = new URL(url);
+        out.push(`${u.host}${u.pathname}`.toLowerCase());
+      } catch {}
+    }
+  }
+  return [...new Set(out)].sort();
 }
 
 export function contentProblems(kind: EntryKind, content: unknown, canonical?: string): string[] {

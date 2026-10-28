@@ -7,7 +7,7 @@ import { createHandler } from '../../src/market/worker/handler.js';
 import { errorResponse, readJsonBody } from '../../src/market/worker/http.js';
 import worker from '../../src/market/worker/index.js';
 import { skipSqlite, statements } from './d1-sqlite.js';
-import { MIGRATIONS, makeEnv, migrations, stubEnv } from './worker-env.js';
+import { MIGRATIONS, makeEnv, migrationFiles, migrations, stubEnv } from './worker-env.js';
 
 const BASE = 'http://w.test';
 
@@ -277,6 +277,13 @@ describe('worker migrations', () => {
     expect(migrations().length).toBe(files.length);
   });
 
+  it('0010 is one additive held column', () => {
+    const files = migrationFiles().map((m) => m.name);
+    expect(files.at(-1)).toBe('0010_held_version.sql');
+    const sql = migrationFiles().at(-1)!.sql;
+    expect(sql.match(/ALTER TABLE entries ADD COLUMN held TEXT;/g)).toHaveLength(1);
+  });
+
   it('never start a transaction (D1 refuses it); BEGIN only opens a trigger body', () => {
     for (const sql of migrations()) {
       for (const s of statements(sql)) {
@@ -316,6 +323,23 @@ describe('worker migrations', () => {
         const t = clock.now();
         clock.advance(1000);
         expect(clock.now()).toBe(t + 1000);
+      } finally {
+        db.close();
+      }
+    });
+
+    it('has a nullable held column without a default', async () => {
+      const { db } = await makeEnv();
+      try {
+        const cols = await db.prepare('PRAGMA table_info(entries)').all<{
+          name: string;
+          notnull: number;
+          dflt_value: unknown;
+        }>();
+        const held = cols.results.find((c) => c.name === 'held');
+        expect(held).toBeDefined();
+        expect(held?.notnull).toBe(0);
+        expect(held?.dflt_value).toBeNull();
       } finally {
         db.close();
       }
