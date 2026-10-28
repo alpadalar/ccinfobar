@@ -4,7 +4,7 @@ import { writeAtomic } from '../data/store.js';
 import { defaultConfig, normalizeConfig } from './config.js';
 import { uniqueId } from './edit.js';
 import { t } from './i18n/index.js';
-import { ID_RE } from './ids.js';
+import { ID_RE, reservedId } from './ids.js';
 import { configDir } from './paths.js';
 import type { Config, WidgetItem } from './types.js';
 
@@ -440,6 +440,7 @@ export function saveUserPreset(
   dir = presetsDir(),
 ): string {
   if (!ID_RE.test(input.id)) throw new Error(t('err.server.presetIdRule'));
+  if (reservedId(input.id)) throw new Error(t('err.id.reserved', { id: input.id }));
   const { $schema: _s, ...config } = normalizeConfig(input.config);
   const file = path.join(dir, `${input.id}.json`);
   const data = { name: input.name || input.id, description: input.description ?? '', config };

@@ -6,8 +6,12 @@ import { contentFromConfig, hasAppearanceOverrides, themeFromConfig } from '../.
 import { installEntryTheme } from '../../src/catalog/store.js';
 import { defaultConfig, normalizeConfig } from '../../src/core/config.js';
 import { applyCatalogContent, LAYOUT_KEYS, PERSONAL_KEYS } from '../../src/core/edit.js';
+import { t } from '../../src/core/i18n/index.js';
 import { resolveAppearance } from '../../src/core/renderer.js';
 import {
+  BUILTIN_THEMES,
+  deleteUserTheme,
+  listThemes,
   parseThemeInput,
   resolveTheme,
   resolveThemeInput,
@@ -259,5 +263,46 @@ describe('contentFromConfig', () => {
     expect(installEntryTheme(other, themes())).toEqual({ id: 'mytheme-2', written: true, renamed: true });
     const styled = contentFromConfig({ ...config, separator: ' | ' }, 'bundle');
     expect(installEntryTheme(styled, themes())).toMatchObject({ id: 'mytheme-3', written: true });
+  });
+
+  it('falls back from a reserved device-name id with renamed: true', () => {
+    const theme = { id: 'con', extends: 'nord', colors: { fg: '#123456' } };
+    expect(installEntryTheme({ theme, appearance: { theme: 'mine' } }, themes())).toEqual({
+      id: 'mine',
+      written: true,
+      renamed: true,
+    });
+    expect(installEntryTheme({ theme }, themes())).toMatchObject({
+      id: 'theme',
+      written: true,
+      renamed: true,
+    });
+    expect(fs.existsSync(path.join(themes(), 'con.json'))).toBe(false);
+  });
+
+  it('matches a builtin case-insensitively without writing a file', () => {
+    const dracula = BUILTIN_THEMES.find((b) => b.id === 'dracula')!;
+    const body = themeToInput(dracula, 'Dracula');
+    expect(installEntryTheme({ theme: body }, themes())).toEqual({
+      id: 'dracula',
+      written: false,
+      renamed: false,
+    });
+    expect(fs.existsSync(themes())).toBe(false);
+    const other = { ...body, colors: { fg: '#654321' } };
+    expect(installEntryTheme({ theme: other }, themes())).toMatchObject({ id: 'Dracula-2', written: true });
+  });
+
+  it('refuses device names on save but still reads an existing file', () => {
+    expect(() => saveUserTheme({ id: 'con', extends: 'nord' }, themes())).toThrow(
+      t('err.id.reserved', { id: 'con' }),
+    );
+    expect(() => saveUserTheme({ id: 'bad id', extends: 'nord' }, themes())).toThrow(t('err.theme.badId'));
+    for (const id of ['console', 'com10', 'com0', 'nul-theme', 'aux2']) {
+      expect(() => saveUserTheme({ id, extends: 'nord' }, themes())).not.toThrow();
+    }
+    fs.writeFileSync(path.join(themes(), 'con.json'), JSON.stringify({ extends: 'nord' }));
+    expect(listThemes(themes()).some((x) => x.id === 'con' && x.source === 'user')).toBe(true);
+    expect(deleteUserTheme('con', themes())).toBe(true);
   });
 });

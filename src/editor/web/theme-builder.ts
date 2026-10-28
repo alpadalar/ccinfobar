@@ -1,7 +1,7 @@
 import { styleText, themeDescription } from '../../core/i18n/catalog-text.js';
 import { t } from '../../core/i18n/index.js';
 import { categoryText } from '../../core/i18n/widget-text.js';
-import { ID_RE } from '../../core/ids.js';
+import { ID_RE, reservedId } from '../../core/ids.js';
 import { ansiToHtml } from './ansi-html.js';
 import { api, previewSource } from './api.js';
 import { colorToCss, isValidColor } from './colors.js';
@@ -522,6 +522,10 @@ export async function openThemeBuilder(opts: BuilderOpts = {}): Promise<string |
             const id = opts.edit?.id ?? slug(name);
             if (!ID_RE.test(id)) {
               err.textContent = t('tb.needName');
+              return;
+            }
+            if (reservedId(id)) {
+              err.textContent = t('err.id.reserved', { id });
               return;
             }
             if (!opts.edit && S.api.themes.some((th) => th.id === id && th.source === 'user')) {

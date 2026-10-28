@@ -77,6 +77,12 @@ describe('user presets', () => {
     expect(deleteUserPreset('mine', dir)).toBe(true);
     expect(getPreset('mine', dir)).toBeUndefined();
   });
+
+  it('refuses Windows device names', () => {
+    const dir = tmp();
+    expect(() => saveUserPreset({ id: 'NUL', config: {} }, dir)).toThrow(t('err.id.reserved', { id: 'NUL' }));
+    expect(() => saveUserPreset({ id: 'com10', config: {} }, dir)).not.toThrow();
+  });
 });
 
 describe('preset labels', () => {

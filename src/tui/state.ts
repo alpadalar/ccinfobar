@@ -14,6 +14,7 @@ import { presetText, styleText, themeDescription } from '../core/i18n/catalog-te
 import { foldSearch } from '../core/i18n/format.js';
 import { type LanguageId, languageLocale, t } from '../core/i18n/index.js';
 import { widgetText } from '../core/i18n/widget-text.js';
+import { reservedId } from '../core/ids.js';
 import { PRESETS, type Preset } from '../core/presets.js';
 import type { PreviewSource } from '../core/preview.js';
 import { listThemes, STYLES, type Theme } from '../core/themes.js';
@@ -433,6 +434,7 @@ function reduceThemes(state: State, action: Action, mode: Extract<Mode, { kind: 
       case 'enter': {
         const id = mode.naming.text.trim();
         if (!THEME_ID.test(id)) return { ...state, message: t('tui.msg.themeId') };
+        if (reservedId(id)) return { ...state, message: t('err.id.reserved', { id }) };
         return { ...state, effect: { kind: 'saveTheme', id } };
       }
       case 'cancel':

@@ -422,6 +422,16 @@ describe('editor server', () => {
     expect(fs.existsSync(path.join(dir, 'evil.json'))).toBe(false);
   });
 
+  it('refuses device-name ids for themes and presets', async () => {
+    const th = await request('POST', '/api/themes', { body: JSON.stringify({ theme: { id: 'con' } }) });
+    expect(th.status).toBe(400);
+    expect(th.json().errorId).toBe('err.id.reserved');
+    const pr = await request('POST', '/api/presets', { body: JSON.stringify({ preset: { id: 'com1' } }) });
+    expect(pr.status).toBe(400);
+    expect(pr.json().errorId).toBe('err.id.reserved');
+    expect(fs.existsSync(path.join(dir, 'themes', 'con.json'))).toBe(false);
+  });
+
   it('requires the token for theme endpoints', async () => {
     expect((await request('DELETE', '/api/themes/x', { token: false })).status).toBe(401);
     expect((await request('POST', '/api/themes', { token: false, body: '{}' })).status).toBe(401);

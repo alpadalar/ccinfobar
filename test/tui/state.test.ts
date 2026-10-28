@@ -375,6 +375,20 @@ describe('theme picker', () => {
     expect(s.mode.kind).toBe('normal');
   });
 
+  it('refuses a device-name id when saving as', () => {
+    const s = run(
+      themed(),
+      { type: 'openThemes' },
+      { type: 'saveTheme' },
+      { type: 'text', text: 'nul' },
+      { type: 'enter' },
+    );
+    expect(s.message).toBe(
+      '"nul" is a reserved Windows device name (CON, PRN, AUX, NUL, COM1-9, LPT1-9); pick another id',
+    );
+    expect(s.effect).toBeNull();
+  });
+
   it('stays in the naming prompt when saving fails', () => {
     let s = run(
       themed(),

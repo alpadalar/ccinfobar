@@ -3,7 +3,7 @@ import path from 'node:path';
 import { writeAtomic } from '../data/store.js';
 import { parseColor } from './ansi.js';
 import { t } from './i18n/index.js';
-import { ID_RE } from './ids.js';
+import { ID_RE, reservedId } from './ids.js';
 import { configDir } from './paths.js';
 import { pickRotationTheme } from './rotation.js';
 import { BASE, BUILTIN } from './themes/builtin.js';
@@ -197,6 +197,7 @@ export function themeToInput(theme: Theme, id: string, extendsId?: string): Them
 
 export function saveUserTheme(input: ThemeInput, dir = themesDir()): string {
   if (!input.id || !ID_RE.test(input.id)) throw new Error(t('err.theme.badId'));
+  if (reservedId(input.id)) throw new Error(t('err.id.reserved', { id: input.id }));
   const file = path.join(dir, `${input.id}.json`);
   const { id: _id, ...body } = input;
   const data = {

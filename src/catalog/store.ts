@@ -3,6 +3,7 @@ import path from 'node:path';
 import { randomHex } from '../core/builtins.js';
 import { normalizeConfig } from '../core/config.js';
 import { parseCols, takesCols } from '../core/entry-keys.js';
+import { isFileId } from '../core/ids.js';
 import { configDir } from '../core/paths.js';
 import { deleteUserPreset, ID_RE, listPresets, type Preset } from '../core/presets.js';
 import { cleanLabel, stripInvisible } from '../core/sanitize.js';
@@ -667,15 +668,15 @@ export function installEntryTheme(content: EntryContent, themes = themesDir()): 
   if (!isObject(theme)) return null;
   const input = parseThemeInput(theme);
   const app = isObject(content.appearance) ? content.appearance.theme : undefined;
-  const base =
-    input.id && ID_RE.test(input.id) ? input.id : typeof app === 'string' && ID_RE.test(app) ? app : 'theme';
+  const asked = typeof input.id === 'string' ? input.id : null;
+  const base = isFileId(asked) ? asked : isFileId(app) ? app : 'theme';
   const want = themeBody(input);
   const key = canon(want);
   // a saved bundle embeds the resolved theme, so compare resolved looks too
   const wanted = look(resolveThemeInput(want, themes));
   for (let n = 1; n < 1000; n++) {
     const id = n === 1 ? base : suffixed(base, n);
-    const renamed = n > 1;
+    const renamed = n > 1 || (asked !== null && asked !== id);
     const file = path.join(themes, `${id}.json`);
     if (fs.existsSync(file)) {
       const buf = readBytes(file);
@@ -684,9 +685,10 @@ export function installEntryTheme(content: EntryContent, themes = themesDir()): 
         return { id, written: false, renamed };
       continue;
     }
-    const builtin = BUILTIN_BY_ID.get(id);
+    const builtin = BUILTIN_BY_ID.get(id.toLowerCase());
     if (builtin) {
-      if (canon(themeBody(themeToInput(builtin, id))) === key) return { id, written: false, renamed };
+      if (canon(themeBody(themeToInput(builtin, id))) === key)
+        return { id: builtin.id, written: false, renamed: n > 1 };
       continue;
     }
     saveUserTheme({ ...want, id }, themes);

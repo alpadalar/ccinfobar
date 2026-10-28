@@ -89,7 +89,7 @@ import { parseCols } from '../core/entry-keys.js';
 import { bundleText, presetLabels, presetText, themeDescription } from '../core/i18n/catalog-text.js';
 import { type MessageId, type Params, setLanguage, t, withLanguage } from '../core/i18n/index.js';
 import { isLanguageId, type LanguageId } from '../core/i18n/languages.js';
-import { ID_RE } from '../core/ids.js';
+import { ID_RE, reservedId } from '../core/ids.js';
 import { availablePresets, loadForUse } from '../core/load.js';
 import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
 import { deleteUserPreset, listPresets, presetsDir, saveUserPreset } from '../core/presets.js';
@@ -1169,6 +1169,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         if (!input.id || !ID_RE.test(input.id)) {
           throw httpError(400, 'err.theme.badId');
         }
+        if (reservedId(input.id)) throw httpError(400, 'err.id.reserved', { id: input.id });
         if (input.extends !== undefined && !ID_RE.test(input.extends)) {
           throw httpError(400, 'err.server.badExtendsId');
         }
@@ -1181,6 +1182,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         const meta = asObject(body.preset);
         const id = typeof meta.id === 'string' ? meta.id : '';
         if (!ID_RE.test(id)) throw httpError(400, 'err.server.presetIdRule');
+        if (reservedId(id)) throw httpError(400, 'err.id.reserved', { id });
         saveUserPreset({
           id,
           name: typeof meta.name === 'string' ? meta.name.slice(0, 64) : id,
