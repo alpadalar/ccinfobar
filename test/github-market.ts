@@ -55,6 +55,9 @@ export function githubMarket(opts: { trusted?: boolean; auth?: string[]; handle?
     if (p === '/v1/meta.json' && method === 'GET') return json(meta);
     if (p === '/v1/publishers')
       return json({ error: { code: 'forbidden', message: 'sign in with GitHub to publish' } }, 403);
+    // the public file only exists once an admin approved
+    if (/^\/v1\/entries\/[^/]+\/[^/]+\.json$/.test(p) && method === 'GET')
+      return json({ error: { code: 'not-found', message: 'no entry' } }, 404);
     if (auth !== `Bearer ${GH_TOKEN}`)
       return json({ error: { code: 'unauthorized', message: 'sign in' } }, 401);
     if (p === '/v1/me' && method === 'GET')
@@ -73,6 +76,8 @@ export function githubMarket(opts: { trusted?: boolean; auth?: string[]; handle?
       });
     if (p === '/v1/entries' && method === 'POST') {
       const b = JSON.parse(body);
+      if (entries.has(`${handle}/${b.slug}`))
+        return json({ error: { code: 'conflict', message: 'slug taken' } }, 409);
       const e: Stored = { id: `${handle}/${b.slug}`, version: 1, state: state.trusted ? 'live' : 'pending' };
       entries.set(e.id, e);
       return written(e, b.content);

@@ -810,6 +810,134 @@ describe('runPublish', () => {
   });
 });
 
+describe('publish: lost answer recovery (COR2-09)', () => {
+  // the server stores the entry, the client sees a timeout
+  const lost = (base: typeof fetch): typeof fetch =>
+    (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const res = await base(input, init);
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if ((init?.method ?? 'GET') === 'POST' && url.endsWith('/v1/entries'))
+        throw Object.assign(new Error('timed out'), { name: 'TimeoutError' });
+      return res;
+    }) as typeof fetch;
+
+  const refEnv = (url: string) => ({
+    CCINFOBAR_MARKETPLACE_URL: url,
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  });
+
+  it('adopts the remote entry on 409 when the hash matches', async () => {
+    const s = await server();
+    const env = refEnv(s.url);
+    const e = save();
+    const one = await send(null, { dir, env, fetch: lost(globalThis.fetch), now: () => at(5) });
+    expect(one.results).toMatchObject([{ id: e.id, ok: false, code: 'timeout' }]);
+    const marked = readEntry(e.id, dir)!.entry;
+    expect(marked.share.attempt).toEqual({
+      endpoint: s.url,
+      slug: 'mine',
+      hash: entryHash(preset('model')),
+    });
+    const two = await send(null, { dir, env, now: () => at(6) });
+    expect(two.results).toEqual([
+      { id: e.id, ok: true, code: null, remoteId: 'alperen/mine', version: 1, adopted: true },
+    ]);
+    const after = readEntry(e.id, dir)!.entry;
+    expect(after.share.state).toBe('published');
+    expect(after.share.remote).toMatchObject({ id: 'alperen/mine', version: 1 });
+    expect('attempt' in after.share).toBe(false);
+  });
+
+  it('retries once as -2 when the content changed since the lost attempt', async () => {
+    const s = await server();
+    const env = refEnv(s.url);
+    const e = save();
+    await send(null, { dir, env, fetch: lost(globalThis.fetch) });
+    save({ mode: 'update', content: preset('cost'), now: at(2) });
+    const out = await send(null, { dir, env });
+    expect(out.results).toEqual([
+      {
+        id: e.id,
+        ok: true,
+        code: null,
+        remoteId: 'alperen/mine-2',
+        version: 1,
+        retried: { from: 'mine', to: 'mine-2' },
+      },
+    ]);
+    expect(readEntry(e.id, dir)!.entry.share.remote?.id).toBe('alperen/mine-2');
+  });
+
+  it('retries as -2 when the slug was withdrawn', async () => {
+    const s = await server();
+    const env = refEnv(s.url);
+    const a = save();
+    await send(null, { dir, env });
+    const cur = readEntry(a.id, dir)!.entry;
+    updateShare(a.id, false, cur.rev, dir);
+    await send(null, { dir, env });
+    fs.rmSync(fileOf(a.id));
+    const b = save({ now: at(3) });
+    const out = await send(null, { dir, env });
+    expect(out.results).toMatchObject([
+      { id: b.id, ok: true, remoteId: 'alperen/mine-2', retried: { from: 'mine', to: 'mine-2' } },
+    ]);
+  });
+
+  it('a second 409 is a plain conflict', async () => {
+    const s = await server();
+    const env = refEnv(s.url);
+    const a = save();
+    const a2 = save({ name: 'Mine 2', content: preset('cwd') });
+    await send(null, { dir, env });
+    fs.rmSync(fileOf(a.id));
+    fs.rmSync(fileOf(a2.id));
+    const c = counted();
+    const b = save({ now: at(3), content: preset('git') });
+    const out = await send(null, { dir, env, fetch: c.fetch });
+    expect(out.results).toMatchObject([{ id: b.id, ok: false, code: 'conflict' }]);
+    expect(readEntry(b.id, dir)!.entry.share.lastError).toBe('conflict');
+  });
+
+  describe('on a GitHub marketplace', () => {
+    const env = { CCINFOBAR_MARKETPLACE_URL: GH_ENDPOINT };
+    const setup = () => {
+      const m = githubMarket();
+      writeCredential(GH_ENDPOINT, GH_TOKEN, dir);
+      writePublisher(GH_ENDPOINT, 'octo', dir);
+      return m;
+    };
+
+    it('adopts a pending entry when the attempt marker matches', async () => {
+      const m = setup();
+      const e = save();
+      await send(null, { dir, env, fetch: lost(m.fetch) });
+      expect(readEntry(e.id, dir)!.entry.share.attempt).toBeTruthy();
+      const out = await send(null, { dir, env, fetch: m.fetch });
+      expect(out.results).toEqual([
+        { id: e.id, ok: true, code: null, remoteId: 'octo/mine', version: 1, adopted: true, pending: true },
+      ]);
+      const share = readEntry(e.id, dir)!.entry.share;
+      expect(share.state).toBe('published');
+      expect(share.remote?.review).toBe('pending');
+      expect('attempt' in share).toBe(false);
+    });
+
+    it('without a marker it falls to -2', async () => {
+      const m = setup();
+      const e = save();
+      await send(null, { dir, env, fetch: lost(m.fetch) });
+      const raw = JSON.parse(fs.readFileSync(fileOf(e.id), 'utf8'));
+      delete raw.share.attempt;
+      fs.writeFileSync(fileOf(e.id), JSON.stringify(raw));
+      const out = await send(null, { dir, env, fetch: m.fetch });
+      expect(out.results).toMatchObject([
+        { id: e.id, ok: true, remoteId: 'octo/mine-2', retried: { from: 'mine', to: 'mine-2' } },
+      ]);
+    });
+  });
+});
+
 describe('GitHub-backed marketplace (D-07, D-09)', () => {
   const env = { CCINFOBAR_MARKETPLACE_URL: GH_ENDPOINT };
 

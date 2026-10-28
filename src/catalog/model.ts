@@ -73,6 +73,14 @@ export interface EntryShare {
   state: ShareState;
   remote: RemoteRef | null;
   lastError: string | null;
+  // a publish whose answer never came: what was sent
+  attempt?: ShareAttempt;
+}
+
+export interface ShareAttempt {
+  endpoint: string;
+  slug: string;
+  hash: string;
 }
 
 export interface CatalogEntry {
@@ -243,9 +251,10 @@ export function restoreVersion(e: CatalogEntry, n: number, note: string, now: st
   );
 }
 
-function withShare(e: CatalogEntry, share: Partial<EntryShare>): CatalogEntry {
+function withShare(e: CatalogEntry, share: Partial<EntryShare>, drop = false): CatalogEntry {
   const next = structuredClone(e);
   next.share = { ...next.share, ...structuredClone(share) };
+  if (drop) delete next.share.attempt;
   return next;
 }
 
@@ -266,17 +275,17 @@ export function setShare(e: CatalogEntry, wanted: boolean): CatalogEntry {
 }
 
 export function markPublished(e: CatalogEntry, remote: RemoteRef): CatalogEntry {
-  return withShare(e, { wanted: true, state: 'published', remote, lastError: null });
+  return withShare(e, { wanted: true, state: 'published', remote, lastError: null }, true);
 }
 
 export function markWithdrawn(e: CatalogEntry): CatalogEntry {
   const remote = e.share.remote && withoutReview(e.share.remote);
-  return withShare(e, { wanted: false, state: 'withdrawn', remote, lastError: null });
+  return withShare(e, { wanted: false, state: 'withdrawn', remote, lastError: null }, true);
 }
 
 // rejected, or gone from the marketplace: the id is free again, so sharing publishes a new entry (WR-04)
 export function markDropped(e: CatalogEntry, code: string | null): CatalogEntry {
-  return withShare(e, { wanted: false, state: 'local', remote: null, lastError: code });
+  return withShare(e, { wanted: false, state: 'local', remote: null, lastError: code }, true);
 }
 
 export function clearReview(e: CatalogEntry): CatalogEntry {
@@ -290,8 +299,8 @@ export function restoreLive(e: CatalogEntry, version: number): CatalogEntry {
   return r ? withShare(e, { remote: { ...withoutReview(r), version, hash: '' } }) : e;
 }
 
-export function markError(e: CatalogEntry, code: string): CatalogEntry {
-  return withShare(e, { lastError: code });
+export function markError(e: CatalogEntry, code: string, attempt?: ShareAttempt): CatalogEntry {
+  return withShare(e, attempt ? { lastError: code, attempt } : { lastError: code });
 }
 
 export function shareView(e: CatalogEntry, latestHash: string | null): ShareState {
@@ -342,6 +351,8 @@ export function mergeRaw(raw: Record<string, unknown>, next: CatalogEntry): Reco
   // review is known: a cleared one does not come back
   const prior = same && isObject(rs?.remote) ? withoutReview(rs.remote) : undefined;
   const share = { ...merged(rs, next.share), remote: nr && (same ? merged(prior, nr) : nr) };
+  // a cleared marker does not come back
+  if (!next.share.attempt) delete (share as Record<string, unknown>).attempt;
   const out: Record<string, unknown> = { ...own(raw), ...next, share, versions };
   if (next.legacy) out.legacy = merged(raw.legacy, next.legacy);
   const ro = isObject(raw.origin) ? raw.origin : undefined;
@@ -397,6 +408,7 @@ function parseRemote(v: unknown): RemoteRef | null {
 
 const REMOTE_ID_RE = /^[a-z0-9][a-z0-9-]{0,38}\/[a-z0-9][a-z0-9-]{0,38}$/;
 const HASH_RE = /^[0-9a-f]{64}$/;
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,38}$/;
 
 function parseOrigin(v: unknown): EntryOrigin | null {
   if (!isObject(v)) return null;
@@ -407,14 +419,24 @@ function parseOrigin(v: unknown): EntryOrigin | null {
   return { endpoint, id, version, hash, installedAt };
 }
 
+function parseAttempt(v: unknown): ShareAttempt | null {
+  if (!isObject(v)) return null;
+  const { endpoint, slug, hash } = v;
+  if (!isStr(endpoint) || !isStr(slug) || !SLUG_RE.test(slug) || !isStr(hash) || !HASH_RE.test(hash))
+    return null;
+  return { endpoint, slug, hash };
+}
+
 function parseShare(v: unknown): EntryShare {
   if (!isObject(v)) return { wanted: false, state: 'local', remote: null, lastError: null };
   const state = STATES.includes(v.state as ShareState) ? (v.state as ShareState) : 'local';
+  const attempt = parseAttempt(v.attempt);
   return {
     wanted: v.wanted === true,
     state,
     remote: parseRemote(v.remote),
     lastError: isStr(v.lastError) ? v.lastError : null,
+    ...(attempt ? { attempt } : {}),
   };
 }
 

@@ -78,6 +78,10 @@ export interface PublishResult {
   pending?: true;
   reason?: 'new-link';
   links?: string[];
+  // linked to an entry an earlier try already created
+  adopted?: true;
+  // the slug was taken: published under another
+  retried?: { from: string; to: string };
 }
 
 export interface PublishDeps {
@@ -333,6 +337,45 @@ async function sendItem(
   return { id, ...(await client.addVersion(id, remote!.version, payload)) };
 }
 
+const TRANSPORT = new Set(['timeout', 'network', 'unknown', 'bad-json']);
+
+type Sent = Written & { id: string };
+
+// a 409 on publish: our own lost try is adopted, anything else moves to <slug>-2 once
+async function recoverConflict(
+  client: MarketClient,
+  e: CatalogEntry,
+  payload: PublishPayload,
+  dir: string,
+): Promise<{ sent: Sent; adopted?: true; retried?: { from: string; to: string } }> {
+  const hash = entryHash(payload.content);
+  const handle = readPublisher(client.endpoint, dir) ?? (await client.me().catch(() => null))?.handle;
+  if (handle) {
+    const id = `${handle}/${payload.slug}`;
+    try {
+      const live = await client.entry(id);
+      if (!live.withdrawn && live.hash === hash)
+        return { sent: { id, version: live.version, hash }, adopted: true };
+    } catch (err) {
+      const a = e.share.attempt;
+      if (
+        codeOf(err) === 'not-found' &&
+        a &&
+        a.endpoint === client.endpoint &&
+        a.slug === payload.slug &&
+        a.hash === hash
+      ) {
+        const mine = (await client.me().catch(() => null))?.entries.find(
+          (x) => x.id === id && x.state === 'pending',
+        );
+        if (mine) return { sent: { id, version: mine.version, hash, pending: true }, adopted: true };
+      }
+    }
+  }
+  const to = tailed(payload.slug, '2');
+  return { sent: await client.publish({ ...payload, slug: to }), retried: { from: payload.slug, to } };
+}
+
 const notSent = (item: PublishItem): PublishResult => ({
   id: item.id,
   ok: false,
@@ -396,7 +439,16 @@ export async function runPublish(
     const remote = item.remoteId ? e.share.remote : null;
     let res: PublishResult;
     try {
-      const got = await sendItem(client, item, remote);
+      let got: Awaited<ReturnType<typeof sendItem>>;
+      let recovered: { adopted?: true; retried?: { from: string; to: string } } = {};
+      try {
+        got = await sendItem(client, item, remote);
+      } catch (err) {
+        if (item.action !== 'publish' || codeOf(err) !== 'conflict') throw err;
+        const r = await recoverConflict(client, e, item.payload as PublishPayload, dir);
+        got = r.sent;
+        recovered = r;
+      }
       if (got === DROPPED) {
         const r = record(item.id, item.rev, (x) => markDropped(x, null), dir, now());
         results.push({ id: item.id, ok: r.saved, code: r.code, remoteId: item.remoteId, version: null });
@@ -421,6 +473,8 @@ export async function runPublish(
         version: sent?.version ?? null,
         ...(sent?.pending ? { pending: true as const } : {}),
         ...(sent?.pending && sent.reason && sent.links ? { reason: sent.reason, links: sent.links } : {}),
+        ...(recovered.adopted ? { adopted: true as const } : {}),
+        ...(recovered.retried ? { retried: recovered.retried } : {}),
       };
     } catch (err) {
       let code = codeOf(err);
@@ -428,12 +482,17 @@ export async function runPublish(
       const own = item.action === 'version' || item.action === 'overwrite';
       if (own && code === 'not-found') code = 'rejected';
       const mark = code;
+      const payload = item.payload as PublishPayload | null;
+      const attempt =
+        item.action === 'publish' && payload && TRANSPORT.has(code)
+          ? { endpoint: client.endpoint, slug: payload.slug, hash: entryHash(payload.content) }
+          : undefined;
       const apply =
         mark === 'rejected'
           ? (x: CatalogEntry) => markDropped(x, mark)
           : own && mark === 'withdrawn'
             ? (x: CatalogEntry) => markError(markWithdrawn(x), mark)
-            : (x: CatalogEntry) => markError(x, mark);
+            : (x: CatalogEntry) => markError(x, mark, attempt);
       record(item.id, item.rev, apply, dir, now());
       res = { id: item.id, ok: false, code, remoteId: item.remoteId, version: null, ...statusOf(err) };
     }

@@ -325,6 +325,29 @@ describe('catalog model', () => {
     });
   });
 
+  it('parseEntry keeps a valid attempt marker and drops a bad one; markError keeps it, publish clears it', () => {
+    const attempt = { endpoint: 'http://x', slug: 'mine', hash: 'a'.repeat(64) };
+    const base = entry();
+    const marked = markError(base, 'timeout', attempt);
+    const rt = parseEntry(JSON.parse(JSON.stringify(marked)))!;
+    expect(rt.share.attempt).toEqual(attempt);
+    expect(markError(marked, 'network').share.attempt).toEqual(attempt);
+    expect('attempt' in markPublished(marked, remote()).share).toBe(false);
+    expect('attempt' in markWithdrawn(marked).share).toBe(false);
+    expect('attempt' in parseEntry(JSON.parse(JSON.stringify(base)))!.share).toBe(false);
+    for (const bad of [
+      { ...attempt, slug: 'Bad Slug' },
+      { ...attempt, slug: '-x' },
+      { ...attempt, hash: 'zz' },
+      { ...attempt, endpoint: 5 },
+      'nope',
+    ]) {
+      const raw = JSON.parse(JSON.stringify(marked));
+      raw.share.attempt = bad;
+      expect('attempt' in parseEntry(raw)!.share).toBe(false);
+    }
+  });
+
   it('slug keeps the existing output; marketSlug matches the protocol id rule (D-26)', () => {
     expect(slug('Çalışma Alanı')).toBe('calisma-alani');
     expect(slug('  dev.v2_final  ')).toBe('dev.v2_final');
