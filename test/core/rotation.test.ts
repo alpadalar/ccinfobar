@@ -131,6 +131,66 @@ describe('pickRotationTheme', () => {
   });
 });
 
+describe('pickRotationTheme verification', () => {
+  const counting = (ok: (id: string) => boolean) => {
+    const calls: string[] = [];
+    return {
+      calls,
+      known: (id: string) => {
+        calls.push(id);
+        return ok(id);
+      },
+    };
+  };
+
+  it('takes the next pool entry when the cycle pick is unknown, wrapping at the end', () => {
+    const pool = ['a', 'b', 'c'];
+    const now = at(12);
+    const pos = periodIndex('day', now) % 3;
+    const hit = pickRotationTheme({ themes: pool, order: 'cycle' }, now, all)!;
+    expect(hit).toBe(pool[(pos + 3) % 3]);
+    for (let p = 0; p < 3; p++) {
+      const d = at(12 + ((p - pos + 3) % 3));
+      const want = pool[p]!;
+      const c = counting((id) => id !== want);
+      expect(pickRotationTheme({ themes: pool, order: 'cycle' }, d, c.known)).toBe(pool[(p + 1) % 3]);
+      expect(c.calls).toEqual([want, pool[(p + 1) % 3]]);
+    }
+  });
+
+  it('calls known once when the pick exists and at most n times otherwise', () => {
+    const pool = ['a', 'b', 'c', 'd'];
+    const one = counting(() => true);
+    pickRotationTheme({ themes: pool }, at(12), one.known);
+    expect(one.calls).toHaveLength(1);
+    const none = counting(() => false);
+    expect(pickRotationTheme({ themes: pool }, at(12), none.known)).toBeNull();
+    expect(none.calls).toHaveLength(4);
+  });
+
+  it('walks on from the shuffled position when that entry is unknown', () => {
+    const pool = ['a', 'b', 'c', 'd', 'e'];
+    const rot: ThemeRotation = { themes: pool, order: 'shuffle' };
+    for (let d = 1; d <= 12; d++) {
+      const pick = pickRotationTheme(rot, at(d), all)!;
+      const pos = pool.indexOf(pick);
+      const c = counting((id) => id !== pick);
+      expect(pickRotationTheme(rot, at(d), c.known)).toBe(pool[(pos + 1) % 5]);
+      expect(c.calls).toEqual([pick, pool[(pos + 1) % 5]]);
+    }
+  });
+
+  it('verifies a known pinned weekday once and falls through when it is unknown', () => {
+    const rot: ThemeRotation = { themes: ['dracula', 'nord'], weekdays: { mon: 'gruvbox' } };
+    const hit = counting(() => true);
+    expect(pickRotationTheme(rot, at(12), hit.known)).toBe('gruvbox');
+    expect(hit.calls).toEqual(['gruvbox']);
+    const miss = counting((id) => id !== 'gruvbox');
+    expect(['dracula', 'nord']).toContain(pickRotationTheme(rot, at(12), miss.known));
+    expect(miss.calls[0]).toBe('gruvbox');
+  });
+});
+
 describe('normalizeThemeRotation', () => {
   it('cleans the block', () => {
     const ids = Array.from({ length: 40 }, (_, i) => `t${i}`);

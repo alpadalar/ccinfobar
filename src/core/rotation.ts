@@ -106,16 +106,14 @@ function permutation(n: number, round: number, key: string): number[] {
   return perm;
 }
 
-function shufflePick(pool: string[], idx: number): string {
-  const n = pool.length;
-  const key = pool.join(',');
+function shufflePos(n: number, key: string, idx: number): number {
   // two themes: alternate from a seeded start
-  if (n === 2) return pool[mod(idx + (fnv1a(key) & 1), 2)]!;
+  if (n === 2) return mod(idx + (fnv1a(key) & 1), 2);
   const round = Math.floor(idx / n);
   const perm = permutation(n, round, key);
   const prev = permutation(n, round - 1, key);
   if (perm[0] === prev[n - 1]) [perm[0], perm[1]] = [perm[1]!, perm[0]!];
-  return pool[perm[mod(idx, n)]!]!;
+  return perm[mod(idx, n)]!;
 }
 
 export function pickRotationTheme(
@@ -125,11 +123,16 @@ export function pickRotationTheme(
 ): string | null {
   const pinned = rot.weekdays?.[todayKey(now)];
   if (pinned && known(pinned)) return pinned;
-  const pool = (rot.themes ?? []).filter(known);
-  if (!pool.length) return null;
-  if (pool.length === 1) return pool[0]!;
+  const pool = rot.themes ?? [];
+  const n = pool.length;
+  if (!n) return null;
   const idx = periodIndex(rot.every ?? 'day', now);
-  return rot.order === 'shuffle' ? shufflePick(pool, idx) : pool[mod(idx, pool.length)]!;
+  const pos = n === 1 ? 0 : rot.order === 'shuffle' ? shufflePos(n, pool.join(','), idx) : mod(idx, n);
+  for (let k = 0; k < n; k++) {
+    const id = pool[(pos + k) % n]!;
+    if (known(id)) return id;
+  }
+  return null;
 }
 
 const nextMidnight = (now: Date): Date => new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);

@@ -16,6 +16,7 @@ import {
   type Theme,
   themeExists,
   themeToInput,
+  withActiveTheme,
 } from '../../src/core/themes.js';
 import type { WidgetItem } from '../../src/core/types.js';
 import { ctxWith } from '../helpers.js';
@@ -317,5 +318,56 @@ describe('reserved ids on win32', () => {
     const dir = setup();
     expect(themeExists('con', dir)).toBe(true);
     expect(listThemes(dir).some((x) => x.id === 'con')).toBe(true);
+  });
+});
+
+describe('rotation theme lookups', () => {
+  const pool = Array.from({ length: 30 }, (_, i) => `t${String(i + 1).padStart(2, '0')}`);
+  const setup = () => {
+    const dir = tmp();
+    for (const id of pool)
+      fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify({ extends: 'nord' }));
+    return dir;
+  };
+  const cfg = (themes: string[]) =>
+    normalizeConfig({ theme: 'default', themeRotation: { themes, every: 'day' } });
+  const now = new Date(2026, 9, 12, 12);
+
+  it('stats at most one file for a 30 theme pool', () => {
+    const dir = setup();
+    const spy = vi.spyOn(fs, 'existsSync');
+    try {
+      const out = withActiveTheme(cfg(pool), now, dir);
+      expect(pool).toContain(out.theme);
+      expect(spy.mock.calls.length).toBeLessThanOrEqual(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('does not stat for a builtin pool', () => {
+    const dir = setup();
+    const spy = vi.spyOn(fs, 'existsSync');
+    try {
+      const out = withActiveTheme(cfg(['nord', 'dracula', 'gruvbox']), now, dir);
+      expect(['nord', 'dracula', 'gruvbox']).toContain(out.theme);
+      expect(spy.mock.calls.length).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('uses the next pool entry when the picked file was deleted', () => {
+    const dir = setup();
+    const picked = withActiveTheme(cfg(pool), now, dir).theme;
+    fs.rmSync(path.join(dir, `${picked}.json`));
+    const spy = vi.spyOn(fs, 'existsSync');
+    try {
+      const out = withActiveTheme(cfg(pool), now, dir).theme;
+      expect(out).toBe(pool[(pool.indexOf(picked) + 1) % pool.length]);
+      expect(spy.mock.calls.length).toBeLessThanOrEqual(2);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
