@@ -90,7 +90,6 @@ export const explainMessages = {
     "Girdi: örnek veri (henüz kayıtlı payload yok; ccinfobar kuruluyken Claude Code'u bir kez kullanın ya da --payload veya --scenario verin)",
   'explain.unknownVersion': 'bilinmeyen sürüm',
   'explain.payloadMissing': '--payload bir dosya yolu gerektirir',
-  'explain.badWidth': '--width pozitif bir sütun sayısı gerektirir',
   'explain.scenarioWithPayload': '--scenario ve --payload birlikte kullanılamaz',
   'explain.payloadUnreadable': 'Payload dosyası okunamıyor: {file}',
   'explain.payloadInvalid': 'Payload dosyası bir JSON nesnesi değil: {file}',

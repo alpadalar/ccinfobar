@@ -28,6 +28,7 @@ import { readTranscript } from '../data/transcript.js';
 import { rejectedUpdate, updateNotice, updatesDisabled } from '../data/update-state.js';
 import { effectiveUsage } from '../data/usage.js';
 import type { Args } from './args.js';
+import { intFlag } from './flags.js';
 import { prepareLanguage } from './lang.js';
 import { syncProgress } from './progress.js';
 import { type TtyDeps, writeTty } from './progress-tty.js';
@@ -118,6 +119,14 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
   }
   const config = loaded.config;
   await prepareLanguage(config);
+  let width: number | undefined;
+  try {
+    width = intFlag(args, 'width', 1, 10000);
+  } catch (err) {
+    process.stderr.write(`✗ ${err instanceof Error ? err.message : String(err)}\n`);
+    process.exitCode = 1;
+    return;
+  }
   let raw: string;
   if (typeof args.flags.payload === 'string') raw = fs.readFileSync(args.flags.payload, 'utf8');
   else raw = await readStdin();
@@ -127,7 +136,6 @@ async function renderOnce(args: Args, cfgFile: string, tty?: TtyDeps): Promise<v
     return;
   }
   if (config.savePayload && typeof args.flags.payload !== 'string') savePayload(payload);
-  const width = typeof args.flags.width === 'string' ? Number(args.flags.width) : undefined;
   const transcript = lazy(() => readTranscript(payload.transcript_path));
   const eff = effectiveUsage(config, payload, process.env, { transcript });
   const cwd = resolveCwd(eff.payload);

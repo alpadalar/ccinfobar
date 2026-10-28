@@ -203,10 +203,10 @@ describe('runExplain input', () => {
   it('refuses a bare --payload and a bad --width', () => {
     const cases: [string[], string][] = [
       [['--payload'], t('explain.payloadMissing')],
-      [['--width', 'abc'], t('explain.badWidth')],
-      [['--width', '0'], t('explain.badWidth')],
-      [['--width'], t('explain.badWidth')],
-      [['--width=-5'], t('explain.badWidth')],
+      [['--width', 'abc'], t('cli.badInt', { flag: '--width', min: 1, max: 10000 })],
+      [['--width', '0'], t('cli.badInt', { flag: '--width', min: 1, max: 10000 })],
+      [['--width'], t('cli.badInt', { flag: '--width', min: 1, max: 10000 })],
+      [['--width=-5'], t('cli.badInt', { flag: '--width', min: 1, max: 10000 })],
     ];
     for (const [argv, msg] of cases) {
       process.exitCode = undefined;

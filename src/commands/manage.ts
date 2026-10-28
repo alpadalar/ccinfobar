@@ -2,6 +2,7 @@ import '../core/i18n/lazy.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
+import { intFlag } from '../cli/flags.js';
 import { applyLanguage } from '../cli/lang.js';
 import { stripAnsi, visibleWidth } from '../core/ansi.js';
 import { defaultConfig, GLYPH_MODES, type LoadResult, saveConfig } from '../core/config.js';
@@ -355,8 +356,7 @@ export function runPreview(args: Args, cfgFile: string, io: CliIo = cliIo()): vo
     process.exitCode = 1;
     return;
   }
-  const width =
-    typeof args.flags.width === 'string' ? Number(args.flags.width) : (process.stdout.columns ?? 120);
+  const width = intFlag(args, 'width', 1, 10000) ?? process.stdout.columns ?? 120;
   const source: PreviewSource =
     flag.kind === 'scenario' ? { scenario: flag.id } : args.flags.last ? 'last' : 'sample';
   const env = process.env;
@@ -372,8 +372,7 @@ export function runPreview(args: Args, cfgFile: string, io: CliIo = cliIo()): vo
 }
 
 export function runThemes(args: Args, cfgFile: string): void {
-  const width =
-    typeof args.flags.width === 'string' ? Number(args.flags.width) : (process.stdout.columns ?? 120);
+  const width = intFlag(args, 'width', 1, 10000) ?? process.stdout.columns ?? 120;
   const loaded = loadForUse(cfgFile);
   if (!loaded.issue) applyLanguage(loaded.config);
   const current = loaded.config;

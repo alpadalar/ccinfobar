@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
+import { intFlag } from '../cli/flags.js';
 import { applyLanguage } from '../cli/lang.js';
 import { progressChannel, progressTarget } from '../cli/progress.js';
 import type { LoadResult } from '../core/config.js';
@@ -637,15 +638,16 @@ export function runExplain(args: Args, cfgFile: string, io: CliIo = cliIo()): vo
     process.exitCode = 1;
     return;
   }
-  const w = args.flags.width;
-  const widthFlag =
-    typeof w === 'string' && w.trim() ? Number(w) : w === undefined || w === false ? undefined : Number.NaN;
-  const badFlag =
-    args.flags.payload === true
-      ? t('explain.payloadMissing')
-      : widthFlag !== undefined && !(Number.isFinite(widthFlag) && widthFlag > 0)
-        ? t('explain.badWidth')
-        : null;
+  let badFlag: string | null = null;
+  let widthFlag: number | undefined;
+  if (args.flags.payload === true) badFlag = t('explain.payloadMissing');
+  else {
+    try {
+      widthFlag = intFlag(args, 'width', 1, 10000);
+    } catch (err) {
+      badFlag = err instanceof Error ? err.message : String(err);
+    }
+  }
   if (badFlag) {
     io.error(badFlag);
     process.exitCode = 1;

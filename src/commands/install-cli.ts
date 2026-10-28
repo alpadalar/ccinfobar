@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
+import { intFlag } from '../cli/flags.js';
 import { applyLanguage } from '../cli/lang.js';
 import { loadConfig, saveConfig } from '../core/config.js';
 import { refreshReasons, timeRuleFeed } from '../core/edit.js';
@@ -349,7 +350,7 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   }
   io.log(t('install.installing', { version: VERSION }));
   let command: string | null = typeof args.flags.command === 'string' ? args.flags.command : null;
-  const refresh = typeof args.flags.refresh === 'string' ? Number(args.flags.refresh) : undefined;
+  const refresh = intFlag(args, 'refresh', 1, 86400);
   let hint = selfCommand();
   if (!command && dryRun) {
     command = defaultCommand(undefined, io.log);

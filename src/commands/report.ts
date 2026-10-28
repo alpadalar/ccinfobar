@@ -2,6 +2,7 @@ import '../core/i18n/lazy.js';
 import os from 'node:os';
 import path from 'node:path';
 import type { Args } from '../cli/args.js';
+import { intFlag } from '../cli/flags.js';
 import { detectLevel, type Level } from '../core/ansi.js';
 import { type MessageId, t } from '../core/i18n/index.js';
 import { normalizeRoot, tildify } from '../core/paths.js';
@@ -74,8 +75,8 @@ function filterOf(args: Args): ProjectFilter | null | undefined {
 }
 
 function widthOf(args: Args, io: ReportIo, env: NodeJS.ProcessEnv): number | null {
-  const w = typeof args.flags.width === 'string' ? Number(args.flags.width) : Number.NaN;
-  if (Number.isFinite(w) && w > 0) return Math.floor(w);
+  const w = intFlag(args, 'width', 1, 10000);
+  if (w !== undefined) return w;
   if (!io.tty) return null;
   const cols = io.columns ?? Number(env.COLUMNS);
   return Number.isFinite(cols) && cols > 0 ? Math.floor(cols) : null;

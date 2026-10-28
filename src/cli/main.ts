@@ -10,6 +10,7 @@ import { JOBS } from '../data/jobs/index.js';
 import { ledgerDir, monthFiles, projectHash, rebuildSummary, stepText } from '../data/ledger.js';
 import { accountKeysForDir } from '../data/limits.js';
 import { type Args, parseArgs } from './args.js';
+import { intFlag } from './flags.js';
 import { applyLanguage, configLanguage, prepareLanguage } from './lang.js';
 import { runRender } from './render.js';
 
@@ -94,7 +95,7 @@ async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
     }
     case 'edit':
     case 'editor': {
-      const port = typeof args.flags.port === 'string' ? Number(args.flags.port) : undefined;
+      const port = intFlag(args, 'port', 1, 65535);
       const share = await shareArg(args);
       if (args.flags.detach === true) {
         const { runDetach } = await import('../editor/detach.js');

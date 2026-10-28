@@ -47,6 +47,7 @@ import {
 } from '../catalog/store.js';
 import { type SystemEntry, systemEntries } from '../catalog/system.js';
 import type { Args } from '../cli/args.js';
+import { intFlag } from '../cli/flags.js';
 import { stripAnsi } from '../core/ansi.js';
 import { defaultConfig, type LoadResult, saveConfig } from '../core/config.js';
 import { keepLanguage } from '../core/edit.js';
@@ -369,9 +370,9 @@ function runShow(c: Ctx): void {
   }
   const hit = find(c, c.args.positional[1]);
   if (!hit) return;
-  const w = typeof c.args.flags.width === 'string' ? Math.floor(Number(c.args.flags.width)) : Number.NaN;
+  const w = intFlag(c.args, 'width', 1, 10000);
   const own = hit.source === 'user' ? latest(hit.entry).cols : undefined;
-  const width = Number.isFinite(w) && w > 0 ? Math.min(400, Math.max(20, w)) : (own ?? c.io.columns ?? 120);
+  const width = w !== undefined ? Math.min(400, Math.max(20, w)) : (own ?? c.io.columns ?? 120);
   const source: PreviewSource = flag.kind === 'scenario' ? { scenario: flag.id } : 'sample';
   if (c.args.flags.json === true) {
     json(c, () => {

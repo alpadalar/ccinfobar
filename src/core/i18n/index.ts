@@ -89,3 +89,19 @@ export function t(id: MessageId, params?: Params): string {
   if (!params) return text;
   return text.replace(/\{(\w+)\}/g, (m, k: string) => (Object.hasOwn(params, k) ? String(params[k]) : m));
 }
+
+// lives here, not in cli/, so cli and commands share one existing chunk
+export function intFlag(
+  args: { flags: Record<string, string | boolean> },
+  name: string,
+  min: number,
+  max: number,
+): number | undefined {
+  const v = args.flags[name];
+  if (v === undefined || v === false) return undefined;
+  if (typeof v === 'string' && /^\d+$/.test(v)) {
+    const n = Number(v);
+    if (Number.isSafeInteger(n) && n >= min && n <= max) return n;
+  }
+  throw new Error(t('cli.badInt', { flag: `--${name}`, min, max }));
+}

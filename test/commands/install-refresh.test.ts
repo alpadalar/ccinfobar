@@ -83,6 +83,15 @@ describe('install refresh suggestion', () => {
     expect(count(f.lines, hint('clock, turn-timer'))).toBe(1);
   });
 
+  it('refuses --refresh 0 and writes nothing', async () => {
+    layout(['model']);
+    const f = fake();
+    await expect(runInstall(args('--refresh', '0'), cfg, f.io)).rejects.toThrow(
+      t('cli.badInt', { flag: '--refresh', min: 1, max: 86400 }),
+    );
+    expect(fs.existsSync(settings)).toBe(false);
+  });
+
   it('stays quiet with --refresh or an existing refreshInterval', async () => {
     layout(['turn-timer']);
     const f = fake();
