@@ -884,7 +884,7 @@ function setupStatic(): void {
   lastTitle();
   setSource('sample');
   relabelPicker = initTerminalPicker($('term-picker'), S.api.terminal);
-  relabelTips = initTips($('tips'));
+  relabelTips = initTips($('tips')).relabel;
   initTermResize($('term-resize'), $('term-screen'));
   initInspector();
   window.addEventListener('keydown', onKeydown);

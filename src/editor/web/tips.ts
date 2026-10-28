@@ -22,7 +22,7 @@ function modKey(): string {
   }
 }
 
-function stored(): boolean {
+export function tipsHidden(): boolean {
   try {
     return localStorage.getItem(TIPS_KEY) === '1';
   } catch {
@@ -30,15 +30,27 @@ function stored(): boolean {
   }
 }
 
+export type TipsController = { relabel(): void; setHidden(v: boolean): void };
+
+let active: TipsController | null = null;
+
+export function setTipsHidden(v: boolean): void {
+  try {
+    if (v) localStorage.setItem(TIPS_KEY, '1');
+    else localStorage.removeItem(TIPS_KEY);
+  } catch {}
+  active?.setHidden(v);
+}
+
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 
-// returns a relabel function for language changes
-export function initTips(host: HTMLElement): () => void {
+// relabel is for language changes
+export function initTips(host: HTMLElement): TipsController {
   let at = 0;
   let timer: number | undefined;
   let hover = false;
   let focus = false;
-  let hidden = stored();
+  let hidden = tipsHidden();
   const label = h('span', { class: 'tip-label' });
   const text = h('span', { class: 'tip-text' });
   const next = h(
@@ -72,6 +84,17 @@ export function initTips(host: HTMLElement): () => void {
       localStorage.setItem(TIPS_KEY, '1');
     } catch {}
   }
+  function setHidden(v: boolean): void {
+    if (v) {
+      hidden = true;
+      host.hidden = true;
+      schedule();
+      return;
+    }
+    hidden = false;
+    host.hidden = false;
+    show(at);
+  }
   function relabel(): void {
     label.textContent = t('web.tips.label');
     for (const [b, id] of [
@@ -103,5 +126,6 @@ export function initTips(host: HTMLElement): () => void {
   host.hidden = hidden;
   relabel();
   if (!hidden) show(0);
-  return relabel;
+  active = { relabel, setHidden };
+  return active;
 }

@@ -3,7 +3,7 @@ import { installBundled } from '../../src/core/i18n/bundled.js';
 import { editorMessages as en } from '../../src/core/i18n/en/editor.js';
 import { setLanguage } from '../../src/core/i18n/index.js';
 import { editorMessages as tr } from '../../src/core/i18n/tr/editor.js';
-import { initTips, TIP_MS, TIPS, TIPS_KEY } from '../../src/editor/web/tips.js';
+import { initTips, setTipsHidden, TIP_MS, TIPS, TIPS_KEY, tipsHidden } from '../../src/editor/web/tips.js';
 import { FakeEl } from '../i18n/fake-dom.js';
 
 const g = globalThis as any;
@@ -39,6 +39,9 @@ beforeEach(() => {
   g.localStorage = {
     getItem: (k: string) => store.get(k) ?? null,
     setItem: (k: string, v: string) => store.set(k, v),
+    removeItem: (k: string) => {
+      store.delete(k);
+    },
   };
   setLanguage('en');
 });
@@ -111,6 +114,63 @@ describe('tips line', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('shows again after being hidden and rotates', () => {
+    const host = new FakeEl('DIV');
+    initTips(host as any);
+    button(host, en['web.tips.dismiss']).dispatch('click');
+    expect(host.hidden).toBe(true);
+    setTipsHidden(false);
+    expect(store.has(TIPS_KEY)).toBe(false);
+    expect(host.hidden).toBe(false);
+    expect(text(host)).toBe(tip(TIPS[0]!));
+    vi.advanceTimersByTime(TIP_MS);
+    expect(text(host)).toBe(tip(TIPS[1]!));
+  });
+
+  it('shows after a hidden page load', () => {
+    store.set(TIPS_KEY, '1');
+    expect(tipsHidden()).toBe(true);
+    const host = new FakeEl('DIV');
+    initTips(host as any);
+    expect(host.hidden).toBe(true);
+    setTipsHidden(false);
+    expect(host.hidden).toBe(false);
+    expect(tipsHidden()).toBe(false);
+    vi.advanceTimersByTime(TIP_MS);
+    expect(text(host)).toBe(tip(TIPS[1]!));
+  });
+
+  it('setTipsHidden(true) acts like the dismiss button', () => {
+    const host = new FakeEl('DIV');
+    initTips(host as any);
+    setTipsHidden(true);
+    expect(store.get(TIPS_KEY)).toBe('1');
+    expect(host.hidden).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(TIP_MS * 3);
+    expect(text(host)).toBe(tip(TIPS[0]!));
+  });
+
+  it('setTipsHidden survives a throwing localStorage', () => {
+    const host = new FakeEl('DIV');
+    initTips(host as any);
+    g.localStorage = {
+      getItem: () => {
+        throw new Error('denied');
+      },
+      setItem: () => {
+        throw new Error('denied');
+      },
+      removeItem: () => {
+        throw new Error('denied');
+      },
+    };
+    expect(() => setTipsHidden(true)).not.toThrow();
+    expect(host.hidden).toBe(true);
+    expect(() => setTipsHidden(false)).not.toThrow();
+    expect(host.hidden).toBe(false);
+  });
+
   it('survives a throwing localStorage', () => {
     g.localStorage = {
       getItem: () => {
@@ -129,7 +189,7 @@ describe('tips line', () => {
 
   it('relabels in the active language', () => {
     const host = new FakeEl('DIV');
-    const relabel = initTips(host as any);
+    const { relabel } = initTips(host as any);
     setLanguage('tr');
     relabel();
     expect(text(host)).toBe(TR[TIPS[0]!]!.replaceAll('{mod}', 'Ctrl'));
