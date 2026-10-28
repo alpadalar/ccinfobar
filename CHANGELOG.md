@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- `command` widgets can run in the background worker with `background: true` (needs `cacheSeconds > 0`): the status line shows the last result and never waits for the command; a background result is one plain line, so `preserveColors` has no effect there. The `commandBudgetMs` setting is in the web editor's Settings and the TUI. `docs/WIDGETS.md` now says plainly that a `command` runs through the shell with the status line's full environment.
 
 - `ccinfobar subagent-line` renders Claude Code's subagent panel rows (agent type, label, token sparkline, tokens and context share, model and effort, elapsed time) from the JSON Claude Code sends, fitted to the panel width, with the parts chosen by the new `subagentLine.fields` config key; it reads only the config file and prints nothing on bad input. `ccinfobar install --subagents` sets it up with a backup and a manifest entry, `ccinfobar doctor` shows it and `ccinfobar uninstall` (or `uninstall --subagents`) removes it, restoring any entry that was there before.
 - `ccinfobar install --hide-vim-indicator` sets `statusLine.hideVimModeIndicator`, so Claude Code no longer prints `-- INSERT --` under the prompt when your `vim-mode` widget shows the mode; an interactive `install` offers it when both are on, `--no-hide-vim-indicator` removes it, and `ccinfobar doctor` warns when the mode is shown twice
@@ -26,6 +27,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `spend-limit` gains `show: amount | percent | remaining | both`, `showPeriod` (`/day`, `/wk`, `/mo`) and optional threshold colours (`thresholdColors`, off by default)
 
 ### Changed
+- All `command` widgets of one refresh now share a time budget (`commandBudgetMs`, default 3000 ms); each still has its own `timeout`, and once the budget is spent the remaining command widgets show their cached output or nothing instead of waiting one after another (reason: a slow or hanging command no longer stalls the whole status line). Layouts with up to three default-timeout commands see no difference.
 
 - The cost ledger (`ledger/YYYY-MM.jsonl`) now stores a short hash of the project folder instead of the folder path (reason: privacy); existing ledger lines keep counting toward `cost-project`, and `ccinfobar report` names projects from your transcripts, showing 'unknown project' only for sessions whose transcript is gone and whose ledger lines are new.
 - `spend-limit` shows the used percentage (`63%`) when Claude Code or a gateway sends only `used_percentage` and no dollar amounts, instead of staying empty; with the dollar fields it still shows `$12/$50`
