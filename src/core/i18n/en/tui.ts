@@ -73,6 +73,9 @@ export const tuiMessages = {
   'tui.field.commandBudgetMs': 'Command budget (ms)',
   'tui.field.commandBudgetMsHelp':
     'Shared time for all command widgets of one refresh; default 3000, 100-60000',
+  'tui.field.updateMinAgeHours': 'Minimum release age (hours)',
+  'tui.field.updateMinAgeHoursHelp':
+    'Automatic updates wait until a release is this many hours old (1-720); 0 installs right away. Notices and ccinfobar update ignore it',
   'tui.field.icons': 'Icons',
   'tui.field.colorLevel': 'Color level',
   'tui.field.colorLevel.0': '0 (none)',

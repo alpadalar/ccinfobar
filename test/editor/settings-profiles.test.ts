@@ -219,3 +219,13 @@ describe('settings command budget', () => {
     expect(budgetValue(null)).toBeUndefined();
   });
 });
+
+describe('settings update min age', () => {
+  it('clamps the typed value and clears empty or zero', async () => {
+    const { ageValue } = await import('../../src/editor/web/settings.js');
+    expect(ageValue(24)).toBe(24);
+    expect(ageValue(9999)).toBe(720);
+    expect(ageValue(0)).toBeUndefined();
+    expect(ageValue(null)).toBeUndefined();
+  });
+});

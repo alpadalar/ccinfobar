@@ -839,6 +839,18 @@ function baseGlobalFields(autoLanguage?: LanguageId, brew = false): Field[] {
       { help: t('tui.field.commandBudgetMsHelp') },
     ),
     globalField(
+      'updateMinAgeHours',
+      t('tui.field.updateMinAgeHours'),
+      'number',
+      (c) => c.updateMinAgeHours,
+      (c, v) => {
+        const { updateMinAgeHours: _, ...rest } = c;
+        const n = Math.round(Number(v));
+        return Number.isFinite(n) && n >= 1 ? { ...rest, updateMinAgeHours: Math.min(720, n) } : rest;
+      },
+      { help: t('tui.field.updateMinAgeHoursHelp') },
+    ),
+    globalField(
       'overflow',
       t('opt.overflow'),
       'select',

@@ -107,6 +107,9 @@ function profileValue(
 export const budgetValue = (v: number | null): number | undefined =>
   v === null || !Number.isFinite(v) ? undefined : Math.min(60000, Math.max(100, Math.floor(v)));
 
+export const ageValue = (v: number | null): number | undefined =>
+  v === null || !Number.isFinite(v) || Math.round(v) < 1 ? undefined : Math.min(720, Math.round(v));
+
 export function draftOverride(draft: ProfileDraft): ProfileOverride | null {
   const out: Record<string, unknown> = {};
   for (const { key } of PROFILE_COLUMNS) {
@@ -834,6 +837,17 @@ export async function openSettings(): Promise<void> {
             placeholder: '3000',
           }),
           t('web.settings.commandBudgetMsHelp'),
+          true,
+        ),
+        field(
+          t('web.settings.updateMinAgeHours'),
+          numberInput(c.updateMinAgeHours ?? '', (v) => set({ updateMinAgeHours: ageValue(v) }), {
+            min: 1,
+            max: 720,
+            step: 1,
+            placeholder: '0',
+          }),
+          t('web.settings.updateMinAgeHoursHelp'),
           true,
         ),
         field(

@@ -80,6 +80,9 @@ export const tuiMessages = {
   'tui.field.commandBudgetMsHelp':
     "Bir yenilemedeki tüm command widget'ları için ortak süre; varsayılan 3000, 100-60000",
   'tui.field.icons': 'Simgeler',
+  'tui.field.updateMinAgeHours': 'En az sürüm yaşı (saat)',
+  'tui.field.updateMinAgeHoursHelp':
+    'Otomatik güncelleme, sürüm bu kadar saat eskiyene kadar bekler (1-720); 0 hemen kurar. Bildirimler ve ccinfobar update bunu dikkate almaz',
   'tui.field.colorLevel': 'Renk düzeyi',
   'tui.field.colorLevel.0': '0 (renk yok)',
   'tui.field.colorLevel.1': '1 (16 renk)',

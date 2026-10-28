@@ -58,6 +58,9 @@ export const editorMessages = {
   'web.settings.commandBudgetMs': 'Command widget budget (ms)',
   'web.settings.commandBudgetMsHelp':
     'All command widgets of one refresh share this time; after it the rest show cached output or nothing. Default 3000.',
+  'web.settings.updateMinAgeHours': 'Minimum release age (hours)',
+  'web.settings.updateMinAgeHoursHelp':
+    'Automatic updates wait until a release is this many hours old (1-720); 0 installs right away. Notices and ccinfobar update ignore it',
   'web.settings.savePayload': 'Save last payload',
   'web.settings.savePayloadHelp': 'Lets the preview use your real last session.',
   'web.settings.budget': 'Budget',

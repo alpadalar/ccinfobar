@@ -652,3 +652,17 @@ describe('commandBudgetMs field', () => {
     expect(f.set(defaultConfig(), 99999).commandBudgetMs).toBe(60000);
   });
 });
+
+describe('updateMinAgeHours field', () => {
+  it('sets, clamps and clears the value', () => {
+    const f = field('updateMinAgeHours');
+    expect(f.kind).toBe('number');
+    expect(f.get(defaultConfig())).toBeUndefined();
+    expect(f.set(defaultConfig(), 24).updateMinAgeHours).toBe(24);
+    expect(f.set(defaultConfig(), 9999).updateMinAgeHours).toBe(720);
+    for (const bad of [0, Number.NaN, -3]) {
+      const c = f.set({ ...defaultConfig(), updateMinAgeHours: 12 }, bad);
+      expect('updateMinAgeHours' in c).toBe(false);
+    }
+  });
+});

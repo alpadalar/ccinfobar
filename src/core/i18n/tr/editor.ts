@@ -64,6 +64,9 @@ export const editorMessages = {
     "Bir yenilemedeki tüm command widget'ları bu süreyi paylaşır; süre bitince kalanlar önbellekteki çıktıyı ya da hiçbir şey göstermez. Varsayılan 3000.",
   'web.settings.savePayload': "Son payload'ı kaydet",
   'web.settings.savePayloadHelp': 'Önizlemenin gerçek son oturumunuzu kullanmasını sağlar.',
+  'web.settings.updateMinAgeHours': 'En az sürüm yaşı (saat)',
+  'web.settings.updateMinAgeHoursHelp':
+    'Otomatik güncelleme, sürüm bu kadar saat eskiyene kadar bekler (1-720); 0 hemen kurar. Bildirimler ve ccinfobar update bunu dikkate almaz',
   'web.settings.budget': 'Bütçe',
   'web.settings.daily': 'Günlük bütçe (USD)',
   'web.settings.dailyHelp': 'Bütçe bileşeni için tahmini harcama. Faturanız değildir.',
