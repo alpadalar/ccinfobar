@@ -72,10 +72,27 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   }
 }
 
+export function editFlags(args: Args): {
+  port: number | undefined;
+  detach: boolean;
+  open: boolean;
+  serveDetached: boolean;
+  detect: boolean;
+} {
+  return {
+    port: intFlag(args, 'port', 1, 65535),
+    detach: args.flags.detach === true,
+    open: args.flags.open !== false,
+    serveDetached: args.flags['serve-detached'] === true,
+    detect: args.flags.detect !== false,
+  };
+}
+
 // a bad code fails before any server starts
 async function shareArg(args: Args): Promise<{ share?: string }> {
   const raw = args.positional[0];
   if (raw === undefined) return {};
+  if (!/ccib\d+:/i.test(raw)) throw new Error(t('cli.edit.notCode'));
   const { decodeShare } = await import('../catalog/share-code.js');
   const r = decodeShare(raw);
   if (!r.ok) throw new Error(t(r.errorId));
@@ -95,24 +112,23 @@ async function run(args: Args, cfgFile: string, argv: string[]): Promise<void> {
     }
     case 'edit':
     case 'editor': {
-      const port = intFlag(args, 'port', 1, 65535);
+      const f = editFlags(args);
       const share = await shareArg(args);
-      if (args.flags.detach === true) {
+      if (f.detach) {
         const { runDetach } = await import('../editor/detach.js');
-        const open = args.flags.open !== false;
-        process.exitCode = await runDetach({ configPath: cfgFile, port, open, ...share });
+        process.exitCode = await runDetach({ configPath: cfgFile, port: f.port, open: f.open, ...share });
         return;
       }
       const { startEditor } = await import('../editor/server.js');
-      if (args.flags['serve-detached'] === true) {
+      if (f.serveDetached) {
         const { editorStateFile } = await import('../editor/detach.js');
         const detached = { idleMs: 30 * 60_000, stateFile: editorStateFile() };
-        await startEditor({ configPath: cfgFile, port, open: false, terminal: null, detached });
+        await startEditor({ configPath: cfgFile, port: f.port, open: false, terminal: null, detached });
         return;
       }
       const { queryTerminalColors } = await import('../editor/terminal-colors.js');
-      const terminal = args.flags.detect === false ? null : await queryTerminalColors();
-      await startEditor({ configPath: cfgFile, port, open: args.flags.open !== false, terminal, ...share });
+      const terminal = f.detect ? await queryTerminalColors() : null;
+      await startEditor({ configPath: cfgFile, port: f.port, open: f.open, terminal, ...share });
       return;
     }
     case 'tui': {
