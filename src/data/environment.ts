@@ -104,7 +104,7 @@ export function launchAncestors(start: string, stopAt?: string, p: path.Platform
 }
 
 // nonblocking open, so a FIFO never hangs the render
-function readJson(file: string, max: number): Record<string, unknown> | null {
+export function readJson(file: string, max: number): Record<string, unknown> | null {
   let fd: number | undefined;
   try {
     fd = fs.openSync(file, RD);

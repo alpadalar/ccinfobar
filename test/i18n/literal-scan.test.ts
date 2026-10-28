@@ -175,6 +175,7 @@ const SWEPT: string[] = [
   'src/data/agents.ts',
   'src/data/cache.ts',
   'src/data/environment.ts',
+  'src/data/sandbox.ts',
   'src/data/git.ts',
   'src/data/gsd.ts',
   'src/data/history.ts',
