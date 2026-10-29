@@ -12,6 +12,12 @@ import {
 } from '../../src/data/environment.js';
 
 const NOW = Date.UTC(2026, 9, 15, 12, 0, 0);
+// structural changes can share a timestamp tick
+let ticks = 0;
+const moved = (dir: string) => {
+  const t = new Date(NOW - 1000 * ++ticks);
+  fs.utimesSync(dir, t, t);
+};
 let root: string;
 let claude: string;
 let proj: string;
@@ -320,8 +326,11 @@ describe('readEnvironment mcp', () => {
     json(path.join(proj, '.mcp.json'), servers('a', 'b'));
     expect(read().mcp).toBe(0);
     json(path.join(proj, '.claude', 'settings.json'), { enableAllProjectMcpServers: true });
+    moved(proj);
+    moved(path.join(proj, '.claude'));
     expect(read().mcp).toBe(2);
     json(path.join(claude, 'settings.json'), { disabledMcpjsonServers: ['b'] });
+    moved(claude);
     expect(read().mcp).toBe(1);
   });
 
@@ -345,6 +354,7 @@ describe('readEnvironment mcp', () => {
     json(path.join(managed, 'managed-settings.json'), { managedMcpServers: { extra: {} } });
     expect(read().mcp).toBe(3);
     json(path.join(managed, 'managed-mcp.json'), servers('corp'));
+    moved(managed);
     expect(read().mcp).toBe(2);
     json(path.join(managed, 'managed-settings.json'), {});
     expect(read().mcp).toBe(1);
@@ -356,6 +366,7 @@ describe('readEnvironment mcp', () => {
     json(cj(), { projects: { [proj]: servers('db'), [sub]: servers('x', 'y') } });
     expect(read({}, sub).mcp).toBe(1);
     fs.rmSync(path.join(proj, '.git'), { recursive: true });
+    moved(proj);
     expect(read({}, sub).mcp).toBe(2);
     expect(mcpProjectKey('C:\\a\\b', 'win32')).toBe('C:/a/b');
     expect(mcpProjectKey('/a/b', 'linux')).toBe('/a/b');
