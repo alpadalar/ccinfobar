@@ -3,6 +3,7 @@ export const tuiMessages = {
   'tui.value.custom': 'custom…',
   'tui.value.on': 'on',
   'tui.value.off': 'off',
+  'tui.value.kept': 'kept',
   'tui.value.theme': '{value}  (theme)',
   'tui.parse.color': 'Use a color name, #rrggbb or ansi256:N',
   'tui.parse.number': 'Enter a number',

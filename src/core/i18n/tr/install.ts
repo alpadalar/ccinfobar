@@ -54,6 +54,8 @@ export const installMessages = {
     other: "GSD'nin durum satırı {count} projede de değiştirilecek:",
   },
   'install.unset': 'ayarlı değil',
+  'install.subagentKept':
+    "ccinfobar'ın kurduğu alt ajan satırı kalır ve komutu izler; `ccinfobar uninstall --subagents` onu kaldırır",
   'install.stale':
     'Kurulum sırasında {file} dosyasındaki statusLine değişti; hiçbir şey yazılmadı. install komutunu yeniden çalıştırın.',
   'install.unchanged': "statusLine zaten ccinfobar'ı çalıştırıyor; değiştirilecek bir şey yok.",

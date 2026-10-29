@@ -24,6 +24,8 @@ export const installMessages = {
     other: "Would also replace GSD's status line in {count} projects:",
   },
   'install.unset': 'unset',
+  'install.subagentKept':
+    'The subagent line ccinfobar set up stays and follows the command; `ccinfobar uninstall --subagents` removes it',
   'install.stale':
     'The statusLine in {file} changed while installing; nothing was written. Run install again.',
   'install.unchanged': 'statusLine already runs ccinfobar; nothing to change.',

@@ -507,7 +507,8 @@ function confirmModal(state: State, mode: Extract<Mode, { kind: 'confirm' }>, w:
       );
     }
     case 'install': {
-      const state = t(mode.subagents ? 'tui.value.on' : 'tui.value.off');
+      const kept = mode.plan?.subagent?.owner === 'us' && !mode.subagents;
+      const toggle = t(kept ? 'tui.value.kept' : mode.subagents ? 'tui.value.on' : 'tui.value.off');
       const change = mode.plan?.subagent?.change;
       return centered(
         [
@@ -516,7 +517,8 @@ function confirmModal(state: State, mode: Extract<Mode, { kind: 'confirm' }>, w:
           dim(t('tui.confirm.savedFirst')),
           '',
           `${k('y', 'tui.confirm.install')}   ${k('n', 'tui.confirm.cancel')}`,
-          `${bold(fg('s', 'brightYellow'))} ${t('tui.confirm.subagents', { state })}`,
+          `${bold(fg('s', 'brightYellow'))} ${t('tui.confirm.subagents', { state: toggle })}`,
+          ...(kept ? [dim(truncate(t('install.subagentKept'), Math.max(10, w - 4)))] : []),
         ],
         w,
         h,

@@ -68,7 +68,8 @@ async function open(subagent: { command: string; owned: boolean } | null) {
   const actions = new FakeEl('DIV');
   actions.append(...o.actions(() => {}));
   const install = actions.all((e) => e.className.includes('primary'))[0]!;
-  return { root, box, pre, install };
+  const kept = root.all((e) => e.className.includes('install-kept'))[0]!;
+  return { root, box, pre, install, kept };
 }
 
 describe('install dialog subagents checkbox', () => {
@@ -104,5 +105,26 @@ describe('install dialog subagents checkbox', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(planCalls[0]![2]).toBe(false);
     expect(installCalls[0]![4]).toBe(false);
+  });
+});
+
+describe('install dialog kept hint', () => {
+  it('owned and unchecked keeps subagentStatusLine in the preview and shows the kept hint', async () => {
+    const t = await open({ command: 'ccinfobar subagent-line', owned: true });
+    t.box.checked = false;
+    t.box.dispatch('change');
+    expect(t.pre.textContent).toContain('subagentStatusLine');
+    expect(t.pre.textContent).toContain('ccinfobar subagent-line');
+    expect(t.kept.hidden).toBe(false);
+    expect(t.kept.textContent).toContain('The subagent line ccinfobar set up stays');
+    t.install.dispatch('click');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(planCalls[0]![2]).toBe(false);
+    expect(installCalls[0]![4]).toBe(false);
+  });
+
+  it('hides the kept hint when not owned or checked', async () => {
+    expect((await open(null)).kept.hidden).toBe(true);
+    expect((await open({ command: 'ccinfobar subagent-line', owned: true })).kept.hidden).toBe(true);
   });
 });

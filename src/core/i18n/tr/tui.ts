@@ -6,6 +6,7 @@ export const tuiMessages = {
   'tui.value.custom': 'özel…',
   'tui.value.on': 'açık',
   'tui.value.off': 'kapalı',
+  'tui.value.kept': 'korunur',
   'tui.value.theme': '{value}  (tema)',
   'tui.parse.color': 'Bir renk adı, #rrggbb ya da ansi256:N kullanın',
   'tui.parse.number': 'Bir sayı girin',

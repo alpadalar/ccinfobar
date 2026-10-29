@@ -112,6 +112,20 @@ describe('Turkish TUI view', () => {
     expect(tr(true)).toContain('s Alt ajan satırları: açık');
   });
 
+  it('translates the kept subagent state', () => {
+    const plan = {
+      current: 'ccinfobar',
+      proposed: 'ccinfobar',
+      needsConfirm: false,
+      subagent: { owner: 'us' as const, change: 'x' },
+    };
+    const out = withLang('tr', () =>
+      text(build(defaultConfig(), { type: 'installPlanned', plan, subagents: false })),
+    );
+    expect(out).toContain('s Alt ajan satırları: korunur');
+    expect(out).toContain("ccinfobar'ın kurduğu alt ajan satırı kalır");
+  });
+
   it('shows preset and theme text from the catalog', () => {
     const presets = withLang('tr', () => text(build(defaultConfig(), { type: 'openPresets' })));
     const p = PRESETS[0]!;

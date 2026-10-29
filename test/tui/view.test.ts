@@ -167,6 +167,27 @@ describe('modals', () => {
     expect(on).toContain('Would set subagentStatusLine to "ccinfobar subagent-line"');
   });
 
+  it('says kept when ccinfobar owns the subagent line and the toggle is off', () => {
+    const plan = (owner: 'us' | 'other') => ({
+      current: 'ccinfobar',
+      proposed: 'ccinfobar',
+      needsConfirm: false,
+      subagent: { owner, change: 'subagentStatusLine already runs ccinfobar' },
+    });
+    const hint = 'The subagent line ccinfobar set up stays';
+    const off = text(build(defaultConfig(), { type: 'installPlanned', plan: plan('us'), subagents: false }));
+    expect(off.join('\n')).toContain('s Subagent rows: kept');
+    expect(off.join('\n')).toContain(hint);
+    const on = text(build(defaultConfig(), { type: 'installPlanned', plan: plan('us'), subagents: true }));
+    expect(on.join('\n')).toContain('s Subagent rows: on');
+    expect(on.join('\n')).not.toContain(hint);
+    const other = text(
+      build(defaultConfig(), { type: 'installPlanned', plan: plan('other'), subagents: false }),
+    );
+    expect(other.join('\n')).toContain('s Subagent rows: off');
+    expect(other.join('\n')).not.toContain(hint);
+  });
+
   it('fits every modal into small terminals', () => {
     const modes: Action[][] = [
       [{ type: 'openPicker' }],

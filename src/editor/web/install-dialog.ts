@@ -27,11 +27,15 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
   const sub = h('input', { type: 'checkbox' });
   sub.checked = claude.subagent?.owned === true;
   const preview = h('pre', { class: 'code-preview' });
+  const kept = h('div', { class: 'hint install-kept' }, t('install.subagentKept'));
   const update = () => {
     const sl: Record<string, unknown> = { type: 'command', command: cmd.value, padding: 0 };
     if (Number(refresh.value) > 0) sl.refreshInterval = Math.floor(Number(refresh.value));
     const out: Record<string, unknown> = { statusLine: sl };
-    if (sub.checked) out.subagentStatusLine = { type: 'command', command: `${cmd.value} subagent-line` };
+    const owned = claude.subagent?.owned === true;
+    if (sub.checked || owned)
+      out.subagentStatusLine = { type: 'command', command: `${cmd.value} subagent-line` };
+    kept.hidden = !(owned && !sub.checked);
     preview.textContent = JSON.stringify(out, null, 2);
   };
   cmd.addEventListener('input', update);
@@ -61,6 +65,7 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
       h('div', { class: 'field' }, h('label', { class: 'field-label' }, t('web.install.command')), cmd),
       h('div', { class: 'field' }, h('label', { class: 'field-label' }, t('web.install.refresh')), refresh),
       h('label', { class: 'field row-inline' }, sub, h('span', null, t('web.install.subagents'))),
+      kept,
       h('div', { class: 'field-label' }, t('web.install.writesTo', { file: claude.settingsFile })),
       preview,
       planBox,
