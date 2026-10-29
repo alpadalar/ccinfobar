@@ -102,6 +102,29 @@ describe('doctor effective layer', () => {
     );
   });
 
+  it('an empty overriding statusLine says unset', () => {
+    put(claudeSettingsPath(), USER_SL);
+    put(PROJECT_FILE, { statusLine: {}, subagentStatusLine: { type: 'command' } });
+    const out = doctor();
+    expect(out).toContain(effective('project', PROJECT_FILE, t('install.unset')));
+    expect(out).toContain(
+      t('doctor.subagentLineEffective', {
+        layer: 'project',
+        file: tildify(PROJECT_FILE),
+        command: t('install.unset'),
+      }),
+    );
+    expect(out.some((l) => l.includes(': undefined'))).toBe(false);
+  });
+
+  it('an empty overriding statusLine says unset in tr', () => {
+    put(claudeSettingsPath(), USER_SL);
+    put(PROJECT_FILE, { statusLine: {} });
+    const out = doctor({ language: 'tr' });
+    expect(out.some((l) => l.includes('ayarlı değil'))).toBe(true);
+    expect(out.some((l) => l.includes('undefined'))).toBe(false);
+  });
+
   it('prints no effective line for a user-only setup', () => {
     put(claudeSettingsPath(), { ...USER_SL, subagentStatusLine: { command: '/bin/sub' } });
     const out = doctor();

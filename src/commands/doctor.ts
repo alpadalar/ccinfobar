@@ -340,7 +340,11 @@ function effectiveLines(
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(
-      t(id, { layer: eff.layer.name, file: tildify(eff.layer.file), command: safe(eff.value.command) }),
+      t(id, {
+        layer: eff.layer.name,
+        file: tildify(eff.layer.file),
+        command: typeof eff.value.command === 'string' ? safe(eff.value.command) : t('install.unset'),
+      }),
     );
   }
   return out;
