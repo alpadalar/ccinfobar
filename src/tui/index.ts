@@ -73,20 +73,19 @@ function subagentChange(sub: SubagentPlan): string {
 }
 
 function tuiPlan(plan: InstallPlan): TuiInstallPlan {
-  const sub = plan.subagent;
-  return {
+  const out: TuiInstallPlan = {
     current: commandOf(plan.current),
     proposed: plan.proposed.command,
     needsConfirm: plan.needsConfirm,
-    ...(sub
-      ? {
-          subagent: {
-            owner: sub.owner === 'ours' ? 'us' : sub.owner === 'foreign' ? 'other' : null,
-            change: subagentChange(sub),
-          },
-        }
-      : {}),
-  } as TuiInstallPlan;
+  };
+  const sub = plan.subagent;
+  if (sub) {
+    out.subagent = {
+      owner: sub.owner === 'ours' ? 'us' : sub.owner === 'foreign' ? 'other' : null,
+      change: subagentChange(sub),
+    };
+  }
+  return out;
 }
 
 export function runEffect(state: State, effect: Effect, deps: EffectDeps = {}): Action {

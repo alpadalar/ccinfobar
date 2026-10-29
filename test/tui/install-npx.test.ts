@@ -78,4 +78,16 @@ describe('TUI install under npx', () => {
     expect(setup).toHaveBeenCalledTimes(1);
     expect(JSON.parse(fs.readFileSync(settings, 'utf8')).statusLine.command).toBe('ccinfobar');
   });
+
+  it('planInstall effect maps the subagent plan without extra keys', () => {
+    const settings = path.join(dir, 'settings.json');
+    const state = initialState(defaultConfig(), path.join(dir, 'config.json'));
+    const withSub = runEffect(state, { kind: 'planInstall', subagents: true }, { settingsFile: settings });
+    if (withSub.type !== 'installPlanned') throw new Error('no plan');
+    expect(withSub.plan.subagent?.owner).toBeNull();
+    expect(withSub.plan.subagent?.change).toContain('subagentStatusLine');
+    const without = runEffect(state, { kind: 'planInstall' }, { settingsFile: settings });
+    if (without.type !== 'installPlanned') throw new Error('no plan');
+    expect('subagent' in without.plan).toBe(false);
+  });
 });

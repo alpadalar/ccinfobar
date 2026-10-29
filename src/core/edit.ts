@@ -629,13 +629,15 @@ export function subagentFields(config: Config, all: readonly string[]): string[]
   return cur.length ? cur : [...all];
 }
 
+type SubagentFieldId = NonNullable<NonNullable<Config['subagentLine']>['fields']>[number];
+
 export function setSubagentFields(config: Config, fields: readonly string[], all: readonly string[]): Config {
   const list = fields.filter((f, i) => all.includes(f) && fields.indexOf(f) === i);
   const { subagentLine, ...rest } = config;
   const { fields: _, ...other } = subagentLine ?? {};
   const isDefault = !list.length || (list.length === all.length && list.every((f, i) => f === all[i]));
   if (isDefault) return Object.keys(other).length ? { ...rest, subagentLine: other } : rest;
-  return { ...rest, subagentLine: { ...other, fields: list as never } };
+  return { ...rest, subagentLine: { ...other, fields: list as SubagentFieldId[] } };
 }
 
 export function setSubagentField(config: Config, field: string, on: boolean, all: readonly string[]): Config {
