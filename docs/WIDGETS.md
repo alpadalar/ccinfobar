@@ -31,9 +31,9 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `provider` | API provider: Bedrock, Vertex, an API key or a gateway host | `Bedrock` | `showFirstParty` boolean, default `false` |
 | `effort` | Reasoning effort level | `Effort high` | `showThinking` boolean, default `false` |
 | `thinking` | Whether extended thinking is enabled | `Think on` | `hideOff` boolean, default `false` |
-| `fast-mode` | Shown when fast mode is active | `fast` | `showOff` boolean, default `false` |
-| `sandbox` | Shows a chip when Claude Code's sandbox is enabled in the effective settings layer | `sandbox` | `showOff` boolean, default `false`<br>`showStrict` boolean, default `false` |
-| `output-style` | Active output style | `Style Explanatory` | `showDefault` boolean, default `false` |
+| `fast-mode` | Shown when fast mode is active | `fast` | `hideOff` boolean, default `true` |
+| `sandbox` | Shows a chip when Claude Code's sandbox is enabled in the effective settings layer | `sandbox` | `hideOff` boolean, default `true`<br>`showStrict` boolean, default `false` |
+| `output-style` | Active output style | `Style Explanatory` | `hideZero` boolean, default `true` |
 | `session-name` | Session title from /rename or the transcript | `statusline refactor` |  |
 | `session-id` | Session identifier | `Session 3f2a9c1e` | `short` boolean, default `false` |
 | `claude-version` | Claude Code version | `v2.1.300` |  |
@@ -53,7 +53,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `context-bar` | Progress bar of context window usage | `Ctx ███░░░░░░░ 34%` | `width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false`<br>`basis` select, default `"raw"` (`raw`, `usable`, `reserve`)<br>`reserveTokens` number, default `20000` (when `basis` is `reserve`)<br>`thresholdColors` boolean, default `true` |
 | `context-length` | Tokens currently in the context window | `Ctx 340k` | `showMax` boolean, default `false` |
 | `context-window-size` | Maximum context window size | `Window 1M` |  |
-| `compactions` | Number of context compactions in this session | `Compacted 1x` | `showZero` boolean, default `false` |
+| `compactions` | Number of context compactions in this session | `Compacted 1x` | `hideZero` boolean, default `true` |
 
 ## Tokens & cache
 
@@ -128,7 +128,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `gsd-milestone-progress` | Milestone completion bar (plans and phases done on disk) | `█████░░░░░ 50%` | `width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false`<br>`showCounts` boolean, default `false` |
 | `gsd-phase` | Current GSD phase number and name | `Phase 4/6 Invoice export` | `showName` boolean, default `true`<br>`showTotal` boolean, default `true`<br>`maxLength` number, default `24` |
 | `gsd-status` | Normalized GSD workflow status, colored by stage | `executing` |  |
-| `gsd-plans` | Completed plans in the current phase | `plans 3/5` | `showEmpty` boolean, default `false` |
+| `gsd-plans` | Completed plans in the current phase | `plans 3/5` | `hideZero` boolean, default `true` |
 | `gsd-plan-progress` | Plan completion bar for the current phase | `██████░░░░ 60%` | `width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false` |
 | `gsd-next` | Suggested next GSD command | `next: /gsd-execute-phase 4` | `slashPrefix` text, default `"/gsd-"` |
 | `gsd-workstream` | Active GSD workstream name | `ws billing` |  |
@@ -161,7 +161,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `pr` | Pull request number and review state | `#128 pending` | `link` boolean, default `false`<br>`ci` boolean, default `false` |
 | `workspace-repos` | Child folders that are git repos, when the folder itself is not a repo | `repos: api (main) · web (dev) · infra (main)` | `maxItems` number, default `5`<br>`showBranch` boolean, default `true`<br>`sort` select, default `"name"` (`name`, `recent`)<br>`includeHidden` boolean, default `false`<br>`hideGitPlaceholders` boolean, default `true`<br>`dirty` boolean, default `false` |
 | `jj-bookmarks` | Bookmarks on the nearest bookmarked ancestor of the working copy | `main` | `maxItems` number, default `3`<br>`separator` text, default `", "` |
-| `jj-workspace` | Current jj workspace name | `default` | `hideDefault` boolean, default `false` |
+| `jj-workspace` | Current jj workspace name | `default` | `hideZero` boolean, default `false` |
 | `jj-revision` | Short change ID of the working copy | `kkmpptxz` |  |
 | `jj-description` | First line of the working-copy description | `Wire GSD widgets into renderer` |  |
 | `jj-changes` | Inserted and deleted lines in the working-copy change | `+42 -10` | `snapshot` boolean, default `false` |
