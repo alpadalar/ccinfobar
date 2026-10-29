@@ -18,6 +18,9 @@ const noNode = {
 };
 
 export function workerBuildOptions({ root, outfile, format = 'esm', globalName }) {
+  if (outfile !== undefined && !path.isAbsolute(outfile)) {
+    throw new Error(`worker outfile must be an absolute path: ${outfile}`);
+  }
   return {
     entryPoints: [path.join(root, 'src/market/worker/index.ts')],
     bundle: true,

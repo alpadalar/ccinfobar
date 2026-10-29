@@ -98,6 +98,13 @@ describe('worker bundle (D-03)', () => {
     expect(o.outfile).toBe(path.join(root, 'worker/dist/index.js'));
   });
 
+  it.each(['undefined/index.js', 'dist/index.js'])(
+    'refuses a relative outfile (an unset path once wrote undefined/ at the repo root): %s',
+    (outfile) => {
+      expect(() => workerBuildOptions({ root, outfile })).toThrow(/absolute/);
+    },
+  );
+
   it.each(['node:fs', 'fs', 'fs/promises', 'buffer'])(
     'fails the build on an import of %s',
     async (spec) => {
