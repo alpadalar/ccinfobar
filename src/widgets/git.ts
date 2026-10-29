@@ -422,7 +422,7 @@ export const widgets: WidgetDef[] = [
     color: 'magenta',
     sample: 'api (main) · web (dev) · infra (main)',
     options: [
-      { key: 'maxRepos', label: 'Repos shown', kind: 'number', default: 5 },
+      { key: 'maxItems', aliases: ['maxRepos'], label: 'Repos shown', kind: 'number', default: 5 },
       { key: 'showBranch', label: 'Show branch', kind: 'boolean', default: true },
       {
         key: 'sort',
@@ -455,7 +455,7 @@ export const widgets: WidgetDef[] = [
       if (!ws) return null;
       const list = pickRepos(ws.repos, opt(item, 'includeHidden', false), opt<string>(item, 'sort', 'name'));
       if (!list.length) return null;
-      const max = Math.max(1, Math.floor(opt(item, 'maxRepos', 5)));
+      const max = Math.max(1, Math.floor(opt(item, 'maxItems', 5)));
       const branch = opt(item, 'showBranch', true);
       const mark = opt(item, 'dirty', false);
       const parts = list.slice(0, max).map((r) => {

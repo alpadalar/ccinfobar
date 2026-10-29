@@ -157,7 +157,8 @@ export const widgets: WidgetDef[] = [
     sample: '34%',
     options: [
       {
-        key: 'mode',
+        key: 'show',
+        aliases: ['mode'],
         label: 'Mode',
         kind: 'select',
         default: 'used',
@@ -175,7 +176,7 @@ export const widgets: WidgetDef[] = [
       if (l) return l;
       const pct = percentFor(ctx, item);
       if (pct === null) return null;
-      const shown = opt<string>(item, 'mode', 'used') === 'remaining' ? 100 - pct : pct;
+      const shown = opt<string>(item, 'show', 'used') === 'remaining' ? 100 - pct : pct;
       return colored(`${Math.round(shown)}%`, pct, item);
     },
   },

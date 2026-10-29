@@ -163,7 +163,7 @@ describe('built-in presets', () => {
         expect(def, `${p.id} ${item.type}`).toBeDefined();
         expect(PRIVATE, `${p.id} ${item.type}`).not.toContain(item.type);
         for (const [key, value] of Object.entries(item.options ?? {})) {
-          const spec = def!.options?.find((o) => o.key === key);
+          const spec = def!.options?.find((o) => o.key === key || o.aliases?.includes(key));
           expect(spec, `${p.id} ${item.type}.${key}`).toBeDefined();
           if (spec!.kind === 'select') {
             expect(

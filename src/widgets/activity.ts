@@ -69,7 +69,8 @@ export const widgets: WidgetDef[] = [
         ],
       },
       {
-        key: 'mode',
+        key: 'show',
+        aliases: ['mode'],
         label: 'Mode',
         kind: 'select',
         default: 'intensity',
@@ -93,7 +94,7 @@ export const widgets: WidgetDef[] = [
         (SIZES.includes(size) ? size : 15) as Size,
       );
       const text = ctx.config.charset === 'text';
-      if (opt<string>(item, 'mode', 'intensity') === 'presence') {
+      if (opt<string>(item, 'show', 'intensity') === 'presence') {
         return groups.map((v) => (v > 0 ? (text ? '#' : '▪') : text ? '.' : '·')).join('');
       }
       const ramp = text ? SPARK_ASCII : SPARK;

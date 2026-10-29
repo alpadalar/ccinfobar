@@ -244,7 +244,8 @@ export const widgets: WidgetDef[] = [
     sample: 'gsd-execute-phase',
     options: [
       {
-        key: 'mode',
+        key: 'show',
+        aliases: ['mode'],
         label: 'Show',
         kind: 'select',
         default: 'current',
@@ -254,15 +255,15 @@ export const widgets: WidgetDef[] = [
           { value: 'list', label: 'List' },
         ],
       },
-      { key: 'limit', label: 'List limit', kind: 'number', default: 3 },
+      { key: 'maxItems', aliases: ['limit'], label: 'List limit', kind: 'number', default: 3 },
     ],
     render(ctx, item) {
       const skills = ctx.data.transcript()?.skills ?? [];
       if (!skills.length) return null;
-      const mode = opt<string>(item, 'mode', 'current');
+      const mode = opt<string>(item, 'show', 'current');
       if (mode === 'count') return `${skills.length}`;
       if (mode === 'list') {
-        const limit = Math.max(1, opt(item, 'limit', 3));
+        const limit = Math.max(1, opt(item, 'maxItems', 3));
         const recent = skills.slice(-limit).reverse();
         const more = skills.length - recent.length;
         return more > 0 ? `${recent.join(', ')} +${more}` : recent.join(', ');

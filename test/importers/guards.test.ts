@@ -474,7 +474,7 @@ describe('cross-importer guards', () => {
         for (const item of (result.config.lines ?? []).flat()) {
           const specs = defs.get(item.type)?.options ?? [];
           for (const [key, value] of Object.entries(item.options ?? {})) {
-            const spec = specs.find((o) => o.key === key);
+            const spec = specs.find((o) => o.key === key || o.aliases?.includes(key));
             expect(spec, `${name}: ${item.type}.${key}`).toBeDefined();
             if (spec?.kind === 'select' && spec.choices) {
               expect(

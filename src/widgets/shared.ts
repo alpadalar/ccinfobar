@@ -1,11 +1,12 @@
 import { detectLevel, fgCode, gradientColor, type Level } from '../core/ansi.js';
 import { t } from '../core/i18n/index.js';
+import { aliasValue } from '../core/option-aliases.js';
 import { isFreshSession } from '../core/payload.js';
 import type { OptionSpec, OptionValue, RenderContext, WidgetItem, WidgetOutput } from '../core/types.js';
 import { detectProvider } from '../data/provider.js';
 
 export function opt<T extends OptionValue>(item: WidgetItem, key: string, fallback: T): T {
-  const v = item.options?.[key];
+  const v = item.options?.[key] ?? aliasValue(item.type, key, item.options);
   if (v === undefined) return fallback;
   if (typeof fallback === 'number') {
     const n = typeof v === 'number' ? v : Number(v);

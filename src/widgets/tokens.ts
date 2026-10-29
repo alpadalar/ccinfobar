@@ -277,7 +277,8 @@ export const widgets: WidgetDef[] = [
         help: 'Latest: only while the last request missed the cache. Summary: misses/requests and the top causes',
       },
       {
-        key: 'maxCauses',
+        key: 'maxItems',
+        aliases: ['maxCauses'],
         label: 'Top causes',
         kind: 'number',
         default: 2,
@@ -288,7 +289,7 @@ export const widgets: WidgetDef[] = [
     render(ctx, item) {
       const pc = ctx.payload.prompt_cache;
       if (opt<string>(item, 'show', 'latest') === 'summary') {
-        return summaryText(ctx, pc, Math.max(1, Math.floor(Number(opt(item, 'maxCauses', 2)) || 2)));
+        return summaryText(ctx, pc, Math.max(1, Math.floor(Number(opt(item, 'maxItems', 2)) || 2)));
       }
       const text = missText(pc?.last_miss_cause);
       if (!text) return null;
@@ -318,7 +319,8 @@ export const widgets: WidgetDef[] = [
         help: 'Time is the average API time per main request; ~ marks the transcript fallback, the average time from a prompt to its first reply',
       },
       {
-        key: 'display',
+        key: 'style',
+        aliases: ['display'],
         label: 'Display',
         kind: 'select',
         default: 'text',
@@ -334,7 +336,7 @@ export const widgets: WidgetDef[] = [
         kind: 'number',
         default: 70,
         help: 'Badge warns below this hit rate, in %',
-        showWhen: { key: 'display', values: ['badge'] },
+        showWhen: { key: 'style', values: ['badge'] },
       },
       {
         key: 'timeWarn',
@@ -342,7 +344,7 @@ export const widgets: WidgetDef[] = [
         kind: 'number',
         default: 10,
         help: 'Badge warns above this average time, in seconds',
-        showWhen: { key: 'display', values: ['badge'] },
+        showWhen: { key: 'style', values: ['badge'] },
       },
       {
         key: 'showMisses',
@@ -366,7 +368,7 @@ export const widgets: WidgetDef[] = [
       const m = opt(item, 'showMisses', false) ? misses(ctx) : null;
       if (m !== null) parts.push(`${m} ${t('widget.performance.miss')}`);
       const text = parts.join(' · ');
-      if (opt<string>(item, 'display', 'text') !== 'badge') return text;
+      if (opt<string>(item, 'style', 'text') !== 'badge') return text;
       const hw = opt(item, 'hitWarn', 70);
       const tw = opt(item, 'timeWarn', 10) * 1000;
       const hl = h === null ? 0 : h >= hw ? 0 : h >= hw - 20 ? 1 : 2;

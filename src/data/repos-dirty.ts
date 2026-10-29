@@ -40,7 +40,7 @@ export function dirtyOrder(repos: RepoEntry[], config: Config): RepoEntry[] {
   const out = new Set<RepoEntry>();
   for (const it of config.lines.flat()) {
     if (it.type !== 'workspace-repos') continue;
-    const max = Math.max(1, Math.floor(opt(it, 'maxRepos', 5)));
+    const max = Math.max(1, Math.floor(opt(it, 'maxItems', 5)));
     const list = pickRepos(repos, opt(it, 'includeHidden', false), opt<string>(it, 'sort', 'name'));
     for (const r of list.slice(0, max)) out.add(r);
   }

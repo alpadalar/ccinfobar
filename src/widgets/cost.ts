@@ -40,7 +40,7 @@ function budget(ctx: RenderContext, item: WidgetItem): WidgetResult {
   if (typeof spend !== 'number' || !Number.isFinite(spend)) return null;
   const fraction = Math.max(0, spend) / limit;
   const pct = `${Math.round(fraction * 100)}%`;
-  const display = opt<string>(item, 'display', 'amount');
+  const display = opt<string>(item, 'show', 'amount');
   let text: string;
   if (display === 'percent') text = pct;
   else if (display === 'bar') {
@@ -54,7 +54,7 @@ function budget(ctx: RenderContext, item: WidgetItem): WidgetResult {
   return color ? { text, color } : text;
 }
 
-const forBar = { key: 'display', values: ['bar'] };
+const forBar = { key: 'show', values: ['bar'] };
 
 const basisOption: OptionSpec = {
   key: 'basis',
@@ -210,7 +210,8 @@ export const widgets: WidgetDef[] = [
         help: 'Set the amount in Settings or with ccinfobar config set budget.daily 10',
       },
       {
-        key: 'display',
+        key: 'show',
+        aliases: ['display'],
         label: 'Display',
         kind: 'select',
         default: 'amount',

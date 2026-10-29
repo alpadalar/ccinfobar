@@ -94,6 +94,7 @@ const PURE = [
   'src/widgets/subagent-row.ts',
   'src/core/cache-rule.ts',
   'src/core/subagent-fields.ts',
+  'src/core/option-aliases.ts',
   'src/core/job-values.ts',
   'src/core/profiles.ts',
   'src/core/prices.ts',

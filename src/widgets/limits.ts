@@ -38,7 +38,8 @@ import {
 type Key = 'five_hour' | 'seven_day' | 'seven_day_sonnet' | 'seven_day_opus';
 
 const displayOption: OptionSpec = {
-  key: 'display',
+  key: 'show',
+  aliases: ['display'],
   label: 'Display',
   kind: 'select',
   default: 'percent',
@@ -188,7 +189,7 @@ function usageOf(ctx: RenderContext, item: WidgetItem, w: RateWindow | null, len
   const clamped = Math.max(0, Math.min(100, pct));
   const pace = opt(item, 'showPace', false) ? paceOf(ctx, w, len) : null;
   let text = pace === null ? `${Math.round(pct)}%` : `${Math.round(pct)}%/${pace}%`;
-  if (opt<string>(item, 'display', 'percent') === 'bar') {
+  if (opt<string>(item, 'show', 'percent') === 'bar') {
     const b = barFor(ctx, item, clamped, pace);
     text = opt(item, 'showPercent', true) ? `${b} ${text}` : b;
   }

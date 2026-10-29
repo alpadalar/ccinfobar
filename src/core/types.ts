@@ -296,6 +296,7 @@ export interface OptionSpec {
   choices?: OptionChoice[];
   help?: string;
   showWhen?: { key: string; values: OptionValue[] };
+  aliases?: readonly string[];
 }
 
 export interface WidgetOutput {

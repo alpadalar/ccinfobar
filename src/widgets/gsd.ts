@@ -123,7 +123,7 @@ export const widgets: WidgetDef[] = [
     options: [
       { key: 'showName', label: 'Show phase name', kind: 'boolean', default: true },
       { key: 'showTotal', label: 'Show total phases', kind: 'boolean', default: true },
-      { key: 'maxNameLength', label: 'Max name length', kind: 'number', default: 24 },
+      { key: 'maxLength', aliases: ['maxNameLength'], label: 'Max name length', kind: 'number', default: 24 },
     ],
     render: withGsd((info, item) => {
       const phase = info.phase;
@@ -137,7 +137,7 @@ export const widgets: WidgetDef[] = [
         else text += `/${info.phasesTotal}`;
       }
       if (opt(item, 'showName', true) && phase.name) {
-        text += ` ${clip(phase.name, opt(item, 'maxNameLength', 24))}`;
+        text += ` ${clip(phase.name, opt(item, 'maxLength', 24))}`;
       }
       return text;
     }),

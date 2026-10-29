@@ -7,9 +7,9 @@ import {
   sampleRepos,
   sampleTranscript,
 } from '../../src/core/sample.js';
-import type { OptionValue, RenderContext, StatusPayload } from '../../src/core/types.js';
+import type { OptionValue, RenderContext, StatusPayload, WidgetItem } from '../../src/core/types.js';
 import { slotKey } from '../../src/data/ledger.js';
-import { getWidget } from '../../src/widgets/index.js';
+import { ALL_WIDGETS, getWidget } from '../../src/widgets/index.js';
 import { ctxWith, NOW } from '../helpers.js';
 
 type Opts = Record<string, OptionValue>;
@@ -362,5 +362,51 @@ describe('old option names stay pinned', () => {
         null,
       ]
     `);
+  });
+});
+
+describe('canonical names', () => {
+  for (const c of CASES.filter((x) => x.group === 'rename')) {
+    it(`${c.id}: canonical equals old`, () => {
+      expect(run(c, c.canonical)).toEqual(run(c, c.old));
+    });
+  }
+});
+
+describe('alias table', () => {
+  const item = (type: string, options: Opts): WidgetItem => ({ id: type, type, options });
+
+  it('resolves aliasValue', async () => {
+    const { aliasValue } = await import('../../src/core/option-aliases.js');
+    expect(aliasValue('jj-bookmarks', 'maxItems', { maxBookmarks: 7 })).toBe(7);
+    expect(aliasValue('jj-bookmarks', 'maxItems', { other: 7 })).toBeUndefined();
+    expect(aliasValue('jj-bookmarks', 'maxItems', undefined)).toBeUndefined();
+    expect(aliasValue('nope', 'maxItems', { maxBookmarks: 7 })).toBeUndefined();
+    expect(aliasValue('jj-bookmarks', 'hasNoAlias', { maxBookmarks: 7 })).toBeUndefined();
+  });
+
+  it('lets opt() fall back and canonical win', async () => {
+    const { opt } = await import('../../src/widgets/shared.js');
+    expect(opt(item('jj-bookmarks', { maxItems: 2, maxBookmarks: 7 }), 'maxItems', 3)).toBe(2);
+    expect(opt(item('jj-bookmarks', { maxBookmarks: '7' }), 'maxItems', 3)).toBe(7);
+    expect(opt(item('jj-bookmarks', {}), 'maxItems', 3)).toBe(3);
+  });
+
+  it('declares the table on the registry', async () => {
+    const { OPTION_ALIASES } = await import('../../src/core/option-aliases.js');
+    const seen = new Set<string>();
+    for (const def of ALL_WIDGETS) {
+      const keys = new Set((def.options ?? []).map((o) => o.key));
+      for (const o of def.options ?? []) {
+        const want = (OPTION_ALIASES[def.type]?.[o.key] ?? []).map((a) => a.key);
+        expect(o.aliases ?? [], `${def.type}.${o.key}`).toEqual(want);
+        if (want.length) seen.add(`${def.type}.${o.key}`);
+        for (const a of want) expect(keys.has(a), `${def.type}.${a} clashes`).toBe(false);
+      }
+      for (const key of Object.keys(OPTION_ALIASES[def.type] ?? {})) {
+        expect(keys.has(key), `${def.type}.${key} is not an option`).toBe(true);
+      }
+    }
+    expect(seen.size).toBeGreaterThan(15);
   });
 });

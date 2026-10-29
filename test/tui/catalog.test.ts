@@ -88,7 +88,7 @@ describe('TUI widget metadata', () => {
     const config = defaultConfig();
     config.lines = [[{ id: 'c', type: 'context-percentage' }]];
     const fields = withLang(zz, () => widgetFields(def, 'c', config));
-    const mode = fields.find((f) => f.id === 'option:mode')!;
+    const mode = fields.find((f) => f.id === 'option:show')!;
     expect(mode.label).toBe('Kip');
     expect(mode.choices?.map((c) => c.label)).toEqual(['Kullanılan', 'Remaining']);
     expect(mode.choices?.map((c) => c.value)).toEqual(['used', 'remaining']);
@@ -96,9 +96,9 @@ describe('TUI widget metadata', () => {
     const th = fields.find((f) => f.id === 'option:thresholdColors')!;
     expect(th.label).toBe('Eşiğe göre renk');
     expect(th.help).toBe('Yeşil, sarı, kırmızı');
-    const en = widgetFields(def, 'c', config).find((f) => f.id === 'option:mode')!;
+    const en = widgetFields(def, 'c', config).find((f) => f.id === 'option:show')!;
     expect(en.label).toBe('Mode');
-    expect(en.choices).toEqual(def.options!.find((o) => o.key === 'mode')!.choices);
+    expect(en.choices).toEqual(def.options!.find((o) => o.key === 'show')!.choices);
   });
 });
 

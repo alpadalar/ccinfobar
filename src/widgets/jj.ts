@@ -12,13 +12,13 @@ export const widgets: WidgetDef[] = [
     color: 'magenta',
     sample: 'main',
     options: [
-      { key: 'maxBookmarks', label: 'Bookmarks shown', kind: 'number', default: 3 },
+      { key: 'maxItems', aliases: ['maxBookmarks'], label: 'Bookmarks shown', kind: 'number', default: 3 },
       { key: 'separator', label: 'Separator', kind: 'text', default: ', ' },
     ],
     render(ctx, item) {
       const list = ctx.data.jj?.()?.bookmarks();
       if (!list?.length) return null;
-      const max = Math.max(1, Math.floor(opt(item, 'maxBookmarks', 3)));
+      const max = Math.max(1, Math.floor(opt(item, 'maxItems', 3)));
       const text = list.slice(0, max).join(opt(item, 'separator', ', '));
       const more = list.length - max;
       return more > 0 ? `${text} +${more}` : text;

@@ -83,7 +83,7 @@ describe('editor catalog translation', () => {
       expect(widgetText(entry, 'description')).toBe('Bağlam penceresinin yüzdesi');
       expect(widgetText(entry, 'sample')).toBe('%34');
       expect(widgetText(entry, 'label')).toBe(entry.label);
-      const mode = entry.options.find((o) => o.key === 'mode')!;
+      const mode = entry.options.find((o) => o.key === 'show')!;
       expect(optionLabel(entry, mode)).toBe('Kip');
       expect(mode.choices!.map((c) => choiceLabel(entry, mode, c))).toEqual(['Kullanılan', 'Kalan']);
       const th = entry.options.find((o) => o.key === 'thresholdColors')!;
@@ -183,10 +183,10 @@ describe('inspector option controls', () => {
     optionControl(item, entry.options.find((o) => o.key === key)!) as unknown as FakeEl;
 
   it('shows translated labels and choices', () => {
-    const en = control('mode');
+    const en = control('show');
     expect(en.textContent).toContain('Mode');
     expect(en.all((e) => e.tagName === 'OPTION').map((e) => e.textContent)).toEqual(['Used', 'Remaining']);
-    const el = withLang(zz, () => control('mode'));
+    const el = withLang(zz, () => control('show'));
     expect(el.textContent).toContain('Kip');
     const options = el.all((e) => e.tagName === 'OPTION');
     expect(options.map((e) => e.textContent)).toEqual(['Kullanılan', 'Kalan']);

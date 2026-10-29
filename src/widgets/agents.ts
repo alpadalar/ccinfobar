@@ -60,7 +60,8 @@ export const widgets: WidgetDef[] = [
     sample: '2/5 ▸ Wiring GSD widgets…',
     options: [
       {
-        key: 'display',
+        key: 'show',
+        aliases: ['display'],
         label: 'Display',
         kind: 'select',
         default: 'list',
@@ -78,7 +79,7 @@ export const widgets: WidgetDef[] = [
       const done = todos.filter((t) => t.status === 'completed').length;
       const active = todos.find((t) => t.status === 'in_progress');
       const head = `${done}/${todos.length}`;
-      if (opt<string>(item, 'display', 'list') === 'current' || done === todos.length) {
+      if (opt<string>(item, 'show', 'list') === 'current' || done === todos.length) {
         return active ? `${head} ${mark(ctx, 'in_progress')} ${active.activeForm ?? active.content}` : head;
       }
       let list = todos.map((t, i) => ({ t, i }));
@@ -114,12 +115,12 @@ export const widgets: WidgetDef[] = [
     options: [
       { key: 'showTool', label: 'Show last tool', kind: 'boolean', default: true },
       { key: 'runningOnly', label: 'Only running agents', kind: 'boolean', default: false },
-      { key: 'maxAgents', label: 'Max agents', kind: 'number', default: 5 },
+      { key: 'maxItems', aliases: ['maxAgents'], label: 'Max agents', kind: 'number', default: 5 },
     ],
     render(ctx, item) {
       let agents = ctx.data.agents();
       if (opt(item, 'runningOnly', false)) agents = agents.filter((a) => a.running);
-      agents = agents.slice(0, Math.max(1, opt(item, 'maxAgents', 5)));
+      agents = agents.slice(0, Math.max(1, opt(item, 'maxItems', 5)));
       if (!agents.length) return null;
       return agentRows(ctx, agents, opt(item, 'showTool', true), ctx.extra ?? 0);
     },

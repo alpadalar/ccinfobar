@@ -480,7 +480,7 @@ describe('widget text helpers with metadata', () => {
 
   it('translate options with the per-widget override first', () => {
     withLang(zz, () => {
-      const mode = spec('mode');
+      const mode = spec('show');
       expect(optionLabel(def, mode)).toBe('Kip');
       expect(choiceLabel(def, mode, mode.choices![0]!)).toBe('Kullanılan');
       expect(choiceLabel(def, mode, mode.choices![1]!)).toBe('Kalan');
@@ -498,7 +498,7 @@ describe('widget text helpers with metadata', () => {
       expect(widgetText(proto, 'name')).toBe('Proto');
       expect(widgetText(proto, 'label')).toBe('');
       expect(optionLabel(proto, { key: '__proto__', label: 'constructor' })).toBe('constructor');
-      expect(choiceLabel(def, spec('mode'), { value: '__proto__', label: 'toString' })).toBe('toString');
+      expect(choiceLabel(def, spec('show'), { value: '__proto__', label: 'toString' })).toBe('toString');
       expect(categoryText('constructor', 'C')).toBe('C');
     });
   });
@@ -513,5 +513,36 @@ describe('widget text helpers with metadata', () => {
       meta: { ...meta, widgets: { 'git-branch': { name: 'Git Dalı', description: 'D' } } },
     };
     withLang(plain, () => expect(widgetHint(getWidget('git-branch')!)).toBe('dalı'));
+  });
+});
+
+describe('option metadata keyed by an alias', () => {
+  const lang = (options: NonNullable<MetaTable['widgets']>[string]['options']): LanguageDef => ({
+    id: 'zy',
+    name: 'Test',
+    aliases: [],
+    locale: 'tr',
+    messages: {},
+    meta: {
+      widgets: { 'context-percentage': { name: 'X', description: 'Y', options } },
+      options: {},
+      categories: {},
+      catalog: {},
+    },
+  });
+  const def = getWidget('context-percentage')!;
+  const show = def.options!.find((o) => o.key === 'show')!;
+
+  it('uses the entry of an old name', () => {
+    withLang(lang({ mode: { label: 'Eski', choices: { used: 'Eski kullanılan' } } }), () => {
+      expect(optionLabel(def, show)).toBe('Eski');
+      expect(choiceLabel(def, show, show.choices![0]!)).toBe('Eski kullanılan');
+    });
+  });
+
+  it('prefers the canonical entry', () => {
+    withLang(lang({ mode: { label: 'Eski' }, show: { label: 'Yeni' } }), () => {
+      expect(optionLabel(def, show)).toBe('Yeni');
+    });
   });
 });

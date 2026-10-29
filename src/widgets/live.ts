@@ -20,7 +20,8 @@ export const widgets: WidgetDef[] = [
     sample: 'Bash npm test · Read 4, Edit 2, Bash 1',
     options: [
       {
-        key: 'mode',
+        key: 'show',
+        aliases: ['mode'],
         label: 'Show',
         kind: 'select',
         default: 'both',
@@ -40,14 +41,14 @@ export const widgets: WidgetDef[] = [
           { value: 'session', label: 'This session' },
         ],
       },
-      { key: 'maxTools', label: 'Max tools', kind: 'number', default: 4 },
+      { key: 'maxItems', aliases: ['maxTools'], label: 'Max tools', kind: 'number', default: 4 },
       { key: 'groupMcp', label: 'Group MCP tools by server', kind: 'boolean', default: true },
       { key: 'showArgs', label: 'Show the running tool argument', kind: 'boolean', default: true },
     ],
     render(ctx, item) {
       const t = ctx.data.transcript();
       if (!t) return null;
-      const mode = opt<string>(item, 'mode', 'both');
+      const mode = opt<string>(item, 'show', 'both');
       const group = opt(item, 'groupMcp', true);
       const parts: string[] = [];
       if (mode !== 'counts') {
@@ -66,7 +67,7 @@ export const widgets: WidgetDef[] = [
         const scope =
           opt<string>(item, 'scope', 'turn') === 'session' ? t.sessionToolCounts : t.turnToolCounts;
         const all = mergeCounts(scope ?? [], group);
-        const max = Math.max(1, Math.floor(Number(opt(item, 'maxTools', 4))) || 1);
+        const max = Math.max(1, Math.floor(Number(opt(item, 'maxItems', 4))) || 1);
         const shown = all.slice(0, max).map(([name, n]) => `${name} ${n}`);
         if (shown.length) parts.push(shown.join(', ') + (all.length > max ? ` +${all.length - max}` : ''));
       }
