@@ -36,6 +36,7 @@ export const PERSONAL_KEYS = [
   'glyphMode',
   'ambiguousWidth',
   'update',
+  'updateMinAgeHours',
   'usageApi',
   'savePayload',
   'gitHardening',
