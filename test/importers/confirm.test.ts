@@ -7,10 +7,10 @@ import { importHelp } from '../../src/commands/import-help.js';
 import type { PromptIo } from '../../src/commands/io.js';
 import {
   type ImportFlags,
+  pasteArg,
   rerunCommand,
   runImport,
   runImportCommand,
-  shellArg,
 } from '../../src/commands/manage.js';
 import { t } from '../../src/core/i18n/index.js';
 import { tildify } from '../../src/core/paths.js';
@@ -130,8 +130,8 @@ describe('importTargets, dropTargets, sanitizeImport', () => {
 });
 
 describe('rerun hint quoting', () => {
-  const posix = (s: string) => shellArg(s, 'linux');
-  const win = (s: string) => shellArg(s, 'win32');
+  const posix = (s: string) => pasteArg(s, 'linux');
+  const win = (s: string) => pasteArg(s, 'win32');
 
   it('leaves plain paths alone', () => {
     expect(posix('/home/a/.config/ccstatusline/settings.json')).toBe(
@@ -297,7 +297,7 @@ describe('runImport confirmation', () => {
       '  command: echo hi',
       t('import.targetsDropped', { count: 1 }),
       t('import.rerun', {
-        command: `ccinfobar import ccstatusline --allow-commands --force --file ${shellArg(src)}`,
+        command: `ccinfobar import ccstatusline --allow-commands --force --file ${pasteArg(src)}`,
       }),
     ]);
     expect(f.lines[4]).toMatch(/^✓ Imported 1 widgets from ccstatusline \(/);
@@ -378,7 +378,7 @@ describe('runImport confirmation', () => {
       const src = path.join(root, ' with space', 'cc.json');
       expect(f.lines).toContain(
         t('import.rerun', {
-          command: `ccinfobar import ccstatusline --allow-commands --force --file ${shellArg(src)}`,
+          command: `ccinfobar import ccstatusline --allow-commands --force --file ${pasteArg(src)}`,
         }),
       );
       expect(items(cfg)).toEqual(['text']);
@@ -490,7 +490,7 @@ describe('import --dry-run', () => {
     expect(fs.readdirSync(path.dirname(cfg))).toEqual(['config.json']);
     expect(f.lines).toContain(
       t('import.rerun', {
-        command: `ccinfobar import ccstatusline --allow-commands --file ${shellArg(src)} --dry-run`,
+        command: `ccinfobar import ccstatusline --allow-commands --file ${pasteArg(src)} --dry-run`,
       }),
     );
     const head = f.lines.indexOf(t('import.dryRunHeader'));

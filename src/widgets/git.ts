@@ -3,12 +3,12 @@ import { hyperlink } from '../core/ansi.js';
 import { t } from '../core/i18n/index.js';
 import type { GhValue } from '../core/job-values.js';
 import { safeUrl } from '../core/sanitize.js';
-import type { OptionSpec, RenderContext, WidgetDef, WidgetItem } from '../core/types.js';
+import type { RenderContext, WidgetDef, WidgetItem } from '../core/types.js';
 import type { GitInfo } from '../data/git.js';
 import { ghKey, ghParam } from '../data/jobs/keys.js';
 import { jobValue } from '../data/jobs/runner.js';
 import { pickRepos } from '../data/repos.js';
-import { opt } from './shared.js';
+import { hideZeroOption, opt } from './shared.js';
 import { formatPath, segmentsOption, styleOption } from './workspace.js';
 
 export function parseRemote(url: string | null | undefined): { host: string; path: string } | null {
@@ -97,12 +97,7 @@ function ciText(v: GhValue, ascii: boolean): string {
   return '';
 }
 
-const hideZero: OptionSpec = {
-  key: 'hideZero',
-  label: 'Hide when zero',
-  kind: 'boolean',
-  default: false,
-};
+const hideZero = hideZeroOption();
 
 function worktreeName(ctx: RenderContext): string | null {
   const fromPayload = ctx.payload.worktree?.name || ctx.payload.workspace?.git_worktree;

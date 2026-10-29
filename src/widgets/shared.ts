@@ -235,6 +235,14 @@ export const barOptions: OptionSpec[] = [
   fillOption,
 ];
 
+export const hideZeroOption = (over: Partial<OptionSpec> = {}): OptionSpec => ({
+  key: 'hideZero',
+  label: 'Hide when zero',
+  kind: 'boolean',
+  default: false,
+  ...over,
+});
+
 export const thresholdOption: OptionSpec = {
   key: 'thresholdColors',
   label: 'Color by threshold',

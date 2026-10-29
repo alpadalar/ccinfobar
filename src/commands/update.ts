@@ -30,6 +30,7 @@ export {
   assertVersion,
   type CheckDeps,
   checkForUpdate,
+  cmdExeArg,
   fetchLatest,
   installSources,
   installVersionAsync,
@@ -38,7 +39,6 @@ export {
   npmCommand,
   npmInstallRuns,
   REPO,
-  shellArg,
   tarballUrl,
 } from '../data/self-update.js';
 export {

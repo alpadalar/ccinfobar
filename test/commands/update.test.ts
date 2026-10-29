@@ -51,7 +51,7 @@ describe('update', () => {
   });
 
   it('runs npm without install scripts and quotes args for the Windows shell', async () => {
-    const { npmCommand, npmInstallRuns, shellArg } = await import('../../src/commands/update.js');
+    const { npmCommand, npmInstallRuns, cmdExeArg } = await import('../../src/commands/update.js');
     const node = { file: '/n/node', args: ['/n/npm-cli.js'], shell: false };
     const plain = npmInstallRuns('0.5.1', '/home/a b/app', node);
     expect(plain.opts.shell).toBe(false);
@@ -79,7 +79,7 @@ describe('update', () => {
     );
     expect(win.opts.cwd).toBe(safeCwd());
     expect(plain.opts).not.toHaveProperty('cwd');
-    expect(shellArg('-g')).toBe('-g');
+    expect(cmdExeArg('-g')).toBe('-g');
     const none = () => false;
     expect(npmCommand({ platform: 'win32', env: {}, exists: none })).toEqual({
       file: 'npm.cmd',

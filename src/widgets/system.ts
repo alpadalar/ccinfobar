@@ -2,7 +2,7 @@ import os from 'node:os';
 import { formatMonthDay } from '../core/i18n/format.js';
 import { languageLocale, t } from '../core/i18n/index.js';
 import type { WidgetDef } from '../core/types.js';
-import { opt } from './shared.js';
+import { hideZeroOption, opt } from './shared.js';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const GB = 1024 ** 3;
@@ -135,7 +135,7 @@ export const widgets: WidgetDef[] = [
       { key: 'showRules', label: 'Show rules', kind: 'boolean', default: true },
       { key: 'showMcp', label: 'Show MCP servers', kind: 'boolean', default: true },
       { key: 'showHooks', label: 'Show hooks', kind: 'boolean', default: true },
-      { key: 'hideZero', label: 'Hide zero counts', kind: 'boolean', default: true },
+      hideZeroOption({ label: 'Hide zero counts', default: true }),
       {
         key: 'mcpHealth',
         label: 'MCP health',

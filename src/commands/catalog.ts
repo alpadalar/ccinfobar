@@ -550,7 +550,7 @@ async function applySource(c: Ctx, src: ApplySource): Promise<void> {
   }
   if (kind !== 'theme' && content.layout) {
     const before = importTargets(content.layout);
-    const refArg = src.code ? '<code>' : (m.shellArg(ref) ?? ref);
+    const refArg = src.code ? '<code>' : (m.pasteArg(ref) ?? ref);
     const parts = [m.selfCommand(), 'catalog', 'apply', refArg, '--allow-commands'];
     if (c.dryRun) parts.push('--dry-run');
     const rerun = { command: sanitizeText(parts.join(' ')), addFile: false, addCommand: false };

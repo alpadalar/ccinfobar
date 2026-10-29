@@ -76,7 +76,7 @@ export function npmCommand(deps: NpmDeps = {}): NpmCommand {
 }
 
 // cmd.exe joins args unquoted
-export function shellArg(a: string): string {
+export function cmdExeArg(a: string): string {
   return /^[\w@./:=\\-]+$/.test(a) ? a : `"${a}"`;
 }
 
@@ -104,7 +104,7 @@ export function npmInstallRuns(
       '--no-fund',
       '--loglevel=error',
     ];
-    return [...npm.args, ...(npm.shell ? args.map(shellArg) : args)];
+    return [...npm.args, ...(npm.shell ? args.map(cmdExeArg) : args)];
   });
   const opts = {
     timeout: 120_000,

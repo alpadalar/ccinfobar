@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../../src/cli/args.js';
 import { type InstallIo, offerImport, runInstall } from '../../src/commands/install-cli.js';
-import { shellArg } from '../../src/commands/manage.js';
+import { pasteArg } from '../../src/commands/manage.js';
 import { t } from '../../src/core/i18n/index.js';
 import { tildify } from '../../src/core/paths.js';
 import { ccstatuslinePath, detectTool, hudPaths, sniffTool } from '../../src/importers/index.js';
@@ -86,7 +86,7 @@ describe('install import offer', () => {
     expect(f.lines).toContain('  command: echo hi');
     expect(f.lines).toContain(
       t('import.rerun', {
-        command: `ccinfobar import ccstatusline --allow-commands --force --file ${shellArg(ccFile)} --command ${shellArg('npx ccstatusline')}`,
+        command: `ccinfobar import ccstatusline --allow-commands --force --file ${pasteArg(ccFile)} --command ${pasteArg('npx ccstatusline')}`,
       }),
     );
   });
@@ -314,9 +314,9 @@ describe('install import offer', () => {
       const f = fake(false);
       await offerImport(detectTool(hudCmd)!, parseArgs(['install', '--yes']), cfg, f.io);
       expect(types()).toEqual(['model']);
-      const file = shellArg(hudPaths(process.env).config)!;
+      const file = pasteArg(hudPaths(process.env).config)!;
       const base = `ccinfobar import claude-hud --allow-commands --force --file ${file}`;
-      const cmd = shellArg(hudCmd);
+      const cmd = pasteArg(hudCmd);
       expect(f.lines).toContain(
         cmd
           ? t('import.rerun', { command: `${base} --command ${cmd}` })

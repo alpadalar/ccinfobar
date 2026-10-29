@@ -9,7 +9,7 @@ import { listEntries, saveEntry } from '../../src/catalog/store.js';
 import { parseArgs } from '../../src/cli/args.js';
 import { runCatalog, when } from '../../src/commands/catalog.js';
 import type { PromptIo } from '../../src/commands/io.js';
-import { shellArg } from '../../src/commands/manage.js';
+import { pasteArg } from '../../src/commands/manage.js';
 import { contentHash } from '../../src/market/client.js';
 import { startMarketServer } from '../../src/market/server.js';
 import { withLangAsync } from '../helpers.js';
@@ -181,7 +181,7 @@ function entryDoc(id: string, hash: string, over: Record<string, unknown> = {}) 
   };
 }
 
-const hint = (name: string) => `Apply it with: ccinfobar catalog apply ${shellArg(name)}`;
+const hint = (name: string) => `Apply it with: ccinfobar catalog apply ${pasteArg(name)}`;
 
 describe('catalog install', () => {
   it('lists the links, installs with --yes and prints how to apply it (D-11)', async () => {
@@ -396,7 +396,7 @@ describe('catalog install', () => {
     const r = await withLangAsync('tr', () => run(['install', 'alice/cockpit', '--yes'], { env: m.env }));
     expect(r.out[1]).toBe('Paket · v1 · Alice (alice) tarafından');
     expect(r.out).toContain('alice/cockpit v1, Cockpit olarak yüklendi');
-    expect(r.out.at(-1)).toBe(`Uygulamak için: ccinfobar catalog apply ${shellArg('Cockpit')}`);
+    expect(r.out.at(-1)).toBe(`Uygulamak için: ccinfobar catalog apply ${pasteArg('Cockpit')}`);
     const list = await withLangAsync('tr', () => run(['list', '--user'], { env: m.env }));
     expect(list.out.find((l) => l.includes('Cockpit'))).toMatch(/Marketplace'ten$/);
     const gone = await withLangAsync('tr', () => run(['install', 'alice/none', '--yes'], { env: m.env }));

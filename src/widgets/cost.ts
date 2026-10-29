@@ -1,7 +1,15 @@
 import { resolveProfile } from '../core/profiles.js';
 import type { OptionSpec, RenderContext, WidgetDef, WidgetItem, WidgetResult } from '../core/types.js';
 import { detectProvider } from '../data/provider.js';
-import { barFor, barOptions, formatCurrency, formatDuration, formatMoney, opt } from './shared.js';
+import {
+  barFor,
+  barOptions,
+  formatCurrency,
+  formatDuration,
+  formatMoney,
+  hideZeroOption,
+  opt,
+} from './shared.js';
 
 const durationOption: OptionSpec = {
   key: 'format',
@@ -274,7 +282,7 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰦒', emoji: '✏️' },
     color: 'green',
     sample: '+214 -63',
-    options: [{ key: 'hideZero', label: 'Hide when no changes', kind: 'boolean', default: false }],
+    options: [hideZeroOption({ label: 'Hide when no changes' })],
     render(ctx, item) {
       const c = ctx.payload.cost;
       if (typeof c?.total_lines_added !== 'number' && typeof c?.total_lines_removed !== 'number') return null;

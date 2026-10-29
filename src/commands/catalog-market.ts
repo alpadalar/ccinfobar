@@ -595,7 +595,7 @@ export async function runInstallCommand(c: Ctx): Promise<void> {
   else if (done.result === 'version') c.io.log(t('catalog.install.added', { ...vars, name }));
   else if (!existing?.same) c.io.log(t('catalog.install.existing', { ...vars, name }));
   const m = await import('./manage.js');
-  c.io.log(t('catalog.install.applyHint', { name: m.shellArg(name) ?? clean(done.entryId) }));
+  c.io.log(t('catalog.install.applyHint', { name: m.pasteArg(name) ?? clean(done.entryId) }));
 }
 
 const SIGN_IN: Record<string, MessageId> = {

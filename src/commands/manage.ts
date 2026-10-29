@@ -117,7 +117,7 @@ const POSIX_SAFE = /^[\w@%+=:,./][\w@%+=:,./~-]*$/;
 const WIN_BAD = /["%!`$]/;
 
 // null when the path cannot be pasted safely; on Windows always quoted, for Git Bash and PowerShell
-export function shellArg(s: string, platform: NodeJS.Platform = process.platform): string | null {
+export function pasteArg(s: string, platform: NodeJS.Platform = process.platform): string | null {
   if (!s || sanitizeText(s) !== s) return null;
   if (platform === 'win32') return WIN_BAD.test(s) ? null : `"${s}"`;
   return POSIX_SAFE.test(s) ? s : `'${s.replace(/'/g, "'\\''")}'`;
@@ -146,11 +146,11 @@ export function rerunCommand(
   // a real import has written the config by then; a dry run needs no --force
   const parts = [o.program ?? 'ccinfobar', 'import', source, '--allow-commands'];
   if (!o.dryRun) parts.push('--force');
-  const arg = o.file ? shellArg(o.file, platform) : null;
+  const arg = o.file ? pasteArg(o.file, platform) : null;
   if (arg) parts.push('--file', arg);
   // install replaces it before the hint is used
   const command = o.command && !/ccinfobar/i.test(o.command) ? o.command : '';
-  const cmd = command ? shellArg(command, platform) : null;
+  const cmd = command ? pasteArg(command, platform) : null;
   if (cmd) parts.push('--command', cmd);
   if (o.dryRun) parts.push('--dry-run');
   return { command: sanitizeText(parts.join(' ')), addFile: !!o.file && !arg, addCommand: !!command && !cmd };
