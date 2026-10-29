@@ -12,6 +12,7 @@ const PROJECT = path.join(ROOT, 'layers-project');
 const MANAGED = path.join(ROOT, 'layers-managed', 'managed-settings.json');
 const PROJECT_FILE = path.join(PROJECT, '.claude', 'settings.json');
 const LOCAL_FILE = path.join(PROJECT, '.claude', 'settings.local.json');
+const HOME_DIR = path.join(ROOT, 'layers-home');
 
 const put = (file: string, data: unknown) => {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -24,11 +25,15 @@ const cfg = (extra: object = {}) => {
   return file;
 };
 
-const doctor = (extra: object = {}, managedFiles: string[] = []): string[] => {
-  put(lastPayloadPath(), { workspace: { project_dir: PROJECT } });
+const doctorAt = (
+  cwd: string,
+  projectDir: string | null,
+  extra: object = {},
+  managedFiles: string[] = [],
+): string[] => {
+  if (projectDir) put(lastPayloadPath(), { workspace: { project_dir: projectDir } });
   const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-  // the repo's own .claude must not leak in
-  vi.spyOn(process, 'cwd').mockReturnValue(path.join(ROOT, 'layers-cwd'));
+  vi.spyOn(process, 'cwd').mockReturnValue(cwd);
   try {
     runDoctor(cfg(extra), { managedFiles });
     return spy.mock.calls.map((c) => c.map(String).join(' '));
@@ -37,15 +42,21 @@ const doctor = (extra: object = {}, managedFiles: string[] = []): string[] => {
   }
 };
 
+// the repo's own .claude must not leak in
+const doctor = (extra: object = {}, managedFiles: string[] = []): string[] =>
+  doctorAt(path.join(ROOT, 'layers-cwd'), PROJECT, extra, managedFiles);
+
 const USER_SL = { statusLine: { type: 'command', command: '/bin/ccinfobar' } };
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   resetLanguageCache();
   for (const f of [claudeSettingsPath(), manifestFile(), lastPayloadPath(), MANAGED]) {
     fs.rmSync(f, { force: true });
   }
   fs.rmSync(PROJECT, { recursive: true, force: true });
+  fs.rmSync(HOME_DIR, { recursive: true, force: true });
 });
 
 const effective = (layer: string, file: string, command: string) =>
@@ -119,5 +130,24 @@ describe('doctor effective layer', () => {
     expect(out).toContain(
       `  Claude Code ${tildify(PROJECT_FILE)} içindeki project statusLine ayarını kullanıyor: other`,
     );
+  });
+});
+
+describe('doctor run from the home folder', () => {
+  it('run from the home folder prints no effective line', () => {
+    vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(HOME_DIR, '.claude'));
+    put(claudeSettingsPath(), {
+      ...USER_SL,
+      subagentStatusLine: { type: 'command', command: '/bin/ccinfobar subagent-line' },
+    });
+    const out = doctorAt(HOME_DIR, HOME_DIR);
+    expect(out.some((l) => l.includes('Claude Code uses the'))).toBe(false);
+  });
+
+  it('run from the home folder prints a user-file hook warning once', () => {
+    vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(HOME_DIR, '.claude'));
+    put(claudeSettingsPath(), { ...USER_SL, disableAllHooks: true });
+    const out = doctorAt(HOME_DIR, HOME_DIR);
+    expect(out.filter((l) => l.includes('disableAllHooks')).length).toBe(1);
   });
 });

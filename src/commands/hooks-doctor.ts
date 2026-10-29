@@ -6,7 +6,7 @@ import type { ProgressConfig } from '../core/types.js';
 import { terminalAllowed } from '../data/progress.js';
 import { compareVersions } from '../data/update-state.js';
 import { HOOK_FLOOR } from './hooks-install.js';
-import { deepEqual, type HookEntry } from './manifest.js';
+import { deepEqual, type HookEntry, realKey } from './manifest.js';
 
 export type { SettingsLayer };
 
@@ -175,15 +175,27 @@ export function entryCommand(entry: HookEntry): string | null {
   return h.command.replace(/\s+(--progress\s+)?hook\s+[A-Za-z]+\s*$/, '');
 }
 
+export function settingsFileKey(file: string, platform: NodeJS.Platform = process.platform): string {
+  const key = realKey(file);
+  return platform === 'win32' || platform === 'darwin' ? key.toLowerCase() : key;
+}
+
 export function settingsLayers(
   settingsFile: string,
   dirs: Iterable<string>,
   managedFiles: string[],
+  platform: NodeJS.Platform = process.platform,
 ): SettingsLayer[] {
   const layers: SettingsLayer[] = [readSettingsLayer('user', settingsFile)];
+  const user = settingsFileKey(settingsFile, platform);
   for (const dir of dirs) {
-    layers.push(readSettingsLayer('project', projectSettingsPath(dir, false)));
-    layers.push(readSettingsLayer('local', projectSettingsPath(dir, true)));
+    for (const [name, local] of [
+      ['project', false],
+      ['local', true],
+    ] as const) {
+      const file = projectSettingsPath(dir, local);
+      if (settingsFileKey(file, platform) !== user) layers.push(readSettingsLayer(name, file));
+    }
   }
   for (const f of managedFiles) layers.push(readSettingsLayer('managed', f));
   return layers;

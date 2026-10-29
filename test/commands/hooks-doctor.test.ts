@@ -11,6 +11,7 @@ import {
   progressWarnings,
   readSettingsLayer,
   type SettingsLayer,
+  settingsFileKey,
   settingsLayers,
 } from '../../src/commands/hooks-doctor.js';
 import type { HookEntry } from '../../src/commands/manifest.js';
@@ -367,5 +368,23 @@ describe('settingsLayers', () => {
       projectSettingsPath('/p2', true),
       '/m',
     ]);
+  });
+
+  it('never reads the user file as a project layer', () => {
+    const H = path.resolve('/h');
+    const user = path.join(H, '.claude', 'settings.json');
+    const layers = settingsLayers(user, [H, path.resolve('/p')], []);
+    expect(layers.map((l) => l.name)).toEqual(['user', 'local', 'project', 'local']);
+    expect(layers.slice(1).some((l) => l.file === user)).toBe(false);
+  });
+
+  it('settingsFileKey folds case on win32 and darwin only', () => {
+    const H = path.resolve('/h');
+    const user = path.join(H, '.claude', 'settings.json');
+    const other = path.join(H, '.Claude', 'Settings.json');
+    for (const p of ['win32', 'darwin'] as const) {
+      expect(settingsFileKey(other, p)).toBe(settingsFileKey(user, p));
+    }
+    expect(settingsFileKey(other, 'linux')).not.toBe(settingsFileKey(user, 'linux'));
   });
 });
