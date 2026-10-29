@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { entryHash } from '../../src/catalog/share.js';
+import { normalizeConfig } from '../../src/core/config.js';
+import { upgradeOptions } from '../../src/core/edit.js';
 import {
   sampleGsd,
   sampleJj,
@@ -11,6 +14,8 @@ import type { OptionValue, RenderContext, StatusPayload, WidgetItem } from '../.
 import { slotKey } from '../../src/data/ledger.js';
 import { ALL_WIDGETS, getWidget } from '../../src/widgets/index.js';
 import { ctxWith, NOW } from '../helpers.js';
+
+const HASH = '360c3f9ab9badcdd084b47aa5f05dceaf500fd5a3f79199a595b07ed79d1fdca';
 
 type Opts = Record<string, OptionValue>;
 
@@ -408,5 +413,19 @@ describe('alias table', () => {
       }
     }
     expect(seen.size).toBeGreaterThan(15);
+  });
+});
+
+describe('old names stay on disk', () => {
+  const old = { layout: { lines: [[{ type: 'jj-bookmarks', options: { maxBookmarks: 2 } }]] } };
+
+  it('keeps old keys through normalizeConfig and upgradeOptions', () => {
+    const cfg = normalizeConfig(structuredClone(old.layout));
+    expect(cfg.lines[0]![0]!.options).toEqual({ maxBookmarks: 2 });
+    expect(upgradeOptions(cfg).lines[0]![0]!.options).toEqual({ maxBookmarks: 2 });
+  });
+
+  it('hashes an entry using old names to a fixed value', () => {
+    expect(entryHash(old as never)).toBe(HASH);
   });
 });
