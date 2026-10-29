@@ -1,5 +1,6 @@
 // GitHub sign-in; the GitHub token is used once, never stored or logged (D-06, D-10, R-14)
 import { sanitizeText } from '../../core/sanitize.js';
+import { GITHUB_TOKEN_RE, LOGIN_RE } from '../patterns.js';
 import { CLIENT_ID_RE, LIST_CAP, MARKET_LIMITS } from '../protocol.js';
 import { CAPS, fail, limited, MarketHttpError, retryAfterSeconds, TOKEN_RE, windowOf } from '../rules.js';
 import { type Env, unverifiedOk, type WorkerDeps } from './env.js';
@@ -26,8 +27,6 @@ const GITHUB_HEADERS = {
   'x-github-api-version': '2026-03-10',
   'user-agent': 'ccinfobar-market',
 };
-const GITHUB_TOKEN_RE = /^[A-Za-z0-9_]{20,255}$/;
-const LOGIN_RE = /^[A-Za-z0-9](?:-?[A-Za-z0-9]){0,38}$/;
 const BODY_CAP = 4096;
 const ANSWER_CAP = 16 * 1024;
 const TIMEOUT_MS = 8000;

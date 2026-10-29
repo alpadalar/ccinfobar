@@ -8,6 +8,7 @@ import type { Config } from '../core/types.js';
 import { CAP_BYTES, errorCode, JobFetchError, type JsonResponse, requestJson } from '../data/jobs/fetch.js';
 import { type ImportTarget, importTargets } from '../importers/confirm.js';
 import { checkEndpoint } from './endpoint.js';
+import { GITHUB_TOKEN_RE, SESSION_TOKEN_RE } from './patterns.js';
 import {
   adminActionPath,
   adminEntryPath,
@@ -61,8 +62,6 @@ export { checkEndpoint };
 
 const TIMEOUT_MS = 10_000;
 const HASH_RE = /^[0-9a-f]{64}$/;
-const TOKEN_RE = /^[\x21-\x7e]{1,512}$/;
-const GITHUB_TOKEN_RE = /^[A-Za-z0-9_]{20,255}$/;
 const ETAG_RE = /^(?:W\/)?"[\x21\x23-\x7e]{1,128}"$/;
 
 // fetch codes callers can map; anything else is unknown
@@ -252,7 +251,7 @@ export function createMarketClient(opts: MarketClientOpts) {
       const auth = o.auth ?? method !== 'GET';
       if (o.auth === true && token === null) throw new MarketError('unauthorized');
       if (auth && token !== null) {
-        if (!TOKEN_RE.test(token)) throw new MarketError('unauthorized');
+        if (!SESSION_TOKEN_RE.test(token)) throw new MarketError('unauthorized');
         headers.authorization = `Bearer ${token}`;
       }
       return await requestJson(new URL(`${endpoint}${p}`), {
@@ -387,7 +386,7 @@ export function createMarketClient(opts: MarketClientOpts) {
       const b = await call('POST', publishersPath(), { handle, displayName });
       const o = isObject(b) ? b : {};
       if (typeof o.handle !== 'string' || !ID_PART_RE.test(o.handle)) throw new MarketError('bad-json');
-      if (typeof o.token !== 'string' || !TOKEN_RE.test(o.token)) throw new MarketError('bad-json');
+      if (typeof o.token !== 'string' || !SESSION_TOKEN_RE.test(o.token)) throw new MarketError('bad-json');
       return { handle: o.handle, token: o.token };
     },
     async publish(payload: PublishPayload): Promise<Written & { id: string }> {

@@ -82,6 +82,7 @@ const LANG_TABLES = /^src\/core\/i18n\/(?!en\/)[a-z]{2,3}\//;
 // later plans extend this
 const PURE = [
   'src/core/ids.ts',
+  'src/market/patterns.ts',
   'src/core/sanitize.ts',
   'src/core/share-code.ts',
   'src/core/payload.ts',
@@ -528,6 +529,7 @@ describe('import graph', () => {
     const allowed = new Set([
       'src/market/protocol.ts',
       'src/market/rules.ts',
+      'src/market/patterns.ts',
       'src/core/sanitize.ts',
       'src/core/entry-keys.ts',
     ]);

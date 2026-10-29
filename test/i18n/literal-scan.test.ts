@@ -237,6 +237,7 @@ const SWEPT: string[] = [
 // left out on purpose, with the reason; SWEPT + NOT_SWEPT cover src/ outside src/core/i18n/
 const NOT_SWEPT: Record<string, string> = {
   'src/core/ids.ts': 'id predicates, no user-facing prose',
+  'src/market/patterns.ts': 'marketplace patterns, no prose',
   'src/core/subagent-fields.ts': 'subagent field ids, no prose',
   'src/core/option-aliases.ts': 'option alias table, no prose',
   'src/core/settings-layers.ts': 'pure precedence helper, no user-facing prose',

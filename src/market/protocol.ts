@@ -8,6 +8,7 @@ import {
   parseCols,
 } from '../core/entry-keys.js';
 import { cleanLabel, deepSanitize, safeUrl, tooDeep } from '../core/sanitize.js';
+import { LOGIN_RE } from './patterns.js';
 
 export const PROTOCOL_VERSION = 1;
 export const ID_PART_RE = /^[a-z0-9][a-z0-9-]{0,38}$/;
@@ -64,7 +65,6 @@ const STAMP = 64;
 const HASH_RE = /^[0-9a-f]{64}$/;
 const AUTH_RE = /^[a-z0-9-]{1,32}$/;
 export const CLIENT_ID_RE = /^[A-Za-z0-9._-]{4,64}$/;
-const LOGIN_RE = /^[A-Za-z0-9](?:-?[A-Za-z0-9]){0,38}$/;
 const STATES: readonly MarketEntryState[] = ['pending', 'live', 'withdrawn', 'removed'];
 const ADMIN_ACTIONS = new Set(['approve', 'reject', 'remove']);
 const BAN_ACTIONS = new Set(['ban', 'unban']);

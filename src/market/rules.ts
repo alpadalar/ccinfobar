@@ -20,7 +20,7 @@ export const CAPS = {
   tombstonesPerPublisher: 1000,
 };
 export const REGISTERS_PER_MINUTE = 5;
-export const TOKEN_RE = /^Bearer ([0-9a-f]{64})$/;
+export { BEARER_RE as TOKEN_RE } from './patterns.js';
 export const DIGEST_RE = /^[0-9a-f]{64}$/;
 export const VERSION_RE = /^[1-9][0-9]{0,15}$/;
 export const IF_MATCH_RE = /^"([1-9][0-9]{0,15})"$/;

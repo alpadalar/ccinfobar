@@ -1,6 +1,7 @@
 // GitHub device flow on the user's machine; the token goes to the caller only
 import { sanitizeText } from '../core/sanitize.js';
 import { errorCode, type JsonResponse, requestJson } from '../data/jobs/fetch.js';
+import { GITHUB_TOKEN_RE } from './patterns.js';
 import { CLIENT_ID_RE } from './protocol.js';
 
 export const VERIFY_URL = 'https://github.com/login/device';
@@ -16,7 +17,6 @@ const MAX_EXPIRES = 1800;
 const MAX_RETRIES = 3;
 const USER_CODE_RE = /^[A-Z0-9-]{4,16}$/;
 const DEVICE_CODE_RE = /^[A-Za-z0-9_-]{8,255}$/;
-const TOKEN_RE = /^[A-Za-z0-9_]{20,255}$/;
 
 export type DeviceFlowCode = 'failed' | 'disabled' | 'network' | 'timeout' | 'unavailable' | 'cancelled';
 
@@ -147,7 +147,7 @@ export async function pollOnce(
     return { status: Object.hasOwn(TERMINAL, error) ? TERMINAL[error]! : 'failed' };
   const token = own(b, 'access_token');
   // refresh_token and the rest are dropped
-  if (ok(res) && typeof token === 'string' && TOKEN_RE.test(token)) return { status: 'ok', token };
+  if (ok(res) && typeof token === 'string' && GITHUB_TOKEN_RE.test(token)) return { status: 'ok', token };
   return { status: 'failed' };
 }
 
