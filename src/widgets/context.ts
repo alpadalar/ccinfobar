@@ -242,11 +242,13 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰁨', emoji: '🗜️' },
     color: 'yellow',
     sample: '1x',
-    options: [{ key: 'showZero', label: 'Show when zero', kind: 'boolean', default: false }],
+    options: [
+      { key: 'hideZero', label: 'Hide when zero', kind: 'boolean', default: true, aliases: ['showZero'] },
+    ],
     render(ctx, item) {
       const t = ctx.data.transcript();
       if (!t) return null;
-      if (t.compactions === 0 && !opt(item, 'showZero', false)) return null;
+      if (t.compactions === 0 && opt(item, 'hideZero', true)) return null;
       return `${t.compactions}x`;
     },
   },

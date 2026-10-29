@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { entryHash } from '../../src/catalog/share.js';
 import { normalizeConfig } from '../../src/core/config.js';
 import { upgradeOptions } from '../../src/core/edit.js';
+import { optionLabel } from '../../src/core/i18n/widget-text.js';
 import {
   sampleGsd,
   sampleJj,
@@ -13,7 +14,7 @@ import {
 import type { OptionValue, RenderContext, StatusPayload, WidgetItem } from '../../src/core/types.js';
 import { slotKey } from '../../src/data/ledger.js';
 import { ALL_WIDGETS, getWidget } from '../../src/widgets/index.js';
-import { ctxWith, NOW } from '../helpers.js';
+import { ctxWith, NOW, withLang } from '../helpers.js';
 
 const HASH = '360c3f9ab9badcdd084b47aa5f05dceaf500fd5a3f79199a595b07ed79d1fdca';
 
@@ -371,11 +372,56 @@ describe('old option names stay pinned', () => {
 });
 
 describe('canonical names', () => {
-  for (const c of CASES.filter((x) => x.group === 'rename')) {
+  for (const c of CASES) {
     it(`${c.id}: canonical equals old`, () => {
       expect(run(c, c.canonical)).toEqual(run(c, c.old));
     });
   }
+
+  for (const c of CASES.filter((x) => x.group === 'hide')) {
+    it(`${c.id}: canonical equals old in the other polarity`, () => {
+      const inv = (o: Opts): Opts => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, !v]));
+      expect(run(c, inv(c.canonical))).toEqual(run(c, inv(c.old)));
+    });
+  }
+
+  it('hides a fresh item like today', () => {
+    for (const id of ['compactions', 'gsd-plans', 'output-style', 'fast-mode', 'sandbox']) {
+      const c = byId(id);
+      expect(run(c, {}), id).toEqual(run(c, flipped(c)));
+    }
+  });
+});
+
+describe('hide aliases', () => {
+  it('inverts after coercing', async () => {
+    const { aliasValue } = await import('../../src/core/option-aliases.js');
+    expect(aliasValue('compactions', 'hideZero', { showZero: true })).toBe(false);
+    expect(aliasValue('compactions', 'hideZero', { showZero: 'true' })).toBe(false);
+    expect(aliasValue('compactions', 'hideZero', { showZero: false })).toBe(true);
+    expect(aliasValue('gsd-plans', 'hideZero', { showEmpty: true })).toBe(false);
+    expect(aliasValue('fast-mode', 'hideOff', { showOff: true })).toBe(false);
+    expect(aliasValue('jj-workspace', 'hideZero', { hideDefault: true })).toBe(true);
+  });
+
+  it('labels the canonical options by polarity in en and tr', () => {
+    const want: [string, string, string, string, boolean][] = [
+      ['compactions', 'hideZero', 'Hide when zero', 'Sıfırsa gizle', true],
+      ['gsd-plans', 'hideZero', 'Hide when phase has no plans', 'Aşamada plan yokken gizle', true],
+      ['output-style', 'hideZero', 'Hide default style', 'Varsayılan stili gizle', true],
+      ['fast-mode', 'hideOff', 'Hide when off', 'Kapalıyken gizle', true],
+      ['sandbox', 'hideOff', 'Hide when off', 'Kapalıyken gizle', true],
+    ];
+    for (const [type, key, en, tr, def] of want) {
+      const spec = getWidget(type)!.options!.find((o) => o.key === key)!;
+      expect(spec.label).toBe(en);
+      expect(spec.kind).toBe('boolean');
+      expect(spec.default).toBe(def);
+      expect(spec.aliases?.length).toBe(1);
+      expect(optionLabel(getWidget(type)!, spec)).toBe(en);
+      withLang('tr', () => expect(optionLabel(getWidget(type)!, spec)).toBe(tr));
+    }
+  });
 });
 
 describe('alias table', () => {

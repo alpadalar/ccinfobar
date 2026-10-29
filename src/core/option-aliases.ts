@@ -24,6 +24,12 @@ export const OPTION_ALIASES: Record<string, Record<string, readonly OptionAlias[
   'activity-strip': { show: SHOW_MODE },
   'context-percentage': { show: SHOW_MODE },
   performance: { style: SHOW_DISPLAY },
+  'jj-workspace': { hideZero: [{ key: 'hideDefault' }] },
+  compactions: { hideZero: [{ key: 'showZero', invert: true }] },
+  'gsd-plans': { hideZero: [{ key: 'showEmpty', invert: true }] },
+  'output-style': { hideZero: [{ key: 'showDefault', invert: true }] },
+  'fast-mode': { hideOff: [{ key: 'showOff', invert: true }] },
+  sandbox: { hideOff: [{ key: 'showOff', invert: true }] },
 };
 
 export function aliasValue(type: string, key: string, options: Record<string, unknown> | undefined): unknown {

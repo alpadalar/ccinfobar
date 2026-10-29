@@ -425,7 +425,7 @@ Not covered:
 
 - Settings passed with `--settings <file>` and MDM or server-managed settings are not visible to a status line, so they are not reflected.
 - The chip shows the setting, not whether the sandbox actually started. On Windows the sandbox never runs and the widget hides.
-- `showOff` shows `sandbox off` when a layer sets `false`; `showStrict` appends `strict` when `allowUnsandboxedCommands` is `false`.
+- `hideOff` (on by default) hides the chip when a layer sets `false`; turn it off to show `sandbox off` (old name `showOff`, inverted); `showStrict` appends `strict` when `allowUnsandboxedCommands` is `false`.
 - Opt-in: no preset uses it.
 
 ### workspace-repos

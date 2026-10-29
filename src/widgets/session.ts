@@ -120,11 +120,13 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󱐋', emoji: '⚡' },
     color: 'yellow',
     sample: 'fast',
-    options: [{ key: 'showOff', label: 'Show when off', kind: 'boolean', default: false }],
+    options: [
+      { key: 'hideOff', label: 'Hide when off', kind: 'boolean', default: true, aliases: ['showOff'] },
+    ],
     render(ctx, item) {
       const f = ctx.payload.fast_mode;
       if (f) return t('widget.fast.on');
-      return f === false && opt(item, 'showOff', false) ? t('widget.fast.off') : null;
+      return f === false && !opt(item, 'hideOff', true) ? t('widget.fast.off') : null;
     },
   },
   {
@@ -137,7 +139,7 @@ export const widgets: WidgetDef[] = [
     sample: 'sandbox',
     hideWhenEmpty: true,
     options: [
-      { key: 'showOff', label: 'Show when off', kind: 'boolean', default: false },
+      { key: 'hideOff', label: 'Hide when off', kind: 'boolean', default: true, aliases: ['showOff'] },
       { key: 'showStrict', label: 'Mark strict mode', kind: 'boolean', default: false },
     ],
     render(ctx, item) {
@@ -148,7 +150,7 @@ export const widgets: WidgetDef[] = [
         return null;
       }
       if (!s) return null;
-      if (!s.enabled) return opt(item, 'showOff', false) ? t('widget.sandbox.off') : null;
+      if (!s.enabled) return opt(item, 'hideOff', true) ? null : t('widget.sandbox.off');
       return s.strict && opt(item, 'showStrict', false)
         ? `${t('widget.sandbox.on')} ${t('widget.sandbox.strict')}`
         : t('widget.sandbox.on');
@@ -163,11 +165,19 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '󰏫', emoji: '🎨' },
     color: 'blue',
     sample: 'Explanatory',
-    options: [{ key: 'showDefault', label: 'Show default style', kind: 'boolean', default: false }],
+    options: [
+      {
+        key: 'hideZero',
+        label: 'Hide default style',
+        kind: 'boolean',
+        default: true,
+        aliases: ['showDefault'],
+      },
+    ],
     render(ctx, item) {
       const name = ctx.payload.output_style?.name;
       if (!name) return null;
-      if (name.toLowerCase() === 'default' && !opt(item, 'showDefault', false)) return null;
+      if (name.toLowerCase() === 'default' && opt(item, 'hideZero', true)) return null;
       return name;
     },
   },

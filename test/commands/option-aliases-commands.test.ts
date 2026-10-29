@@ -58,3 +58,17 @@ describe('explain with old option names', () => {
     expect(out).not.toContain('secret-1');
   });
 });
+
+describe('hide options under old names', () => {
+  it('warns about a bad old-name boolean', () => {
+    expect(configWarnings({ lines: [[{ type: 'compactions', options: { showZero: 'maybe' } }]] })).toContain(
+      t('doctor.badOption', { type: 'compactions', key: 'showZero' }),
+    );
+  });
+
+  it('explains an old hide name like a canonical key', () => {
+    const out = run(['f'], { lines: [[{ id: 'f', type: 'fast-mode', options: { showOff: true } }]] });
+    const line = out.find((l) => l.startsWith(t('explain.detail.options', { options: '' })));
+    expect(line).toBe(t('explain.detail.options', { options: '{"showOff":true}' }));
+  });
+});

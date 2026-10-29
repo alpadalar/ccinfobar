@@ -67,7 +67,7 @@ describe('sandbox widget', () => {
     expect(def.category).toBe('session');
     expect(def.hideWhenEmpty).toBe(true);
     expect(def.options?.map((o) => [o.key, o.kind, o.default])).toEqual([
-      ['showOff', 'boolean', false],
+      ['hideOff', 'boolean', true],
       ['showStrict', 'boolean', false],
     ]);
     expect(getWidget('sandbox')?.sample).toBe('sandbox');

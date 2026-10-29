@@ -42,6 +42,6 @@ export const context: MetaFile = {
     'Approximate: tokens Claude Code keeps for output (20,000 in Claude Code 2.1.299, may change)':
       "Yaklaşık: Claude Code'un çıktı için ayırdığı token (Claude Code 2.1.299 sürümünde 20,000; değişebilir)",
     'Show window size': 'Pencere boyutunu göster',
-    'Show when zero': 'Sıfırken göster',
+    'Hide when zero': 'Sıfırsa gizle',
   },
 };

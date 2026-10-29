@@ -91,7 +91,7 @@ export const gsd: MetaFile = {
     'Show phase name': 'Aşama adını göster',
     'Show total phases': 'Toplam aşama sayısını göster',
     'Max name length': 'Ad uzunluğu sınırı',
-    'Show when phase has no plans': 'Aşamada plan yokken göster',
+    'Hide when phase has no plans': 'Aşamada plan yokken gizle',
     'Command prefix': 'Komut öneki',
     'Use /gsd: for older GSD versions': 'Eski GSD sürümleri için /gsd: kullanın',
     'Show first item text': 'İlk maddenin metnini göster',

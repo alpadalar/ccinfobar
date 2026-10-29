@@ -164,11 +164,19 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '', emoji: '📋' },
     color: 'blue',
     sample: '3/5',
-    options: [{ key: 'showEmpty', label: 'Show when phase has no plans', kind: 'boolean', default: false }],
+    options: [
+      {
+        key: 'hideZero',
+        label: 'Hide when phase has no plans',
+        kind: 'boolean',
+        default: true,
+        aliases: ['showEmpty'],
+      },
+    ],
     render: withGsd((info, item) => {
       const phase = info.phase;
       if (!phase) return null;
-      if (phase.plans === 0) return opt(item, 'showEmpty', false) ? t('widget.gsd.none') : null;
+      if (phase.plans === 0) return opt(item, 'hideZero', true) ? null : t('widget.gsd.none');
       return `${Math.min(phase.summaries, phase.plans)}/${phase.plans}`;
     }),
   },

@@ -32,11 +32,19 @@ export const widgets: WidgetDef[] = [
     icon: { nerd: '', emoji: '🗂️' },
     color: 'blue',
     sample: 'default',
-    options: [{ key: 'hideDefault', label: 'Hide the default workspace', kind: 'boolean', default: false }],
+    options: [
+      {
+        key: 'hideZero',
+        label: 'Hide the default workspace',
+        kind: 'boolean',
+        default: false,
+        aliases: ['hideDefault'],
+      },
+    ],
     render(ctx, item) {
       const name = ctx.data.jj?.()?.workspace();
       if (!name) return null;
-      return opt(item, 'hideDefault', false) && name === 'default' ? null : name;
+      return opt(item, 'hideZero', false) && name === 'default' ? null : name;
     },
   },
   {
