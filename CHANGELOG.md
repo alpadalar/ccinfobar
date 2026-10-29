@@ -57,6 +57,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `ccinfobar doctor`'s vim-twice warning checks `hideVimModeIndicator` on the statusLine Claude Code actually uses in each checked project, so a project statusLine without it now warns even when your user settings file sets it (reason: the user file's flag has no effect under a project override)
 
 ### Fixed
+- `uninstall --project --subagents` now says nothing was removed and names `uninstall --subagents`; three Turkish help rows read like their neighbours
 - `doctor`: with several managed settings files, the later file (`managed-settings.d/*.json` after `managed-settings.json`, alphabetical) now wins for the progress-bar and editor-mode checks, as in Claude Code
 - The web editor no longer shows the "editor stopped" banner after a single failed request; it waits a second, pings the server once and shows the banner only when that ping fails too (a transient failure shows a short toast instead)
 - The per-session hook log (`install --hooks`) is capped at 2 MiB: when it is full the current file becomes `<session>.old.jsonl` and a new one starts, so a long session no longer grows the cache without bound; turn and agent counts stay exact across the switch

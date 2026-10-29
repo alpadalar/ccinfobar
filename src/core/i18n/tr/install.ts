@@ -23,7 +23,7 @@ export const installMessages = {
   'install.subagentsProjectIgnored':
     '--subagents yalnızca kullanıcı ayarları için geçerli; --project ile yok sayıldı.',
   'install.subagentsUninstallProject':
-    '--subagents yalnızca kullanıcı ayarları için geçerli; --project ile yok sayıldı.',
+    'uninstall --subagents yalnızca kullanıcı ayarları için geçerli; --project ile hiçbir şey kaldırılmadı.',
   'install.dry.subagentAdd': 'alt ajan subagentStatusLine "{command}" olarak ayarlanacak',
   'install.dry.subagentRewrite': 'subagentStatusLine "{from}" değerinden "{command}" değerine güncellenecek',
   'install.dry.subagentReplace': 'subagentStatusLine "{from}" yerine "{command}" yazılacak (önce sorulur)',

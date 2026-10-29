@@ -32,7 +32,8 @@ export const installMessages = {
   'install.subagentsProjectIgnored': '--subagents only applies to user settings; ignored with --project.',
   'install.hideVimProjectIgnored':
     '--hide-vim-indicator only applies to user settings; ignored with --project.',
-  'install.subagentsUninstallProject': '--subagents only applies to user settings; ignored with --project.',
+  'install.subagentsUninstallProject':
+    'uninstall --subagents only applies to user settings; nothing was removed with --project.',
   'install.dry.subagentAdd': 'Would set subagentStatusLine to "{command}"',
   'install.dry.subagentRewrite': 'Would update subagentStatusLine from "{from}" to "{command}"',
   'install.dry.subagentReplace':

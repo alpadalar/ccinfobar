@@ -14,15 +14,15 @@ Kullanım
   ccinfobar install --dry-run     Kurulumun neyi değiştireceğini gösterir, hiçbir şey yazmaz
   ccinfobar install --hooks       İsteğe bağlı Claude Code hook'larını da ekler (kesin canlı durum için)
   ccinfobar install --progress    Bağlam doluluğunu terminal sekmesinin ilerleme çubuğunda da gösterir
-  ccinfobar install --subagents   Claude Code alt ajan paneli satırlarını da ccinfobar çizsin (subagentStatusLine)
+  ccinfobar install --subagents   Claude Code alt ajan paneli satırlarını da ccinfobar ile çizer (subagentStatusLine)
   ccinfobar install --hide-vim-indicator
-                                  vim-mode bileşeni modu gösterirken Claude Code'un kendi -- INSERT -- satırını gizle
+                                  vim-mode bileşeni modu gösterirken Claude Code'un kendi -- INSERT -- satırını gizler
   ccinfobar uninstall             ccinfobar'ı kaldırır ve önceki durum satırınızı geri getirir
                                   `npm rm -g ccinfobar` öncesinde çalıştırın: hook'lar ccinfobar komutunu çağırır
   ccinfobar uninstall --hooks     Yalnızca ccinfobar'ın hook'larını kaldırır
   ccinfobar uninstall --progress  Yalnızca terminal ilerleme işleyicilerini kaldırır
   ccinfobar uninstall --subagents
-                                  Yalnızca subagentStatusLine girdisini kaldır
+                                  Yalnızca subagentStatusLine girdisini kaldırır
   ccinfobar subagent-line         Claude Code alt ajan paneli satırları (install --subagents ile kurulur)
   ccinfobar import <tool>         Başka bir durum satırının düzenini içe aktarır (bkz. ccinfobar import --help)
   ccinfobar import <tool> --dry-run
