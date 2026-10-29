@@ -234,6 +234,7 @@ describe('import graph', () => {
     expect(files.has('src/commands/catalog-admin.ts')).toBe(false);
     expect(closure('commands/catalog.ts').has('src/commands/catalog-admin.ts')).toBe(false);
     expect(closure('editor/server.ts').has('src/commands/catalog-admin.ts')).toBe(false);
+    expect(closure('editor/server.ts').has('src/editor/routes/catalog.ts')).toBe(true);
     expect(fs.readFileSync(path.join(src, 'commands/catalog-market.ts'), 'utf8')).toContain(
       "await import('./catalog-admin.js')",
     );

@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { routeTable } from '../../src/editor/server.js';
 
@@ -54,6 +55,11 @@ describe('editor route table', () => {
 
   it('lists the prefix routes in match order', () => {
     expect(routeTable().prefix).toEqual(PREFIX);
+  });
+
+  it('keeps no route label in server.ts', () => {
+    const text = fs.readFileSync(new URL('../../src/editor/server.ts', import.meta.url), 'utf8');
+    expect(text).not.toMatch(/case '(?:GET|POST|PUT|DELETE) \/api/);
   });
 
   it('has no duplicate exact route', () => {

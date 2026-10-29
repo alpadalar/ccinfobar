@@ -87,6 +87,8 @@ const SWEPT: string[] = [
   'src/editor/routes/themes.ts',
   'src/editor/routes/styles.ts',
   'src/editor/routes/share.ts',
+  'src/editor/routes/install.ts',
+  'src/editor/routes/catalog.ts',
   'src/editor/web/api.ts',
   'src/editor/web/inspector.ts',
   'src/editor/web/panel-inspector.ts',
