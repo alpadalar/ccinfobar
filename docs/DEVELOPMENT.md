@@ -172,9 +172,9 @@ The transcript reader keeps an incremental cache in the cache directory, so only
 
 `cli/main.ts` parses arguments and loads each command with `await import()`. The status line path (`cli/render.ts`) never pulls in install, update, doctor, report, the importers, the editors or the TUI. `test/foundations/import-graph.test.ts` checks this, and that the pure modules (`core/edit.ts` and others) have no `node:` imports.
 
-`bin.ts` dispatches `hook` and `subagent-line` before loading `cli.js`. `cli/subagent-line.ts` reaches whole chunks only: `cli/args.ts`, `core/paths.ts`, `data/store.ts`, `core/payload.ts`, `core/ansi.ts`, `widgets/shared.ts`, `widgets/subagent-row.ts` and the built-in `fs`. `import-graph.test.ts` and the dist chunk count guard it.
+`bin.ts` dispatches `hook` and `subagent-line` before loading `cli.js`. `cli/subagent-line.ts` reaches whole chunks only: `cli/args.ts`, `core/paths.ts`, `data/store.ts`, `core/payload.ts`, `core/ansi.ts`, `core/subagent-fields.ts`, `widgets/shared.ts`, `widgets/subagent-row.ts` and the built-in `fs`. `import-graph.test.ts` and the dist chunk count guard it.
 
-**Chunk-neutral entries.** A lazy or early entry must reach every module of each chunk it touches, otherwise esbuild splits that chunk and every render pays for the extra file. As of Phase 16 the cli entry has 21 chunks and the hook entry 5 (count the `cli-*` and `hook-*` files in `dist/chunks/` after `npm run build`). The English UI tables are a lazy chunk; the eager English chunk is about 22 KB. `readStdin` in `cli/subagent-line.ts` is a copy of the hook reader because importing `cli/hook.ts` would split the hook chunk.
+**Chunk-neutral entries.** A lazy or early entry must reach every module of each chunk it touches, otherwise esbuild splits that chunk and every render pays for the extra file. As of Phase 21 the cli entry has 22 chunks, the hook entry 5 and the subagent-line entry 6 (`import-graph.test.ts` pins them on `dist/`). Moving the subagent field list out of `widgets/` split one shared chunk; the alternating bench shows no render cost. The English UI tables are a lazy chunk; the eager English chunk is about 22 KB. `readStdin` in `cli/subagent-line.ts` is a copy of the hook reader because importing `cli/hook.ts` would split the hook chunk.
 
 ### Subagent rows
 

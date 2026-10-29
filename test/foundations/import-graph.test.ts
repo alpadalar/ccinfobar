@@ -88,6 +88,7 @@ const PURE = [
   'src/core/time.ts',
   'src/widgets/subagent-row.ts',
   'src/core/cache-rule.ts',
+  'src/core/subagent-fields.ts',
   'src/core/job-values.ts',
   'src/core/profiles.ts',
   'src/core/prices.ts',
@@ -368,7 +369,49 @@ describe('import graph', () => {
     );
   });
 
+  it('keeps core/config.ts and core/types.ts free of runtime widgets/ imports', () => {
+    const SPEC_RE = /^\s*(import|export)\s+(type\s+)?([^'"]*?)\s*from\s+'(\.[^']+)'/gm;
+    for (const rel of ['core/config.ts', 'core/types.ts']) {
+      const file = path.join(src, rel);
+      const text = fs.readFileSync(file, 'utf8');
+      for (const m of text.matchAll(SPEC_RE)) {
+        const names = m[3]!
+          .replace(/[{}]/g, '')
+          .split(',')
+          .map((x) => x.trim())
+          .filter(Boolean);
+        const typeOnly = Boolean(m[2]) || (names.length > 0 && names.every((n) => n.startsWith('type ')));
+        if (typeOnly) continue;
+        const next = resolve(file, m[4]!);
+        expect(next, `${rel} imports missing ${m[4]}`).not.toBeNull();
+        expect(path.relative(src, next!).split(path.sep)[0], `${rel} runtime-imports ${m[4]}`).not.toBe(
+          'widgets',
+        );
+      }
+    }
+  });
+
   const dist = path.join(root, 'dist');
+  // 21-D-07 measured floor
+  it.skipIf(skipDist)('pins dist chunk counts: cli 22, hook 5, subagent-line 6', () => {
+    const entry = fs.readFileSync(path.join(dist, 'ccinfobar.js'), 'utf8');
+    const counts = new Map<string, number>();
+    for (const m of entry.matchAll(/import\("\.\/chunks\/([^"]+)"\)/g)) {
+      const seen = new Set<string>();
+      const stack = [m[1]!];
+      while (stack.length) {
+        const f = stack.pop()!;
+        if (seen.has(f)) continue;
+        seen.add(f);
+        const text = fs.readFileSync(path.join(dist, 'chunks', f), 'utf8');
+        for (const d of text.matchAll(/^(?:import|export)\s[^;]*?from\s+"\.\/([^"]+)"/gm)) stack.push(d[1]!);
+      }
+      const prefix = ['cli-', 'hook-', 'subagent-line-'].find((p) => m[1]!.startsWith(p));
+      if (prefix) counts.set(prefix, seen.size);
+    }
+    expect(Object.fromEntries(counts)).toEqual({ 'cli-': 22, 'hook-': 5, 'subagent-line-': 6 });
+  });
+
   it.skipIf(skipDist)('built hook chunk loads no crypto or stdin', () => {
     const entry = fs.readFileSync(path.join(dist, 'ccinfobar.js'), 'utf8');
     const hook = /import\("\.\/chunks\/(hook-[^"]+\.js)"\)/.exec(entry)?.[1];
