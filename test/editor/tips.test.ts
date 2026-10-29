@@ -44,6 +44,8 @@ beforeEach(() => {
     },
   };
   setLanguage('en');
+  setTipsHidden(false);
+  vi.clearAllTimers();
 });
 
 afterEach(() => {
@@ -169,6 +171,27 @@ describe('tips line', () => {
     expect(host.hidden).toBe(true);
     expect(() => setTipsHidden(false)).not.toThrow();
     expect(host.hidden).toBe(false);
+  });
+
+  it('tipsHidden follows dismiss and setTipsHidden when localStorage throws', () => {
+    const deny = () => {
+      throw new Error('denied');
+    };
+    g.localStorage = { getItem: deny, setItem: deny, removeItem: deny };
+    try {
+      const host = new FakeEl('DIV');
+      initTips(host as any);
+      expect(tipsHidden()).toBe(false);
+      button(host, en['web.tips.dismiss']).dispatch('click');
+      expect(tipsHidden()).toBe(true);
+      setTipsHidden(false);
+      expect(tipsHidden()).toBe(false);
+      setTipsHidden(true);
+      expect(tipsHidden()).toBe(true);
+    } finally {
+      g.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+      setTipsHidden(false);
+    }
   });
 
   it('survives a throwing localStorage', () => {

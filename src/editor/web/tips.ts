@@ -22,7 +22,20 @@ function modKey(): string {
   }
 }
 
+let refused: boolean | null = null;
+
+function remember(v: boolean): void {
+  try {
+    if (v) localStorage.setItem(TIPS_KEY, '1');
+    else localStorage.removeItem(TIPS_KEY);
+    refused = null;
+  } catch {
+    refused = v;
+  }
+}
+
 export function tipsHidden(): boolean {
+  if (refused !== null) return refused;
   try {
     return localStorage.getItem(TIPS_KEY) === '1';
   } catch {
@@ -35,10 +48,7 @@ export type TipsController = { relabel(): void; setHidden(v: boolean): void };
 let active: TipsController | null = null;
 
 export function setTipsHidden(v: boolean): void {
-  try {
-    if (v) localStorage.setItem(TIPS_KEY, '1');
-    else localStorage.removeItem(TIPS_KEY);
-  } catch {}
+  remember(v);
   active?.setHidden(v);
 }
 
@@ -80,9 +90,7 @@ export function initTips(host: HTMLElement): TipsController {
     hidden = true;
     host.hidden = true;
     schedule();
-    try {
-      localStorage.setItem(TIPS_KEY, '1');
-    } catch {}
+    remember(true);
   }
   function setHidden(v: boolean): void {
     if (v) {

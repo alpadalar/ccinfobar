@@ -3,7 +3,7 @@ import { installBundled } from '../../src/core/i18n/bundled.js';
 import { editorMessages as en } from '../../src/core/i18n/en/editor.js';
 import { setLanguage } from '../../src/core/i18n/index.js';
 import { editorMessages as tr } from '../../src/core/i18n/tr/editor.js';
-import { TIPS_KEY } from '../../src/editor/web/tips.js';
+import { setTipsHidden, TIPS_KEY } from '../../src/editor/web/tips.js';
 import { FakeEl } from '../i18n/fake-dom.js';
 
 const g = globalThis as any;
@@ -55,6 +55,21 @@ describe('settings show tips', () => {
     store.set(TIPS_KEY, '1');
     const { input } = await build();
     expect(isOn(input)).toBe(false);
+  });
+
+  it('is off after hiding when localStorage throws', async () => {
+    const deny = () => {
+      throw new Error('denied');
+    };
+    g.localStorage = { getItem: deny, setItem: deny, removeItem: deny };
+    try {
+      setTipsHidden(true);
+      const { input } = await build();
+      expect(isOn(input)).toBe(false);
+    } finally {
+      g.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+      setTipsHidden(false);
+    }
   });
 
   it('flips localStorage and nothing else', async () => {
