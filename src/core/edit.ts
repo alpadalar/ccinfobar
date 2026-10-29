@@ -237,9 +237,6 @@ export function setLineAlign(config: Config, line: number, align: Align | null):
   });
 }
 
-// personal keys outside entry-keys.ts until Phase 21
-export const LOCAL_PERSONAL_KEYS = ['updateMinAgeHours'] as const satisfies readonly (keyof Config)[];
-
 export type StyleGroup = 'colors' | 'text' | 'bars' | 'label';
 
 export const STYLE_GROUPS: { id: StyleGroup; name: string }[] = [
