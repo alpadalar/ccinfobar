@@ -569,6 +569,17 @@ User-facing messages go through `t(id, params)` from `core/i18n/`. Each area has
 
 Both editors pick up new widgets and their options automatically.
 
+### Option names
+
+Name options the same way across widgets so users learn them once:
+
+- `maxItems` counts entries, `maxLength` counts characters
+- `hideZero` is the only zero toggle and `hideOff` hides state chips such as `sandbox`; both default to the previous behaviour of the widget
+- `show` picks a variant of what is shown, `style` the visual shape, `window` one value set `5h|7d` (plus `first` where windows are compared)
+- documented exceptions: `points`, `slots`, `maxAgeMin` and `show<Detail>` booleans like `showStrict`
+
+Old names stay as aliases in `src/core/option-aliases.ts` and are resolved at read time (`opt()`, `optionValue()`); `normalizeItem` never renames keys because the catalog hashes entries. A canonical key wins when both are set, and the editors write the canonical key only when the user changes that option. Declare the alias on the `OptionSpec` (`aliases`) as well, so docs and `ccinfobar explain` list it.
+
 ## Adding a language
 
 1. Copy `src/core/i18n/tr/` to `src/core/i18n/<id>/`: one file per area with the same ids as `en/`, an `index.ts` that merges them, `lazy.ts` (the report, import and TOML areas) and `tables.ts`; add an `installLazy('<id>', …)` line to `src/core/i18n/lazy.ts`.

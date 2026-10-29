@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LANGUAGE_SETTINGS } from '../src/core/i18n/languages.js';
+import { OPTION_ALIASES } from '../src/core/option-aliases.js';
 import { BOX_PRESETS } from '../src/core/panel.js';
 import {
   PROFILE_LABEL_MAX,
@@ -30,13 +31,20 @@ const NOTES: Readonly<Record<string, string>> = {
     "Reads the last snapshot by default, so edits since jj's last snapshot are not counted. `snapshot: true` snapshots the working copy on every refresh, which writes to the repository's operation log.",
 };
 
-function optionText(o: OptionSpec): string {
+function oldNames(type: string, o: OptionSpec): string {
+  if (!o.aliases?.length) return '';
+  const names = o.aliases.map((a) => `\`${a}\``).join(', ');
+  const inverted = o.aliases.some((a) => OPTION_ALIASES[type]?.[o.key]?.some((x) => x.key === a && x.invert));
+  return ` (old name: ${names}${inverted ? ', inverted' : ''})`;
+}
+
+function optionText(type: string, o: OptionSpec): string {
   const def = typeof o.default === 'string' ? `\`"${o.default}"\`` : `\`${o.default}\``;
   const choices = o.choices ? ` (${o.choices.map((c) => `\`${c.value}\``).join(', ')})` : '';
   const when = o.showWhen
     ? ` (when \`${o.showWhen.key}\` is ${o.showWhen.values.map((v) => `\`${v}\``).join(' or ')})`
     : '';
-  return `\`${o.key}\` ${o.kind}, default ${def}${choices}${when}`;
+  return `\`${o.key}\`${oldNames(type, o)} ${o.kind}, default ${def}${choices}${when}`;
 }
 
 function selfHiding(): string {
@@ -81,7 +89,7 @@ function widgetsMarkdown(): string {
       '| --- | --- | --- | --- |',
     );
     for (const w of list) {
-      const opts = (w.options ?? []).map(optionText).join('<br>') || '';
+      const opts = (w.options ?? []).map((o) => optionText(w.type, o)).join('<br>') || '';
       const sample = w.sample ? `\`${(w.label ?? '') + w.sample}\`` : '';
       out.push(
         `| \`${w.type}\` | ${w.description.replace(/\|/g, '\\|')} | ${sample.replace(/\|/g, '\\|')} | ${opts.replace(/\|/g, '\\|')} |`,

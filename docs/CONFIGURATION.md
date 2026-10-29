@@ -261,7 +261,7 @@ Colors are converted down automatically when the terminal supports fewer colors.
 
 ## Bars
 
-Widgets that draw a bar (`context-bar`, `five-hour-usage` and `weekly-usage` with `display: "bar"`, `gsd-milestone-progress`, `gsd-plan-progress`, `gsd-summary`) accept `width`, `style`, `barColor` and `showPercent`.
+Widgets that draw a bar (`context-bar`, `five-hour-usage` and `weekly-usage` with `show: "bar"` (old name `display`), `gsd-milestone-progress`, `gsd-plan-progress`, `gsd-summary`) accept `width`, `style`, `barColor` and `showPercent`.
 
 | `style` | Example |
 | --- | --- |
@@ -313,7 +313,7 @@ With `charset: "text"` every bar becomes `=====-----`.
 
 Amounts must be positive; anything else is dropped. Set them with `ccinfobar config set budget.daily 10` (remove with `ccinfobar config unset budget.daily`), in the web editor's Settings (Budget) or in the TUI's settings.
 
-The `budget` widget shows spend against one of them: `period` is `daily` (default, from the [cost ledger](#estimated-cost)) or `session` (this session's cost), and `display` is `amount` (`~$4.10/$10`), `percent` or `bar`. It is green below `warnAt`, yellow from `warnAt` and red at 100% or more, and it shows `—` while that budget is not set (`ccinfobar explain` says so). It is separate from `spend-limit`, which shows the spend limit Claude reports for your plan.
+The `budget` widget shows spend against one of them: `period` is `daily` (default, from the [cost ledger](#estimated-cost)) or `session` (this session's cost), and `show` (old name `display`) is `amount` (`~$4.10/$10`), `percent` or `bar`. It is green below `warnAt`, yellow from `warnAt` and red at 100% or more, and it shows `—` while that budget is not set (`ccinfobar explain` says so). It is separate from `spend-limit`, which shows the spend limit Claude reports for your plan.
 
 ## Theme rotation
 
