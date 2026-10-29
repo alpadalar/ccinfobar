@@ -82,6 +82,11 @@ const SWEPT: string[] = [
   'src/editor/detach.ts',
   'src/editor/router.ts',
   'src/editor/routes/ctx.ts',
+  'src/editor/routes/util.ts',
+  'src/editor/routes/state.ts',
+  'src/editor/routes/themes.ts',
+  'src/editor/routes/styles.ts',
+  'src/editor/routes/share.ts',
   'src/editor/web/api.ts',
   'src/editor/web/inspector.ts',
   'src/editor/web/panel-inspector.ts',
@@ -356,6 +361,8 @@ const ALLOW: Record<string, string[]> = {
     'Forbidden origin',
     // developer-only page when the bundle is not built
     '<!doctype html><meta charset="utf-8"><title>ccinfobar editor</title>\n<body style="font:16px system-ui;background:#111;color:#eee;padding:3rem">\n<h1>Editor bundle not built</h1><p>Run <code>npm run build</code> and start the editor again.</p></body>',
+  ],
+  'src/editor/routes/util.ts': [
     // placeholder command, matched by prefix and sent in the API JSON
     'Xinstalled on first Install)',
   ],

@@ -48,8 +48,8 @@ const PREFIX: [string, string][] = [
 ];
 
 describe('editor route table', () => {
-  it('lists every exact route in source order', () => {
-    expect(routeTable().exact).toEqual(EXACT);
+  it('lists every exact route', () => {
+    expect([...routeTable().exact].sort()).toEqual([...EXACT].sort());
   });
 
   it('lists the prefix routes in match order', () => {

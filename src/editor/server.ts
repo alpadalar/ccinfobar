@@ -1,19 +1,12 @@
+import '../core/i18n/lazy.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
-import '../core/i18n/lazy.js';
-import {
-  type CatalogEntry,
-  ENTRY_ID_RE,
-  type EntryContent,
-  type EntryKind,
-  latest,
-} from '../catalog/model.js';
+import type { CatalogEntry, EntryContent, EntryKind } from '../catalog/model.js';
 import { shareState } from '../catalog/share.js';
-import { decodeShare, encodeShare } from '../catalog/share-code.js';
-import { contentFromConfig, themeFromConfig } from '../catalog/snapshot.js';
+import { contentFromConfig } from '../catalog/snapshot.js';
 import {
   adoptLegacy,
   CatalogStoreError,
@@ -22,7 +15,6 @@ import {
   deleteLegacy,
   installEntryTheme,
   isHandle,
-  type LegacyItem,
   listEntries,
   listLegacy,
   marketEndpointInfo,
@@ -32,21 +24,18 @@ import {
   readProfile,
   readPublisher,
   restoreEntry,
-  type StoreCode,
   saveEntry,
   themeChain,
   updateShare,
   writeProfile,
   writePublisher,
 } from '../catalog/store.js';
-import { findSystem, type SystemEntry, systemEntries } from '../catalog/system.js';
+import { findSystem, systemEntries } from '../catalog/system.js';
 import { configLanguage, envLanguage } from '../cli/lang.js';
-import { hookEntryState } from '../commands/hooks-doctor.js';
 import {
   applyHooks,
   DEFAULT_EVENTS,
   detectClaudeCodeAsync,
-  HOOK_FLOOR,
   type HookRefusal,
   OPTIONAL_EVENTS,
   planHooks,
@@ -54,22 +43,17 @@ import {
 } from '../commands/hooks-install.js';
 import {
   applyInstall,
-  currentStatusLine,
-  currentSubagentLine,
   defaultCommand,
   InstallNeedsConfirmError,
   planInstall,
-  type Setup,
-  type StatusLineSetting,
   setupCommandAsync,
 } from '../commands/install.js';
-import { classifyOwner, deepEqual, findHookEntries, owns, readManifest } from '../commands/manifest.js';
+import { deepEqual, readManifest } from '../commands/manifest.js';
 import { openBrowser } from '../commands/open.js';
 import { backupsDir, readSettings } from '../commands/settings-file.js';
 import {
   compareVersions,
   fetchLatest,
-  type InstallKind,
   installKind,
   installVersionAsync,
   localPrefix,
@@ -77,130 +61,82 @@ import {
   writeUpdateState,
 } from '../commands/update.js';
 import { BREW_UPGRADE } from '../core/brew.js';
-import { ConfigBrokenError, loadConfig, normalizeConfig, saveConfig } from '../core/config.js';
-import {
-  applyCatalogContent,
-  applyStyle,
-  PROGRESS_CHOICES,
-  type StyleHistory,
-  setProgress,
-  upgradeOptions,
-} from '../core/edit.js';
+import { loadConfig, normalizeConfig, saveConfig } from '../core/config.js';
+import { applyCatalogContent, PROGRESS_CHOICES, type StyleHistory, setProgress } from '../core/edit.js';
 import { parseCols } from '../core/entry-keys.js';
-import { bundleText, presetLabels, presetText, themeDescription } from '../core/i18n/catalog-text.js';
-import { type MessageId, type Params, setLanguage, t, withLanguage } from '../core/i18n/index.js';
+import { presetLabels } from '../core/i18n/catalog-text.js';
+import { type MessageId, setLanguage, t, withLanguage } from '../core/i18n/index.js';
 import { isLanguageId, type LanguageId } from '../core/i18n/languages.js';
-import { ID_RE, reservedId } from '../core/ids.js';
 import { availablePresets, loadForUse } from '../core/load.js';
-import { claudeSettingsPath, lastPayloadPath, tildify } from '../core/paths.js';
-import { deleteUserPreset, listPresets, presetsDir, saveUserPreset } from '../core/presets.js';
-import { type PreviewSource, renderPreview, renderPreviewReport } from '../core/preview.js';
+import { claudeSettingsPath, tildify } from '../core/paths.js';
+import { type PreviewSource, renderPreview } from '../core/preview.js';
 import { withoutRotation } from '../core/rotation.js';
-import { sanitizeText } from '../core/sanitize.js';
-import { getScenario, scenarioList } from '../core/scenarios.js';
-import { MAX_CODE_CHARS } from '../core/share-code.js';
-import {
-  deleteUserTheme,
-  listThemes,
-  parseThemeInput,
-  resolveThemeInput,
-  STYLES,
-  saveUserTheme,
-  type Theme,
-  themesDir,
-} from '../core/themes.js';
-import type { Config, ProgressConfig, WidgetItem } from '../core/types.js';
+import { listThemes } from '../core/themes.js';
+import type { Config, ProgressConfig } from '../core/types.js';
 import { gsdInstalled } from '../data/gsd.js';
-import { PROGRESS_EVENTS, progressChannel } from '../data/progress.js';
+import { progressChannel } from '../data/progress.js';
 import { requestClear } from '../data/progress-clear.js';
-import {
-  type CheckDeps,
-  type InstallOutcome,
-  installChecked,
-  type Verify,
-  verifyInstall,
-} from '../data/self-update.js';
+import { type InstallOutcome, installChecked, verifyInstall } from '../data/self-update.js';
 import { writeAtomic } from '../data/store.js';
 import type { ImportTarget } from '../importers/confirm.js';
 import { ID_PART_RE, isRemoteId, REPORT_REASON_MAX } from '../market/protocol.js';
-import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
-import { SUBAGENT_FIELDS } from '../widgets/shared.js';
 import { createRouter, type Handler } from './router.js';
-import type { EditorCtx, EditorState } from './routes/ctx.js';
-import type { TerminalColors } from './terminal-colors.js';
+import type {
+  EditorCtx,
+  EditorOptions,
+  EditorState,
+  Found,
+  HooksInfo,
+  InstallPlan,
+  LoginFlows,
+  Market,
+  PlanItem,
+  Skip,
+} from './routes/ctx.js';
+import { exact as shareExact } from './routes/share.js';
+import { exact as stateExact } from './routes/state.js';
+import { exact as styleExact } from './routes/styles.js';
+import { exact as themeExact, prefix as themePrefix } from './routes/themes.js';
+import {
+  activeCommand,
+  asObject,
+  claudeInfo,
+  clean,
+  colsOf,
+  contentOf,
+  draftTheme,
+  entryKind,
+  HttpError,
+  httpError,
+  installedHooks,
+  KINDS,
+  MAX_PUBLISH_REFS,
+  marketError,
+  NOT_ACTIVE,
+  PLACEHOLDER_PREFIX,
+  placeholder,
+  previewSourceOf,
+  progressRefusalText,
+  readBody,
+  reasonOf,
+  refOf,
+  refType,
+  refusalText,
+  send,
+  storeError,
+  summaryOf,
+  textError,
+  VERSION,
+  versionsOf,
+} from './routes/util.js';
 
-declare const __VERSION__: string;
 declare const __EDITOR_HTML__: string;
 declare const __EDITOR_SCRIPT_HASH__: string;
-
-const VERSION = typeof __VERSION__ === 'string' ? __VERSION__ : '0.0.0-dev';
-const MAX_BODY = 1024 * 1024;
-const DEMO_TYPES = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gsd-plans', 'session-cost'];
-
-export interface EditorOptions {
-  configPath: string;
-  port?: number | undefined;
-  open?: boolean;
-  host?: string;
-  terminal?: TerminalColors | null;
-  setup?: (version: string) => Promise<Setup>;
-  claudeVersion?: () => string | null | Promise<string | null>;
-  installKind?: () => InstallKind;
-  fetchLatest?: (timeoutMs: number) => Promise<string>;
-  update?: { install?: CheckDeps['install']; verify?: Verify };
-  detached?: { idleMs: number; stateFile: string; checkMs?: number; now?: () => number };
-  // a decoded share code; the page opens it from #c=
-  share?: string;
-  // tests inject the network and the clock of marketplace and GitHub calls
-  market?: {
-    fetch?: typeof fetch;
-    now?: () => number;
-    defaultEndpoint?: string | null;
-  };
-}
-
-export interface HooksInfo {
-  installed: string[];
-  available: boolean;
-  reason?: string;
-  reasonId?: MessageId;
-  reasonParams?: Params;
-  claudeCode?: string;
-  events: string[];
-  optional: string[];
-  progress: string[];
-}
 
 export interface EditorHandle {
   url: string;
   token: string;
   close(): Promise<void>;
-}
-
-class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-    readonly extra?: Record<string, unknown>,
-    readonly id?: MessageId,
-    readonly params?: Params,
-  ) {
-    super(message);
-  }
-}
-
-type Text = { id: MessageId; params?: Params };
-
-const english = (m: Text): string => withLanguage('en', () => t(m.id, m.params));
-
-// the browser shows t(errorId, errorParams); error stays English
-function httpError(
-  status: number,
-  id: MessageId,
-  params?: Params,
-  extra?: Record<string, unknown>,
-): HttpError {
-  return new HttpError(status, english({ id, ...(params ? { params } : {}) }), extra, id, params);
 }
 
 const SCRIPT_SRC =
@@ -217,214 +153,10 @@ function editorHtml(): string {
   return (typeof __EDITOR_HTML__ === 'string' && __EDITOR_HTML__) || FALLBACK_HTML;
 }
 
-function send(res: http.ServerResponse, status: number, body: unknown): void {
-  const text = JSON.stringify(body);
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-    'content-length': Buffer.byteLength(text),
-  });
-  res.end(text);
-}
-
-function readBody(req: http.IncomingMessage): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    let failed = false;
-    req.on('data', (chunk: Buffer) => {
-      if (failed) return;
-      size += chunk.length;
-      if (size > MAX_BODY) {
-        failed = true;
-        reject(httpError(413, 'err.server.tooLarge'));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on('end', () => {
-      if (failed) return;
-      if (!size) return resolve({});
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-      } catch {
-        reject(httpError(400, 'err.server.badJson'));
-      }
-    });
-    req.on('error', reject);
-  });
-}
-
 export { openBrowser };
 
-function widgetCatalog() {
-  return ALL_WIDGETS.map((w) => ({
-    type: w.type,
-    name: w.name,
-    category: w.category,
-    description: w.description,
-    label: w.label,
-    icon: w.icon,
-    color: w.color,
-    options: w.options ?? [],
-    sample: w.sample,
-    hidden: w.hidden ?? false,
-    timeBased: w.timeBased === true,
-    hideWhenEmpty: w.hideWhenEmpty === true,
-  }));
-}
-
-// manifest ownership, not a substring
-function isInstalled(statusLine: StatusLineSetting | null, command: string | null): boolean {
-  if (!statusLine) return false;
-  try {
-    const m = readManifest();
-    const file = claudeSettingsPath();
-    return owns(m, file, statusLine) || classifyOwner(m, file, statusLine, command) === 'legacy-ours';
-  } catch {
-    return false;
-  }
-}
-
-function claudeInfo(command: string | null) {
-  let statusLine: StatusLineSetting | null = null;
-  try {
-    statusLine = currentStatusLine();
-  } catch {}
-  let subagent: { command: string; owned: boolean } | null = null;
-  try {
-    subagent = currentSubagentLine();
-  } catch {}
-  return {
-    statusLine,
-    installed: isInstalled(statusLine, command),
-    defaultCommand: command ?? placeholder(),
-    settingsFile: tildify(claudeSettingsPath()),
-    subagent,
-  };
-}
-
-// statusLine command when ccinfobar owns it
-function activeCommand(command: string | null): string | null {
-  try {
-    const sl = currentStatusLine();
-    return isInstalled(sl, command) && typeof sl?.command === 'string' && sl.command.trim()
-      ? sl.command
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-const ORDER: readonly string[] = [...DEFAULT_EVENTS, ...OPTIONAL_EVENTS, ...PROGRESS_EVENTS];
-
-function installedHooks(progress = false): string[] {
-  try {
-    const file = claudeSettingsPath();
-    const data = readSettings(file).data as Record<string, unknown>;
-    return findHookEntries(readManifest(), file)
-      .filter((e) => (progress ? e.role === 'progress' : !e.role) && hookEntryState(e, data) === 'ok')
-      .map((e) => e.event)
-      .sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
-  } catch {
-    return [];
-  }
-}
-
-function refusalText(refused: HookRefusal, version: string | null): Text {
-  return refused === 'unknown-version'
-    ? { id: 'hooks.reason.unknownVersion', params: { floor: HOOK_FLOOR.core } }
-    : { id: 'hooks.reason.oldVersion', params: { floor: HOOK_FLOOR.core, version: version ?? '' } };
-}
-
-function progressRefusalText(refused: HookRefusal, version: string | null): Text {
-  const floor = HOOK_FLOOR.terminalSequence;
-  return refused === 'unknown-version'
-    ? { id: 'progress.refused.unknownVersion', params: { floor } }
-    : { id: 'progress.refused.oldVersion', params: { floor, version: version ?? '' } };
-}
-
-const NOT_ACTIVE: Text = { id: 'hooks.reason.notActive' };
-
-const reasonOf = (m: Text) => ({
-  reason: english(m),
-  reasonId: m.id,
-  ...(m.params ? { reasonParams: m.params } : {}),
-});
-
-const textError = (status: number, m: Text, extra?: Record<string, unknown>): HttpError =>
-  httpError(status, m.id, m.params, extra);
-
-const PLACEHOLDER_PREFIX = 'ccinfobar (';
-const placeholder = () => `${PLACEHOLDER_PREFIX}installed on first Install)`;
-
-function asObject(v: unknown): Record<string, unknown> {
-  return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {};
-}
-
-function previewSourceOf(body: Record<string, unknown>): PreviewSource {
-  if (body.source === 'last') return 'last';
-  if (body.source === 'scenario' && typeof body.scenario === 'string' && getScenario(body.scenario)) {
-    return { scenario: body.scenario };
-  }
-  return 'sample';
-}
-
-export type Found =
-  | { source: 'user'; entry: CatalogEntry }
-  | { source: 'legacy'; item: LegacyItem }
-  | { source: 'system'; entry: SystemEntry };
-
-export interface EntrySummary {
-  ref: string;
-  source: Found['source'];
-  id: string;
-  kind: EntryKind;
-  name: string;
-  description: string;
-  author: string;
-  version: number;
-  rev: number | null;
-  share: { wanted: boolean; state: string } | null;
-  remote: { id: string; version: number; review?: 'pending' } | null;
-  // where a marketplace install came from
-  origin: { endpoint: string; id: string; version: number } | null;
-  updatedAt: string | null;
-  scenario: string | null;
-  // the author's preview width
-  cols: number | null;
-  content: EntryContent;
-}
-
-const KINDS: readonly EntryKind[] = ['bundle', 'preset', 'theme'];
-const LEGACY_RE = /^legacy:(?:preset|theme)\/(.*)$/;
-const SYSTEM_RE = /^(?:bundle|preset|theme)\/(.*)$/;
 const MAX_PREVIEWS = 100;
-const MAX_PUBLISH_REFS = 500;
 
-export type Market = typeof import('../commands/catalog-market.js');
-export type LoginFlows = ReturnType<Market['createLoginFlows']>;
-type InstallPlan = Awaited<ReturnType<Market['planInstall']>>;
-export type PlanItem = ReturnType<Market['publishPlan']>[number];
-export type Skip = { id: string; reason: 'not-shared' | 'up-to-date' | 'withdrawn' };
-
-// market codes; read failures are a bad gateway
-function marketError(code: string | null, id: MessageId, status?: number): HttpError {
-  if (code === 'no-endpoint') return httpError(409, 'err.catalog.noEndpoint');
-  const http =
-    code === 'not-found'
-      ? 404
-      : code === 'handle-taken'
-        ? 409
-        : code === 'bad-endpoint'
-          ? 400
-          : code === 'sign-in'
-            ? 401
-            : 502;
-  return httpError(http, id, status === undefined ? undefined : { status }, { code });
-}
-
-const clean = (v: unknown): string => sanitizeText(typeof v === 'string' ? v : '');
 const MAX_TARGETS = 1000;
 const TARGET_KINDS: readonly ImportTarget['kind'][] = ['command', 'http', 'link'];
 const FLOW_PATH = '/api/catalog/login/';
@@ -506,172 +238,14 @@ function signInError(m: Market, err: unknown): HttpError {
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 const isKind = (v: unknown): v is EntryKind => KINDS.includes(v as EntryKind);
 
-function refType(ref: unknown): Found['source'] | null {
-  if (typeof ref !== 'string') return null;
-  if (ENTRY_ID_RE.test(ref)) return 'user';
-  const legacy = LEGACY_RE.exec(ref);
-  if (legacy && ID_RE.test(legacy[1]!)) return 'legacy';
-  const system = SYSTEM_RE.exec(ref);
-  return system && ID_RE.test(system[1]!) ? 'system' : null;
-}
-
-const refOf = (a: Found): string =>
-  a.source === 'user' ? a.entry.id : a.source === 'legacy' ? a.item.ref : a.entry.ref;
-const entryKind = (a: Found): EntryKind => (a.source === 'legacy' ? a.item.kind : a.entry.kind);
-
-function contentOf(a: Found): EntryContent {
-  if (a.source === 'user') return latest(a.entry).content;
-  return a.source === 'legacy' ? a.item.content : a.entry.content;
-}
-
-function systemText(e: SystemEntry, field: 'name' | 'description'): string {
-  if (e.kind === 'bundle') return bundleText(e, field);
-  if (e.kind === 'preset') return presetText(e, field);
-  return field === 'name' ? e.name : themeDescription(e);
-}
-
-const colsOf = (a: Found): number | undefined => (a.source === 'user' ? latest(a.entry).cols : undefined);
-
-function summaryOf(a: Found): EntrySummary {
-  const base = { ref: refOf(a), source: a.source, kind: entryKind(a), content: contentOf(a) };
-  if (a.source === 'user') {
-    const e = a.entry;
-    const remote = e.share.remote;
-    return {
-      ...base,
-      id: e.id,
-      name: clean(e.name),
-      description: clean(e.description),
-      author: clean(e.author),
-      version: e.version,
-      rev: e.rev,
-      share: { wanted: e.share.wanted, state: shareState(e) },
-      remote: remote
-        ? {
-            id: clean(remote.id),
-            version: remote.version,
-            ...(remote.review === 'pending' ? { review: 'pending' as const } : {}),
-          }
-        : null,
-      origin: e.origin
-        ? { endpoint: clean(e.origin.endpoint), id: clean(e.origin.id), version: e.origin.version }
-        : null,
-      updatedAt: e.updatedAt,
-      scenario: null,
-      cols: latest(e).cols ?? null,
-    };
-  }
-  const fixed = {
-    version: 1,
-    rev: null,
-    share: null,
-    remote: null,
-    origin: null,
-    updatedAt: null,
-    cols: null,
-  };
-  if (a.source === 'legacy') {
-    const i = a.item;
-    return {
-      ...base,
-      ...fixed,
-      id: i.legacyId,
-      name: clean(i.name),
-      description: clean(i.description),
-      author: clean(i.author),
-      scenario: null,
-    };
-  }
-  const e = a.entry;
-  return {
-    ...base,
-    ...fixed,
-    id: e.id,
-    name: clean(systemText(e, 'name')),
-    description: clean(systemText(e, 'description')),
-    author: e.author,
-    scenario: e.scenario ?? null,
-  };
-}
-
-function versionsOf(a: Found) {
-  if (a.source !== 'user')
-    return [
-      { version: 1, at: null, note: '', restoredFrom: null, overwrittenAt: null, content: contentOf(a) },
-    ];
-  return a.entry.versions.map((v) => ({
-    version: v.version,
-    at: v.at,
-    note: clean(v.note),
-    restoredFrom: v.restoredFrom ?? null,
-    overwrittenAt: v.overwrittenAt ?? null,
-    content: v.content,
-  }));
-}
-
-// the same draft path as POST /api/preview; nothing is installed
-function draftTheme(raw: unknown): Theme | undefined {
-  try {
-    const input = parseThemeInput(raw);
-    if (input.extends !== undefined && !ID_RE.test(input.extends)) delete input.extends;
-    return resolveThemeInput(input);
-  } catch {
-    return undefined;
-  }
-}
-
-const STORE_ERRORS: Record<StoreCode, [number, MessageId]> = {
-  exists: [409, 'err.catalog.exists'],
-  changed: [409, 'err.catalog.changed'],
-  'too-large': [413, 'err.catalog.tooLarge'],
-  'not-found': [404, 'err.catalog.unknownRef'],
-  'bad-id': [400, 'err.catalog.badId'],
-  'bad-name': [400, 'err.catalog.badName'],
-  'bad-content': [400, 'err.catalog.badContent'],
-  'bad-endpoint': [400, 'err.catalog.badEndpoint'],
-  'no-version': [404, 'err.catalog.noVersion'],
-  busy: [409, 'err.catalog.busy'],
-  reserved: [409, 'catalog.publish.reserved'],
-  installed: [409, 'err.catalog.installed'],
-};
-
-function storeError(err: CatalogStoreError, kind = ''): HttpError {
-  const d = err.data;
-  const [status, id] = STORE_ERRORS[err.code];
-  const ref = clean(d.ref ?? d.id ?? d.name);
-  const version = typeof d.version === 'number' ? d.version : undefined;
-  if (err.code === 'exists') {
-    const name = clean(d.name);
-    return httpError(
-      status,
-      id,
-      { kind, name, version: version ?? '' },
-      { exists: { id: d.id, version, name } },
-    );
-  }
-  if (err.code === 'not-found') return httpError(status, id, { ref });
-  if (err.code === 'no-version') return httpError(status, id, { ref, version: version ?? '' });
-  if (err.code === 'reserved') return httpError(status, id, { name: clean(d.name) });
-  return httpError(status, id);
-}
-
 // match order: prefixes first, then exact; handlers are keyed 'METHOD /path'
 const ROUTE_DEFS = {
   prefix: [
-    { methods: ['DELETE'], path: '/api/presets/' },
-    { methods: ['DELETE'], path: '/api/themes/' },
     { methods: ['GET', 'DELETE'], path: '/api/catalog/entries/' },
     { methods: ['GET'], path: '/api/catalog/remote/' },
     { methods: ['GET', 'DELETE'], path: FLOW_PATH },
   ],
   exact: [
-    { method: 'GET', path: '/api/ping' },
-    { method: 'GET', path: '/api/state' },
-    { method: 'POST', path: '/api/preview' },
-    { method: 'POST', path: '/api/normalize' },
-    { method: 'POST', path: '/api/theme-previews' },
-    { method: 'POST', path: '/api/themes' },
-    { method: 'POST', path: '/api/presets' },
     { method: 'GET', path: '/api/catalog' },
     { method: 'POST', path: '/api/catalog/previews' },
     { method: 'POST', path: '/api/catalog/save' },
@@ -688,21 +262,19 @@ const ROUTE_DEFS = {
     { method: 'POST', path: '/api/catalog/install' },
     { method: 'POST', path: '/api/catalog/report' },
     { method: 'POST', path: '/api/catalog/install-theme' },
-    { method: 'POST', path: '/api/share' },
-    { method: 'POST', path: '/api/share/open' },
-    { method: 'POST', path: '/api/share/install-theme' },
-    { method: 'PUT', path: '/api/styles' },
-    { method: 'PUT', path: '/api/config' },
     { method: 'POST', path: '/api/install/plan' },
     { method: 'POST', path: '/api/install' },
     { method: 'POST', path: '/api/hooks' },
     { method: 'POST', path: '/api/progress' },
     { method: 'GET', path: '/api/system' },
     { method: 'POST', path: '/api/update' },
-    { method: 'POST', path: '/api/shutdown' },
   ],
 } as const;
 const ROUTE_COUNT = ROUTE_DEFS.prefix.length + ROUTE_DEFS.exact.length;
+const moved = {
+  prefix: [...themePrefix],
+  exact: [...stateExact, ...themeExact, ...styleExact, ...shareExact],
+};
 
 function pickHandler(table: Record<string, Handler<EditorCtx>>, key: string): Handler<EditorCtx> {
   const h = table[key];
@@ -713,8 +285,8 @@ function pickHandler(table: Record<string, Handler<EditorCtx>>, key: string): Ha
 export function routeTable() {
   const noop: Handler<EditorCtx> = () => {};
   return createRouter<EditorCtx>({
-    prefix: ROUTE_DEFS.prefix.map((d) => ({ ...d, handler: noop })),
-    exact: ROUTE_DEFS.exact.map((d) => ({ ...d, handler: noop })),
+    prefix: [...moved.prefix, ...ROUTE_DEFS.prefix.map((d) => ({ ...d, handler: noop }))],
+    exact: [...moved.exact, ...ROUTE_DEFS.exact.map((d) => ({ ...d, handler: noop }))],
   }).table();
 }
 
@@ -1045,30 +617,6 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   }
 
   const prefixHandlers: Record<string, Handler<EditorCtx>> = {
-    'DELETE /api/presets/': async (_ctx, _req, res, url) => {
-      let id = '';
-      try {
-        id = decodeURIComponent(url.pathname.slice('/api/presets/'.length));
-      } catch {}
-      if (!ID_RE.test(id)) throw httpError(400, 'err.server.badPresetId');
-      if (listPresets().find((p) => p.id === id)?.source !== 'user')
-        throw httpError(404, 'err.server.notUserPreset');
-      deleteUserPreset(id);
-      send(res, 200, { ok: true, presets: presetList() });
-      return;
-    },
-    'DELETE /api/themes/': async (_ctx, _req, res, url) => {
-      let id = '';
-      try {
-        id = decodeURIComponent(url.pathname.slice('/api/themes/'.length));
-      } catch {}
-      if (!ID_RE.test(id)) throw httpError(400, 'err.server.badThemeId');
-      const theme = listThemes().find((t) => t.id === id);
-      if (theme?.source !== 'user') throw httpError(404, 'err.server.notUserTheme');
-      deleteUserTheme(id);
-      send(res, 200, { ok: true, themes: listThemes() });
-      return;
-    },
     'GET|DELETE /api/catalog/entries/': async (_ctx, req, res, url) => {
       const method = req.method ?? 'GET';
       let ref = '';
@@ -1160,131 +708,6 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   };
 
   const exactHandlers: Record<string, Handler<EditorCtx>> = {
-    'GET /api/ping': async (_ctx, _req, res) => {
-      send(res, 200, { ok: true });
-      return;
-    },
-    'GET /api/state': async (ctx, _req, res) => {
-      const loaded = loadForUse(opts.configPath, () => gsd);
-      const config = upgradeOptions(loaded.config);
-      send(res, 200, {
-        version: VERSION,
-        configPath: tildify(opts.configPath),
-        configError: loaded.error ?? null,
-        configIssue: loaded.issue ?? null,
-        config,
-        savedConfig: config,
-        widgets: widgetCatalog(),
-        categories: CATEGORIES,
-        subagentFields: SUBAGENT_FIELDS,
-        presets: presetList(),
-        presetsDir: tildify(presetsDir()),
-        styleHistory: readStyles(),
-        gsdInstalled: gsd,
-        themes: listThemes(),
-        styles: STYLES,
-        themesDir: tildify(themesDir()),
-        claude: claudeInfo(ctx.state.command),
-        hooks: await hooksInfo(ctx.state.command),
-        hasLastPayload: fs.existsSync(lastPayloadPath()),
-        scenarios: scenarioList(),
-        terminal: opts.terminal ?? null,
-        language: auto,
-      });
-      return;
-    },
-    'POST /api/preview': async (_ctx, req, res) => {
-      const body = asObject(await readBody(req));
-      const config = normalizeConfig(body.config);
-      if (config.colorLevel === 'auto') config.colorLevel = 3;
-      const source = previewSourceOf(body);
-      const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 130));
-      const draft = body.theme === undefined ? undefined : parseThemeInput(body.theme);
-      if (draft?.extends !== undefined && !ID_RE.test(draft.extends)) {
-        throw httpError(400, 'err.server.badExtendsId');
-      }
-      const theme = draft ? resolveThemeInput(draft) : undefined;
-      send(
-        res,
-        200,
-        withLanguage(auto.id, () => renderPreviewReport(config, source, width, theme)),
-      );
-      return;
-    },
-    'POST /api/normalize': async (_ctx, req, res) => {
-      const body = asObject(await readBody(req));
-      send(res, 200, { config: normalizeConfig(body.config) });
-      return;
-    },
-    'POST /api/theme-previews': async (_ctx, req, res) => {
-      const body = asObject(await readBody(req));
-      const config = normalizeConfig(body.config);
-      if (config.colorLevel === 'auto') config.colorLevel = 3;
-      const source = previewSourceOf(body);
-      const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 100));
-      const own = config.lines.find((l) => l.length > 0);
-      const plain = own
-        ? applyStyle(
-            { ...config, lines: [own] },
-            own.map((i) => i.id),
-            {},
-            ['colors', 'text'],
-          ).lines[0]
-        : null;
-      const demo: WidgetItem[] = plain ?? DEMO_TYPES.map((type, i) => ({ id: `${type}-${i + 1}`, type }));
-      const previews: Record<string, string[]> = {};
-      for (const t of listThemes()) {
-        const cfg: Config = {
-          ...config,
-          theme: t.id,
-          lines: [demo],
-          style: undefined,
-          separator: undefined,
-          separatorColor: undefined,
-          padding: undefined,
-          glyphs: undefined,
-          tui: undefined,
-        };
-        previews[t.id] = withLanguage(auto.id, () => renderPreview(withoutRotation(cfg), source, width));
-      }
-      send(res, 200, { previews });
-      return;
-    },
-    'POST /api/themes': async (_ctx, req, res) => {
-      const body = asObject(await readBody(req));
-      let input = parseThemeInput(body.theme);
-      if (body.fromConfig !== undefined && input.id && ID_RE.test(input.id)) {
-        input = themeFromConfig(normalizeConfig(body.fromConfig), input.id, {
-          name: input.name ?? input.id,
-          description: input.description ?? '',
-        });
-      }
-      if (!input.id || !ID_RE.test(input.id)) {
-        throw httpError(400, 'err.theme.badId');
-      }
-      if (reservedId(input.id)) throw httpError(400, 'err.id.reserved', { id: input.id });
-      if (input.extends !== undefined && !ID_RE.test(input.extends)) {
-        throw httpError(400, 'err.server.badExtendsId');
-      }
-      saveUserTheme(input);
-      send(res, 200, { ok: true, id: input.id, themes: listThemes() });
-      return;
-    },
-    'POST /api/presets': async (_ctx, req, res) => {
-      const body = asObject(await readBody(req));
-      const meta = asObject(body.preset);
-      const id = typeof meta.id === 'string' ? meta.id : '';
-      if (!ID_RE.test(id)) throw httpError(400, 'err.server.presetIdRule');
-      if (reservedId(id)) throw httpError(400, 'err.id.reserved', { id });
-      saveUserPreset({
-        id,
-        name: typeof meta.name === 'string' ? meta.name.slice(0, 64) : id,
-        description: typeof meta.description === 'string' ? meta.description.slice(0, 200) : '',
-        config: body.config,
-      });
-      send(res, 200, { ok: true, presets: presetList() });
-      return;
-    },
     'GET /api/catalog': async (_ctx, _req, res, url) => {
       send(res, 200, catalogBody(diskLang(url.searchParams.get('lang'))));
       return;
@@ -1568,67 +991,6 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       send(res, 200, { ok: true, theme, themes: listThemes() });
       return;
     },
-    'POST /api/share': async (_ctx, req, res) => {
-      const body = asObject(await readBody(req));
-      const included = body.includeCommands === true;
-      const r = encodeShare(normalizeConfig(body.config), { includeCommands: included, cols: body.cols });
-      if (!r.ok) throw httpError(400, r.errorId, r.params);
-      const pair = (x: { kind: string; target: string }) => ({ kind: x.kind, target: x.target });
-      send(res, 200, {
-        code: r.code,
-        chars: r.chars,
-        max: MAX_CODE_CHARS,
-        included,
-        targets: r.targets.map(pair),
-        dropped: r.dropped.map(pair),
-      });
-      return;
-    },
-    'POST /api/share/open': async (_ctx, req, res) => {
-      const r = decodeShare(asObject(await readBody(req)).code);
-      if (!r.ok) throw httpError(400, r.errorId);
-      send(res, 200, {
-        code: r.code,
-        content: r.content,
-        cols: r.cols ?? null,
-        targets: r.targets,
-        unsafe: r.unsafe,
-      });
-      return;
-    },
-    'POST /api/share/install-theme': async (_ctx, req, res) => {
-      // decoded again; the page's content is not trusted
-      const r = decodeShare(asObject(await readBody(req)).code);
-      if (!r.ok) throw httpError(400, r.errorId);
-      const theme = r.content.theme ? installEntryTheme(r.content) : null;
-      send(res, 200, { ok: true, theme, themes: listThemes() });
-      return;
-    },
-    'PUT /api/styles': async (_ctx, req, res) => {
-      const body = asObject(await readBody(req));
-      const history = asObject(body.history);
-      const clean: StyleHistory = {};
-      for (const [id, list] of Object.entries(history).slice(0, 500)) {
-        if (Array.isArray(list))
-          clean[id.slice(0, 80)] = list.filter((s) => s && typeof s === 'object').slice(0, 3);
-      }
-      writeAtomic(stylesFile, `${JSON.stringify(clean, null, 2)}\n`, { class: 'settings' });
-      send(res, 200, { ok: true });
-      return;
-    },
-    'PUT /api/config': async (_ctx, req, res) => {
-      const body = asObject(await readBody(req));
-      const config = upgradeOptions(normalizeConfig(body.config));
-      try {
-        saveConfig(config, opts.configPath);
-      } catch (err) {
-        if (!(err instanceof ConfigBrokenError)) throw err;
-        const { line, column, message } = err.issue;
-        throw httpError(409, 'config.refuseBroken', { file: err.file }, { line, column, message });
-      }
-      send(res, 200, { ok: true, config });
-      return;
-    },
     'POST /api/install/plan': async (_ctx, req, res) => {
       const body = asObject(await readBody(req));
       const { cmd, refresh, subagents } = requested(body);
@@ -1815,11 +1177,6 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       send(res, 200, { current: VERSION, latest, newer, kind });
       return;
     },
-    'POST /api/shutdown': async (_ctx, _req, res) => {
-      send(res, 200, { ok: true });
-      setTimeout(() => void close(), 50);
-      return;
-    },
   };
 
   const now = opts.detached?.now ?? Date.now;
@@ -1849,6 +1206,10 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     currentRev,
     previewContent,
     previewOf,
+    marketFetch,
+    marketNow,
+    kindOf,
+    latestOf,
     loadMarket,
     needEndpoint,
     marketDeps,
@@ -1859,14 +1220,20 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     resolveCommand,
   };
   const router = createRouter<EditorCtx>({
-    prefix: ROUTE_DEFS.prefix.map((d) => ({
-      ...d,
-      handler: pickHandler(prefixHandlers, `${d.methods.join('|')} ${d.path}`),
-    })),
-    exact: ROUTE_DEFS.exact.map((d) => ({
-      ...d,
-      handler: pickHandler(exactHandlers, `${d.method} ${d.path}`),
-    })),
+    prefix: [
+      ...moved.prefix,
+      ...ROUTE_DEFS.prefix.map((d) => ({
+        ...d,
+        handler: pickHandler(prefixHandlers, `${d.methods.join('|')} ${d.path}`),
+      })),
+    ],
+    exact: [
+      ...moved.exact,
+      ...ROUTE_DEFS.exact.map((d) => ({
+        ...d,
+        handler: pickHandler(exactHandlers, `${d.method} ${d.path}`),
+      })),
+    ],
   });
   if (Object.keys(prefixHandlers).length + Object.keys(exactHandlers).length !== ROUTE_COUNT) {
     throw new Error('route-handler-count');
