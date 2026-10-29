@@ -10,6 +10,7 @@ import {
   GLYPH_MODE_CHOICES,
   OVERFLOW_CHOICES,
   optionShown,
+  optionValue,
   PROGRESS_CHOICES,
   PROGRESS_DEFAULTS,
   RULE_PRESETS,
@@ -213,7 +214,7 @@ function optionField(def: WidgetDef, spec: NonNullable<WidgetDef['options']>[num
     get: (config) => {
       for (const line of config.lines) {
         const it = line.find((i) => i.id === itemId);
-        if (it) return it.options?.[spec.key];
+        if (it) return optionValue(it, spec.key);
       }
       return undefined;
     },

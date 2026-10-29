@@ -6,6 +6,7 @@ import {
   GLYPH_MODE_CHOICES,
   OVERFLOW_CHOICES,
   optionShown,
+  optionValue,
   REFRESH_SUGGEST,
   type RuleQuick,
   removeItem,
@@ -211,7 +212,7 @@ export function httpOptionError(
 }
 
 export function optionControl(item: WidgetItem, spec: OptionSpec): HTMLElement {
-  const stored = item.options?.[spec.key];
+  const stored = optionValue(item, spec.key);
   const value: OptionValue = stored ?? spec.default;
   const set = (v: OptionValue | undefined, coalesce?: string) =>
     commit(setOption(S.config, item.id, spec.key, v), {
