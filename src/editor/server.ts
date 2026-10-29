@@ -57,7 +57,7 @@ import type {
 import { exact as installExact } from './routes/install.js';
 import { exact as shareExact } from './routes/share.js';
 import { exact as stateExact } from './routes/state.js';
-import { exact as styleExact } from './routes/styles.js';
+import { exact as styleExact, styleHistoryOf } from './routes/styles.js';
 import { exact as themeExact, prefix as themePrefix } from './routes/themes.js';
 import {
   activeCommand,
@@ -164,7 +164,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const readStyles = (): StyleHistory => {
     try {
       const v = JSON.parse(fs.readFileSync(stylesFile, 'utf8')) as unknown;
-      return v && typeof v === 'object' && !Array.isArray(v) ? (v as StyleHistory) : {};
+      return styleHistoryOf(v, 'lenient') ?? {};
     } catch {
       return {};
     }

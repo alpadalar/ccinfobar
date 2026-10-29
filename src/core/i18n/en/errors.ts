@@ -64,6 +64,7 @@ export const errorMessages = {
   'err.server.badThemeId': 'Invalid theme id',
   'err.server.notUserTheme': 'Not a user theme',
   'err.server.badExtendsId': 'Invalid extends id',
+  'err.server.badStyles': 'Invalid style history',
   'err.server.setupFailed': 'Could not install ccinfobar; run npm install -g ccinfobar',
   'err.server.github': 'Could not reach GitHub: {error}',
   'err.server.cannotUpdate': 'This {kind} copy cannot update itself; run npm install -g ccinfobar',

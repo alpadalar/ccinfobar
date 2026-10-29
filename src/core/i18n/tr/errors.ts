@@ -68,6 +68,7 @@ export const errorMessages = {
   'err.server.badThemeId': 'Geçersiz tema kimliği',
   'err.server.notUserTheme': 'Bu bir kullanıcı teması değil',
   'err.server.badExtendsId': 'Geçersiz extends kimliği',
+  'err.server.badStyles': 'Geçersiz stil geçmişi',
   'err.server.setupFailed': 'ccinfobar kurulamadı; npm install -g ccinfobar çalıştırın',
   'err.server.github': "GitHub'a ulaşılamadı: {error}",
   'err.server.cannotUpdate': 'Bu kopya ({kind}) kendini güncelleyemez; npm install -g ccinfobar çalıştırın',
