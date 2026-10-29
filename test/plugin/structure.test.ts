@@ -193,4 +193,13 @@ describe('skills', () => {
     expect(skill('theme').body).toContain('ccinfobar theme ');
     expect(skill('doctor').body).toContain('ccinfobar doctor');
   });
+
+  it('ci.yml and DEVELOPMENT.md name the real skill count', () => {
+    const n = fs.readdirSync(path.join(pluginDir, 'skills')).length;
+    const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
+    const dev = fs.readFileSync(path.join(root, 'docs/DEVELOPMENT.md'), 'utf8');
+    expect(ci).toContain(`Skills (${n})`);
+    expect(dev).toContain(`\`Skills (${n})\``);
+    expect(dev).not.toMatch(new RegExp(`Skills \\((?!${n}\\))\\d+\\)`));
+  });
 });
