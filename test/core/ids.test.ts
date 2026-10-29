@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ID_RE, isFileId, readableId, reservedId } from '../../src/core/ids.js';
 
@@ -46,5 +48,20 @@ describe('ids', () => {
     expect(readableId('con', 'darwin')).toBe(true);
     expect(readableId('nord', 'win32')).toBe(true);
     expect(readableId('bad id', 'linux')).toBe(false);
+  });
+});
+
+describe('ID_RE source', () => {
+  const root = path.join(__dirname, '..', '..');
+  const walk = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(path.join(dir, e.name)) : e.name.endsWith('.ts') ? [path.join(dir, e.name)] : [],
+    );
+
+  it('is defined once', () => {
+    const hits = walk(path.join(root, 'src'))
+      .filter((f) => readFileSync(f, 'utf8').includes('[a-z0-9][a-z0-9._-]{0,63}'))
+      .map((f) => path.relative(root, f).split(path.sep).join('/'));
+    expect(hits).toEqual(['src/core/ids.ts']);
   });
 });

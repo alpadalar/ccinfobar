@@ -2,13 +2,12 @@ import { slug } from '../../catalog/model.js';
 import { keepLanguage } from '../../core/edit.js';
 import { presetLabels, presetText } from '../../core/i18n/catalog-text.js';
 import { t } from '../../core/i18n/index.js';
+import { ID_RE } from '../../core/ids.js';
 import { ansiToHtml } from './ansi-html.js';
 import { api, previewSource } from './api.js';
 import { clear, h, icon } from './dom.js';
 import { isDirty, type PresetInfo, replaceAll, S } from './store.js';
 import { confirmDialog, modal, toast } from './ui.js';
-
-const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 
 export { slug };
 
