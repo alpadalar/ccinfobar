@@ -220,6 +220,8 @@ const SWEPT: string[] = [
   'src/data/store.ts',
   'src/data/terminal.ts',
   'src/data/transcript.ts',
+  'src/data/transcript-state.ts',
+  'src/data/transcript-parse.ts',
   'src/data/update-state.ts',
   'src/data/usage.ts',
   'src/editor/terminal-colors.ts',

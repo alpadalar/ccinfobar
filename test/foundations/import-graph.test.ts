@@ -183,6 +183,8 @@ describe('import graph', () => {
       'src/widgets/agents.ts',
       'src/widgets/index.ts',
       'src/data/transcript.ts',
+      'src/data/transcript-state.ts',
+      'src/data/transcript-parse.ts',
       'src/data/agents.ts',
       'src/data/cache.ts',
     ])
