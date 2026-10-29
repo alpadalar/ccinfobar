@@ -254,3 +254,23 @@ export function splitAnsiLines(text: string): string[] {
   }
   return out;
 }
+
+// subagent row fields
+export const SUBAGENT_FIELDS = [
+  'status',
+  'type',
+  'label',
+  'spark',
+  'tokens',
+  'context',
+  'model',
+  'effort',
+  'elapsed',
+] as const;
+export type SubagentField = (typeof SUBAGENT_FIELDS)[number];
+
+export function subagentFieldList(raw: unknown): SubagentField[] {
+  if (!Array.isArray(raw)) return [];
+  const ok = SUBAGENT_FIELDS as readonly string[];
+  return [...new Set(raw.filter((f): f is SubagentField => typeof f === 'string' && ok.includes(f)))];
+}

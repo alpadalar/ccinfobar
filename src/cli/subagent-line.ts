@@ -3,10 +3,10 @@ import { detectLevel } from '../core/ansi.js';
 import { fs } from '../core/builtins.js';
 import { configPath } from '../core/paths.js';
 import { ingestPayload } from '../core/payload.js';
+import { SUBAGENT_FIELDS, type SubagentField, subagentFieldList } from '../core/subagent-fields.js';
 import type { ColorLevel } from '../core/types.js';
 import { setWidthMode } from '../core/width.js';
 import { readJsonSafe } from '../data/store.js';
-import { SUBAGENT_FIELDS, type SubagentField } from '../widgets/shared.js';
 import { subagentRow } from '../widgets/subagent-row.js';
 import { parseArgs } from './args.js';
 
@@ -52,11 +52,7 @@ export function readStdin(capBytes = 1_048_576, deadlineMs = 1000): Promise<stri
 }
 
 function fieldsOf(cfg: Obj | null): SubagentField[] {
-  const raw = isObject(cfg?.subagentLine) ? cfg.subagentLine.fields : undefined;
-  const ok = SUBAGENT_FIELDS as readonly string[];
-  const out = Array.isArray(raw)
-    ? [...new Set(raw.filter((f): f is SubagentField => typeof f === 'string' && ok.includes(f)))]
-    : [];
+  const out = subagentFieldList(isObject(cfg?.subagentLine) ? cfg.subagentLine.fields : undefined);
   return out.length ? out : [...SUBAGENT_FIELDS];
 }
 

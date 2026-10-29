@@ -278,15 +278,4 @@ export function shortModel(model: string | null): string {
   return (m?.[1] ?? model).toLowerCase();
 }
 
-export const SUBAGENT_FIELDS = [
-  'status',
-  'type',
-  'label',
-  'spark',
-  'tokens',
-  'context',
-  'model',
-  'effort',
-  'elapsed',
-] as const;
-export type SubagentField = (typeof SUBAGENT_FIELDS)[number];
+export { SUBAGENT_FIELDS, type SubagentField } from '../core/subagent-fields.js';

@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import { writeAtomic } from '../data/store.js';
-import { SUBAGENT_FIELDS, type SubagentField } from '../widgets/shared.js';
 import { COMMAND_BUDGET_DEFAULT, GLYPH_MODES, OVERFLOW_MODES } from './display-opts.js';
 import { normalizeHeaderSpec, parseHeaderSpec, parseUrlTemplate } from './http-spec.js';
 import { t } from './i18n/index.js';
@@ -10,6 +9,7 @@ import { configPath } from './paths.js';
 import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
 import { normalizeThemeRotation } from './rotation.js';
 import { sanitizeText, tooDeep } from './sanitize.js';
+import { subagentFieldList } from './subagent-fields.js';
 import type {
   Align,
   BoxChars,
@@ -262,14 +262,7 @@ const pct = (v: unknown): number | undefined =>
 
 export function normalizeSubagentLine(raw: unknown): SubagentLineConfig | undefined {
   if (!isObject(raw) || !Array.isArray(raw.fields)) return undefined;
-  const fields = [
-    ...new Set(
-      raw.fields.filter(
-        (f): f is SubagentField =>
-          typeof f === 'string' && (SUBAGENT_FIELDS as readonly string[]).includes(f),
-      ),
-    ),
-  ];
+  const fields = subagentFieldList(raw.fields);
   return fields.length ? { fields } : undefined;
 }
 

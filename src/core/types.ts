@@ -1,5 +1,5 @@
-import type { SubagentField } from '../widgets/shared.js';
 import type { LanguageSetting } from './i18n/languages.js';
+import type { SubagentField } from './subagent-fields.js';
 
 export interface RateWindow {
   used_percentage?: number | null;
