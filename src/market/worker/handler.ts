@@ -150,7 +150,7 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
   // the binding refuses before any D1 statement; the per-publisher bucket stays in writer()
   async function gate(req: Request): Promise<void> {
     const t = deps.now();
-    if (!(await limiterAllowed(env, env.WRITES, 'w', req, t)))
+    if (!(await limiterAllowed(env, env.WRITES, 'w', req, t, deps)))
       throw limited(retryAfterSeconds(windowOf(t), t));
   }
 
@@ -198,7 +198,7 @@ export function createHandler(env: Env, deps: WorkerDeps): WorkerHandler {
     const p = url.pathname;
     if (req.method === 'GET') {
       const t = deps.now();
-      if (!(await readAllowed(env, req, t))) throw limited(retryAfterSeconds(windowOf(t), t));
+      if (!(await readAllowed(env, req, t, deps))) throw limited(retryAfterSeconds(windowOf(t), t));
       if (p === '/') return landingPage(name);
       if (p === metaPath()) return json(200, meta, PUBLIC_HEADERS);
       if (p === mePath()) return me(env, req);

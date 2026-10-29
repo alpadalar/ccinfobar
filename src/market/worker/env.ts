@@ -1,5 +1,7 @@
 // hand-written Workers types; no workers-types package
+
 import type { CAPS } from '../rules.js';
+import type { MemoryLimiter } from './limiter.js';
 
 export interface D1Meta {
   changes: number;
@@ -69,6 +71,8 @@ export interface Env {
 export interface WorkerDeps {
   now: () => number;
   fetch: typeof fetch;
+  // per-isolate rate window, shared across requests
+  memo?: MemoryLimiter;
   // tests only
   caps?: Partial<typeof CAPS & { versions: number; pending: number; pendingPerPublisher: number }>;
 }

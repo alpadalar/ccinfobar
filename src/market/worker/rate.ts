@@ -8,7 +8,8 @@ import {
   WRITES_PER_MINUTE,
   windowOf,
 } from '../rules.js';
-import { type D1Database, type Env, intVar, limitersOpen, type RateLimit } from './env.js';
+import { type D1Database, type Env, intVar, limitersOpen, type RateLimit, type WorkerDeps } from './env.js';
+import { MEMORY_LIMITS } from './limiter.js';
 import { bumpRate, cleanupStatements, saltStatements } from './store.js';
 import { randomToken, sha256Hex } from './tokens.js';
 
@@ -60,7 +61,10 @@ export async function check(db: D1Database, key: string, b: Bucket, now: number)
   if (wait !== null) throw limited(wait);
 }
 
-// the key lives in memory only; a missing or failing binding never blocks
+const limitKey = async (prefix: string, req: Request, now: number): Promise<string> =>
+  `${prefix}:${(await sha256Hex(dayOf(now) + ipOf(req))).slice(0, 32)}`;
+
+// the key lives in memory only; a missing or failing binding never blocks; logs carry no key
 export async function bindingAllowed(
   b: RateLimit | undefined,
   prefix: string,
@@ -68,28 +72,54 @@ export async function bindingAllowed(
   now: number,
 ): Promise<boolean> {
   if (!b) return true;
-  const key = `${prefix}:${(await sha256Hex(dayOf(now) + ipOf(req))).slice(0, 32)}`;
+  const key = await limitKey(prefix, req, now);
   try {
-    return (await b.limit({ key })).success !== false;
+    const r = (await b.limit({ key })) as { success?: unknown } | undefined;
+    if (typeof r?.success !== 'boolean') {
+      console.warn('ratelimit', prefix, 'unexpected');
+      return true;
+    }
+    if (!r.success) console.log('ratelimit', prefix, 'refused');
+    return r.success;
   } catch {
+    console.warn('ratelimit', prefix, 'threw');
     return true;
   }
+}
+
+async function layered(
+  b: RateLimit | undefined,
+  prefix: keyof typeof MEMORY_LIMITS,
+  req: Request,
+  now: number,
+  deps?: Pick<WorkerDeps, 'memo'>,
+): Promise<boolean> {
+  if (deps?.memo) {
+    const key = await limitKey(prefix, req, now);
+    if (!deps.memo.hit(key, MEMORY_LIMITS[prefix], now)) return false;
+  }
+  return bindingAllowed(b, prefix, req, now);
 }
 
 // writes and sign-in refuse (503) without their binding unless the dev flag opens them
 export async function limiterAllowed(
   env: Env,
   b: RateLimit | undefined,
-  prefix: string,
+  prefix: keyof typeof MEMORY_LIMITS,
   req: Request,
   now: number,
+  deps?: Pick<WorkerDeps, 'memo'>,
 ): Promise<boolean> {
   if (!b && !limitersOpen(env)) throw fail(503, 'unavailable', 'rate limiter is not configured');
-  return bindingAllowed(b, prefix, req, now);
+  return layered(b, prefix, req, now, deps);
 }
 
-export const readAllowed = (env: Env, req: Request, now: number): Promise<boolean> =>
-  bindingAllowed(env.READS, 'r', req, now);
+export const readAllowed = (
+  env: Env,
+  req: Request,
+  now: number,
+  deps?: Pick<WorkerDeps, 'memo'>,
+): Promise<boolean> => layered(env.READS, 'r', req, now, deps);
 
 // older salts go, so their hashes become unlinkable; answers the rate rows deleted
 export async function cleanup(db: D1Database, now: number): Promise<number> {

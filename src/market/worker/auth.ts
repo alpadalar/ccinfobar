@@ -179,7 +179,7 @@ export async function signInWithGitHub(env: Env, deps: WorkerDeps, req: Request)
   // no GitHub call and no row write on a server that cannot verify tokens
   if (secret ? !CLIENT_ID_RE.test(clientId) : !unverifiedOk(env)) throw fail(503, 'unavailable');
   const now = deps.now();
-  if (!(await limiterAllowed(env, env.SIGNIN, 'a', req, now)))
+  if (!(await limiterAllowed(env, env.SIGNIN, 'a', req, now, deps)))
     throw limited(retryAfterSeconds(windowOf(now), now));
   const b = buckets(env).signIn;
   const win = windowOf(now, b.ms);
