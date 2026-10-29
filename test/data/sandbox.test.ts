@@ -31,7 +31,7 @@ beforeEach(() => {
   proj = path.join(root, 'proj');
   fs.mkdirSync(home, { recursive: true });
   fs.mkdirSync(proj, { recursive: true });
-  env = { HOME: home, CLAUDE_CONFIG_DIR: path.join(home, '.claude') };
+  env = { HOME: home, CLAUDE_CONFIG_DIR: path.join(home, '.claude'), GIT_CEILING_DIRECTORIES: root };
   opts = { platform: 'linux', managedDir: path.join(root, 'managed'), home };
 });
 afterEach(() => {
@@ -43,6 +43,13 @@ describe('readSandbox', () => {
   it('reads the user layer', () => {
     user(sb(true));
     expect(readSandbox(proj, env, opts)).toEqual({ enabled: true, strict: false });
+    user(sb(false));
+    expect(readSandbox(proj, env, opts)).toEqual({ enabled: false, strict: false });
+  });
+
+  it('an enclosing repository above the test root does not leak in', () => {
+    fs.mkdirSync(path.join(root, '.git'));
+    local(sb(true), root);
     user(sb(false));
     expect(readSandbox(proj, env, opts)).toEqual({ enabled: false, strict: false });
   });
