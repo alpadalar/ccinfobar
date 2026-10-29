@@ -125,6 +125,8 @@ import type { ImportTarget } from '../importers/confirm.js';
 import { ID_PART_RE, isRemoteId, REPORT_REASON_MAX } from '../market/protocol.js';
 import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import { SUBAGENT_FIELDS } from '../widgets/shared.js';
+import { createRouter, type Handler } from './router.js';
+import type { EditorCtx, EditorState } from './routes/ctx.js';
 import type { TerminalColors } from './terminal-colors.js';
 
 declare const __VERSION__: string;
@@ -368,7 +370,7 @@ function previewSourceOf(body: Record<string, unknown>): PreviewSource {
   return 'sample';
 }
 
-type Found =
+export type Found =
   | { source: 'user'; entry: CatalogEntry }
   | { source: 'legacy'; item: LegacyItem }
   | { source: 'system'; entry: SystemEntry };
@@ -400,11 +402,11 @@ const SYSTEM_RE = /^(?:bundle|preset|theme)\/(.*)$/;
 const MAX_PREVIEWS = 100;
 const MAX_PUBLISH_REFS = 500;
 
-type Market = typeof import('../commands/catalog-market.js');
-type LoginFlows = ReturnType<Market['createLoginFlows']>;
+export type Market = typeof import('../commands/catalog-market.js');
+export type LoginFlows = ReturnType<Market['createLoginFlows']>;
 type InstallPlan = Awaited<ReturnType<Market['planInstall']>>;
-type PlanItem = ReturnType<Market['publishPlan']>[number];
-type Skip = { id: string; reason: 'not-shared' | 'up-to-date' | 'withdrawn' };
+export type PlanItem = ReturnType<Market['publishPlan']>[number];
+export type Skip = { id: string; reason: 'not-shared' | 'up-to-date' | 'withdrawn' };
 
 // market codes; read failures are a bad gateway
 function marketError(code: string | null, id: MessageId, status?: number): HttpError {
@@ -653,6 +655,69 @@ function storeError(err: CatalogStoreError, kind = ''): HttpError {
   return httpError(status, id);
 }
 
+// match order: prefixes first, then exact; handlers are keyed 'METHOD /path'
+const ROUTE_DEFS = {
+  prefix: [
+    { methods: ['DELETE'], path: '/api/presets/' },
+    { methods: ['DELETE'], path: '/api/themes/' },
+    { methods: ['GET', 'DELETE'], path: '/api/catalog/entries/' },
+    { methods: ['GET'], path: '/api/catalog/remote/' },
+    { methods: ['GET', 'DELETE'], path: FLOW_PATH },
+  ],
+  exact: [
+    { method: 'GET', path: '/api/ping' },
+    { method: 'GET', path: '/api/state' },
+    { method: 'POST', path: '/api/preview' },
+    { method: 'POST', path: '/api/normalize' },
+    { method: 'POST', path: '/api/theme-previews' },
+    { method: 'POST', path: '/api/themes' },
+    { method: 'POST', path: '/api/presets' },
+    { method: 'GET', path: '/api/catalog' },
+    { method: 'POST', path: '/api/catalog/previews' },
+    { method: 'POST', path: '/api/catalog/save' },
+    { method: 'POST', path: '/api/catalog/restore' },
+    { method: 'POST', path: '/api/catalog/share' },
+    { method: 'POST', path: '/api/catalog/publish/plan' },
+    { method: 'POST', path: '/api/catalog/publisher' },
+    { method: 'POST', path: '/api/catalog/publish' },
+    { method: 'POST', path: '/api/catalog/remote/previews' },
+    { method: 'GET', path: '/api/catalog/remote' },
+    { method: 'POST', path: '/api/catalog/login' },
+    { method: 'POST', path: '/api/catalog/logout' },
+    { method: 'POST', path: '/api/catalog/install/plan' },
+    { method: 'POST', path: '/api/catalog/install' },
+    { method: 'POST', path: '/api/catalog/report' },
+    { method: 'POST', path: '/api/catalog/install-theme' },
+    { method: 'POST', path: '/api/share' },
+    { method: 'POST', path: '/api/share/open' },
+    { method: 'POST', path: '/api/share/install-theme' },
+    { method: 'PUT', path: '/api/styles' },
+    { method: 'PUT', path: '/api/config' },
+    { method: 'POST', path: '/api/install/plan' },
+    { method: 'POST', path: '/api/install' },
+    { method: 'POST', path: '/api/hooks' },
+    { method: 'POST', path: '/api/progress' },
+    { method: 'GET', path: '/api/system' },
+    { method: 'POST', path: '/api/update' },
+    { method: 'POST', path: '/api/shutdown' },
+  ],
+} as const;
+const ROUTE_COUNT = ROUTE_DEFS.prefix.length + ROUTE_DEFS.exact.length;
+
+function pickHandler(table: Record<string, Handler<EditorCtx>>, key: string): Handler<EditorCtx> {
+  const h = table[key];
+  if (!h) throw new Error(`route-handler-missing:${key}`);
+  return h;
+}
+
+export function routeTable() {
+  const noop: Handler<EditorCtx> = () => {};
+  return createRouter<EditorCtx>({
+    prefix: ROUTE_DEFS.prefix.map((d) => ({ ...d, handler: noop })),
+    exact: ROUTE_DEFS.exact.map((d) => ({ ...d, handler: noop })),
+  }).table();
+}
+
 export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   // API text stays English; the browser picks its language from `language`
   const auto = envLanguage();
@@ -661,7 +726,7 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   const host = opts.host ?? '127.0.0.1';
   const token = crypto.randomBytes(16).toString('hex');
   const tokenBuf = Buffer.from(token, 'utf8');
-  let command = defaultCommand();
+  const state: EditorState = { command: defaultCommand(), flows: null };
   const setup = opts.setup ?? ((v: string) => setupCommandAsync(v));
   const kindOf = opts.installKind ?? installKind;
   const latestOf = opts.fetchLatest ?? fetchLatest;
@@ -846,14 +911,13 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
     defaultEndpoint: fallback,
   });
   // created on the first sign-in; holds device codes in memory only
-  let flows: LoginFlows | null = null;
   const loginFlows = (m: Market): LoginFlows => {
-    flows ??= m.createLoginFlows({
+    state.flows ??= m.createLoginFlows({
       fetch: (input, init) => marketFetch()(input, init),
       now: marketNow,
       defaultEndpoint: fallback,
     });
-    return flows;
+    return state.flows;
   };
 
   function needEndpoint(): string {
@@ -927,7 +991,8 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   } {
     if (body.subagents !== undefined && typeof body.subagents !== 'boolean')
       throw httpError(400, 'install.badSubagents');
-    const asked = typeof body.command === 'string' && body.command.trim() ? body.command.trim() : command;
+    const asked =
+      typeof body.command === 'string' && body.command.trim() ? body.command.trim() : state.command;
     const refresh = Number(body.refreshInterval);
     return {
       cmd: !asked || asked.startsWith(PLACEHOLDER_PREFIX) ? null : asked,
@@ -938,9 +1003,9 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
 
   async function resolveCommand(cmd: string | null): Promise<string> {
     if (cmd) return cmd;
-    command = (await setup(VERSION)).command;
-    if (!command) throw httpError(500, 'err.server.setupFailed');
-    return command;
+    state.command = (await setup(VERSION)).command;
+    if (!state.command) throw httpError(500, 'err.server.setupFailed');
+    return state.command;
   }
 
   async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -974,7 +1039,13 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       if (origin !== undefined && !originOk(origin)) throw new HttpError(403, 'Forbidden origin');
     }
 
-    if (method === 'DELETE' && url.pathname.startsWith('/api/presets/')) {
+    const h = router.match(method, url.pathname);
+    if (!h) throw new HttpError(404, 'Not found');
+    await h(ctx, req, res, url);
+  }
+
+  const prefixHandlers: Record<string, Handler<EditorCtx>> = {
+    'DELETE /api/presets/': async (_ctx, _req, res, url) => {
       let id = '';
       try {
         id = decodeURIComponent(url.pathname.slice('/api/presets/'.length));
@@ -985,9 +1056,8 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       deleteUserPreset(id);
       send(res, 200, { ok: true, presets: presetList() });
       return;
-    }
-
-    if (method === 'DELETE' && url.pathname.startsWith('/api/themes/')) {
+    },
+    'DELETE /api/themes/': async (_ctx, _req, res, url) => {
       let id = '';
       try {
         id = decodeURIComponent(url.pathname.slice('/api/themes/'.length));
@@ -998,9 +1068,9 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       deleteUserTheme(id);
       send(res, 200, { ok: true, themes: listThemes() });
       return;
-    }
-
-    if ((method === 'GET' || method === 'DELETE') && url.pathname.startsWith('/api/catalog/entries/')) {
+    },
+    'GET|DELETE /api/catalog/entries/': async (_ctx, req, res, url) => {
+      const method = req.method ?? 'GET';
       let ref = '';
       try {
         ref = decodeURIComponent(url.pathname.slice('/api/catalog/entries/'.length));
@@ -1027,9 +1097,8 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
       else if (!deleteLegacy(ref)) throw httpError(404, 'err.catalog.unknownRef', { ref: clean(ref) });
       send(res, 200, { ok: true, kept, catalog: catalogBody(lang) });
       return;
-    }
-
-    if (method === 'GET' && url.pathname.startsWith('/api/catalog/remote/')) {
+    },
+    'GET /api/catalog/remote/': async (_ctx, _req, res, url) => {
       needEndpoint();
       const raw = url.pathname.slice('/api/catalog/remote/'.length).split('/');
       let parts: string[] = [];
@@ -1058,19 +1127,19 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
           : {}),
       });
       return;
-    }
-
-    if ((method === 'GET' || method === 'DELETE') && url.pathname.startsWith(FLOW_PATH)) {
+    },
+    [`GET|DELETE ${FLOW_PATH}`]: async (ctx, req, res, url) => {
+      const method = req.method ?? 'GET';
       const flow = url.pathname.slice(FLOW_PATH.length);
       const m = await loadMarket();
       if (!m.isFlowId(flow)) throw httpError(400, 'err.catalog.badRequest');
       // no flow was ever started: nothing to ask GitHub
-      if (method === 'DELETE' || !flows) {
-        flows?.cancel(flow);
+      if (method === 'DELETE' || !ctx.state.flows) {
+        ctx.state.flows?.cancel(flow);
         send(res, 200, { status: 'cancelled' });
         return;
       }
-      const s = await flows.status(flow);
+      const s = await ctx.state.flows.status(flow);
       const failed =
         s.status === 'failed' && s.code
           ? {
@@ -1087,675 +1156,721 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
         ...failed,
       });
       return;
-    }
+    },
+  };
 
-    const route = `${method} ${url.pathname}`;
-    switch (route) {
-      case 'GET /api/ping': {
-        send(res, 200, { ok: true });
-        return;
+  const exactHandlers: Record<string, Handler<EditorCtx>> = {
+    'GET /api/ping': async (_ctx, _req, res) => {
+      send(res, 200, { ok: true });
+      return;
+    },
+    'GET /api/state': async (ctx, _req, res) => {
+      const loaded = loadForUse(opts.configPath, () => gsd);
+      const config = upgradeOptions(loaded.config);
+      send(res, 200, {
+        version: VERSION,
+        configPath: tildify(opts.configPath),
+        configError: loaded.error ?? null,
+        configIssue: loaded.issue ?? null,
+        config,
+        savedConfig: config,
+        widgets: widgetCatalog(),
+        categories: CATEGORIES,
+        subagentFields: SUBAGENT_FIELDS,
+        presets: presetList(),
+        presetsDir: tildify(presetsDir()),
+        styleHistory: readStyles(),
+        gsdInstalled: gsd,
+        themes: listThemes(),
+        styles: STYLES,
+        themesDir: tildify(themesDir()),
+        claude: claudeInfo(ctx.state.command),
+        hooks: await hooksInfo(ctx.state.command),
+        hasLastPayload: fs.existsSync(lastPayloadPath()),
+        scenarios: scenarioList(),
+        terminal: opts.terminal ?? null,
+        language: auto,
+      });
+      return;
+    },
+    'POST /api/preview': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const config = normalizeConfig(body.config);
+      if (config.colorLevel === 'auto') config.colorLevel = 3;
+      const source = previewSourceOf(body);
+      const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 130));
+      const draft = body.theme === undefined ? undefined : parseThemeInput(body.theme);
+      if (draft?.extends !== undefined && !ID_RE.test(draft.extends)) {
+        throw httpError(400, 'err.server.badExtendsId');
       }
-      case 'GET /api/state': {
-        const loaded = loadForUse(opts.configPath, () => gsd);
-        const config = upgradeOptions(loaded.config);
-        send(res, 200, {
-          version: VERSION,
-          configPath: tildify(opts.configPath),
-          configError: loaded.error ?? null,
-          configIssue: loaded.issue ?? null,
-          config,
-          savedConfig: config,
-          widgets: widgetCatalog(),
-          categories: CATEGORIES,
-          subagentFields: SUBAGENT_FIELDS,
-          presets: presetList(),
-          presetsDir: tildify(presetsDir()),
-          styleHistory: readStyles(),
-          gsdInstalled: gsd,
-          themes: listThemes(),
-          styles: STYLES,
-          themesDir: tildify(themesDir()),
-          claude: claudeInfo(command),
-          hooks: await hooksInfo(command),
-          hasLastPayload: fs.existsSync(lastPayloadPath()),
-          scenarios: scenarioList(),
-          terminal: opts.terminal ?? null,
-          language: auto,
+      const theme = draft ? resolveThemeInput(draft) : undefined;
+      send(
+        res,
+        200,
+        withLanguage(auto.id, () => renderPreviewReport(config, source, width, theme)),
+      );
+      return;
+    },
+    'POST /api/normalize': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      send(res, 200, { config: normalizeConfig(body.config) });
+      return;
+    },
+    'POST /api/theme-previews': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const config = normalizeConfig(body.config);
+      if (config.colorLevel === 'auto') config.colorLevel = 3;
+      const source = previewSourceOf(body);
+      const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 100));
+      const own = config.lines.find((l) => l.length > 0);
+      const plain = own
+        ? applyStyle(
+            { ...config, lines: [own] },
+            own.map((i) => i.id),
+            {},
+            ['colors', 'text'],
+          ).lines[0]
+        : null;
+      const demo: WidgetItem[] = plain ?? DEMO_TYPES.map((type, i) => ({ id: `${type}-${i + 1}`, type }));
+      const previews: Record<string, string[]> = {};
+      for (const t of listThemes()) {
+        const cfg: Config = {
+          ...config,
+          theme: t.id,
+          lines: [demo],
+          style: undefined,
+          separator: undefined,
+          separatorColor: undefined,
+          padding: undefined,
+          glyphs: undefined,
+          tui: undefined,
+        };
+        previews[t.id] = withLanguage(auto.id, () => renderPreview(withoutRotation(cfg), source, width));
+      }
+      send(res, 200, { previews });
+      return;
+    },
+    'POST /api/themes': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      let input = parseThemeInput(body.theme);
+      if (body.fromConfig !== undefined && input.id && ID_RE.test(input.id)) {
+        input = themeFromConfig(normalizeConfig(body.fromConfig), input.id, {
+          name: input.name ?? input.id,
+          description: input.description ?? '',
         });
-        return;
       }
-      case 'POST /api/preview': {
-        const body = asObject(await readBody(req));
-        const config = normalizeConfig(body.config);
-        if (config.colorLevel === 'auto') config.colorLevel = 3;
-        const source = previewSourceOf(body);
-        const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 130));
-        const draft = body.theme === undefined ? undefined : parseThemeInput(body.theme);
-        if (draft?.extends !== undefined && !ID_RE.test(draft.extends)) {
-          throw httpError(400, 'err.server.badExtendsId');
-        }
-        const theme = draft ? resolveThemeInput(draft) : undefined;
-        send(
-          res,
-          200,
-          withLanguage(auto.id, () => renderPreviewReport(config, source, width, theme)),
-        );
-        return;
+      if (!input.id || !ID_RE.test(input.id)) {
+        throw httpError(400, 'err.theme.badId');
       }
-      case 'POST /api/normalize': {
-        const body = asObject(await readBody(req));
-        send(res, 200, { config: normalizeConfig(body.config) });
-        return;
+      if (reservedId(input.id)) throw httpError(400, 'err.id.reserved', { id: input.id });
+      if (input.extends !== undefined && !ID_RE.test(input.extends)) {
+        throw httpError(400, 'err.server.badExtendsId');
       }
-      case 'POST /api/theme-previews': {
-        const body = asObject(await readBody(req));
-        const config = normalizeConfig(body.config);
-        if (config.colorLevel === 'auto') config.colorLevel = 3;
-        const source = previewSourceOf(body);
-        const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 100));
-        const own = config.lines.find((l) => l.length > 0);
-        const plain = own
-          ? applyStyle(
-              { ...config, lines: [own] },
-              own.map((i) => i.id),
-              {},
-              ['colors', 'text'],
-            ).lines[0]
-          : null;
-        const demo: WidgetItem[] = plain ?? DEMO_TYPES.map((type, i) => ({ id: `${type}-${i + 1}`, type }));
-        const previews: Record<string, string[]> = {};
-        for (const t of listThemes()) {
-          const cfg: Config = {
-            ...config,
-            theme: t.id,
-            lines: [demo],
-            style: undefined,
-            separator: undefined,
-            separatorColor: undefined,
-            padding: undefined,
-            glyphs: undefined,
-            tui: undefined,
-          };
-          previews[t.id] = withLanguage(auto.id, () => renderPreview(withoutRotation(cfg), source, width));
+      saveUserTheme(input);
+      send(res, 200, { ok: true, id: input.id, themes: listThemes() });
+      return;
+    },
+    'POST /api/presets': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const meta = asObject(body.preset);
+      const id = typeof meta.id === 'string' ? meta.id : '';
+      if (!ID_RE.test(id)) throw httpError(400, 'err.server.presetIdRule');
+      if (reservedId(id)) throw httpError(400, 'err.id.reserved', { id });
+      saveUserPreset({
+        id,
+        name: typeof meta.name === 'string' ? meta.name.slice(0, 64) : id,
+        description: typeof meta.description === 'string' ? meta.description.slice(0, 200) : '',
+        config: body.config,
+      });
+      send(res, 200, { ok: true, presets: presetList() });
+      return;
+    },
+    'GET /api/catalog': async (_ctx, _req, res, url) => {
+      send(res, 200, catalogBody(diskLang(url.searchParams.get('lang'))));
+      return;
+    },
+    'POST /api/catalog/previews': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const config = normalizeConfig(body.config);
+      if (config.colorLevel === 'auto') config.colorLevel = 3;
+      const source = previewSourceOf(body);
+      const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 100));
+      const byRef = new Map(allEntries().map((a) => [refOf(a), a]));
+      const refs = Array.isArray(body.refs)
+        ? body.refs.slice(0, MAX_PREVIEWS).filter((r): r is string => typeof r === 'string')
+        : [...byRef.keys()].slice(0, MAX_PREVIEWS);
+      const previews: Record<string, string[]> = {};
+      withLanguage(uiLang(body.lang, config), () => {
+        for (const ref of refs) {
+          const hit = byRef.get(ref);
+          if (hit && !Object.hasOwn(previews, ref))
+            previews[ref] = previewOf(config, hit, source, colsOf(hit) ?? width);
         }
-        send(res, 200, { previews });
-        return;
-      }
-      case 'POST /api/themes': {
-        const body = asObject(await readBody(req));
-        let input = parseThemeInput(body.theme);
-        if (body.fromConfig !== undefined && input.id && ID_RE.test(input.id)) {
-          input = themeFromConfig(normalizeConfig(body.fromConfig), input.id, {
-            name: input.name ?? input.id,
-            description: input.description ?? '',
-          });
-        }
-        if (!input.id || !ID_RE.test(input.id)) {
-          throw httpError(400, 'err.theme.badId');
-        }
-        if (reservedId(input.id)) throw httpError(400, 'err.id.reserved', { id: input.id });
-        if (input.extends !== undefined && !ID_RE.test(input.extends)) {
-          throw httpError(400, 'err.server.badExtendsId');
-        }
-        saveUserTheme(input);
-        send(res, 200, { ok: true, id: input.id, themes: listThemes() });
-        return;
-      }
-      case 'POST /api/presets': {
-        const body = asObject(await readBody(req));
-        const meta = asObject(body.preset);
-        const id = typeof meta.id === 'string' ? meta.id : '';
-        if (!ID_RE.test(id)) throw httpError(400, 'err.server.presetIdRule');
-        if (reservedId(id)) throw httpError(400, 'err.id.reserved', { id });
-        saveUserPreset({
-          id,
-          name: typeof meta.name === 'string' ? meta.name.slice(0, 64) : id,
-          description: typeof meta.description === 'string' ? meta.description.slice(0, 200) : '',
-          config: body.config,
+      });
+      send(res, 200, { previews });
+      return;
+    },
+    'POST /api/catalog/save': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const { kind } = body;
+      const mode = body.mode ?? 'new';
+      if (!isKind(kind) || typeof body.config !== 'object' || body.config === null)
+        throw httpError(400, 'err.catalog.badContent');
+      if (mode !== 'new' && mode !== 'update' && mode !== 'overwrite')
+        throw httpError(400, 'err.catalog.badRequest');
+      const config = normalizeConfig(body.config);
+      const author = typeof body.author === 'string' ? body.author : undefined;
+      const cols = parseCols(body.cols);
+      let e: CatalogEntry;
+      try {
+        e = saveEntry({
+          kind,
+          name: str(body.name),
+          description: str(body.description),
+          ...(author === undefined ? {} : { author }),
+          content: contentFromConfig(config, kind),
+          note: str(body.note),
+          ...(cols === undefined ? {} : { cols }),
+          share: body.share !== false,
+          mode,
+          ...(mode !== 'new' && typeof body.share === 'boolean' ? { shareChange: body.share } : {}),
+          ...(body.id === undefined ? {} : { id: body.id as string }),
+          ...(Number.isInteger(body.rev) ? { rev: body.rev as number } : {}),
         });
-        send(res, 200, { ok: true, presets: presetList() });
-        return;
+      } catch (err) {
+        throw err instanceof CatalogStoreError ? storeError(err, kind) : err;
       }
-      case 'GET /api/catalog': {
-        send(res, 200, catalogBody(diskLang(url.searchParams.get('lang'))));
-        return;
+      if (author !== undefined && author.trim() !== readProfile().author) writeProfile({ author });
+      send(res, 200, userResult(e, uiLang(body.lang, config)));
+      return;
+    },
+    'POST /api/catalog/restore': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const target = writableRef(body.id ?? body.ref);
+      const version = body.version;
+      if (!Number.isInteger(version) || (version as number) < 1)
+        throw httpError(400, 'err.catalog.badRequest');
+      const lang = diskLang(body.lang);
+      let id = target.ref;
+      let rev: number;
+      if (target.type === 'legacy') {
+        if (version !== 1)
+          throw httpError(404, 'err.catalog.noVersion', { ref: clean(id), version: version as number });
+        const adopted = adoptLegacy(id, new Date());
+        id = adopted.id;
+        rev = adopted.rev;
+      } else {
+        if (!Number.isInteger(body.rev)) throw httpError(400, 'err.catalog.badRequest');
+        rev = body.rev as number;
       }
-      case 'POST /api/catalog/previews': {
-        const body = asObject(await readBody(req));
-        const config = normalizeConfig(body.config);
-        if (config.colorLevel === 'auto') config.colorLevel = 3;
-        const source = previewSourceOf(body);
-        const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 100));
-        const byRef = new Map(allEntries().map((a) => [refOf(a), a]));
-        const refs = Array.isArray(body.refs)
-          ? body.refs.slice(0, MAX_PREVIEWS).filter((r): r is string => typeof r === 'string')
-          : [...byRef.keys()].slice(0, MAX_PREVIEWS);
-        const previews: Record<string, string[]> = {};
-        withLanguage(uiLang(body.lang, config), () => {
-          for (const ref of refs) {
-            const hit = byRef.get(ref);
-            if (hit && !Object.hasOwn(previews, ref))
-              previews[ref] = previewOf(config, hit, source, colsOf(hit) ?? width);
-          }
-        });
-        send(res, 200, { previews });
-        return;
-      }
-      case 'POST /api/catalog/save': {
-        const body = asObject(await readBody(req));
-        const { kind } = body;
-        const mode = body.mode ?? 'new';
-        if (!isKind(kind) || typeof body.config !== 'object' || body.config === null)
-          throw httpError(400, 'err.catalog.badContent');
-        if (mode !== 'new' && mode !== 'update' && mode !== 'overwrite')
-          throw httpError(400, 'err.catalog.badRequest');
-        const config = normalizeConfig(body.config);
-        const author = typeof body.author === 'string' ? body.author : undefined;
-        const cols = parseCols(body.cols);
-        let e: CatalogEntry;
-        try {
-          e = saveEntry({
-            kind,
-            name: str(body.name),
-            description: str(body.description),
-            ...(author === undefined ? {} : { author }),
-            content: contentFromConfig(config, kind),
-            note: str(body.note),
-            ...(cols === undefined ? {} : { cols }),
-            share: body.share !== false,
-            mode,
-            ...(mode !== 'new' && typeof body.share === 'boolean' ? { shareChange: body.share } : {}),
-            ...(body.id === undefined ? {} : { id: body.id as string }),
-            ...(Number.isInteger(body.rev) ? { rev: body.rev as number } : {}),
-          });
-        } catch (err) {
-          throw err instanceof CatalogStoreError ? storeError(err, kind) : err;
-        }
-        if (author !== undefined && author.trim() !== readProfile().author) writeProfile({ author });
-        send(res, 200, userResult(e, uiLang(body.lang, config)));
-        return;
-      }
-      case 'POST /api/catalog/restore': {
-        const body = asObject(await readBody(req));
-        const target = writableRef(body.id ?? body.ref);
-        const version = body.version;
-        if (!Number.isInteger(version) || (version as number) < 1)
-          throw httpError(400, 'err.catalog.badRequest');
-        const lang = diskLang(body.lang);
-        let id = target.ref;
-        let rev: number;
-        if (target.type === 'legacy') {
-          if (version !== 1)
-            throw httpError(404, 'err.catalog.noVersion', { ref: clean(id), version: version as number });
-          const adopted = adoptLegacy(id, new Date());
-          id = adopted.id;
-          rev = adopted.rev;
-        } else {
-          if (!Number.isInteger(body.rev)) throw httpError(400, 'err.catalog.badRequest');
-          rev = body.rev as number;
-        }
-        send(res, 200, userResult(restoreEntry(id, version as number, rev, ''), lang));
-        return;
-      }
-      case 'POST /api/catalog/share': {
-        const body = asObject(await readBody(req));
-        const target = writableRef(body.ref ?? body.id);
-        if (typeof body.share !== 'boolean') throw httpError(400, 'err.catalog.badRequest');
-        let e: CatalogEntry;
-        if (target.type === 'legacy') {
-          const adopted = adoptLegacy(target.ref, new Date());
-          e = updateShare(adopted.id, body.share, adopted.rev);
-        } else e = updateShare(target.ref, body.share, currentRev(target.ref, body.rev));
-        send(res, 200, userResult(e, diskLang(body.lang)));
-        return;
-      }
-      case 'POST /api/catalog/publish/plan': {
-        const body = asObject(await readBody(req));
-        const endpoint = needEndpoint();
-        send(res, 200, (await publishView(endpoint, body.refs)).view);
-        return;
-      }
-      // sets the handle a first publish registers, then reviews again
-      case 'POST /api/catalog/publisher': {
-        const body = asObject(await readBody(req));
-        const endpoint = needEndpoint();
-        const handle = typeof body.handle === 'string' ? body.handle.trim() : '';
-        if (!isHandle(handle)) throw httpError(400, 'err.catalog.badHandle');
-        const cur = readPublisher(endpoint);
-        if (readCredential(endpoint) !== null && cur !== null && cur !== handle)
-          throw httpError(409, 'catalog.publisher.registered', { handle: cur, endpoint: clean(endpoint) });
-        writePublisher(endpoint, handle);
-        send(res, 200, (await publishView(endpoint, body.refs)).view);
-        return;
-      }
-      case 'POST /api/catalog/publish': {
-        const body = asObject(await readBody(req));
-        const endpoint = needEndpoint();
-        if (body.confirm !== true) throw httpError(400, 'err.catalog.needsConfirm');
-        const { m, view, review } = await publishView(endpoint, body.refs);
-        // send only what was reviewed; runPublish also checks each entry rev
-        if (body.planHash !== view.planHash) throw httpError(409, 'err.catalog.planChanged', undefined, view);
-        const out = await m.runPublish(review, marketDeps());
-        if (out.code !== null && out.code !== 'read-only')
-          throw marketError(out.code, m.reasonId(out.code), out.status);
-        send(res, 200, {
-          ok: true,
-          code: out.code,
-          ...(out.submitUrl ? { submitUrl: out.submitUrl } : {}),
-          results: out.results.map((r) => ({
-            ...r,
-            errorId: r.code === null ? null : m.reasonId(r.code),
-            ...(r.status ? { errorParams: { status: r.status } } : {}),
-          })),
-          catalog: catalogBody(diskLang(body.lang)),
-        });
-        return;
-      }
-      case 'POST /api/catalog/remote/previews': {
-        needEndpoint();
-        const body = asObject(await readBody(req));
-        if (!Array.isArray(body.ids)) throw httpError(400, 'err.catalog.badRequest');
-        const config = normalizeConfig(body.config);
-        if (config.colorLevel === 'auto') config.colorLevel = 3;
-        const source = previewSourceOf(body);
-        const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 100));
-        const m = await loadMarket();
-        const out = await m.remotePreviewContents(body.ids, marketDeps());
-        if (out.code) throw marketError(out.code, m.reasonId(out.code), out.status);
-        const previews: Record<string, string[]> = {};
-        withLanguage(uiLang(body.lang, config), () => {
-          for (const it of out.items)
-            previews[it.id] = previewContent(config, it.kind, it.content, false, source, it.cols ?? width);
-        });
-        send(res, 200, { previews });
-        return;
-      }
-      case 'GET /api/catalog/remote': {
-        const endpoint = needEndpoint();
-        const m = await loadMarket();
-        const out = await m.remoteList({ ...marketDeps(), refresh: url.searchParams.get('refresh') === '1' });
-        if (out.code) throw marketError(out.code, m.reasonId(out.code), out.status);
-        send(res, 200, {
-          endpoint: clean(endpoint),
-          entries: out.entries,
-          checkedAt: out.checkedAt ?? null,
-          ...(out.stale ? { stale: true } : {}),
-          ...(out.partial ? { partial: true } : {}),
-        });
-        return;
-      }
-      // D-07: the device code stays here; the browser gets the user code only
-      case 'POST /api/catalog/login': {
-        needEndpoint();
-        const m = await loadMarket();
-        let started: Awaited<ReturnType<LoginFlows['start']>>;
-        try {
-          started = await loginFlows(m).start();
-        } catch (err) {
-          throw signInError(m, err);
-        }
-        send(res, 200, {
-          flow: started.flow,
-          userCode: started.userCode,
-          verificationUri: started.verificationUri,
-          expiresIn: started.expiresIn,
-          interval: started.interval,
-        });
-        return;
-      }
-      case 'POST /api/catalog/logout': {
-        const endpoint = needEndpoint();
-        const m = await loadMarket();
-        const signedOut = await m.signOut(endpoint, marketFetch());
-        send(res, 200, { ok: true, signedOut, catalog: catalogBody(diskLang(url.searchParams.get('lang'))) });
-        return;
-      }
-      // D-11: shows what would be installed; nothing is written
-      case 'POST /api/catalog/install/plan': {
-        const body = asObject(await readBody(req));
-        needEndpoint();
-        const { id, version, ref } = installRef(body);
-        const m = await loadMarket();
-        let plan: InstallPlan;
-        try {
-          plan = await m.planInstall(ref, marketDeps());
-        } catch (err) {
-          throw installError(m, err, id, version);
-        }
-        send(res, 200, installView(plan));
-        return;
-      }
-      // downloads again and installs only what was reviewed
-      case 'POST /api/catalog/install': {
-        const body = asObject(await readBody(req));
-        needEndpoint();
-        const { id, version, ref } = installRef(body);
-        const targets = reviewedTargets(body.targets);
-        if (version === null || typeof body.hash !== 'string' || !targets)
-          throw httpError(400, 'err.catalog.badRequest');
-        const m = await loadMarket();
-        let plan: InstallPlan;
-        try {
-          plan = await m.planInstall(ref, marketDeps());
-        } catch (err) {
-          throw installError(m, err, id, version);
-        }
-        if (m.installChanged(plan, { hash: body.hash, targets }))
-          throw httpError(
-            409,
-            'err.catalog.install.changed',
-            { id: clean(id) },
-            { code: 'changed', plan: installView(plan) },
-          );
-        const done = m.runInstall(plan, { now: () => new Date(marketNow()) });
-        send(res, 200, {
-          ok: true,
-          entryId: done.entryId,
-          name: clean(done.name),
-          result: done.result,
-          catalog: catalogBody(diskLang(body.lang)),
-        });
-        return;
-      }
-      case 'POST /api/catalog/report': {
-        const body = asObject(await readBody(req));
-        const endpoint = needEndpoint();
-        const id = typeof body.id === 'string' ? body.id.trim() : '';
-        const m = await loadMarket();
-        const reason = m.reportReason(body.reason);
-        if (!isRemoteId(id)) throw httpError(400, 'catalog.remote.badId', { ref: clean(id) });
-        if (reason === null) throw httpError(400, 'err.catalog.report.badReason', { max: REPORT_REASON_MAX });
-        const out = await m.reportEntry(endpoint, id, reason, marketFetch());
-        if (out.reported) {
-          send(res, 201, { reported: true, report: out.report });
-          return;
-        }
-        if ('already' in out) {
-          send(res, 200, { reported: false, already: true });
-          return;
-        }
-        if (out.code === 'sign-in' || out.code === 'unauthorized')
-          throw httpError(401, 'err.catalog.signInFirst', undefined, { code: out.code });
-        if (out.code === 'not-found')
-          throw httpError(404, 'err.catalog.install.not-found', { id: clean(id) }, { code: out.code });
+      send(res, 200, userResult(restoreEntry(id, version as number, rev, ''), lang));
+      return;
+    },
+    'POST /api/catalog/share': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const target = writableRef(body.ref ?? body.id);
+      if (typeof body.share !== 'boolean') throw httpError(400, 'err.catalog.badRequest');
+      let e: CatalogEntry;
+      if (target.type === 'legacy') {
+        const adopted = adoptLegacy(target.ref, new Date());
+        e = updateShare(adopted.id, body.share, adopted.rev);
+      } else e = updateShare(target.ref, body.share, currentRev(target.ref, body.rev));
+      send(res, 200, userResult(e, diskLang(body.lang)));
+      return;
+    },
+    'POST /api/catalog/publish/plan': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const endpoint = needEndpoint();
+      send(res, 200, (await publishView(endpoint, body.refs)).view);
+      return;
+    },
+    // sets the handle a first publish registers, then reviews again
+    'POST /api/catalog/publisher': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const endpoint = needEndpoint();
+      const handle = typeof body.handle === 'string' ? body.handle.trim() : '';
+      if (!isHandle(handle)) throw httpError(400, 'err.catalog.badHandle');
+      const cur = readPublisher(endpoint);
+      if (readCredential(endpoint) !== null && cur !== null && cur !== handle)
+        throw httpError(409, 'catalog.publisher.registered', { handle: cur, endpoint: clean(endpoint) });
+      writePublisher(endpoint, handle);
+      send(res, 200, (await publishView(endpoint, body.refs)).view);
+      return;
+    },
+    'POST /api/catalog/publish': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const endpoint = needEndpoint();
+      if (body.confirm !== true) throw httpError(400, 'err.catalog.needsConfirm');
+      const { m, view, review } = await publishView(endpoint, body.refs);
+      // send only what was reviewed; runPublish also checks each entry rev
+      if (body.planHash !== view.planHash) throw httpError(409, 'err.catalog.planChanged', undefined, view);
+      const out = await m.runPublish(review, marketDeps());
+      if (out.code !== null && out.code !== 'read-only')
         throw marketError(out.code, m.reasonId(out.code), out.status);
+      send(res, 200, {
+        ok: true,
+        code: out.code,
+        ...(out.submitUrl ? { submitUrl: out.submitUrl } : {}),
+        results: out.results.map((r) => ({
+          ...r,
+          errorId: r.code === null ? null : m.reasonId(r.code),
+          ...(r.status ? { errorParams: { status: r.status } } : {}),
+        })),
+        catalog: catalogBody(diskLang(body.lang)),
+      });
+      return;
+    },
+    'POST /api/catalog/remote/previews': async (_ctx, req, res) => {
+      needEndpoint();
+      const body = asObject(await readBody(req));
+      if (!Array.isArray(body.ids)) throw httpError(400, 'err.catalog.badRequest');
+      const config = normalizeConfig(body.config);
+      if (config.colorLevel === 'auto') config.colorLevel = 3;
+      const source = previewSourceOf(body);
+      const width = Math.max(20, Math.min(400, Math.floor(Number(body.width)) || 100));
+      const m = await loadMarket();
+      const out = await m.remotePreviewContents(body.ids, marketDeps());
+      if (out.code) throw marketError(out.code, m.reasonId(out.code), out.status);
+      const previews: Record<string, string[]> = {};
+      withLanguage(uiLang(body.lang, config), () => {
+        for (const it of out.items)
+          previews[it.id] = previewContent(config, it.kind, it.content, false, source, it.cols ?? width);
+      });
+      send(res, 200, { previews });
+      return;
+    },
+    'GET /api/catalog/remote': async (_ctx, _req, res, url) => {
+      const endpoint = needEndpoint();
+      const m = await loadMarket();
+      const out = await m.remoteList({ ...marketDeps(), refresh: url.searchParams.get('refresh') === '1' });
+      if (out.code) throw marketError(out.code, m.reasonId(out.code), out.status);
+      send(res, 200, {
+        endpoint: clean(endpoint),
+        entries: out.entries,
+        checkedAt: out.checkedAt ?? null,
+        ...(out.stale ? { stale: true } : {}),
+        ...(out.partial ? { partial: true } : {}),
+      });
+      return;
+    },
+    // D-07: the device code stays here; the browser gets the user code only
+    'POST /api/catalog/login': async (_ctx, _req, res) => {
+      needEndpoint();
+      const m = await loadMarket();
+      let started: Awaited<ReturnType<LoginFlows['start']>>;
+      try {
+        started = await loginFlows(m).start();
+      } catch (err) {
+        throw signInError(m, err);
       }
-      case 'POST /api/catalog/install-theme': {
-        const body = asObject(await readBody(req));
-        const ref = body.ref;
-        if (!refType(ref)) throw httpError(400, 'err.catalog.badRef');
-        const hit = mustFind(ref as string);
-        let content = contentOf(hit);
-        if (body.version !== undefined) {
-          const v = hit.source === 'user' ? hit.entry.versions.find((x) => x.version === body.version) : null;
-          if (v) content = v.content;
-          else if (hit.source === 'user' || body.version !== 1)
-            throw httpError(404, 'err.catalog.noVersion', {
-              ref: clean(ref),
-              version: typeof body.version === 'number' ? body.version : '',
-            });
-        }
-        const theme = entryKind(hit) === 'preset' ? null : installEntryTheme(content);
-        send(res, 200, { ok: true, theme, themes: listThemes() });
+      send(res, 200, {
+        flow: started.flow,
+        userCode: started.userCode,
+        verificationUri: started.verificationUri,
+        expiresIn: started.expiresIn,
+        interval: started.interval,
+      });
+      return;
+    },
+    'POST /api/catalog/logout': async (_ctx, _req, res, url) => {
+      const endpoint = needEndpoint();
+      const m = await loadMarket();
+      const signedOut = await m.signOut(endpoint, marketFetch());
+      send(res, 200, { ok: true, signedOut, catalog: catalogBody(diskLang(url.searchParams.get('lang'))) });
+      return;
+    },
+    // D-11: shows what would be installed; nothing is written
+    'POST /api/catalog/install/plan': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      needEndpoint();
+      const { id, version, ref } = installRef(body);
+      const m = await loadMarket();
+      let plan: InstallPlan;
+      try {
+        plan = await m.planInstall(ref, marketDeps());
+      } catch (err) {
+        throw installError(m, err, id, version);
+      }
+      send(res, 200, installView(plan));
+      return;
+    },
+    // downloads again and installs only what was reviewed
+    'POST /api/catalog/install': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      needEndpoint();
+      const { id, version, ref } = installRef(body);
+      const targets = reviewedTargets(body.targets);
+      if (version === null || typeof body.hash !== 'string' || !targets)
+        throw httpError(400, 'err.catalog.badRequest');
+      const m = await loadMarket();
+      let plan: InstallPlan;
+      try {
+        plan = await m.planInstall(ref, marketDeps());
+      } catch (err) {
+        throw installError(m, err, id, version);
+      }
+      if (m.installChanged(plan, { hash: body.hash, targets }))
+        throw httpError(
+          409,
+          'err.catalog.install.changed',
+          { id: clean(id) },
+          { code: 'changed', plan: installView(plan) },
+        );
+      const done = m.runInstall(plan, { now: () => new Date(marketNow()) });
+      send(res, 200, {
+        ok: true,
+        entryId: done.entryId,
+        name: clean(done.name),
+        result: done.result,
+        catalog: catalogBody(diskLang(body.lang)),
+      });
+      return;
+    },
+    'POST /api/catalog/report': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const endpoint = needEndpoint();
+      const id = typeof body.id === 'string' ? body.id.trim() : '';
+      const m = await loadMarket();
+      const reason = m.reportReason(body.reason);
+      if (!isRemoteId(id)) throw httpError(400, 'catalog.remote.badId', { ref: clean(id) });
+      if (reason === null) throw httpError(400, 'err.catalog.report.badReason', { max: REPORT_REASON_MAX });
+      const out = await m.reportEntry(endpoint, id, reason, marketFetch());
+      if (out.reported) {
+        send(res, 201, { reported: true, report: out.report });
         return;
       }
-      case 'POST /api/share': {
-        const body = asObject(await readBody(req));
-        const included = body.includeCommands === true;
-        const r = encodeShare(normalizeConfig(body.config), { includeCommands: included, cols: body.cols });
-        if (!r.ok) throw httpError(400, r.errorId, r.params);
-        const pair = (x: { kind: string; target: string }) => ({ kind: x.kind, target: x.target });
-        send(res, 200, {
-          code: r.code,
-          chars: r.chars,
-          max: MAX_CODE_CHARS,
-          included,
-          targets: r.targets.map(pair),
-          dropped: r.dropped.map(pair),
-        });
+      if ('already' in out) {
+        send(res, 200, { reported: false, already: true });
         return;
       }
-      case 'POST /api/share/open': {
-        const r = decodeShare(asObject(await readBody(req)).code);
-        if (!r.ok) throw httpError(400, r.errorId);
-        send(res, 200, {
-          code: r.code,
-          content: r.content,
-          cols: r.cols ?? null,
-          targets: r.targets,
-          unsafe: r.unsafe,
-        });
-        return;
-      }
-      case 'POST /api/share/install-theme': {
-        // decoded again; the page's content is not trusted
-        const r = decodeShare(asObject(await readBody(req)).code);
-        if (!r.ok) throw httpError(400, r.errorId);
-        const theme = r.content.theme ? installEntryTheme(r.content) : null;
-        send(res, 200, { ok: true, theme, themes: listThemes() });
-        return;
-      }
-      case 'PUT /api/styles': {
-        const body = asObject(await readBody(req));
-        const history = asObject(body.history);
-        const clean: StyleHistory = {};
-        for (const [id, list] of Object.entries(history).slice(0, 500)) {
-          if (Array.isArray(list))
-            clean[id.slice(0, 80)] = list.filter((s) => s && typeof s === 'object').slice(0, 3);
-        }
-        writeAtomic(stylesFile, `${JSON.stringify(clean, null, 2)}\n`, { class: 'settings' });
-        send(res, 200, { ok: true });
-        return;
-      }
-      case 'PUT /api/config': {
-        const body = asObject(await readBody(req));
-        const config = upgradeOptions(normalizeConfig(body.config));
-        try {
-          saveConfig(config, opts.configPath);
-        } catch (err) {
-          if (!(err instanceof ConfigBrokenError)) throw err;
-          const { line, column, message } = err.issue;
-          throw httpError(409, 'config.refuseBroken', { file: err.file }, { line, column, message });
-        }
-        send(res, 200, { ok: true, config });
-        return;
-      }
-      case 'POST /api/install/plan': {
-        const body = asObject(await readBody(req));
-        const { cmd, refresh, subagents } = requested(body);
-        send(res, 200, { plan: planInstall({ command: cmd ?? placeholder(), refresh, subagents }) });
-        return;
-      }
-      case 'POST /api/install': {
-        const body = asObject(await readBody(req));
-        const { cmd, refresh, subagents } = requested(body);
-        const confirmed = body.confirm === true;
-        if (confirmed && !('current' in body)) throw httpError(400, 'install.confirmNeedsCurrent');
-        const draft = planInstall({ command: cmd ?? placeholder(), refresh, subagents });
-        if (confirmed && !deepEqual(body.current ?? null, draft.current))
-          throw httpError(409, 'install.stale', { file: tildify(draft.file) }, { plan: draft });
-        if (draft.needsConfirm && !confirmed)
-          throw httpError(409, 'install.needsConfirm', undefined, { plan: draft });
-        const plan = cmd ? draft : planInstall({ command: await resolveCommand(cmd), refresh, subagents });
-        if (plan !== draft && confirmed && !deepEqual(body.current ?? null, plan.current))
-          throw httpError(409, 'install.stale', { file: tildify(plan.file) }, { plan });
-        let backup: string | null;
-        try {
-          backup = applyInstall(plan, { confirmed, adoptLegacy: confirmed }).backup;
-        } catch (err) {
-          if (err instanceof InstallNeedsConfirmError)
-            throw httpError(409, 'install.needsConfirm', undefined, { plan: err.plan });
-          throw err;
-        }
-        if (!fs.existsSync(opts.configPath))
-          saveConfig(loadForUse(opts.configPath, () => gsd, { persist: true }).config, opts.configPath);
-        send(res, 200, { ok: true, backup, backupsDir: backupsDir(), claude: claudeInfo(command) });
-        return;
-      }
-      case 'POST /api/hooks': {
-        const body = asObject(await readBody(req));
-        const { enabled, permission } = body;
-        if (typeof enabled !== 'boolean' || (permission !== undefined && typeof permission !== 'boolean'))
-          throw httpError(400, 'hooks.badBody');
-        const file = claudeSettingsPath();
-        let backup: string | null = null;
-        if (enabled) {
-          const active = activeCommand(command);
-          if (!active) throw textError(409, NOT_ACTIVE, { hooks: await hooksInfo(command) });
-          const claudeCode = await claudeVersion();
-          const plan = planHooks({
-            settings: readSettings(file).data as Record<string, unknown>,
-            manifest: readManifest(),
-            file,
-            command: active,
-            claudeCode,
-            events: permission ? [...DEFAULT_EVENTS, ...OPTIONAL_EVENTS] : DEFAULT_EVENTS,
+      if (out.code === 'sign-in' || out.code === 'unauthorized')
+        throw httpError(401, 'err.catalog.signInFirst', undefined, { code: out.code });
+      if (out.code === 'not-found')
+        throw httpError(404, 'err.catalog.install.not-found', { id: clean(id) }, { code: out.code });
+      throw marketError(out.code, m.reasonId(out.code), out.status);
+    },
+    'POST /api/catalog/install-theme': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const ref = body.ref;
+      if (!refType(ref)) throw httpError(400, 'err.catalog.badRef');
+      const hit = mustFind(ref as string);
+      let content = contentOf(hit);
+      if (body.version !== undefined) {
+        const v = hit.source === 'user' ? hit.entry.versions.find((x) => x.version === body.version) : null;
+        if (v) content = v.content;
+        else if (hit.source === 'user' || body.version !== 1)
+          throw httpError(404, 'err.catalog.noVersion', {
+            ref: clean(ref),
+            version: typeof body.version === 'number' ? body.version : '',
           });
-          if (plan.refused)
-            throw textError(409, refusalText(plan.refused, claudeCode), { hooks: await hooksInfo(command) });
-          backup = applyHooks(file, plan, process.env, permission === false ? OPTIONAL_EVENTS : []).backup;
-        } else {
-          backup = uninstallHooks(file).backup;
-        }
-        send(res, 200, { ok: true, hooks: await hooksInfo(command), backup });
-        return;
       }
-      case 'POST /api/progress': {
-        const { enabled, channel } = asObject(await readBody(req));
-        if (typeof enabled !== 'boolean') throw httpError(400, 'hooks.badBody');
-        if (channel !== undefined && !(PROGRESS_CHOICES.channel as readonly unknown[]).includes(channel))
-          throw httpError(400, 'hooks.badBody');
-        // config and handlers change together (WR-03)
-        const loaded = loadConfig(opts.configPath);
-        if (loaded.error) throw httpError(409, 'config.refuseBroken', { file: tildify(opts.configPath) });
-        const file = claudeSettingsPath();
-        let backup: string | null = null;
-        let held = false;
-        const next = setProgress(loaded.config, {
-          enabled,
-          ...(channel === undefined ? {} : { channel: channel as ProgressConfig['channel'] }),
+      const theme = entryKind(hit) === 'preset' ? null : installEntryTheme(content);
+      send(res, 200, { ok: true, theme, themes: listThemes() });
+      return;
+    },
+    'POST /api/share': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const included = body.includeCommands === true;
+      const r = encodeShare(normalizeConfig(body.config), { includeCommands: included, cols: body.cols });
+      if (!r.ok) throw httpError(400, r.errorId, r.params);
+      const pair = (x: { kind: string; target: string }) => ({ kind: x.kind, target: x.target });
+      send(res, 200, {
+        code: r.code,
+        chars: r.chars,
+        max: MAX_CODE_CHARS,
+        included,
+        targets: r.targets.map(pair),
+        dropped: r.dropped.map(pair),
+      });
+      return;
+    },
+    'POST /api/share/open': async (_ctx, req, res) => {
+      const r = decodeShare(asObject(await readBody(req)).code);
+      if (!r.ok) throw httpError(400, r.errorId);
+      send(res, 200, {
+        code: r.code,
+        content: r.content,
+        cols: r.cols ?? null,
+        targets: r.targets,
+        unsafe: r.unsafe,
+      });
+      return;
+    },
+    'POST /api/share/install-theme': async (_ctx, req, res) => {
+      // decoded again; the page's content is not trusted
+      const r = decodeShare(asObject(await readBody(req)).code);
+      if (!r.ok) throw httpError(400, r.errorId);
+      const theme = r.content.theme ? installEntryTheme(r.content) : null;
+      send(res, 200, { ok: true, theme, themes: listThemes() });
+      return;
+    },
+    'PUT /api/styles': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const history = asObject(body.history);
+      const clean: StyleHistory = {};
+      for (const [id, list] of Object.entries(history).slice(0, 500)) {
+        if (Array.isArray(list))
+          clean[id.slice(0, 80)] = list.filter((s) => s && typeof s === 'object').slice(0, 3);
+      }
+      writeAtomic(stylesFile, `${JSON.stringify(clean, null, 2)}\n`, { class: 'settings' });
+      send(res, 200, { ok: true });
+      return;
+    },
+    'PUT /api/config': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const config = upgradeOptions(normalizeConfig(body.config));
+      try {
+        saveConfig(config, opts.configPath);
+      } catch (err) {
+        if (!(err instanceof ConfigBrokenError)) throw err;
+        const { line, column, message } = err.issue;
+        throw httpError(409, 'config.refuseBroken', { file: err.file }, { line, column, message });
+      }
+      send(res, 200, { ok: true, config });
+      return;
+    },
+    'POST /api/install/plan': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const { cmd, refresh, subagents } = requested(body);
+      send(res, 200, { plan: planInstall({ command: cmd ?? placeholder(), refresh, subagents }) });
+      return;
+    },
+    'POST /api/install': async (ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const { cmd, refresh, subagents } = requested(body);
+      const confirmed = body.confirm === true;
+      if (confirmed && !('current' in body)) throw httpError(400, 'install.confirmNeedsCurrent');
+      const draft = planInstall({ command: cmd ?? placeholder(), refresh, subagents });
+      if (confirmed && !deepEqual(body.current ?? null, draft.current))
+        throw httpError(409, 'install.stale', { file: tildify(draft.file) }, { plan: draft });
+      if (draft.needsConfirm && !confirmed)
+        throw httpError(409, 'install.needsConfirm', undefined, { plan: draft });
+      const plan = cmd ? draft : planInstall({ command: await resolveCommand(cmd), refresh, subagents });
+      if (plan !== draft && confirmed && !deepEqual(body.current ?? null, plan.current))
+        throw httpError(409, 'install.stale', { file: tildify(plan.file) }, { plan });
+      let backup: string | null;
+      try {
+        backup = applyInstall(plan, { confirmed, adoptLegacy: confirmed }).backup;
+      } catch (err) {
+        if (err instanceof InstallNeedsConfirmError)
+          throw httpError(409, 'install.needsConfirm', undefined, { plan: err.plan });
+        throw err;
+      }
+      if (!fs.existsSync(opts.configPath))
+        saveConfig(loadForUse(opts.configPath, () => gsd, { persist: true }).config, opts.configPath);
+      send(res, 200, { ok: true, backup, backupsDir: backupsDir(), claude: claudeInfo(ctx.state.command) });
+      return;
+    },
+    'POST /api/hooks': async (ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      const { enabled, permission } = body;
+      if (typeof enabled !== 'boolean' || (permission !== undefined && typeof permission !== 'boolean'))
+        throw httpError(400, 'hooks.badBody');
+      const file = claudeSettingsPath();
+      let backup: string | null = null;
+      if (enabled) {
+        const active = activeCommand(ctx.state.command);
+        if (!active) throw textError(409, NOT_ACTIVE, { hooks: await hooksInfo(ctx.state.command) });
+        const claudeCode = await claudeVersion();
+        const plan = planHooks({
+          settings: readSettings(file).data as Record<string, unknown>,
+          manifest: readManifest(),
+          file,
+          command: active,
+          claudeCode,
+          events: permission ? [...DEFAULT_EVENTS, ...OPTIONAL_EVENTS] : DEFAULT_EVENTS,
         });
-        // the tty channel needs no handlers (WR-02)
-        if (enabled && progressChannel(next.progress, process.platform) === 'tty') {
-          saveConfig(next, opts.configPath);
-          if (installedHooks(true).length)
-            backup = uninstallHooks(file, process.env, undefined, 'progress').backup;
-        } else if (enabled) {
-          const active = activeCommand(command);
-          if (!active) throw textError(409, NOT_ACTIVE, { hooks: await hooksInfo(command) });
-          const claudeCode = await claudeVersion();
-          const plan = planHooks({
-            settings: readSettings(file).data as Record<string, unknown>,
-            manifest: readManifest(),
-            file,
-            command: active,
-            claudeCode,
-            events: [],
-            progress: true,
+        if (plan.refused)
+          throw textError(409, refusalText(plan.refused, claudeCode), {
+            hooks: await hooksInfo(ctx.state.command),
           });
-          if (plan.progressRefused)
-            throw textError(409, progressRefusalText(plan.progressRefused, claudeCode), {
-              hooks: await hooksInfo(command),
-            });
-          backup = applyHooks(file, plan).backup;
-          saveConfig(next, opts.configPath);
-        } else {
-          saveConfig(next, opts.configPath);
-          // a showing bar needs one more hook event (D-36)
-          held = requestClear(process.env) > 0 && installedHooks(true).length > 0;
-          if (!held) backup = uninstallHooks(file, process.env, undefined, 'progress').backup;
-        }
-        const progress = normalizeConfig(next).progress ?? null;
-        send(res, 200, { ok: true, hooks: await hooksInfo(command), backup, progress, held });
-        return;
+        backup = applyHooks(file, plan, process.env, permission === false ? OPTIONAL_EVENTS : []).backup;
+      } else {
+        backup = uninstallHooks(file).backup;
       }
-      case 'GET /api/system': {
-        send(res, 200, {
-          version: VERSION,
-          kind: kindOf(),
-          update: readUpdateState(),
-          claude: claudeInfo(command),
-          hooks: await hooksInfo(command),
+      send(res, 200, { ok: true, hooks: await hooksInfo(ctx.state.command), backup });
+      return;
+    },
+    'POST /api/progress': async (ctx, req, res) => {
+      const { enabled, channel } = asObject(await readBody(req));
+      if (typeof enabled !== 'boolean') throw httpError(400, 'hooks.badBody');
+      if (channel !== undefined && !(PROGRESS_CHOICES.channel as readonly unknown[]).includes(channel))
+        throw httpError(400, 'hooks.badBody');
+      // config and handlers change together (WR-03)
+      const loaded = loadConfig(opts.configPath);
+      if (loaded.error) throw httpError(409, 'config.refuseBroken', { file: tildify(opts.configPath) });
+      const file = claudeSettingsPath();
+      let backup: string | null = null;
+      let held = false;
+      const next = setProgress(loaded.config, {
+        enabled,
+        ...(channel === undefined ? {} : { channel: channel as ProgressConfig['channel'] }),
+      });
+      // the tty channel needs no handlers (WR-02)
+      if (enabled && progressChannel(next.progress, process.platform) === 'tty') {
+        saveConfig(next, opts.configPath);
+        if (installedHooks(true).length)
+          backup = uninstallHooks(file, process.env, undefined, 'progress').backup;
+      } else if (enabled) {
+        const active = activeCommand(ctx.state.command);
+        if (!active) throw textError(409, NOT_ACTIVE, { hooks: await hooksInfo(ctx.state.command) });
+        const claudeCode = await claudeVersion();
+        const plan = planHooks({
+          settings: readSettings(file).data as Record<string, unknown>,
+          manifest: readManifest(),
+          file,
+          command: active,
+          claudeCode,
+          events: [],
+          progress: true,
         });
-        return;
+        if (plan.progressRefused)
+          throw textError(409, progressRefusalText(plan.progressRefused, claudeCode), {
+            hooks: await hooksInfo(ctx.state.command),
+          });
+        backup = applyHooks(file, plan).backup;
+        saveConfig(next, opts.configPath);
+      } else {
+        saveConfig(next, opts.configPath);
+        // a showing bar needs one more hook event (D-36)
+        held = requestClear(process.env) > 0 && installedHooks(true).length > 0;
+        if (!held) backup = uninstallHooks(file, process.env, undefined, 'progress').backup;
       }
-      case 'POST /api/update': {
-        const body = asObject(await readBody(req));
-        let latest: string;
-        try {
-          latest = await latestOf(8000);
-        } catch (err) {
-          throw httpError(502, 'err.server.github', { error: (err as Error).message });
+      const progress = normalizeConfig(next).progress ?? null;
+      send(res, 200, { ok: true, hooks: await hooksInfo(ctx.state.command), backup, progress, held });
+      return;
+    },
+    'GET /api/system': async (ctx, _req, res) => {
+      send(res, 200, {
+        version: VERSION,
+        kind: kindOf(),
+        update: readUpdateState(),
+        claude: claudeInfo(ctx.state.command),
+        hooks: await hooksInfo(ctx.state.command),
+      });
+      return;
+    },
+    'POST /api/update': async (_ctx, req, res) => {
+      const body = asObject(await readBody(req));
+      let latest: string;
+      try {
+        latest = await latestOf(8000);
+      } catch (err) {
+        throw httpError(502, 'err.server.github', { error: (err as Error).message });
+      }
+      const newer = compareVersions(latest, VERSION) > 0;
+      const kind = kindOf();
+      if (body.install === true && newer) {
+        if (kind === 'brew') throw httpError(409, 'update.brewRefused', { command: BREW_UPGRADE });
+        if (kind !== 'npm-global' && kind !== 'local') {
+          throw httpError(409, 'err.server.cannotUpdate', { kind });
         }
-        const newer = compareVersions(latest, VERSION) > 0;
-        const kind = kindOf();
-        if (body.install === true && newer) {
-          if (kind === 'brew') throw httpError(409, 'update.brewRefused', { command: BREW_UPGRADE });
-          if (kind !== 'npm-global' && kind !== 'local') {
-            throw httpError(409, 'err.server.cannotUpdate', { kind });
-          }
-          let out: InstallOutcome;
-          try {
-            out = await installChecked(
-              latest,
-              VERSION,
-              kind === 'local' ? localPrefix() : undefined,
-              process.env,
-              {
-                install: opts.update?.install ?? ((v, p, sig) => installVersionAsync(v, p, sig)),
-                verify: opts.update?.verify ?? verifyInstall,
-                recordRejected: (r) => writeUpdateState({ checkedAt: Date.now(), ...r }),
-              },
-            );
-          } catch (err) {
-            if ((err as Error).message === 'digest-unavailable') {
-              throw httpError(500, 'err.server.digestUnavailable');
-            }
-            throw httpError(500, 'err.server.npmFailed', { error: (err as Error).message });
-          }
-          if ('rejected' in out) {
-            writeUpdateState({
-              checkedAt: Date.now(),
-              latest,
-              rejected: latest,
-              rollback: out.rollback,
-              reason: out.reason,
-            });
-            const id =
-              out.rollback === 'ok'
-                ? 'err.server.updateRejected.ok'
-                : out.rollback === 'failed'
-                  ? 'err.server.updateRejected.failed'
-                  : 'err.server.updateRejected.unverified';
-            throw httpError(500, id, { version: latest, reason: out.reason, current: VERSION });
-          }
-          writeUpdateState({ checkedAt: Date.now(), latest, installed: latest });
-          send(res, 200, {
-            current: VERSION,
+        let out: InstallOutcome;
+        try {
+          out = await installChecked(
             latest,
-            newer,
-            installed: latest,
-            kind,
-            ...(out.inconclusive ? { inconclusive: out.inconclusive } : {}),
-          });
-          return;
+            VERSION,
+            kind === 'local' ? localPrefix() : undefined,
+            process.env,
+            {
+              install: opts.update?.install ?? ((v, p, sig) => installVersionAsync(v, p, sig)),
+              verify: opts.update?.verify ?? verifyInstall,
+              recordRejected: (r) => writeUpdateState({ checkedAt: Date.now(), ...r }),
+            },
+          );
+        } catch (err) {
+          if ((err as Error).message === 'digest-unavailable') {
+            throw httpError(500, 'err.server.digestUnavailable');
+          }
+          throw httpError(500, 'err.server.npmFailed', { error: (err as Error).message });
         }
-        writeUpdateState({ checkedAt: Date.now(), latest });
-        send(res, 200, { current: VERSION, latest, newer, kind });
+        if ('rejected' in out) {
+          writeUpdateState({
+            checkedAt: Date.now(),
+            latest,
+            rejected: latest,
+            rollback: out.rollback,
+            reason: out.reason,
+          });
+          const id =
+            out.rollback === 'ok'
+              ? 'err.server.updateRejected.ok'
+              : out.rollback === 'failed'
+                ? 'err.server.updateRejected.failed'
+                : 'err.server.updateRejected.unverified';
+          throw httpError(500, id, { version: latest, reason: out.reason, current: VERSION });
+        }
+        writeUpdateState({ checkedAt: Date.now(), latest, installed: latest });
+        send(res, 200, {
+          current: VERSION,
+          latest,
+          newer,
+          installed: latest,
+          kind,
+          ...(out.inconclusive ? { inconclusive: out.inconclusive } : {}),
+        });
         return;
       }
-      case 'POST /api/shutdown': {
-        send(res, 200, { ok: true });
-        setTimeout(() => void close(), 50);
-        return;
-      }
-      default:
-        throw new HttpError(404, 'Not found');
-    }
-  }
+      writeUpdateState({ checkedAt: Date.now(), latest });
+      send(res, 200, { current: VERSION, latest, newer, kind });
+      return;
+    },
+    'POST /api/shutdown': async (_ctx, _req, res) => {
+      send(res, 200, { ok: true });
+      setTimeout(() => void close(), 50);
+      return;
+    },
+  };
 
   const now = opts.detached?.now ?? Date.now;
   let lastRequest = now();
+  const ctx: EditorCtx = {
+    opts,
+    state,
+    gsd,
+    auto,
+    now,
+    setup,
+    close,
+    claudeVersion,
+    hooksInfo,
+    stylesFile,
+    readStyles,
+    presetList,
+    uiLang,
+    diskLang,
+    allEntries,
+    findRef,
+    mustFind,
+    catalogBody,
+    userResult,
+    writableRef,
+    liveThemes,
+    currentRev,
+    previewContent,
+    previewOf,
+    loadMarket,
+    needEndpoint,
+    marketDeps,
+    loginFlows,
+    publishRefs,
+    publishView,
+    requested,
+    resolveCommand,
+  };
+  const router = createRouter<EditorCtx>({
+    prefix: ROUTE_DEFS.prefix.map((d) => ({
+      ...d,
+      handler: pickHandler(prefixHandlers, `${d.methods.join('|')} ${d.path}`),
+    })),
+    exact: ROUTE_DEFS.exact.map((d) => ({
+      ...d,
+      handler: pickHandler(exactHandlers, `${d.method} ${d.path}`),
+    })),
+  });
+  if (Object.keys(prefixHandlers).length + Object.keys(exactHandlers).length !== ROUTE_COUNT) {
+    throw new Error('route-handler-count');
+  }
   const server = http.createServer((req, res) => {
     handle(req, res).catch((caught: unknown) => {
       if (res.headersSent) return res.end();

@@ -80,6 +80,8 @@ const SWEPT: string[] = [
   'src/core/brew.ts',
   'src/editor/server.ts',
   'src/editor/detach.ts',
+  'src/editor/router.ts',
+  'src/editor/routes/ctx.ts',
   'src/editor/web/api.ts',
   'src/editor/web/inspector.ts',
   'src/editor/web/panel-inspector.ts',
