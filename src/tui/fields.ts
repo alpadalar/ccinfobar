@@ -234,7 +234,7 @@ export function widgetFields(def: WidgetDef | undefined, itemId: string, config?
   if (def?.hideWhenEmpty) for (const f of base) if (f.id === 'hideEmpty') f.fallback = true;
   const specs = def?.options ?? [];
   const options = config?.lines.flat().find((i) => i.id === itemId)?.options;
-  const shown = specs.filter((o) => optionShown(o, specs, options));
+  const shown = specs.filter((o) => optionShown(o, specs, options, def?.type));
   const priority = def?.category === 'layout' ? [] : [priorityField(itemId, defaultPriority(def?.category))];
   return [
     ...base,

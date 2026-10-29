@@ -588,7 +588,7 @@ function widgetTab(): HTMLElement {
   );
 
   if (info?.options.length) {
-    const shown = info.options.filter((o) => optionShown(o, info.options, item.options));
+    const shown = info.options.filter((o) => optionShown(o, info.options, item.options, item.type));
     root.append(section(t('insp.options'), ...shown.map((o) => optionControl(item, o))));
   }
   const recent = recentStyles(item.id);

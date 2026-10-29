@@ -17,6 +17,7 @@ import {
 import { APPEARANCE_KEYS, type EntryContent, type EntryKind, LAYOUT_KEYS } from './entry-keys.js';
 import type { MessageId } from './i18n/index.js';
 import { LANGUAGE_SETTINGS, type LanguageSetting } from './i18n/languages.js';
+import { aliasValue, OPTION_ALIASES, type OptionAlias } from './option-aliases.js';
 import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
 import { normalizeThemeRotation } from './rotation.js';
 import type {
@@ -143,13 +144,30 @@ export function setOption(
   const options = { ...found.item.options };
   if (value === undefined) delete options[key];
   else options[key] = value;
+  for (const a of aliasesOf(found.item.type, key)) delete options[a.key];
   return updateItem(config, id, { options });
 }
 
-export function optionShown(spec: OptionSpec, specs: OptionSpec[], options: WidgetItem['options']): boolean {
+function aliasesOf(type: string, key: string): readonly OptionAlias[] {
+  return (Object.hasOwn(OPTION_ALIASES, type) ? OPTION_ALIASES[type]![key] : undefined) ?? [];
+}
+
+export function optionValue(item: WidgetItem, key: string): OptionValue | undefined {
+  return (item.options?.[key] ?? aliasValue(item.type, key, item.options)) as OptionValue | undefined;
+}
+
+export function optionShown(
+  spec: OptionSpec,
+  specs: OptionSpec[],
+  options: WidgetItem['options'],
+  type?: string,
+): boolean {
   const w = spec.showWhen;
   if (!w) return true;
-  const value = options?.[w.key] ?? specs.find((s) => s.key === w.key)?.default;
+  const value =
+    options?.[w.key] ??
+    (type ? (aliasValue(type, w.key, options) as OptionValue | undefined) : undefined) ??
+    specs.find((s) => s.key === w.key)?.default;
   return value !== undefined && w.values.includes(value);
 }
 
@@ -263,13 +281,26 @@ export interface StyleSnapshot {
   options?: Record<string, OptionValue>;
 }
 
+export function lookKeys(type: string): string[] {
+  const own = Object.hasOwn(OPTION_ALIASES, type) ? OPTION_ALIASES[type]! : {};
+  const aliasNames = new Set(Object.values(own).flatMap((l) => l.map((a) => a.key)));
+  const keys = LOOK_OPTIONS.filter((k) => !aliasNames.has(k));
+  for (const [canon, list] of Object.entries(own)) {
+    if (!keys.includes(canon) && list.some((a) => LOOK_OPTIONS.includes(a.key))) keys.push(canon);
+  }
+  return keys;
+}
+
 export function takeStyle(item: WidgetItem): StyleSnapshot {
   const out: Record<string, unknown> = {};
   for (const keys of Object.values(GROUP_KEYS)) {
     for (const k of keys) if (item[k] !== undefined) out[k] = item[k];
   }
   const opts: Record<string, OptionValue> = {};
-  for (const k of LOOK_OPTIONS) if (item.options?.[k] !== undefined) opts[k] = item.options[k]!;
+  for (const k of lookKeys(item.type)) {
+    const v = optionValue(item, k);
+    if (v !== undefined) opts[k] = v;
+  }
   if (Object.keys(opts).length) out.options = opts;
   return out as StyleSnapshot;
 }
@@ -294,7 +325,7 @@ export function applyStyle(
   ids: string[],
   snap: StyleSnapshot,
   groups: StyleGroup[],
-  supported: (type: string) => string[] = () => LOOK_OPTIONS,
+  supported: (type: string) => string[] = lookKeys,
 ): Config {
   let next = config;
   for (const id of ids) {
@@ -307,11 +338,17 @@ export function applyStyle(
     }
     if (groups.includes('bars')) {
       const options = { ...found.item.options };
-      const allowed = new Set(supported(found.item.type));
-      for (const k of LOOK_OPTIONS) {
-        if (!allowed.has(k)) continue;
-        if (snap.options?.[k] === undefined) delete options[k];
-        else options[k] = snap.options[k]!;
+      const type = found.item.type;
+      const listed = supported(type);
+      const allowed = new Set(listed);
+      for (const k of lookKeys(type)) {
+        const aliases = aliasesOf(type, k);
+        if (!allowed.has(k) && !aliases.some((a) => allowed.has(a.key))) continue;
+        const from = snap.options;
+        const v = from?.[k] ?? aliases.map((a) => from?.[a.key]).find((x) => x !== undefined);
+        for (const a of aliases) delete options[a.key];
+        if (v === undefined) delete options[k];
+        else options[k] = v;
       }
       patch.options = Object.keys(options).length ? options : undefined;
     }
