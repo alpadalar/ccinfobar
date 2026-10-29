@@ -107,6 +107,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Secret masking no longer slows the status line on very long tool arguments or subagent descriptions: `maskSecrets` caps its input at 1024 characters and every rule runs in linear time (the URL-credential rule was quadratic on long words).
 - `ccinfobar install` offers to import a previous status line only when the command really runs a known tool (binary, script or npm package name as an argument), so a wrapper such as `my-ccstatusline-wrapper` or a script under a `ccline-tools` folder no longer triggers the offer; `ccinfobar` itself is recognised only as the binary or package.
 - `ccinfobar doctor` run from your home folder no longer reads `~/.claude/settings.json` a second time as a project settings file; its `disableAllHooks` warning was printed twice
+- `ccinfobar doctor` checks the folder you run it in and the last session's project folder separately, as Claude Code never merges two projects' settings: a hook or progress-bar setting in one of them no longer hides or changes the warning for the other
 
 ### Security
 

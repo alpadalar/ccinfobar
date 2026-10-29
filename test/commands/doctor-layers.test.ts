@@ -13,6 +13,9 @@ const MANAGED = path.join(ROOT, 'layers-managed', 'managed-settings.json');
 const PROJECT_FILE = path.join(PROJECT, '.claude', 'settings.json');
 const LOCAL_FILE = path.join(PROJECT, '.claude', 'settings.local.json');
 const HOME_DIR = path.join(ROOT, 'layers-home');
+const A = path.join(ROOT, 'layers-a');
+const A_FILE = path.join(A, '.claude', 'settings.json');
+const A_LOCAL = path.join(A, '.claude', 'settings.local.json');
 
 const put = (file: string, data: unknown) => {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -57,6 +60,7 @@ afterEach(() => {
   }
   fs.rmSync(PROJECT, { recursive: true, force: true });
   fs.rmSync(HOME_DIR, { recursive: true, force: true });
+  fs.rmSync(A, { recursive: true, force: true });
 });
 
 const effective = (layer: string, file: string, command: string) =>
@@ -148,6 +152,45 @@ describe('doctor run from the home folder', () => {
     vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(HOME_DIR, '.claude'));
     put(claudeSettingsPath(), { ...USER_SL, disableAllHooks: true });
     const out = doctorAt(HOME_DIR, HOME_DIR);
+    expect(out.filter((l) => l.includes('disableAllHooks')).length).toBe(1);
+  });
+});
+
+describe('doctor chains per project folder', () => {
+  const vim = { lines: [[{ type: 'vim-mode' }]] };
+
+  it('keeps the folder doctor runs in and the last session project apart', () => {
+    put(claudeSettingsPath(), USER_SL);
+    put(A_FILE, { statusLine: { command: 'a-cmd' } });
+    put(LOCAL_FILE, { statusLine: { command: 'l' } });
+    const out = doctorAt(A, PROJECT);
+    expect(out).toContain(effective('project', A_FILE, 'a-cmd'));
+    expect(out).toContain(effective('local', LOCAL_FILE, 'l'));
+  });
+
+  it('vim warning checks each project chain', () => {
+    put(claudeSettingsPath(), { ...USER_SL, editorMode: 'vim' });
+    put(A_FILE, { statusLine: { command: 'a', hideVimModeIndicator: true } });
+    put(PROJECT_FILE, { statusLine: { command: 'p' } });
+    const out = doctorAt(A, PROJECT, vim);
+    const hits = out.filter((l) => l.includes(t('doctor.vimTwice', { command: '' }).slice(0, 30)));
+    expect(hits.length).toBe(1);
+  });
+
+  it('progress-bar warning is per chain and printed once', () => {
+    put(claudeSettingsPath(), USER_SL);
+    put(A_LOCAL, { terminalProgressBarEnabled: false });
+    fs.mkdirSync(PROJECT, { recursive: true });
+    const out = doctorAt(A, PROJECT, { progress: { enabled: true } });
+    const line = t('doctor.progress.ccBar', { file: tildify(claudeSettingsPath()) });
+    expect(out.filter((l) => l === line).length).toBe(1);
+  });
+
+  it('a managed hook warning prints once with two chains', () => {
+    put(claudeSettingsPath(), USER_SL);
+    put(MANAGED, { disableAllHooks: true });
+    fs.mkdirSync(PROJECT, { recursive: true });
+    const out = doctorAt(A, PROJECT, {}, [MANAGED]);
     expect(out.filter((l) => l.includes('disableAllHooks')).length).toBe(1);
   });
 });

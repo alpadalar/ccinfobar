@@ -65,6 +65,7 @@ import {
   managedSettingsFiles,
   progressWarnings,
   readSettingsLayer,
+  settingsFileKey,
   settingsLayers,
 } from './hooks-doctor.js';
 import { parseClaudeVersion } from './hooks-install.js';
@@ -324,11 +325,32 @@ export function printWidgetReport(cfgFile: string, loaded?: LoadResult): void {
   }
 }
 
+const hasOwnFiles = (chain: SettingsLayer[]) =>
+  chain.some((l) => (l.name === 'project' || l.name === 'local') && l.data !== null);
+
+function effectiveLines(
+  effs: ({ value: Record<string, unknown>; layer: SettingsLayer } | null)[],
+  id: 'doctor.statusLineEffective' | 'doctor.subagentLineEffective',
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const eff of effs) {
+    if (!eff || eff.layer.name === 'user') continue;
+    const key = settingsFileKey(eff.layer.file);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(
+      t(id, { layer: eff.layer.name, file: tildify(eff.layer.file), command: safe(eff.value.command) }),
+    );
+  }
+  return out;
+}
+
 function printHooks(
   manifest: Manifest,
   settingsFile: string,
   last: StatusPayload | null,
-  layers: SettingsLayer[],
+  chains: SettingsLayer[][],
   progress: Config['progress'],
 ): void {
   const entries = manifest.readOnly ? [] : findHookEntries(manifest, settingsFile);
@@ -349,15 +371,21 @@ function printHooks(
     for (const [command, count] of missing)
       console.log(t('doctor.hooks.missingBinary', { command: safe(command), count }));
   }
-  const progressOut = progressWarnings({
-    layers,
-    progress,
-    entries: entries.filter((e) => e.role === 'progress'),
-    env: process.env,
-    platform: process.platform,
-    claudeCode: parseClaudeVersion(last?.version),
-  }).filter((w) => !manifest.readOnly || !/Handlers$/.test(w.key));
-  for (const w of [...hookGateWarnings(layers), ...progressOut]) {
+  const progressOf = (layers: SettingsLayer[]) =>
+    progressWarnings({
+      layers,
+      progress,
+      entries: entries.filter((e) => e.role === 'progress'),
+      env: process.env,
+      platform: process.platform,
+      claudeCode: parseClaudeVersion(last?.version),
+    }).filter((w) => !manifest.readOnly || !/Handlers$/.test(w.key));
+  const warnings = [...chains.flatMap(hookGateWarnings), ...chains.flatMap(progressOf)];
+  const shown = new Set<string>();
+  for (const w of warnings) {
+    const id = `${w.key}\0${JSON.stringify(w.params)}`;
+    if (shown.has(id)) continue;
+    shown.add(id);
     const params = Object.fromEntries(Object.entries(w.params).map(([k, v]) => [k, safe(tildify(v))]));
     console.log(t(w.key, params));
   }
@@ -473,30 +501,28 @@ export function runDoctor(
     if (dropped) console.log(dropped);
     for (const l of httpReport(raw)) console.log(l);
   }
-  const dirs = new Set([process.cwd()]);
+  const dirList = [process.cwd()];
   const last = readLastPayload();
   const lastDir = last?.workspace?.project_dir ?? last?.workspace?.current_dir ?? last?.cwd;
-  if (lastDir && fs.existsSync(lastDir)) dirs.add(lastDir);
-  const layers = settingsLayers(
-    settingsFile,
-    dirs,
-    opts.managedFiles ?? managedSettingsFiles(process.platform, process.env),
-  );
+  if (lastDir && fs.existsSync(lastDir)) dirList.push(lastDir);
+  const seenDirs = new Set<string>();
+  const dirs = dirList.filter((d) => {
+    const key = settingsFileKey(d);
+    if (seenDirs.has(key)) return false;
+    seenDirs.add(key);
+    return true;
+  });
+  const managed = opts.managedFiles ?? managedSettingsFiles(process.platform, process.env);
+  const chains = dirs.map((dir) => settingsLayers(settingsFile, [dir], managed));
+  const effSl = chains.map((c) => effectiveObject(c, 'statusLine'));
+  const effSub = chains.map((c) => effectiveObject(c, 'subagentStatusLine'));
   const slFile = { mark: ok(usesUs), file: tildify(settingsFile) };
   console.log(
     sl?.command !== undefined
       ? t('doctor.statusLine', { ...slFile, command: safe(sl.command) })
       : t('doctor.statusLineUnset', slFile),
   );
-  const effSl = effectiveObject(layers, 'statusLine');
-  if (effSl && effSl.layer.name !== 'user')
-    console.log(
-      t('doctor.statusLineEffective', {
-        layer: effSl.layer.name,
-        file: tildify(effSl.layer.file),
-        command: safe(effSl.value.command),
-      }),
-    );
+  for (const l of effectiveLines(effSl, 'doctor.statusLineEffective')) console.log(l);
   if (typeof sl?.command === 'string') {
     for (const w of commandWarnings(sl.command)) console.log(w);
     const node = pinnedNode(sl.command);
@@ -509,15 +535,7 @@ export function runDoctor(
     console.log(t('doctor.subagentLine', { mark: ok(owned), command: safe(sub.command) }));
     if (!owned) console.log(t('doctor.subagentLineForeign', { command: selfCommand() }));
   }
-  const effSub = effectiveObject(layers, 'subagentStatusLine');
-  if (effSub && effSub.layer.name !== 'user')
-    console.log(
-      t('doctor.subagentLineEffective', {
-        layer: effSub.layer.name,
-        file: tildify(effSub.layer.file),
-        command: safe(effSub.value.command),
-      }),
-    );
+  for (const l of effectiveLines(effSub, 'doctor.subagentLineEffective')) console.log(l);
   if (sl?.refreshInterval === undefined) {
     const cfg = loaded.config;
     const extra = cfg.tui ? titleWidgets(cfg.tui) : [];
@@ -550,11 +568,15 @@ export function runDoctor(
   );
   if (
     hasVimWidget(loaded.config) &&
-    editorModeOf(layers, claudeJson) === 'vim' &&
-    effectiveObject(layers, 'statusLine')?.value.hideVimModeIndicator !== true
+    chains.some(
+      (c, i) =>
+        (hasOwnFiles(c) || !chains.some(hasOwnFiles)) &&
+        editorModeOf(c, claudeJson) === 'vim' &&
+        effSl[i]?.value.hideVimModeIndicator !== true,
+    )
   )
     console.log(t('doctor.vimTwice', { command: selfCommand(kind) }));
-  printHooks(manifest, settingsFile, last, layers, loaded.config.progress);
+  printHooks(manifest, settingsFile, last, chains, loaded.config.progress);
   console.log(t('doctor.backups', { dir: tildify(backupsDir()) }));
   for (const dir of dirs) {
     const o = projectOverride(dir);
