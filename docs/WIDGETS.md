@@ -39,7 +39,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `claude-version` | Claude Code version | `v2.1.300` |  |
 | `vim-mode` | Current vim mode when vim editing is on | `INSERT` |  |
 | `agent-name` | Active agent name (claude --agent) | `reviewer` |  |
-| `skills` | Skills used in this session: the latest, how many, or a list | `Skill gsd-execute-phase` | `mode` select, default `"current"` (`current`, `count`, `list`)<br>`limit` number, default `3` |
+| `skills` | Skills used in this session: the latest, how many, or a list | `Skill gsd-execute-phase` | `show` select, default `"current"` (`current`, `count`, `list`)<br>`maxItems` number, default `3` |
 | `turn-timer` | How long the current turn has run, or the last one took; exact with hooks, from the transcript otherwise | `Turn 2m14s` | `afterStop` select, default `"last"` (`last`, `hide`) |
 | `permission-wait` | How long the last permission prompt in this turn waited (needs hooks; Claude Code hides the status line while the dialog is open) | `Wait Bash 42s` | `showTool` boolean, default `true`<br>`maxAgeMin` number, default `30` |
 
@@ -49,7 +49,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 
 | Type | Description | Example | Options |
 | --- | --- | --- | --- |
-| `context-percentage` | Context window used or remaining as a percentage | `Ctx 34%` | `mode` select, default `"used"` (`used`, `remaining`)<br>`basis` select, default `"raw"` (`raw`, `usable`, `reserve`)<br>`reserveTokens` number, default `20000` (when `basis` is `reserve`)<br>`thresholdColors` boolean, default `true` |
+| `context-percentage` | Context window used or remaining as a percentage | `Ctx 34%` | `show` select, default `"used"` (`used`, `remaining`)<br>`basis` select, default `"raw"` (`raw`, `usable`, `reserve`)<br>`reserveTokens` number, default `20000` (when `basis` is `reserve`)<br>`thresholdColors` boolean, default `true` |
 | `context-bar` | Progress bar of context window usage | `Ctx ███░░░░░░░ 34%` | `width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false`<br>`basis` select, default `"raw"` (`raw`, `usable`, `reserve`)<br>`reserveTokens` number, default `20000` (when `basis` is `reserve`)<br>`thresholdColors` boolean, default `true` |
 | `context-length` | Tokens currently in the context window | `Ctx 340k` | `showMax` boolean, default `false` |
 | `context-window-size` | Maximum context window size | `Window 1M` |  |
@@ -65,8 +65,8 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `tokens-total` | Input plus output tokens | `Tokens 450k` |  |
 | `cache-hit-rate` | Prompt cache hit ratio | `Hit 94%` |  |
 | `cache-timer` | Time left before the prompt cache expires | `Cache 41m` | `showTtl` boolean, default `false`<br>`showColdCost` select, default `"off"` (`off`, `tokens`, `usd`) |
-| `cache-miss-cause` | Reason for the last prompt cache miss | `Miss tools changed (+2/-0)` | `show` select, default `"latest"` (`latest`, `always`, `summary`)<br>`maxCauses` number, default `2` (when `show` is `summary`) |
-| `performance` | Cache hit rate and average API time per main request (~: time to first reply) | `Perf 94% · 3.2s` | `show` select, default `"both"` (`both`, `hit`, `time`)<br>`display` select, default `"text"` (`text`, `badge`)<br>`hitWarn` number, default `70` (when `display` is `badge`)<br>`timeWarn` number, default `10` (when `display` is `badge`)<br>`showMisses` boolean, default `false` |
+| `cache-miss-cause` | Reason for the last prompt cache miss | `Miss tools changed (+2/-0)` | `show` select, default `"latest"` (`latest`, `always`, `summary`)<br>`maxItems` number, default `2` (when `show` is `summary`) |
+| `performance` | Cache hit rate and average API time per main request (~: time to first reply) | `Perf 94% · 3.2s` | `show` select, default `"both"` (`both`, `hit`, `time`)<br>`style` select, default `"text"` (`text`, `badge`)<br>`hitWarn` number, default `70` (when `style` is `badge`)<br>`timeWarn` number, default `10` (when `style` is `badge`)<br>`showMisses` boolean, default `false` |
 | `output-speed` | Recent output tokens per second | `72 t/s` |  |
 
 ## Cost & time
@@ -77,7 +77,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `cost-today` | Estimated cost of all sessions today (from the local ledger) | `Today ~$4.12` | `decimals` number, default `2` |
 | `cost-week` | Estimated cost of all sessions this ISO week, Monday to Sunday, local time | `Week ~$18.40` | `decimals` number, default `2` |
 | `cost-project` | Estimated cost of this project across sessions | `Project ~$62` | `period` select, default `"all"` (`today`, `week`, `month`, `all`)<br>`decimals` number, default `2` |
-| `budget` | Estimated spend against your daily or session budget | `Budget ~$4.10/$10` | `period` select, default `"daily"` (`daily`, `session`)<br>`display` select, default `"amount"` (`amount`, `percent`, `bar`)<br>`width` number, default `10` (when `display` is `bar`)<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`) (when `display` is `bar`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`) (when `display` is `bar`)<br>`showPercent` boolean, default `true` (when `display` is `bar`)<br>`fill` boolean, default `false` (when `display` is `bar`)<br>`decimals` number, default `2` |
+| `budget` | Estimated spend against your daily or session budget | `Budget ~$4.10/$10` | `period` select, default `"daily"` (`daily`, `session`)<br>`show` select, default `"amount"` (`amount`, `percent`, `bar`)<br>`width` number, default `10` (when `show` is `bar`)<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`) (when `show` is `bar`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`) (when `show` is `bar`)<br>`showPercent` boolean, default `true` (when `show` is `bar`)<br>`fill` boolean, default `false` (when `show` is `bar`)<br>`decimals` number, default `2` |
 | `cost-rate` | Burn rate in USD per hour | `$2.47/h` | `decimals` number, default `2` |
 | `session-duration` | Wall-clock time of this session | `45m` | `format` select, default `"compact"` (`compact`, `clock`) |
 | `api-duration` | Time spent waiting on the API | `API 13m` | `format` select, default `"compact"` (`compact`, `clock`) |
@@ -88,11 +88,11 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 
 | Type | Description | Example | Options |
 | --- | --- | --- | --- |
-| `five-hour-usage` | Usage of the 5-hour rate limit | `5h 42%` | `display` select, default `"percent"` (`percent`, `bar`)<br>`thresholdColors` boolean, default `true`<br>`showPace` boolean, default `false`<br>`width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false` |
+| `five-hour-usage` | Usage of the 5-hour rate limit | `5h 42%` | `show` select, default `"percent"` (`percent`, `bar`)<br>`thresholdColors` boolean, default `true`<br>`showPace` boolean, default `false`<br>`width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false` |
 | `five-hour-reset` | Time until the five-hour window resets | `Resets 2h 14m` | `showClockTime` boolean, default `false` |
-| `weekly-usage` | Usage of the weekly rate limit | `7d 61%` | `display` select, default `"percent"` (`percent`, `bar`)<br>`thresholdColors` boolean, default `true`<br>`showPace` boolean, default `false`<br>`width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false` |
+| `weekly-usage` | Usage of the weekly rate limit | `7d 61%` | `show` select, default `"percent"` (`percent`, `bar`)<br>`thresholdColors` boolean, default `true`<br>`showPace` boolean, default `false`<br>`width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false` |
 | `weekly-reset` | Time until the weekly window resets | `Resets 1d 5h` | `showClockTime` boolean, default `false` |
-| `weekly-model-usage` | Weekly limit of a single model, such as Fable, when your plan has one | `Fable 23%` | `model` text, default `""`<br>`display` select, default `"percent"` (`percent`, `bar`)<br>`thresholdColors` boolean, default `true`<br>`showPace` boolean, default `false`<br>`width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false` |
+| `weekly-model-usage` | Weekly limit of a single model, such as Fable, when your plan has one | `Fable 23%` | `model` text, default `""`<br>`show` select, default `"percent"` (`percent`, `bar`)<br>`thresholdColors` boolean, default `true`<br>`showPace` boolean, default `false`<br>`width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false` |
 | `weekly-model-reset` | Time until a single model’s weekly limit resets | `Resets 1d 5h` | `model` text, default `""`<br>`showClockTime` boolean, default `false` |
 | `spend-limit` | Extra usage spend against its limit | `Spend $12/$50` | `show` select, default `"amount"` (`amount`, `percent`, `remaining`, `both`)<br>`showPeriod` boolean, default `false`<br>`thresholdColors` boolean, default `false` |
 | `usage-pace` | Usage compared with an even burn over the window | `Pace ⇣13%` | `window` select, default `"5h"` (`5h`, `7d`) |
@@ -109,16 +109,16 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `context-graph` | How full the context window has been over time | `Ctx ▁▁▂▃▃▄▅▅ 34%` | `points` number, default `16`<br>`showValue` boolean, default `true`<br>`fill` boolean, default `false` |
 | `usage-graph` | Your 5-hour or weekly usage over time | `5h ▃▃▄▄▅▅▆▆ 42%` | `window` select, default `"5h"` (`5h`, `7d`)<br>`points` number, default `16`<br>`showValue` boolean, default `true`<br>`fill` boolean, default `false` |
 | `cost-graph` | Dollars per hour over the last few minutes | `$/h ▂▂▃▆▇▅▃▂ $2.47` | `points` number, default `16`<br>`showValue` boolean, default `true`<br>`fill` boolean, default `false` |
-| `activity-strip` | When Claude was busy across all your sessions, in 15-minute slots (from the local ledger) | `Activity ··▂▅▇▄···▁▃▆██▅▂·····▃▄▆▅▃▂··▁▄▆▇▄▂▂` | `slots` number, default `36`<br>`size` select, default `"15"` (`15`, `30`, `60`)<br>`mode` select, default `"intensity"` (`intensity`, `presence`)<br>`fill` boolean, default `false` |
+| `activity-strip` | When Claude was busy across all your sessions, in 15-minute slots (from the local ledger) | `Activity ··▂▅▇▄···▁▃▆██▅▂·····▃▄▆▅▃▂··▁▄▆▇▄▂▂` | `slots` number, default `36`<br>`size` select, default `"15"` (`15`, `30`, `60`)<br>`show` select, default `"intensity"` (`intensity`, `presence`)<br>`fill` boolean, default `false` |
 
 ## Agents & tasks
 
 | Type | Description | Example | Options |
 | --- | --- | --- | --- |
-| `todo-list` | Claude's to-do list for the session: done, current and upcoming steps | `Tasks 2/5 ▸ Wiring GSD widgets…` | `display` select, default `"list"` (`list`, `current`)<br>`maxItems` number, default `8`<br>`hideDone` boolean, default `false` |
-| `agents` | Subagents of the current turn as a table: what they do, their last tool, speed, tokens, time and model | `▸ explore · Search codebase   2,411 t/m · 3.2k · sonnet` | `showTool` boolean, default `true`<br>`runningOnly` boolean, default `false`<br>`maxAgents` number, default `5` |
+| `todo-list` | Claude's to-do list for the session: done, current and upcoming steps | `Tasks 2/5 ▸ Wiring GSD widgets…` | `show` select, default `"list"` (`list`, `current`)<br>`maxItems` number, default `8`<br>`hideDone` boolean, default `false` |
+| `agents` | Subagents of the current turn as a table: what they do, their last tool, speed, tokens, time and model | `▸ explore · Search codebase   2,411 t/m · 3.2k · sonnet` | `showTool` boolean, default `true`<br>`runningOnly` boolean, default `false`<br>`maxItems` number, default `5` |
 | `agent-count` | How many subagents are running and how many finished this turn | `Agents 2 running · 1 done` |  |
-| `tool-activity` | The running tool and recent tool counts, from the transcript | `Bash npm test · Read 4, Edit 2, Bash 1` | `mode` select, default `"both"` (`both`, `running`, `counts`)<br>`scope` select, default `"turn"` (`turn`, `session`)<br>`maxTools` number, default `4`<br>`groupMcp` boolean, default `true`<br>`showArgs` boolean, default `true` |
+| `tool-activity` | The running tool and recent tool counts, from the transcript | `Bash npm test · Read 4, Edit 2, Bash 1` | `show` select, default `"both"` (`both`, `running`, `counts`)<br>`scope` select, default `"turn"` (`turn`, `session`)<br>`maxItems` number, default `4`<br>`groupMcp` boolean, default `true`<br>`showArgs` boolean, default `true` |
 
 ## GSD
 
@@ -126,7 +126,7 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | --- | --- | --- | --- |
 | `gsd-milestone` | Current GSD milestone version and name | `v1.2 Billing` | `showName` boolean, default `true` |
 | `gsd-milestone-progress` | Milestone completion bar (plans and phases done on disk) | `█████░░░░░ 50%` | `width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false`<br>`showCounts` boolean, default `false` |
-| `gsd-phase` | Current GSD phase number and name | `Phase 4/6 Invoice export` | `showName` boolean, default `true`<br>`showTotal` boolean, default `true`<br>`maxNameLength` number, default `24` |
+| `gsd-phase` | Current GSD phase number and name | `Phase 4/6 Invoice export` | `showName` boolean, default `true`<br>`showTotal` boolean, default `true`<br>`maxLength` number, default `24` |
 | `gsd-status` | Normalized GSD workflow status, colored by stage | `executing` |  |
 | `gsd-plans` | Completed plans in the current phase | `plans 3/5` | `showEmpty` boolean, default `false` |
 | `gsd-plan-progress` | Plan completion bar for the current phase | `██████░░░░ 60%` | `width` number, default `10`<br>`style` select, default `"blocks"` (`blocks`, `blocks-line`, `shade`, `bar`, `thin`, `line`, `capped`, `ball`, `dots`, `filled`, `squares`, `geometric`, `ascii`, `ring`, `matrix`)<br>`barColor` select, default `"solid"` (`solid`, `gradient`)<br>`showPercent` boolean, default `true`<br>`fill` boolean, default `false` |
@@ -159,8 +159,8 @@ Common fields for every widget in `config.json`: `color`, `background`, `bold`, 
 | `git-is-fork` | Marks a repo that is a fork, from the upstream or fork remote | `⑂` | `symbol` text, default `""`<br>`showParent` boolean, default `false` |
 | `git-worktree` | Linked worktree name | `wt feature-x` | `show` select, default `"name"` (`name`, `branch`, `original-branch`, `path`, `original-cwd`)<br>`style` select, default `"short"` (`basename`, `full`, `tilde`, `short`, `segments`) (when `show` is `path` or `original-cwd`)<br>`segments` number, default `2` (when `show` is `path` or `original-cwd`)<br>`showOrigin` boolean, default `false` |
 | `pr` | Pull request number and review state | `#128 pending` | `link` boolean, default `false`<br>`ci` boolean, default `false` |
-| `workspace-repos` | Child folders that are git repos, when the folder itself is not a repo | `repos: api (main) · web (dev) · infra (main)` | `maxRepos` number, default `5`<br>`showBranch` boolean, default `true`<br>`sort` select, default `"name"` (`name`, `recent`)<br>`includeHidden` boolean, default `false`<br>`hideGitPlaceholders` boolean, default `true`<br>`dirty` boolean, default `false` |
-| `jj-bookmarks` | Bookmarks on the nearest bookmarked ancestor of the working copy | `main` | `maxBookmarks` number, default `3`<br>`separator` text, default `", "` |
+| `workspace-repos` | Child folders that are git repos, when the folder itself is not a repo | `repos: api (main) · web (dev) · infra (main)` | `maxItems` number, default `5`<br>`showBranch` boolean, default `true`<br>`sort` select, default `"name"` (`name`, `recent`)<br>`includeHidden` boolean, default `false`<br>`hideGitPlaceholders` boolean, default `true`<br>`dirty` boolean, default `false` |
+| `jj-bookmarks` | Bookmarks on the nearest bookmarked ancestor of the working copy | `main` | `maxItems` number, default `3`<br>`separator` text, default `", "` |
 | `jj-workspace` | Current jj workspace name | `default` | `hideDefault` boolean, default `false` |
 | `jj-revision` | Short change ID of the working copy | `kkmpptxz` |  |
 | `jj-description` | First line of the working-copy description | `Wire GSD widgets into renderer` |  |
