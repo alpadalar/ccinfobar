@@ -180,6 +180,9 @@ describe('skills', () => {
     for (const f of ['--subagents', '--hide-vim-indicator', '--hooks', '--refresh', '/ccinfobar:doctor'])
       expect(body, f).toContain(f);
     expect(body).not.toContain('--project');
+    expect(body).toContain('settings.local.json');
+    expect(body).toContain('GSD projects');
+    expect(body).not.toContain("never a project's settings file");
   });
 
   it('uninstall, edit, theme and doctor call the binary', () => {
