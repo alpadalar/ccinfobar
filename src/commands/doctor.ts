@@ -342,7 +342,7 @@ function effectiveLines(
     out.push(
       t(id, {
         layer: eff.layer.name,
-        file: tildify(eff.layer.file),
+        file: safe(tildify(eff.layer.file)),
         command: typeof eff.value.command === 'string' ? safe(eff.value.command) : t('install.unset'),
       }),
     );
@@ -585,8 +585,8 @@ export function runDoctor(
   for (const dir of dirs) {
     const o = projectOverride(dir);
     if (!o) continue;
-    console.log(t('doctor.projectOverride', { file: tildify(o.file), command: safe(o.command) }));
-    console.log(t('doctor.projectOverrideFix', { command: selfCommand(kind), dir: tildify(dir) }));
+    console.log(t('doctor.projectOverride', { file: safe(tildify(o.file)), command: safe(o.command) }));
+    console.log(t('doctor.projectOverrideFix', { command: selfCommand(kind), dir: safe(tildify(dir)) }));
   }
   console.log(
     t('doctor.lastPayload', { mark: ok(fs.existsSync(lastPayloadPath())), file: tildify(lastPayloadPath()) }),

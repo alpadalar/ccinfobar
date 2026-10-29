@@ -217,3 +217,23 @@ describe('doctor chains per project folder', () => {
     expect(out.filter((l) => l.includes('disableAllHooks')).length).toBe(1);
   });
 });
+
+describe('doctor terminal-escape safety', () => {
+  it.skipIf(process.platform === 'win32')(
+    'prints project-derived paths without raw control characters',
+    () => {
+      const evil = path.join(ROOT, 'layers-evil-\x1b[31m-\x07');
+      try {
+        put(claudeSettingsPath(), USER_SL);
+        put(path.join(evil, '.claude', 'settings.json'), {
+          statusLine: { type: 'command', command: 'other --x' },
+        });
+        const out = doctorAt(evil, null).join('\n');
+        expect(out).toContain('other --x');
+        expect(out).not.toMatch(/[\x00-\x08\x0b-\x1f\x7f]/);
+      } finally {
+        fs.rmSync(evil, { recursive: true, force: true });
+      }
+    },
+  );
+});
