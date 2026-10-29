@@ -26,6 +26,16 @@ if (!fs.existsSync(cli)) {
   process.exit(1);
 }
 
+function toWebp(png) {
+  const args = [png, '-define', 'webp:lossless=true', '-define', 'webp:method=6', '-quality', '100'];
+  try {
+    execFileSync('magick', [...args, png.replace(/\.png$/, '.webp')], { stdio: 'ignore' });
+  } catch {
+    console.error('✗ needs ImageMagick (magick) for the lossless WebP copy');
+    process.exit(1);
+  }
+}
+
 function browser() {
   const names = [process.env.CHROME, 'google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge'];
   for (const n of names) {
@@ -449,6 +459,7 @@ async function main() {
         });
         const file = path.join(out, `${s.stem}-${scheme}.${format}`);
         fs.writeFileSync(file, Buffer.from(shot.data, 'base64'));
+        if (format === 'png') toWebp(file);
         shots.push(file);
         console.log(`✓ ${path.relative(root, file)}`);
       }

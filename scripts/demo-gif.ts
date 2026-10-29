@@ -134,5 +134,16 @@ const dashHeight = 104 + dash.length * 18;
 fs.writeFileSync(dashHtml, page(dash, 'Dashboard preset', true, dashHeight));
 shoot(dashHtml, path.join(root, 'docs/images/dashboard.png'), dashHeight);
 console.log('wrote docs/images/dashboard.png');
+execFileSync('magick', [
+  path.join(root, 'docs/images/dashboard.png'),
+  '-define',
+  'webp:lossless=true',
+  '-define',
+  'webp:method=6',
+  '-quality',
+  '100',
+  path.join(root, 'docs/images/dashboard.webp'),
+]);
+console.log('wrote docs/images/dashboard.webp');
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`wrote ${path.relative(root, OUT)} (${Math.round(fs.statSync(OUT).size / 1024)} KB)`);

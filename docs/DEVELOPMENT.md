@@ -22,9 +22,11 @@ Requirements: Node.js 20 or newer. There are no runtime dependencies; everything
 | `npm run lint` / `lint:fix` | Biome lint and format |
 | `npm run check` | Typecheck, lint and test |
 | `npm run docs` | Regenerate `docs/WIDGETS.md`, `schema/config.schema.json` and `schema/theme.schema.json` |
-| `npm run demo` | Regenerate `docs/images/demo.gif` from the sample data (needs Chrome or Chromium and ImageMagick; set `CHROME` to pick a browser) |
-| `npm run screenshots` | Regenerate the README editor screenshots in `docs/images/screenshots/` (dark and light, 1920x1080) from a temp config and a reference marketplace on 127.0.0.1 (built with `--market` when missing, so the Marketplace shots need no network); needs `npm run build`, Node 22+ and Chrome or Chromium; set `CHROME` to pick a browser, `--only editor,themes` for a subset |
+| `npm run demo` | Regenerate `docs/images/demo.gif` and `docs/images/dashboard.png` (plus its lossless `dashboard.webp`) from the sample data (needs Chrome or Chromium and ImageMagick; set `CHROME` to pick a browser) |
+| `npm run screenshots` | Regenerate the README editor screenshots in `docs/images/screenshots/` (dark and light, 1920x1080, each also as a lossless `.webp` copy via ImageMagick) from a temp config and a reference marketplace on 127.0.0.1 (built with `--market` when missing, so the Marketplace shots need no network); needs `npm run build`, Node 22+ and Chrome or Chromium; set `CHROME` to pick a browser, `--only editor,themes` for a subset |
 | `npm run example` | Render `test/fixtures/payload.json` |
+
+`docs/images` holds each screenshot as PNG and as a pixel-identical lossless WebP; the README still links the PNGs because the published npm README of the current release resolves them from the repository. The release commit switches the links to `.webp` and deletes the PNGs and the duplicate `themes.png` (about 5.2 → 2.9 MB); git history keeps the old blobs, so a clone does not shrink, but the working tree and `git archive` do. Git LFS is not used.
 
 `node scripts/build.mjs --market` builds the reference marketplace server into `market/ccinfobar-market.mjs`, and `node scripts/build.mjs --worker` builds the Cloudflare Worker into `worker/dist/index.js`. Both outputs are gitignored and not in the npm package.
 
