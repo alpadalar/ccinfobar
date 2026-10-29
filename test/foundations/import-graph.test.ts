@@ -40,6 +40,7 @@ const EXCLUDED_FILES = [
   'src/commands/uninstall.ts',
   'src/commands/install-cli.ts',
   'src/commands/manage.ts',
+  'src/commands/theme-cmd.ts',
   'src/commands/doctor.ts',
   'src/commands/update.ts',
   'src/commands/repos.ts',

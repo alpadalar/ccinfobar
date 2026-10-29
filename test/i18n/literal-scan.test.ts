@@ -48,6 +48,7 @@ const SWEPT: string[] = [
   'src/importers/token-tracker.ts',
   'src/commands/doctor.ts',
   'src/commands/manage.ts',
+  'src/commands/theme-cmd.ts',
   'src/commands/import-help.ts',
   'src/commands/bench.ts',
   'src/commands/usage-error.ts',
