@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fixedWindow } from '../../src/market/server.js';
-import type { D1Database, Env, RateLimit } from '../../src/market/worker/env.js';
+import type { D1Database, DurableObjectNamespaceLike, Env, RateLimit } from '../../src/market/worker/env.js';
+import { RateCounter } from '../../src/market/worker/limiter.js';
 import { START } from './conformance.js';
 import { d1, type TestD1 } from './d1-sqlite.js';
 
@@ -66,4 +67,26 @@ export function fakeRateLimit(limit: number, now: () => number): RateLimit {
 
 export function throwingRateLimit(): RateLimit {
   return { limit: () => Promise.reject(new Error('binding down')) };
+}
+
+export type LimiterFault = 'throw' | '500' | 'garbage';
+
+export function fakeLimiter(
+  counter: RateCounter = new RateCounter({}, {}),
+  fault?: LimiterFault,
+): DurableObjectNamespaceLike & { calls: string[] } {
+  const calls: string[] = [];
+  return {
+    calls,
+    idFromName: (name) => name,
+    get: (id) => ({
+      fetch: async (input, init) => {
+        calls.push(String(id));
+        if (fault === 'throw') throw new Error('do down');
+        if (fault === '500') return new Response('x', { status: 500 });
+        if (fault === 'garbage') return new Response('not json');
+        return counter.fetch(new Request(input, init));
+      },
+    }),
+  };
 }

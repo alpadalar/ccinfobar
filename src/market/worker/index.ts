@@ -3,6 +3,8 @@ import { createHandler } from './handler.js';
 import { MemoryLimiter } from './limiter.js';
 import { scheduled } from './settle.js';
 
+export { RateCounter } from './limiter.js';
+
 const memo = new MemoryLimiter();
 
 export default {

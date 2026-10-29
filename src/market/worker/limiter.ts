@@ -25,3 +25,43 @@ export class MemoryLimiter {
     return this.n.size;
   }
 }
+
+const DO_KEYS = 10_000;
+
+const isCount = (v: unknown, max: number): v is number =>
+  typeof v === 'number' && Number.isInteger(v) && v > 0 && v <= max;
+
+// Durable Object class; memory only, no storage rows
+export class RateCounter {
+  private win = Number.NaN;
+  private n = new Map<string, number>();
+
+  constructor(_state: unknown, _env: unknown) {}
+
+  async fetch(req: Request): Promise<Response> {
+    let body: { key?: unknown; limit?: unknown; win?: unknown };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      return Response.json({ ok: false }, { status: 400 });
+    }
+    const { key, limit, win } = body ?? {};
+    if (
+      typeof key !== 'string' ||
+      !key ||
+      key.length > 80 ||
+      !isCount(limit, 1000) ||
+      typeof win !== 'number' ||
+      !Number.isFinite(win)
+    )
+      return Response.json({ ok: false }, { status: 400 });
+    if (win !== this.win) {
+      this.win = win;
+      this.n.clear();
+    }
+    if (!this.n.has(key) && this.n.size >= DO_KEYS) return Response.json({ ok: false });
+    const c = (this.n.get(key) ?? 0) + 1;
+    this.n.set(key, c);
+    return Response.json({ ok: c <= limit });
+  }
+}

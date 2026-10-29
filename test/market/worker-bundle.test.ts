@@ -53,6 +53,7 @@ function webContext(): vm.Context {
 
 interface WorkerModule {
   default: { fetch(req: Request, env: unknown): Promise<Response> };
+  RateCounter: new (state: unknown, env: unknown) => { fetch(req: Request): Promise<Response> };
 }
 
 function loadIife(): WorkerModule {
@@ -130,6 +131,19 @@ describe('worker bundle (D-03)', () => {
     expect(res.headers.get('content-type')).toMatch(/^application\/json/);
     const meta = (await res.json()) as { protocol: number };
     expect(meta.protocol).toBe(1);
+  });
+
+  it('exports RateCounter, which counts and refuses with Web globals only', async () => {
+    expect(esm.outputFiles[0]!.text).toMatch(/export\s*\{[^}]*RateCounter/);
+    const W = loadIife();
+    const c = new W.RateCounter({}, {});
+    const hit = async () =>
+      (await (
+        await c.fetch(
+          new Request('https://limiter/hit', { method: 'POST', body: '{"key":"w:k","limit":2,"win":1}' }),
+        )
+      ).json()) as { ok: boolean };
+    expect([(await hit()).ok, (await hit()).ok, (await hit()).ok]).toEqual([true, true, false]);
   });
 
   it('answers / with the landing page in the same context', async () => {

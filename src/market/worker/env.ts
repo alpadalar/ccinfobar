@@ -34,6 +34,15 @@ export interface D1Database {
   exec(sql: string): Promise<{ count: number; duration: number }>;
 }
 
+export interface DurableObjectStubLike {
+  fetch(input: string, init?: { method?: string; body?: string }): Promise<Response>;
+}
+
+export interface DurableObjectNamespaceLike {
+  idFromName(name: string): unknown;
+  get(id: unknown): DurableObjectStubLike;
+}
+
 export interface RateLimit {
   limit(options: { key: string }): Promise<{ success: boolean }>;
 }
@@ -47,6 +56,7 @@ export interface Env {
   READS?: RateLimit;
   WRITES?: RateLimit;
   SIGNIN?: RateLimit;
+  LIMITER?: DurableObjectNamespaceLike;
   MARKET_NAME?: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;

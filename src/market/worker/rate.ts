@@ -8,7 +8,15 @@ import {
   WRITES_PER_MINUTE,
   windowOf,
 } from '../rules.js';
-import { type D1Database, type Env, intVar, limitersOpen, type RateLimit, type WorkerDeps } from './env.js';
+import {
+  type D1Database,
+  type DurableObjectNamespaceLike,
+  type Env,
+  intVar,
+  limitersOpen,
+  type RateLimit,
+  type WorkerDeps,
+} from './env.js';
 import { MEMORY_LIMITS } from './limiter.js';
 import { bumpRate, cleanupStatements, saltStatements } from './store.js';
 import { randomToken, sha256Hex } from './tokens.js';
@@ -101,6 +109,24 @@ async function layered(
   return bindingAllowed(b, prefix, req, now);
 }
 
+// global per address count; any failure falls back to the other layers
+async function strictAllowed(
+  ns: DurableObjectNamespaceLike,
+  prefix: keyof typeof MEMORY_LIMITS,
+  req: Request,
+  now: number,
+): Promise<boolean> {
+  try {
+    const key = await limitKey(prefix, req, now);
+    const body = JSON.stringify({ key, limit: MEMORY_LIMITS[prefix], win: windowOf(now) });
+    const r = await ns.get(ns.idFromName(prefix)).fetch('https://limiter/hit', { method: 'POST', body });
+    const j = r.status === 200 ? ((await r.json()) as { ok?: unknown } | null) : null;
+    if (typeof j?.ok === 'boolean') return j.ok;
+  } catch {}
+  console.warn('ratelimit', prefix, 'do-failed');
+  return true;
+}
+
 // writes and sign-in refuse (503) without their binding unless the dev flag opens them
 export async function limiterAllowed(
   env: Env,
@@ -111,7 +137,8 @@ export async function limiterAllowed(
   deps?: Pick<WorkerDeps, 'memo'>,
 ): Promise<boolean> {
   if (!b && !limitersOpen(env)) throw fail(503, 'unavailable', 'rate limiter is not configured');
-  return layered(b, prefix, req, now, deps);
+  if (!(await layered(b, prefix, req, now, deps))) return false;
+  return env.LIMITER ? strictAllowed(env.LIMITER, prefix, req, now) : true;
 }
 
 export const readAllowed = (

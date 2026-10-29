@@ -4,11 +4,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { retryAfterSeconds, windowOf } from '../../src/market/rules.js';
 import type { Env, RateLimit } from '../../src/market/worker/env.js';
 import { createHandler } from '../../src/market/worker/handler.js';
-import { MEMORY_LIMITS, MemoryLimiter } from '../../src/market/worker/limiter.js';
+import { MEMORY_LIMITS, MemoryLimiter, RateCounter } from '../../src/market/worker/limiter.js';
 import { bindingAllowed } from '../../src/market/worker/rate.js';
 import { START } from './conformance.js';
 import { skipSqlite } from './d1-sqlite.js';
-import { makeEnv } from './worker-env.js';
+import { fakeLimiter, type LimiterFault, makeEnv } from './worker-env.js';
 
 const BASE = 'http://w.test';
 const IP = '203.0.113.7';
@@ -207,4 +207,138 @@ describe.skipIf(skipSqlite)('handler memory layer', () => {
       warn: vi.spyOn(console, 'warn').mockImplementation(() => {}),
     };
   }
+});
+
+describe('RateCounter', () => {
+  const W = windowOf(T);
+  const post = (body: unknown) =>
+    new Request('https://limiter/hit', {
+      method: 'POST',
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    });
+  const ok = async (c: RateCounter, body: unknown) =>
+    ((await (await c.fetch(post(body))).json()) as { ok: boolean }).ok;
+  const noStorage = new Proxy(
+    {},
+    {
+      get() {
+        throw new Error('storage touched');
+      },
+    },
+  );
+
+  it('counts per key in a window and resets when the window changes', async () => {
+    const c = new RateCounter(noStorage, {});
+    for (let i = 0; i < 3; i++) expect(await ok(c, { key: 'w:k', limit: 3, win: W })).toBe(true);
+    expect(await ok(c, { key: 'w:k', limit: 3, win: W })).toBe(false);
+    expect(await ok(c, { key: 'w:other', limit: 3, win: W })).toBe(true);
+    expect(await ok(c, { key: 'w:k', limit: 3, win: W + 60_000 })).toBe(true);
+  });
+
+  it.each([
+    'not json',
+    'null',
+    '[]',
+    {},
+    { key: '', limit: 3, win: W },
+    { key: 'k'.repeat(81), limit: 3, win: W },
+    { key: 5, limit: 3, win: W },
+    { key: 'k', limit: 0, win: W },
+    { key: 'k', limit: 1.5, win: W },
+    { key: 'k', limit: 1001, win: W },
+    { key: 'k', limit: '3', win: W },
+    { key: 'k', limit: 3, win: 'x' },
+    { key: 'k', limit: 3, win: null },
+  ])('answers 400 to a bad body: %j', async (body) => {
+    const r = await new RateCounter({}, {}).fetch(post(body));
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({ ok: false });
+  });
+
+  it('refuses a new key once 10,000 are held, an existing key still counts', async () => {
+    const c = new RateCounter({}, {});
+    for (let i = 0; i < 10_000; i++) await ok(c, { key: `w:${i}`, limit: 1, win: W });
+    expect(await ok(c, { key: 'w:new', limit: 5, win: W })).toBe(false);
+    expect(await ok(c, { key: 'w:0', limit: 5, win: W })).toBe(true);
+    expect(await ok(c, { key: 'w:new', limit: 5, win: W + 60_000 })).toBe(true);
+  });
+});
+
+describe.skipIf(skipSqlite)('handler strict layer', () => {
+  async function setup(opts: { limiter?: ReturnType<typeof fakeLimiter> | null; memo?: boolean } = {}) {
+    const { env, clock } = await makeEnv({
+      GITHUB_CLIENT_ID: 'Ov23liVCN9Nf6VlLv3St',
+      ALLOW_UNVERIFIED_GITHUB_TOKENS: 'true',
+      SIGNIN_LIMIT: '1000',
+    });
+    if (opts.limiter) env.LIMITER = opts.limiter;
+    const h = createHandler(env as Env, {
+      now: clock.now,
+      fetch: () => Promise.reject(new Error('no fetch')),
+      ...(opts.memo === false ? {} : { memo: new MemoryLimiter() }),
+    });
+    const call = (method: string, p: string, body?: unknown) =>
+      h.fetch(
+        new Request(BASE + p, {
+          method,
+          headers: { 'content-type': 'application/json', 'cf-connecting-ip': IP },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        }),
+      );
+    return { call, clock };
+  }
+
+  it('the 31st anonymous write is 429 with a window-based retry-after', async () => {
+    const lim = fakeLimiter();
+    const w = await setup({ limiter: lim, memo: false });
+    for (let i = 0; i < 30; i++) expect((await w.call('POST', '/v1/entries', {})).status).toBe(401);
+    const over = await w.call('POST', '/v1/entries', {});
+    expect(over.status).toBe(429);
+    const t = w.clock.now();
+    expect(over.headers.get('retry-after')).toBe(String(retryAfterSeconds(windowOf(t), t)));
+    expect(lim.calls.every((c) => c === 'w')).toBe(true);
+  });
+
+  it('the DO refuses while a fresh memory layer allows', async () => {
+    const counter = new RateCounter({}, {});
+    const lim = fakeLimiter(counter);
+    const a = await setup({ limiter: lim });
+    for (let i = 0; i < 30; i++) expect((await a.call('POST', '/v1/entries', {})).status).toBe(401);
+    const b = await setup({ limiter: lim });
+    expect((await b.call('POST', '/v1/entries', {})).status).toBe(429);
+  });
+
+  it('the 21st sign-in is 429 from the DO under prefix a', async () => {
+    const lim = fakeLimiter();
+    const w = await setup({ limiter: lim, memo: false });
+    for (let i = 0; i < 20; i++)
+      expect((await w.call('POST', '/v1/auth/github', { token: 'x' })).status).toBe(400);
+    expect((await w.call('POST', '/v1/auth/github', { token: 'x' })).status).toBe(429);
+    expect(new Set(lim.calls)).toEqual(new Set(['a']));
+  });
+
+  it.each(['throw', '500', 'garbage'] as LimiterFault[])(
+    'a %s DO logs do-failed and the other layers decide',
+    async (fault) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const w = await setup({ limiter: fakeLimiter(undefined, fault) });
+      for (let i = 0; i < 30; i++) expect((await w.call('POST', '/v1/entries', {})).status).toBe(401);
+      expect((await w.call('POST', '/v1/entries', {})).status).toBe(429);
+      expect(warn.mock.calls[0]).toEqual(['ratelimit', 'w', 'do-failed']);
+      expect(warn.mock.calls.every((c) => c.join(' ') === 'ratelimit w do-failed')).toBe(true);
+    },
+  );
+
+  it('reads never call the DO', async () => {
+    const lim = fakeLimiter();
+    const w = await setup({ limiter: lim });
+    for (let i = 0; i < 5; i++) expect((await w.call('GET', '/v1/meta.json')).status).toBe(200);
+    expect(lim.calls).toEqual([]);
+  });
+
+  it('no LIMITER keeps the memory behaviour', async () => {
+    const w = await setup();
+    for (let i = 0; i < 30; i++) expect((await w.call('POST', '/v1/entries', {})).status).toBe(401);
+    expect((await w.call('POST', '/v1/entries', {})).status).toBe(429);
+  });
 });
