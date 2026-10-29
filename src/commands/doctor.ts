@@ -146,7 +146,7 @@ export function configWarnings(raw: unknown): string[] {
       }
       if (!isRecord(item.options)) return;
       for (const [key, v] of Object.entries(item.options)) {
-        const spec = def.options?.find((o) => o.key === key);
+        const spec = def.options?.find((o) => o.key === key || o.aliases?.includes(key));
         if (spec && !validOption(spec, v))
           out.push(t('doctor.badOption', { type: safe(type), key: safe(key) }));
       }

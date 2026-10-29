@@ -710,7 +710,7 @@ function maskOptions(
     Object.entries(options).map(([k, v]) => {
       if (type === 'http' && k === 'url') return [k, redactUrl(String(v))];
       if (type === 'http' && k === 'headers') return [k, describeHeaders(String(v), env).join(', ')];
-      const kind = spec.find((o) => o.key === k)?.kind;
+      const kind = spec.find((o) => o.key === k || o.aliases?.includes(k))?.kind;
       const text = kind === 'text' || (kind === undefined && typeof v === 'string');
       return [k, text ? t('explain.maskedOption', { n: String(v).length }) : v];
     }),
