@@ -16,7 +16,7 @@ import type { HookEvent } from '../data/hooks.js';
 import { installVersion } from '../data/self-update.js';
 import { safeCwd } from '../data/update-state.js';
 import { binary } from '../data/which.js';
-import { type BuiltCommand, buildCommand, type CommandTarget, jsForWinBin } from './command.js';
+import { buildCommand, jsForWinBin } from './command.js';
 import {
   appliedItems,
   type HookFloor,
@@ -32,6 +32,28 @@ import {
   removeOwnedHooks,
 } from './hooks-install.js';
 import {
+  classify,
+  currentStatusLine,
+  isMine,
+  legacyBackup,
+  legacyPrevious,
+  noOriginal,
+  openManifest,
+  type SubagentOwner,
+  type SubagentPlan,
+  type SubagentSetting,
+  statusLineOf,
+  subagentCommand,
+  subagentOf,
+} from './install-owner.js';
+import {
+  acceptCommand,
+  defaultCommand,
+  globalBinary,
+  localBin,
+  type StatusLineSetting,
+} from './install-target.js';
+import {
   classifyOwner,
   deepEqual,
   dropEntry,
@@ -41,7 +63,6 @@ import {
   findSubagentLineEntry,
   type HookEntry,
   type Manifest,
-  manifestFile,
   noteWrite,
   type Owner,
   ownedEqual,
@@ -65,215 +86,26 @@ import {
   rollbackPatch,
   writeSettingsBytes,
 } from './settings-file.js';
-import {
-  brewPrefix,
-  compareVersions,
-  type InstallKind,
-  installKind,
-  installVersionAsync,
-  localPrefix,
-  npmCommand,
-} from './update.js';
+import { compareVersions, installKind, installVersionAsync, localPrefix, npmCommand } from './update.js';
 
-export interface StatusLineSetting {
-  type: 'command';
-  command: string;
-  padding?: number;
-  refreshInterval?: number;
-  hideVimModeIndicator?: boolean;
-  [key: string]: unknown;
-}
-
-// npx puts its cache on PATH; that is not an install
-export function isTransientBin(p: string): boolean {
-  return /[\\/](_npx|node_modules[\\/]\.bin)[\\/]/.test(p);
-}
-
-export function globalBinary(): string | null {
-  try {
-    const win = process.platform === 'win32';
-    const out = execFileSync(win ? 'where' : 'which', win ? ['ccinfobar'] : ['-a', 'ccinfobar'], {
-      encoding: 'utf8',
-      windowsHide: true,
-      timeout: 10_000,
-      // Windows looks up where in the cwd first
-      ...(win ? { cwd: safeCwd() } : {}),
-    });
-    const hit = out
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .find((l) => l && !isTransientBin(l));
-    return hit ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export function localBin(env: NodeJS.ProcessEnv = process.env): string {
-  const bin = path.join(localPrefix(env), 'node_modules', '.bin');
-  return path.join(bin, process.platform === 'win32' ? 'ccinfobar.cmd' : 'ccinfobar');
-}
-
-export function acceptCommand(built: BuiltCommand, log: (line: string) => void = () => {}): string | null {
-  if (built.ok) return built.command;
-  log(t('install.unsafePath', { path: built.path, chars: built.chars }));
-  return null;
-}
-
-export interface TargetDeps {
-  globalBinary?: () => string | null;
-  entry?: string;
-  exists?: (p: string) => boolean;
-  realpath?: (p: string) => string;
-}
-
-const slash = (p: string) => p.replace(/\\/g, '/');
-const inCellar = (p: string) => slash(p).includes('/Cellar/');
-
-// an npm copy can own <prefix>/bin/ccinfobar
-function ownsKeg(p: string, prefix: string | null, realpath: (p: string) => string): boolean {
-  try {
-    const real = slash(realpath(p));
-    return prefix
-      ? real.startsWith(`${slash(prefix)}/Cellar/ccinfobar/`)
-      : real.includes('/Cellar/ccinfobar/');
-  } catch {
-    return false;
-  }
-}
-
-// the prefix bin and opt link survive brew upgrade, Cellar paths do not
-function brewTarget(deps: TargetDeps): CommandTarget | null {
-  const exists = deps.exists ?? fs.existsSync;
-  const realpath = deps.realpath ?? fs.realpathSync;
-  const prefix = brewPrefix(deps.entry);
-  const candidates: CommandTarget[] = prefix
-    ? [
-        { kind: 'bin', bin: path.join(prefix, 'bin', 'ccinfobar'), onPath: true },
-        { kind: 'bin', bin: path.join(prefix, 'opt', 'ccinfobar', 'bin', 'ccinfobar'), onPath: false },
-      ]
-    : [];
-  const hit = (deps.globalBinary ?? globalBinary)();
-  if (hit && !inCellar(hit)) candidates.push({ kind: 'bin', bin: hit, onPath: true });
-  return (
-    candidates.find((c) => c.kind === 'bin' && exists(c.bin) && ownsKeg(c.bin, prefix, realpath)) ?? null
-  );
-}
-
-// never npx@latest: it runs whatever npm serves
-function defaultTarget(kind: InstallKind, deps: TargetDeps = {}): CommandTarget | null {
-  if (kind === 'brew') return brewTarget(deps);
-  const exists = deps.exists ?? fs.existsSync;
-  const bin = (deps.globalBinary ?? globalBinary)();
-  if (bin) return { kind: 'bin', bin, onPath: true };
-  if (exists(localBin())) return { kind: 'bin', bin: localBin(), onPath: false };
-  const raw = deps.entry ?? process.argv[1];
-  const entry = raw ? path.resolve(raw) : null;
-  if (kind !== 'npx' && entry && exists(entry)) return { kind: 'script', script: entry };
-  return null;
-}
-
-export function defaultCommand(
-  kind: InstallKind = installKind(),
-  log?: (line: string) => void,
-  deps?: TargetDeps,
-): string | null {
-  const target = defaultTarget(kind, deps);
-  const command = target ? acceptCommand(buildCommand(target), log) : null;
-  return kind === 'brew' && command && inCellar(command) ? null : command;
-}
-
-function statusLineOf(data: Record<string, unknown>): StatusLineSetting | null {
-  const sl = data.statusLine;
-  return sl && typeof sl === 'object' && !Array.isArray(sl) ? (sl as StatusLineSetting) : null;
-}
-
-export interface SubagentSetting {
-  type: 'command';
-  command: string;
-  [k: string]: unknown;
-}
-
-export const subagentCommand = (command: string) => `${command} subagent-line`;
-
-function subagentOf(data: Record<string, unknown>): unknown | null {
-  const v = data.subagentStatusLine;
-  return v && typeof v === 'object' && !Array.isArray(v) ? v : null;
-}
-
-export type SubagentOwner = 'none' | 'ours' | 'foreign';
-
-export interface SubagentPlan {
-  current: unknown | null;
-  owner: SubagentOwner;
-  proposed: SubagentSetting;
-  changes: boolean;
-  asked: boolean;
-}
-
-export function currentSubagentLine(
-  file = claudeSettingsPath(),
-  env: NodeJS.ProcessEnv = process.env,
-): { command: string; owned: boolean } | null {
-  const cur = subagentOf(readSettings(file).data) as Record<string, unknown> | null;
-  if (!cur) return null;
-  const entry = findSubagentLineEntry(openManifest(env), file);
-  return {
-    command: typeof cur.command === 'string' ? cur.command : '',
-    owned: !!entry && ownedEqual(cur, entry.value),
-  };
-}
-
-export function currentStatusLine(file = claudeSettingsPath()): StatusLineSetting | null {
-  return statusLineOf(readSettings(file).data);
-}
-
-const EMPTY: Manifest = { version: 1, entries: [] };
-const noOriginal = (env: NodeJS.ProcessEnv) => ({ original: false, env });
-
-function openManifest(env: NodeJS.ProcessEnv = process.env): Manifest {
-  const m = readManifest(env);
-  if (m.readOnly) throw new Error(t('install.manifestReadOnly', { file: manifestFile(env) }));
-  return m;
-}
-
-// defaultCommand() spawns, so only for the unclear case
-function classify(m: Manifest, file: string, sl: StatusLineSetting | null, command: string | null): Owner {
-  const owner = classifyOwner(m, file, sl, command);
-  if (owner !== 'legacy-ask') return owner;
-  const def = defaultCommand();
-  return def && def !== command ? classifyOwner(m, file, sl, def) : owner;
-}
-
-const isMine = (o: Owner) => o === 'ours' || o === 'legacy-ours';
-
-function legacyBackup(file: string): string | null {
-  const candidates = [`${file}.ccinfobar-backup`];
-  try {
-    candidates.push(`${resolveReal(file)}.ccinfobar-backup`);
-  } catch {}
-  return candidates.find((f) => fs.existsSync(f)) ?? null;
-}
-
-function legacyPrevious(file: string, command: string | null): StatusLineSetting | null {
-  const legacy = legacyBackup(file);
-  if (!legacy) return null;
-  try {
-    const sl = statusLineOf(readSettings(legacy).data);
-    if (!sl || typeof sl.command !== 'string') return null;
-    return classifyOwner(EMPTY, file, sl, command) === 'legacy-ours' ? null : sl;
-  } catch {
-    return null;
-  }
-}
-
-export function statusLineOwner(
-  file = claudeSettingsPath(),
-  command: string | null = null,
-): { current: StatusLineSetting | null; owner: Owner } {
-  const current = currentStatusLine(file);
-  return { current, owner: classify(readManifest(), file, current, command) };
-}
+export {
+  currentStatusLine,
+  currentSubagentLine,
+  type SubagentOwner,
+  type SubagentPlan,
+  type SubagentSetting,
+  statusLineOwner,
+  subagentCommand,
+} from './install-owner.js';
+export {
+  acceptCommand,
+  defaultCommand,
+  globalBinary,
+  isTransientBin,
+  localBin,
+  type StatusLineSetting,
+  type TargetDeps,
+} from './install-target.js';
 
 export interface InstallDiff {
   key: 'refreshInterval' | 'padding';

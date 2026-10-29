@@ -33,7 +33,9 @@ function closure(entry: string): Set<string> {
 }
 
 const EXCLUDED_FILES = [
+  'src/commands/install-owner.ts',
   'src/commands/install.ts',
+  'src/commands/install-target.ts',
   'src/commands/install-cli.ts',
   'src/commands/manage.ts',
   'src/commands/doctor.ts',
