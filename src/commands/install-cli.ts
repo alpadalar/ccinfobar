@@ -9,6 +9,7 @@ import { loadForUse } from '../core/load.js';
 import { titleWidgets } from '../core/panel.js';
 import { claudeJsonPath, claudeSettingsPath, tildify } from '../core/paths.js';
 import { sanitizeText } from '../core/sanitize.js';
+import type { Config } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import type { HookEvent } from '../data/hooks.js';
 import { progressChannel, progressSeq } from '../data/progress.js';
@@ -260,9 +261,13 @@ const hooksChanged = (p: HookPlan | null) =>
   !!p?.items.some((i) => i.action === 'add' || i.action === 'rewrite');
 
 // D-16: install persists the GSD migration
-function persistConfig(cfgFile: string): void {
-  if (!loadConfig(cfgFile).exists) saveConfig(loadForUse(cfgFile).config, cfgFile);
-  else loadForUse(cfgFile, undefined, { persist: true });
+function persistConfig(cfgFile: string): Config {
+  if (!loadConfig(cfgFile).exists) {
+    const { config } = loadForUse(cfgFile);
+    saveConfig(config, cfgFile);
+    return config;
+  }
+  return loadForUse(cfgFile, undefined, { persist: true }).config;
 }
 
 // returns whether progress was on; refuses on a broken config
@@ -497,13 +502,13 @@ export async function runInstall(args: Args, cfgFile: string, io: InstallIo = de
   }
   if (project) ignoreLocally(file);
   if (tool) await offerImport(tool, args, cfgFile, io, hint);
-  persistConfig(cfgFile);
+  const persisted = persistConfig(cfgFile);
   if (tty || (handlers && res.hooks?.progressRefused === null)) setProgress(io, cfgFile, true);
   const ttyRemoved =
     tty && hasProgressHandlers(file) ? uninstallHooks(file, undefined, undefined, 'progress') : null;
   if (plan.changes) io.log(t('install.wrote', { command: show(command), file: tildify(file) }));
   else if (!hooksChanged(res.hooks) && !res.subagent) io.log(t('install.unchanged'));
-  if (!usageApiDisabled(loadForUse(cfgFile).config)) io.log(t('usage.apiNote'));
+  if (!usageApiDisabled(persisted)) io.log(t('usage.apiNote'));
   if (slNeedsConfirm(plan) && !adoptLegacy && plan.current)
     io.log(t('install.replaced', { command: show(plan.current.command) }));
   if (res.subagent) {
