@@ -76,4 +76,12 @@ describe('docs accuracy', () => {
   it('MARKETPLACE.md says the held-link review ignores the query', () => {
     expect(read('docs/MARKETPLACE.md')).toContain("changes only a link's query string");
   });
+
+  it('MARKETPLACE.md tells self-hosters to migrate before deploying', () => {
+    const doc = read('docs/MARKETPLACE.md');
+    const at = doc.indexOf('### Self-hosting');
+    const section = doc.slice(at, doc.indexOf('\n### ', at + 1));
+    expect(section).toContain('migrations apply <database> --remote');
+    expect(section).toContain('0010_held_version.sql');
+  });
 });

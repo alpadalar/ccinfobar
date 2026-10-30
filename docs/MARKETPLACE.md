@@ -323,7 +323,7 @@ node market/ccinfobar-market.mjs --data ./market-data --port 9000 --no-overwrite
 
 It prints `listening on <url>` and stops on Ctrl+C or SIGTERM. Then point ccinfobar at it: `ccinfobar catalog endpoint http://127.0.0.1:8787` on the same machine, or an https URL in front of it.
 
-To self-host the Worker instead, deploy it to your own Cloudflare account with your own D1 database and OAuth app: change `account_id`, `database_id`, `GITHUB_CLIENT_ID` and `ADMIN_GITHUB_IDS` in `worker/wrangler.jsonc` and set your own `GITHUB_CLIENT_SECRET`.
+To self-host the Worker instead, deploy it to your own Cloudflare account with your own D1 database and OAuth app: change `account_id`, `database_id`, `GITHUB_CLIENT_ID` and `ADMIN_GITHUB_IDS` in `worker/wrangler.jsonc` and set your own `GITHUB_CLIENT_SECRET`. On every upgrade run `npx wrangler d1 migrations apply <database> --remote` before `wrangler deploy`: the Worker reads the columns and indexes of every migration, and without `0010_held_version.sql` its `INDEXED BY entries_held` makes `GET /v1/admin/pending` answer `500`.
 
 ### Data directory
 
