@@ -13,6 +13,7 @@ import {
   bumpRate,
   claimHandle,
   deleteToken,
+  dropRate,
   type GitHubUser,
   knownAccount,
   myEntries,
@@ -186,6 +187,12 @@ export async function signInWithGitHub(env: Env, deps: WorkerDeps, req: Request)
   // a: counts failures only
   const failKey = `a:${await ipHash(db, req, now)}`;
   if ((await peekRate(db, failKey, win)) > b.limit) throw limited(retryAfterSeconds(win, now, b.ms));
+  // reserve the slot first so parallel failures cannot all pass the peek
+  if ((await bumpRate(db, failKey, win)) > b.limit + 1) {
+    await dropRate(db, failKey, win).catch(() => {});
+    throw limited(retryAfterSeconds(win, now, b.ms));
+  }
+  let keep = false;
   try {
     const raw = await readJsonBody(req, BODY_CAP);
     const token =
@@ -210,10 +217,10 @@ export async function signInWithGitHub(env: Env, deps: WorkerDeps, req: Request)
       if (secret) await revoke(deps, token, clientId, secret);
     }
   } catch (err) {
-    if (err instanceof MarketHttpError && [400, 401, 403].includes(err.status)) {
-      await bumpRate(db, failKey, win).catch(() => {});
-    }
+    keep = err instanceof MarketHttpError && [400, 401, 403].includes(err.status);
     throw err;
+  } finally {
+    if (!keep) await dropRate(db, failKey, win).catch(() => {});
   }
 }
 

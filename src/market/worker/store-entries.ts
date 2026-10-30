@@ -409,6 +409,14 @@ export async function bumpRate(db: D1Database, key: string, win: number): Promis
   return Number(n);
 }
 
+// gives a reserved slot back; a row left at zero is removed
+export async function dropRate(db: D1Database, key: string, win: number): Promise<void> {
+  await db.batch([
+    db.prepare('UPDATE rate SET n = n - 1 WHERE key = ?1 AND win = ?2 AND n > 0').bind(key, win),
+    db.prepare('DELETE FROM rate WHERE key = ?1 AND win = ?2 AND n <= 0').bind(key, win),
+  ]);
+}
+
 export async function peekRate(db: D1Database, key: string, win: number): Promise<number> {
   const n = await db
     .prepare('SELECT n FROM rate WHERE key = ?1 AND win = ?2')

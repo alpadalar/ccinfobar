@@ -16,6 +16,7 @@ export {
   CLEANUP_BATCH,
   type Counts,
   cleanupStatements,
+  dropRate,
   type EntryDoc,
   type EntryRow,
   type EntryState,
