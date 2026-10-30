@@ -183,6 +183,7 @@ function previewContext(raw: Config, source: PreviewSource, width: number, theme
     payload,
     config,
     env,
+    now: new Date(now),
     preview: true,
     terminalWidth: width,
     ...(theme ? { theme } : {}),
