@@ -72,4 +72,8 @@ describe('docs accuracy', () => {
   it('DEVELOPMENT.md says the Node 20 CI leg skips the D1 tests', () => {
     expect(read('docs/DEVELOPMENT.md')).toContain('The Node 20 CI leg skips them as well');
   });
+
+  it('MARKETPLACE.md says the held-link review ignores the query', () => {
+    expect(read('docs/MARKETPLACE.md')).toContain("changes only a link's query string");
+  });
 });
