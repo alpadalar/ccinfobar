@@ -20,6 +20,8 @@ The main surface is the Marketplace page in `ccinfobar edit`. Every action also 
 
 Personal settings are never stored in an entry, never changed by applying one and never published: `charset`, `icons`, `colorLevel`, `maxWidth`, `glyphMode`, `ambiguousWidth`, `update`, `usageApi`, `savePayload`, `gitHardening`, `gsdAutoLine`, `loadingText`, `budget`, `profiles`, `progress` and `language`. Budgets, profiles and your language stay yours, and your terminal and font settings keep working.
 
+Entries and share codes made with ccinfobar 0.8.3 or later use the canonical option names listed in [docs/WIDGETS.md](WIDGETS.md). ccinfobar 0.8.2 and older ignore those names and apply the options' defaults, so install such entries with 0.8.3 or later.
+
 ## Where entries come from
 
 - **System** entries are built in and read-only (author `ccinfobar`, version 1). There are 15 curated bundles, such as `bundle/catppuccin-cockpit`, `bundle/nord-minimal`, `bundle/tokyo-night-limits` and `bundle/panel-dashboard`, plus every built-in preset (`preset/<id>`) and theme (`theme/<id>`). Without GSD installed, built-in presets leave out the GSD widgets, and `preset/gsd` and `bundle/solarized-gsd` are hidden.

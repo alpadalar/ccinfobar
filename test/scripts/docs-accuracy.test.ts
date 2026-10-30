@@ -31,4 +31,13 @@ describe('docs accuracy', () => {
     }
     expect(bad).toEqual([]);
   });
+
+  it('notes that 0.8.2 reads canonical names as defaults', () => {
+    const text = unreleased();
+    expect(text).toContain('0.8.2 and older');
+    expect(text).toContain('canonical option names');
+    const bullet = text.split(/\r?\n/).find((l) => l.includes('0.8.2 and older')) ?? '';
+    expect(bullet).toContain('reason:');
+    expect(read('docs/CATALOG.md')).toContain('0.8.2 and older');
+  });
 });
