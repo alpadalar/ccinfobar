@@ -58,7 +58,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `ccinfobar doctor`'s vim-twice warning checks `hideVimModeIndicator` on the statusLine Claude Code actually uses in each checked project, so a project statusLine without it now warns even when your user settings file sets it (reason: the user file's flag has no effect under a project override)
 
 ### Fixed
-- Marketplace rate limits now refuse floods: a per-isolate window on every check, logged limiter outcomes, and a strict Durable Object counter for writes and sign-in, sharded, keyed by IPv6 /64 and never refusing when full (`limiters.strict` in `/v1/meta.json`).
+- Marketplace rate limits now refuse floods: a per-isolate window on every check, logged limiter outcomes, and a strict Durable Object counter for writes and sign-in, sharded, keyed by IPv6 /64, and a full shard still counts new addresses together instead of locking anyone out (`limiters.strict` in `/v1/meta.json`).
 - The editor's style history endpoint now refuses malformed data with 400 instead of trimming it, and ignores invalid entries in an existing styles.json
 - `uninstall --project --subagents` now says nothing was removed and names `uninstall --subagents`; three Turkish help rows read like their neighbours
 - `doctor`: with several managed settings files, the later file (`managed-settings.d/*.json` after `managed-settings.json`, alphabetical) now wins for the progress-bar and editor-mode checks, as in Claude Code

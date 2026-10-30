@@ -32,7 +32,7 @@ export const SHARDS = 16;
 
 // fnv-1a; the same key always lands on the same counter
 export function shardOf(key: string): number {
-  let h = 0x811c9dc5;
+  let h = 0x811c9dc5 ^ 0x5bd1e995;
   for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193);
   return (h >>> 0) % SHARDS;
 }
@@ -44,6 +44,7 @@ const isCount = (v: unknown, max: number): v is number =>
 export class RateCounter {
   private win = Number.NaN;
   private n = new Map<string, number>();
+  private over = 0;
 
   constructor(_state: unknown, _env: unknown) {}
 
@@ -67,9 +68,13 @@ export class RateCounter {
     if (win !== this.win) {
       this.win = win;
       this.n.clear();
+      this.over = 0;
     }
-    // full: defer to the other layers; refusing would lock out every new address
-    if (!this.n.has(key) && this.n.size >= DO_KEYS) return Response.json({ ok: true, full: true });
+    // full: new keys share one overflow count; tracked keys keep their own
+    if (!this.n.has(key) && this.n.size >= DO_KEYS) {
+      this.over++;
+      return Response.json({ ok: this.over <= limit, overflow: true });
+    }
     const c = (this.n.get(key) ?? 0) + 1;
     this.n.set(key, c);
     return Response.json({ ok: c <= limit });

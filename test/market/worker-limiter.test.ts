@@ -261,15 +261,17 @@ describe('RateCounter', () => {
     expect(await r.json()).toEqual({ ok: false });
   });
 
-  it('a full map defers new keys instead of refusing, existing keys still count', async () => {
+  it('a full map counts new keys in one shared overflow bucket, tracked keys keep their own count', async () => {
     const c = new RateCounter({}, {});
     for (let i = 0; i < 10_000; i++) await ok(c, { key: `w:${i}`, limit: 1, win: W });
-    const fresh = await (await c.fetch(post({ key: 'w:new', limit: 5, win: W }))).json();
-    expect(fresh).toEqual({ ok: true, full: true });
-    expect(await ok(c, { key: 'w:0', limit: 1, win: W })).toBe(false);
-    expect(await (await c.fetch(post({ key: 'w:new', limit: 5, win: W + 60_000 }))).json()).toEqual({
-      ok: true,
-    });
+    const res = async (key: string, limit = 5, win = W) =>
+      (await (await c.fetch(post({ key, limit, win }))).json()) as { ok: boolean; overflow?: boolean };
+    for (let i = 0; i < 5; i++) expect(await res(`w:new${i}`)).toEqual({ ok: true, overflow: true });
+    expect(await res('w:new99')).toEqual({ ok: false, overflow: true });
+    expect(await res('w:new0')).toEqual({ ok: false, overflow: true });
+    expect((await res('w:1', 5)).ok).toBe(true);
+    expect((await res('w:1', 5)).overflow).toBeUndefined();
+    expect(await res('w:fresh', 5, W + 60_000)).toEqual({ ok: true });
   });
 });
 
@@ -378,7 +380,7 @@ describe.skipIf(skipSqlite)('handler strict layer', () => {
     expect((await w.call('POST', '/v1/entries', {})).status).toBe(429);
   });
 
-  it('a full DO shard does not lock out a fresh address', async () => {
+  it('a full DO shard limits new addresses together and logs overflow without address or key', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const counter = new RateCounter({}, {});
     const W = windowOf(T);
@@ -389,13 +391,13 @@ describe.skipIf(skipSqlite)('handler strict layer', () => {
           body: JSON.stringify({ key: `w:${i}`, limit: 1, win: W }),
         }),
       );
-    const w = await setup({ limiter: fakeLimiter(counter) });
-    for (let i = 0; i < 30; i++) expect((await w.call('POST', '/v1/entries', {})).status).toBe(401);
-    expect((await w.call('POST', '/v1/entries', {})).status).toBe(429);
-    expect((await w.call('POST', '/v1/entries', {}, '203.0.113.99')).status).toBe(401);
+    const w = await setup({ limiter: fakeLimiter(counter), memo: false });
+    for (let i = 0; i < 30; i++)
+      expect((await w.call('POST', '/v1/entries', {}, `203.0.113.${i + 1}`)).status).toBe(401);
+    expect((await w.call('POST', '/v1/entries', {}, '198.51.100.9')).status).toBe(429);
     const lines = log.mock.calls.map((c) => c.join(' '));
-    expect(lines).toContain('ratelimit w do-full');
-    expect(lines.join('\n')).not.toMatch(/203\.0\.113|[0-9a-f]{32}/);
+    expect(lines).toContain('ratelimit w overflow');
+    expect(lines.join('\n')).not.toMatch(/203\.0\.113|198\.51|[0-9a-f]{32}/);
   });
 
   it('addresses in one IPv6 /64 share a count', async () => {
