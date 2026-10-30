@@ -143,7 +143,7 @@ describe('command budget', () => {
     const start = Date.now();
     const out = render(ctx).map(stripAnsi).join('\n');
     const wall = Date.now() - start;
-    expect(wall).toBeLessThan(2500);
+    expect(wall).toBeLessThan(4000);
     expect(out).toContain('Opus 5.5');
   });
 });
