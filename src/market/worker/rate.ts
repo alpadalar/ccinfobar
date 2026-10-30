@@ -142,9 +142,9 @@ async function strictAllowed(
     const body = JSON.stringify({ key, limit: MEMORY_LIMITS[prefix], win: windowOf(now) });
     const id = ns.idFromName(`${prefix}:${shardOf(key)}`);
     const r = await ns.get(id).fetch('https://limiter/hit', { method: 'POST', body });
-    const j = r.status === 200 ? ((await r.json()) as { ok?: unknown; overflow?: unknown } | null) : null;
+    const j = r.status === 200 ? ((await r.json()) as { ok?: unknown; first?: unknown } | null) : null;
     if (typeof j?.ok === 'boolean') {
-      if (j.overflow === true) console.log('ratelimit', prefix, 'overflow');
+      if (j.first === true) console.log('ratelimit', prefix, 'overflow');
       return j.ok;
     }
   } catch {}

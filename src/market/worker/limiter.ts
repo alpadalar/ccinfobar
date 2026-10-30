@@ -30,6 +30,9 @@ const DO_KEYS = 10_000;
 
 export const SHARDS = 16;
 
+// a full shard counts untracked keys together at limit x this
+export const OVERFLOW_FACTOR = 20;
+
 // fnv-1a; the same key always lands on the same counter
 export function shardOf(key: string): number {
   let h = 0x811c9dc5 ^ 0x5bd1e995;
@@ -70,10 +73,11 @@ export class RateCounter {
       this.n.clear();
       this.over = 0;
     }
-    // full: new keys share one overflow count; tracked keys keep their own
+    // full: untracked keys share one generous count; tracked keys keep their own
     if (!this.n.has(key) && this.n.size >= DO_KEYS) {
       this.over++;
-      return Response.json({ ok: this.over <= limit, overflow: true });
+      const out = { ok: this.over <= limit * OVERFLOW_FACTOR, overflow: true };
+      return Response.json(this.over === 1 ? { ...out, first: true } : out);
     }
     const c = (this.n.get(key) ?? 0) + 1;
     this.n.set(key, c);

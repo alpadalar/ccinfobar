@@ -7,6 +7,7 @@ import { createHandler } from '../../src/market/worker/handler.js';
 import {
   MEMORY_LIMITS,
   MemoryLimiter,
+  OVERFLOW_FACTOR,
   RateCounter,
   SHARDS,
   shardOf,
@@ -261,13 +262,19 @@ describe('RateCounter', () => {
     expect(await r.json()).toEqual({ ok: false });
   });
 
-  it('a full map counts new keys in one shared overflow bucket, tracked keys keep their own count', async () => {
+  it('a full map counts new keys in a generous shared overflow bucket, tracked keys keep their own count', async () => {
     const c = new RateCounter({}, {});
     for (let i = 0; i < 10_000; i++) await ok(c, { key: `w:${i}`, limit: 1, win: W });
     const res = async (key: string, limit = 5, win = W) =>
-      (await (await c.fetch(post({ key, limit, win }))).json()) as { ok: boolean; overflow?: boolean };
-    for (let i = 0; i < 5; i++) expect(await res(`w:new${i}`)).toEqual({ ok: true, overflow: true });
-    expect(await res('w:new99')).toEqual({ ok: false, overflow: true });
+      (await (await c.fetch(post({ key, limit, win }))).json()) as {
+        ok: boolean;
+        overflow?: boolean;
+        first?: boolean;
+      };
+    expect(await res('w:new0')).toEqual({ ok: true, overflow: true, first: true });
+    for (let i = 1; i < 5 * OVERFLOW_FACTOR; i++)
+      expect(await res(`w:new${i}`)).toEqual({ ok: true, overflow: true });
+    expect(await res('w:past')).toEqual({ ok: false, overflow: true });
     expect(await res('w:new0')).toEqual({ ok: false, overflow: true });
     expect((await res('w:1', 5)).ok).toBe(true);
     expect((await res('w:1', 5)).overflow).toBeUndefined();
@@ -380,7 +387,7 @@ describe.skipIf(skipSqlite)('handler strict layer', () => {
     expect((await w.call('POST', '/v1/entries', {})).status).toBe(429);
   });
 
-  it('a full DO shard limits new addresses together and logs overflow without address or key', async () => {
+  it('a full DO shard lets new addresses through up to the overflow limit and logs once', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const counter = new RateCounter({}, {});
     const W = windowOf(T);
@@ -392,12 +399,13 @@ describe.skipIf(skipSqlite)('handler strict layer', () => {
         }),
       );
     const w = await setup({ limiter: fakeLimiter(counter), memo: false });
-    for (let i = 0; i < 30; i++)
-      expect((await w.call('POST', '/v1/entries', {}, `203.0.113.${i + 1}`)).status).toBe(401);
+    const ipN = (i: number) => `10.${i >> 8}.${i & 255}.1`;
+    for (let i = 0; i < 30 * OVERFLOW_FACTOR; i++)
+      expect((await w.call('POST', '/v1/entries', {}, ipN(i))).status).toBe(401);
     expect((await w.call('POST', '/v1/entries', {}, '198.51.100.9')).status).toBe(429);
     const lines = log.mock.calls.map((c) => c.join(' '));
-    expect(lines).toContain('ratelimit w overflow');
-    expect(lines.join('\n')).not.toMatch(/203\.0\.113|198\.51|[0-9a-f]{32}/);
+    expect(lines.filter((l) => l === 'ratelimit w overflow')).toHaveLength(1);
+    expect(lines.join('\n')).not.toMatch(/10\.0\.|198\.51|[0-9a-f]{32}/);
   });
 
   it('addresses in one IPv6 /64 share a count', async () => {
