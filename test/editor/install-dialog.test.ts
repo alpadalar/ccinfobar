@@ -128,3 +128,16 @@ describe('install dialog kept hint', () => {
     expect((await open({ command: 'ccinfobar subagent-line', owned: true })).kept.hidden).toBe(true);
   });
 });
+
+describe('install dialog refresh interval', () => {
+  it('sends the floored whole number', async () => {
+    const t = await open(null);
+    const input = t.root.all((e) => e.type === 'number')[0]!;
+    input.value = '2.7';
+    input.dispatch('input');
+    t.install.dispatch('click');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(planCalls[0]![1]).toBe(2);
+    expect(installCalls[0]![1]).toBe(2);
+  });
+});

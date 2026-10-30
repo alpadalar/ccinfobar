@@ -74,6 +74,8 @@ export const installMessages = {
     'Başka bir ccinfobar komutu {file} dosyasını güncelliyor; biraz sonra yeniden deneyin.',
   'install.needsConfirm': "Önce mevcut statusLine'ın değiştirilmesini onaylayın.",
   'install.badSubagents': 'subagents true veya false olmalı ya da hiç gönderilmemeli.',
+  'install.badRefresh':
+    'Yenileme aralığı {min} ile {max} arasında tam sayı saniye olmalı ya da hiç gönderilmemeli.',
   'install.confirmNeedsCurrent': "Onaylı bir kurulum, kendisine gösterilen statusLine'ı göndermelidir.",
   'install.prompt.yes': '[E/h]',
   'install.prompt.no': '[e/H]',

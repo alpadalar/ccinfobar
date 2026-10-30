@@ -16,6 +16,7 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
     class: 'input num',
     type: 'number',
     min: '0',
+    max: '86400',
     step: '1',
     placeholder: t('web.install.off'),
     value: opts.refresh
@@ -44,7 +45,8 @@ export async function installDialog(opts: { refresh?: number } = {}): Promise<vo
   update();
   const current = claude.statusLine?.command;
   const planBox = h('div', { class: 'install-plan', hidden: true });
-  const refreshValue = () => (Number(refresh.value) > 0 ? Number(refresh.value) : undefined);
+  const refreshValue = () =>
+    Math.floor(Number(refresh.value)) > 0 ? Math.floor(Number(refresh.value)) : undefined;
   await modal({
     title: t('web.install.title'),
     body: [

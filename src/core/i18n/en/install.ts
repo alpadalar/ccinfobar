@@ -70,6 +70,8 @@ export const installMessages = {
   'install.manifestBusy': 'Another ccinfobar command is updating {file}; try again in a moment.',
   'install.needsConfirm': 'Confirm replacing the current statusLine first.',
   'install.badSubagents': 'Subagents must be true or false, or left out.',
+  'install.badRefresh':
+    'The refresh interval must be a whole number of seconds from {min} to {max}, or left out.',
   'install.confirmNeedsCurrent': 'A confirmed install must send the statusLine it was shown.',
   'install.prompt.yes': '[Y/n]',
   'install.prompt.no': '[y/N]',

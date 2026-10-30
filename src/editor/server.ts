@@ -387,12 +387,18 @@ export async function startEditor(opts: EditorOptions): Promise<EditorHandle> {
   } {
     if (body.subagents !== undefined && typeof body.subagents !== 'boolean')
       throw httpError(400, 'install.badSubagents');
+    const r = body.refreshInterval;
+    if (
+      r !== undefined &&
+      r !== null &&
+      !(typeof r === 'number' && Number.isInteger(r) && r >= 1 && r <= 86400)
+    )
+      throw httpError(400, 'install.badRefresh', { min: 1, max: 86400 });
     const asked =
       typeof body.command === 'string' && body.command.trim() ? body.command.trim() : state.command;
-    const refresh = Number(body.refreshInterval);
     return {
       cmd: !asked || asked.startsWith(PLACEHOLDER_PREFIX) ? null : asked,
-      refresh: Number.isFinite(refresh) && refresh > 0 ? refresh : undefined,
+      refresh: typeof r === 'number' ? r : undefined,
       subagents: body.subagents,
     };
   }
