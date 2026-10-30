@@ -22,6 +22,8 @@ export interface DetachOptions {
   spawn?: (args: string[]) => number | null;
   waitMs?: number;
   log?: (s: string) => void;
+  now?: () => number;
+  sleep?: (ms: number) => Promise<void>;
 }
 
 const URL_RE = /^http:\/\/127\.0\.0\.1:\d{1,5}\/\?t=[0-9a-f]+$/;
@@ -103,7 +105,9 @@ export async function runDetach(opts: DetachOptions): Promise<number> {
   };
   const config = path.resolve(opts.configPath);
   const waitMs = opts.waitMs ?? 5000;
-  const end = Date.now() + waitMs;
+  const now = opts.now ?? Date.now;
+  const pause = opts.sleep ?? sleep;
+  const end = now() + waitMs;
 
   const live = await reusable(env, config, opts.port);
   if (live) return ready(live);
@@ -111,11 +115,11 @@ export async function runDetach(opts: DetachOptions): Promise<number> {
   // one spawn at a time; a waiter reuses the winner's editor
   const lock = `${editorStateFile(env)}.lock`;
   while (!acquireLock(lock, waitMs + 1000)) {
-    if (Date.now() >= end) {
+    if (now() >= end) {
       console.error(t('edit.detachFailed'));
       return 1;
     }
-    await sleep(100);
+    await pause(100);
     const url = await reusable(env, config, opts.port);
     if (url) return ready(url);
   }
@@ -130,8 +134,8 @@ export async function runDetach(opts: DetachOptions): Promise<number> {
       for (;;) {
         const state = readEditorState(env);
         if (state?.pid === pid) return ready(state.url);
-        if (Date.now() >= end) break;
-        await sleep(100);
+        if (now() >= end) break;
+        await pause(100);
       }
     }
   } finally {

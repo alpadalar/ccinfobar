@@ -186,6 +186,8 @@ describe('runDetach', () => {
     const fresh = 'http://127.0.0.1:2/?t=ff';
     const spawned: string[][] = [];
     const lines: string[] = [];
+    const clock = { t: 1_000 };
+    let waits = 0;
     const code = await runDetach({
       configPath: '/x/c.json',
       port: 9999,
@@ -193,15 +195,20 @@ describe('runDetach', () => {
       env,
       spawn: (a) => {
         spawned.push(a);
-        setTimeout(
-          () => fs.writeFileSync(stateFile, JSON.stringify({ url: fresh, pid: 777, startedAt: 2 })),
-          150,
-        );
         return 777;
+      },
+      now: () => clock.t,
+      sleep: async (ms) => {
+        clock.t += ms;
+        waits++;
+        if (waits === 2) {
+          fs.writeFileSync(stateFile, JSON.stringify({ url: fresh, pid: 777, startedAt: 2 }));
+        }
       },
       log: (s) => lines.push(s),
     });
     expect(code).toBe(0);
+    expect(waits).toBe(2);
     expect(spawned).toEqual([
       ['edit', '--serve-detached', '--no-open', '--config', path.resolve('/x/c.json'), '--port', '9999'],
     ]);
@@ -212,24 +219,29 @@ describe('runDetach', () => {
     fs.mkdirSync(path.dirname(stateFile), { recursive: true });
     const fresh = 'http://127.0.0.1:3/?t=ee';
     const lines: string[] = [];
+    const clock = { t: 1_000 };
+    let waits = 0;
     const prev = setLanguage('tr');
     try {
       await runDetach({
         configPath: '/x/c.json',
         open: false,
         env,
-        spawn: () => {
-          setTimeout(
-            () => fs.writeFileSync(stateFile, JSON.stringify({ url: fresh, pid: 778, startedAt: 2 })),
-            50,
-          );
-          return 778;
+        spawn: () => 778,
+        now: () => clock.t,
+        sleep: async (ms) => {
+          clock.t += ms;
+          waits++;
+          if (waits === 2) {
+            fs.writeFileSync(stateFile, JSON.stringify({ url: fresh, pid: 778, startedAt: 2 }));
+          }
         },
         log: (s) => lines.push(s),
       });
     } finally {
       setLanguage(prev);
     }
+    expect(waits).toBe(2);
     expect(lines).toEqual([`ccinfobar editörü çalışıyor: ${fresh}`]);
   });
 
