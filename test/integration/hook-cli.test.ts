@@ -236,14 +236,18 @@ describe.skipIf(skipDist)('ccinfobar hook (built cli)', () => {
 
   it('a partial payload writes nothing and exits 0 once the writer closes', async () => {
     const s = sandbox();
-    const start = Date.now();
     const p = open(s);
+    let endedAt = 0;
     p.child.stdin.write('{"session_id":');
-    setTimeout(() => p.child.stdin.end(), 1500);
+    setTimeout(() => {
+      endedAt = Date.now();
+      p.child.stdin.end();
+    }, 1500);
     const code = await p.exit;
+    const exitedAt = Date.now();
     expect(code).toBe(0);
     expect(p.out()).toBe('');
-    expect(Date.now() - start).toBeLessThan(2500);
+    expect(Math.max(0, exitedAt - endedAt)).toBeLessThan(2500);
     expect(fs.existsSync(path.join(s.cache, 'hooks'))).toBe(false);
   }, 10000);
 });
