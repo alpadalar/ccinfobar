@@ -580,7 +580,7 @@ Name options the same way across widgets so users learn them once:
 - `show` picks a variant of what is shown, `style` the visual shape, `window` one value set `5h|7d` (plus `first` where windows are compared)
 - documented exceptions: `points`, `slots`, `maxAgeMin` and `show<Detail>` booleans like `showStrict`
 
-Old names stay as aliases in `src/core/option-aliases.ts` and are resolved at read time (`opt()`, `optionValue()`); `normalizeItem` never renames keys because the catalog hashes entries. A canonical key wins when both are set, and the editors write the canonical key only when the user changes that option. Declare the alias on the `OptionSpec` (`aliases`) as well, so docs and `ccinfobar explain` list it.
+Old names stay as aliases in `src/core/option-aliases.ts` and are resolved at read time (`opt()`, `optionValue()`); `normalizeItem` never renames keys because the catalog hashes entries. A canonical key wins when both are set, and the editors write the canonical key only when the user changes that option. Declare the alias on the `OptionSpec` (`aliases`) as well, so docs and `ccinfobar explain` list it. Built-in presets in `src/core/presets.ts` keep their old names (`mode`, `display`, `maxRepos`), so their catalog entry hashes stay the same (21-D-31); applying one writes those names, which the aliases read.
 
 ## Adding a language
 

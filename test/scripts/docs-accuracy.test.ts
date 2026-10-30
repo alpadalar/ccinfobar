@@ -62,4 +62,10 @@ describe('docs accuracy', () => {
     const bullet = text.slice(at).split(/\r?\n/)[0]!;
     expect(bullet).toContain('reason:');
   });
+
+  it('DEVELOPMENT.md says the presets keep old names', () => {
+    expect(read('docs/DEVELOPMENT.md')).toContain(
+      'Built-in presets in `src/core/presets.ts` keep their old names',
+    );
+  });
 });
