@@ -25,6 +25,7 @@ import type { ProgressConfig } from '../../core/types.js';
 import { progressChannel } from '../../data/progress.js';
 import { requestClear } from '../../data/progress-clear.js';
 import { type InstallOutcome, installChecked, verifyInstall } from '../../data/self-update.js';
+import { keptRejection } from '../../data/update-state.js';
 import type { ExactRoute } from '../router.js';
 import type { EditorCtx } from './ctx.js';
 import {
@@ -252,7 +253,7 @@ export const exact: ExactRoute<EditorCtx>[] = [
         });
         return;
       }
-      writeUpdateState({ checkedAt: Date.now(), latest });
+      writeUpdateState({ checkedAt: Date.now(), latest, ...keptRejection(readUpdateState(), latest) });
       send(res, 200, { current: VERSION, latest, newer, kind });
       return;
     },

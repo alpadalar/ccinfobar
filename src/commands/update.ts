@@ -19,8 +19,11 @@ import {
   compareVersions,
   type InstallKind,
   installKind,
+  keptRejection,
   localPrefix,
+  readUpdateState,
   safeCwd,
+  type UpdateState,
   writeUpdateState,
 } from '../data/update-state.js';
 import { currentStatusLine, takeOverProjects } from './install.js';
@@ -79,6 +82,7 @@ export interface UpdateDeps {
   verify: Verify;
   installKind: () => InstallKind;
   writeState: typeof writeUpdateState;
+  readState: () => UpdateState | null;
   log: (line: string) => void;
   error: (line: string) => void;
 }
@@ -89,6 +93,7 @@ const DEPS: UpdateDeps = {
   verify: verifyInstall,
   installKind,
   writeState: writeUpdateState,
+  readState: () => readUpdateState(),
   log: (line) => console.log(line),
   error: (line) => console.error(line),
 };
@@ -106,7 +111,7 @@ export async function manualUpdate(
     d.error(t('cmd.update.unreachable', { message: (err as Error).message }));
     return 1;
   }
-  d.writeState({ checkedAt: Date.now(), latest });
+  d.writeState({ checkedAt: Date.now(), latest, ...keptRejection(d.readState(), latest) });
   if (compareVersions(latest, current) <= 0) {
     d.log(t('cmd.update.latest', { version: current }));
     return 0;

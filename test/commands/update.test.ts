@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   availableUpdate,
   compareVersions,
@@ -14,7 +14,9 @@ import {
 } from '../../src/commands/update.js';
 import { defaultConfig } from '../../src/core/config.js';
 import { setLanguage } from '../../src/core/i18n/index.js';
-import { safeCwd } from '../../src/data/update-state.js';
+import { updateJob } from '../../src/data/jobs/update.js';
+import { checkForUpdate } from '../../src/data/self-update.js';
+import { readUpdateState, safeCwd, writeUpdateState } from '../../src/data/update-state.js';
 import { useIdleEntry } from '../helpers.js';
 
 const envWith = () =>
@@ -451,5 +453,63 @@ describe('manual update verification', () => {
   it('ignores a previously rejected version on an explicit update', async () => {
     const r = await verified(async () => null);
     expect(r.installs).toEqual(['0.9.0']);
+  });
+});
+
+describe('manual check keeps a rejection', () => {
+  const prevCache = process.env.CCINFOBAR_CACHE_DIR;
+  afterEach(() => {
+    if (prevCache === undefined) delete process.env.CCINFOBAR_CACHE_DIR;
+    else process.env.CCINFOBAR_CACHE_DIR = prevCache;
+  });
+  const fresh = () => {
+    process.env.CCINFOBAR_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-keep-'));
+  };
+  const check = (latest: string) =>
+    manualUpdate('0.8.2', true, { fetchLatest: async () => latest, log: () => {}, error: () => {} });
+
+  it('stops the next automatic check from installing the rejected version again', async () => {
+    fresh();
+    writeUpdateState({
+      checkedAt: 1,
+      latest: '0.9.0',
+      rejected: '0.9.0',
+      rollback: 'ok',
+      reason: 'render-failed:1',
+    });
+    await check('0.9.0');
+    expect(readUpdateState()).toMatchObject({
+      latest: '0.9.0',
+      rejected: '0.9.0',
+      rollback: 'ok',
+      reason: 'render-failed:1',
+    });
+    const prev = updateJob.readPrev!('update', process.env);
+    const spy = vi.fn(async () => {});
+    const out = await checkForUpdate({ ...defaultConfig(), update: 'auto' }, '0.8.2', process.env, {
+      fetchLatest: async () => '0.9.0',
+      kind: 'npm-global',
+      rejected: prev?.value?.rejected ?? null,
+      install: spy,
+    });
+    expect(out).toMatchObject({ latest: '0.9.0', rejected: '0.9.0' });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('drops the rejection when a newer version is out', async () => {
+    fresh();
+    writeUpdateState({ checkedAt: 1, latest: '0.9.0', rejected: '0.9.0', rollback: 'ok', reason: 'x' });
+    await check('0.9.1');
+    const s = readUpdateState();
+    expect(s?.latest).toBe('0.9.1');
+    expect(s?.rejected).toBeUndefined();
+    expect(s?.rollback).toBeUndefined();
+  });
+
+  it('keeps a deferred record while the same version is still reported', async () => {
+    fresh();
+    writeUpdateState({ checkedAt: 1, latest: '0.9.0', deferred: '0.9.0', reason: 'too-new' });
+    await check('0.9.0');
+    expect(readUpdateState()).toMatchObject({ latest: '0.9.0', deferred: '0.9.0', reason: 'too-new' });
   });
 });

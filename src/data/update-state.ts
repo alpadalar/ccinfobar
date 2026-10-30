@@ -88,6 +88,23 @@ const rejectedIn = (s: UpdateState | null, current: string): { rejected: string 
     ? { rejected: s.rejected }
     : null;
 
+type Kept = Pick<UpdateState, 'rejected' | 'deferred' | 'rollback' | 'reason'>;
+
+// a check-only write keeps a record about the same version
+export function keptRejection(prev: UpdateState | null, latest: string): Kept {
+  if (prev?.rejected === latest) {
+    return {
+      rejected: prev.rejected,
+      ...(prev.rollback ? { rollback: prev.rollback } : {}),
+      ...(prev.reason ? { reason: prev.reason } : {}),
+    };
+  }
+  if (prev?.deferred === latest) {
+    return { deferred: prev.deferred, ...(prev.reason ? { reason: prev.reason } : {}) };
+  }
+  return {};
+}
+
 export function availableUpdate(current: string, env: NodeJS.ProcessEnv = process.env): string | null {
   return newer(readUpdateState(env), current);
 }
