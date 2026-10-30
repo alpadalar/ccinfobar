@@ -49,6 +49,23 @@ describe('release workflow', () => {
     }
   });
 
+  it('drops the checkout credentials before devDependencies run', () => {
+    const at = release.findIndex((l) => /uses:\s*actions\/checkout@/.test(l));
+    expect(at).toBeGreaterThan(-1);
+    expect(release[at + 1]?.trim()).toBe('with:');
+    expect(release[at + 2]?.trim()).toBe('persist-credentials: false');
+    expect(at).toBeLessThan(release.findIndex((l) => l.includes('npm ci')));
+  });
+
+  it('gives ci.yml no write token', () => {
+    expect(ci.filter((l) => /^\s*[a-z-]+:\s*write\s*$/.test(l))).toEqual([]);
+    const blocks = ci.filter((l) => /^\s*permissions:/.test(l));
+    expect(blocks).toEqual(['permissions:']);
+    const at = ci.findIndex((l) => /^permissions:\s*$/.test(l));
+    expect(ci[at + 1]?.trim()).toBe('contents: read');
+    expect(ci[at + 2] === undefined || ci[at + 2]!.trim() === '' || indent(ci[at + 2]!) === 0).toBe(true);
+  });
+
   it('pins every action in every job of ci.yml by commit SHA with a version comment', () => {
     const uses = ci.filter((l) => /\buses:/.test(l)).map((l) => l.replace(/^.*uses:\s*/, '').trim());
     expect(uses.length).toBeGreaterThanOrEqual(12);
