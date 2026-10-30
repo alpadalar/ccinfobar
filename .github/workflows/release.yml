@@ -44,6 +44,9 @@ jobs:
             gh release create "$GITHUB_REF_NAME" ccinfobar.tgz ccinfobar-*.tgz \
               --title "$GITHUB_REF_NAME" --notes-file notes.md
           fi
+      - name: npm publishing is off
+        if: vars.NPM_PUBLISH != 'true'
+        run: echo "::warning::vars.NPM_PUBLISH is not true; npm keeps the previous version"
       # trusted publishing: npmjs.com > ccinfobar > Settings
       - name: Publish to npm
         if: vars.NPM_PUBLISH == 'true'

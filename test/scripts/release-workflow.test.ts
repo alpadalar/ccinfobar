@@ -72,6 +72,15 @@ describe('release workflow', () => {
     expect(releaseText).toContain('registry-url: https://registry.npmjs.org');
   });
 
+  it('warns when the publish variable is off', () => {
+    const at = release.findIndex((l) => l.includes("if: vars.NPM_PUBLISH != 'true'"));
+    expect(at).toBeGreaterThan(-1);
+    const step = release.slice(at - 1, at + 3).join('\n');
+    expect(step).toContain('- name: npm publishing is off');
+    expect(step).toMatch(/run: .*::warning::/);
+    expect(at).toBeLessThan(release.findIndex((l) => l.includes('- name: Publish to npm')));
+  });
+
   it('pins every action in every job of ci.yml by commit SHA with a version comment', () => {
     const uses = ci.filter((l) => /\buses:/.test(l)).map((l) => l.replace(/^.*uses:\s*/, '').trim());
     expect(uses.length).toBeGreaterThanOrEqual(12);
