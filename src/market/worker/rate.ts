@@ -71,23 +71,32 @@ export async function check(db: D1Database, key: string, b: Bucket, now: number)
 
 // an IPv6 address counts by its /64; IPv4 and anything unparsable stay as they are
 export function countAddr(ip: string): string {
-  const a = ip.toLowerCase().split('%')[0] ?? '';
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(a);
+  let a = ip.trim().toLowerCase();
+  if (a.startsWith('[') && a.endsWith(']')) a = a.slice(1, -1);
+  a = a.split('%')[0] ?? '';
+  if (!a.includes(':')) return ip.trim();
+  const mapped = /^(?:::|(?:0{1,4}:){5})ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(a);
   if (mapped) return mapped[1] as string;
-  if (!a.includes(':') || a.includes('.')) return ip;
-  const [l = '', r, extra] = a.split('::');
-  if (extra !== undefined) return ip;
-  const left = l ? l.split(':') : [];
-  const right = r ? r.split(':') : [];
-  const groups =
-    r === undefined
-      ? left
-      : [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right];
+  if (a.includes('.')) return ip;
+  const parts = a.split('::');
+  if (parts.length > 2) return ip;
+  const left = parts[0] ? parts[0].split(':') : [];
+  const right = parts[1] ? parts[1].split(':') : [];
+  let groups: string[];
+  if (parts.length === 2) {
+    if (left.length + right.length > 7) return ip;
+    groups = [...left, ...Array<string>(8 - left.length - right.length).fill('0'), ...right];
+  } else {
+    groups = left;
+  }
   if (groups.length !== 8 || !groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return ip;
-  return groups
-    .slice(0, 4)
-    .map((g) => g.padStart(4, '0'))
-    .join(':');
+  const v = groups.map((g) => Number.parseInt(g, 16));
+  if (v.slice(0, 5).every((n) => n === 0) && v[5] === 0xffff) {
+    const [hi = 0, lo = 0] = v.slice(6);
+    return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+  }
+  const pad = groups.map((g) => g.padStart(4, '0'));
+  return (v.slice(0, 4).every((n) => n === 0) ? pad : pad.slice(0, 4)).join(':');
 }
 
 const limitKey = async (prefix: string, req: Request, now: number): Promise<string> =>

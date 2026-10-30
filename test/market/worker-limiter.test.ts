@@ -300,11 +300,24 @@ describe('shards and address keys', () => {
     expect(countAddr('2001:DB8:1:2::1')).toBe('2001:0db8:0001:0002');
     expect(countAddr('2001:db8:1:2:ffff::')).toBe('2001:0db8:0001:0002');
     expect(countAddr('2001:db8:1:3::1')).not.toBe(countAddr('2001:db8:1:2::1'));
-    expect(countAddr('::1')).toBe('0000:0000:0000:0000');
+    expect(countAddr('::1')).toBe('0000:0000:0000:0000:0000:0000:0000:0001');
     expect(countAddr('fe80::1%eth0')).toBe('fe80:0000:0000:0000');
     expect(countAddr('::ffff:203.0.113.7')).toBe('203.0.113.7');
     expect(countAddr('not an ip:')).toBe('not an ip:');
     expect(countAddr('local')).toBe('local');
+  });
+
+  it('parses IPv6 strictly', () => {
+    expect(countAddr('::ffff:0102:0304')).toBe('1.2.3.4');
+    expect(countAddr('0:0:0:0:0:ffff:cb00:7107')).toBe('203.0.113.7');
+    expect(countAddr('::')).toBe(Array<string>(8).fill('0000').join(':'));
+    expect(countAddr('::1')).not.toBe(countAddr('::2'));
+    expect(countAddr('1:2:3:4:5:6:7::8')).toBe('1:2:3:4:5:6:7::8');
+    expect(countAddr('::2001:db8:1:2:3:4:5:6')).toBe('::2001:db8:1:2:3:4:5:6');
+    expect(countAddr('[2001:db8:1:2::1]')).toBe('2001:0db8:0001:0002');
+    expect(countAddr(' 2001:db8:1:2::1 ')).toBe('2001:0db8:0001:0002');
+    expect(countAddr(' 203.0.113.7 ')).toBe('203.0.113.7');
+    expect(countAddr('1::2::3')).toBe('1::2::3');
   });
 });
 
