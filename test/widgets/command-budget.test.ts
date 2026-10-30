@@ -10,6 +10,7 @@ import { sampleJobs, samplePayload } from '../../src/core/sample.js';
 import { SCENARIO_NOW } from '../../src/core/scenarios.js';
 import type { WidgetItem } from '../../src/core/types.js';
 import { cacheKey } from '../../src/data/cache.js';
+import { commandGroups } from '../../src/data/jobs/command.js';
 import { createJobReader, failEnvelope, okEnvelope, writeEnvelope } from '../../src/data/jobs/runner.js';
 import { ctxWith, renderWidget } from '../helpers.js';
 
@@ -67,14 +68,17 @@ describe('command budget', () => {
       const mk = () => ctxWith({ config: { commandBudgetMs: 600 }, exec: f.exec, clock: () => clock.t, env });
       const item = cmd('b', 'echo-b', { cacheSeconds: 1 });
       const ctx = mk();
-      fs.writeFileSync(file('echo-b', ctx.cwd), JSON.stringify({ at: clock.t - 3_600_000, out: 'old' }));
+      fs.writeFileSync(
+        file('echo-b', path.resolve(ctx.cwd)),
+        JSON.stringify({ at: clock.t - 3_600_000, out: 'old' }),
+      );
       clock.t = ctx.budget.deadline - 10;
       expect(renderWidget('command', ctx, item)).toBe('old');
       expect(f.calls).toEqual([]);
       const ctx2 = mk();
       expect(renderWidget('command', ctx2, item)).toBe('new');
       expect(f.calls.length).toBe(1);
-      expect(JSON.parse(fs.readFileSync(file('echo-b', ctx.cwd), 'utf8')).out).toBe('new');
+      expect(JSON.parse(fs.readFileSync(file('echo-b', path.resolve(ctx.cwd)), 'utf8')).out).toBe('new');
     });
 
     it('returns null without cache and writes nothing when cacheSeconds is 0', () => {
@@ -84,7 +88,7 @@ describe('command budget', () => {
       clock.t = ctx.budget.deadline;
       expect(renderWidget('command', ctx, cmd('c', 'echo-c'))).toBeNull();
       expect(f.calls).toEqual([]);
-      expect(fs.existsSync(file('echo-c', ctx.cwd))).toBe(false);
+      expect(fs.existsSync(file('echo-c', path.resolve(ctx.cwd)))).toBe(false);
     });
   });
 
@@ -145,13 +149,27 @@ describe('command background', () => {
       options: { command: 'echo x', cacheSeconds: 30, background: true, ...opts },
     };
     const ctx = ctxWith({ env, exec: boom, jobs: () => createJobReader(env) });
-    return { env, item, ctx, key: `cmd-${cacheKey('echo x', ctx.cwd)}` };
+    return { env, item, ctx, key: `cmd-${cacheKey('echo x', path.resolve(ctx.cwd))}` };
   };
 
   it('reads the worker envelope and never runs the command', () => {
     const { env, item, ctx, key } = setup({});
     expect(renderWidget('command', ctx, item)).toBeNull();
     writeEnvelope(okEnvelope(key, { out: 'from worker' }, 1000), env);
+    expect(renderWidget('command', ctx, item)).toBe('from worker');
+  });
+
+  it.each([
+    ['a trailing separator', (base: string) => path.join(base, 'proj') + path.sep],
+    ['a dot-dot segment', (base: string) => `${path.join(base, 'proj', 'x')}${path.sep}..`],
+  ])('finds the worker result when the payload folder has %s', (_name, shape) => {
+    const { env, item } = setup({});
+    const raw = shape(fs.mkdtempSync(path.join(os.tmpdir(), 'ccib-cwd-')));
+    const payload = { ...samplePayload(Date.now()), cwd: raw, workspace: { current_dir: raw } };
+    const ctx = ctxWith({ env, exec: boom, jobs: () => createJobReader(env), payload });
+    const [key] = [...commandGroups({ lines: [[item]] }, path.resolve(raw)).keys()];
+    expect(renderWidget('command', ctx, item)).toBeNull();
+    writeEnvelope(okEnvelope(key as string, { out: 'from worker' }, 1000), env);
     expect(renderWidget('command', ctx, item)).toBe('from worker');
   });
 

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { hyperlink, stripAnsi } from '../core/ansi.js';
 import { keepSgrAndLinks, safeConfigUrl, sanitizeText } from '../core/sanitize.js';
 import type { WidgetDef } from '../core/types.js';
@@ -43,13 +44,14 @@ export const widgets: WidgetDef[] = [
       const command = opt(item, 'command', '').trim();
       if (!command) return null;
       const ttl = opt(item, 'cacheSeconds', 0) * 1000;
-      const name = `cmd-${cacheKey(command, ctx.cwd)}.json`;
+      const key = cacheKey(command, path.resolve(ctx.cwd));
+      const name = `cmd-${key}.json`;
       const bg = ttl > 0 && opt(item, 'background', false);
       const hit = ttl > 0 && !bg ? readCache<Cached>(name, ctx.env) : null;
       const left = ctx.budget.deadline - ctx.clock();
       let out: string | null = null;
       if (bg) {
-        const j = jobValue(ctx.data.jobs?.()?.job<CommandValue>(`cmd-${cacheKey(command, ctx.cwd)}`) ?? null);
+        const j = jobValue(ctx.data.jobs?.()?.job<CommandValue>(`cmd-${key}`) ?? null);
         out = typeof j?.value?.out === 'string' ? j.value.out : null;
       } else if (hit && ctx.clock() - hit.at < ttl) out = hit.out;
       else if (left < 50) out = hit?.out ?? null;
