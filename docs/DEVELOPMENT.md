@@ -576,7 +576,7 @@ Both editors pick up new widgets and their options automatically.
 Name options the same way across widgets so users learn them once:
 
 - `maxItems` counts entries, `maxLength` counts characters
-- `hideZero` is the only zero toggle and `hideOff` hides state chips such as `sandbox`; both default to the previous behaviour of the widget
+- `hideZero` is the one toggle that hides a widget in its zero, empty or default state (for example no compactions, a phase without plans, the default output style, the default jj workspace); `hideOff` hides state chips such as `sandbox`; both default to the previous behaviour of the widget
 - `show` picks a variant of what is shown, `style` the visual shape, `window` one value set `5h|7d` (plus `first` where windows are compared)
 - documented exceptions: `points`, `slots`, `maxAgeMin` and `show<Detail>` booleans like `showStrict`
 
