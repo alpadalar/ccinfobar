@@ -1,3 +1,4 @@
+import { aliasesFor } from '../option-aliases.js';
 import { activeLanguage, languageLocale } from './index.js';
 import type { OptionMeta, WidgetMeta } from './types.js';
 
@@ -17,7 +18,12 @@ function widgetMeta(type: string): WidgetMeta | undefined {
 function optionMeta(def: TypeLike, spec: SpecLike): OptionMeta | undefined {
   const options = widgetMeta(def.type)?.options;
   let found = own(options, spec.key);
-  for (const a of spec.aliases ?? []) found ??= own(options, a);
+  const inverted = new Set(
+    aliasesFor(def.type, spec.key)
+      .filter((a) => a.invert)
+      .map((a) => a.key),
+  );
+  for (const a of spec.aliases ?? []) if (!inverted.has(a)) found ??= own(options, a);
   return found;
 }
 
