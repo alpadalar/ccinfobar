@@ -126,6 +126,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The web editor's install accepts only a whole-number refresh interval from 1 to 86400 seconds, like `install --refresh`, and answers with a clear message otherwise.
 - `ccinfobar report` names a project from sessions that ran in one of its subfolders, instead of listing its cost under unknown project
 - Marketplace sign-in: parallel failed sign-ins from one address can no longer get past the failed-attempt limit together; each attempt takes its place in the count before GitHub is asked
+- `catalog admin pending` sorts a held marketplace version by when it was held and shows that time, not the entry's creation date
 
 ### Security
 

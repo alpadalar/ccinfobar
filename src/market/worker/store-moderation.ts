@@ -26,29 +26,29 @@ export const logStatement = (db: D1Database, l: LogRow): D1PreparedStatement =>
     )
     .bind(l.at, l.admin, l.action, l.target, l.note, l.actor ?? 'admin');
 
-const PENDING_LIST = `SELECT publisher, slug, summary, created_at FROM entries WHERE state = 'pending'
+const PENDING_LIST = `SELECT publisher, slug, summary, created_at AS at FROM entries WHERE state = 'pending'
   ORDER BY created_at, publisher, slug LIMIT ?1`;
 // live entries with a held version, through the partial index (0010)
-const HELD_LIST = `SELECT publisher, slug, summary, created_at, held FROM entries INDEXED BY entries_held
-  WHERE held IS NOT NULL ORDER BY created_at, publisher, slug LIMIT ?1`;
+const HELD_LIST = `SELECT publisher, slug, summary, coalesce(json_extract(held, '$.at'), created_at) AS at, held
+  FROM entries INDEXED BY entries_held WHERE held IS NOT NULL ORDER BY at, publisher, slug LIMIT ?1`;
 
 export async function pendingEntries(
   db: D1Database,
   cap: number,
 ): Promise<{ summary: string; at: string; held?: HeldInfo }[]> {
-  type Row = { publisher: string; slug: string; summary: string; created_at: string; held?: string };
+  type Row = { publisher: string; slug: string; summary: string; at: string; held?: string };
   const [pending, held] = await Promise.all([
     db.prepare(PENDING_LIST).bind(cap).all<Row>(),
     db.prepare(HELD_LIST).bind(cap).all<Row>(),
   ]);
-  const key = (r: Row) => `${r.created_at}\u0000${r.publisher}\u0000${r.slug}`;
+  const key = (r: Row) => `${r.at}\u0000${r.publisher}\u0000${r.slug}`;
   return [...pending.results, ...held.results]
     .sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0))
     .slice(0, cap)
     .map((r) => {
       const out: { summary: string; at: string; held?: HeldInfo } = {
         summary: String(r.summary),
-        at: String(r.created_at),
+        at: String(r.at),
       };
       const h = heldOf(r.held);
       if (h) out.held = { version: h.version, reason: h.reason, links: h.links };
