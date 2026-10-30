@@ -259,7 +259,7 @@ describe('report project names for hashed ledger lines', () => {
     );
     writeTranscript('projects/-w-a-sub/B.jsonl', [userLine({ ts: D1, cwd: '/w/a/sub' })], root);
     const rows = buildReport(run(), { ...OPTS, filter: null }).rows.map((r) => r.project);
-    expect(rows).toContain(displayRoot('/w/a'));
+    expect(rows).toContain(normalizeRoot('/w/a'));
     expect(rows).not.toContain('unknown project');
   });
 
