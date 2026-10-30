@@ -35,7 +35,7 @@ const DEMO_LINE = ['model', 'cwd', 'git-branch', 'context-bar', 'gsd-phase', 'gs
   }),
 );
 
-const clean = (v: unknown): string => sanitizeText(String(v ?? ''));
+export const clean = (v: unknown): string => sanitizeText(String(v ?? ''));
 
 export function runThemes(args: Args, cfgFile: string): void {
   const width = intFlag(args, 'width', 1, 10000) ?? process.stdout.columns ?? 120;

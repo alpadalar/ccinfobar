@@ -49,6 +49,7 @@ import { ALL_WIDGETS, CATEGORIES } from '../widgets/index.js';
 import { importHelp } from './import-help.js';
 import { currentStatusLine } from './install.js';
 import { type CliIo, cliIo, type PromptIo, plainOutput, promptIo } from './io.js';
+import { clean } from './theme-cmd.js';
 import { usageErrorText } from './usage-error.js';
 
 export { importHelp, selfCommand };
@@ -71,8 +72,6 @@ export function backupConfig(cfgFile: string): string | null {
   } catch {}
   return backup;
 }
-
-const clean = (v: unknown): string => sanitizeText(String(v ?? ''));
 
 // the config being replaced, so its language carries over
 function currentConfig(cfgFile: string): Config {
