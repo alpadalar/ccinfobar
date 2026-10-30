@@ -72,23 +72,14 @@ describe('PUT /api/styles', () => {
     ['array body', '[]'],
     ['extra key', JSON.stringify({ history: {}, extra: 1 })],
     ['history array', JSON.stringify({ history: [] })],
-    [
-      '501 ids',
-      JSON.stringify({ history: Object.fromEntries(Array.from({ length: 501 }, (_, i) => [`w${i}`, []])) }),
-    ],
-    ['81 char id', JSON.stringify({ history: { [`a${'x'.repeat(80)}`]: [] } })],
-    ['empty id', JSON.stringify({ history: { '': [] } })],
     ['non-array value', JSON.stringify({ history: { a: {} } })],
-    ['4 snapshots', JSON.stringify({ history: { a: [{}, {}, {}, {}] } })],
     ['snapshot not object', JSON.stringify({ history: { a: ['x'] } })],
     ['snapshot null', JSON.stringify({ history: { a: [null] } })],
     ['unknown snapshot key', JSON.stringify({ history: { a: [{ shadow: true }] } })],
     ['color number', JSON.stringify({ history: { a: [{ color: 5 }] } })],
-    ['color 65 chars', JSON.stringify({ history: { a: [{ color: 'c'.repeat(65) }] } })],
     ['bold string', JSON.stringify({ history: { a: [{ bold: 'yes' }] } })],
     ['options array', JSON.stringify({ history: { a: [{ options: [] }] } })],
     ['non-look option', JSON.stringify({ history: { a: [{ options: { maxItems: 3 } }] } })],
-    ['option 201 chars', JSON.stringify({ history: { a: [{ options: { style: 'v'.repeat(201) } }] } })],
     ['option object', JSON.stringify({ history: { a: [{ options: { style: {} } }] } })],
     ['option array value', JSON.stringify({ history: { a: [{ options: { style: [] } }] } })],
     ['option null', JSON.stringify({ history: { a: [{ options: { style: null } }] } })],
@@ -107,6 +98,48 @@ describe('PUT /api/styles', () => {
       expect(fs.readFileSync(stylesFile, 'utf8')).toBe('{"keep":[]}\n');
     });
   }
+
+  const good = { good: [{ bold: true }] };
+  const trims: [string, unknown, unknown][] = [
+    [
+      '501 ids',
+      Object.fromEntries(Array.from({ length: 501 }, (_, i) => [`w${i}`, [{ bold: true }]])),
+      Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`w${i}`, [{ bold: true }]])),
+    ],
+    ['81 char id', { [`a${'x'.repeat(80)}`]: [{ bold: true }], ...good }, good],
+    ['empty id', { '': [{ bold: true }], ...good }, good],
+    [
+      '4 snapshots',
+      { a: [{ bold: true }, { dim: true }, { italic: true }, { raw: true }], ...good },
+      { a: [{ bold: true }, { dim: true }, { italic: true }], ...good },
+    ],
+    [
+      'color 65 chars',
+      { a: [{ color: 'c'.repeat(65) }], b: [{ color: 'c'.repeat(65) }, { bold: true }], ...good },
+      { b: [{ bold: true }], ...good },
+    ],
+    [
+      'option 201 chars',
+      { a: [{ options: { style: 'v'.repeat(201) } }, { bold: true }], ...good },
+      { a: [{ bold: true }], ...good },
+    ],
+  ];
+
+  for (const [name, history, expected] of trims) {
+    it(`trims ${name}`, async () => {
+      const res = await send(history);
+      expect(res.status).toBe(200);
+      const want = `${JSON.stringify(expected, null, 2)}\n`;
+      expect(fs.readFileSync(stylesFile, 'utf8')).toBe(want);
+      expect((await send(history)).status).toBe(200);
+      expect(fs.readFileSync(stylesFile, 'utf8')).toBe(want);
+    });
+  }
+
+  it('a structural error still wins over an oversized part', async () => {
+    const raw = JSON.stringify({ history: { [`a${'x'.repeat(80)}`]: [{ shadow: true }], ...good } });
+    expect((await put(raw)).status).toBe(400);
+  });
 
   it('writes a valid history exactly', async () => {
     const history = { budget: [ok] };

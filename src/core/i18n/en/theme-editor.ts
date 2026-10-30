@@ -93,6 +93,7 @@ export const themeEditorMessages = {
   'presets.saveCurrent': 'Save current as preset',
 
   'styles.copied': 'Copied the style of {name}',
+  'styles.saveFailed': 'Could not save the style history',
   'styles.pickGroups': 'Pick what to paste first',
   'styles.painting': 'Click widgets to paint the style. Esc to stop.',
   'styles.descText': 'text {color}',

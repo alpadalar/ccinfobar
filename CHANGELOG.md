@@ -59,7 +59,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 - Marketplace rate limits now refuse floods: a per-isolate window on every check, logged limiter outcomes, and a strict Durable Object counter for writes and sign-in, sharded, and a full shard counts new addresses in a generous shared bucket instead of locking anyone out (`limiters.strict` in `/v1/meta.json`); every limiter, including the failed sign-in count, counts IPv6 addresses by their /64.
-- The editor's style history endpoint now refuses malformed data with 400 instead of trimming it, and ignores invalid entries in an existing styles.json
+- The editor's style history endpoint now refuses malformed data with 400, drops oversized parts the same way every time instead of losing the whole save, and the editor tells you when saving it fails; invalid entries in an existing styles.json are ignored
 - `uninstall --project --subagents` now says nothing was removed and names `uninstall --subagents`; three Turkish help rows read like their neighbours
 - `doctor`: with several managed settings files, the later file (`managed-settings.d/*.json` after `managed-settings.json`, alphabetical) now wins for the progress-bar and editor-mode checks, as in Claude Code
 - The web editor no longer shows the "editor stopped" banner after a single failed request; it waits a second, pings the server once and shows the banner only when that ping fails too (a transient failure shows a short toast instead)

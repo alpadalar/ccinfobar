@@ -1,5 +1,6 @@
 import {
   applyStyle,
+  boundStyles,
   findItem,
   recordStyles,
   STYLE_GROUPS,
@@ -192,12 +193,16 @@ export function recentStyles(id: string): HTMLElement | null {
 }
 
 export async function rememberStyles(before: Config, after: Config): Promise<void> {
-  const next = recordStyles(S.api.styleHistory, before, after);
-  if (JSON.stringify(next) === JSON.stringify(S.api.styleHistory)) return;
+  const prev = S.api.styleHistory;
+  const next = boundStyles(recordStyles(prev, before, after), after);
+  if (JSON.stringify(next) === JSON.stringify(prev)) return;
   S.api.styleHistory = next;
   try {
     await api.saveStyles(next);
-  } catch {}
+  } catch {
+    if (S.api.styleHistory === next) S.api.styleHistory = prev;
+    toast(t('styles.saveFailed'), 'error');
+  }
 }
 
 let menu: HTMLElement | null = null;

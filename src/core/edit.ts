@@ -380,6 +380,16 @@ export function recordStyles(history: StyleHistory, before: Config, after: Confi
   return next;
 }
 
+// keeps the widgets in use first when the history passes max ids
+export function boundStyles(history: StyleHistory, config: Config, max = 500): StyleHistory {
+  const ids = Object.keys(history);
+  if (ids.length <= max) return history;
+  const used = config.lines.flat().map((i) => i.id);
+  const first = [...new Set(used)].filter((id) => Object.hasOwn(history, id));
+  const keep = [...first, ...ids.filter((id) => !first.includes(id))].slice(0, max);
+  return Object.fromEntries(keep.map((id) => [id, history[id]!]));
+}
+
 export const REFRESH_SUGGEST = 5;
 
 export function needsRefresh(

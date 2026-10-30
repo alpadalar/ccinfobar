@@ -98,6 +98,7 @@ export const themeEditorMessages = {
   'presets.saveCurrent': 'Mevcut düzeni hazır ayar olarak kaydet',
 
   'styles.copied': '{name} bileşeninin stili kopyalandı',
+  'styles.saveFailed': 'Stil geçmişi kaydedilemedi',
   'styles.pickGroups': 'Önce neyin yapıştırılacağını seçin',
   'styles.painting': 'Stili uygulamak için bileşenlere tıklayın. Durdurmak için Esc.',
   'styles.descText': 'metin {color}',

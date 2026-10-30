@@ -16,61 +16,75 @@ const isPlain = (v: unknown): v is Record<string, unknown> =>
 
 const hasForbidden = (o: Record<string, unknown>) => FORBIDDEN.some((k) => Object.hasOwn(o, k));
 
-function optionOk(v: unknown): boolean {
-  if (typeof v === 'string') return v.length <= 200;
-  if (typeof v === 'number') return Number.isFinite(v);
-  return typeof v === 'boolean';
+const MAX_IDS = 500;
+const MAX_SNAPSHOTS = 3;
+
+type Part<T> = T | 'bad' | 'drop';
+
+// a wrong type is bad; a value that is only too long is dropped
+function optionState(v: unknown): 'ok' | 'bad' | 'drop' {
+  if (typeof v === 'string') return v.length <= 200 ? 'ok' : 'drop';
+  if (typeof v === 'number') return Number.isFinite(v) ? 'ok' : 'bad';
+  return typeof v === 'boolean' ? 'ok' : 'bad';
 }
 
-function optionsOf(raw: unknown, strict: boolean): Record<string, unknown> | null {
-  if (!isPlain(raw) || hasForbidden(raw)) return null;
+function optionsOf(raw: unknown, strict: boolean): Part<Record<string, unknown>> {
+  if (!isPlain(raw) || hasForbidden(raw)) return 'bad';
   const out: Record<string, unknown> = {};
+  let drop = false;
   for (const [k, v] of Object.entries(raw)) {
-    if (OPTION_KEYS.has(k) && optionOk(v)) out[k] = v;
-    else if (strict) return null;
+    const state = OPTION_KEYS.has(k) ? optionState(v) : 'bad';
+    if (state === 'ok') out[k] = v;
+    else if (strict) {
+      if (state === 'bad') return 'bad';
+      drop = true;
+    }
   }
-  return out;
+  return drop ? 'drop' : out;
 }
 
-function snapshotOf(raw: unknown, strict: boolean): StyleSnapshot | null {
-  if (!isPlain(raw) || hasForbidden(raw)) return null;
+function snapshotOf(raw: unknown, strict: boolean): Part<StyleSnapshot> {
+  if (!isPlain(raw) || hasForbidden(raw)) return 'bad';
   const out: Record<string, unknown> = {};
+  let drop = false;
   for (const [k, v] of Object.entries(raw)) {
-    if (!SNAPSHOT_KEYS.has(k)) return null;
+    if (!SNAPSHOT_KEYS.has(k)) return 'bad';
     if (TEXT_KEYS.includes(k)) {
-      if (typeof v !== 'string' || v.length > 64) return null;
+      if (typeof v !== 'string') return 'bad';
+      if (v.length > 64) drop = true;
       out[k] = v;
     } else if (FLAG_KEYS.includes(k)) {
-      if (typeof v !== 'boolean') return null;
+      if (typeof v !== 'boolean') return 'bad';
       out[k] = v;
     } else {
       const options = optionsOf(v, strict);
-      if (!options) return null;
-      out[k] = options;
+      if (options === 'bad') return 'bad';
+      if (options === 'drop') drop = true;
+      else out[k] = options;
     }
   }
-  return out as StyleSnapshot;
+  return drop ? 'drop' : (out as StyleSnapshot);
 }
 
 export function styleHistoryOf(raw: unknown, mode: 'strict' | 'lenient'): StyleHistory | null {
   const strict = mode === 'strict';
   if (!isPlain(raw) || hasForbidden(raw)) return strict ? null : {};
-  const entries = Object.entries(raw);
-  if (strict && entries.length > 500) return null;
   const out: StyleHistory = {};
-  for (const [id, list] of entries) {
-    if (!idOk(id) || !Array.isArray(list) || (strict && list.length > 3)) {
+  for (const [id, list] of Object.entries(raw)) {
+    if (!Array.isArray(list)) {
       if (strict) return null;
       continue;
     }
+    if (!strict && !idOk(id)) continue;
     const snaps: StyleSnapshot[] = [];
     for (const item of list) {
       const snap = snapshotOf(item, strict);
-      if (snap) snaps.push(snap);
-      else if (strict) return null;
+      if (snap === 'bad') {
+        if (strict) return null;
+      } else if (snap !== 'drop') snaps.push(snap);
     }
-    if (!strict && (!snaps.length || Object.keys(out).length >= 500)) continue;
-    out[id] = strict ? snaps : snaps.slice(0, 3);
+    if (!idOk(id) || !snaps.length || Object.keys(out).length >= MAX_IDS) continue;
+    out[id] = snaps.slice(0, MAX_SNAPSHOTS);
   }
   return out;
 }
