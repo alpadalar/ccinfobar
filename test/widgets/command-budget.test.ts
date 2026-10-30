@@ -81,6 +81,17 @@ describe('command budget', () => {
       expect(JSON.parse(fs.readFileSync(file('echo-b', path.resolve(ctx.cwd)), 'utf8')).out).toBe('new');
     });
 
+    it('shows the cached output when a clipped command times out and keeps the cache', () => {
+      const clock = { t: 20_000_000 };
+      const f = fake(clock, [null]);
+      const ctx = ctxWith({ config: { commandBudgetMs: 600 }, exec: f.exec, clock: () => clock.t, env });
+      const cache = file('echo-r', path.resolve(ctx.cwd));
+      fs.writeFileSync(cache, JSON.stringify({ at: clock.t - 3_600_000, out: 'cached' }));
+      expect(renderWidget('command', ctx, cmd('r', 'echo-r', { cacheSeconds: 1 }))).toBe('cached');
+      expect(f.calls.length).toBe(1);
+      expect(JSON.parse(fs.readFileSync(cache, 'utf8')).out).toBe('cached');
+    });
+
     it('returns null without cache and writes nothing when cacheSeconds is 0', () => {
       const clock = { t: 5_000 };
       const f = fake(clock);

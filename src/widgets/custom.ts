@@ -60,13 +60,15 @@ export const widgets: WidgetDef[] = [
           ...ctx.payload,
           terminal_width: ctx.terminalWidth ?? ctx.payload.terminal_width,
         });
-        out = (ctx.data.exec ?? execCommand)(command, {
+        const ran = (ctx.data.exec ?? execCommand)(command, {
           input,
           cwd: ctx.cwd,
           env: ctx.env,
           timeout: Math.min(Math.max(50, opt(item, 'timeout', 1000)), left),
         });
-        if (out !== null && ttl > 0) writeCache(name, { at: ctx.clock(), out } satisfies Cached, ctx.env);
+        if (ran !== null && ttl > 0)
+          writeCache(name, { at: ctx.clock(), out: ran } satisfies Cached, ctx.env);
+        out = ran ?? hit?.out ?? null;
       }
       if (out === null) return null;
       const line = out
