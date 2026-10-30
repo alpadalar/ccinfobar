@@ -309,8 +309,13 @@ function stable(v: unknown): string {
     .join(',')}}`;
 }
 
-export function sameStyle(a: StyleSnapshot, b: StyleSnapshot): boolean {
-  return stable(a) === stable(b);
+function canonStyle(type: string, snap: StyleSnapshot): StyleSnapshot {
+  return takeStyle({ ...snap, id: '', type } as WidgetItem);
+}
+
+export function sameStyle(a: StyleSnapshot, b: StyleSnapshot, type?: string): boolean {
+  if (type === undefined) return stable(a) === stable(b);
+  return stable(canonStyle(type, a)) === stable(canonStyle(type, b));
 }
 
 // copies exactly: a missing key clears the target's override
@@ -371,7 +376,7 @@ export function recordStyles(history: StyleHistory, before: Config, after: Confi
     if (!prev || prev.type !== item.type) continue;
     const was = takeStyle(prev);
     if (sameStyle(was, takeStyle(item))) continue;
-    const list = (next[item.id] ?? []).filter((s) => !sameStyle(s, was));
+    const list = (next[item.id] ?? []).filter((s) => !sameStyle(s, was, item.type));
     next[item.id] = [was, ...list].slice(0, keep);
   }
   return next;

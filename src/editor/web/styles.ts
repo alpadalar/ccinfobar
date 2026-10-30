@@ -170,7 +170,9 @@ export function styleTools(id: string): HTMLElement {
 
 export function recentStyles(id: string): HTMLElement | null {
   const found = findItem(S.config, id);
-  const list = (S.api.styleHistory[id] ?? []).filter((s) => !found || !sameStyle(s, takeStyle(found.item)));
+  const list = (S.api.styleHistory[id] ?? []).filter(
+    (s) => !found || !sameStyle(s, takeStyle(found.item), found.item.type),
+  );
   if (!list.length) return null;
   return h(
     'div',

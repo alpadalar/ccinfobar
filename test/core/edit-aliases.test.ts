@@ -5,6 +5,8 @@ import {
   lookKeys,
   optionShown,
   optionValue,
+  recordStyles,
+  sameStyle,
   setOption,
   takeStyle,
   upgradeOptions,
@@ -103,5 +105,33 @@ describe('upgradeOptions', () => {
       { id: 'b', type: 'budget', options: { display: 'bar' } },
     );
     expect(upgradeOptions(c)).toEqual(c);
+  });
+});
+
+describe('sameStyle with a type', () => {
+  it('records one snapshot for an old-name and a canonical look', () => {
+    const before = cfg({ id: 'b1', type: 'budget', options: { show: 'bar' } });
+    const after = cfg({ id: 'b1', type: 'budget', color: 'red', options: { show: 'bar' } });
+    const out = recordStyles({ b1: [{ options: { display: 'bar' } }] }, before, after);
+    expect(out.b1).toEqual([{ options: { show: 'bar' } }]);
+  });
+
+  it('treats inverted aliases as one look only with the type', () => {
+    const a = { options: { showOff: true } };
+    const b = { options: { hideOff: false } };
+    expect(sameStyle(a, b, 'fast-mode')).toBe(true);
+    expect(sameStyle(a, b)).toBe(false);
+  });
+
+  it('treats old and new option names as one look', () => {
+    const a = { options: { display: 'bar' } };
+    const b = { options: { show: 'bar' } };
+    expect(sameStyle(a, b, 'budget')).toBe(true);
+    expect(sameStyle(a, b)).toBe(false);
+  });
+
+  it('is unchanged without a type', () => {
+    expect(sameStyle({ color: 'red', options: { a: 1 } }, { options: { a: 1 }, color: 'red' })).toBe(true);
+    expect(sameStyle({ color: 'red' }, { color: 'blue' })).toBe(false);
   });
 });
