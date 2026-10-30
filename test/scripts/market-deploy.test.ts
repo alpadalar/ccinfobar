@@ -246,7 +246,11 @@ describe('market deploy workflow', () => {
     const install = pos((s) => s.run.startsWith('npm ci'));
     const tests = pos((s) => s.run === 'npx vitest run test/market');
     const bundle = pos((s) => s.run === 'node scripts/build.mjs --worker');
-    const dry = pos((s) => s.run === `${WRANGLER} deploy --dry-run`);
+    const dry = pos(
+      (s) =>
+        s.run.split('\n')[0] ===
+        `${WRANGLER} deploy --dry-run > "$RUNNER_TEMP/dry-run.txt" 2>&1 || { cat "$RUNNER_TEMP/dry-run.txt"; exit 1; }`,
+    );
     // WR-06: a restore point in the job log before any migration
     const bookmark = pos((s) => s.run === `${WRANGLER} d1 time-travel info ccinfobar-market --json`);
     const migrate = pos((s) => s.run === `${WRANGLER} d1 migrations apply ccinfobar-market --remote`);

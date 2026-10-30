@@ -45,7 +45,10 @@ jobs:
       - run: node scripts/build.mjs --worker
       - name: Check config
         working-directory: worker
-        run: ../node_modules/.bin/wrangler deploy --dry-run
+        run: |
+          ../node_modules/.bin/wrangler deploy --dry-run > "$RUNNER_TEMP/dry-run.txt" 2>&1 || { cat "$RUNNER_TEMP/dry-run.txt"; exit 1; }
+          cat "$RUNNER_TEMP/dry-run.txt"
+          for b in 'env.LIMITER (RateCounter)' 'env.DB (ccinfobar-market)' 'env.READS (' 'env.WRITES (' 'env.SIGNIN ('; do grep -qF -- "$b" "$RUNNER_TEMP/dry-run.txt" || { echo "::error::wrangler dry run lacks the binding $b"; exit 1; }; done
       # wrangler takes no backup of a production D1; this bookmark is the point to restore to
       - name: Record a Time Travel bookmark
         working-directory: worker
