@@ -204,6 +204,26 @@ describe.skipIf(skipSqlite)('worker rate limits', () => {
     );
   });
 
+  it('ipHash counts an IPv6 address by its /64', async () => {
+    const { db } = await setup();
+    const a = await ipHash(db, from('2001:db8:1:2::1'), START);
+    expect(await ipHash(db, from('2001:db8:1:2:ffff:0:0:9'), START)).toBe(a);
+    expect(await ipHash(db, from('2001:db8:1:3::1'), START)).not.toBe(a);
+    expect(a).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it('failed sign-ins from one IPv6 /64 share the failure bucket', async () => {
+    const w = await setup({
+      GITHUB_CLIENT_ID: 'Ov23liVCN9Nf6VlLv3St',
+      ALLOW_UNVERIFIED_GITHUB_TOKENS: 'true',
+      ALLOW_OPEN_LIMITERS: 'true',
+    });
+    const post = (ip: string) => w.call('POST', '/v1/auth/github', { body: {}, ip });
+    for (let i = 1; i <= 6; i++) expect((await post(`2001:db8:1:2::${i}`)).status).toBe(400);
+    expect((await post('2001:db8:1:2:9::7')).status).toBe(429);
+    expect((await post('2001:db8:1:3::1')).status).toBe(400);
+  });
+
   it('ipHash is stable per day, salted and 32 hex', async () => {
     const { db, rows } = await setup();
     const a = await ipHash(db, from(IP), START);

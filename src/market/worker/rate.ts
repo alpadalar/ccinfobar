@@ -48,7 +48,7 @@ export async function ipHash(db: D1Database, req: Request, now: number): Promise
   const [, row] = await db.batch(saltStatements(db, day, randomToken()));
   const salt = (row?.results[0] as { salt?: unknown } | undefined)?.salt;
   if (typeof salt !== 'string') throw new Error('no salt');
-  return (await sha256Hex(salt + ipOf(req))).slice(0, 32);
+  return (await sha256Hex(salt + countAddr(ipOf(req)))).slice(0, 32);
 }
 
 // retry-after seconds when over the limit
