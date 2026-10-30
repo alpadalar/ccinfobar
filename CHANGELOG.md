@@ -121,6 +121,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `ccinfobar doctor` checks the folder you run it in and the last session's project folder separately, as Claude Code never merges two projects' settings: a hook or progress-bar setting in one of them no longer hides or changes the warning for the other
 - `ccinfobar update --check` and the web editor's Check for updates keep the record of a version that failed its check, so the automatic update no longer installs and rolls back that version again on the next check, and `ccinfobar doctor` keeps showing it.
 - `ccinfobar update` prints npm's error and the failed check's reason without terminal control characters, like the automatic update.
+- Windows: an update that has to run `npm.cmd` through cmd.exe refuses a path containing `%` (cmd.exe would expand it) instead of installing into the wrong folder.
 
 ### Security
 

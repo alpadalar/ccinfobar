@@ -97,6 +97,17 @@ describe('update', () => {
     expect(viaNpx).toEqual({ file: '/n/node', args: ['/x/npm/bin/npm-cli.js'], shell: false });
   });
 
+  it('refuses a % in an argument the cmd.exe shell would expand', async () => {
+    const { npmInstallRuns, cmdExeArg } = await import('../../src/commands/update.js');
+    const prefix = 'C:\\Users\\a%PATH%b\\app';
+    expect(() => npmInstallRuns('0.5.1', prefix, { file: 'npm.cmd', args: [], shell: true })).toThrow(
+      /unsafe-shell-arg/,
+    );
+    const direct = npmInstallRuns('0.5.1', prefix, { file: '/n/node', args: [], shell: false });
+    expect(direct.runs[0]?.[2]).toBe(prefix);
+    expect(cmdExeArg('C:\\A B')).toBe('"C:\\A B"');
+  });
+
   it('compares versions', () => {
     expect(compareVersions('0.3.0', '0.2.9')).toBeGreaterThan(0);
     expect(compareVersions('v1.0.0', '1.0.0')).toBe(0);

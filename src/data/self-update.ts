@@ -77,6 +77,8 @@ export function npmCommand(deps: NpmDeps = {}): NpmCommand {
 
 // cmd.exe joins args unquoted
 export function cmdExeArg(a: string): string {
+  // cmd.exe expands %VAR% even inside quotes
+  if (a.includes('%')) throw new Error('unsafe-shell-arg');
   return /^[\w@./:=\\-]+$/.test(a) ? a : `"${a}"`;
 }
 
