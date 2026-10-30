@@ -401,8 +401,8 @@ export async function bumpRate(db: D1Database, key: string, win: number): Promis
   const n = await db
     .prepare(
       `INSERT INTO rate (key, win, n) VALUES (?1, ?2, 1)
-       ON CONFLICT(key) DO UPDATE SET n = CASE WHEN win = ?2 THEN n + 1 ELSE 1 END, win = ?2
-       RETURNING n`,
+       ON CONFLICT(key) DO UPDATE SET n = CASE WHEN ?2 > win THEN 1 WHEN ?2 = win THEN n + 1 ELSE n END, win = max(win, ?2)
+       RETURNING CASE WHEN win > ?2 THEN 0 ELSE n END AS n`,
     )
     .bind(key, win)
     .first<number>('n');
