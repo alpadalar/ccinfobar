@@ -389,10 +389,31 @@ All commands run from `worker/`, so wrangler reads `worker/wrangler.jsonc` with 
 ### Deploy
 
 - GitHub Actions → **Marketplace deploy** → Run workflow, or `gh workflow run market-deploy.yml --ref main`. A push to `main` that touches the Worker files (`src/market/**`, `src/core/entry-keys.ts`, `src/core/sanitize.ts`, `worker/**`, the build scripts or the workflow) deploys too.
-- The job runs only on `alpadalar/ccinfobar` and only once the repository variable `MARKET_URL` is set (the Worker URL, https://ccinfobar-market.alp-adalar.workers.dev). It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, which only the wrangler steps that reach Cloudflare get. The checkout and setup-node actions are pinned by commit SHA (the tag in a comment); to update one, look up the new tag's commit and change both.
+- The job runs only on `alpadalar/ccinfobar` and only once the repository variable `MARKET_URL` is set (the Worker URL, https://ccinfobar-market.alp-adalar.workers.dev). The job runs in the GitHub environment `production`. The owner is the required reviewer and `main` is the only deployment branch. Every run, whether from a push or from Run workflow, waits until it is approved under Actions → the run → **Review deployments** → `production` → **Approve and deploy**. The CLI equivalent is `gh api repos/alpadalar/ccinfobar/actions/runs/<run id>/pending_deployments` (GET, which gives the environment id), then `gh api -X POST repos/alpadalar/ccinfobar/actions/runs/<run id>/pending_deployments -F 'environment_ids[]=<id>' -f state=approved -f comment='<why>'`. A run started from another branch fails before it gets any secret. `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` come from the environment's secrets when they exist, otherwise from the repository's. Only the wrangler steps that reach Cloudflare get them. The checkout and setup-node actions are pinned by commit SHA (the tag in a comment); to update one, look up the new tag's commit and change both.
 - Steps: `npm ci --ignore-scripts`, `npx vitest run test/market`, `node scripts/build.mjs --worker` (writes the gitignored `worker/dist/index.js`), `../node_modules/.bin/wrangler deploy --dry-run` (wrangler 4.154.0 is an exact devDependency, so the locked copy runs and nothing is downloaded while the token is set), record the D1 Time Travel bookmark, apply migrations, deploy, then a smoke check of `$MARKET_URL/v1/meta.json` and `$MARKET_URL/`. The smoke step fails the deploy job unless `/v1/meta.json` reports `limiters.strict: true`; it sends no write requests.
 - `wrangler deploy` also sets the cron trigger from `worker/wrangler.jsonc` (`triggers.crons`). Workers Free allows 5 cron triggers per account, and this Worker uses one; check the Worker's **Settings → Triggers** page after the first deploy with it.
 - Sign-in answers `503` until the `GITHUB_CLIENT_SECRET` secret is set (see [Tokens and secrets](#tokens-and-secrets)).
+
+### Production environment
+
+The `production` environment gates the deploy job.
+
+- Required reviewer: the owner (`alpadalar`). Self-review is allowed, because the owner pushes and approves.
+- No wait timer.
+- Deployment branches: custom policy, `main` only.
+- "Allow administrators to bypass" stays at GitHub's default. Untick it in Settings → Environments → production if you want no bypass.
+
+Move the Cloudflare secrets into the environment (owner only; nothing here reads or prints a value):
+
+1. Create a new Cloudflare API token with the permissions listed under [Tokens and secrets](#tokens-and-secrets) (recommended rotation).
+2. `gh secret set CLOUDFLARE_API_TOKEN --env production -R alpadalar/ccinfobar` (prompts for the value; nothing lands in shell history).
+3. `gh secret set CLOUDFLARE_ACCOUNT_ID --env production -R alpadalar/ccinfobar` (prompts; the value is `account_id` in `worker/wrangler.jsonc`).
+4. `gh secret list --env production -R alpadalar/ccinfobar` shows both names.
+5. `gh workflow run market-deploy.yml --ref main`, approve it, and wait for green.
+6. `gh secret delete CLOUDFLARE_API_TOKEN -R alpadalar/ccinfobar` and `gh secret delete CLOUDFLARE_ACCOUNT_ID -R alpadalar/ccinfobar`, then `gh secret list -R alpadalar/ccinfobar` no longer lists them.
+7. Delete the old token in the Cloudflare dashboard.
+
+Until step 6, the repository secrets keep the deploy working.
 
 ### Migrations
 
@@ -416,7 +437,7 @@ Take a backup before any manual change to the database.
 
 Only names of secrets appear in this repository; their values never do. The OAuth client id `Ov23liVCN9Nf6VlLv3St` and the admin id are public.
 
-- **Cloudflare API token** (used by the workflow): create a new token in the dashboard (My Profile → API Tokens → Create Custom Token, account resources limited to the one account; permissions Account · Workers Scripts · Edit, Account · D1 · Edit, Account · Account Settings · Read, User · User Details · Read, User · Memberships · Read), then `gh secret set CLOUDFLARE_API_TOKEN` and delete the old token in the dashboard.
+- **Cloudflare API token** (used by the workflow): create a new token in the dashboard (My Profile → API Tokens → Create Custom Token, account resources limited to the one account; permissions Account · Workers Scripts · Edit, Account · D1 · Edit, Account · Account Settings · Read, User · User Details · Read, User · Memberships · Read), then `gh secret set CLOUDFLARE_API_TOKEN --env production -R alpadalar/ccinfobar` and delete the old token in the dashboard.
 - **GitHub client secret** (required for sign-in): on GitHub, open the OAuth app with client id `Ov23liVCN9Nf6VlLv3St` (Settings → Developer settings → OAuth Apps), generate a client secret, then run `npx wrangler secret put GITHUB_CLIENT_SECRET` and paste it. To rotate, generate a new secret, put it, then delete the old one on GitHub. It is never stored in the repository or the workflow.
 - **Marketplace tokens of a publisher**: to sign out a publisher everywhere, take a backup, then `npx wrangler d1 execute ccinfobar-market --remote --command "DELETE FROM tokens WHERE handle = '<handle>'"`. They can sign in again unless banned; ban them to keep them out.
 

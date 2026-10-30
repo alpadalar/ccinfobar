@@ -184,6 +184,20 @@ describe('market deploy workflow', () => {
     expect(text).not.toMatch(/write-all|: write\s*$/m);
   });
 
+  it('deploys through the production environment with the marketplace URL (OWN-04)', () => {
+    const all = lines.flatMap((l, i) => (/^ {4}environment:\s*$/.test(l) ? [i] : []));
+    expect(all).toHaveLength(1);
+    const at = all[0]!;
+    expect(body(lines, at).map((i) => lines[i]!.trim())).toEqual([
+      'name: production',
+      'url: ${{ vars.MARKET_URL }}',
+    ]);
+    expect(at).toBeGreaterThan(find(/^ {4}timeout-minutes:/));
+    expect(at).toBeLessThan(find(/^ {4}env:\s*$/));
+    expect(text.match(/^\s+environment:/gm)).toHaveLength(1);
+    expect(text).not.toMatch(/environment: \$\{\{/);
+  });
+
   it('exposes the Cloudflare secrets only to wrangler steps', () => {
     const all = steps();
     const allowed = new Set<number>();

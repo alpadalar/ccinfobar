@@ -26,6 +26,9 @@ jobs:
     if: github.repository == 'alpadalar/ccinfobar' && vars.MARKET_URL != ''
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment:
+      name: production
+      url: ${{ vars.MARKET_URL }}
     env:
       WRANGLER_SEND_METRICS: 'false'
     steps:
