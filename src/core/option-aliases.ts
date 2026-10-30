@@ -48,3 +48,21 @@ export function aliasValue(type: string, key: string, options: Record<string, un
   }
   return undefined;
 }
+
+export function canonicalOptions<T extends Record<string, unknown>>(
+  type: string,
+  options: T | undefined,
+): T | undefined {
+  if (!options || !Object.hasOwn(OPTION_ALIASES, type)) return options;
+  let out: Record<string, unknown> | undefined;
+  for (const [canon, list] of Object.entries(OPTION_ALIASES[type]!)) {
+    if (!list.some((a) => Object.hasOwn(options, a.key))) continue;
+    out ??= { ...options };
+    if (out[canon] === undefined) {
+      const v = aliasValue(type, canon, options);
+      if (v !== undefined) out[canon] = v;
+    }
+    for (const a of list) delete out[a.key];
+  }
+  return (out as T | undefined) ?? options;
+}

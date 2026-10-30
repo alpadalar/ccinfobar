@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { defaultConfig, normalizeConfig } from '../core/config.js';
 import { t } from '../core/i18n/index.js';
+import { canonicalOptions } from '../core/option-aliases.js';
 import { claudeDir, claudeSettingsPath } from '../core/paths.js';
 import type { Config } from '../core/types.js';
 import { binName, commandArgs, flagValue, isBin, isScript, scriptName, tokenRe, toolArgs } from './args.js';
@@ -469,5 +470,11 @@ function importLegacy(
 }
 
 export function toConfig(result: ImportResult): Config {
-  return normalizeConfig({ ...defaultConfig(), ...result.config, lines: result.config.lines ?? [] });
+  const lines = (result.config.lines ?? []).map((line) =>
+    line.map((item) => {
+      const options = canonicalOptions(item.type, item.options);
+      return options === item.options ? item : { ...item, options };
+    }),
+  );
+  return normalizeConfig({ ...defaultConfig(), ...result.config, lines });
 }
