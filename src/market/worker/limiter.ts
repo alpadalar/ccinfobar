@@ -28,6 +28,15 @@ export class MemoryLimiter {
 
 const DO_KEYS = 10_000;
 
+export const SHARDS = 16;
+
+// fnv-1a; the same key always lands on the same counter
+export function shardOf(key: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193);
+  return (h >>> 0) % SHARDS;
+}
+
 const isCount = (v: unknown, max: number): v is number =>
   typeof v === 'number' && Number.isInteger(v) && v > 0 && v <= max;
 
@@ -59,7 +68,8 @@ export class RateCounter {
       this.win = win;
       this.n.clear();
     }
-    if (!this.n.has(key) && this.n.size >= DO_KEYS) return Response.json({ ok: false });
+    // full: defer to the other layers; refusing would lock out every new address
+    if (!this.n.has(key) && this.n.size >= DO_KEYS) return Response.json({ ok: true, full: true });
     const c = (this.n.get(key) ?? 0) + 1;
     this.n.set(key, c);
     return Response.json({ ok: c <= limit });

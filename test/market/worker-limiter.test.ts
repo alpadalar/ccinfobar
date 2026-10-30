@@ -4,8 +4,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { retryAfterSeconds, windowOf } from '../../src/market/rules.js';
 import type { Env, RateLimit } from '../../src/market/worker/env.js';
 import { createHandler } from '../../src/market/worker/handler.js';
-import { MEMORY_LIMITS, MemoryLimiter, RateCounter } from '../../src/market/worker/limiter.js';
-import { bindingAllowed } from '../../src/market/worker/rate.js';
+import {
+  MEMORY_LIMITS,
+  MemoryLimiter,
+  RateCounter,
+  SHARDS,
+  shardOf,
+} from '../../src/market/worker/limiter.js';
+import { bindingAllowed, countAddr } from '../../src/market/worker/rate.js';
 import { START } from './conformance.js';
 import { skipSqlite } from './d1-sqlite.js';
 import { fakeLimiter, type LimiterFault, makeEnv } from './worker-env.js';
@@ -255,12 +261,41 @@ describe('RateCounter', () => {
     expect(await r.json()).toEqual({ ok: false });
   });
 
-  it('refuses a new key once 10,000 are held, an existing key still counts', async () => {
+  it('a full map defers new keys instead of refusing, existing keys still count', async () => {
     const c = new RateCounter({}, {});
     for (let i = 0; i < 10_000; i++) await ok(c, { key: `w:${i}`, limit: 1, win: W });
-    expect(await ok(c, { key: 'w:new', limit: 5, win: W })).toBe(false);
-    expect(await ok(c, { key: 'w:0', limit: 5, win: W })).toBe(true);
-    expect(await ok(c, { key: 'w:new', limit: 5, win: W + 60_000 })).toBe(true);
+    const fresh = await (await c.fetch(post({ key: 'w:new', limit: 5, win: W }))).json();
+    expect(fresh).toEqual({ ok: true, full: true });
+    expect(await ok(c, { key: 'w:0', limit: 1, win: W })).toBe(false);
+    expect(await (await c.fetch(post({ key: 'w:new', limit: 5, win: W + 60_000 }))).json()).toEqual({
+      ok: true,
+    });
+  });
+});
+
+describe('shards and address keys', () => {
+  it('picks a deterministic shard in range and spreads keys', () => {
+    expect(shardOf('w:abc')).toBe(shardOf('w:abc'));
+    const seen = new Set<number>();
+    for (let i = 0; i < 400; i++) {
+      const n = shardOf(`w:${i}`);
+      expect(Number.isInteger(n) && n >= 0 && n < SHARDS).toBe(true);
+      seen.add(n);
+    }
+    expect(seen.size).toBe(SHARDS);
+  });
+
+  it('counts an IPv6 address by its /64 and leaves IPv4 alone', () => {
+    expect(countAddr('203.0.113.7')).toBe('203.0.113.7');
+    expect(countAddr('2001:db8:1:2:aaaa:bbbb:cccc:dddd')).toBe('2001:0db8:0001:0002');
+    expect(countAddr('2001:DB8:1:2::1')).toBe('2001:0db8:0001:0002');
+    expect(countAddr('2001:db8:1:2:ffff::')).toBe('2001:0db8:0001:0002');
+    expect(countAddr('2001:db8:1:3::1')).not.toBe(countAddr('2001:db8:1:2::1'));
+    expect(countAddr('::1')).toBe('0000:0000:0000:0000');
+    expect(countAddr('fe80::1%eth0')).toBe('fe80:0000:0000:0000');
+    expect(countAddr('::ffff:203.0.113.7')).toBe('203.0.113.7');
+    expect(countAddr('not an ip:')).toBe('not an ip:');
+    expect(countAddr('local')).toBe('local');
   });
 });
 
@@ -277,11 +312,11 @@ describe.skipIf(skipSqlite)('handler strict layer', () => {
       fetch: () => Promise.reject(new Error('no fetch')),
       ...(opts.memo === false ? {} : { memo: new MemoryLimiter() }),
     });
-    const call = (method: string, p: string, body?: unknown) =>
+    const call = (method: string, p: string, body?: unknown, ip = IP) =>
       h.fetch(
         new Request(BASE + p, {
           method,
-          headers: { 'content-type': 'application/json', 'cf-connecting-ip': IP },
+          headers: { 'content-type': 'application/json', 'cf-connecting-ip': ip },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         }),
       );
@@ -296,7 +331,8 @@ describe.skipIf(skipSqlite)('handler strict layer', () => {
     expect(over.status).toBe(429);
     const t = w.clock.now();
     expect(over.headers.get('retry-after')).toBe(String(retryAfterSeconds(windowOf(t), t)));
-    expect(lim.calls.every((c) => c === 'w')).toBe(true);
+    expect(lim.calls.every((c) => /^w:\d+$/.test(c))).toBe(true);
+    expect(new Set(lim.calls).size).toBe(1);
   });
 
   it('the DO refuses while a fresh memory layer allows', async () => {
@@ -314,7 +350,7 @@ describe.skipIf(skipSqlite)('handler strict layer', () => {
     for (let i = 0; i < 20; i++)
       expect((await w.call('POST', '/v1/auth/github', { token: 'x' })).status).toBe(400);
     expect((await w.call('POST', '/v1/auth/github', { token: 'x' })).status).toBe(429);
-    expect(new Set(lim.calls)).toEqual(new Set(['a']));
+    expect(lim.calls.every((c) => /^a:\d+$/.test(c))).toBe(true);
   });
 
   it.each(['throw', '500', 'garbage'] as LimiterFault[])(
@@ -340,5 +376,33 @@ describe.skipIf(skipSqlite)('handler strict layer', () => {
     const w = await setup();
     for (let i = 0; i < 30; i++) expect((await w.call('POST', '/v1/entries', {})).status).toBe(401);
     expect((await w.call('POST', '/v1/entries', {})).status).toBe(429);
+  });
+
+  it('a full DO shard does not lock out a fresh address', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const counter = new RateCounter({}, {});
+    const W = windowOf(T);
+    for (let i = 0; i < 10_000; i++)
+      await counter.fetch(
+        new Request('https://limiter/hit', {
+          method: 'POST',
+          body: JSON.stringify({ key: `w:${i}`, limit: 1, win: W }),
+        }),
+      );
+    const w = await setup({ limiter: fakeLimiter(counter) });
+    for (let i = 0; i < 30; i++) expect((await w.call('POST', '/v1/entries', {})).status).toBe(401);
+    expect((await w.call('POST', '/v1/entries', {})).status).toBe(429);
+    expect((await w.call('POST', '/v1/entries', {}, '203.0.113.99')).status).toBe(401);
+    const lines = log.mock.calls.map((c) => c.join(' '));
+    expect(lines).toContain('ratelimit w do-full');
+    expect(lines.join('\n')).not.toMatch(/203\.0\.113|[0-9a-f]{32}/);
+  });
+
+  it('addresses in one IPv6 /64 share a count', async () => {
+    const w = await setup({ limiter: fakeLimiter(), memo: false });
+    for (let i = 0; i < 30; i++)
+      expect((await w.call('POST', '/v1/entries', {}, `2001:db8:1:2::${i + 1}`)).status).toBe(401);
+    expect((await w.call('POST', '/v1/entries', {}, '2001:db8:1:2:f::9')).status).toBe(429);
+    expect((await w.call('POST', '/v1/entries', {}, '2001:db8:1:3::1')).status).toBe(401);
   });
 });

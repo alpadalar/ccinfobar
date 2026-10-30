@@ -17,7 +17,7 @@ import {
   type RateLimit,
   type WorkerDeps,
 } from './env.js';
-import { MEMORY_LIMITS } from './limiter.js';
+import { MEMORY_LIMITS, shardOf } from './limiter.js';
 import { bumpRate, cleanupStatements, saltStatements } from './store.js';
 import { randomToken, sha256Hex } from './tokens.js';
 
@@ -69,8 +69,29 @@ export async function check(db: D1Database, key: string, b: Bucket, now: number)
   if (wait !== null) throw limited(wait);
 }
 
+// an IPv6 address counts by its /64; IPv4 and anything unparsable stay as they are
+export function countAddr(ip: string): string {
+  const a = ip.toLowerCase().split('%')[0] ?? '';
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(a);
+  if (mapped) return mapped[1] as string;
+  if (!a.includes(':') || a.includes('.')) return ip;
+  const [l = '', r, extra] = a.split('::');
+  if (extra !== undefined) return ip;
+  const left = l ? l.split(':') : [];
+  const right = r ? r.split(':') : [];
+  const groups =
+    r === undefined
+      ? left
+      : [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right];
+  if (groups.length !== 8 || !groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return ip;
+  return groups
+    .slice(0, 4)
+    .map((g) => g.padStart(4, '0'))
+    .join(':');
+}
+
 const limitKey = async (prefix: string, req: Request, now: number): Promise<string> =>
-  `${prefix}:${(await sha256Hex(dayOf(now) + ipOf(req))).slice(0, 32)}`;
+  `${prefix}:${(await sha256Hex(dayOf(now) + countAddr(ipOf(req)))).slice(0, 32)}`;
 
 // the key lives in memory only; a missing or failing binding never blocks; logs carry no key
 export async function bindingAllowed(
@@ -119,9 +140,13 @@ async function strictAllowed(
   try {
     const key = await limitKey(prefix, req, now);
     const body = JSON.stringify({ key, limit: MEMORY_LIMITS[prefix], win: windowOf(now) });
-    const r = await ns.get(ns.idFromName(prefix)).fetch('https://limiter/hit', { method: 'POST', body });
-    const j = r.status === 200 ? ((await r.json()) as { ok?: unknown } | null) : null;
-    if (typeof j?.ok === 'boolean') return j.ok;
+    const id = ns.idFromName(`${prefix}:${shardOf(key)}`);
+    const r = await ns.get(id).fetch('https://limiter/hit', { method: 'POST', body });
+    const j = r.status === 200 ? ((await r.json()) as { ok?: unknown; full?: unknown } | null) : null;
+    if (typeof j?.ok === 'boolean') {
+      if (j.full === true) console.log('ratelimit', prefix, 'do-full');
+      return j.ok;
+    }
   } catch {}
   console.warn('ratelimit', prefix, 'do-failed');
   return true;
