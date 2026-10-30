@@ -32,11 +32,15 @@ export const OPTION_ALIASES: Record<string, Record<string, readonly OptionAlias[
   sandbox: { hideOff: [{ key: 'showOff', invert: true }] },
 };
 
+export function aliasesFor(type: string, key: string): readonly OptionAlias[] {
+  if (!Object.hasOwn(OPTION_ALIASES, type)) return [];
+  const own = OPTION_ALIASES[type]!;
+  return Object.hasOwn(own, key) ? own[key]! : [];
+}
+
 export function aliasValue(type: string, key: string, options: Record<string, unknown> | undefined): unknown {
   if (!options) return undefined;
-  const list = Object.hasOwn(OPTION_ALIASES, type) ? OPTION_ALIASES[type]![key] : undefined;
-  if (!list) return undefined;
-  for (const a of list) {
+  for (const a of aliasesFor(type, key)) {
     const v = options[a.key];
     if (v === undefined) continue;
     if (!a.invert) return v;

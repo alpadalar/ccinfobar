@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LANGUAGE_SETTINGS } from '../src/core/i18n/languages.js';
-import { OPTION_ALIASES } from '../src/core/option-aliases.js';
+import { aliasesFor } from '../src/core/option-aliases.js';
 import { BOX_PRESETS } from '../src/core/panel.js';
 import {
   PROFILE_LABEL_MAX,
@@ -34,7 +34,7 @@ const NOTES: Readonly<Record<string, string>> = {
 function oldNames(type: string, o: OptionSpec): string {
   if (!o.aliases?.length) return '';
   const names = o.aliases.map((a) => `\`${a}\``).join(', ');
-  const inverted = o.aliases.some((a) => OPTION_ALIASES[type]?.[o.key]?.some((x) => x.key === a && x.invert));
+  const inverted = o.aliases.some((a) => aliasesFor(type, o.key).some((x) => x.key === a && x.invert));
   return ` (old name: ${names}${inverted ? ', inverted' : ''})`;
 }
 

@@ -17,7 +17,7 @@ import {
 import { APPEARANCE_KEYS, type EntryContent, type EntryKind, LAYOUT_KEYS } from './entry-keys.js';
 import type { MessageId } from './i18n/index.js';
 import { LANGUAGE_SETTINGS, type LanguageSetting } from './i18n/languages.js';
-import { aliasValue, OPTION_ALIASES, type OptionAlias } from './option-aliases.js';
+import { aliasesFor, aliasValue, OPTION_ALIASES } from './option-aliases.js';
 import { normalizeProfileOverride, PROFILE_OVERRIDES_MAX } from './profiles.js';
 import { normalizeThemeRotation } from './rotation.js';
 import type {
@@ -144,16 +144,13 @@ export function setOption(
   const options = { ...found.item.options };
   if (value === undefined) delete options[key];
   else options[key] = value;
-  for (const a of aliasesOf(found.item.type, key)) delete options[a.key];
+  for (const a of aliasesFor(found.item.type, key)) delete options[a.key];
   return updateItem(config, id, { options });
 }
 
-function aliasesOf(type: string, key: string): readonly OptionAlias[] {
-  return (Object.hasOwn(OPTION_ALIASES, type) ? OPTION_ALIASES[type]![key] : undefined) ?? [];
-}
-
 export function optionValue(item: WidgetItem, key: string): OptionValue | undefined {
-  return (item.options?.[key] ?? aliasValue(item.type, key, item.options)) as OptionValue | undefined;
+  return ((item.options && Object.hasOwn(item.options, key) ? item.options[key] : undefined) ??
+    aliasValue(item.type, key, item.options)) as OptionValue | undefined;
 }
 
 export function optionShown(
@@ -339,7 +336,7 @@ export function applyStyle(
       const listed = supported(type);
       const allowed = new Set(listed);
       for (const k of lookKeys(type)) {
-        const aliases = aliasesOf(type, k);
+        const aliases = aliasesFor(type, k);
         if (!allowed.has(k) && !aliases.some((a) => allowed.has(a.key))) continue;
         const from = snap.options;
         const v = from?.[k] ?? aliases.map((a) => from?.[a.key]).find((x) => x !== undefined);
