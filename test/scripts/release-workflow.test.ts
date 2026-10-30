@@ -66,6 +66,12 @@ describe('release workflow', () => {
     expect(ci[at + 2] === undefined || ci[at + 2]!.trim() === '' || indent(ci[at + 2]!) === 0).toBe(true);
   });
 
+  it('restores no CI cache in the release job', () => {
+    expect(releaseText).not.toMatch(/^\s*cache:/m);
+    expect(releaseText).toContain('node-version: 22');
+    expect(releaseText).toContain('registry-url: https://registry.npmjs.org');
+  });
+
   it('pins every action in every job of ci.yml by commit SHA with a version comment', () => {
     const uses = ci.filter((l) => /\buses:/.test(l)).map((l) => l.replace(/^.*uses:\s*/, '').trim());
     expect(uses.length).toBeGreaterThanOrEqual(12);
