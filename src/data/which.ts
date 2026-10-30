@@ -62,6 +62,23 @@ export function findBinary(name: string, deps: WhichDeps): string | null {
   return null;
 }
 
+interface Slot {
+  pv: string;
+  path: string | null;
+  at: number;
+}
+
+function isSlot(x: unknown): x is Slot {
+  if (typeof x !== 'object' || x === null) return false;
+  const s = x as Record<string, unknown>;
+  return (
+    typeof s.pv === 'string' &&
+    typeof s.at === 'number' &&
+    Number.isFinite(s.at) &&
+    (s.path === null || typeof s.path === 'string')
+  );
+}
+
 const memo = new Map<string, string | null>();
 
 export function resetWhich(): void {
@@ -76,9 +93,11 @@ export function binary(name: 'git' | 'jj', deps: WhichDeps = whichDeps()): strin
   const now = (deps.now ?? Date.now)();
   const file = `bin-${name}.json`;
   const pvKey = cacheKey(pv);
-  const hit = readCache<{ pv: string; path: string | null; at: number }>(file);
+  const cached = readCache<Slot & { more?: unknown }>(file);
+  const slots = [cached, ...(Array.isArray(cached?.more) ? cached.more : [])].filter(isSlot);
   let found: string | null | undefined;
-  if (hit && hit.pv === pvKey && typeof hit.at === 'number' && Number.isFinite(hit.at)) {
+  for (const hit of slots) {
+    if (hit.pv !== pvKey) continue;
     const age = now - hit.at;
     if (hit.path === null && age >= 0 && age < NEGATIVE_TTL) found = null;
     else if (
@@ -90,10 +109,17 @@ export function binary(name: 'git' | 'jj', deps: WhichDeps = whichDeps()): strin
       deps.isFile(hit.path)
     )
       found = hit.path;
+    if (found !== undefined) break;
   }
   if (found === undefined) {
     found = findBinary(name, deps);
-    writeCache(file, { pv: pvKey, path: found, at: now });
+    const more = slots.filter((x) => x.pv !== pvKey).slice(0, 3);
+    writeCache(file, {
+      pv: pvKey,
+      path: found,
+      at: now,
+      more: more.map(({ pv, path: p, at }) => ({ pv, path: p, at })),
+    });
   }
   memo.set(memoKey, found);
   return found;

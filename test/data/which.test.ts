@@ -192,3 +192,54 @@ describe('which cache by name', () => {
     fs.rmSync(legacy);
   });
 });
+
+describe('which cache slots', () => {
+  const file = () => `${process.env.CCINFOBAR_CACHE_DIR}/bin-git.json`;
+  const text = () => fs.readFileSync(file(), 'utf8');
+
+  it('serves a returning PATH from an older slot without a rewrite', () => {
+    const a = mk([GIT], { PATH: 'C:\\Git\\cmd' });
+    const b = mk([GIT], { PATH: 'C:\\Git\\cmd;C:\\b' });
+    binary('git', a.deps);
+    resetWhich();
+    binary('git', b.deps);
+    resetWhich();
+    const before = text();
+    a.log.length = 0;
+    a.state.now += 1000;
+    expect(binary('git', a.deps)).toBe(GIT);
+    expect(a.log).toEqual([GIT]);
+    expect(text()).toBe(before);
+  });
+
+  it('keeps at most four slots with the newest on top', () => {
+    for (let i = 0; i < 5; i++) {
+      resetWhich();
+      binary('git', mk([GIT], { PATH: `C:\\Git\\cmd;C:\\p${i}` }).deps);
+    }
+    const c = JSON.parse(text());
+    expect(1 + c.more.length).toBe(4);
+    expect(c.pv).toBe(cacheKey('C:\\Git\\cmd;C:\\p4'));
+    expect(c.more[0].pv).toBe(cacheKey('C:\\Git\\cmd;C:\\p3'));
+  });
+
+  it('ignores malformed slots and drops them on the next write', () => {
+    const env = { PATH: 'C:\\Git\\cmd' };
+    const a = mk([GIT], env);
+    const good = { pv: 'a'.repeat(20), path: GIT, at: a.state.now };
+    fs.writeFileSync(
+      file(),
+      JSON.stringify({
+        pv: 'f'.repeat(20),
+        path: GIT,
+        at: a.state.now,
+        more: [{ pv: 7, path: GIT, at: a.state.now }, 'junk', null, good],
+      }),
+    );
+    expect(binary('git', a.deps)).toBe(GIT);
+    expect(a.log.length).toBeGreaterThan(1);
+    const c = JSON.parse(text());
+    expect(c.pv).toBe(cacheKey(env.PATH));
+    expect(c.more.map((m: { pv: string }) => m.pv)).toEqual(['f'.repeat(20), good.pv]);
+  });
+});
