@@ -18,7 +18,7 @@ The main surface is the Marketplace page in `ccinfobar edit`. Every action also 
 | Theme | Theme, style and colors only | `theme`, `style`, `separator`, `separatorColor`, `padding`, `glyphs`, plus the theme itself when it is not a plain built-in |
 | Bundle | A preset and a theme together | Both sets |
 
-Personal settings are never stored in an entry, never changed by applying one and never published: `charset`, `icons`, `colorLevel`, `maxWidth`, `glyphMode`, `ambiguousWidth`, `update`, `usageApi`, `savePayload`, `gitHardening`, `gsdAutoLine`, `loadingText`, `budget`, `profiles`, `progress` and `language`. Budgets, profiles and your language stay yours, and your terminal and font settings keep working.
+Personal settings are never stored in an entry, never changed by applying one and never published: `charset`, `icons`, `colorLevel`, `maxWidth`, `glyphMode`, `ambiguousWidth`, `update`, `updateMinAgeHours`, `usageApi`, `savePayload`, `gitHardening`, `commandBudgetMs`, `gsdAutoLine`, `loadingText`, `budget`, `profiles`, `themeRotation`, `progress`, `subagentLine` and `language`. Budgets, profiles, update and command timing, theme rotation, the subagent rows and your language stay yours, and your terminal and font settings keep working.
 
 Entries and share codes made with ccinfobar 0.8.3 or later use the canonical option names listed in [docs/WIDGETS.md](WIDGETS.md). ccinfobar 0.8.2 and older ignore those names and apply the options' defaults, so install such entries with 0.8.3 or later.
 

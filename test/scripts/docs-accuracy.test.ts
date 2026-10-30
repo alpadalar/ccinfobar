@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { PERSONAL_KEYS } from '../../src/core/entry-keys.js';
 import { OPTION_ALIASES } from '../../src/core/option-aliases.js';
 
 const root = path.resolve(__dirname, '../..');
@@ -39,5 +40,15 @@ describe('docs accuracy', () => {
     const bullet = text.split(/\r?\n/).find((l) => l.includes('0.8.2 and older')) ?? '';
     expect(bullet).toContain('reason:');
     expect(read('docs/CATALOG.md')).toContain('0.8.2 and older');
+  });
+
+  it('CATALOG.md lists exactly the personal keys', () => {
+    const para = read('docs/CATALOG.md')
+      .split(/\r?\n/)
+      .find((l) => l.startsWith('Personal settings are never stored in an entry'));
+    const sentence = (para ?? '').split('. ')[0] ?? '';
+    const listed = [...sentence.matchAll(/`([^`]+)`/g)].map((m) => m[1]!).sort();
+    const want = PERSONAL_KEYS.filter((k) => k !== 'version' && k !== '$schema').sort();
+    expect(listed).toEqual(want);
   });
 });
