@@ -3,6 +3,7 @@ import { applyLanguage } from '../cli/lang.js';
 import { t } from '../core/i18n/index.js';
 import { loadForUse } from '../core/load.js';
 import { claudeSettingsPath } from '../core/paths.js';
+import { sanitizeText } from '../core/sanitize.js';
 import { VERSION } from '../core/version.js';
 import { executeJob, type JobEnvelope, jobOff } from '../data/jobs/runner.js';
 import { type UpdateValue, updateJob } from '../data/jobs/update.js';
@@ -98,6 +99,8 @@ const DEPS: UpdateDeps = {
   error: (line) => console.error(line),
 };
 
+const clean = (v: unknown) => sanitizeText(String(v ?? ''));
+
 export async function manualUpdate(
   current: string,
   checkOnly: boolean,
@@ -108,7 +111,7 @@ export async function manualUpdate(
   try {
     latest = await d.fetchLatest(8000);
   } catch (err) {
-    d.error(t('cmd.update.unreachable', { message: (err as Error).message }));
+    d.error(t('cmd.update.unreachable', { message: clean((err as Error).message) }));
     return 1;
   }
   d.writeState({ checkedAt: Date.now(), latest, ...keptRejection(d.readState(), latest) });
@@ -141,13 +144,14 @@ export async function manualUpdate(
       recordRejected: (r) => d.writeState({ checkedAt: Date.now(), ...r }),
     });
   } catch (err) {
-    d.error(t('cmd.update.npmFailed', { message: (err as Error).message }));
+    d.error(t('cmd.update.npmFailed', { message: clean((err as Error).message) }));
     d.error(t('cmd.update.manual', { version: latest }));
     return 1;
   }
   if (!('rejected' in out)) {
     d.writeState({ checkedAt: Date.now(), latest, installed: latest });
-    if (out.inconclusive) d.log(t('cmd.update.unverified', { version: latest, reason: out.inconclusive }));
+    if (out.inconclusive)
+      d.log(t('cmd.update.unverified', { version: latest, reason: clean(out.inconclusive) }));
     else d.log(t('cmd.update.updated', { version: latest }));
     return 0;
   }
@@ -158,7 +162,7 @@ export async function manualUpdate(
     rollback: out.rollback,
     reason: out.reason,
   });
-  const p = { latest, current, reason: out.reason };
+  const p = { latest, current, reason: clean(out.reason) };
   if (out.rollback === 'ok') d.error(t('cmd.update.rolledBack', p));
   else if (out.rollback === 'unverified') d.error(t('cmd.update.rollbackUnverified', p));
   else {

@@ -454,6 +454,43 @@ describe('manual update verification', () => {
     const r = await verified(async () => null);
     expect(r.installs).toEqual(['0.9.0']);
   });
+
+  it('prints npm errors, check reasons and fetch errors without control characters', async () => {
+    const run = async (deps: Parameters<typeof manualUpdate>[2]) => {
+      const out: string[] = [];
+      await manualUpdate('0.8.2', false, {
+        fetchLatest: async () => '0.9.0',
+        installKind: () => 'npm-global',
+        verify: async () => null,
+        writeState: (() => {}) as never,
+        log: (l) => out.push(l),
+        error: (l) => out.push(l),
+        ...deps,
+      });
+      return out;
+    };
+    const npm = (
+      await run({
+        install: async () => {
+          throw new Error('EACCES \u001b]0;pwn\u0007 x');
+        },
+      })
+    ).join('\n');
+    expect(npm).not.toMatch(/[\u001b\u0007]/);
+    expect(npm).toContain('EACCES');
+    const reason = await run({
+      install: async () => {},
+      verify: async (v) => (v === '0.9.0' ? 'render-failed:\u001b[2J1' : null),
+    });
+    expect(reason.join('\n')).not.toContain('\u001b');
+    const net = await run({
+      fetchLatest: async () => {
+        throw new Error('net \u001b[31mdown');
+      },
+    });
+    expect(net.join('\n')).not.toContain('\u001b');
+    expect(net.join('\n')).toContain('net');
+  });
 });
 
 describe('manual check keeps a rejection', () => {
