@@ -11,10 +11,10 @@ export class MemoryLimiter {
 
   hit(key: string, limit: number, now: number): boolean {
     const w = windowOf(now);
-    if (w !== this.win) {
+    if (w > this.win) {
       this.win = w;
       this.n.clear();
-    }
+    } else if (w < this.win) return true;
     if (!this.n.has(key) && this.n.size >= MEMORY_KEYS) this.n.clear();
     const c = (this.n.get(key) ?? 0) + 1;
     this.n.set(key, c);
@@ -68,11 +68,11 @@ export class RateCounter {
       !Number.isFinite(win)
     )
       return Response.json({ ok: false }, { status: 400 });
-    if (win !== this.win) {
+    if (Number.isNaN(this.win) || win > this.win) {
       this.win = win;
       this.n.clear();
       this.over = 0;
-    }
+    } else if (win < this.win) return Response.json({ ok: true });
     // full: untracked keys share one generous count; tracked keys keep their own
     if (!this.n.has(key) && this.n.size >= DO_KEYS) {
       this.over++;

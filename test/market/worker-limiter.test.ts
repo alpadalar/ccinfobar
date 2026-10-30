@@ -416,3 +416,51 @@ describe.skipIf(skipSqlite)('handler strict layer', () => {
     expect((await w.call('POST', '/v1/entries', {}, '2001:db8:1:3::1')).status).toBe(401);
   });
 });
+
+describe('windows only move forward', () => {
+  const W1 = windowOf(3 * 60_000 + 2);
+  const W0 = windowOf(3 * 60_000 - 1);
+  const post = (body: unknown) =>
+    new Request('https://limiter/hit', { method: 'POST', body: JSON.stringify(body) });
+  type Out = { ok: boolean; overflow?: boolean; first?: boolean };
+  const hit = async (c: RateCounter, body: unknown) => (await (await c.fetch(post(body))).json()) as Out;
+
+  it('memory: a stale hit is allowed, uncounted and clears nothing', () => {
+    const m = new MemoryLimiter();
+    const t1 = 3 * 60_000 + 2;
+    const t0 = 3 * 60_000 - 1;
+    expect(W0).toBeLessThan(W1);
+    expect(m.hit('k', 2, t1)).toBe(true);
+    expect(m.hit('k', 2, t1)).toBe(true);
+    expect(m.hit('k', 2, t0)).toBe(true);
+    expect(m.size).toBe(1);
+    expect(m.hit('k', 2, t1)).toBe(false);
+  });
+
+  it('memory: a first-ever hit with an old time counts normally', () => {
+    const m = new MemoryLimiter();
+    expect(m.hit('k', 1, 60_000)).toBe(true);
+    expect(m.hit('k', 1, 60_000)).toBe(false);
+  });
+
+  it('DO: a stale window is allowed, uncounted, and the newer counts survive', async () => {
+    const c = new RateCounter({}, {});
+    expect((await hit(c, { key: 'k', limit: 2, win: W1 })).ok).toBe(true);
+    expect((await hit(c, { key: 'k', limit: 2, win: W1 })).ok).toBe(true);
+    const r = await c.fetch(post({ key: 'k', limit: 2, win: W0 }));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true });
+    expect((await hit(c, { key: 'k', limit: 2, win: W1 })).ok).toBe(false);
+  });
+
+  it('DO: a stale request on a full shard does not bump the overflow count', async () => {
+    const c = new RateCounter({}, {});
+    for (let i = 0; i < 10_000; i++) await hit(c, { key: `w:${i}`, limit: 1, win: W1 });
+    expect(await hit(c, { key: 'w:stale', limit: 5, win: W0 })).toEqual({ ok: true });
+    expect(await hit(c, { key: 'w:new', limit: 5, win: W1 })).toEqual({
+      ok: true,
+      overflow: true,
+      first: true,
+    });
+  });
+});
