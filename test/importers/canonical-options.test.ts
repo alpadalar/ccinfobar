@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultConfig, normalizeConfig } from '../../src/core/config.js';
 import { aliasesFor, canonicalOptions, OPTION_ALIASES } from '../../src/core/option-aliases.js';
 import { renderPreview } from '../../src/core/preview.js';
@@ -91,6 +91,18 @@ const CASES: Case[] = [
 
 describe('toConfig canonical option names', () => {
   let changed = 0;
+
+  // both renders must see the same clock and memory
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-30T12:00:00Z') });
+    vi.spyOn(os, 'totalmem').mockReturnValue(16 * 2 ** 30);
+    vi.spyOn(os, 'freemem').mockReturnValue(8 * 2 ** 30);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   for (const c of CASES) {
     it(`${c.source} renders byte-identically with canonical names`, () => {
