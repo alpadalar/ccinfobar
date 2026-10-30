@@ -237,7 +237,7 @@ describe.skipIf(skipDist)('ccinfobar hook (built cli)', () => {
   it('a partial payload writes nothing and exits 0 once the writer closes', async () => {
     const s = sandbox();
     const p = open(s);
-    let endedAt = 0;
+    let endedAt = Date.now();
     p.child.stdin.write('{"session_id":');
     setTimeout(() => {
       endedAt = Date.now();
