@@ -68,4 +68,8 @@ describe('docs accuracy', () => {
       'Built-in presets in `src/core/presets.ts` keep their old names',
     );
   });
+
+  it('DEVELOPMENT.md says the Node 20 CI leg skips the D1 tests', () => {
+    expect(read('docs/DEVELOPMENT.md')).toContain('The Node 20 CI leg skips them as well');
+  });
 });
