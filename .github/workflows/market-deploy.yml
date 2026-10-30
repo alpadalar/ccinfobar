@@ -67,5 +67,11 @@ jobs:
           MARKET_URL: ${{ vars.MARKET_URL }}
         run: |
           url="${MARKET_URL%/}"
-          curl -fsS --max-time 20 --retry 3 --retry-delay 5 --retry-all-errors "$url/v1/meta.json"
+          ok=0
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS --max-time 20 --retry 3 --retry-delay 5 --retry-all-errors "$url/v1/meta.json" | node -e 'let d = {}; try { d = JSON.parse(require("fs").readFileSync(0, "utf8")); } catch {} process.exit(d.limiters && d.limiters.strict === true ? 0 : 1);'; then ok=1; break; fi
+            sleep 10
+          done
+          if [ "$ok" != 1 ]; then echo "::error::/v1/meta.json has no limiters.strict: true"; exit 1; fi
+          echo "limiters.strict: true"
           curl -fsS --max-time 20 --retry 3 --retry-delay 5 --retry-all-errors "$url/" -o /dev/null

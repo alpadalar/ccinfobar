@@ -259,7 +259,7 @@ Reads are best effort (the `READS` binding is approximate and per location), 70 
 curl -s -o /dev/null -w '%{http_code}\n' --rate 5/s "$MARKET_URL/v1/meta.json?n=[1-70]" | sort | uniq -c
 ```
 
-If a write burst shows no `429`, check `limiters` in `/v1/meta.json` (`strict` should be `true`).
+If a write burst shows no `429`, check `limiters` in `/v1/meta.json` (`strict` should be `true`). Durable Object health: no `ratelimit … do-failed` lines in Workers Logs after the deploy (owner check).
 
 ### Storage guards
 
@@ -390,7 +390,7 @@ All commands run from `worker/`, so wrangler reads `worker/wrangler.jsonc` with 
 
 - GitHub Actions → **Marketplace deploy** → Run workflow, or `gh workflow run market-deploy.yml --ref main`. A push to `main` that touches the Worker files (`src/market/**`, `src/core/entry-keys.ts`, `src/core/sanitize.ts`, `worker/**`, the build scripts or the workflow) deploys too.
 - The job runs only on `alpadalar/ccinfobar` and only once the repository variable `MARKET_URL` is set (the Worker URL, https://ccinfobar-market.alp-adalar.workers.dev). It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, which only the wrangler steps that reach Cloudflare get. The checkout and setup-node actions are pinned by commit SHA (the tag in a comment); to update one, look up the new tag's commit and change both.
-- Steps: `npm ci --ignore-scripts`, `npx vitest run test/market`, `node scripts/build.mjs --worker` (writes the gitignored `worker/dist/index.js`), `../node_modules/.bin/wrangler deploy --dry-run` (wrangler 4.154.0 is an exact devDependency, so the locked copy runs and nothing is downloaded while the token is set), record the D1 Time Travel bookmark, apply migrations, deploy, then a smoke check of `$MARKET_URL/v1/meta.json` and `$MARKET_URL/`.
+- Steps: `npm ci --ignore-scripts`, `npx vitest run test/market`, `node scripts/build.mjs --worker` (writes the gitignored `worker/dist/index.js`), `../node_modules/.bin/wrangler deploy --dry-run` (wrangler 4.154.0 is an exact devDependency, so the locked copy runs and nothing is downloaded while the token is set), record the D1 Time Travel bookmark, apply migrations, deploy, then a smoke check of `$MARKET_URL/v1/meta.json` and `$MARKET_URL/`. The smoke step fails the deploy job unless `/v1/meta.json` reports `limiters.strict: true`; it sends no write requests.
 - `wrangler deploy` also sets the cron trigger from `worker/wrangler.jsonc` (`triggers.crons`). Workers Free allows 5 cron triggers per account, and this Worker uses one; check the Worker's **Settings → Triggers** page after the first deploy with it.
 - Sign-in answers `503` until the `GITHUB_CLIENT_SECRET` secret is set (see [Tokens and secrets](#tokens-and-secrets)).
 
