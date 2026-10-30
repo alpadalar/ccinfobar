@@ -51,4 +51,15 @@ describe('docs accuracy', () => {
     const want = PERSONAL_KEYS.filter((k) => k !== 'version' && k !== '$schema').sort();
     expect(listed).toEqual(want);
   });
+
+  it('the manual update rollback is a Changed entry with a reason', () => {
+    const text = unreleased();
+    const changed = text.indexOf('### Changed');
+    const fixed = text.indexOf('### Fixed');
+    const at = text.indexOf('- `ccinfobar update` now verifies');
+    expect(at).toBeGreaterThan(changed);
+    expect(at).toBeLessThan(fixed);
+    const bullet = text.slice(at).split(/\r?\n/)[0]!;
+    expect(bullet).toContain('reason:');
+  });
 });
