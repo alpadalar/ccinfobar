@@ -81,6 +81,13 @@ describe('release workflow', () => {
     expect(at).toBeLessThan(release.findIndex((l) => l.includes('- name: Publish to npm')));
   });
 
+  it('warns when the changelog section is missing', () => {
+    const warn = release.findIndex((l) => l.includes('::warning::CHANGELOG.md has no ## ['));
+    expect(warn).toBeGreaterThan(-1);
+    const fallback = release.findIndex((l) => l.includes("echo 'See CHANGELOG.md' > notes.md"));
+    expect(warn).toBeLessThan(fallback);
+  });
+
   it('pins every action in every job of ci.yml by commit SHA with a version comment', () => {
     const uses = ci.filter((l) => /\buses:/.test(l)).map((l) => l.replace(/^.*uses:\s*/, '').trim());
     expect(uses.length).toBeGreaterThanOrEqual(12);
