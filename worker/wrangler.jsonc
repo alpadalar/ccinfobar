@@ -29,6 +29,10 @@
     // sign-in flood ceiling, above the 5-failure D1 bucket
     { "name": "SIGNIN", "namespace_id": "1203", "simple": { "limit": 20, "period": 60 } }
   ],
+  // strict per-address writes and sign-in, memory only (21-D-18)
+  "durable_objects": { "bindings": [{ "name": "LIMITER", "class_name": "RateCounter" }] },
+  // a Durable Object class migration, not D1; SQLite class, the only kind Workers Free allows
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RateCounter"] }],
   // public values; secrets go through wrangler secret
   // sign-in answers 503 until GITHUB_CLIENT_SECRET is set (R-14)
   "vars": {

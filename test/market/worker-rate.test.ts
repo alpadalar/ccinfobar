@@ -325,10 +325,10 @@ describe.skipIf(skipSqlite)('worker rate limits', () => {
   it('meta tells whether the limiter bindings are configured', async () => {
     const none = await setup();
     const a = await (await none.call('GET', '/v1/meta.json')).json();
-    expect(a.limiters).toEqual({ reads: false, writes: false, signIn: false });
+    expect(a.limiters).toEqual({ reads: false, writes: false, signIn: false, strict: false });
     const some = await setup({}, undefined, { writes: 5, signin: 5 });
     const b = await (await some.call('GET', '/v1/meta.json')).json();
-    expect(b.limiters).toEqual({ reads: false, writes: true, signIn: true });
+    expect(b.limiters).toEqual({ reads: false, writes: true, signIn: true, strict: false });
   });
 
   it('a throwing WRITES binding fails open', async () => {

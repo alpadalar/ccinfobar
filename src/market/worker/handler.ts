@@ -76,7 +76,7 @@ export function buildMeta(env: Env): Record<string, unknown> {
       report: true,
       cols: true,
     },
-    limiters: { reads: !!env.READS, writes: !!env.WRITES, signIn: !!env.SIGNIN },
+    limiters: { reads: !!env.READS, writes: !!env.WRITES, signIn: !!env.SIGNIN, strict: !!env.LIMITER },
     auth: ['github-device'],
     ...(clientId ? { github: { clientId } } : {}),
     limits: { ...MARKET_LIMITS, maxEntryBytes: Math.min(MARKET_LIMITS.maxEntryBytes, max ?? Infinity) },

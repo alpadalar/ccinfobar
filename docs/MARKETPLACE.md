@@ -63,7 +63,7 @@ Every request can get `429 rate-limited`. Every write can also answer `415 unsup
 | `capabilities.cols` | The server stores `cols` and returns it; without it clients leave `cols` out of write bodies |
 | `auth` | `["token"]` (the reference server: register a handle) or `["github-device"]` (GitHub sign-in) |
 | `github.clientId` | The public client id of the OAuth app that the device flow uses. It is not a secret |
-| `limiters.reads`, `writes`, `signIn` | Whether the Worker has its `READS`, `WRITES` and `SIGNIN` rate limit bindings (public, no sensitive data; a Worker with `writes: false` refuses writes, see Rate limits) |
+| `limiters.reads`, `writes`, `signIn`, `strict` | Whether the Worker has its `READS`, `WRITES` and `SIGNIN` rate limit bindings and the `LIMITER` Durable Object (public, no sensitive data; a Worker with `writes: false` refuses writes, see Rate limits) |
 | `limits` | The size limits below; a server may advertise a smaller `maxEntryBytes` |
 | `quota.publisherBytes` | How much live content one publisher may store |
 | `quota.pendingEntries`, `quota.pendingBytes` | How many entries, and how much content, one publisher may have waiting for review |
@@ -233,9 +233,31 @@ Reads never build JSON. Each entry row keeps its summary and its entry document 
 | Sign-in | 20 a minute per address through the `SIGNIN` binding (a flood ceiling), then, in D1, failed attempts per address (`SIGNIN_LIMIT`, default 5 a minute: a bad body, an unknown or foreign token, a GitHub refusal or a ban; a sign-in is refused once more than that many failures are in the window, so five mistakes still let a valid attempt through) and successful sign-ins per handle (`SIGNIN_LIMIT` a minute). GitHub outages (`502`) and `503` do not count. | sha256 of the day and the address, in memory only; salted address hash |
 | Reports | 5 an hour per reporter (`REPORT_LIMIT`) | handle |
 
-The bindings answer before the body is read or the token is looked up, so a junk request writes no D1 row at all; without the `WRITES` or `SIGNIN` binding, publish, new version, overwrite, withdraw and sign-in answer `503 unavailable` ("rate limiter is not configured") instead of running unlimited; set `ALLOW_OPEN_LIMITERS=true` (self-hosted dev and tests only) to let them go on to the D1 buckets. A binding that is present but throws still lets the request through to the D1 buckets. `/v1/meta.json` shows which bindings exist in `limiters`. The per-publisher counters live in D1 fixed windows.
+Three layers count each address, from the cheapest to the strictest:
 
-**Burst check (owner, production).** After a deploy, send 40 concurrent anonymous POSTs and expect at least one `429` (the rest are `401`): run `seq 40 | xargs -P 10 -I{} curl -s -o /dev/null -w '%{http_code}\n' -X POST "$MARKET_URL/v1/entries" | sort | uniq -c` with `MARKET_URL` set to the Worker URL. Zero `429` after repeated runs means the binding is inert (check `limiters` in `/v1/meta.json`, then `wrangler tail`). Cloudflare counts per location and approximately, so run it a few times from one machine.
+1. A per-isolate memory window on every check (reads 60, writes 30, sign-in 20 a minute). It clears its map when it reaches 5,000 keys, so a spray of addresses only resets that isolate's counts.
+2. The `READS`, `WRITES` and `SIGNIN` bindings. Their outcomes are logged as `ratelimit <prefix> refused`, `threw` or `unexpected` (no address, key or hash).
+3. The `RateCounter` Durable Object (`LIMITER` binding) for writes and sign-in only: one counter per address and minute, global across locations, memory only (no storage rows, so Workers Free allows it). IPv6 addresses count by their /64, and the counters are spread over 16 Durable Object instances by a hash of the key. A full instance (10,000 addresses in a window) never refuses a new address: it answers that it cannot count it, the Worker logs `ratelimit <prefix> do-full`, and the memory layer and the bindings decide, so a spray of addresses cannot lock anyone out. If it throws, answers badly or is unreachable, the Worker logs `ratelimit <prefix> do-failed` and the other layers decide; it never turns into a `503`. Reads never use it. `limiters.strict` in `/v1/meta.json` tells whether the binding exists.
+
+The layers answer before the body is read or the token is looked up, so a junk request writes no D1 row at all; without the `WRITES` or `SIGNIN` binding, publish, new version, overwrite, withdraw and sign-in answer `503 unavailable` ("rate limiter is not configured") instead of running unlimited; set `ALLOW_OPEN_LIMITERS=true` (self-hosted dev and tests only) to let them go on to the D1 buckets. A binding that is present but throws still lets the request through to the D1 buckets. `/v1/meta.json` shows which bindings exist in `limiters`. The per-publisher counters live in D1 fixed windows.
+
+**The Durable Object is a class lifecycle change.** The deploy that created `RateCounter` (migration tag `v1`, `new_sqlite_classes`) cannot be undone with `wrangler rollback`. Fix forward: to switch it off, remove the Durable Object call from the code but keep the class, the binding and the `v1` migration. Deleting the class needs a separate `deleted_classes` migration.
+
+**Optional WAF rule (owner).** A Cloudflare rate limiting rule on the zone stops floods before the Worker runs. It needs a custom domain; a `workers.dev` hostname cannot carry one.
+
+**Burst check (owner, production).** Start when `date -u +%S` is below 5 so the minute window does not roll over mid-run. Anonymous writes, 35 requests at 2 a second, expect 30 times `401` and 5 times `429`:
+
+```
+curl -s -o /dev/null -w '%{http_code}\n' --rate 2/s -X POST -H 'Content-Type: application/json' --data '{}' "$MARKET_URL/v1/entries?n=[1-35]" | sort | uniq -c
+```
+
+Reads are best effort (the `READS` binding is approximate and per location), 70 requests at 5 a second, expect at least one `429`:
+
+```
+curl -s -o /dev/null -w '%{http_code}\n' --rate 5/s "$MARKET_URL/v1/meta.json?n=[1-70]" | sort | uniq -c
+```
+
+If a write burst shows no `429`, check `limiters` in `/v1/meta.json` (`strict` should be `true`).
 
 ### Storage guards
 

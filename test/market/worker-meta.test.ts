@@ -87,7 +87,7 @@ describe('worker meta', () => {
         report: true,
         cols: true,
       },
-      limiters: { reads: false, writes: false, signIn: false },
+      limiters: { reads: false, writes: false, signIn: false, strict: false },
       auth: ['github-device'],
       github: { clientId: 'Ov23liVCN9Nf6VlLv3St' },
       limits: { ...MARKET_LIMITS },
@@ -452,6 +452,14 @@ describe('worker/wrangler.jsonc', () => {
     const simple = cfg.ratelimits[0].simple;
     expect(simple).toEqual({ limit: 60, period: 60 });
     expect((simple.limit * 1440) / 100_000).toBeLessThan(0.9);
+  });
+
+  it('binds the strict limiter Durable Object with one SQLite class migration', () => {
+    expect(cfg.durable_objects).toEqual({ bindings: [{ name: 'LIMITER', class_name: 'RateCounter' }] });
+    expect(cfg.migrations).toEqual([{ tag: 'v1', new_sqlite_classes: ['RateCounter'] }]);
+    expect(cfg.migrations[0]).not.toHaveProperty('new_classes');
+    expect(cfg.migrations[0]).not.toHaveProperty('deleted_classes');
+    expect(raw).toContain('17-D-15');
   });
 
   it('runs the cleanup cron every six hours (WR-05)', () => {
