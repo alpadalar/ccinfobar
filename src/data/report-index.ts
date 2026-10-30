@@ -1119,6 +1119,28 @@ export function timeZone(): string {
 }
 
 // never writes the ledger or its summary
+export function projectNamesOf(
+  cwds: Iterable<string>,
+  hash: (root: string) => string,
+  platform: NodeJS.Platform = process.platform,
+): Map<string, string> {
+  const all = [...new Set(cwds)];
+  const out = new Map<string, string>();
+  for (const cwd of all) out.set(hash(cwd), cwd);
+  const pm = platform === 'win32' ? path.win32 : path.posix;
+  for (const cwd of all) {
+    let d = cwd;
+    for (let i = 0; i < 64; i++) {
+      const up = pm.dirname(d);
+      if (up === d || pm.dirname(up) === up) break;
+      d = up;
+      const a = normalizeRoot(d, platform);
+      if (!out.has(hash(a))) out.set(hash(a), a);
+    }
+  }
+  return out;
+}
+
 export function readReportData(env: NodeJS.ProcessEnv, deps: LedgerDeps, opts: ReportOpts = {}): ScanResult {
   const root = path.resolve(claudeDir(env));
   const now = opts.now ?? Date.now();
@@ -1157,8 +1179,10 @@ export function readReportData(env: NodeJS.ProcessEnv, deps: LedgerDeps, opts: R
   const gone = notes.find((n) => n.code === 'deleted-transcripts');
   if (opts.rebuild && gone) notes.push({ code: 'rebuild-kept', count: gone.count });
   const sessions = sessionsOf(scan.state);
-  const projectNames = new Map<string, string>();
-  for (const s of Object.values(sessions)) if (s.cwd) projectNames.set(deps.projectHash(s.cwd), s.cwd);
+  const projectNames = projectNamesOf(
+    new Set(Object.values(sessions).flatMap((s) => (s.cwd ? [s.cwd] : []))),
+    deps.projectHash,
+  );
   return {
     claudeDir: root,
     sessions,

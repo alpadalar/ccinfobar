@@ -123,6 +123,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `ccinfobar update` prints npm's error and the failed check's reason without terminal control characters, like the automatic update.
 - Windows: an update that has to run `npm.cmd` through cmd.exe refuses a path containing `%` (cmd.exe would expand it) instead of installing into the wrong folder.
 - The web editor's install accepts only a whole-number refresh interval from 1 to 86400 seconds, like `install --refresh`, and answers with a clear message otherwise.
+- `ccinfobar report` names a project from sessions that ran in one of its subfolders, instead of listing its cost under unknown project
 
 ### Security
 

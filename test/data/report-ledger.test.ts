@@ -6,7 +6,7 @@ import { buildReport } from '../../src/core/report-model.js';
 import { dayKey } from '../../src/core/time.js';
 import { displayRoot, normalizeRoot, projectHash } from '../../src/data/ledger.js';
 import { accountKeyFor } from '../../src/data/limits.js';
-import { readReportData } from '../../src/data/report-index.js';
+import { projectNamesOf, readReportData } from '../../src/data/report-index.js';
 import {
   assistantLine,
   bornAfter,
@@ -247,6 +247,42 @@ describe('report project names for hashed ledger lines', () => {
     expect(all.rows.map((r) => r.project)).toEqual([displayRoot('/w/a')]);
     const here = buildReport(data, { ...OPTS, filter: { kind: 'cwd', cwd: normalizeRoot('/w/a') } });
     expect(here.rows.map((r) => r.project)).toEqual([displayRoot('/w/a')]);
+  });
+
+  it('names a hashed project from a session that ran in a subfolder', () => {
+    const { root, cache, line, run } = setup('hash-ancestor');
+    const p = projectHash(normalizeRoot('/w/a'));
+    writeLedger(
+      '2026-10',
+      [line({ s: 'G', c: 0.001, t: D1, p }), line({ s: 'G', c: 2, t: D1 + 60_000, p })],
+      cache,
+    );
+    writeTranscript('projects/-w-a-sub/B.jsonl', [userLine({ ts: D1, cwd: '/w/a/sub' })], root);
+    const rows = buildReport(run(), { ...OPTS, filter: null }).rows.map((r) => r.project);
+    expect(rows).toContain(displayRoot('/w/a'));
+    expect(rows).not.toContain('unknown project');
+  });
+
+  it('keeps a direct name over an ancestor guess', () => {
+    const { root, cache, line, run } = setup('hash-direct');
+    const p = projectHash(normalizeRoot('/w/a'));
+    writeLedger('2026-10', [line({ c: 0.001, t: D1, p }), line({ c: 2, t: D1 + 60_000, p })], cache);
+    writeTranscript('projects/-w-a/A.jsonl', [userLine({ ts: D1, cwd: '/w/a' })], root);
+    writeTranscript('projects/-w-a-sub/B.jsonl', [userLine({ ts: D1, cwd: '/w/a/sub' })], root);
+    expect(run().projectNames?.get(p)).toBe(normalizeRoot('/w/a'));
+  });
+
+  it('projectNamesOf walks ancestors per platform and stops before the root', () => {
+    expect(projectNamesOf(['c:\\w\\a\\sub'], projectHash, 'win32').get(projectHash('c:\\w\\a'))).toBe(
+      'c:\\w\\a',
+    );
+    const root = projectNamesOf(['/'], projectHash, 'linux');
+    expect([...root.values()]).toEqual(['/']);
+    expect([...projectNamesOf(['/w/a/sub'], projectHash, 'linux').values()].sort()).toEqual([
+      '/w',
+      '/w/a',
+      '/w/a/sub',
+    ]);
   });
 
   it('keeps a legacy path line under its path without a transcript', () => {
